@@ -1,6 +1,3 @@
-
-
-
 # MRH (Markov Relevancy Horizon) Specification
 
 This document provides the formal specification for the Markov Relevancy Horizon (MRH), a core concept in Web4 that defines the dynamic context of relationships surrounding each entity. Created by Dennis Palatov to extend the information-theoretic concept of Markov blankets to explicitly encompass fractal scales, MRH enables systems to maintain context across multiple levels of organization.
@@ -63,12 +60,13 @@ class MRHNode:
     
 class MRHEdge:
     source: str              # Source LCT ID
-    target: str              # Target LCT ID  
+    target: str              # Target LCT ID
     relation: str            # Semantic relationship type
-    probability: float       # Edge weight/probability
-    distance: int            # Hop distance from origin
+    weight: float            # Edge trust weight (0.0–1.0)
     timestamp: datetime      # When relationship established
     metadata: Dict           # Edge-specific metadata
+    # Note: hop distance is computed dynamically via BFS traversal,
+    # not stored on each edge (see §3.3 horizon traversal).
 ```
 
 ## 2. Semantic Relationships in RDF
@@ -107,7 +105,7 @@ web4:oracleWitness rdfs:subPropertyOf web4:witnessedBy .
 
 ## 3. How MRH Creates Context
 
-### 2.1 Relationship Types Define Context
+### 3.1 Relationship Types Define Context
 
 Each relationship type creates different contextual meaning:
 
@@ -126,7 +124,7 @@ Each relationship type creates different contextual meaning:
   - Audit witnesses: Validate compliance
   - Oracle witnesses: Provide external data
 
-### 2.2 Context Propagation
+### 3.2 Context Propagation
 
 Context flows through the MRH via relationship chains:
 
@@ -185,26 +183,29 @@ The MRH graph updates automatically through entity interactions:
 Trust emerges from graph patterns and propagates through edges:
 
 ```python
-# Trust propagation algorithms
+# Trust propagation algorithms (conceptual structure).
+# The SDK implements these as stateless module-level functions
+# (propagate_multiplicative, propagate_probabilistic, propagate_maximal)
+# with identical mathematical semantics.
 class TrustPropagation:
-    def multiplicative(self, path: List[MRHEdge]) -> float:
+    def multiplicative(self, path: List[MRHEdge], decay_factor: float = 0.7) -> float:
         """Trust decays multiplicatively along path"""
         trust = 1.0
-        for edge in path:
-            trust *= edge.probability * (self.decay_rate ** edge.distance)
+        for i, edge in enumerate(path):
+            trust *= edge.weight * (decay_factor ** (i + 1))
         return trust
-    
-    def probabilistic(self, paths: List[List[MRHEdge]]) -> float:
+
+    def probabilistic(self, paths: List[List[MRHEdge]], decay_factor: float = 0.7) -> float:
         """Combine multiple paths probabilistically"""
         combined = 1.0
         for path in paths:
-            path_trust = self.multiplicative(path)
+            path_trust = self.multiplicative(path, decay_factor)
             combined = 1 - ((1 - combined) * (1 - path_trust))
         return combined
-    
-    def maximal(self, paths: List[List[MRHEdge]]) -> float:
+
+    def maximal(self, paths: List[List[MRHEdge]], decay_factor: float = 0.7) -> float:
         """Take highest trust path"""
-        return max(self.multiplicative(path) for path in paths)
+        return max(self.multiplicative(path, decay_factor) for path in paths)
 ```
 
 Trust patterns in the graph:
@@ -214,6 +215,8 @@ Trust patterns in the graph:
 - Central position in trust graph → Network authority
 
 ## 5. Role-Contextual T3/V3 Tensors
+
+> **Cross-reference**: For the full T3/V3 specification — root dimensions, composite weights, sub-dimension extensibility — see [`t3-v3-tensors.md`](t3-v3-tensors.md). This section describes how T3/V3 tensors integrate with MRH context through role-specific bindings.
 
 ### 5.1 Critical Principle: Trust is Role-Specific
 
@@ -236,7 +239,7 @@ _:trust1 a web4:T3Tensor ;
     web4:training 0.90 ;     # Extensive medical training (aggregate — shorthand)
     web4:temperament 0.88 .  # Consistent surgical performance (aggregate — shorthand)
 # These shorthand properties are equivalent to the full web4:hasDimensionScore
-# pattern defined in the T3/V3 ontology (web4-standard/ontology/t3v3-ontology.ttl).
+# pattern defined in the T3/V3 ontology (../ontology/t3v3-ontology.ttl).
 
 _:trust2 a web4:T3Tensor ;
     web4:entity lct:alice ;
@@ -315,7 +318,7 @@ SELECT ?entity ?trustScore WHERE {
             web4:training ?training ;
             web4:temperament ?temperament .
     
-    # Calculate composite trust score for role
+    # T3 composite weights per t3-v3-tensors.md §9.2 / §10.2 (parameter t3v3-001)
     BIND((?talent * 0.4 + ?training * 0.3 + ?temperament * 0.3) AS ?trustScore)
     FILTER(?trustScore > 0.8)
 }
@@ -360,6 +363,7 @@ ORDER BY DESC(?witness_count)
 
 ## 7. Implementation References
 
+- **Canonical SDK module**: [`web4/mrh.py`](../implementation/sdk/web4/mrh.py) — tested, integrated implementation of MRHNode, MRHEdge, MRHGraph, and trust propagation functions
 - [MRH RDF Specification](../MRH_RDF_SPECIFICATION.md) - Complete RDF implementation details
 - [MRH RDF Implementation](../mrh_rdf_implementation.py) - Python reference implementation
 - [SPARQL Query Examples](../mrh_sparql_queries.py) - Query patterns and examples
