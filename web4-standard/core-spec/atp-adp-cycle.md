@@ -151,16 +151,28 @@ ATP discharges through R6 transactions:
 }
 ```
 
+> **R6 / R7 note.** ATP→ADP discharge is an **R6** action. `r6-framework.md`
+> names ATP→ADP transactions as the canonical R6 pattern for routine work, and
+> §1.6 (Result) lists T3/V3 tensor updates as a standard R6 Result component.
+> The `t3v3_updates` above are therefore R6 Result deltas on the direct
+> participants — not evidence that discharge is R7. Discharges whose outcome
+> should feed fractal trust evolution use **R7**, which adds **Reputation** as an
+> explicit seventh output (see `r7-framework.md`, "R6 → R7 Relationship");
+> ATP→ADP spending happens in both modes.
+
 ### 2.4 Slashing (ATP Destruction)
 
 ATP can be slashed for violations:
 
 ```python
-def slash_atp(violator, amount, evidence):
+def slash_atp(caller, violator, amount, evidence):
     """
     Slash ATP for law violations or failed commitments
+
+    caller:   entity initiating the slash (must hold slashing authority)
+    violator: entity whose ATP is slashed
     """
-    # 1. Validate slashing authority
+    # 1. Validate slashing authority of the initiator (not the violator)
     if not has_slashing_authority(caller):
         raise UnauthorizedSlashing()
     
@@ -211,7 +223,7 @@ Each society maintains token pools:
     },
     "metrics": {
       "velocity": 4.2,  // Cycles per period
-      "charge_rate": 0.73,  // ATP/ADP ratio
+      "charge_rate": 0.15,  // ATP/(ATP+ADP): fraction of supply charged
       "decay_rate": 0.001,  // Per period
       "efficiency": 0.91  // Value preserved
     }
@@ -363,6 +375,10 @@ Level 3: Witnesses (1% attribution)
 Level 4: Society (0.1% attribution)
 Level 5: Parent society (0.01% attribution)
 ```
+
+The percentages shown are **illustrative defaults**, not protocol constants.
+Societies SHOULD define attribution rates in their economic laws (cf. §6.3 on
+transfer fees). Implementations MUST NOT hard-code these values.
 
 ## 5. Inter-Society Currency Exchange
 
@@ -545,6 +561,14 @@ them from the governing society's published laws.
 5. Discharging MUST occur through R6 transactions
 6. Value MUST be tracked through T3/V3 tensors
 
+> **Note on intermediate (escrow) state.** The two-state requirement above is
+> not violated by an *escrow/lock* lifecycle: ATP reserved for an in-flight
+> operation ("locked") remains ATP, not a third token state — analogous to the
+> `reserved` sub-partition of a pool (§3.1). Implementations MAY use a
+> two-phase commit (lock → commit / rollback) to prevent double-spend on
+> concurrent operations; that lifecycle is specified in `r6-framework.md`
+> (escrow in §1.5, `lock_resources` in §2.1, `release_escrow` in §2.3).
+
 ### 7.2 SHOULD Requirements
 
 1. Societies SHOULD implement demurrage
@@ -685,5 +709,21 @@ The ATP/ADP cycle creates a value system where:
 This creates an economy aligned with Web4's principles: trust through action, value through contribution, and prosperity through cooperation rather than competition.
 
 ---
+
+## References
+
+This specification cross-references the following Web4 core specs:
+
+- **R6 / R7 action grammar** — `r6-framework.md` (ATP→ADP discharge is the
+  canonical R6 action; §1.6 Result includes T3/V3 updates; escrow/lock lifecycle
+  in §1.5 / §2.1 / §2.3) and `r7-framework.md` ("R6 → R7 Relationship": R7 adds
+  Reputation as the seventh output).
+- **T3 / V3 trust and value tensors** — `t3-v3-tensors.md` and
+  `../ontology/t3v3-ontology.ttl` for the dimensions updated during charging,
+  discharging, and slashing.
+- **LCT identity** — `LCT-linked-context-token.md` for the `lct:web4:...`
+  identifiers used throughout (societies, entities, witnesses).
+- **Societies and roles** — `society-roles.md` and `SOCIETY_SPECIFICATION.md`
+  for pool governance, monetary authority, and role-scoped economic law.
 
 *"In Web4, value flows like energy through living systems—constantly cycling, never hoarded, always creating."*
