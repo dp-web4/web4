@@ -234,11 +234,17 @@ def transfer(
     sender: ATPAccount,
     receiver: ATPAccount,
     amount: float,
-    fee_rate: float = 0.05,
+    fee_rate: float = 0.0,
     max_balance: Optional[float] = None,
 ) -> TransferResult:
     """
     Transfer ATP between accounts (test vectors atp-001 through atp-003).
+
+    Fees are NOT a protocol constant. Per atp-adp-cycle.md §6.3, ATP transfers
+    are "fee-free at the protocol level" and implementations "MUST NOT hard-code
+    fee rates" — so the default is 0.0. A society that levies a transfer fee as
+    economic law passes its declared rate explicitly (the "5%" used in the atp
+    test vectors and sims is a *simulation parameter*, not a protocol default).
 
     Fee is charged to sender ON TOP of the transfer amount.
     If max_balance is set, overflow is returned to sender.
@@ -345,6 +351,12 @@ def sybil_cost(
     Sybil attack cost analysis (test vector atp-011).
 
     Returns setup cost and per-cycle circular flow loss.
+
+    Note: unlike transfer(), the fee_rate here is a *simulation parameter*
+    modelling a hypothetical society's economic law (per atp-adp-cycle.md §6.3 —
+    "5% transfer fee" is an explicit simulation value, not a protocol constant).
+    The 0.05 default reproduces test vector atp-011; pass the modelled society's
+    declared rate for other analyses.
     """
     per_identity = hardware_cost + atp_stake
     total_setup = num_identities * per_identity
