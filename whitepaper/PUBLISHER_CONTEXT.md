@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-05-22
+**Last Updated**: 2026-05-24
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,22 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-05-24: Publisher Maintenance - No-Change Check (C-series audit/remediation runs continue at higher cadence; C8/C9/C10/C11 all audit+remediation same-week; no whitepaper relevance)
+- Eight commits since the 2026-05-22 no-change check (993e974), all the same C-series internal-consistency audit/remediation stream that has dominated the web4 stream since 2026-05-15. **None touch `whitepaper/sections/*`.** The cadence has compressed from "audit-then-defer" (2026-05-22 C8) to "audit-and-remediate-same-day" (2026-05-23 C9/C10/C11 all both audited and remediated). All eight commits:
+  - **#219 (fff0748, 2026-05-22) — C8 entity-types.md remediation (9 of 10 audit findings):** Resolves the 2026-05-22 C8 audit's HIGH section-numbering corruption and most MEDIUM/LOW findings. 61 insertions / 55 deletions across 2 files. L1 specifically converts "blockchain" pseudocode comment to "immutable ledger," aligned with the audit; no protocol-surface change. Closes the watch item "C8 entity-types.md remediation pending" from the 2026-05-22 pass.
+  - **#220+#221 (ad9db39, 2026-05-22) — C7 residual cross-reference defects in society-roles.md:** 2 insertions / 2 deletions. Editorial cleanup of cross-references missed in the original C7 remediation. Same spec, no protocol surface change.
+  - **#222 (09f6f2b, 2026-05-23) — C9 LCT-linked-context-token.md internal-consistency audit (8 findings):** Analysis-only artifact at `docs/audits/lct-internal-consistency-2026-05-23.md` (293 insertions, single file). Same instrument as C2/C5/C6/C7/C8. **C9 reaches into the load-bearing primitives now** — LCT is the canonical-equation `LCT` symbol; auditing the LCT spec doc is structurally important, but the audit itself is analysis, not protocol change.
+  - **#223 (e2c6bc6, 2026-05-23) — C10 mrh-tensors.md internal-consistency audit (9 findings):** Analysis-only memo (222 insertions). Same C-series instrument. MRH is `web4-standard/core-spec/mrh-tensors.md`, the second load-bearing primitive in the canonical equation; same audit-then-remediate pattern.
+  - **#224 (a7d6143, 2026-05-23) — C11 atp-adp-cycle.md internal-consistency audit (9 findings):** Analysis-only memo (308 insertions). Third load-bearing primitive in the same day; the audit instrument is now sweeping the entire canonical-equation primitive set systematically.
+  - **#225 (2088a88, 2026-05-23) — C9 LCT remediation (all 8 findings):** Same-day remediation of the C9 audit. 17 insertions / 9 deletions in `LCT-linked-context-token.md`. M4 fix: §3.2 step 5 changed from `issuing_society = null` to omit the field (presence-by-absence over explicit-null convention). Editorial remediation; no wire-shape change.
+  - **#226 (a94bc80, 2026-05-23) — C10 mrh-tensors remediation (9 findings):** Same-day remediation. 24 insertions / 20 deletions. Editorial; no protocol surface change.
+  - **#227 (3873751, 2026-05-23) — C11 atp-adp-cycle remediation (audit findings):** Same-day remediation. 43 insertions / 3 deletions in `atp-adp-cycle.md`. The largest of today's remediations by line count (net +40); reviewing the diff shows added clarifying prose and normative tightening — no new fields, no wire-format change. ATP/ADP shape unchanged.
+- **C-series instrument now sweeps the entire canonical-equation primitive set**: C2 (mcp-protocol/`MCP`), C5 (presence-protocol/inward-MCP), C6 (inter-society-protocol/MCP-as-outward), C7 (society-roles), C8 (entity-types), C9 (LCT), C10 (MRH), C11 (ATP/ADP). The remaining canonical-equation primitives are RDF (`web4-standard/ontology/*.ttl`) and T3/V3 (`t3-v3-tensors.md`). Worth watching whether C12/C13 land next week and complete the sweep — this would be a milestone in the spec-corpus internal-consistency phase.
+- **No source section changes since the 2026-05-19 build.** Verified: no commits touch `whitepaper/sections/*` since 42e3e47 (2026-05-19); `build/WEB4_Whitepaper_Complete.md` and `docs/whitepaper-web/WEB4_Whitepaper_Complete.md` both 254811 bytes, dated 2026-05-19, identical, aligned with current source. No rebuild needed.
+- **Live whitepaper sections verified clean of canonical-term drift** — grep for the documented wrong expansions across live `sections/*` (excluding archive) returns zero hits.
+- Remaining watch items carry forward unchanged: presence-protocol DEFER (inward MCP, still evolving); §7.7 promotion gate (Normative + 2 implementations); inter-society-protocol Part 6/Part 8 body integration (gated on C6 editorial remediation); v0.28.0 → PyPI integration trigger; Sprint 52 conformance gaps (5 operator-architectural decisions). New watch item: **C12/C13 (RDF ontology / T3-V3 tensors) audits expected** if the C-series sweep continues at the established cadence.
+- Surface instinct: eight consecutive web4 passes (2026-05-15 → 2026-05-24) on SDK/conformance/audit/release-record discipline with zero whitepaper-body integration. The C-series sweep has reached the load-bearing canonical-equation primitives (LCT/MRH/ATP-ADP all audited+remediated on a single day) and the cadence has compressed from audit-then-defer to audit-and-remediate-same-day. This is the spec corpus earning *complete* internal consistency before the next major release surface; same pattern as the Synchronism side's "discipline of waiting for the canonical registry surface before integrating," just applied to the spec rather than the implementation. The next genuine whitepaper integration trigger is unchanged: a registry publish (v0.28.0 → PyPI) or §7.7 reaching Normative. Hold.
 
 ### 2026-05-22: Publisher Maintenance - No-Change Check (C7/C8 audits complete the May-2026 spec audit sweep; no whitepaper relevance)
 - Three commits since the 2026-05-21 no-change check (#214, 088a0d6), all the same C-series internal-consistency audit/remediation stream, **none touching `whitepaper/sections/*`**:
