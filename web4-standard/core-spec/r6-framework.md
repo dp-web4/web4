@@ -228,29 +228,29 @@ def validate_r6_action(r6_action):
     # 1. Verify actor has required role
     if not verify_role_pairing(r6_action.role):
         raise InvalidRole("Actor not paired with specified role")
-    
+
     # 2. Check for agency delegation if acting as agent
     if r6_action.request.get('proofOfAgency'):
         if not verify_agency_grant(r6_action.request.proofOfAgency):
             raise InvalidAgency("Invalid or expired agency grant")
         if not check_agency_scope(r6_action.request, r6_action.request.proofOfAgency):
             raise AgencyScopeViolation("Action outside delegated scope")
-    
+
     # 3. Check rules compliance
     if not check_law_compliance(r6_action.rules, r6_action.request):
         raise RuleViolation("Request violates active rules")
-    
+
     # 4. Verify resource availability (including agency caps)
     if not check_resources(r6_action.resource.required):
         raise InsufficientResources("Cannot fulfill resource requirements")
-    
+
     # 5. Validate references
     if not verify_references(r6_action.reference):
         raise InvalidReference("Referenced precedents/witnesses invalid")
-    
+
     # 6. Lock resources (escrow)
     escrow_lock = lock_resources(r6_action.resource.escrow)
-    
+
     return ValidationResult(valid=True, escrow=escrow_lock)
 ```
 
@@ -260,7 +260,7 @@ def execute_r6_action(r6_action, validation_result):
     # 1. Begin metered execution
     meter = ResourceMeter()
     meter.start()
-    
+
     # 2. Execute with role context
     with role_context(r6_action.role):
         try:
@@ -270,21 +270,21 @@ def execute_r6_action(r6_action, validation_result):
                 r6_action.reference,
                 r6_action.rules
             )
-            
+
             # 4. Validate output against rules
             if not validate_output(raw_result, r6_action.rules):
                 raise OutputViolation("Result violates output constraints")
-            
+
             # 5. Stop metering
             resources_used = meter.stop()
-            
+
             # 6. Create result object
             result = create_r6_result(
                 status="success",
                 output=raw_result,
                 resources=resources_used
             )
-            
+
         except Exception as e:
             meter.stop()
             result = create_r6_result(
@@ -292,7 +292,7 @@ def execute_r6_action(r6_action, validation_result):
                 error=str(e),
                 resources=meter.get_partial()
             )
-    
+
     return result
 ```
 
@@ -304,7 +304,7 @@ def settle_r6_action(r6_action, result):
         result.resourceConsumed,
         r6_action.resource.pricing
     )
-    
+
     # 2. Settle ATP transfers
     if result.status == "success":
         transfer_atp(
@@ -317,18 +317,18 @@ def settle_r6_action(r6_action, result):
         # Partial refund on failure
         refund = calculate_refund(r6_action.resource.escrow, result)
         release_escrow(refund, "failed")
-    
+
     # 3. Update tensors
     update_t3_v3_tensors(
         entity=r6_action.role.actor,
         role_lct=r6_action.role.roleLCT,
         updates=result.tensorUpdates
     )
-    
+
     # 4. Record to ledger
     ledger_entry = create_ledger_entry(r6_action, result)
     proof = write_to_ledger(ledger_entry, witnesses=get_witnesses())
-    
+
     # 5. Update MRH
     update_mrh_with_action(
         r6_action.role.actor,
@@ -336,7 +336,7 @@ def settle_r6_action(r6_action, result):
         result,
         proof
     )
-    
+
     return SettlementResult(proof=proof, final_cost=final_cost)
 ```
 
@@ -586,10 +586,19 @@ The R6 framework can evolve through:
 
 The R6 framework provides:
 - **Complete** action specification (nothing ambiguous)
-- **Deterministic** execution (same input → same output)
+- **Deterministic** settlement (same inputs + execution outcome → same settlement)
 - **Auditable** transactions (all on ledger)
 - **Role-contextual** operations (no global permissions)
 - **Resource-bounded** execution (no unbounded consumption)
 - **Law-integrated** validation (SAL compliance built-in)
 
 Every Web4 transaction is an R6 action, making the entire system consistent, predictable, and verifiable.
+
+## 10. References
+
+- [r7-framework.md](r7-framework.md) — R7 superset with explicit reputation tracking and back-propagation
+- [atp-adp-cycle.md](atp-adp-cycle.md) — ATP/ADP token lifecycle, value mechanics, and conservation invariants
+- [t3-v3-tensors.md](t3-v3-tensors.md) — T3 (Trust) and V3 (Value) tensor definitions and update mechanics
+- [mrh-tensors.md](mrh-tensors.md) — Markov Relevancy Horizon graph structure and trust propagation
+- [society-roles.md](society-roles.md) — Role definitions, tier structure, and role pairing lifecycle
+- [SOCIETY_SPECIFICATION.md](SOCIETY_SPECIFICATION.md) — Society-Authority-Law (SAL) governance framework
