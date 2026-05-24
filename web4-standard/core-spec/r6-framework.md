@@ -2,7 +2,7 @@
 
 ## Overview
 
-R6 is the **base action grammar** for Web4. ATP→ADP transactions follow this pattern for **routine, low-consequence tasks** that don't merit reputation tracking — the cheap default mode.
+R6 is the **base action grammar** for Web4. ATP→ADP transactions follow this pattern for **routine, low-consequence tasks** that don't merit explicit, first-class reputation tracking — the cheap default mode. (R6 Results do include implicit tensor updates via `tensorUpdates` in §1.6; R7 adds the full reputation machinery: role-contextualized, witnessed, attributed, ledger-recorded.)
 
 For consequential actions where the outcome should shape future trust, use [R7](r7-framework.md) — a superset of R6 that adds reputation back-propagation.
 
@@ -57,18 +57,23 @@ Each component is essential and together they form a complete, deterministic act
 {
   "role": {
     "actor": "lct:web4:entity:alice",
-    "roleType": "web4:DataAnalyst",
-    "roleLCT": "lct:web4:role:analyst:...",
+    "roleLCT": "lct:web4:role:analyst_financial_q4:abc123",
     "pairedAt": "2025-09-15T12:00:00Z",
-    "scopeContext": "financial_analysis",
     "t3InRole": {
       "talent": 0.85,
       "training": 0.90,
       "temperament": 0.88
+    },
+    "v3InRole": {
+      "veracity": 0.92,
+      "validity": 0.88,
+      "value": 0.85
     }
   }
 }
 ```
+
+**Note**: Both T3 (trust) and V3 (value) tensors are stored on the MRH role pairing link. There is no global reputation — all reputation is role-contextualized. The `roleLCT` encodes the domain-specific context (e.g., `analyst_financial_q4`) within the LCT identifier itself.
 
 ### 1.3 Request
 **Definition**: The specific action intent and parameters.
@@ -303,7 +308,7 @@ def settle_r6_action(r6_action, result):
     # 2. Settle ATP transfers
     if result.status == "success":
         transfer_atp(
-            from=r6_action.role.actor,
+            sender=r6_action.role.actor,
             to=resource_providers,
             amount=final_cost
         )
@@ -316,7 +321,7 @@ def settle_r6_action(r6_action, result):
     # 3. Update tensors
     update_t3_v3_tensors(
         entity=r6_action.role.actor,
-        role=r6_action.role.roleType,
+        role_lct=r6_action.role.roleLCT,
         updates=result.tensorUpdates
     )
     
@@ -351,7 +356,7 @@ The R6 framework integrates tightly with the Society-Authority-Law layer:
 ## 4. R6 Security Properties
 
 ### 4.1 Determinism
-Given the same R6 inputs, the result must be identical across all valid implementations.
+Given the same R6 inputs **and execution outcome**, the settlement (resource accounting, tensor updates, ledger entry) must be identical across all valid implementations. The determinism guarantee applies to the R6 framework's processing, not to the underlying action execution which may depend on external factors (hardware, network state, nondeterministic algorithms).
 
 ### 4.2 Non-repudiation
 All R6 actions are signed and recorded on the immutable ledger with witness attestations.
@@ -372,7 +377,7 @@ Resource transfers and tensor updates either fully complete or fully roll back.
 {
   "type": "query",
   "rules": {"lawHash": "..."},
-  "role": {"roleType": "web4:Reader"},
+  "role": {"roleLCT": "lct:web4:role:reader:..."},
   "request": {"action": "read", "target": "data:..."},
   "reference": {"precedents": []},
   "resource": {"required": {"atp": 1}},
@@ -385,7 +390,7 @@ Resource transfers and tensor updates either fully complete or fully roll back.
 {
   "type": "trust_query",
   "rules": {"constraints": [{"type": "atp_minimum", "value": 100}]},
-  "role": {"roleType": "web4:Investigator"},
+  "role": {"roleLCT": "lct:web4:role:investigator:..."},
   "request": {
     "action": "query_trust",
     "target": "lct:web4:entity:...",
@@ -395,8 +400,7 @@ Resource transfers and tensor updates either fully complete or fully roll back.
   "reference": {"mrhContext": {"depth": 2}},
   "resource": {"escrow": {"amount": 100}},
   "result": {
-    "output": {"t3InRole": {...}},
-    "commitment": "must_engage_or_forfeit"
+    "output": {"t3InRole": {...}, "commitment": "must_engage_or_forfeit"}
   }
 }
 ```
@@ -406,7 +410,7 @@ Resource transfers and tensor updates either fully complete or fully roll back.
 {
   "type": "compute",
   "rules": {"permissions": ["execute"]},
-  "role": {"roleType": "web4:DataScientist"},
+  "role": {"roleLCT": "lct:web4:role:data_scientist:..."},
   "request": {
     "action": "train_model",
     "parameters": {"dataset": "...", "algorithm": "..."}
@@ -427,7 +431,7 @@ Resource transfers and tensor updates either fully complete or fully roll back.
 {
   "type": "delegation",
   "rules": {"lawHash": "...", "society": "..."},
-  "role": {"roleType": "web4:Authority"},
+  "role": {"roleLCT": "lct:web4:role:authority:..."},
   "request": {
     "action": "delegate",
     "target": "lct:web4:subauthority:...",
@@ -447,7 +451,7 @@ Resource transfers and tensor updates either fully complete or fully roll back.
 {
   "type": "agency_action",
   "rules": {"lawHash": "...", "agencyGrant": "agy:..."},
-  "role": {"roleType": "web4:Agent", "actingFor": "lct:web4:client:..."},
+  "role": {"roleLCT": "lct:web4:role:agent:...", "actingFor": "lct:web4:client:..."},
   "request": {
     "action": "approve_invoice",
     "target": "invoice:123",
@@ -474,20 +478,22 @@ Resource transfers and tensor updates either fully complete or fully roll back.
       "client": "lct:web4:client:...",
       "grantUsed": "agy:..."
     },
-    "tensorUpdates": {
-      "agent_t3": {"temperament": +0.01},
-      "client_v3": {"validity": +0.005}
-    }
+    "tensorUpdates": [
+      {"entity": "lct:web4:agent:...", "t3": {"temperament": +0.01}},
+      {"entity": "lct:web4:client:...", "v3": {"validity": +0.005}}
+    ]
   }
 }
 ```
+
+**Note on multi-party tensor attribution**: Agency-delegated actions affect multiple parties. The `tensorUpdates` array uses explicit per-entity attribution with standard `t3`/`v3` keys (matching §1.6 Result format). For consequential agency actions, prefer R7's `ReputationDelta` per-party model which provides full attribution, witnessing, and ledger recording.
 
 ## 6. R6 Implementation Requirements
 
 ### MUST Requirements
 1. All actions MUST follow the complete R6 structure
 2. All components MUST be present (even if empty)
-3. Results MUST be deterministic given inputs
+3. Settlement MUST be deterministic given inputs and execution outcome
 4. Failed actions MUST still produce valid R6 results
 5. All R6 transactions MUST be written to ledger
 
@@ -506,6 +512,10 @@ Resource transfers and tensor updates either fully complete or fully roll back.
 
 ## 7. R6 Error Handling
 
+R6 distinguishes two non-success statuses:
+- **`error`**: Pre-execution validation failures — the action was never attempted (e.g., insufficient resources, invalid role, malformed request).
+- **`failure`**: Execution-time errors — the action was attempted but did not succeed (e.g., runtime error, output constraint violation).
+
 ### Error Categories
 ```python
 class R6Error(Exception):
@@ -513,22 +523,24 @@ class R6Error(Exception):
 
 class RuleViolation(R6Error):
     """Action violates governing rules"""
-    
+
 class RoleUnauthorized(R6Error):
     """Actor lacks required role or permissions"""
-    
+
 class RequestMalformed(R6Error):
     """Request structure or parameters invalid"""
-    
+
 class ReferenceInvalid(R6Error):
     """Referenced entities not found or invalid"""
-    
+
 class ResourceInsufficient(R6Error):
     """Required resources unavailable"""
-    
+
 class ResultInvalid(R6Error):
     """Result violates output constraints"""
 ```
+
+**SDK note**: In implementations that support both R6 and R7, the error hierarchy may use a shared base class. The SDK uses `R7Error` as the common base, since R7 is a superset of R6. A pure R6 implementation would define `R6Error` as shown above.
 
 ### Error R6 Result
 ```json
