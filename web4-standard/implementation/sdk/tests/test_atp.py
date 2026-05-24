@@ -291,6 +291,18 @@ class TestTransfer:
         assert sender.available == pytest.approx(50.0)
         assert receiver.available == pytest.approx(50.0)
 
+    def test_transfer_default_is_fee_free(self):
+        # Per atp-adp-cycle.md §6.3, ATP transfers are "fee-free at the protocol
+        # level" and implementations "MUST NOT hard-code fee rates". The default
+        # must therefore charge zero fee. (Distinct from test_transfer_zero_fee,
+        # which passes fee_rate=0.0 explicitly; this guards the *default*.)
+        sender = ATPAccount(available=100.0)
+        receiver = ATPAccount(available=0.0)
+        result = transfer(sender, receiver, 50.0)  # no fee_rate → protocol default
+        assert result.fee == pytest.approx(0.0)
+        assert sender.available == pytest.approx(50.0)
+        assert receiver.available == pytest.approx(50.0)
+
     def test_transfer_result_fields(self):
         sender = ATPAccount(available=1000.0)
         receiver = ATPAccount(available=0.0)
