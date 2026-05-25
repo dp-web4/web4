@@ -60,18 +60,6 @@ The T3 Tensor measures an entity's trustworthiness through three capability dime
         "temperament": 0.50
       }
     },
-    "contextual": {
-      "data_analysis": {
-        "talent": 0.85,
-        "training": 0.90,
-        "temperament": 0.95
-      },
-      "project_management": {
-        "talent": 0.65,
-        "training": 0.70,
-        "temperament": 0.91
-      }
-    },
     "evolution": [
       {
         "timestamp": "2025-01-11T15:00:00Z",
@@ -102,6 +90,20 @@ T3 scores evolve based on R6 action outcomes:
 | Expected Failure | -0.01 | 0 | 0 |
 | Unexpected Failure | -0.02 | -0.01 | -0.02 |
 | Ethics Violation | -0.05 | 0 | -0.10 |
+
+#### Continuous Quality-Formula Updates
+
+In addition to the categorical outcome table above, T3 dimensions support a
+continuous update formula for fine-grained quality-based adjustments:
+
+- **Formula**: `delta = 0.02 × (quality − 0.5)` where `quality` is in [0, 1]
+- **Dimension factors**: talent=1.0, training=0.8, temperament=0.6 (each dimension's delta is scaled by its factor)
+
+The two mechanisms serve different purposes: the **outcome table** classifies
+actions into discrete categories for reporting and policy (e.g., "Novel Success",
+"Ethics Violation"), while the **quality formula** provides continuous,
+fine-grained trust updates per individual action quality. They are complementary
+— implementations MAY use either or both depending on context.
 
 #### Decay and Refresh
 
@@ -185,6 +187,15 @@ The V3 Tensor quantifies value creation through three verification dimensions:
 - **Measures**: Perceived value by recipients
 - **Updates**: Each transaction adds to history
 - **Context**: Recipient-specific and use-case dependent
+
+> **Open question (C13/M4):** The Valuation range is a 3-way divergence
+> requiring operator decision. The spec (here) and ontology (`t3v3-ontology.ttl`
+> line 90: "may exceed for value") agree that Valuation can exceed 1.0. However,
+> the SDK (`trust.py` `V3.__post_init__`) clamps all V3 dimensions to [0.0, 1.0],
+> and test vector t3v3-002 assumes normalized [0,1] inputs for meaningful composite
+> scores. Resolving this requires deciding: should Valuation be clamped (changing
+> the spec and ontology) or unbounded (changing the SDK and potentially the test
+> vector)? This is a semantic design decision, not a bug fix.
 
 #### Veracity (Objective Accuracy)
 - **Range**: 0.0 to 1.0
@@ -327,6 +338,13 @@ _:tensor1 web4:hasDimensionScore [
 
 Both the shorthand (`web4:talent 0.95`) and full (`web4:hasDimensionScore`) forms are valid. See [Section 2.4](#24-fractal-sub-dimensions) for how sub-dimensions extend these root scores.
 
+> **Note on V3 entity-role binding:** The ontology (`t3v3-ontology.ttl`) declares
+> `web4:entity` and `web4:role` with domain `web4:T3Tensor` only. V3 tensors
+> derive their entity-role context from the co-located T3Tensor for the same
+> entity-role pair, rather than carrying independent `web4:entity`/`web4:role`
+> properties. This avoids domain violations in RDF validators while preserving
+> the §1.1 principle that both T3 and V3 are role-contextual.
+
 ### 5.3 Role-Aware Value Pricing
 
 ATP costs derived from role-specific V3 expectations:
@@ -441,7 +459,7 @@ SELECT ?entity ?role ?trust WHERE {
             web4:training ?tr ;
             web4:temperament ?tm .
     
-    BIND((?t * 0.3 + ?tr * 0.4 + ?tm * 0.3) AS ?trust)
+    BIND((?t * 0.4 + ?tr * 0.3 + ?tm * 0.3) AS ?trust)
 }
 ORDER BY DESC(?trust)
 LIMIT 1
@@ -501,8 +519,15 @@ These values are fixed by the specification. All conforming implementations
 MUST produce identical results (enforced by cross-language test vectors in
 `web4-standard/test-vectors/t3v3/tensor-operations.json`).
 
-| Parameter | Value | Spec reference | Test vector |
-|-----------|-------|----------------|-------------|
+**This table is the normative source** for all protocol-invariant formulas,
+weights, and constants listed below. The "Related context" column identifies
+where the parameter is discussed or motivated in the spec body, but the
+authoritative values are those stated in this table. Where a parameter has
+no related context ("—"), the table row and its corresponding test vector
+constitute the complete normative definition.
+
+| Parameter | Value | Related context | Test vector |
+|-----------|-------|-----------------|-------------|
 | T3 composite weights | talent=0.4, training=0.3, temperament=0.3 | §9.2 | t3v3-001 |
 | V3 composite weights | valuation=0.3, veracity=0.35, validity=0.35 | §3.3 | t3v3-002 |
 | T3 update formula | `0.02 × (quality − 0.5)` | §2.3 | t3v3-003 |
@@ -512,8 +537,8 @@ MUST produce identical results (enforced by cross-language test vectors in
 | Diminishing returns formula | `base_factor^(n−1)`, base=0.8, floor=0.1 | §7.1 | t3v3-007 |
 | 6D-to-3D bridge formula | primary×0.6 + secondary×(0.4/3) | — | t3v3-008 |
 | V3 calculation | valuation=(earned/expected)×satisfaction; veracity=(verified/total)×confidence; validity=1.0 if transferred else 0.0 | §3.3 | t3v3-014 |
-| Operational health formula | t3_composite×0.4 + v3_composite×0.3 + energy_ratio×0.3 | — | t3v3-010 |
-| ATP conservation | total supply = ATP + ADP (invariant) | [`atp-adp-cycle.md`](atp-adp-cycle.md) §7.1 | — |
+| Operational health formula | t3_composite×0.4 + v3_composite×0.3 + energy_ratio×0.3 (note: test vector t3v3-010 labels this "coherence" — this is **not** identity coherence C×S×Phi×R from the whitepaper; it measures operational health) | — | t3v3-010 |
+| ATP conservation | total supply = ATP + ADP (invariant) | [`atp-adp-cycle.md`](atp-adp-cycle.md) §6.3 + §7.1 | — |
 
 ### 10.3 Society-Configurable Parameters
 
