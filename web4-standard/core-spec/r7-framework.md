@@ -77,7 +77,7 @@ Each component is essential. Together they form a complete, deterministic action
     "v3InRole": {
       "veracity": 0.92,
       "validity": 0.88,
-      "value": 0.85
+      "valuation": 0.85
     }
   }
 }
@@ -190,7 +190,7 @@ Each component is essential. Together they form a complete, deterministic action
 ```
 
 ### 1.6 Result
-**Definition**: The deterministic outcome of the action execution.
+**Definition**: The recorded outcome of the action execution. The Result is recorded deterministically, but the underlying execution and its measured resource consumption (e.g., `resourceConsumed`) reflect actual runtime and are not required to be bit-identical across implementations (see §4.1).
 
 **Components**:
 - Success/failure status
@@ -225,6 +225,20 @@ Each component is essential. Together they form a complete, deterministic action
 }
 ```
 
+**Status values** (normative): the Result `status` field MUST be one of the following lifecycle states, aligned with the SDK `ActionStatus` enum:
+
+| Value | Meaning |
+|-------|---------|
+| `pending` | Action created, not yet validated. |
+| `validated` | Passed pre-execution validation (§2.1), not yet executed. |
+| `in_progress` | Execution under way (metered). |
+| `success` | Executed; output passed rule/output validation. |
+| `failure` | Executed, but the action produced an unsuccessful outcome (e.g., output violated constraints). The action ran. |
+| `error` | The framework or execution faulted before producing a valid outcome (e.g., pre-execution rejection such as insufficient resources, or an unhandled execution exception). |
+| `cancelled` | Aborted before completion. |
+
+`failure` and `error` are **distinct**: `failure` means the action ran and its result was unsuccessful; `error` means the action could not complete (validation/resource/exception fault). Both `failure` and `error` actions still produce a valid R7 Result with reputation (see §6 MUST #4). The §2.2 execution-exception branch reports `failure` for output-constraint violations and `error` for framework/system faults; the §7 examples illustrate the `error` form.
+
 ### 1.7 Reputation
 **Definition**: The explicit trust and value changes resulting from the action.
 
@@ -238,10 +252,12 @@ Each component is essential. Together they form a complete, deterministic action
 - **Request context** (what action was performed)
 - Trust tensor deltas (T3 changes on this role pairing)
 - Value tensor deltas (V3 changes on this role pairing)
+- Rule triggered (which reputation rule fired)
 - Reason and attribution
 - Contributing factors
 - Witnesses to the change
-- Net magnitude
+- Net trust change and net value change
+- Timestamp
 
 **Structure**:
 ```json
@@ -358,10 +374,20 @@ def execute_r7_action(r7_action, validation_result):
                 resources=resources_used
             )
 
-        except Exception as e:
+        except OutputViolation as e:
+            # Action ran but produced an unsuccessful outcome → "failure"
             meter.stop()
             result = create_r7_result(
                 status="failure",
+                error=str(e),
+                resources=meter.get_partial()
+            )
+
+        except Exception as e:
+            # Framework/execution fault before a valid outcome → "error"
+            meter.stop()
+            result = create_r7_result(
+                status="error",
                 error=str(e),
                 resources=meter.get_partial()
             )
@@ -394,7 +420,11 @@ def compute_reputation_delta(r7_action, result):
         role_pairing_in_mrh=mrh_role_link,
         action_type=r7_action.request.action,
         action_target=r7_action.request.target,
-        action_id=result.ledgerProof.txHash
+        # Source from the action's own pre-assigned id (the request nonce),
+        # NOT the ledger txHash: the ledger entry is written only later in
+        # settlement (§2.4), and failed actions (§6 MUST #4) have no
+        # ledgerProof. The ledger txHash is recorded separately on write.
+        action_id=r7_action.request.nonce
     )
 
     # 1. Determine which rules trigger reputation changes
@@ -478,7 +508,7 @@ def settle_r7_action(r7_action, result):
     # 2. Settle ATP transfers
     if result.status == "success":
         transfer_atp(
-            from=r7_action.role.actor,
+            sender=r7_action.role.actor,
             to=resource_providers,
             amount=final_cost
         )
@@ -535,13 +565,13 @@ The R7 framework integrates tightly with the Society-Authority-Law layer:
 | **Request** | Must comply with society's laws, proof-of-agency for delegated actions | Quorum checks, rate limits |
 | **Reference** | Law interpretations and precedents, agency grants | Oracle rulings cached |
 | **Resource** | ATP caps and pricing from law, agency resource caps | Metering enforced |
-| **Result** | Auditor can adjust based on evidence | Witness attestations required |
+| **Result** | Auditor reviews evidence; corrections are issued as a *new* corrective R7 action — the original Result stays immutable per §4.2 | Witness attestations required |
 | **Reputation** | Law defines reputation rules and thresholds | Observable trust mechanics |
 
 ## 4. R7 Security Properties
 
 ### 4.1 Determinism
-Given the same R7 inputs, the result and reputation must be identical across all valid implementations.
+Given the same R7 inputs **and the same Result**, the settlement and reputation delta must be identical across all valid implementations. The determinism guarantee applies to the R7 framework's reputation computation and settlement, not to the underlying action execution — which may depend on external factors (hardware, network state, nondeterministic algorithms) — nor to the measured resource consumption recorded in the Result.
 
 ### 4.2 Non-repudiation
 All R7 actions are signed and recorded on the immutable ledger with witness attestations.
@@ -553,7 +583,7 @@ Resource consumption cannot exceed pre-declared limits, preventing denial-of-ser
 Actions are strictly scoped to the permissions of the role under which they execute.
 
 ### 4.5 Atomic Settlement
-Resource transfers and tensor updates either fully complete or fully roll back.
+Resource transfers and tensor updates either fully complete or fully roll back. The settlement steps in §2.4 (ATP transfer, escrow release, reputation computation, tensor updates, and ledger write) execute within a single atomic boundary; the §2.4 pseudocode shows the logical sequence, not the transaction/rollback scaffolding that enforces this all-or-nothing commitment.
 
 ### 4.6 Reputation Observability (R7 Addition)
 All reputation changes are explicit, witnessed, and auditable. Trust-building is transparent.
@@ -565,7 +595,7 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
 {
   "type": "query",
   "rules": {"lawHash": "..."},
-  "role": {"roleType": "web4:Reader"},
+  "role": {"roleLCT": "lct:web4:role:reader:..."},
   "request": {"action": "read", "target": "data:..."},
   "reference": {"precedents": []},
   "resource": {"required": {"atp": 1}},
@@ -575,6 +605,7 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
   },
   "reputation": {
     "subject_lct": "lct:web4:entity:reader",
+    "role_lct": "lct:web4:role:reader:...",
     "action_id": "txn:0x...",
     "t3_delta": {},
     "v3_delta": {"validity": {"change": +0.001, "from": 0.95, "to": 0.951}},
@@ -590,7 +621,7 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
 {
   "type": "trust_query",
   "rules": {"constraints": [{"type": "atp_minimum", "value": 100}]},
-  "role": {"roleType": "web4:Investigator"},
+  "role": {"roleLCT": "lct:web4:role:investigator:..."},
   "request": {
     "action": "query_trust",
     "target": "lct:web4:entity:...",
@@ -606,6 +637,7 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
   },
   "reputation": {
     "subject_lct": "lct:web4:entity:investigator",
+    "role_lct": "lct:web4:role:investigator:...",
     "action_id": "txn:0x...",
     "rule_triggered": "high_value_trust_query",
     "t3_delta": {
@@ -642,7 +674,7 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
     "v3InRole": {
       "veracity": 0.90,
       "validity": 0.92,
-      "value": 0.88
+      "valuation": 0.88
     }
   },
   "request": {
@@ -697,7 +729,7 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
 {
   "type": "delegation",
   "rules": {"lawHash": "...", "society": "..."},
-  "role": {"roleType": "web4:Authority"},
+  "role": {"roleLCT": "lct:web4:role:authority:..."},
   "request": {
     "action": "delegate",
     "target": "lct:web4:subauthority:...",
@@ -712,6 +744,7 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
   },
   "reputation": {
     "subject_lct": "lct:web4:authority:delegator",
+    "role_lct": "lct:web4:role:authority:...",
     "action_id": "txn:0x...",
     "rule_triggered": "authority_delegation",
     "t3_delta": {
@@ -739,7 +772,7 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
 {
   "type": "agency_action",
   "rules": {"lawHash": "...", "agencyGrant": "agy:..."},
-  "role": {"roleType": "web4:Agent", "actingFor": "lct:web4:client:..."},
+  "role": {"roleLCT": "lct:web4:role:agent:...", "actingFor": "lct:web4:client:..."},
   "request": {
     "action": "approve_invoice",
     "target": "invoice:123",
@@ -770,6 +803,7 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
   },
   "reputation": {
     "subject_lct": "lct:web4:agent:...",
+    "role_lct": "lct:web4:role:agent:...",
     "action_id": "txn:0x...",
     "rule_triggered": "successful_agency_action",
     "t3_delta": {
@@ -797,7 +831,7 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
 ### MUST Requirements
 1. All actions MUST follow the complete R7 structure
 2. All seven components MUST be present (even if empty)
-3. Results and reputation MUST be deterministic given inputs
+3. Reputation and settlement MUST be deterministic given the inputs **and the Result** (the action execution and its measured resource consumption need not be deterministic — see §4.1)
 4. Failed actions MUST still produce valid R7 results with reputation
 5. All R7 transactions MUST be written to ledger
 6. **Reputation MUST be computed and returned explicitly (R7 requirement)**
@@ -913,7 +947,7 @@ Legacy R6 implementations can upgrade by:
 
 The R7 framework provides:
 - **Complete** action specification (nothing ambiguous)
-- **Deterministic** execution (same input → same output + reputation)
+- **Deterministic** settlement and reputation (same inputs + Result → same reputation delta + settlement; see §4.1)
 - **Auditable** transactions (all on ledger)
 - **Role-contextual** operations (no global permissions)
 - **Resource-bounded** execution (no unbounded consumption)
