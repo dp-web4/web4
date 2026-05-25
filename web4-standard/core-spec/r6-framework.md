@@ -351,7 +351,7 @@ The R6 framework integrates tightly with the Society-Authority-Law layer:
 | **Request** | Must comply with society's laws, proof-of-agency for delegated actions | Quorum checks, rate limits |
 | **Reference** | Law interpretations and precedents, agency grants | Oracle rulings cached |
 | **Resource** | ATP caps and pricing from law, agency resource caps | Metering enforced |
-| **Result** | Auditor can adjust based on evidence | Witness attestations required |
+| **Result** | Auditor reviews evidence; corrections are issued as a *new* corrective R6 action — the original Result stays immutable per §4.2 | Witness attestations required |
 
 ## 4. R6 Security Properties
 
@@ -368,7 +368,7 @@ Resource consumption cannot exceed pre-declared limits, preventing denial-of-ser
 Actions are strictly scoped to the permissions of the role under which they execute.
 
 ### 4.5 Atomic Settlement
-Resource transfers and tensor updates either fully complete or fully roll back.
+Resource transfers and tensor updates either fully complete or fully roll back. The settlement steps in §2.3 (ATP transfer, escrow release, tensor updates, ledger write, and MRH update) execute within a single atomic boundary; the §2.3 pseudocode shows the logical sequence, not the transaction/rollback scaffolding that enforces this all-or-nothing commitment.
 
 ## 5. R6 Transaction Types
 
