@@ -54,8 +54,8 @@ When an entity’s LCT is created, implementations **MUST**:
   "birthTimestamp": "2025-09-14T12:00:00Z",
   "witnesses": ["lct:web4:witness1", "lct:web4:witness2"],
   "genesisBlock": "block:12345",
-  "initialRights": ["exist", "interact", "accumulate_reputation"],
-  "initialResponsibilities": ["abide_law", "respect_quorum"]
+  "rights": ["exist", "interact", "accumulate_reputation"],
+  "obligations": ["abide_law", "respect_quorum"]
 }
 ```
 
@@ -148,11 +148,11 @@ A minimal JSON-LD structure:
 {
   "@context": ["https://web4.io/contexts/law.jsonld"],
   "type": "Web4LawDataset",
-  "id": "web4://law/society/1.2.0",
+  "law_id": "web4://law/society/1.2.0",
   "hash": "sha256-...",
-  "norms": [{"id":"LAW-ATP-LIMIT","selector":"r6.resource.atp","op":"<=","value":100}],
-  "procedures": [{"id":"PROC-WIT-3","requiresWitnesses":3}],
-  "interpretations": [{"id":"INT-42","replaces":"INT-41","reason":"edge case fix"}],
+  "norms": [{"norm_id":"LAW-ATP-LIMIT","selector":"r6.resource.atp","op":"<=","value":100}],
+  "procedures": [{"procedure_id":"PROC-WIT-3","requires_witnesses":3}],
+  "interpretations": [{"interpretation_id":"INT-42","replaces":"INT-41","reason":"edge case fix"}],
   "r6Bindings": ["web4://schemas/r6-rules-v1"]
 }
 ```
@@ -182,7 +182,7 @@ A minimal JSON-LD structure:
 
 ### 5.4 Witness
 - Maintains the **immutable record** via co-signed ledger entries for SAL-critical events.
-- Quorum policy defined by **Law Oracle** (e.g., `requiresWitnesses: 3`).
+- Quorum policy defined by **Law Oracle** (e.g., `requires_witnesses: 3`).
 - **MUST** support **timestamping**, **co-signing**, and **availability proofs**.
 
 ### 5.5 Auditor
@@ -197,8 +197,9 @@ A minimal JSON-LD structure:
   "society": "lct:web4:society:...",
   "targets": ["lct:web4:citizen:..."],
   "scope": ["context:data_analysis"],
-  "basis": ["hash:...","hash:..."],
-  "proposed": {"t3":{"temperament":-0.02}, "v3":{"veracity":-0.03}}
+  "evidence": ["hash:...","hash:..."],
+  "proposed_t3_deltas": {"temperament":-0.02},
+  "proposed_v3_deltas": {"veracity":-0.03}
 }
 ```
 
@@ -295,7 +296,6 @@ ASK {
 | Insufficient scope | W4_ERR_AUTHZ_SCOPE | Deny; suggest correct authority path |
 | Expired delegation | W4_ERR_BINDING_REVOKED | Re‑bind under valid authority |
 
-| Missing witness quorum | W4_ERR_WITNESS_DEFICIT | Refuse; require quorum or fall back to delayed finalize |
 | Ledger write failed | W4_ERR_LEDGER_WRITE | Retry with backoff; degrade to escrow buffer |
 | Audit evidence insufficient | W4_ERR_AUDIT_EVIDENCE | Reject adjustment; request stronger proofs |
 | Law inheritance conflict | W4_ERR_LAW_CONFLICT | Invoke conflictPolicy; request parent/child oracle mediation |
