@@ -44,7 +44,7 @@ This separation makes trust mechanics **observable, attributable, and verifiable
     "v3_delta": {
       "veracity": {"change": +0.01, "from": 0.80, "to": 0.81},
       "validity": {"change": 0.0, "from": 1.0, "to": 1.0},
-      "value": {"change": +0.005, "from": 0.75, "to": 0.755}
+      "valuation": {"change": +0.005, "from": 0.75, "to": 0.755}
     },
 
     "contributing_factors": [
@@ -197,7 +197,7 @@ The **V3 tensor** captures **output quality and trustworthiness**:
 
 **Typical Range**: 0.0 (invalid reasoning) to 1.0 (formally valid)
 
-### 3.3 Value
+### 3.3 Valuation
 **Definition**: Usefulness and benefit provided to others.
 
 **Increases When**:
@@ -222,7 +222,7 @@ The **V3 tensor** captures **output quality and trustworthiness**:
 - Highly valuable contributions
 - **Result**: High-quality, trustworthy output
 
-**Mixed V3** (e.g., 0.9 veracity, 0.5 validity, 0.8 value):
+**Mixed V3** (e.g., 0.9 veracity, 0.5 validity, 0.8 valuation):
 - Honest intentions
 - Methodological weaknesses
 - Useful despite flaws
@@ -302,7 +302,7 @@ Triggered when performance significantly exceeds expectations.
 **Example**: Solved problem in half expected time with 99% accuracy
 - `talent`: +0.02 (demonstrated exceptional ability)
 - `training`: +0.015 (applied advanced techniques)
-- `value`: +0.03 (high-impact contribution)
+- `valuation`: +0.03 (high-impact contribution)
 
 #### Ethical Violation Rules
 Triggered when unethical behavior is detected.
@@ -367,7 +367,7 @@ def compute_reputation_delta(action, result, rules):
 
     # 5. Compute V3 deltas
     v3_changes = {}
-    for dimension in ['veracity', 'validity', 'value']:
+    for dimension in ['veracity', 'validity', 'valuation']:
         delta = compute_dimension_delta(
             dimension,
             triggered_rules,
@@ -378,13 +378,16 @@ def compute_reputation_delta(action, result, rules):
         if delta != 0:
             v3_changes[dimension] = {
                 'change': delta,
-                'from': get_current_v3(action.role.actor, dimension),
-                'to': get_current_v3(action.role.actor, dimension) + delta
+                'from': action.role.v3InRole[dimension],
+                'to': action.role.v3InRole[dimension] + delta
             }
 
     # 6. Assemble reputation delta
     reputation.subject_lct = action.role.actor
-    reputation.action_id = result.ledgerProof.txHash
+    reputation.role_lct = action.role.role_lct          # role-contextualization key (Required)
+    reputation.action_type = action.request.action
+    reputation.action_target = action.request.target
+    reputation.action_id = action.action_id             # pre-execution id, set at request time
     reputation.rule_triggered = triggered_rules[0].rule_id
     reputation.reason = generate_reason(triggered_rules, factors)
     reputation.t3_delta = t3_changes
@@ -392,6 +395,7 @@ def compute_reputation_delta(action, result, rules):
     reputation.contributing_factors = factors
     reputation.net_trust_change = sum(c['change'] for c in t3_changes.values())
     reputation.net_value_change = sum(c['change'] for c in v3_changes.values())
+    reputation.timestamp = now()
 
     return reputation
 
@@ -487,32 +491,30 @@ def analyze_factors(action, result, rule):
 
 ### Example Computation
 
-**Action**: Train ML model
-**Result**: Success, 97% accuracy, completed 2 hours early, used 90% of allocated compute
+**Action**: Analyze dataset
+**Result**: Success, 97% accuracy, completed 2 hours early
 
-**Triggered Rule**: `successful_model_training`
+**Triggered Rule**: `successful_analysis_completion` (the rule defined in §4)
 
 **Contributing Factors**:
 ```json
 [
-  {"factor": "high_accuracy", "weight": 0.4, "normalized_weight": 0.40},
+  {"factor": "exceed_quality", "weight": 0.5, "normalized_weight": 0.50},
   {"factor": "deadline_met", "weight": 0.3, "normalized_weight": 0.30},
-  {"factor": "early_completion", "weight": 0.2, "normalized_weight": 0.20},
-  {"factor": "resource_efficiency", "weight": 0.1, "normalized_weight": 0.10}
+  {"factor": "early_completion", "weight": 0.2, "normalized_weight": 0.20}
 ]
 ```
 
-**T3 Deltas**:
-- `training`: base +0.01, multipliers (quality 1.2, early 1.3) = **+0.0156**
-- `temperament`: base +0.005, multiplier (deadline 1.5) = **+0.0075**
+**T3 Deltas** (per §4's `successful_analysis_completion` modifier→dimension mapping):
+- `training`: base +0.01 × deadline_met (1.5) × exceed_quality (1.2) = **+0.018**
+- `temperament`: base +0.005 × early_completion (1.3) = **+0.0065**
 
 **V3 Deltas**:
-- `veracity`: base +0.02, no multipliers = **+0.02**
-- `validity`: base +0.01, multiplier (accuracy 1.1) = **+0.011**
+- `veracity`: base +0.02, high_confidence modifier not triggered = **+0.02**
 
 **Net Changes**:
-- Trust: +0.0231
-- Value: +0.031
+- Trust: +0.018 + 0.0065 = **+0.0245**
+- Value: **+0.02**
 
 ## 6. Witnessing Reputation Changes
 
@@ -537,7 +539,7 @@ def select_reputation_witnesses(action, reputation_delta, rule):
         })
 
     # 2. Role-specific validators
-    role_validators = get_validators_for_role(action.role.roleType)
+    role_validators = get_validators_for_role(action.role.role_lct)
     for validator in role_validators:
         candidates.append({
             'lct': validator,
@@ -596,7 +598,8 @@ Individual reputation deltas aggregate to form long-term reputation:
 ```python
 def compute_current_reputation(entity_lct, role_lct, dimension, time_horizon_days=90):
     """
-    Compute current reputation by time-weighted aggregation of deltas.
+    Compute current reputation by time-weighted aggregation of deltas
+    onto the 0.5 neutral baseline.
 
     CRITICAL: Reputation is role-contextualized. This function computes
     reputation for a specific entity+role pairing, not globally.
@@ -627,12 +630,14 @@ def compute_current_reputation(entity_lct, role_lct, dimension, time_horizon_day
 
     for delta in deltas:
         age_days = (now() - delta.timestamp).days
-        recency_weight = math.exp(-age_days / 30.0)  # 30-day half-life
+        recency_weight = math.exp(-age_days / 30.0)  # exp decay, 30-day time constant (1/e; ≈20.8-day half-life)
 
         weighted_sum += delta.change * recency_weight
         weight_sum += recency_weight
 
-    current_value = weighted_sum / weight_sum if weight_sum > 0 else 0.5
+    # Deltas are CHANGES, not absolute values (§1), so the recency-weighted
+    # average accumulates onto the 0.5 neutral baseline rather than replacing it.
+    current_value = 0.5 + (weighted_sum / weight_sum) if weight_sum > 0 else 0.5
 
     # Clamp to [0.0, 1.0]
     return max(0.0, min(1.0, current_value))
@@ -644,18 +649,21 @@ def compute_current_reputation(entity_lct, role_lct, dimension, time_horizon_day
 # Alice has reputation in multiple roles
 alice = "lct:web4:entity:alice"
 
-# Role 1: Financial Analyst
+# Role 1: Financial Analyst — sustained history of positive training deltas
 role_analyst = "lct:web4:role:analyst_financial:abc"
 training_as_analyst = compute_current_reputation(alice, role_analyst, "training")
-# Returns: 0.90 (highly trained financial analyst)
+# Returns: > 0.5 — positive training deltas accumulated above the 0.5 baseline
+#          (exact level depends on delta magnitudes and recency)
 
-# Role 2: Medical Surgeon
+# Role 2: Medical Surgeon — never acted in this role
 role_surgeon = "lct:web4:role:surgeon_cardiac:xyz"
 training_as_surgeon = compute_current_reputation(alice, role_surgeon, "training")
-# Returns: 0.20 (no medical training)
+# Returns: 0.50 — neutral baseline; no training deltas recorded in this role
 
 # Same entity, different roles, different reputations!
 ```
+
+**Modeling note**: This `baseline + recency-weighted average` model keeps reputation near 0.5 for the small per-action deltas defined in §4 (typically ±0.005–0.03); the absolute level reflects the **direction and consistency** of accumulated deltas, not their count. Driving the level toward the [0.0, 1.0] extremes from many small deltas would require an *accumulation* (rather than averaging) model — see §10 (Future Evolution). The SDK (`reputation.py`, `ReputationStore.current()`) implements this same baseline+average form.
 
 ### Reputation Decay
 
