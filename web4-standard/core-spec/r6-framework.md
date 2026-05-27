@@ -273,7 +273,7 @@ def execute_r6_action(r6_action, validation_result):
 
             # 4. Validate output against rules
             if not validate_output(raw_result, r6_action.rules):
-                raise OutputViolation("Result violates output constraints")
+                raise ResultInvalid("Result violates output constraints")
 
             # 5. Stop metering
             resources_used = meter.stop()

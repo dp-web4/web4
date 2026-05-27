@@ -362,7 +362,7 @@ def execute_r7_action(r7_action, validation_result):
 
             # 4. Validate output against rules
             if not validate_output(raw_result, r7_action.rules):
-                raise OutputViolation("Result violates output constraints")
+                raise ResultInvalid("Result violates output constraints")
 
             # 5. Stop metering
             resources_used = meter.stop()
@@ -374,7 +374,7 @@ def execute_r7_action(r7_action, validation_result):
                 resources=resources_used
             )
 
-        except OutputViolation as e:
+        except ResultInvalid as e:
             # Action ran but produced an unsuccessful outcome → "failure"
             meter.stop()
             result = create_r7_result(
