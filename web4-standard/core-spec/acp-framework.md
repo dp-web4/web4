@@ -81,7 +81,8 @@ A declarative specification of what an agent intends to accomplish:
     },
     "witnessLevel": 2,
     "humanApproval": {
-      "mode": "auto-if<=10 else prompt",
+      "mode": "conditional",
+      "autoThreshold": 10,
       "timeout": 3600,
       "fallback": "deny"
     }
@@ -159,7 +160,7 @@ Immutable record of action execution:
   },
   "t3v3Delta": {
     "agent": {"t3": {"temperament": +0.01}},
-    "client": {"v3": {"value": +0.02}}
+    "client": {"v3": {"valuation": +0.02}}
   },
   "witnesses": ["lct:web4:witness:A"],
   "ledgerInclusion": {
@@ -245,9 +246,9 @@ def validate_acp_agency(plan, intent):
     if exceeds_caps(intent, grant.resourceCaps):
         raise ResourceCapExceeded()
     
-    # 4. Check witness requirements
-    if len(intent.witnesses) < grant.witnessLevel:
-        raise InsufficientWitnesses()
+    # 4. Witness check deferred to approval-gate phase (§3.2 Approval Gate
+    # state). Witnesses live on Decision (§2.3), not Intent (§2.2); agency
+    # validation only confirms grant scope + caps.
     
     return True
 ```
@@ -296,15 +297,15 @@ def check_law_compliance(plan, law_oracle):
     # 2. Check plan triggers against law
     for trigger in plan.triggers:
         if not law.allows_trigger(trigger):
-            raise IllegalTrigger(trigger)
+            raise ScopeViolation(f"trigger {trigger} not allowed by law")
     
     # 3. Verify resource caps within law limits
     if plan.guards.resourceCaps.max_atp > law.max_atp_per_plan:
-        raise ExcessiveResourceCap()
+        raise ResourceCapExceeded()
     
     # 4. Ensure witness requirements met
     if plan.guards.witnessLevel < law.min_witness_level:
-        raise InsufficientWitnessLevel()
+        raise WitnessDeficit()
     
     return True
 ```
@@ -512,6 +513,14 @@ class PlanExpired(ACPError):
 class LedgerWriteFailure(ACPError):
     """Failed to write to immutable ledger"""
     error_code = "W4_ERR_ACP_LEDGER_WRITE"
+
+class InvalidTransition(ACPError):
+    """Invalid state machine transition"""
+    error_code = "W4_ERR_ACP_INVALID_TRANSITION"
+
+class ResourceCapExceeded(ACPError):
+    """Action exceeds resource caps"""
+    error_code = "W4_ERR_ACP_RESOURCE_CAP_EXCEEDED"
 ```
 
 ### 10.2 Error Recovery
