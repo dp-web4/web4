@@ -45,7 +45,7 @@ Every Dictionary has:
 
 ```json
 {
-  "lct_id": "lct:web4:dictionary:medical-legal:v2",
+  "lct_id": "lct:web4:dictionary:medical-legal",
   "entity_type": "dictionary",
   "dictionary_spec": {
     "source_domain": "medical",
@@ -64,7 +64,7 @@ Every Dictionary has:
     "context_required": "moderate",
     "ambiguity_handling": "probabilistic"
   },
-  "trust_requirements": {
+  "dictionary_trust_config": {
     "minimum_t3": {
       "talent": 0.8,      // Domain expertise
       "training": 0.9,     // Translation accuracy
@@ -217,7 +217,7 @@ def translate_with_dictionary(request, dictionary):
     )
     
     # 5. Handle ambiguity
-    if target_concepts.ambiguity > threshold:
+    if target_concepts.ambiguity > AMBIGUITY_GATE:
         target_concepts = dictionary.disambiguate(
             target_concepts,
             method="context_aware"
@@ -271,7 +271,7 @@ def translate_with_dictionary(request, dictionary):
   ],
   "cumulative_degradation": 0.126,  // 1 - (0.95 * 0.92)
   "trust_acceptable": true,
-  "witness_attestation": ["lct:web4:witness:domain-expert"]
+  "witnesses": ["lct:web4:witness:domain-expert"]
 }
 ```
 
@@ -314,7 +314,7 @@ def update_dictionary_from_feedback(dictionary, feedback):
     )
     
     # 5. Version update if significant
-    if dictionary.changes > threshold:
+    if dictionary.changes > VERSION_BUMP_DELTA:
         dictionary.create_new_version(
             parent=dictionary.current_version,
             changelog=accumulated_changes
@@ -363,7 +363,7 @@ Find appropriate dictionaries through SPARQL:
 ```sparql
 SELECT ?dictionary ?trust ?coverage WHERE {
   ?dictionary a web4:Dictionary ;
-              web4:sourceDomai "medical" ;
+              web4:sourceDomain "medical" ;
               web4:targetDomain "legal" ;
               web4:coverage ?coverage ;
               web4:trustScore ?trust .
@@ -415,7 +415,9 @@ Every translation follows R6:
   },
   "role": {
     "entity": "lct:web4:dictionary:med-legal",
-    "roleType": "web4:Translator"
+    "roleLCT": "lct:web4:role:dictionary-translator:..."
+    // role value is illustrative; canonical SocietyRole resolution
+    // deferred (see C17 audit H2 role-value DESIGN-Q)
   },
   "request": {
     "action": "translate",
@@ -495,14 +497,27 @@ Dictionaries build trust through:
 Hospital records → Insurance claims → Legal proceedings
 
 ```yaml
-chain:
-  - source: "Patient diagnosed with moderate TBI following MVA"
-  - step1: medical → insurance
+source: "Patient diagnosed with moderate TBI following MVA"
+translation_chain:
+  - step: 1
+    from: medical
+    to: insurance
+    dictionary: lct:web4:dictionary:medical-insurance
     output: "Traumatic brain injury from vehicle accident requiring coverage"
-  - step2: insurance → legal  
+    confidence: 0.94
+    degradation: 0.06
+  - step: 2
+    from: insurance
+    to: legal
+    dictionary: lct:web4:dictionary:insurance-legal
     output: "Plaintiff sustained head trauma with cognitive impairment in collision"
-  cumulative_confidence: 0.88
-  witnesses: [medical_expert, insurance_adjuster, legal_clerk]
+    confidence: 0.94
+    degradation: 0.06
+cumulative_degradation: 0.12  # 1 - (0.94 * 0.94)
+witnesses:
+  - lct:web4:witness:medical-expert
+  - lct:web4:witness:insurance-adjuster
+  - lct:web4:witness:legal-clerk
 ```
 
 ### 10.2 AI Model Bridging
