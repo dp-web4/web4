@@ -173,7 +173,7 @@ The Root LCT extends the base LCT with device constellation management:
   "device_constellation": {
     "devices": [
       {
-        "device_lct": "lct:web4:device:phone:...",
+        "device_lct_id": "lct:web4:device:phone:...",
         "anchor_type": "phone_secure_element",
         "platform": "ios",
         "enrolled_at": "2026-01-13T00:00:00Z",
@@ -182,7 +182,7 @@ The Root LCT extends the base LCT with device constellation management:
         "status": "active"
       },
       {
-        "device_lct": "lct:web4:device:fido2:...",
+        "device_lct_id": "lct:web4:device:fido2:...",
         "anchor_type": "fido2",
         "transport": "usb",
         "enrolled_at": "2026-01-14T00:00:00Z",
@@ -191,7 +191,7 @@ The Root LCT extends the base LCT with device constellation management:
         "status": "active"
       },
       {
-        "device_lct": "lct:web4:device:laptop:...",
+        "device_lct_id": "lct:web4:device:laptop:...",
         "anchor_type": "tpm2",
         "platform": "linux",
         "enrolled_at": "2026-01-15T00:00:00Z",
@@ -276,7 +276,7 @@ Each device has its own LCT that binds to the root:
 
   "cross_device_witnesses": [
     {
-      "device_lct": "lct:web4:device:laptop:...",
+      "device_lct_id": "lct:web4:device:laptop:...",
       "last_witness": "2026-01-13T11:00:00Z",
       "witness_count": 42,
       "mutual": true
@@ -286,11 +286,18 @@ Each device has its own LCT that binds to the root:
   "device_trust": {
     "anchor_strength": 0.95,
     "attestation_freshness": 0.98,
-    "cross_witness_score": 0.88,
-    "composite": 0.93
-  }
+    "cross_witness_score": 0.88
+  },
+
+  "status": "active"
 }
 ```
+
+**Device lifecycle states**: A device record's `status` field is one of three values:
+
+- `"active"` — Device participates in trust computation, cross-witnessing, and may authorize removal/recovery.
+- `"suspended"` — Device is temporarily excluded from trust computation and cross-witnessing without being permanently revoked. Re-activation by quorum is a future extension; this spec does not define entry/exit transitions for `suspended`. Implementations that do not require suspension semantics MAY treat `suspended` as equivalent to `revoked` for trust-computation purposes.
+- `"revoked"` — Device is permanently removed from the constellation (see §3.5 Device Removal). A revoked device's keys MUST NOT authorize any further operations.
 
 ## 3. Protocols
 
@@ -507,29 +514,28 @@ def cross_witness(device_a, device_b):
     # 2. Sign challenges
     sig_a_for_b = device_a.sign_witness_challenge(
         challenge_b,
-        device_lct=device_a.device_lct
+        device_lct_id=device_a.device_lct_id
     )
     sig_b_for_a = device_b.sign_witness_challenge(
         challenge_a,
-        device_lct=device_b.device_lct
+        device_lct_id=device_b.device_lct_id
     )
 
     # 3. Exchange and verify
-    assert device_a.verify_witness(sig_b_for_a, device_b.device_lct)
-    assert device_b.verify_witness(sig_a_for_b, device_a.device_lct)
+    assert device_a.verify_witness(sig_b_for_a, device_b.device_lct_id)
+    assert device_b.verify_witness(sig_a_for_b, device_a.device_lct_id)
 
     # 4. Record mutual witnessing
     witness_record = {
         "ts": utc_now(),
-        "device_a": device_a.device_lct.lct_id,
-        "device_b": device_b.device_lct.lct_id,
+        "device_a": device_a.device_lct_id,
+        "device_b": device_b.device_lct_id,
         "sig_a": sig_a_for_b,
         "sig_b": sig_b_for_a
     }
 
     # 5. Update cross_device_witnesses in both device LCTs
-    device_a.device_lct.record_cross_witness(device_b.device_lct.lct_id)
-    device_b.device_lct.record_cross_witness(device_a.device_lct.lct_id)
+    record_cross_witness(constellation, device_a.device_lct_id, device_b.device_lct_id, utc_now())
 
     return witness_record
 ```
@@ -549,7 +555,10 @@ def compute_constellation_trust(root_lct):
     """
     Compute aggregate trust from device constellation.
 
-    Key insight: More devices = higher trust ceiling.
+    Per-device trust = anchor_weight × witness_freshness × attestation_freshness.
+    Constellation trust is the weighted average modulated by coherence bonus
+    and cross-witness density, then clamped to the §4.2 anchor-composition-derived
+    ceiling.
     """
     devices = root_lct.device_constellation.devices
     active = [d for d in devices if d.status == "active"]
@@ -557,12 +566,15 @@ def compute_constellation_trust(root_lct):
     if len(active) == 0:
         return 0.0
 
-    # Individual device trust (weighted by anchor strength)
+    # Individual device trust: anchor × witness freshness × attestation freshness.
+    # Anchor strength is incorporated via anchor_weight ONLY (it is not also
+    # contained in a separate `composite` aggregate — see §2.4 device_trust).
     device_trusts = []
     for device in active:
         anchor_weight = ANCHOR_WEIGHTS[device.anchor_type]
-        freshness = compute_witness_freshness(device)
-        device_trust = anchor_weight * freshness * device.device_trust.composite
+        w_fresh = witness_freshness(days_since_last_witness(device))
+        a_fresh = device.device_trust.attestation_freshness
+        device_trust = anchor_weight * w_fresh * a_fresh
         device_trusts.append((device, device_trust, device.trust_weight))
 
     # Weighted average
@@ -576,10 +588,12 @@ def compute_constellation_trust(root_lct):
     # Cross-witness density
     witness_density = compute_cross_witness_density(active)
 
-    # Final constellation trust
-    constellation_trust = min(1.0,
-        base_trust * (1 + coherence_bonus) * (1 + witness_density * 0.1)
-    )
+    # Final constellation trust — clamped to anchor-composition ceiling (§4.2),
+    # NOT to a universal 1.0 cap. The ceiling reflects the security properties
+    # of the actual anchor composition (e.g. a single phone SE caps at 0.75).
+    raw_trust = base_trust * (1 + coherence_bonus) * (1 + witness_density * 0.1)
+    ceiling = constellation_trust_ceiling(root_lct.device_constellation)
+    constellation_trust = min(ceiling, raw_trust)
 
     return constellation_trust
 
@@ -638,7 +652,7 @@ def remove_device(root_lct, device_to_remove, reason, authorizing_devices):
     """
     # 1. Verify quorum
     remaining = [d for d in root_lct.device_constellation.devices
-                 if d.device_lct.lct_id != device_to_remove.lct_id]
+                 if d.device_lct_id != device_to_remove.lct_id]
 
     if len(authorizing_devices) < root_lct.device_constellation.recovery_quorum:
         raise InsufficientQuorumError(
@@ -725,7 +739,7 @@ def recover_identity(root_lct_id, recovery_devices, new_device, society):
     for device in recovery_devices:
         sig = device.sign_recovery_request(recovery_request)
         recovery_signatures.append({
-            "device_lct": device.device_lct.lct_id,
+            "device_lct_id": device.device_lct_id,
             "signature": sig
         })
 
@@ -741,7 +755,7 @@ def recover_identity(root_lct_id, recovery_devices, new_device, society):
 
     # 6. Mark lost devices as revoked
     for device in root_lct.device_constellation.devices:
-        if device.device_lct.lct_id not in [d.device_lct.lct_id for d in recovery_devices]:
+        if device.device_lct_id not in [d.device_lct_id for d in recovery_devices]:
             device.status = "revoked"
             device.revocation.reason = "recovery_revoked"
 
@@ -785,24 +799,30 @@ The multi-device binding adds two dimensions to the T3 tensor:
 |---------------|-----------|
 | Single software key | 0.40 |
 | Single phone SE | 0.75 |
+| Single TPM2 | 0.75 |
 | Single FIDO2 | 0.80 |
 | Phone + FIDO2 | 0.90 |
 | Phone + FIDO2 + TPM | 0.95 |
 | 3+ diverse hardware anchors | 0.98 |
+
+The ceiling is applied by §3.4 `compute_constellation_trust` via
+`constellation_trust_ceiling(constellation)`, which derives the applicable row
+from the anchor composition of the active device set. Implementations MUST use
+the anchor-composition-derived ceiling (not a universal `1.0` cap) when
+clamping the final constellation trust.
 
 ### 4.3 Trust Decay
 
 Devices that haven't been witnessed recently decrease constellation trust:
 
 ```python
-def apply_witness_decay(device):
+def witness_freshness(days_since_witness):
     """
-    Trust decays if device hasn't been witnessed.
+    Trust decay factor based on days since last witness event.
 
-    Half-life: 30 days without witnessing
+    See decay table below. Returns a multiplicative factor in [0.3, 1.0]
+    applied to per-device trust in §3.4.
     """
-    days_since_witness = (utc_now() - device.last_witnessed).days
-
     if days_since_witness <= 7:
         return 1.0
     elif days_since_witness <= 30:
@@ -813,6 +833,11 @@ def apply_witness_decay(device):
         return 0.5
     else:
         return 0.3  # Should probably re-enroll
+
+
+def days_since_last_witness(device):
+    """Convenience: days since this device was last cross-witnessed."""
+    return (utc_now() - device.last_witnessed).days
 ```
 
 ### 4.4 Canonical Terminology and Simulation Parameters
@@ -867,14 +892,18 @@ def default_recovery_quorum(device_count):
     """
     Minimum devices needed for recovery.
 
-    Balances security vs. recoverability.
+    Balances security vs. recoverability. For device_count > 4, the quorum
+    is a true majority: ceil(device_count / 2). Test vectors in
+    `web4-standard/test-vectors/binding/binding-vectors.json` (group
+    `recovery_quorum_calculation`) are normative for the expected values
+    (n=5 → 3, n=6 → 3, n=10 → 5).
     """
     if device_count <= 2:
         return device_count  # All devices required
     elif device_count <= 4:
         return 2
     else:
-        return max(2, device_count // 2)  # Majority
+        return max(2, (device_count + 1) // 2)  # ceil(n/2) = majority
 ```
 
 ### 5.3 Compromise Response
