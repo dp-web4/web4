@@ -19,7 +19,7 @@ This specification defines a **capability levels framework** for Linked Context 
 
 ### 1.1 Purpose
 
-Not all LCTs require full functionality. An IRP plugin needs different capabilities than a society-issued birth certificate. However, **terminology must remain consistent** - an LCT is always a Linked Context Token, T3 always has 6 dimensions, MRH always contains bound/paired/witnessing relationships.
+Not all LCTs require full functionality. An IRP plugin needs different capabilities than a society-issued birth certificate. However, **terminology must remain consistent** - an LCT is always a Linked Context Token, T3 always has 3 root dimensions (fractally extensible via RDF sub-dimensions), MRH always contains bound/paired/witnessing relationships.
 
 This specification allows:
 - **Reduced implementations** for edge/embedded contexts
@@ -34,8 +34,8 @@ All implementations MUST use these terms exactly:
 | Term | Meaning | NEVER Use |
 |------|---------|-----------|
 | **LCT** | Linked Context Token | "Lifecycle-Continuous Trust", "Lineage-Context-Task" |
-| **T3** | Trust Tensor (6 dimensions) | Old 3-dimension "Talent/Training/Temperament" |
-| **V3** | Value Tensor (6 dimensions) | Old 3-dimension "Valuation/Veracity/Validity" |
+| **T3** | Trust Tensor (3 root dimensions: Talent/Training/Temperament, fractally extensible via RDF sub-dimensions per `t3v3-ontology.ttl`) | Old 6-flat-dimension schema (`technical_competence`, `social_reliability`, etc.) |
+| **V3** | Value Tensor (3 root dimensions: Valuation/Veracity/Validity, fractally extensible via RDF sub-dimensions per `t3v3-ontology.ttl`) | Old 6-flat-dimension schema (`energy_balance`, `contribution_history`, etc.) |
 | **MRH** | Markov Relevancy Horizon | "Relevancy Horizon", "Context Horizon" |
 
 ### 1.3 Design Principles
@@ -96,8 +96,8 @@ All implementations MUST use these terms exactly:
 - `binding.public_key`: Software key (Ed25519 or P-256)
 - `binding.binding_proof`: Self-signed
 - `mrh`: Empty but present
-- `t3_tensor`: All 6 dimensions with initial values
-- `v3_tensor`: All 6 dimensions with zero values
+- `t3_tensor`: All 3 root dimensions with initial values
+- `v3_tensor`: All 3 root dimensions with zero values
 
 ```json
 {
@@ -129,26 +129,20 @@ All implementations MUST use these terms exactly:
 
   "t3_tensor": {
     "dimensions": {
-      "technical_competence": 0.1,
-      "social_reliability": 0.1,
-      "temporal_consistency": 0.1,
-      "witness_count": 0.0,
-      "lineage_depth": 0.0,
-      "context_alignment": 0.1
+      "talent": 0.1,
+      "training": 0.1,
+      "temperament": 0.1
     },
-    "composite_score": 0.067,
+    "composite_score": 0.1,
     "last_computed": "2026-01-03T00:00:00Z",
     "computation_witnesses": []
   },
 
   "v3_tensor": {
     "dimensions": {
-      "energy_balance": 0,
-      "contribution_history": 0.0,
-      "resource_stewardship": 0.0,
-      "network_effects": 0.0,
-      "reputation_capital": 0.0,
-      "temporal_value": 0.0
+      "valuation": 0.0,
+      "veracity": 0.0,
+      "validity": 0.0
     },
     "composite_score": 0.0,
     "last_computed": "2026-01-03T00:00:00Z",
@@ -203,14 +197,11 @@ All implementations MUST use these terms exactly:
 
   "t3_tensor": {
     "dimensions": {
-      "technical_competence": 0.5,
-      "social_reliability": 0.4,
-      "temporal_consistency": 0.3,
-      "witness_count": 0.2,
-      "lineage_depth": 0.3,
-      "context_alignment": 0.5
+      "talent": 0.5,
+      "training": 0.3,
+      "temperament": 0.4
     },
-    "composite_score": 0.37
+    "composite_score": 0.41
   }
 }
 ```
@@ -227,7 +218,7 @@ All implementations MUST use these terms exactly:
 **Additional Requirements over Level 2**:
 - `mrh.witnessing`: At least one witness relationship
 - `t3_tensor.computation_witnesses`: At least one oracle
-- `v3_tensor.dimensions.energy_balance`: Non-zero ATP
+- `v3_tensor.dimensions.valuation`: Non-zero (e.g. via `energy_balance` sub-dimension representing ATP balance)
 - `attestations`: At least one attestation
 
 ```json
@@ -250,25 +241,19 @@ All implementations MUST use these terms exactly:
 
   "t3_tensor": {
     "dimensions": {
-      "technical_competence": 0.7,
-      "social_reliability": 0.6,
-      "temporal_consistency": 0.65,
-      "witness_count": 0.5,
-      "lineage_depth": 0.4,
-      "context_alignment": 0.7
+      "talent": 0.7,
+      "training": 0.5,
+      "temperament": 0.65
     },
-    "composite_score": 0.59,
+    "composite_score": 0.625,
     "computation_witnesses": ["lct:web4:oracle:trust:federation"]
   },
 
   "v3_tensor": {
     "dimensions": {
-      "energy_balance": 100,
-      "contribution_history": 0.5,
-      "resource_stewardship": 0.6,
-      "network_effects": 0.4,
-      "reputation_capital": 0.5,
-      "temporal_value": 0.55
+      "valuation": 0.55,
+      "veracity": 0.5,
+      "validity": 0.45
     },
     "composite_score": 0.51,
     "computation_witnesses": ["lct:web4:oracle:value:federation"]
@@ -401,12 +386,13 @@ All implementations MUST use these terms exactly:
 
 ### 3.1 Core Entity Types
 
-These entity types are defined in the LCT Core Specification:
+These entity types are defined in the canonical 15-type taxonomy in `entity-types.md` §2.1:
 
 | Type | Description | Typical Level |
 |------|-------------|---------------|
 | `human` | Human identity | 4-5 |
 | `ai` | AI agent/consciousness | 2-4 |
+| `society` | Delegative entity with authority to issue citizenship and bind law | 4-5 |
 | `organization` | Collective/company | 4 |
 | `role` | Functional role | 1-3 |
 | `task` | Ephemeral task context | 1-2 |
@@ -417,6 +403,8 @@ These entity types are defined in the LCT Core Specification:
 | `accumulator` | Aggregation entity | 2-3 |
 | `dictionary` | Semantic domain keeper | 3-4 |
 | `hybrid` | Multiple types | varies |
+| `policy` | Governance rules as evaluable entity (IRP-backed) | 3-4 |
+| `infrastructure` | Physical passive resources | 3-5 |
 
 ### 3.2 Extended Entity Types
 
@@ -428,7 +416,6 @@ These additional types support fractal LCT usage:
 | `session` | Ephemeral conversation | 1-2 |
 | `relationship` | Connection-as-entity | 1-2 |
 | `pattern` | Pattern template | 1-3 |
-| `society` | Governance context | 4-5 |
 | `witness` | Attestation provider | 3-4 |
 | `pending` | Not yet instantiated | 0 |
 
@@ -499,17 +486,18 @@ Any entity SHOULD be able to query another LCT's capabilities before establishin
     },
     "t3_tensor": {
       "implemented": true,
-      "dimensions": 6,
+      "dimensions": 3,
       "oracle_computed": true
     },
     "v3_tensor": {
       "implemented": true,
-      "dimensions": 6,
+      "dimensions": 3,
       "oracle_computed": true
     },
     "birth_certificate": {
       "implemented": false,
-      "stub": true
+      "stub": true,
+      "reason": "Not implemented at this level"
     },
     "attestations": {
       "implemented": true,
@@ -517,7 +505,8 @@ Any entity SHOULD be able to query another LCT's capabilities before establishin
     },
     "lineage": {
       "implemented": false,
-      "stub": true
+      "stub": true,
+      "reason": "Not implemented at this level"
     }
   },
 
@@ -574,12 +563,9 @@ All stubs MUST contain:
 {
   "t3_tensor": {
     "dimensions": {
-      "technical_competence": null,
-      "social_reliability": null,
-      "temporal_consistency": null,
-      "witness_count": null,
-      "lineage_depth": null,
-      "context_alignment": null
+      "talent": null,
+      "training": null,
+      "temperament": null
     },
     "composite_score": null,
     "stub": true,
@@ -672,8 +658,8 @@ Device (Level 5) wants to pair with Plugin (Level 2)
 
 - Verify `lct_id` format: `lct:web4:{entity_type}:{hash}`
 - Verify `capability_level` matches implemented components
-- Verify all 6 T3 dimensions present (value or null)
-- Verify all 6 V3 dimensions present (value or null)
+- Verify all 3 T3 root dimensions present (value or null)
+- Verify all 3 V3 root dimensions present (value or null)
 - Verify stubs have `stub: true` and `reason` fields
 
 ### 8.2 Entities MUST
@@ -685,7 +671,7 @@ Device (Level 5) wants to pair with Plugin (Level 2)
 
 ### 8.3 Societies MUST
 
-- Issue birth certificates only to Level 4+ entities
+- Issue birth certificates only to entities meeting Level 4 post-issuance requirements (per `LCT-linked-context-token.md` §3.1, the birth certificate is what raises an entity to Level 4)
 - Maintain witness quorum (≥3) for birth certificates
 - Compute T3/V3 via oracles for Level 3+ entities
 - Enforce capability level requirements for membership
@@ -722,7 +708,7 @@ Unauthorized level upgrades are prevented by:
 - **LCT Core Specification**: `core-spec/LCT-linked-context-token.md`
 - **T3/V3 Tensor Specification**: `core-spec/t3-v3-tensors.md`
 - **MRH Specification**: `core-spec/mrh-tensors.md`
-- **Reference Implementation**: `implementation/reference/lct_capability_levels.py`
+- **Reference Implementation**: `implementation/sdk/web4/capability.py` (per `docs/audits/reference-implementation-triage-2026-05-11.md`, the SDK module supersedes the archived reference implementations)
 
 ---
 
