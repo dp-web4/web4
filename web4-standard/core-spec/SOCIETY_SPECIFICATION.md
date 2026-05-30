@@ -69,6 +69,12 @@ For a collective to constitute a Society, it MUST have:
    - Trust relationships form
 ```
 
+### 1.4 Operational Modes (Metabolic States)
+
+A society in the Operational Phase does not run at a single fixed activity level. Web4 defines eight **metabolic states** (Active, Rest, Sleep, Hibernation, Torpor, Estivation, Dreaming, Molting) that modulate consensus participation, witness duty cycles, ATP/ADP flow, trust-tensor updates, and citizenship acceptance based on activity demand, resource availability, and operational conditions. The metabolic-state subsystem is normative for societies running long-lived operations; it determines which transactions a society accepts at a given time, what its instantaneous energy cost is, and what trust effects (update rate, decay rate, temporary penalty) apply during the current state.
+
+The full normative definition — including state characteristics, transition rules, configuration schema, trust adjustments, and economic implications — is given in `web4-standard/core-spec/SOCIETY_METABOLIC_STATES.md`. Implementations of this Society Specification MUST also conform to the metabolic-states specification for any society that intends to operate beyond a single bootstrap window.
+
 ---
 
 ## 2. Citizenship
