@@ -1,7 +1,7 @@
 # Web4 Society Metabolic States Specification
 
 ## Version: 1.0.0
-## Date: January 17, 2025
+## Date: 2026-05-30
 ## Status: Proposed Standard
 
 ---

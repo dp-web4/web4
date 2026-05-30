@@ -1,7 +1,7 @@
 # Web4 Society Specification
 
 ## Version: 1.0.0
-## Date: January 17, 2025
+## Date: 2026-05-30
 ## Status: Foundational Concept
 
 ---
@@ -33,8 +33,10 @@ For a collective to constitute a Society, it MUST have:
 - **Minimum Records**:
   - Citizenship events (join/leave/suspend/reinstate)
   - Law changes (proposal/ratification/amendment)
-  - Economic events (ATP/ADP allocations)
-  - Witness attestations (trust building)
+  - Economic events (treasury deposits/allocations/reclaims)
+  - Metabolic state transitions (per `SOCIETY_METABOLIC_STATES.md`)
+  - Formation events (genesis/bootstrap/operational/incorporation)
+- **Note**: Witnesses participate in every recorded event via the per-entry `witnesses` field; they are participants, not a separate event category. The canonical enumeration of recorded event types and their minimum field-sets is given in §4.2.1.
 
 #### 1.2.3 Treasury
 - **Definition**: Society-managed ATP/ADP token pool
@@ -48,7 +50,16 @@ For a collective to constitute a Society, it MUST have:
 - **Purpose**:
   - Represents society as entity
   - Enables inter-society relationships
-  - Holds society-level trust tensors
+  - Holds society-level T3 (trust) and V3 (value) tensors (see `t3-v3-tensors.md` and §5.3)
+
+### 1.2.5 Operational-Minimum Cross-Reference
+
+The four-element minimum above is the *conceptual* minimum a society must satisfy. The *operational* minimum — what a deployment MUST instantiate to be admitted into a federation or to interoperate cross-society — is further constrained by two sister specs that refine §1.2 along the role-structural axis:
+
+- **`web4-society-authority-law.md` §3.1** requires an **Authority Role LCT** and a **Quorum Policy** binding that authority to a specified governance mechanism (alongside the Law Oracle and Immutable Record listed in §1.2.1–§1.2.2). The Authority Role + Quorum Policy pair refines §1.2.1's "enforcement mechanism" into a specific role-bearing entity and a verifiable decision rule.
+- **`inter-society-protocol.md` §6.2** (referenced by the SDK's `validate_minimum_viable`) enumerates **seven base-mandatory roles** — Sovereign, Law Oracle, Policy Entity, Treasurer, Administrator, Archivist, and Citizen — that any operational society MUST staff before participating in inter-society transactions. The Treasurer role is the role-bearing counterpart to §1.2.3's Treasury; the Sovereign role is the role-bearing counterpart to §1.2.4's Society LCT.
+
+A society implementer satisfying §1.2.1–§1.2.4 alone has met the conceptual minimum but not the operational minimum. Conformance to the role-structural minimum is checked by `inter-society-protocol.md §6.2` at federation-admission time; SAL §3.1 governs the authority-binding semantics.
 
 ### 1.3 Formation Process
 
@@ -115,6 +126,8 @@ Application → Review → Acceptance → Active Citizenship
                                            or
                                       Termination
 ```
+
+**Note on `Rejection`**: Rejection is a non-record outcome — no `CitizenshipRecord` is created on the ledger and no status is assigned. The canonical SDK `CitizenshipStatus` enum contains only `APPLIED`, `PROVISIONAL`, `ACTIVE`, `SUSPENDED`, and `TERMINATED` (no `REJECTED` value); a rejected application leaves the ledger unchanged. The other branches in the diagram (`Provisional`, `Suspension`, `Reinstatement`, `Termination`) correspond to recorded status transitions.
 
 ### 2.4 Citizenship Record Structure
 
@@ -232,6 +245,8 @@ Entity (LCT-123)
 }
 ```
 
+Participatory ledgers inherit their validator set from the parent ledger (see §3.2.1 on inheritance and §4.1.2 for the Witnessed-ledger validator pattern). The absence of an explicit `validators` field in this JSON is intentional: validation authority is delegated to the parent, not enumerated locally.
+
 ### 4.2 Ledger Requirements
 
 #### 4.2.1 Minimum Recording Requirements
@@ -266,11 +281,41 @@ Every ledger MUST record:
    ```json
    {
      "type": "economic_event",
-     "action": "allocate|charge|discharge",
+     "action": "deposit|allocate|reclaim",
      "amount": "...",
-     "token_type": "ATP|ADP",
+     "token_type": "ATP",
      "recipient_lct": "...",
      "purpose": "..."
+   }
+   ```
+
+   The treasury-level economic vocabulary is **deposit** (tokens flow into the pool), **allocate** (tokens flow from the pool to a citizen), and **reclaim** (tokens flow back to the pool). ATP-cycle state transitions (charge / discharge) operate at the R6/cycle layer per `atp-adp-cycle.md` §2 and are recorded separately on R6 transactions, not as treasury-level economic events.
+
+4. **Metabolic State Transitions** (per `SOCIETY_METABOLIC_STATES.md`)
+   ```json
+   {
+     "type": "metabolic",
+     "action": "transition",
+     "data": {
+       "from": "active|rest|sleep|hibernation|torpor|estivation|dreaming|molting",
+       "to":   "active|rest|sleep|hibernation|torpor|estivation|dreaming|molting"
+     },
+     "witnesses": ["..."],
+     "timestamp": "..."
+   }
+   ```
+
+5. **Formation Events** (phase transitions and incorporation)
+   ```json
+   {
+     "type": "formation",
+     "action": "genesis|bootstrap|operational|incorporate_child|incorporated_by",
+     "data": {
+       "founders": ["..."],
+       "name": "..."
+     },
+     "witnesses": ["..."],
+     "timestamp": "..."
    }
    ```
 
@@ -380,9 +425,12 @@ Society-level trust tensors (T3) are calculated from:
 ## 7. Future Considerations
 
 ### 7.1 Cross-Society Protocols
-- Treaty mechanisms
-- Resource sharing agreements
-- Reputation portability
+
+Core inter-society primitives — including the cross-society envelope, reputation propagation, and witnessing across federation boundaries — are normatively defined in `mcp-protocol.md` §7 (MCP as the inter-society interface) and `inter-society-protocol.md`. The bullet list below enumerates further extensions beyond what those documents currently specify normatively:
+
+- Treaty mechanisms (formal bilateral or multilateral society-to-society agreements with on-ledger ratification)
+- Resource sharing agreements (cross-society ATP allocation pools or shared treasury sub-partitions)
+- Reputation portability (mechanisms beyond `mcp-protocol.md §7.4`'s reputation envelopes — e.g. trust-tensor migration on citizenship transfer)
 
 ### 7.2 Society Mergers and Splits
 - Forking mechanisms
