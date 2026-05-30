@@ -17,11 +17,14 @@ Just as biological organisms require different metabolic states to survive and t
 ### 1.2 Biological Inspiration
 
 Each state maps to biological precedents:
-- Sleep cycles for daily rhythms
-- Hibernation for seasonal resource scarcity
-- Torpor for emergency conservation
-- Molting for structural renewal
-- REM/dreaming for memory consolidation
+- Wakeful alertness for full operations (Active)
+- Light sleep for predictable low-activity periods (Rest)
+- Slow-wave sleep for scheduled downtime (Sleep)
+- Bear-style hibernation for seasonal resource scarcity (Hibernation)
+- Hummingbird torpor for emergency conservation (Torpor)
+- Snail-style estivation for adverse-environment survival (Estivation)
+- REM/dreaming for memory consolidation (Dreaming)
+- Crab molting for structural renewal (Molting)
 
 ---
 
@@ -72,7 +75,7 @@ Each state maps to biological precedents:
 - Wake triggers monitored
 
 **Energy Cost**: 15% of baseline
-**Biological Analog**: Deep sleep with REM cycles
+**Biological Analog**: Deep non-REM (slow-wave) sleep
 **Use Case**: Weekends, holidays, scheduled maintenance
 
 ### 2.4 Hibernation State (Extended Dormancy)
@@ -150,6 +153,7 @@ Each state maps to biological precedents:
 - Citizenship review and renewal
 - Temporary performance degradation
 - Heightened security during transition
+- Temporary trust-tensor penalty of -20% applied during transition (see §5.1)
 
 **Energy Cost**: 60% of baseline
 **Biological Analog**: Crab molting its shell
@@ -166,10 +170,10 @@ From State → To State: Trigger Condition
 ─────────────────────────────────────────
 Active → Rest: 1 hour no transactions
 Active → Sleep: Scheduled time reached
-Active → Torpor: ATP reserves < 10%
+Active → Torpor: ATP reserves < 10% (see §4.1 triggers.torpor)
 Active → Dreaming: Maintenance window
 Active → Molting: Governance change approved
-Active → Estivation: Threat detected
+Active → Estivation: Threat detected (threat_score > 80, see §4.1 triggers.estivation)
 
 Rest → Active: Transaction received
 Rest → Sleep: 6 hours no activity
@@ -177,12 +181,12 @@ Rest → Sleep: 6 hours no activity
 Sleep → Active: Wake trigger fired
 Sleep → Hibernation: 30 days no activity
 
-Hibernation → Active: External witness or timeout
+Hibernation → Active: External witness, new_citizen trigger, or 90-day timeout (see §4.1 triggers.hibernation.wake_on)
 
 Torpor → Active: Energy producer recharges
 Torpor → Hibernation: Grace period expired
 
-Estivation → Active: Threat resolved
+Estivation → Active: Threat resolved (threat_score < 20, see §4.1 triggers.estivation.clear)
 Estivation → Hibernation: Extended duration
 
 Dreaming → Active: Consolidation complete
@@ -204,6 +208,8 @@ Each transition MUST:
 ## 4. Implementation
 
 ### 4.1 Configuration Schema
+
+The following YAML is illustrative of a society's metabolic configuration. The `triggers` block shows quantitative thresholds for three state classes (hibernation, torpor, estivation); states not listed (active, rest, sleep, dreaming, molting) use the schedule-driven or event-driven transitions specified in §3.1. Implementations MAY extend `triggers` to cover additional states; the §3.1 transition matrix is the normative source of trigger semantics.
 
 ```yaml
 society_metabolic_config:
@@ -290,7 +296,7 @@ class SentinelWitness:
 | Rest | 90% update rate | Slightly delayed |
 | Sleep | 10% decay rate | Minimal activity |
 | Hibernation | Frozen | Preserved state |
-| Torpor | Frozen + Alert bonus | Crisis response |
+| Torpor | Frozen | Crisis response |
 | Estivation | Internal only | Defensive mode |
 | Dreaming | Recalibration | Pattern recognition |
 | Molting | -20% temporary | Vulnerable period |
@@ -329,11 +335,13 @@ def calculate_metabolic_reliability(society):
 
 ### 6.1 ATP Cost by State
 
-Societies pay different ATP costs based on metabolic state:
+Societies pay different ATP costs based on metabolic state. With `Baseline` expressed per hour (see §4.1 `energy.baseline_cost`):
 
 ```
-Daily ATP Cost = Baseline * State_Multiplier * Society_Size
+Hourly ATP Cost = Baseline * State_Multiplier * Society_Size
 ```
+
+For longer periods, multiply by the number of hours elapsed in the given state.
 
 ### 6.2 Wake Penalties
 
@@ -414,6 +422,23 @@ Metabolic states transform Web4 Societies from always-on resource consumers into
 - Scale sustainably
 
 The principle that "idle isn't" acknowledges the constant energy cost of maintaining coherent presence in distributed systems, while these metabolic states provide mechanisms to modulate that cost based on actual needs.
+
+---
+
+## 10. Conformance
+
+Implementations of this specification SHOULD validate against the canonical test vector suite at:
+
+- `web4-standard/test-vectors/metabolic/society-metabolic-states.json`
+
+The suite contains 12 vectors across four categories:
+
+- **Energy-cost computation** per §6.1 — 3 vectors (active, rest, torpor)
+- **Wake-penalty calculation** per §6.2 — 3 vectors (sleep, hibernation, dreaming)
+- **Transition validity** per §3.1 — 4 vectors (valid and invalid transitions, including self-transition rejection)
+- **Metabolic-reliability scoring** per §5.2 — 2 vectors (all-factors-met and no-factors-met)
+
+Cross-language reimplementations MUST produce numerically equal results to the vector expectations for the deterministic cases (energy cost, wake penalty, transition matrix membership). The reliability-score vectors use the §5.2 weights as written. Coverage is currently 6 of 8 states (estivation and molting are not exercised by the current vector set); future vector additions SHOULD close this gap.
 
 ---
 

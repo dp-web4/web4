@@ -131,6 +131,15 @@ effectiveLaw(child) = merge(parentLaw, childOverrides) with conflictPolicy
 ```
 where `conflictPolicy` is machine-readable in law dataset.
 
+### 3.6 Metabolic State Considerations — **SHOULD**
+SAL governance actions interact with a society's operational mode as defined in `web4-standard/core-spec/SOCIETY_METABOLIC_STATES.md`. Eight metabolic states (Active, Rest, Sleep, Hibernation, Torpor, Estivation, Dreaming, Molting) govern when consensus runs, which witnesses are on duty, and which actions a society accepts. Several SAL-critical actions are sensitive to the current state:
+
+- **Law dataset amendments** (norm/procedure/interpretation publication per §4) SHOULD occur during the **Molting** state, which is explicitly defined as the vulnerable-transition state for "Society laws under active revision" (see §2.8 of `SOCIETY_METABOLIC_STATES.md`). Amendments attempted during dormant states (Sleep, Hibernation, Torpor, Estivation) MAY be queued for processing at the next Active/Molting cycle rather than rejected outright.
+- **Citizenship issuance** (§2.1 Birth Certificate) is sensitive to `accepts_new_citizens` per state — Active SHOULD accept immediately; Rest MAY queue; dormant states SHOULD defer.
+- **Witness quorum requirements** (§3.1) scale down during reduced-operation states; sub-authorities MUST verify that the current state supports the quorum required for their action before issuing.
+
+Implementations MAY treat the metabolic-state check as a precondition of the R6 evaluation pipeline (§6) so that state-incompatible actions are rejected with a clear error before law evaluation runs.
+
 
 ---
 
