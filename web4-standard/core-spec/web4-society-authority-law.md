@@ -1,6 +1,6 @@
 # Web4 Society–Authority–Law Specification (SAL)
 
-**Status:** Draft • **Last Updated:** 2025-09-15 11:50:10 • **Applies to:** Web4 Core Protocol and Ecosystem
+**Status:** Draft • **Last Updated:** 2026-05-31 • **Applies to:** Web4 Core Protocol and Ecosystem
 
 This document defines the **Society–Authority–Law (SAL)** layer for Web4. It specifies how every entity is *born* into a **fractal graph of authority and law** via a **Citizen** role at LCT genesis, how *authority* is represented and delegated, and how *law* is realized through oracle LCTs that bind enforceable rules to the R6 action grammar.
 
@@ -72,6 +72,9 @@ A **Society** is a delegative entity with:
 - An **Authority Role** LCT (root of delegation tree).
 - A **Law Oracle** LCT (publishes machine‑readable law and interpretations).
 - A **Quorum Policy** (witness/attestation requirements per action type).
+- An **Immutable Record** binding (per §3.4).
+
+See also: `SOCIETY_SPECIFICATION.md` §1.2 for the conceptual-minimum view that §3.1 refines along the role-structural axis.
 
 ### 3.2 Nested Composition
 Citizenship composes:
@@ -132,7 +135,7 @@ effectiveLaw(child) = merge(parentLaw, childOverrides) with conflictPolicy
 where `conflictPolicy` is machine-readable in law dataset.
 
 ### 3.6 Metabolic State Considerations — **SHOULD**
-SAL governance actions interact with a society's operational mode as defined in `web4-standard/core-spec/SOCIETY_METABOLIC_STATES.md`. Eight metabolic states (Active, Rest, Sleep, Hibernation, Torpor, Estivation, Dreaming, Molting) govern when consensus runs, which witnesses are on duty, and which actions a society accepts. Several SAL-critical actions are sensitive to the current state:
+SAL governance actions interact with a society's operational mode as defined in `web4-standard/core-spec/SOCIETY_METABOLIC_STATES.md`. Eight metabolic states (Active, Rest, Sleep, Hibernation, Torpor, Estivation, Dreaming, Molting) govern when consensus runs, which witnesses are on duty, and which actions a society accepts. See also: `SOCIETY_SPECIFICATION.md` §1.4 for the parallel society-spec framing of operational modes. Several SAL-critical actions are sensitive to the current state:
 
 - **Law dataset amendments** (norm/procedure/interpretation publication per §4) SHOULD occur during the **Molting** state, which is explicitly defined as the vulnerable-transition state for "Society laws under active revision" (see §2.8 of `SOCIETY_METABOLIC_STATES.md`). Amendments attempted during dormant states (Sleep, Hibernation, Torpor, Estivation) MAY be queued for processing at the next Active/Molting cycle rather than rejected outright.
 - **Citizenship issuance** (§2.1 Birth Certificate) is sensitive to `accepts_new_citizens` per state — Active SHOULD accept immediately; Rest MAY queue; dormant states SHOULD defer.
