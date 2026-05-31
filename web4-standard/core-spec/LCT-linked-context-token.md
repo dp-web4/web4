@@ -1,7 +1,7 @@
 # Linked Context Token (LCT) - Core Specification
 
 **Status**: Core Specification v1.0.0
-**Date**: October 1, 2025
+**Date**: May 31, 2026
 **Category**: Identity & Context
 
 ## Abstract
@@ -59,6 +59,8 @@ LCTs MAY contain:
 
 ```json
 {
+  "@context": ["https://web4.io/contexts/lct.jsonld"],
+  "@type": "web4:LinkedContextToken",
   "lct_id": "lct:web4:mb32:...",
   "subject": "did:web4:key:z6Mk...",
 
@@ -136,7 +138,7 @@ LCTs MAY contain:
         "creative_problem_solving": 0.80
       }
     },
-    "composite_score": 0.84,
+    "composite_score": 0.85,
     "last_computed": "2025-10-01T00:00:00Z",
     "computation_witnesses": ["lct:web4:oracle:trust:..."]
   },
@@ -151,7 +153,7 @@ LCTs MAY contain:
         "reproducibility": 0.88
       }
     },
-    "composite_score": 0.81,
+    "composite_score": 0.85,
     "last_computed": "2025-10-01T00:00:00Z",
     "computation_witnesses": ["lct:web4:oracle:value:..."]
   },
@@ -236,9 +238,10 @@ def create_lct_binding(entity_type, private_key, hardware_anchor=None):
     """
     Create cryptographic binding for LCT.
 
-    Returns: (lct_id, binding_object, binding_proof)
+    Returns: (lct_id, binding_object) — binding_proof is embedded inside binding_object
+    per §2.3 canonical structure.
     """
-    # 1. Create canonical binding structure
+    # 1. Create canonical binding structure (binding_proof added in step 3)
     binding = {
         "entity_type": entity_type,
         "public_key": multibase_encode(cose_key(private_key.public_key)),
@@ -246,16 +249,17 @@ def create_lct_binding(entity_type, private_key, hardware_anchor=None):
         "created_at": utc_now()
     }
 
-    # 2. Serialize with deterministic CBOR
+    # 2. Serialize with deterministic CBOR (proof input excludes binding_proof itself)
     binding_cbor = cbor_deterministic_encode(binding)
 
-    # 3. Sign with entity's private key
-    binding_proof = cose_sign1(private_key, binding_cbor)
+    # 3. Sign with entity's private key and EMBED proof in the binding object
+    #    (matches §2.3 canonical structure where binding_proof is a FIELD of binding)
+    binding["binding_proof"] = cose_sign1(private_key, binding_cbor)
 
     # 4. Generate LCT ID from binding proof hash
-    lct_id = "lct:web4:" + multibase32_encode(sha256(binding_proof))
+    lct_id = "lct:web4:" + multibase32_encode(sha256(binding["binding_proof"]))
 
-    return lct_id, binding, binding_proof
+    return lct_id, binding
 ```
 
 ## 4. Birth Certificate as Foundational Identity
@@ -378,6 +382,14 @@ Every LCT MUST contain a `t3_tensor` with the three canonical root dimensions. E
 - **Training**: Has it learned how? (knowledge/experience)
 - **Temperament**: Will it behave appropriately? (disposition/reliability)
 
+**Canonical weights** (normative): Implementations MUST compute `composite_score` as a weighted sum of the three root dimensions:
+
+```
+composite_score = 0.4 · talent + 0.3 · training + 0.3 · temperament
+```
+
+Each root dimension is itself an aggregate over its (optional) RDF sub-graph of sub-dimensions; sub-dimension aggregation into roots is implementation-defined (typically arithmetic mean of leaves linked via `web4:subDimensionOf`). Computed composites are therefore in `[0.0, 1.0]` whenever roots are.
+
 **Computation**: Societies or trust oracles compute T3 tensors based on:
 - Historical behavior
 - Witness attestations
@@ -406,6 +418,14 @@ Every LCT MUST contain a `v3_tensor` with the three canonical root dimensions, f
 - **Valuation**: How is value assessed? (subjective worth)
 - **Veracity**: How truthful are claims? (accuracy/reproducibility)
 - **Validity**: How sound is the reasoning? (confirmed value delivery)
+
+**Canonical weights** (normative): Implementations MUST compute `composite_score` as a weighted sum of the three root dimensions:
+
+```
+composite_score = 0.3 · valuation + 0.35 · veracity + 0.35 · validity
+```
+
+Sub-dimension aggregation into roots mirrors the T3 pattern (implementation-defined; typically arithmetic mean of leaves linked via `web4:subDimensionOf`). Because `valuation` is permitted to exceed `1.0` (see comment above), the composite arithmetic CAN exceed `1.0` in pathological cases; behavior under that condition (clamp at `1.0`, rescale, or extend the composite range) is currently underspecified and tracked as a known design question.
 
 **Computation**: Societies or value oracles compute V3 tensors based on:
 - Energy economics (ATP/ADP)
@@ -587,15 +607,21 @@ def validate_lct(lct):
             for p in lct["mrh"]["paired"]
         )
 
-    # Tensor validation
-    validate_t3_tensor(lct["t3_tensor"])
-    validate_v3_tensor(lct["v3_tensor"])
+    # Tensor validation (implementation-defined helpers — see expected semantics below)
+    validate_t3_tensor(lct["t3_tensor"])   # implementation-defined
+    validate_v3_tensor(lct["v3_tensor"])   # implementation-defined
 
-    # Binding proof verification
-    verify_binding_proof(lct["binding"], lct["binding"]["binding_proof"])
+    # Binding proof verification (implementation-defined — see expected semantics below)
+    verify_binding_proof(lct["binding"], lct["binding"]["binding_proof"])   # implementation-defined
 
     return True
 ```
+
+**Implementation-defined helpers** (expected semantics for the three calls above):
+
+- `validate_t3_tensor(t3)`: MUST check that `talent`, `training`, `temperament` are present and each in `[0.0, 1.0]`; that `composite_score` is in `[0.0, 1.0]` and matches the §6.1 canonical weight formula within a documented tolerance (e.g. ±0.01 for rounding); and that any `sub_dimensions` entries are valid `web4:subDimensionOf` RDF sub-graphs of the corresponding root.
+- `validate_v3_tensor(v3)`: MUST check that `valuation` ≥ `0.0` (per §6.2 it MAY exceed `1.0`); that `veracity` and `validity` are each in `[0.0, 1.0]`; that `composite_score` matches the §6.2 canonical weight formula within tolerance; and (as above) that any sub-dimensions are valid RDF sub-graphs.
+- `verify_binding_proof(binding, binding_proof)`: MUST verify that `binding_proof` is a valid COSE_Sign1 signature over the deterministic CBOR encoding of `binding` (with `binding_proof` itself excluded from the signed input) using the public key in `binding.public_key`, per the §3.3 binding algorithm.
 
 ### 11.2 Birth Certificate Validator
 
@@ -654,12 +680,14 @@ def validate_birth_certificate(lct):
 - **R6 Framework**: `core-spec/r6-framework.md`
 - **SAL Specification**: `core-spec/web4-society-authority-law.md`
 - **ATP/ADP Cycle**: `core-spec/atp-adp-cycle.md`
+- **Entity Types**: `core-spec/entity-types.md`
+- **LCT Capability Levels**: `core-spec/lct-capability-levels.md`
 - **LCT Protocol Details**: `protocols/web4-lct.md`
 
 ---
 
 **Version**: 1.0.0
 **Status**: Core Specification
-**Last Updated**: October 1, 2025
+**Last Updated**: May 31, 2026
 
 *"An LCT is not an identity. It is a presence - witnessed, contextualized, and witness-hardened."*
