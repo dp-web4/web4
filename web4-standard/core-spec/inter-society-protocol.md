@@ -1,7 +1,7 @@
 # Inter-Society Protocol Specification
 
 **Status**: Core Specification v0.1.2 (DRAFT)
-**Date**: 2026-05-13
+**Date**: 2026-06-01
 **Category**: Society & Federation
 **Extends**: `SOCIETY_SPECIFICATION.md` (single-society semantics), `atp-adp-cycle.md` (ATP form)
 **Companion to**: `LCT-linked-context-token.md`, `t3-v3-tensors.md`, `mrh-tensors.md`
@@ -81,6 +81,8 @@ A single entity MAY found a society. The process:
 ```
 
 **Note on the witness quorum**: `LCT-linked-context-token.md` requires ≥3 birth witnesses. A self-bootstrapped genesis where all three witnesses are under the founder's control satisfies the structural requirement but provides minimal external trust. The society's T3 trust will be self-issued-low until it accumulates witnessed interactions with other societies.
+
+**Note on the genesis record**: The charter (step 3), citizenship admission criteria (step 3), and birth witnesses (step 5) are governed authoritatively by `web4-society-authority-law.md` (SAL) — see SAL §2 for the genesis Citizen role and SAL §2.2 for the canonical Birth Certificate JSON-LD shape that records this genesis.
 
 ### 2.2 Federation-Based Genesis (Higher-Order Society)
 
@@ -271,6 +273,8 @@ Society A is a constituent of federation D. A wishes to exit D.
 
 ```
 1. A SHALL announce intent-to-secede to D, with reason recorded in A's ledger
+   (the Immutable Record per `web4-society-authority-law.md` §3.4, where citizenship
+   changes such as the membership update in step 4 are durably recorded)
 2. A SHALL provide notice period per D's charter (default: 90 days if unspecified)
 3. During the notice period:
    - A retains full federation rights (voting, currency use, etc.)
@@ -351,6 +355,7 @@ The choice is per-society policy. The Web4 protocol does not mandate any specifi
 |---|---|
 | `LCT-linked-context-token.md` | This spec uses society LCTs as defined there |
 | `SOCIETY_SPECIFICATION.md` | This spec extends with genesis, first-contact, secession |
+| `web4-society-authority-law.md` (SAL) | Defines the genesis Citizen role and canonical Birth Certificate shape (SAL §2), the fractal Society Topology and `web4:memberOf` edges (SAL §3.1), and the Immutable Record ledger service (SAL §3.4). This spec's §2 genesis and §5 secession lifecycle operate on those SAL-defined structures. |
 | `atp-adp-cycle.md` | This spec makes explicit the form/substance distinction |
 | `mrh-tensors.md` | Inter-society relationships are MRH edges; this spec defines the protocols that create those edges |
 | `t3-v3-tensors.md` | Society-society trust tensors may be computed; this spec leaves the computation policy society-sovereign |
@@ -363,9 +368,9 @@ The choice is per-society policy. The Web4 protocol does not mandate any specifi
 
 The following remain open and are explicitly NOT addressed by this draft:
 
-- ~~**Cross-society R6/R7 action protocol**~~ — **RESOLVED — `mcp-protocol.md` v0.1.3 (2026-05-14)**: cross-society R6/R7 actions are realized via MCP per the canonical Web4 equation (`Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP`). See `mcp-protocol.md` §1.1 (MCP as inter-society interface), §7.3 (MCP Actions as R7 Transactions), §7.4 (Cross-Society LCT Envelope), §7.5 (Cross-Society Witnessing and R7 Reputation Propagation), and §7.6 (cross-society R7 failure modes). The "cross-society action protocol" was never a missing spec — it was already specified by MCP's position in the equation; the v0.1.3 mcp-protocol.md amendment made the binding explicit.
-- ~~**Society-society trust tensors**~~ — **RESOLVED — `mcp-protocol.md` v0.1.3 (2026-05-14)**: society-society trust tensors emerge as the accumulated R7-Reputation projection at the encompassing society's scope, per `mcp-protocol.md` §7.5. Each society maintains its own bilateral view; the encompassing-society projection (when one exists) provides the canonical reference. Specified there rather than as a separate trust-tensor doc.
-- ~~**Exchange-rate discovery mechanisms**~~ — **RESOLVED — `mcp-protocol.md` v0.1.4 (2026-05-14, WIP)**: see `mcp-protocol.md` §7.7 (WIP) for the referent-grounded negotiation protocol. Key architectural insight: rates are not abstract floating bilateral exchange rates; they are grounded in a common referent both societies can independently value (kilowatt-hours, GPU-time, attention-hours, etc.). Per-transaction scoping is ideal (each R6/R7 carries its own rate against its specific referent); standing-agreement and oracle-reference are practical fallbacks. The protocol specifies message format (form); negotiation strategy (substance) is society-sovereign. The §7.7 section is currently WIP pending fleet review.
+- ~~**Cross-society R6/R7 action protocol**~~ — **RESOLVED — `mcp-protocol.md` §1.1, §7.3–§7.6 (2026-05-14 amendment)**: cross-society R6/R7 actions are realized via MCP per the canonical Web4 equation (`Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP`). See `mcp-protocol.md` §1.1 (MCP as inter-society interface), §7.3 (MCP Actions as R7 Transactions), §7.4 (Cross-Society LCT Envelope), §7.5 (Cross-Society Witnessing and R7 Reputation Propagation), and §7.6 (cross-society R7 failure modes). The "cross-society action protocol" was never a missing spec — it was already specified by MCP's position in the equation; the 2026-05-14 mcp-protocol.md amendment made the binding explicit.
+- ~~**Society-society trust tensors**~~ — **RESOLVED — `mcp-protocol.md` §7.5 (2026-05-14 amendment)**: society-society trust tensors emerge as the accumulated R7-Reputation projection at the encompassing society's scope, per `mcp-protocol.md` §7.5. Each society maintains its own bilateral view; the encompassing-society projection (when one exists) provides the canonical reference. Specified there rather than as a separate trust-tensor doc.
+- ~~**Exchange-rate discovery mechanisms**~~ — **RESOLVED — `mcp-protocol.md` §7.7 (WIP v0.1.0-draft, 2026-05-14)**: see `mcp-protocol.md` §7.7 (WIP) for the referent-grounded negotiation protocol. Key architectural insight: rates are not abstract floating bilateral exchange rates; they are grounded in a common referent both societies can independently value (kilowatt-hours, GPU-time, attention-hours, etc.). Per-transaction scoping is ideal (each R6/R7 carries its own rate against its specific referent); standing-agreement and oracle-reference are practical fallbacks. The protocol specifies message format (form); negotiation strategy (substance) is society-sovereign. The §7.7 section is currently WIP pending fleet review.
 - **Federation-of-federations** — when D itself federates with E into higher-order F. Protocol-wise this is recursive application of §2.2 and §3.2 Option 3, but operational guidance for multi-level federations is needed.
 - **Cross-federation citizenship conflicts** — when entity X is citizen of A (which is constituent of D) and B (which is constituent of E), and D and E are in opposition. Likely society-policy not protocol, but worth documenting patterns.
 - **Trust transitivity vs. trust attenuation across federation levels** — whether T3 in society A propagates to D's level and at what discount. The existing SOCIETY_SPECIFICATION.md §3.2.2 mentions "indirect relationship"; this spec leaves the trust math society-sovereign.
