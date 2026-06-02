@@ -8,7 +8,7 @@ Web4 is research into **trust-native distributed intelligence**. Instead of plat
 
 ---
 
-## What Makes Web4 Different
+## What Makes Web4 Different 
 
 | Web2 | Web3 | Web4 |
 |------|------|------|
