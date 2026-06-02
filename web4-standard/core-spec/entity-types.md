@@ -137,7 +137,7 @@ One of Web4's most radical innovations is treating roles not as labels but as en
 - **Immutable**: Birth certificate pairing cannot be revoked
 - **Inherited**: Carries context from creating/binding entity
 
-#### Birth Certificate Structure (SAL-compliant)
+#### Birth Certificate Structure (SAL-aligned superset)
 ```json
 {
   "@context": ["https://web4.io/contexts/sal.jsonld"],
@@ -150,12 +150,21 @@ One of Web4's most radical innovations is treating roles not as labels but as en
   "birthTimestamp": "2025-09-14T12:00:00Z",
   "witnesses": ["lct:web4:witness1", "lct:web4:witness2"],
   "genesisBlock": "block:12345",
-  "initialRights": ["exist", "interact", "accumulate_reputation"],
-  "initialResponsibilities": ["abide_law", "respect_quorum"],
+  "rights": ["exist", "interact", "accumulate_reputation"],
+  "obligations": ["abide_law", "respect_quorum"],
   "ledgerProof": "hash:sha256:...",
   "parentEntity": "lct:web4:parent:..."
 }
 ```
+
+> **Note (field provenance)**: The fields `entity` through `obligations` match the
+> canonical `Web4BirthCertificate` defined in `web4-society-authority-law.md` §2.2 —
+> in particular the rights/obligations keys are `rights`/`obligations` (SAL canonical),
+> not `initialRights`/`initialResponsibilities`. `ledgerProof` and `parentEntity` are
+> entity-types **extensions** beyond the SAL §2.2 canonical set; whether they belong in
+> the canonical certificate is an **open design question** (tracked as C23-H1, "canonical
+> BirthCertificate shape"). This structure is therefore a SAL-aligned *superset*, not a
+> verbatim copy of SAL §2.2.
 
 ### 3.2 The Role Revolution
 
@@ -268,13 +277,17 @@ For the role-LCT pairing mechanics see §3.4, "Role-Agent Pairing," above; for t
 ## 4. SAL-Specific Roles
 
 > **See also**: `society-roles.md` for the full society-roles taxonomy (base-mandatory, context-mandatory, optional) with fractal-composability semantics. The roles enumerated below are the SAL-specific subset; the broader taxonomy in `society-roles.md` includes additional functional roles (Policy-Entity, Treasurer, Administrator, Archivist, etc.) that are base-mandatory for every Web4 society.
+>
+> **Note (do not conflate the two "sevens")**: The seven subsections below (Society, Authority, Law Oracle, Witness, Auditor, Agent, Client) are the **SAL-specific roles**. They are a *different set* from the seven **base-mandatory** roles defined in `society-roles.md` §2 (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen) — the two sets overlap only on **Law Oracle**. The equal count is coincidental, not a correspondence. (The canonical home of the base-mandatory role list is an open design question; see C25-H1.)
 
-### 4.1 Society Role
-A **Society** is a delegative entity with special capabilities:
+### 4.1 Society (entity-type capabilities)
+**Society** is an *entity type* (§2.1), not a role an entity fills — it is included here because the SAL-specific roles below are hosted *within* a society and depend on these capabilities. A **Society** is a delegative entity with:
 - Issues citizenship (birth certificates) to new entities
 - Maintains a Law Oracle that publishes machine-readable laws
 - Operates or binds to an immutable ledger for record-keeping
 - Can be a citizen of other societies (fractal membership)
+
+The society's apex *role* (the one an entity actually fills) is the **Authority Role** / "Sovereign" — see §4.2.
 
 ### 4.2 Authority Role
 The **Authority** role within a society:
@@ -282,6 +295,15 @@ The **Authority** role within a society:
 - Can create sub-authorities with limited scope
 - Must publish scope and limits as machine-readable policy
 - Emergency powers if defined by law
+
+> **Note (scope)**: "Authority Role" as described here denotes a **scoped** delegation
+> (finance/safety/membership) operating *beneath* the society's root authority — the
+> sub-authority position in SAL's delegation tree (`web4-society-authority-law.md` §3.3,
+> `authorityRole web4:delegatesTo subAuthorityRole`). It is **not** the root of the
+> delegation tree; SAL §3.1 names the *root* "Authority Role" LCT, and `society-roles.md`
+> §2.1 names the society's final/root authority **"Sovereign"**. Reconciling the role
+> *name* across these specs (SAL "Authority Role" vs society-roles "Sovereign") is an open
+> design question (see C25-H1); this note fixes only the scoped-vs-root reading.
 
 ### 4.3 Law Oracle Role
 A specialized oracle that:
@@ -374,7 +396,7 @@ Principal entity in agency delegation:
 
 ## 5. Entity Lifecycle
 
-### 5.1 Entity Creation and Birth Certificate (SAL-compliant)
+### 5.1 Entity Creation and Birth Certificate
 
 When an entity enters Web4:
 
@@ -390,6 +412,14 @@ When an entity enters Web4:
 10. **Ledger Proof**: Inclusion proof from immutable record
 
 #### Birth Certificate Process
+
+> **Note**: The pseudocode below is **illustrative and abbreviated** — it sketches the
+> creation flow, not the normative on-ledger certificate shape. The `birth_cert` dict
+> shows only a subset of fields and omits SAL-required elements (law-oracle digest,
+> genesis block reference, rights/obligations). For the **normative** certificate
+> structure see §3.1 above and the canonical `Web4BirthCertificate` in
+> `web4-society-authority-law.md` §2.1–§2.2.
+
 ```python
 def create_entity_with_birth_certificate(entity_type, context, parent=None):
     # Generate entity LCT
@@ -398,7 +428,7 @@ def create_entity_with_birth_certificate(entity_type, context, parent=None):
     # Determine citizen role for context
     citizen_role = get_citizen_role_for_context(context)
     
-    # Create birth certificate pairing
+    # Create birth certificate pairing (illustrative subset — see §3.1 / SAL §2.2 for normative shape)
     birth_cert = {
         "entity_lct": entity_lct.id,
         "citizen_role": citizen_role.id,
