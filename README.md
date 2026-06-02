@@ -444,7 +444,7 @@ python attack_track_fc.py                  # Economic attacks
 
 ## 📊 Repository Structure
 
-```
+```xlsl
 web4/
 ├── web4-core/                         # Reference Rust + Python SDK, AttestationEnvelope
 ├── web4-trust-core/                   # Trust tensor implementations (Rust)
