@@ -1,5 +1,5 @@
 # Web4 Core Handshake (HPKE-based)
-Status: Draft • Last-Updated: 2025-09-11T22:47:56.408268Z
+Status: Draft • Last-Updated: 2026-06-03T06:00:00Z
 Authors: Web4 Editors
 
 ## 1. Scope
@@ -65,7 +65,7 @@ GREASE (Generate Random Extensions And Sustain Extensibility) prevents ossificat
 
 **Extension ID Format:**
 - GREASE extension IDs use format: `w4_ext_[8-hex-digits]@0`
-- Reserved hex patterns: `*a*a*a*a` where `*` is any hex digit
+- The 8 hex digits are chosen uniformly at random for each handshake; there is no fixed reserved value or mask (RFC 8701-style anti-ossification: random values that receivers MUST ignore if unknown)
 - Example: `w4_ext_1a2a3a4a@0`, `w4_ext_fafbfcfd@0`
 
 **Requirements:**
@@ -74,7 +74,7 @@ GREASE (Generate Random Extensions And Sustain Extensibility) prevents ossificat
 - GREASE values MUST be randomly generated for each handshake
 - Suite IDs follow similar pattern: `W4-GREASE-[8-hex-digits]`
 
-### 5.1 ClientHello (plaintext JSON, over TLS/QUIC or out-of-band)
+### 5.1 ClientHello (shown as JSON for readability; serialized per the negotiated media type — CBOR is MTI; over TLS/QUIC or out-of-band)
 ```json
 {
   "type": "ClientHello",
@@ -82,7 +82,7 @@ GREASE (Generate Random Extensions And Sustain Extensibility) prevents ossificat
   "w4idp_hint": "w4idp-<base32>",
   "suites": ["W4-BASE-1", "W4-FIPS-1", "W4-GREASE-93f07f2a"],
   "media": ["application/web4+cbor", "application/web4+json"],
-  "ext": ["w4_ext_sdjwt_vp@1", "w4_ext_noise_xx@1", "w4_ext_93f07f2a@0"],
+  "ext": ["w4_sig_cose@1", "w4_sig_jose@1", "w4_ext_sdjwt_vp@1", "w4_ext_noise_xx@1", "w4_ext_93f07f2a@0"],
   "nonce": "<random 96-bit>",
   "ts": "<iso8601>",
   "kex_epk": "<KEM public key (HPKE)>"
@@ -97,7 +97,7 @@ GREASE (Generate Random Extensions And Sustain Extensibility) prevents ossificat
   "w4idp": "w4idp-<base32>",
   "suite": "W4-BASE-1",
   "media": "application/web4+cbor",
-  "ext_ack": ["w4_ext_sdjwt_vp@1"],
+  "ext_ack": ["w4_sig_cose@1", "w4_ext_sdjwt_vp@1"],
   "nonce": "<random 96-bit>",
   "ts": "<iso8601>",
   "kex_epk": "<KEM public key (HPKE)>"
@@ -204,7 +204,7 @@ stateDiagram-v2
     Established --> Rekey : SessionKeyUpdate
     Rekey --> Established
 ```
-Responder mirrors the flow starting at `WaitClientHello`.
+The Responder runs the mirror-image flow (receive ClientHello → send ServerHello → receive and verify `HandshakeAuth` → `Established`).
 
 ## 9. Anti-Replay & Clocks
 - `nonce` values MUST be unique per key; maintain a replay window.
