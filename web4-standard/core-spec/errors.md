@@ -1,6 +1,12 @@
 # Web4 Error Taxonomy
 
-This document defines a standardized error taxonomy for the Web4 protocol based on RFC 9457 Problem Details. A consistent error format is essential for debugging, interoperability, and providing a good developer experience.
+**Version**: 1
+**Status**: Draft — core protocol error taxonomy (RFC 9457 Problem Details); subsystem specs extend it (see §1).
+**Last-Updated**: 2026-06-04
+
+---
+
+This document defines the standardized **core protocol** error taxonomy for Web4, based on RFC 9457 Problem Details. It is the single source of truth for core protocol error codes (binding, pairing, witnessing, authorization, cryptography, and protocol errors). Subsystem specifications — Society/Authority Law (`web4-society-authority-law.md` §9), ACP (`acp-framework.md` §10), metering (`web4-metering.md` §6), and MCP cross-society (`mcp-protocol.md` §7.6) — **extend** this taxonomy with additional domain-specific `W4_ERR_*` codes and SHOULD reuse the codes defined here where applicable rather than introducing parallel names. A consistent error format is essential for debugging, interoperability, and providing a good developer experience.
 
 ## 1. Error Format
 
@@ -9,7 +15,7 @@ Web4 uses RFC 9457 Problem Details for all protocol errors. Errors MUST be repre
 ```json
 {
   "type": "about:blank",
-  "title": "Binding Failed",
+  "title": "Binding Already Exists",
   "status": 409,
   "code": "W4_ERR_BINDING_EXISTS",
   "detail": "Entity already has an active binding for device-12345",
@@ -17,14 +23,16 @@ Web4 uses RFC 9457 Problem Details for all protocol errors. Errors MUST be repre
 }
 ```
 
-### Required Fields
+### Fields
 
--   **`type`** (REQUIRED): URI identifying the error type. Use `"about:blank"` for generic errors or specific URIs for well-known error types
--   **`title`** (REQUIRED): Short, human-readable summary of the error type
--   **`status`** (REQUIRED): HTTP status code (100-599)
--   **`code`** (REQUIRED): Web4-specific error code from the defined taxonomy
+Web4 Problem Details build on the RFC 9457 member set. Per RFC 9457 §3.1 the standard members (`type`, `title`, `status`, `detail`, `instance`) are all OPTIONAL; Web4 additionally **mandates `status` and `title`** for every error and defines `code` as a Web4 **extension member** (RFC 9457 §3.2):
+
+-   **`type`** (OPTIONAL): URI identifying the error type. Defaults to `"about:blank"` (RFC 9457 §3.1); use a specific URI only for well-known, dereferenceable error types
+-   **`title`** (REQUIRED in Web4): Short, human-readable summary of the error type
+-   **`status`** (REQUIRED in Web4): Status code in the range 100–599. Modelled on HTTP status codes for familiarity but **transport-agnostic** — over HTTP it SHOULD equal the response status code; over non-HTTP transports (e.g. CBOR over TLS/QUIC, BLE GATT, or CAN Bus per `core-protocol.md` §5.1) it carries the analogous semantic class per §2/§5
+-   **`code`** (REQUIRED in Web4): Web4 **extension member** (RFC 9457 §3.2) carrying the error code from the §2 taxonomy
 -   **`detail`** (OPTIONAL): Human-readable explanation specific to this occurrence
--   **`instance`** (OPTIONAL): URI identifying the specific occurrence of the error
+-   **`instance`** (OPTIONAL): URI identifying the specific occurrence of the error. The path segments shown in examples (e.g. `/bindings/12345`, `/messages/123`) are **illustrative**; Web4 defines no normative `instance` path registry
 
 ## 2. Error Code Taxonomy
 
@@ -91,10 +99,10 @@ Web4 defines a hierarchical error code taxonomy with the following categories:
 ```json
 {
   "type": "about:blank",
-  "title": "Unauthorized",
+  "title": "Authorization Denied",
   "status": 401,
   "code": "W4_ERR_AUTHZ_DENIED",
-  "detail": "Credential lacks scope write:lct",
+  "detail": "Credential lacks the required capability for this operation",
   "instance": "web4://w4idp-ABCD/messages/123"
 }
 ```
