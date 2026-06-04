@@ -1,9 +1,12 @@
 # Web4 Data Formats
 
+**Version**: 1
+**Status**: Draft — single source of truth for Web4 identifier and credential formats (`core-protocol.md` §designation).
+**Last-Updated**: 2026-06-03
+
+---
+
 This document specifies the data formats used in the Web4 protocol. These formats are designed to be flexible, extensible, and interoperable, leveraging existing open standards where possible.
-
-
-
 
 ## 1. Web4 Identifier (W4ID)
 
@@ -16,15 +19,16 @@ The W4ID has the following ABNF syntax:
 `w4id = "did:web4:" method-name ":" method-specific-id`
 
 - **`did:web4`**: The scheme and method prefix for Web4 Identifiers.
-- **`method-name`**: The name of the method used to create and manage the identifier (e.g., `key`, `web`).
+- **`method-name`**: The name of the method used to create and manage the identifier (e.g., `key`, `web`, `device`).
 - **`method-specific-id`**: A method-specific identifier string.
 
 ### 1.2. Methods
 
-Web4 defines the following methods for creating and managing W4IDs:
+Web4 defines the following methods for creating and managing W4IDs. This list is **non-exhaustive and extensible**: additional methods MAY be registered as the corpus evolves, and an implementation MUST treat an unrecognized `method-name` as a method it does not support rather than a malformed identifier.
 
 - **`key` method:** The `method-specific-id` is a public key, providing a simple and self-certifying identifier.
 - **`web` method:** The `method-specific-id` is a domain name, allowing for the use of existing web infrastructure to host the W4ID document.
+- **`device` method:** The `method-specific-id` identifies a hardware-bound device key (see `multi-device-lct-binding.md`), used when an identifier is anchored to a specific physical device.
 
 ## 2. Verifiable Credentials (VCs)
 
@@ -60,11 +64,11 @@ Every Web4 message and credential that uses JSON-LD MUST include a `@context` pr
 
 [4] Guha, R.V., Brickley, D., and S. Macbeth, "Schema.org", <https://schema.org/>.
 
+[5] Rundgren, A., Jordan, B., and S. Erdtman, "JSON Canonicalization Scheme (JCS)", RFC 8785, June 2020, <https://www.rfc-editor.org/info/rfc8785>.
 
+[6] Bormann, C. and P. Hoffman, "Concise Binary Object Representation (CBOR)", RFC 8949, December 2020, <https://www.rfc-editor.org/info/rfc8949>.
 
-_
-
-
+[7] Krawczyk, H. and P. Eronen, "HMAC-based Extract-and-Expand Key Derivation Function (HKDF)", RFC 5869, May 2010, <https://www.rfc-editor.org/info/rfc5869>.
 
 ## 4. Pairwise W4ID Derivation
 
@@ -92,12 +96,9 @@ def derive_pairwise_w4id(master_secret: bytes, peer_identifier: str) -> str:
 1.  **`master_secret`**: A secret key known only to the entity.
 2.  **`peer_identifier`**: The unique identifier of the peer entity.
 3.  **`salt`**: The salt is derived from the peer's identifier to ensure that a different key is generated for each peer.
-4.  **`hkdf`**: The HMAC-based Key Derivation Function (HKDF) is used to derive a new key from the master secret and the salt.
+4.  **`hkdf`**: The HMAC-based Key Derivation Function (HKDF) [7] is used to derive a new key from the master secret and the salt.
 5.  **`pairwise_key`**: The derived key is used to generate the pairwise W4ID.
 6.  **`base32_encode`**: The resulting key is encoded using Base32 to create a URL-safe identifier.
-
-
-
 
 ## 5. Message Canonicalization
 
@@ -105,10 +106,13 @@ To ensure that digital signatures are consistent and verifiable, Web4 messages M
 
 ### 5.1. JSON Canonicalization Scheme (JCS)
 
-When using JSON, messages MUST be canonicalized using the JSON Canonicalization Scheme (JCS) as specified in RFC 8785. The following JavaScript code demonstrates JCS:
+When using JSON, messages MUST be canonicalized using the JSON Canonicalization Scheme (JCS) as specified in RFC 8785 [5]. Conformance REQUIRES a complete RFC 8785 implementation — including recursive sorting of nested object keys, the RFC's number-serialization rules, and its string-escaping rules.
+
+The following JavaScript is a **non-normative sketch** intended only to convey intent. It is **not** a conforming JCS implementation: `JSON.stringify(obj, replacerArray)` whitelists only top-level keys, does not recursively sort nested object keys, and does not apply RFC 8785's number/string rules. Do not use it for signing.
 
 ```javascript
-// JSON Canonicalization Scheme (JCS) - RFC 8785
+// NON-NORMATIVE SKETCH — not a conforming JCS implementation.
+// A conforming implementation MUST follow RFC 8785 [5] in full.
 function canonicalizeJSON(obj) {
   return JSON.stringify(obj, Object.keys(obj).sort());
 }
@@ -116,7 +120,7 @@ function canonicalizeJSON(obj) {
 
 ### 5.2. CBOR Deterministic Encoding
 
-When using CBOR, messages MUST be encoded using the deterministic encoding rules specified in RFC 7049. The following rules MUST be followed:
+When using CBOR, messages MUST be encoded using the Core Deterministic Encoding rules specified in RFC 8949 §4.2 [6]. (RFC 7049, the original CBOR specification, was obsoleted by RFC 8949 in December 2020.) The following rules MUST be followed:
 
 1.  Integers use the smallest possible encoding.
 2.  Maps are sorted by key encoding.
@@ -133,5 +137,3 @@ function canonicalizeCBOR(obj) {
   return cbor.encode(obj, {canonical: true});
 }
 ```
-
-
