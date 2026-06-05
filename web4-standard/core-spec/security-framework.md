@@ -1,6 +1,6 @@
 # Web4 Security Framework
 
-This document defines the security framework for the Web4 standard. It covers the cryptographic primitives, key management, authentication and authorization, and a comprehensive analysis of security considerations.
+This document defines the security framework for the Web4 standard. It covers the cryptographic primitives, key management, and authentication and authorization.
 
 
 
@@ -11,15 +11,15 @@ Web4 defines standardized cryptographic suites to ensure interoperability and se
 
 ### 1.1. Suite Definitions
 
-| Suite ID          | KEM     | Sig       | AEAD                | Hash    | Profile | Status |
-|-------------------|---------|-----------|---------------------|---------|---------|--------|
-| W4-BASE-1         | X25519  | Ed25519   | ChaCha20-Poly1305   | SHA-256 | COSE    | MUST   |
-| W4-FIPS-1         | P-256   | ECDSA-P256| AES-128-GCM         | SHA-256 | JOSE    | SHOULD |
+| Suite ID          | KEM       | Sig        | AEAD                | Hash    | Profile | Status |
+|-------------------|-----------|------------|---------------------|---------|---------|--------|
+| W4-BASE-1         | X25519    | Ed25519    | ChaCha20-Poly1305   | SHA-256 | COSE    | MUST   |
+| W4-FIPS-1         | ECDH-P256 | ECDSA-P256 | AES-128-GCM         | SHA-256 | JOSE    | SHOULD |
 
 **Implementation Requirements:**
 - Implementations MUST support W4-BASE-1
 - FIPS-bound environments SHOULD support W4-FIPS-1
-- Other suites MAY be offered but MUST NOT be negotiated as MTI
+- Other suites MAY be offered but MUST NOT be required in place of the mandatory W4-BASE-1 baseline
 
 ### 1.2. Algorithm Specifications
 
@@ -32,7 +32,7 @@ Web4 defines standardized cryptographic suites to ensure interoperability and se
 - **Encoding**: COSE (RFC 8152)
 
 #### W4-FIPS-1 (FIPS Compliance)
-- **Key Exchange**: ECDH with P-256 (FIPS 186-4)
+- **Key Exchange**: ECDH-P256 (ECDH with P-256, FIPS 186-4)
 - **Signatures**: ECDSA with P-256 (FIPS 186-4)
 - **AEAD**: AES-128-GCM (NIST SP 800-38D)
 - **Hash**: SHA-256 (FIPS 180-4)
@@ -41,7 +41,7 @@ Web4 defines standardized cryptographic suites to ensure interoperability and se
 
 ### 1.3. Canonicalization and Signatures
 
-All Web4 signed payloads **MUST** implement COSE/CBOR (Ed25519/EdDSA) as mandatory-to-implement (MTI). JOSE/JSON (ES256) is OPTIONAL/SHOULD for bridge scenarios.
+All Web4 signed payloads **MUST** implement COSE/CBOR (Ed25519/EdDSA) as mandatory-to-implement (MTI). JOSE/JSON (ES256) is SHOULD for bridge scenarios.
 
 #### COSE/CBOR (MUST)
 - Deterministic CBOR encoding per CTAP2
@@ -75,7 +75,7 @@ Private keys MUST be stored securely to prevent unauthorized access. Recommended
 
 ### 2.3. Key Rotation
 
-To mitigate the risk of key compromise, Web4 entities SHOULD rotate their keys periodically. The key rotation process involves generating a new key pair and updating the entity's Web4 Identifier to use the new public key.
+To mitigate the risk of key compromise, Web4 entities SHOULD rotate their keys periodically. The key rotation process involves generating a new key pair and updating the entity's Web4 Identifier to use the new public key. See `LCT-linked-context-token.md` Section 7.3 for the normative rotation lifecycle (new LCT issuance, `lineage` to the parent, and the dual-validity overlap window before the parent is retired as `superseded`).
 
 
 
