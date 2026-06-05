@@ -4,6 +4,8 @@
 
 The R6 framework provides audit trails and (in Tier 2) authorization. This document analyzes attack vectors and mitigations.
 
+**Scope**: this analysis covers **Tier 1 (Observational)** and **Tier 2 (Authorization)**. The **Tier 3 (Training Evaluation)** threat model is out of scope — training runs in a controlled, non-adversarial environment rather than a deployment exposed to untrusted actors.
+
 ## Tier 1: Observational (web4-governance plugin)
 
 ### Attack Vectors
@@ -175,7 +177,7 @@ def detect_gaps(records, session):
 4. Warn users about local file trust
 
 ### For Tier 2 (Enterprise)
-1. Integrate with policy engine (done)
+1. Integrate with policy engine
 2. Add multi-approver workflows
 3. Implement trust pattern analysis
 4. Add audit anchoring to external ledger
@@ -189,6 +191,7 @@ def detect_gaps(records, session):
 
 ## References
 
+- R6 Framework (normative): `r6-framework.md` (§4 R6 Security Properties is the normative baseline for these attack analyses)
 - OWASP Logging Cheat Sheet
 - NIST SP 800-92 (Log Management)
 - TPM 2.0 Security Best Practices

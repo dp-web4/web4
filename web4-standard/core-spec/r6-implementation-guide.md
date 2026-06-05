@@ -9,7 +9,7 @@ The R6 framework (Rules + Role + Request + Reference + Resource → Result) is i
 ### Tier 1: Observational (Open Source)
 **Projects**:
 - `web4/claude-code-plugin` (Python, standalone)
-- `moltbot/extensions/web4-governance` (TypeScript, moltbot plugin) **← Live implementation**
+- `moltbot/extensions/web4-governance` (TypeScript, moltbot plugin)
 
 Purpose: Audit trail without authorization overhead. Safe for public adoption.
 
@@ -31,10 +31,10 @@ R6 Components (Lite):
 - `before_tool_call` hook surface ready for policy enforcement (Tier 1.5)
 - TypeScript implementation (moltbot), Python implementation (standalone)
 
-**Moltbot Integration** (January 2026):
-- PR #1: Wired `before_tool_call`/`after_tool_call` typed hooks into agent tool pipeline
-- PR #2: web4-governance plugin using `after_tool_call` for R6 audit records
-- Hooks enable both observation (current) and enforcement (next: policy engine)
+**Moltbot Integration**:
+- Typed `before_tool_call`/`after_tool_call` hooks wired into the agent tool pipeline
+- web4-governance plugin uses `after_tool_call` for R6 audit records
+- Hooks enable both observation and policy-engine enforcement
 - See: `moltbot/extensions/web4-governance/ARCHITECTURE.md`
 
 ### Tier 2: Authorization (Proprietary)
@@ -84,6 +84,8 @@ R6 Components (Training):
 
 ## R6Status States
 
+The three blocks below are **distinct per-tier lifecycles**, not one shared state machine — each tier/product defines its own status vocabulary. These tier-internal states are separate from the canonical R6 **Result** status set `{success, failure, error}` defined in `r6-framework.md` §7; e.g. the Hardbound `Approved`/`Rejected`/`Completed`/`Failed` tokens are a product-specific approval lifecycle, not canonical R6 Result statuses.
+
 ### Hardbound (Authorization)
 ```
 Pending → InProgress → Approved/Rejected → Completed/Failed
@@ -95,7 +97,7 @@ Pending → InProgress → Approved/Rejected → Completed/Failed
 (implicit) → request_created → result_recorded
 ```
 
-### SAGE Training
+### SAGE (Training Evaluation)
 ```
 (implicit) → include/exclude/review (evaluation outcome)
 ```
@@ -120,6 +122,8 @@ The audit trail format is compatible across tiers - Tier 1 records can be import
 
 ## ID Formats
 
+> These are **illustrative implementation-specific formats**, not canonical Web4 identifier schemes. The canonical identifier grammar is the W4ID form defined in `data-formats.md`; the formats below show how individual tier implementations label their own records.
+
 | Context | Format | Example |
 |---------|--------|---------|
 | R6 Request | `r6:{uuid8}` | `r6:f8e9a1b2` |
@@ -133,6 +137,7 @@ See: `r6-security-analysis.md` for attack vectors and mitigations.
 
 ## References
 
+- R6 Framework (normative): `r6-framework.md`
 - Web4 Spec: `web4-standard/README.md`
 - Hardbound: `hardbound/README.md`
 - Moltbot Plugin: `moltbot/extensions/web4-governance/ARCHITECTURE.md`
