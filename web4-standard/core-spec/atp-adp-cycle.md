@@ -38,6 +38,13 @@ Unlike traditional currencies designed for storage, ATP tokens must flow to main
 
 Societies mint tokens in the discharged (ADP) state:
 
+> **Note on examples.** The JSON event objects in this document (e.g.
+> `TokenMinting`, `R6Transaction` below) are **illustrative plain JSON**, using a
+> bare `"type"` discriminator for readability. Canonical wire serializations are
+> JSON-LD: the SDK serializers emit `"@type"` with an `@context` (see
+> `data-formats.md`). Treat these examples as shape illustrations, not literal
+> wire payloads.
+
 ```json
 {
   "type": "TokenMinting",
@@ -54,7 +61,7 @@ Societies mint tokens in the discharged (ADP) state:
   "poolAllocation": {
     "total": 1000000,
     "reserved": 100000,
-    "available": 900000
+    "circulating": 900000
   }
 }
 ```
@@ -93,7 +100,7 @@ def charge_atp(producer, adp_amount, value_proof):
     update_tensors(
         entity=producer,
         t3_delta={"training": +0.01},
-        v3_delta={"value": +0.02}
+        v3_delta={"valuation": +0.02}
     )
     
     # 6. Record on ledger
@@ -144,7 +151,7 @@ ATP discharges through R6 transactions:
     "executor": "lct:web4:entity:agent",
     "witnesses": ["lct:web4:witness:..."],
     "t3v3_updates": [
-      {"entity": "client", "v3": {"value": +0.03}},
+      {"entity": "client", "v3": {"valuation": +0.03}},
       {"entity": "agent", "t3": {"talent": +0.01}}
     ]
   }
@@ -165,12 +172,13 @@ ATP discharges through R6 transactions:
 ATP can be slashed for violations:
 
 ```python
-def slash_atp(caller, violator, amount, evidence):
+def slash_atp(caller, violator, amount, evidence, witnesses):
     """
     Slash ATP for law violations or failed commitments
 
-    caller:   entity initiating the slash (must hold slashing authority)
-    violator: entity whose ATP is slashed
+    caller:    entity initiating the slash (must hold slashing authority)
+    violator:  entity whose ATP is slashed
+    witnesses: entities attesting the slashing event (recorded on the ledger)
     """
     # 1. Validate slashing authority of the initiator (not the violator)
     if not has_slashing_authority(caller):
@@ -199,6 +207,12 @@ def slash_atp(caller, violator, amount, evidence):
     
     return slashed
 ```
+
+> **Supply accounting.** Slashing **destroys** ATP: the slashed amount is removed
+> from the society's `total_supply` (§3.1) rather than discharged to ADP. Slashing
+> therefore sits **outside** the transfer-conservation invariant
+> (`initial == final + fees`), which scopes only ATP→ADP transfers — a destruction
+> event is an intended supply reduction, not a conservation violation.
 
 ## 3. Society Token Pools
 
@@ -257,12 +271,14 @@ class SocietyTokenPool:
         metrics = self.calculate_metrics()
         
         # Adjust charge rate based on velocity
-        if metrics.velocity < target_velocity:
+        # (target_velocity is a society-defined threshold from the economic law)
+        if metrics.velocity < self.law.target_velocity:
             self.increase_charge_incentives()
-        elif metrics.velocity > target_velocity:
+        elif metrics.velocity > self.law.target_velocity:
             self.apply_decay_pressure()
         
-        # Prevent hoarding
+        # Prevent hoarding: the pool-level entry point delegates to the
+        # per-stake decay routine in §3.3 (apply_demurrage_decay)
         self.apply_demurrage(rate=self.law.demurrage_rate)
         
         return metrics
@@ -278,8 +294,12 @@ ATP cannot be accumulated:
 4. **Use-or-Lose**: Unutilized allocations return to pool
 
 ```python
-def apply_demurrage(entity_stakes):
-    """Apply time-based decay to prevent hoarding"""
+def apply_demurrage_decay(entity_stakes):
+    """Apply time-based decay to prevent hoarding.
+
+    Per-stake decay routine invoked by SocietyTokenPool.apply_demurrage
+    (§3.2); named distinctly to avoid colliding with that pool method.
+    """
     for entity, stake in entity_stakes.items():
         age = get_stake_age(stake)
         if age > DEMURRAGE_THRESHOLD:
@@ -334,18 +354,19 @@ def track_value_flow(r6_transaction):
     """Track value creation through fractal tensor updates"""
     
     # Direct participants
+    # (nested {"t3"/"v3": {dim: delta}} notation, consistent with §2.3)
     primary_updates = [
-        (r6_transaction.client, {"v3.value": +0.05}),
-        (r6_transaction.agent, {"t3.talent": +0.02})
+        (r6_transaction.client, {"v3": {"valuation": +0.05}}),
+        (r6_transaction.agent, {"t3": {"talent": +0.02}})
     ]
     
     # Secondary beneficiaries (witnessed)
     secondary_updates = [
-        (witness, {"t3.temperament": +0.001})
+        (witness, {"t3": {"temperament": +0.001}})
         for witness in r6_transaction.witnesses
     ]
     
-    # Tertiary (society-level)
+    # Tertiary (society-level aggregate, not a T3/V3 dimension)
     society_updates = [
         (r6_transaction.society, {"aggregate_value": +0.0001})
     ]
@@ -377,8 +398,8 @@ Level 5: Parent society (0.01% attribution)
 ```
 
 The percentages shown are **illustrative defaults**, not protocol constants.
-Societies SHOULD define attribution rates in their economic laws (cf. §6.3 on
-transfer fees). Implementations MUST NOT hard-code these values.
+Societies SHOULD define attribution rates in their economic laws (see §6.2 on
+economic laws). Implementations MUST NOT hard-code these values.
 
 ## 5. Inter-Society Currency Exchange
 
@@ -403,7 +424,7 @@ When a society joins another as citizen:
         "velocity": 4.2
       },
       "exchange_agreement": {
-        "initial_rate": 1000,  // 1000 CITY = 1 NATION
+        "initial_rate": 1000,  // 1000 CITY = 1 NATION (CITY per NATION; get_exchange_rate (§5.3) returns the inverse, NATION per CITY = 0.001)
         "mechanism": "floating",
         "adjustment": "daily",
         "reserves": {
@@ -438,12 +459,15 @@ def cross_society_transaction(source_entity, target_entity, amount):
     
     if source_society != target_society:
         # Get exchange rate
+        # Convention: get_exchange_rate(source, target) returns
+        # target-per-source units, so it multiplies the source amount directly.
         rate = get_exchange_rate(
             source_society.currency,
             target_society.currency
         )
         
         # Convert currency
+        # e.g. CITY -> NATION: rate = 0.001 (NATION per CITY); see §5.1
         source_atp = amount
         target_atp = amount * rate
         
