@@ -176,9 +176,11 @@ Endpoints negotiate transport during discovery:
 
 The Web4 URI scheme provides a way to identify and locate Web4 resources. The scheme is based on the standard URI syntax defined in RFC 3986 and is designed to be flexible and extensible.
 
+> **Normative home:** The `web4://` URI scheme is normatively specified in [`data-formats.md`](data-formats.md) §6, which is the single source of truth for its structure. The summary in this section is for orientation. In particular, the surface form of the authority component (shown below as `<w4id>`) is one illustration of an authority form that is subject to an open repo-wide identifier-scheme decision and is intentionally not resolved here; see `data-formats.md` §6.2.
+
 ### 6.1. Syntax
 
-The Web4 URI scheme has the following syntax:
+The Web4 URI scheme has the following illustrative syntax:
 
 `web4://<w4id>/<path-abempty>[?query][#fragment]`
 
