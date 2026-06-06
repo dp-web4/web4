@@ -30,6 +30,10 @@ Web4 defines the following methods for creating and managing W4IDs. This list is
 - **`web` method:** The `method-specific-id` is a domain name, allowing for the use of existing web infrastructure to host the W4ID document.
 - **`device` method:** The `method-specific-id` identifies a hardware-bound device key (see `multi-device-lct-binding.md`), used when an identifier is anchored to a specific physical device.
 
+### 1.3. Relationship to the LCT identifier (`lct:web4:`)
+
+A W4ID identifies a Web4 **entity** (the subject). It is distinct from an **LCT identifier**, which uses the `lct:web4:` prefix and identifies a specific Linked Context Token *instance* — the reified presence record — rather than the entity that is its subject. The two are different namespaces serving different referents: an entity has a `did:web4:` W4ID, and each LCT bound to that entity has its own `lct:web4:` identifier. (The canonical surface form of the `lct:web4:` identifier is specified by the LCT documents; reconciling it with the open identifier-scheme decision is out of scope for this section.)
+
 ## 2. Verifiable Credentials (VCs)
 
 Web4 uses Verifiable Credentials (VCs) as defined by the W3C [2] to represent claims and attestations. VCs are a standard way to create and verify digital credentials that are tamper-evident and cryptographically verifiable.
@@ -137,3 +141,26 @@ function canonicalizeCBOR(obj) {
   return cbor.encode(obj, {canonical: true});
 }
 ```
+
+## 6. Web4 URI Scheme (`web4://`)
+
+The `web4://` URI scheme provides a way to identify and locate a resource owned by a Web4 entity. This section is the **single source of truth** for the scheme's structure; other documents (e.g., [`core-protocol.md`](core-protocol.md) §6 and [`architecture/grammar_and_notation.md`](../architecture/grammar_and_notation.md) §4.1) describe the same scheme for orientation and defer to this definition.
+
+### 6.1. Structure
+
+A `web4://` URI is built on the generic URI syntax of RFC 3986 and has the structure:
+
+`web4://<authority>/<path-abempty>[?query][#fragment]`
+
+- **`web4://`**: The scheme identifier.
+- **`<authority>`**: Identifies the Web4 entity that owns the resource. **The surface form of this authority is not resolved here** — see §6.2.
+- **`<path-abempty>`**: An optional path to the resource within the entity's namespace, per RFC 3986.
+- **`[?query]`** and **`[#fragment]`**: Optional query and fragment components, per RFC 3986.
+
+### 6.2. Authority form (open identifier-scheme decision)
+
+The exact surface form of the `<authority>` component — for example a full Web4 Identifier versus a base32-encoded label — is **subject to the same open repo-wide identifier-scheme decision** that governs the W4ID prefix form (§1.1) and pairwise-identifier derivation (§4). It is **intentionally not resolved here**. Existing documents currently illustrate more than one form (a full W4ID in [`core-protocol.md`](core-protocol.md) §6.1; a `w4id-label` in [`architecture/grammar_and_notation.md`](../architecture/grammar_and_notation.md) §4.1); reconciling them to a single canonical form is deferred to that decision. Implementations MUST NOT assume the authority form is settled until this decision is recorded here.
+
+### 6.3. Resolution
+
+To resolve a `web4://` URI, a client first resolves the authority to the owning entity's service endpoint, then issues a request to that endpoint carrying the path, query, and fragment from the URI.

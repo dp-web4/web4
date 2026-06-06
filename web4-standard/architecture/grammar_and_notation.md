@@ -41,6 +41,8 @@ Web4 supports two URI schemes for identifying and locating resources:
 
 This scheme is used for clean, human-readable URIs.
 
+> **Normative home:** The `web4://` scheme is normatively specified in [`../core-spec/data-formats.md`](../core-spec/data-formats.md) §6, which is its single source of truth. The grammar below is provided for orientation. The `w4-authority` production shown here is one illustration of an authority form; its canonical surface form is subject to an open repo-wide identifier-scheme decision and is not settled by this document (see `data-formats.md` §6.2).
+
 ```abnf
 web4-URI = "web4://" w4-authority path-abempty [ "?" query ] [ "#" fragment ]
 w4-authority = w4id-label / hostname
@@ -56,6 +58,8 @@ web4-did-url = did-url
 did-url = "did:web4:" method-specific-id [ path ] [ "?" query ] [ "#" fragment ]
 method-specific-id = base32nopad
 ```
+
+> **Note (scope of "RECOMMENDED"):** This "RECOMMENDED" designation is an architecture-document preference, not an independent settlement of the canonical entity-identifier prefix. The W4ID prefix form (`did:web4:` vs alternatives) is governed by an open repo-wide identifier-scheme decision whose normative home is [`../core-spec/data-formats.md`](../core-spec/data-formats.md) §1. This label is consistent with that document's current ABNF and stands as evidence of the prose lean toward `did:web4:`, but it does not by itself resolve the open decision.
 
 ## References
 
