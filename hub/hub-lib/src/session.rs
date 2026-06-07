@@ -41,10 +41,27 @@ impl ChapterSession {
         let paths = ChapterPaths::new(chapter_dir.to_path_buf());
         let config = ChapterConfig::load(paths.config())
             .with_context(|| format!("loading config at {}", paths.config().display()))?;
-        let sovereign = IdentityFile::load(&config.sovereign.lct_path)
+
+        // ChapterSession is the synchronous CLI surface (add-member CLI,
+        // record-event CLI, etc.). It needs the Sovereign keypair in-process
+        // to sign ledger entries synchronously. That's a Local-mode-only
+        // capability. Hestia-mode chapters must drive mutations through the
+        // async REST API (`POST /v1/chapters/{id}/events`) where the signer
+        // abstraction handles the Hestia callback roundtrip.
+        let lct_path = match config.sovereign.mode()? {
+            crate::chapter::SovereignMode::Local { lct_path } => lct_path,
+            crate::chapter::SovereignMode::Hestia { .. } => {
+                anyhow::bail!(
+                    "this chapter is Hestia-mode; synchronous CLI mutations \
+                     are not supported. Use the REST API at \
+                     POST /v1/chapters/{{chapter_id}}/events with a SignedEnvelope \
+                     instead. For read-only queries, use the equivalent GET endpoints."
+                );
+            }
+        };
+        let sovereign = IdentityFile::load(&lct_path)
             .with_context(|| format!(
-                "loading Sovereign identity from {}",
-                config.sovereign.lct_path.display()
+                "loading Sovereign identity from {}", lct_path.display()
             ))?;
         let keypair = sovereign.keypair()?;
         let store = open_chapter_store(chapter_dir)

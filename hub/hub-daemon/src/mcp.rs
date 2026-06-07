@@ -59,7 +59,21 @@ impl McpState {
     pub fn open(chapter_dir: PathBuf) -> Result<Self> {
         let paths = ChapterPaths::new(chapter_dir.clone());
         let config = hub_lib::chapter::ChapterConfig::load(paths.config())?;
-        let sovereign = IdentityFile::load(&config.sovereign.lct_path)?;
+        // MCP server still uses local-keypair direct signing for now.
+        // Hestia-mode chapters route through REST (which uses the signer
+        // abstraction); MCP tools on Hestia-mode chapters are read-only
+        // until V2-7 Step 4 makes the MCP layer signer-aware too.
+        let lct_path = match config.sovereign.mode()? {
+            hub_lib::chapter::SovereignMode::Local { lct_path } => lct_path,
+            hub_lib::chapter::SovereignMode::Hestia { .. } => {
+                anyhow::bail!(
+                    "MCP server does not yet support Hestia-mode chapters. \
+                     Use the REST API (POST /v1/chapters/{{id}}/events) instead. \
+                     MCP signer integration arrives in V2-7 Step 4."
+                );
+            }
+        };
+        let sovereign = IdentityFile::load(&lct_path)?;
         let kp = sovereign.keypair()?;
         let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
         let ledger = ChapterLedger::open(store)?;

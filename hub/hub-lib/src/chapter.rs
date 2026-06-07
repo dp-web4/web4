@@ -18,9 +18,11 @@
 //! protects the private key material from being checked into version
 //! control alongside the chapter dir.
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use uuid::Uuid;
+use web4_core::lct::{EntityType, Lct};
 
 /// Default MCP listen port. 8760 is sage-daemon's; 8770 leaves room.
 pub const DEFAULT_MCP_PORT: u16 = 8770;
@@ -45,19 +47,152 @@ pub struct DaemonSection {
     pub mcp_port: u16,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Sovereign config: either local-file mode (MVP, deprecated) OR
+/// Hestia-mode (V2-7+, per architecture commitment #8). Exactly one
+/// mode must be populated; [`Self::mode`] validates + classifies.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct SovereignSection {
-    /// Path to the Sovereign LCT file (see identity::IdentityFile).
-    /// Absolute or relative-to-chapter-dir.
-    pub lct_path: PathBuf,
+    /// **Local mode** (MVP, deprecated post-V2-7):
+    /// Path to the Sovereign IdentityFile (LCT + keypair). Absolute or
+    /// relative-to-chapter-dir.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lct_path: Option<PathBuf>,
+
+    /// **Hestia mode** (V2-7+, recommended):
+    /// URL of the Sovereign's Hestia sign-request callback. The hub
+    /// POSTs SignRequest here whenever a Sovereign-signed ledger entry
+    /// is needed; Hestia decides per its authority+need-to-know gate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hestia_callback_url: Option<String>,
+
+    /// **Hestia mode**: the Sovereign's LCT id (the entity Hestia signs
+    /// for). The hub needs this to label the signer + verify envelopes
+    /// claiming this signer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lct_id: Option<Uuid>,
+
+    /// **Hestia mode**: the Sovereign's public key (hex-encoded raw 32
+    /// bytes). The hub uses this to verify envelopes signed by the
+    /// Sovereign (it doesn't have the IdentityFile to load Lct from
+    /// in Hestia mode).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pubkey_hex: Option<String>,
+}
+
+/// Which mode a [`SovereignSection`] is in. Used by `hub serve` to
+/// choose the right signer + by `hub init` to write the right config.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SovereignMode {
+    /// Local IdentityFile holds the Sovereign keypair. MVP-compat.
+    Local { lct_path: PathBuf },
+    /// Hestia vault holds the keypair; hub knows only the LCT id +
+    /// public key + callback URL.
+    Hestia {
+        callback_url: String,
+        lct_id: Uuid,
+        pubkey_hex: String,
+    },
+}
+
+/// Synthesize a minimal Lct from a Hestia-mode config's stored
+/// pubkey + lct_id. In Hestia mode, the hub holds NO IdentityFile —
+/// only the public key — so envelope verification / ledger
+/// verification needs this construction path.
+///
+/// The synthesized Lct carries Human entity_type (matches `hub gen-lct
+/// --entity-type human` default for Sovereigns) and uses current time
+/// for created_at. Neither field is consulted by signature
+/// verification; only `id` and `public_key` are used by
+/// `verify_signature`.
+pub fn hestia_sovereign_lct(lct_id: Uuid, pubkey_hex: &str) -> Result<Lct> {
+    use web4_core::crypto::PublicKey;
+    use web4_core::lct::{HardwareBinding, LctStatus};
+    use chrono::Utc;
+
+    let pubkey_bytes = hex::decode(pubkey_hex)
+        .with_context(|| format!("decoding sovereign pubkey_hex '{}'", pubkey_hex))?;
+    let arr: [u8; 32] = pubkey_bytes.as_slice().try_into()
+        .map_err(|_| anyhow!("sovereign pubkey must be 32 bytes (got {})", pubkey_bytes.len()))?;
+    let public_key = PublicKey::from_bytes(&arr)
+        .context("constructing PublicKey from sovereign pubkey_hex")?;
+
+    Ok(Lct {
+        id: lct_id,
+        entity_type: EntityType::Human,
+        status: LctStatus::Active,
+        public_key,
+        created_at: Utc::now(),
+        created_by: None,
+        hardware_binding: HardwareBinding::default(),
+        parent_id: None,
+        lineage_depth: 0,
+    })
+}
+
+impl SovereignSection {
+    /// Validate + classify which mode this config is in. Exactly one
+    /// mode must be populated.
+    pub fn mode(&self) -> Result<SovereignMode> {
+        let local_set = self.lct_path.is_some();
+        let hestia_set = self.hestia_callback_url.is_some()
+            || self.lct_id.is_some()
+            || self.pubkey_hex.is_some();
+        match (local_set, hestia_set) {
+            (true, true) => Err(anyhow!(
+                "[sovereign] has both local (lct_path) and Hestia fields set; pick one"
+            )),
+            (false, false) => Err(anyhow!(
+                "[sovereign] has no mode configured; set either lct_path (local) \
+                 or {{hestia_callback_url, lct_id, pubkey_hex}} (Hestia)"
+            )),
+            (true, false) => Ok(SovereignMode::Local {
+                lct_path: self.lct_path.clone().unwrap(),
+            }),
+            (false, true) => {
+                let callback_url = self.hestia_callback_url.clone().ok_or_else(|| anyhow!(
+                    "[sovereign] Hestia mode requires hestia_callback_url"
+                ))?;
+                let lct_id = self.lct_id.ok_or_else(|| anyhow!(
+                    "[sovereign] Hestia mode requires lct_id"
+                ))?;
+                let pubkey_hex = self.pubkey_hex.clone().ok_or_else(|| anyhow!(
+                    "[sovereign] Hestia mode requires pubkey_hex"
+                ))?;
+                Ok(SovereignMode::Hestia { callback_url, lct_id, pubkey_hex })
+            }
+        }
+    }
 }
 
 impl ChapterConfig {
+    /// Local-mode constructor (MVP-compat).
     pub fn new(name: String, sovereign_lct_path: PathBuf) -> Self {
         Self {
             chapter: ChapterSection { name },
             daemon: DaemonSection { mcp_port: DEFAULT_MCP_PORT },
-            sovereign: SovereignSection { lct_path: sovereign_lct_path },
+            sovereign: SovereignSection {
+                lct_path: Some(sovereign_lct_path),
+                ..Default::default()
+            },
+        }
+    }
+
+    /// Hestia-mode constructor (V2-7+).
+    pub fn new_hestia(
+        name: String,
+        callback_url: String,
+        lct_id: Uuid,
+        pubkey_hex: String,
+    ) -> Self {
+        Self {
+            chapter: ChapterSection { name },
+            daemon: DaemonSection { mcp_port: DEFAULT_MCP_PORT },
+            sovereign: SovereignSection {
+                lct_path: None,
+                hestia_callback_url: Some(callback_url),
+                lct_id: Some(lct_id),
+                pubkey_hex: Some(pubkey_hex),
+            },
         }
     }
 
@@ -118,7 +253,7 @@ mod tests {
         let loaded = ChapterConfig::load(&cfg_path).unwrap();
         assert_eq!(loaded.chapter.name, "Test Chapter");
         assert_eq!(loaded.daemon.mcp_port, DEFAULT_MCP_PORT);
-        assert_eq!(loaded.sovereign.lct_path, PathBuf::from("../sovereign.json"));
+        assert_eq!(loaded.sovereign.lct_path, Some(PathBuf::from("../sovereign.json")));
     }
 
     #[test]

@@ -252,27 +252,37 @@ pub fn verify_chapter(chapter_dir: impl AsRef<Path>) -> Result<VerifyResult> {
     let config = ChapterConfig::load(paths.config())
         .with_context(|| format!("loading config at {}", paths.config().display()))?;
 
-    // Resolve Sovereign LCT path: absolute as-is; relative resolved against chapter dir.
-    let sov_path = if config.sovereign.lct_path.is_absolute() {
-        config.sovereign.lct_path.clone()
-    } else {
-        chapter_dir.join(&config.sovereign.lct_path)
+    // Resolve the Sovereign LCT for envelope/ledger verification.
+    // Local mode: load the IdentityFile (which carries the Lct).
+    // Hestia mode: synthesize an Lct from the config's stored pubkey.
+    let sovereign_lct = match config.sovereign.mode()? {
+        crate::chapter::SovereignMode::Local { lct_path } => {
+            let sov_path = if lct_path.is_absolute() {
+                lct_path
+            } else {
+                chapter_dir.join(&lct_path)
+            };
+            let identity = IdentityFile::load(&sov_path)
+                .with_context(|| format!("loading Sovereign identity from {}", sov_path.display()))?;
+            identity.lct
+        }
+        crate::chapter::SovereignMode::Hestia { lct_id, pubkey_hex, .. } => {
+            crate::chapter::hestia_sovereign_lct(lct_id, &pubkey_hex)
+                .context("synthesizing Sovereign Lct from Hestia-mode config")?
+        }
     };
-    let sovereign = IdentityFile::load(&sov_path)
-        .with_context(|| format!("loading Sovereign identity from {}", sov_path.display()))?;
 
     let society = load_society(chapter_dir).context("loading society")?;
     let store = open_chapter_store(chapter_dir)
         .context("opening chapter store for verify")?;
     let ledger = ChapterLedger::open(store)
         .context("opening ledger via store")?;
-
     // Build LCT lookup. MVP: just the Sovereign. Extension point: as the
     // ledger replays MemberAdded events, we'd need to register their LCTs
     // too — but member LCTs aren't yet stored alongside the ledger (V2
     // adds a per-member identity registry). For sprint 2 the only signer
     // is the Sovereign, so this lookup is complete.
-    let lookup = build_lookup([sovereign.lct.clone()]);
+    let lookup = build_lookup([sovereign_lct]);
 
     ledger.verify_chain(|id| lookup.get(&id).cloned())
         .context("ledger chain verification failed")?;

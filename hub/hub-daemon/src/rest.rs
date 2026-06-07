@@ -40,26 +40,26 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
-use web4_core::crypto::KeyPair;
 
-use hub_lib::chapter::ChapterPaths;
+use hub_lib::chapter::{ChapterPaths, SovereignMode};
 use hub_lib::envelope::{verify_envelope, Challenge, MapResolver, NonceStore, SignedEnvelope, VerifyError};
 use hub_lib::events::ChapterEvent;
 use hub_lib::identity::IdentityFile;
 use hub_lib::init::load_society;
 use hub_lib::ledger::ChapterLedger;
+use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, RemoteSigner, SignIntent};
 use hub_lib::state::ChapterState;
 
 #[derive(Clone)]
 pub struct RestState {
     pub paths: ChapterPaths,
-    pub chapter_lct_id: Uuid,
+    pub chapter_id: Uuid,
+    pub chapter_name: String,
     pub sovereign_lct_id: Uuid,
-    /// Sovereign keypair is held for V2-7 Step 2 only — used to co-sign
-    /// the ledger entry AFTER a SignedEnvelope-authenticated action.
-    /// V2-7 Step 3 inverts this (Hestia signs; hub never sees the key)
-    /// and this field goes away. Acknowledged-debt scaffolding.
-    pub sovereign_keypair: Arc<KeyPair>,
+    /// The signer abstraction. LocalKeypairSigner for MVP-compat chapters
+    /// (keypair in process); HestiaCallbackSigner for Hestia-mode
+    /// chapters (hub holds NO keys; signs via Hestia HTTP callback).
+    pub signer: Arc<dyn RemoteSigner>,
     pub ledger: Arc<Mutex<ChapterLedger>>,
     pub nonces: Arc<NonceStore>,
     pub resolver: Arc<MapResolver>,
@@ -69,22 +69,36 @@ impl RestState {
     pub fn open(chapter_dir: PathBuf) -> Result<Self> {
         let paths = ChapterPaths::new(chapter_dir.clone());
         let config = hub_lib::chapter::ChapterConfig::load(paths.config())?;
-        let sovereign = IdentityFile::load(&config.sovereign.lct_path)?;
-        let kp = sovereign.keypair()?;
         let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
         let ledger = ChapterLedger::open(store)?;
         let society = load_society(&chapter_dir)?;
 
+        // Build the right Sovereign LCT + signer for the chapter's mode.
+        let (sovereign_lct, signer): (_, Arc<dyn RemoteSigner>) = match config.sovereign.mode()? {
+            SovereignMode::Local { lct_path } => {
+                let sovereign = IdentityFile::load(&lct_path)?;
+                let kp = sovereign.keypair()?;
+                let signer = Arc::new(LocalKeypairSigner::new(sovereign.lct.id, kp));
+                (sovereign.lct, signer as Arc<dyn RemoteSigner>)
+            }
+            SovereignMode::Hestia { callback_url, lct_id, pubkey_hex } => {
+                let lct = hub_lib::chapter::hestia_sovereign_lct(lct_id, &pubkey_hex)?;
+                let signer = Arc::new(HestiaCallbackSigner::new(lct_id, callback_url)?);
+                (lct, signer as Arc<dyn RemoteSigner>)
+            }
+        };
+
         // V2-7 Step 2 resolver: just the Sovereign LCT. Members can't
         // sign envelopes yet (their pubkeys arrive with V2-12 join).
         let mut resolver = MapResolver::new();
-        resolver.insert(sovereign.lct.clone());
+        resolver.insert(sovereign_lct.clone());
 
         Ok(Self {
             paths,
-            chapter_lct_id: society.lct_id,
-            sovereign_lct_id: sovereign.lct.id,
-            sovereign_keypair: Arc::new(kp),
+            chapter_id: society.lct_id,
+            chapter_name: society.name.clone(),
+            sovereign_lct_id: sovereign_lct.id,
+            signer,
             ledger: Arc::new(Mutex::new(ledger)),
             nonces: Arc::new(NonceStore::new()),
             resolver: Arc::new(resolver),
@@ -191,21 +205,18 @@ async fn submit_event(
     Path(chapter_id): Path<Uuid>,
     Json(envelope): Json<SignedEnvelope>,
 ) -> Result<Json<EventAccepted>, ApiError> {
-    // 1. Confirm caller addressed the right chapter (defense in depth —
-    // a SignedEnvelope verified against THIS hub couldn't be valid for
-    // another anyway, but explicit check catches misrouted requests).
-    if chapter_id != s.chapter_lct_id {
+    if chapter_id != s.chapter_id {
         return Err(ApiError::not_found(format!(
             "chapter id {} does not match this hub's chapter {}",
-            chapter_id, s.chapter_lct_id
+            chapter_id, s.chapter_id
         )));
     }
 
-    // 2. Authority check: envelope verifies (signer known, nonce valid,
+    // 1. Authority check: envelope verifies (signer known, nonce valid,
     // payload not tampered).
     let _redeemed = verify_envelope(&envelope, &s.nonces, s.resolver.as_ref(), Utc::now())?;
 
-    // 3. V2-7 Step 2 authorization: only Sovereign can submit signed
+    // 2. V2-7 Step 2 authorization: only Sovereign can submit signed
     // envelopes. Member-signing arrives with V2-12. PolicyEntity gating
     // arrives with V2-8.
     if envelope.signer_lct_id != s.sovereign_lct_id {
@@ -215,15 +226,10 @@ async fn submit_event(
         )));
     }
 
-    // 4. Parse the action.
+    // 3. Parse the action.
     let action: EnvelopeAction = serde_json::from_value(envelope.payload.clone())
         .map_err(|e| ApiError::bad_request(format!("payload not a known action: {}", e)))?;
 
-    // 5. Translate to ChapterEvent + apply.
-    // The ledger entry is signed by the Sovereign keypair, same as the
-    // MCP path. V2-7 Step 3 inverts this so the envelope's signature IS
-    // the actor signature on the ledger entry — eliminating the hub's
-    // need to hold the keypair.
     let event = match action {
         EnvelopeAction::AddMember { member_lct_id, name } => ChapterEvent::MemberAdded {
             member_lct_id,
@@ -237,8 +243,56 @@ async fn submit_event(
         },
     };
 
+    // 4. Build the unsigned entry. We need the ledger lock briefly to
+    // assign index + prev_hash, then we release it during the (possibly
+    // remote) signing roundtrip, then re-acquire to commit. The
+    // append_signed call detects if a parallel append landed in between
+    // and errors loudly rather than corrupting the chain (per Step 3a's
+    // stale-detection contract).
+    let event_kind_str = event.kind().to_string();
+    let event_value = serde_json::to_value(&event)
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
+    let (unsigned, intent) = {
+        let ledger = s.ledger.lock().await;
+        let unsigned = ledger.build_entry(s.sovereign_lct_id, event.clone(), Utc::now())
+            .map_err(ApiError::internal)?;
+        let intent = SignIntent {
+            request_id: Uuid::new_v4(),
+            chapter_id: s.chapter_id,
+            chapter_name: s.chapter_name.clone(),
+            actor_lct_id: s.sovereign_lct_id,
+            ledger_index: unsigned.entry.index,
+            event_kind: event_kind_str.clone(),
+            event: event_value,
+        };
+        (unsigned, intent)
+    };
+
+    // 5. Sign — via LocalKeypairSigner (MVP) or HestiaCallbackSigner
+    // (V2-7+). The signer trait abstracts whether the key lives in
+    // process or in a remote vault. Per architecture commitment #8,
+    // the hub never holds keys in Hestia-mode chapters.
+    let signing_bytes = unsigned.signing_bytes.clone();
+    let signature = s.signer
+        .sign(s.sovereign_lct_id, &signing_bytes, &intent)
+        .await
+        .map_err(|e| match e {
+            hub_lib::signer::SignError::Denied(reason) => ApiError::unauthorized(
+                format!("Sovereign signer denied: {}", reason)
+            ),
+            hub_lib::signer::SignError::Transport(msg) => ApiError {
+                status: StatusCode::SERVICE_UNAVAILABLE,
+                message: format!("Sovereign signer unreachable: {}", msg),
+            },
+            hub_lib::signer::SignError::Malformed(msg) => ApiError::internal(
+                anyhow::anyhow!("malformed signer response: {}", msg)
+            ),
+            hub_lib::signer::SignError::Internal(err) => ApiError::internal(err),
+        })?;
+
+    // 6. Commit the signed entry.
     let mut ledger = s.ledger.lock().await;
-    let entry = ledger.append(s.sovereign_lct_id, &s.sovereign_keypair, event)
+    let entry = ledger.append_signed(unsigned, signature)
         .map_err(ApiError::internal)?;
 
     Ok(Json(EventAccepted {
@@ -275,10 +329,10 @@ async fn read_state(
     State(s): State<RestState>,
     Path(chapter_id): Path<Uuid>,
 ) -> Result<Json<PublicState>, ApiError> {
-    if chapter_id != s.chapter_lct_id {
+    if chapter_id != s.chapter_id {
         return Err(ApiError::not_found(format!(
             "chapter id {} does not match this hub's chapter {}",
-            chapter_id, s.chapter_lct_id
+            chapter_id, s.chapter_id
         )));
     }
     let ledger = s.ledger.lock().await;
@@ -296,7 +350,7 @@ async fn read_state(
     let ledger_entries = ledger.len() as u64;
     let head_hash = ledger.head_hash().to_string();
     Ok(Json(PublicState {
-        chapter_id: s.chapter_lct_id,
+        chapter_id: s.chapter_id,
         chapter_name: state.chapter_name,
         member_count,
         ledger_entries,
