@@ -24,6 +24,7 @@
 
 pub mod chapter;
 pub mod charter;
+pub mod envelope;
 pub mod events;
 pub mod identity;
 pub mod init;
