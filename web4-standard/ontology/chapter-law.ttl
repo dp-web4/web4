@@ -1,0 +1,199 @@
+@prefix web4: <https://web4.io/ontology/> .
+@prefix law: <https://web4.io/ontology/law/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+# =============================================================================
+# Chapter Law Ontology — typed RDF graph for Web4 chapter governance
+#
+# Reference: web4-standard/core-spec/web4-society-authority-law.md §4
+# Track U sub-item U3
+# =============================================================================
+
+law: a owl:Ontology ;
+    dcterms:title "Web4 Chapter Law Ontology" ;
+    dcterms:description "Schema for machine-readable chapter law: norms, procedures, delegation policies, and R6 bindings." ;
+    owl:versionInfo "1.0.0" .
+
+# --- Core classes ---
+
+law:LawDataset a rdfs:Class ;
+    rdfs:label "Law Dataset" ;
+    rdfs:comment "A versioned set of rules governing a chapter. Published by the Law Oracle." .
+
+law:Norm a rdfs:Class ;
+    rdfs:label "Norm" ;
+    rdfs:comment "A single allow/deny rule with selector, operator, and value." .
+
+law:Procedure a rdfs:Class ;
+    rdfs:label "Procedure" ;
+    rdfs:comment "A compliance procedure (e.g., witnessing quorum, KYC, admission policy)." .
+
+law:Interpretation a rdfs:Class ;
+    rdfs:label "Interpretation" ;
+    rdfs:comment "A precedent or clarification that amends how norms are applied." .
+
+law:DelegationPolicy a rdfs:Class ;
+    rdfs:label "Delegation Policy" ;
+    rdfs:comment "Rules for how authority can be delegated within the chapter." .
+
+law:EscalationTrigger a rdfs:Class ;
+    rdfs:label "Escalation Trigger" ;
+    rdfs:comment "Condition under which an action escalates to a higher authority." .
+
+law:AdmissionPolicy a rdfs:Class ;
+    rdfs:label "Admission Policy" ;
+    rdfs:comment "Rules governing who can join the chapter and under what conditions." .
+
+law:AtpIssuancePolicy a rdfs:Class ;
+    rdfs:label "ATP Issuance Policy" ;
+    rdfs:comment "Rules for minting and distributing ATP within the chapter." .
+
+# --- Properties on LawDataset ---
+
+law:hasNorm a rdf:Property ;
+    rdfs:domain law:LawDataset ;
+    rdfs:range law:Norm ;
+    rdfs:label "has norm" .
+
+law:hasProcedure a rdf:Property ;
+    rdfs:domain law:LawDataset ;
+    rdfs:range law:Procedure ;
+    rdfs:label "has procedure" .
+
+law:hasInterpretation a rdf:Property ;
+    rdfs:domain law:LawDataset ;
+    rdfs:range law:Interpretation ;
+    rdfs:label "has interpretation" .
+
+law:hasDelegationPolicy a rdf:Property ;
+    rdfs:domain law:LawDataset ;
+    rdfs:range law:DelegationPolicy ;
+    rdfs:label "has delegation policy" .
+
+law:hasEscalationTrigger a rdf:Property ;
+    rdfs:domain law:LawDataset ;
+    rdfs:range law:EscalationTrigger ;
+    rdfs:label "has escalation trigger" .
+
+law:hasAdmissionPolicy a rdf:Property ;
+    rdfs:domain law:LawDataset ;
+    rdfs:range law:AdmissionPolicy ;
+    rdfs:label "has admission policy" .
+
+law:hasAtpIssuancePolicy a rdf:Property ;
+    rdfs:domain law:LawDataset ;
+    rdfs:range law:AtpIssuancePolicy ;
+    rdfs:label "has ATP issuance policy" .
+
+law:version a rdf:Property ;
+    rdfs:domain law:LawDataset ;
+    rdfs:range xsd:string ;
+    rdfs:label "version" .
+
+law:hash a rdf:Property ;
+    rdfs:domain law:LawDataset ;
+    rdfs:range xsd:string ;
+    rdfs:label "content hash" ;
+    rdfs:comment "SHA-256 hash of the canonical serialization." .
+
+law:r6Binding a rdf:Property ;
+    rdfs:domain law:LawDataset ;
+    rdfs:range xsd:anyURI ;
+    rdfs:label "R6 binding" ;
+    rdfs:comment "URI of the R6 rules schema this law dataset binds to." .
+
+# --- Properties on Norm ---
+
+law:normId a rdf:Property ;
+    rdfs:domain law:Norm ;
+    rdfs:range xsd:string .
+
+law:selector a rdf:Property ;
+    rdfs:domain law:Norm ;
+    rdfs:range xsd:string ;
+    rdfs:comment "R6 field path this norm applies to (e.g., 'r6.resource.atp')." .
+
+law:operator a rdf:Property ;
+    rdfs:domain law:Norm ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Comparison operator: <=, >=, ==, !=, in, not_in, matches." .
+
+law:value a rdf:Property ;
+    rdfs:domain law:Norm ;
+    rdfs:range rdfs:Literal .
+
+law:decision a rdf:Property ;
+    rdfs:domain law:Norm ;
+    rdfs:range xsd:string ;
+    rdfs:comment "allow | deny | escalate" .
+
+law:priority a rdf:Property ;
+    rdfs:domain law:Norm ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Lower number = higher priority. Conflicts resolve by priority." .
+
+# --- Properties on Procedure ---
+
+law:procedureId a rdf:Property ;
+    rdfs:domain law:Procedure ;
+    rdfs:range xsd:string .
+
+law:requiresWitnesses a rdf:Property ;
+    rdfs:domain law:Procedure ;
+    rdfs:range xsd:integer .
+
+law:requiresQuorum a rdf:Property ;
+    rdfs:domain law:Procedure ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Minimum number of role-holders that must approve." .
+
+law:appliesTo a rdf:Property ;
+    rdfs:domain law:Procedure ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Which actions or roles this procedure governs." .
+
+# --- Properties on DelegationPolicy ---
+
+law:maxDepth a rdf:Property ;
+    rdfs:domain law:DelegationPolicy ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Maximum delegation chain depth." .
+
+law:requiresApproval a rdf:Property ;
+    rdfs:domain law:DelegationPolicy ;
+    rdfs:range xsd:boolean ;
+    rdfs:comment "Whether delegations require Sovereign/Administrator approval." .
+
+law:allowedRoles a rdf:Property ;
+    rdfs:domain law:DelegationPolicy ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Roles that may be delegated. Empty = all." .
+
+# --- Properties on EscalationTrigger ---
+
+law:condition a rdf:Property ;
+    rdfs:domain law:EscalationTrigger ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Expression evaluated against the action context." .
+
+law:escalateTo a rdf:Property ;
+    rdfs:domain law:EscalationTrigger ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Role or entity to escalate to (e.g., 'sovereign')." .
+
+# --- Extension mechanism ---
+
+law:CustomPredicate a rdfs:Class ;
+    rdfs:subClassOf rdf:Property ;
+    rdfs:label "Custom Predicate" ;
+    rdfs:comment "Community-defined predicate. Use web4:subPredicateOf to relate to standard predicates." .
+
+web4:subPredicateOf a rdf:Property ;
+    rdfs:domain law:CustomPredicate ;
+    rdfs:range rdf:Property ;
+    rdfs:label "sub-predicate of" ;
+    rdfs:comment "Relates a custom predicate to a standard one. Analogous to web4:subDimensionOf in T3/V3." .
