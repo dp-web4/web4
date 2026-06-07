@@ -13,7 +13,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 use hub_lib::identity::IdentityFile;
-use hub_lib::init::{init_chapter, InitArgs, InitResult};
+use hub_lib::init::{init_chapter, verify_chapter, InitArgs, InitResult};
 use web4_core::lct::EntityType;
 
 /// AIC Hub — minimum-viable Web4 society for a community chapter.
@@ -52,6 +52,16 @@ enum Command {
         /// Entity type. Default: human (chapter organizers are humans).
         #[arg(long, value_enum, default_value = "human")]
         entity_type: CliEntityType,
+    },
+
+    /// Verify the integrity of a chapter's ledger end-to-end.
+    ///
+    /// Checks: every entry's signature against the actor LCT, every
+    /// entry's hash matches recomputation, prev-hash chain is unbroken,
+    /// indices are sequential. Errors loudly if any entry is tampered.
+    VerifyLedger {
+        /// Path to the chapter directory.
+        chapter_dir: PathBuf,
     },
 }
 
@@ -104,7 +114,20 @@ fn main() -> Result<()> {
         Some(Command::GenLct { output, entity_type }) => {
             run_gen_lct(output, entity_type.into())
         }
+        Some(Command::VerifyLedger { chapter_dir }) => {
+            run_verify_ledger(chapter_dir)
+        }
     }
+}
+
+fn run_verify_ledger(chapter_dir: PathBuf) -> Result<()> {
+    let result = verify_chapter(&chapter_dir)?;
+    println!("Ledger verified.");
+    println!("  Chapter dir:    {}", result.chapter_dir.display());
+    println!("  Chapter name:   {}", result.chapter_name);
+    println!("  Entries:        {}", result.entries);
+    println!("  Head hash:      {}", result.head_hash);
+    Ok(())
 }
 
 fn run_init(name: String, sovereign_lct: PathBuf, chapter_dir: Option<PathBuf>) -> Result<()> {

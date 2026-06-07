@@ -3,14 +3,15 @@
 
 //! AIC Hub — society logic library.
 //!
-//! Sprint 1 modules:
-//! - [`identity`] — on-disk LCT + KeyPair persistence
-//! - [`charter`] — chapter founding charter (compose, hash, persist)
-//! - [`chapter`] — chapter directory layout + config.toml
-//! - [`init`] — `hub init` flow: bootstrap a chapter society
+//! Modules (sprints 1-2 landed):
+//! - [`identity`] — on-disk LCT + KeyPair persistence (sprint 1)
+//! - [`charter`] — chapter founding charter (compose, hash, persist) (sprint 1)
+//! - [`chapter`] — chapter directory layout + config.toml (sprint 1)
+//! - [`events`] — typed chapter event enum (sprint 2)
+//! - [`ledger`] — append-only signed event log w/ hash-chain integrity (sprint 2)
+//! - [`init`] — `hub init` flow: bootstrap society + write Genesis entry (sprint 1+2)
 //!
 //! Later sprints (per `docs/SPRINTS.md`):
-//! - Sprint 2: `ledger` — witnessed event log via web4-core's LocalLedger
 //! - Sprint 3: `mcp` — MCP server tool implementations
 //! - Sprint 4: CLI subcommand handlers (most live in hub-daemon)
 //!
@@ -23,8 +24,10 @@
 
 pub mod chapter;
 pub mod charter;
+pub mod events;
 pub mod identity;
 pub mod init;
+pub mod ledger;
 
 /// Crate version, exposed for `hub --version`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -24,6 +24,7 @@ use uuid::Uuid;
 use crate::chapter::{ChapterConfig, ChapterPaths};
 use crate::charter::Charter;
 use crate::identity::IdentityFile;
+use crate::ledger::{build_lookup, ChapterLedger};
 
 /// Outcome of an `init` call.
 #[derive(Debug)]
@@ -110,23 +111,37 @@ pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
         .with_context(|| format!("writing society to {}", paths.society().display()))?;
 
     // 6. Persist config.toml (so subsequent `hub` commands know where the
-    // chapter lives + where to find the Sovereign).
-    let config = ChapterConfig::new(
-        args.chapter_name.clone(),
-        args.sovereign_lct_path.clone(),
-    );
+    // chapter lives + where to find the Sovereign). Canonicalize the
+    // Sovereign path so it survives `cd` between init and later commands.
+    let sovereign_abs = std::fs::canonicalize(&args.sovereign_lct_path)
+        .with_context(|| format!(
+            "canonicalizing Sovereign LCT path {}",
+            args.sovereign_lct_path.display()
+        ))?;
+    let config = ChapterConfig::new(args.chapter_name.clone(), sovereign_abs);
     config.save(paths.config())
         .with_context(|| format!("writing config to {}", paths.config().display()))?;
 
-    // 7. Create empty ledger file (sprint 2 fills it with witnessed events).
-    std::fs::write(paths.ledger(), "")
-        .with_context(|| format!("creating empty ledger at {}", paths.ledger().display()))?;
+    // 7. Initialize the chapter ledger + write Genesis entry (sprint 2).
+    // Genesis is signed by the Sovereign; subsequent events get signed by
+    // their respective actors.
+    let mut ledger = ChapterLedger::open(paths.ledger())
+        .with_context(|| format!("opening chapter ledger at {}", paths.ledger().display()))?;
+    let sovereign_keypair = sovereign.keypair()
+        .context("reconstructing Sovereign keypair for Genesis signing")?;
+    ledger.write_genesis(
+        sovereign_lct_id,
+        &sovereign_keypair,
+        args.chapter_name.clone(),
+        society.charter_hash.clone(),
+    ).context("writing Genesis entry to chapter ledger")?;
 
     tracing::info!(
         society_lct_id = %society_lct_id,
         chapter_name = %args.chapter_name,
         chapter_dir = %args.chapter_dir.display(),
         roles_wired = role_lcts.len(),
+        ledger_entries = ledger.len(),
         "chapter society bootstrapped"
     );
 
@@ -145,6 +160,57 @@ pub fn load_society(chapter_dir: impl AsRef<Path>) -> Result<Society> {
     let society: Society = serde_json::from_str(&json)
         .context("parsing society.json")?;
     Ok(society)
+}
+
+/// Result of a ledger verification pass.
+#[derive(Debug)]
+pub struct VerifyResult {
+    pub chapter_dir: PathBuf,
+    pub chapter_name: String,
+    pub entries: usize,
+    pub head_hash: String,
+}
+
+/// Verify the entire chapter ledger end-to-end. For MVP, the only LCT in
+/// the lookup is the Sovereign (loaded from config.toml's sovereign.lct_path).
+/// Later sprints will extend the lookup to include member LCTs (extracted
+/// from MemberAdded events).
+pub fn verify_chapter(chapter_dir: impl AsRef<Path>) -> Result<VerifyResult> {
+    let chapter_dir = chapter_dir.as_ref();
+    let paths = ChapterPaths::new(chapter_dir);
+
+    let config = ChapterConfig::load(paths.config())
+        .with_context(|| format!("loading config at {}", paths.config().display()))?;
+
+    // Resolve Sovereign LCT path: absolute as-is; relative resolved against chapter dir.
+    let sov_path = if config.sovereign.lct_path.is_absolute() {
+        config.sovereign.lct_path.clone()
+    } else {
+        chapter_dir.join(&config.sovereign.lct_path)
+    };
+    let sovereign = IdentityFile::load(&sov_path)
+        .with_context(|| format!("loading Sovereign identity from {}", sov_path.display()))?;
+
+    let society = load_society(chapter_dir).context("loading society.json")?;
+    let ledger = ChapterLedger::open(paths.ledger())
+        .with_context(|| format!("opening ledger at {}", paths.ledger().display()))?;
+
+    // Build LCT lookup. MVP: just the Sovereign. Extension point: as the
+    // ledger replays MemberAdded events, we'd need to register their LCTs
+    // too — but member LCTs aren't yet stored alongside the ledger (V2
+    // adds a per-member identity registry). For sprint 2 the only signer
+    // is the Sovereign, so this lookup is complete.
+    let lookup = build_lookup([sovereign.lct.clone()]);
+
+    ledger.verify_chain(|id| lookup.get(&id).cloned())
+        .context("ledger chain verification failed")?;
+
+    Ok(VerifyResult {
+        chapter_dir: chapter_dir.to_path_buf(),
+        chapter_name: society.name,
+        entries: ledger.len(),
+        head_hash: ledger.head_hash().to_string(),
+    })
 }
 
 #[cfg(test)]
@@ -205,8 +271,30 @@ mod tests {
         assert!(paths.config().exists(), "config.toml missing");
         assert!(paths.charter().exists(), "charter.json missing");
         assert!(paths.society().exists(), "society.json missing");
-        assert!(paths.ledger().exists(), "ledger.jsonl missing (should be empty)");
-        assert_eq!(std::fs::read_to_string(paths.ledger()).unwrap(), "");
+        assert!(paths.ledger().exists(), "ledger.jsonl missing");
+
+        // Sprint 2: ledger now starts with Genesis entry (not empty)
+        let ledger = crate::ledger::ChapterLedger::open(paths.ledger()).unwrap();
+        assert_eq!(ledger.len(), 1, "expected single Genesis entry after init");
+    }
+
+    #[test]
+    fn init_writes_signed_genesis_entry_verifiable_end_to_end() {
+        let tmp = tempdir().unwrap();
+        let sovereign_path = fresh_sovereign(tmp.path());
+        let chapter_dir = tmp.path().join("lisbon");
+
+        init_chapter(InitArgs {
+            chapter_name: "Lisbon".into(),
+            chapter_dir: chapter_dir.clone(),
+            sovereign_lct_path: sovereign_path,
+        }).unwrap();
+
+        // verify_chapter does end-to-end: config → identity → society → ledger
+        let result = verify_chapter(&chapter_dir).unwrap();
+        assert_eq!(result.chapter_name, "Lisbon");
+        assert_eq!(result.entries, 1, "Genesis is the only entry post-init");
+        assert!(!result.head_hash.is_empty());
     }
 
     #[test]
