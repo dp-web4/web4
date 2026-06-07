@@ -486,37 +486,20 @@ async fn run_serve(chapter_dir: PathBuf, port_override: Option<u16>, bind: Strin
     let port = port_override.unwrap_or(config.daemon.mcp_port);
     let addr: SocketAddr = format!("{}:{}", bind, port).parse()?;
 
-    // Always wire REST (works for both Local + Hestia modes).
+    // Both MCP and REST route through the signer abstraction (V2-7 §4
+    // for MCP); both work for Local + Hestia mode chapters.
+    let mcp_state = McpState::open(chapter_dir.clone())?;
     let rest_state = RestState::open(chapter_dir.clone())?;
-    let mut app = rest_router(rest_state);
-    // MCP currently requires Local mode (loads keypair directly). For
-    // Hestia-mode chapters, serve REST-only — the MCP signer integration
-    // arrives in V2-7 Step 4. Skip MCP gracefully with a log line rather
-    // than refusing to start.
-    let mcp_enabled = match McpState::open(chapter_dir.clone()) {
-        Ok(state) => {
-            app = mcp_router(state).merge(app);
-            true
-        }
-        Err(e) => {
-            tracing::warn!("MCP server not enabled for this chapter: {}", e);
-            false
-        }
-    };
+    let app = mcp_router(mcp_state).merge(rest_router(rest_state));
 
     tracing::info!(
         chapter = %config.chapter.name,
         chapter_dir = %chapter_dir.display(),
         bind = %addr,
-        mcp_enabled,
         "HTTP server starting"
     );
     println!("hub serve — {} listening on http://{}", config.chapter.name, addr);
-    if mcp_enabled {
-        println!("  MCP tools:    http://{}/tools", addr);
-    } else {
-        println!("  MCP tools:    (disabled — Hestia-mode chapter)");
-    }
+    println!("  MCP tools:    http://{}/tools", addr);
     println!("  REST v1:      http://{}/v1/", addr);
     println!("  Stop:         Ctrl-C");
 

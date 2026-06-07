@@ -37,21 +37,26 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
-use web4_core::crypto::KeyPair;
 use web4_core::role::SocietyRole;
 
-use hub_lib::chapter::ChapterPaths;
+use hub_lib::chapter::{ChapterPaths, SovereignMode};
 use hub_lib::events::ChapterEvent;
 use hub_lib::identity::IdentityFile;
 use hub_lib::init::load_society;
 use hub_lib::ledger::ChapterLedger;
+use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, RemoteSigner, SignIntent};
 use hub_lib::state::ChapterState;
 
 #[derive(Clone)]
 pub struct McpState {
     pub paths: ChapterPaths,
+    pub chapter_id: Uuid,
+    pub chapter_name: String,
     pub sovereign_lct_id: Uuid,
-    pub sovereign_keypair: Arc<KeyPair>,
+    /// Signer abstraction — LocalKeypairSigner for MVP-compat chapters,
+    /// HestiaCallbackSigner for Hestia-mode. MCP handlers route ledger
+    /// signing through this trait, same shape as REST.
+    pub signer: Arc<dyn RemoteSigner>,
     pub ledger: Arc<Mutex<ChapterLedger>>,
 }
 
@@ -59,28 +64,27 @@ impl McpState {
     pub fn open(chapter_dir: PathBuf) -> Result<Self> {
         let paths = ChapterPaths::new(chapter_dir.clone());
         let config = hub_lib::chapter::ChapterConfig::load(paths.config())?;
-        // MCP server still uses local-keypair direct signing for now.
-        // Hestia-mode chapters route through REST (which uses the signer
-        // abstraction); MCP tools on Hestia-mode chapters are read-only
-        // until V2-7 Step 4 makes the MCP layer signer-aware too.
-        let lct_path = match config.sovereign.mode()? {
-            hub_lib::chapter::SovereignMode::Local { lct_path } => lct_path,
-            hub_lib::chapter::SovereignMode::Hestia { .. } => {
-                anyhow::bail!(
-                    "MCP server does not yet support Hestia-mode chapters. \
-                     Use the REST API (POST /v1/chapters/{{id}}/events) instead. \
-                     MCP signer integration arrives in V2-7 Step 4."
-                );
+        let society = load_society(&chapter_dir)?;
+        let (sovereign_lct_id, signer): (Uuid, Arc<dyn RemoteSigner>) = match config.sovereign.mode()? {
+            SovereignMode::Local { lct_path } => {
+                let sovereign = IdentityFile::load(&lct_path)?;
+                let kp = sovereign.keypair()?;
+                let signer = Arc::new(LocalKeypairSigner::new(sovereign.lct.id, kp));
+                (sovereign.lct.id, signer)
+            }
+            SovereignMode::Hestia { callback_url, lct_id, .. } => {
+                let signer = Arc::new(HestiaCallbackSigner::new(lct_id, callback_url)?);
+                (lct_id, signer)
             }
         };
-        let sovereign = IdentityFile::load(&lct_path)?;
-        let kp = sovereign.keypair()?;
         let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
         let ledger = ChapterLedger::open(store)?;
         Ok(Self {
             paths,
-            sovereign_lct_id: sovereign.lct.id,
-            sovereign_keypair: Arc::new(kp),
+            chapter_id: society.lct_id,
+            chapter_name: society.name,
+            sovereign_lct_id,
+            signer,
             ledger: Arc::new(Mutex::new(ledger)),
         })
     }
@@ -305,8 +309,38 @@ async fn append_with_sovereign(
     s: &McpState,
     event: ChapterEvent,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
+    use chrono::Utc;
+    use uuid::Uuid;
+    // Build the unsigned entry under the lock, release for the (possibly
+    // remote) sign, then re-acquire to commit. Same shape as REST.
+    // ChapterLedger::append_signed detects stale state if a parallel
+    // append landed in between (Step 3a stale-detection contract).
+    let event_kind_str = event.kind().to_string();
+    let event_value = serde_json::to_value(&event)
+        .map_err(|e| ApiError(anyhow::anyhow!("serializing event: {}", e)))?;
+    let (unsigned, intent) = {
+        let ledger = s.ledger.lock().await;
+        let unsigned = ledger.build_entry(s.sovereign_lct_id, event, Utc::now())?;
+        let intent = SignIntent {
+            request_id: Uuid::new_v4(),
+            chapter_id: s.chapter_id,
+            chapter_name: s.chapter_name.clone(),
+            actor_lct_id: s.sovereign_lct_id,
+            ledger_index: unsigned.entry.index,
+            event_kind: event_kind_str.clone(),
+            event: event_value,
+        };
+        (unsigned, intent)
+    };
+
+    let signing_bytes = unsigned.signing_bytes.clone();
+    let signature = s.signer
+        .sign(s.sovereign_lct_id, &signing_bytes, &intent)
+        .await
+        .map_err(|e| ApiError(anyhow::anyhow!("Sovereign signer: {}", e)))?;
+
     let mut ledger = s.ledger.lock().await;
-    let entry = ledger.append(s.sovereign_lct_id, &s.sovereign_keypair, event)?;
+    let entry = ledger.append_signed(unsigned, signature)?;
     Ok(Json(EventRecordedResponse {
         entry_index: entry.index,
         entry_hash: entry.entry_hash.clone(),
