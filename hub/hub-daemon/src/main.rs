@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Metalinxx Inc.
 
-//! AIC Hub daemon — single-binary entrypoint.
+//! Web4 Community Hub daemon — single-binary entrypoint.
 //!
 //! Sprint 1+2+3 surface: `hub init` + `hub gen-lct` + `hub verify-ledger`
 //! + `hub serve` (MCP HTTP server). Subsequent sprints add CLI parity for
@@ -27,7 +27,7 @@ use web4_core::role::SocietyRole;
 use crate::mcp::{router as mcp_router, McpState};
 use crate::rest::{router as rest_router, RestState};
 
-/// AIC Hub — minimum-viable Web4 society for a community chapter.
+/// Web4 Community Hub — minimum-viable Web4 society for a community chapter.
 #[derive(Parser, Debug)]
 #[command(name = "hub", version = hub_lib::VERSION, about, long_about = None)]
 struct Cli {
@@ -249,7 +249,7 @@ async fn main() -> Result<()> {
     match cli.command {
         None => {
             // No subcommand — print short usage hint and exit 0.
-            println!("hub {} — AIC Hub", hub_lib::VERSION);
+            println!("hub {} — Web4 Community Hub", hub_lib::VERSION);
             println!("Run `hub --help` for available commands.");
             Ok(())
         }
@@ -646,7 +646,7 @@ mod tests {
     #[test]
     fn slugify_handles_common_cases() {
         assert_eq!(slugify("Lisbon Chapter"), "lisbon-chapter");
-        assert_eq!(slugify("AIC NYC #1"), "aic-nyc-1");
+        assert_eq!(slugify("NYC Chapter #1"), "nyc-chapter-1");
         // Unicode letters survive via char::is_alphanumeric — fine for chapter dirs.
         assert_eq!(slugify("São Paulo"), "são-paulo");
         assert_eq!(slugify("東京"), "東京");

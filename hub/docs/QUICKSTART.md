@@ -1,4 +1,4 @@
-# AIC Hub — Chapter Organizer Quickstart
+# Web4 Community Hub — Chapter Organizer Quickstart
 
 **Audience:** chapter lead, comfortable with a terminal, no DevOps experience required.
 **Reading time:** 5 minutes.

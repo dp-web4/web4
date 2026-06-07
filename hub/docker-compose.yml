@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Metalinxx Inc.
 #
-# AIC Hub — docker-compose for a single chapter deployment.
+# Web4 Community Hub — docker-compose for a single chapter deployment.
 #
 # Usage:
 #   1. Generate a Sovereign LCT (one-off, outside the container):

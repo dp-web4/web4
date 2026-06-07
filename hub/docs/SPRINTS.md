@@ -1,4 +1,4 @@
-# AIC Hub — Sprint Plan
+# Web4 Community Hub — Sprint Plan
 
 **Companion to:** `PRD.md`
 **Date:** 2026-06-07
@@ -182,6 +182,6 @@ After Sprint 6 ships, MVP is in pilot. V2 work starts when one of these triggers
 - **Second chapter wants to federate** (triggers inter-society protocol implementation)
 - **Pilot chapter wants T3 attestation by witnesses** (triggers reputation pipeline beyond raw skill declarations)
 - **Partner lab asks for programmatic engagement** (triggers cross-society MCP federation work)
-- **AIC central asks for cross-chapter observability** (triggers AIC-Central Overlay phase)
+- **A deployment's central operator asks for cross-chapter observability** (triggers Central Overlay phase)
 
 Each trigger defines its own sprint stack. V2 planning is deferred until a trigger fires; sprint-planning-in-advance for hypothetical V2 work is drift.

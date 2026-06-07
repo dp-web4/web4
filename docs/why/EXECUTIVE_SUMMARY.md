@@ -54,7 +54,7 @@ The standard includes:
 
 **Enterprise oversight**: **Hardbound** is Metalinxx Inc.'s productized deployment of the Web4 standard for environments where "trust the model" is not an acceptable answer (regulated industries, high-stakes operations). Hardware-bound identity, verifiable audit chains, contextual computable trust. Inquire via the [project repository](https://github.com/dp-web4/web4) for evaluation.
 
-**Public framing (Demo Day 4, 2026-04-26)**: Web4 was presented at the AI Collective as "verifiable presence" for agentic AI. The audience-tested narrative: AI is already taking actions in the world — Web4 closes the gap on proving what it did. Slides + narration archived at https://4-gov.org/demo.
+**Public framing (Demo Day 4, 2026-04-26)**: Web4 was presented as "verifiable presence" for agentic AI. The audience-tested narrative: AI is already taking actions in the world — Web4 closes the gap on proving what it did. Slides + narration archived at https://4-gov.org/demo.
 
 ## Economic Model
 

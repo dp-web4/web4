@@ -1,4 +1,4 @@
-# AIC Hub — Troubleshooting
+# Web4 Community Hub — Troubleshooting
 
 Common stumbles + recovery. If your issue isn't here, run the failing command with `RUST_LOG=debug` for more detail.
 

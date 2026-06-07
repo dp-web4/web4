@@ -18,7 +18,7 @@ What we're delivering at the long horizon:
 - **Guidance** — documented patterns + sample chapter laws
 - **MVP foundation** — a working starting point a community can adopt and evolve
 
-The hub is **generic open-source infrastructure**. AIC is the first deployment target, not the owner. Enterprise can license hardbound as an upgrade for hardware-bound identity + production policy enforcement.
+The hub is **generic open-source infrastructure**. Any community willing to operate as a Web4 society can adopt it. Enterprise can license hardbound as an upgrade for hardware-bound identity + production policy enforcement.
 
 The hub is **a law interpreter**, not a policy holder. The Web4 community evolves both the hub itself and the law patterns it interprets, per their needs.
 
@@ -40,7 +40,7 @@ The hub is **a law interpreter**, not a policy holder. The Web4 community evolve
 - Federation protocol specifics (relevant when 2+ chapters are running)
 
 ### Out of scope entirely
-- AIC-specific governance choices (those go in AIC's chapter law file, not in hub code)
+- Community-specific governance choices (those go in a chapter's law file, not in hub code)
 - Hardbound integration deep-dive (separate licensable layer)
 - V4+ (we'll set its MRH when V3 is real and we know what it didn't address)
 
@@ -135,9 +135,9 @@ Default human-vs-AI mapping per role:
 
 Chapter law specifies which roles are AI-filled and on what terms.
 
-### 7. Open-source community infrastructure (AIC is first, not owner)
+### 7. Open-source community infrastructure (no single owner)
 
-AGPL-3.0-or-later. Patent grant per web4 root PATENTS.md. Any community can fork. AIC adopts; AIC doesn't own. Enterprise can license hardbound (private) for hardware-bound identity + production policy enforcement; that's an upgrade path, not a fork.
+AGPL-3.0-or-later. Patent grant per web4 root PATENTS.md. Any community can fork and adopt; no community owns the codebase. Enterprise can license hardbound (private) for hardware-bound identity + production policy enforcement; that's an upgrade path, not a fork.
 
 The community evolves the hub. We ship the foundation; communities adapt + extend + contribute back.
 
@@ -269,7 +269,7 @@ This is **not** a calendar plan. It's a dependency-graph order. Pace is set by h
 
 ### Discovery (later sprints)
 - Well-known URI (`https://hub.<chapter>.example.com/.well-known/web4-hub.json`) — definitely.
-- Centralized registry overlay (e.g. AIC-central aggregating well-known queries across chapters) — optional, deployment-specific.
+- Centralized registry overlay (e.g. a deployment's central server aggregating well-known queries across chapters) — optional, deployment-specific.
 
 ### AI vault crypto (gates V2-11)
 - Same passphrase-derived crypto as humans?

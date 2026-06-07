@@ -1,4 +1,4 @@
-# AIC Hub — Society Roles
+# Web4 Community Hub — Society Roles
 
 The Web4 standard defines **7 base-mandatory roles** every society must fill, plus 2 context-mandatory roles, plus an open Custom role slot. The hub uses these directly (from `web4_core::role::SocietyRole`); the chapter doesn't invent its own role taxonomy.
 

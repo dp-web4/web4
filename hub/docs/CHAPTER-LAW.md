@@ -1,4 +1,4 @@
-# AIC Hub — Chapter Law
+# Web4 Community Hub — Chapter Law
 
 The chapter's **charter** is the constitutional document the Sovereign signs at chapter founding. It's plain-text-with-structure (JSON in MVP) and lives at `<chapter-dir>/charter.json`. Its sha256 hash is stored in `society.json`'s `charter_hash` field, so any tampering with the charter invalidates the society state's link to it.
 
@@ -87,7 +87,7 @@ For MVP, chapter law is **social infrastructure** — the agreed-upon way the ch
 
 ## Template
 
-A starter charter for an AIC chapter might look like:
+A starter charter for a community chapter might look like:
 
 ```
 Preamble: This is the founding charter of <Chapter Name>. The chapter is
@@ -104,8 +104,8 @@ Rules:
      Administrator role within 7 days.
   4. Charter amendments require the Sovereign's signature and a 14-day
      notice period to current Citizens.
-  5. The chapter federates with other AIC chapters per the AIC-Central
-     overlay protocol (when AIC-Central is established).
+  5. The chapter federates with other community chapters per the Central
+     overlay protocol (when Central is established).
 
 Treasury policy:
   - 1 ATP = 1 hour of attested chapter work (event organizing, mentorship,

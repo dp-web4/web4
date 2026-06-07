@@ -282,7 +282,7 @@ as arbitrary rules. This enables:
 
 ---
 
-Built at Portland Open Build: Windsurf x AIC (Nov 21, 2025)
+Built at a community hack event (Nov 21, 2025)
 ```
 
 ---

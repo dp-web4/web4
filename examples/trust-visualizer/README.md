@@ -90,4 +90,4 @@ Future integrations could:
 
 ---
 
-Built as a Web4 example for the Windsurf + AIC event.
+Built as a Web4 example for a community hack event.

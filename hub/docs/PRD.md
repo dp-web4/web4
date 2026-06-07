@@ -1,4 +1,4 @@
-# AIC Hub — Product Requirements Document
+# Web4 Community Hub — Product Requirements Document
 
 **Version:** 0.1 (Draft)
 **Date:** 2026-06-07
@@ -60,7 +60,7 @@ Inheritance discipline matters because (per `CLAUDE.md`): web4 is in *developmen
 These are deliberately deferred. Each is real but not MVP.
 
 - **Member Presence Toolkit (Hestia multi-hub extension)**: separate package. Members read the hub via MCP in MVP; the per-member portable-identity layer comes in a follow-on.
-- **AIC-Central Overlay**: cross-chapter federation, global skill graph, partner-lab programmatic aggregation. Phase 3 in the inventory doc. MVP is one chapter.
+- **Central Overlay**: cross-chapter federation, global skill graph, partner-lab programmatic aggregation. Phase 3 in the inventory doc. MVP is one chapter.
 - **Public web UI for members**: admin CLI + chapter README is the MVP surface. Web UI is V2 (likely Tauri or Leptos to stay Rust-aligned, but format TBD).
 - **Slack bot integration**: deferred until one chapter is running and Slack-coexistence requirements are empirical, not designed. Concrete > speculative.
 - **ACT-anchored ledger**: MVP uses local file ledger. ACT anchoring is V2 — useful for tamper-evidence at federation scale but not needed for a single chapter.
@@ -75,7 +75,7 @@ These are deliberately deferred. Each is real but not MVP.
 | **Chapter organizer** | Deploys the hub for their chapter. Runs `hub init`, configures Sovereign LCT, brings up the daemon, adds initial members + roles, records first event. Operates via CLI. |
 | **Chapter member** | Read-only access via MCP queries in MVP — can find members by skill, see chapter events, check chapter state. Future Hestia plugin makes this richer; for MVP, MCP is the surface. |
 | **AI tool (Claude, Cursor, etc.)** | Calls chapter MCP to query members and events. With proper LCT-side configuration, can record actions taken on behalf of a member. |
-| **Future pilot AIC organizer (out of MVP scope, but informs design)** | Reviews MVP, identifies what's missing for their chapter's actual operations, drives V2 priorities. |
+| **Future pilot community organizer (out of MVP scope, but informs design)** | Reviews MVP, identifies what's missing for their chapter's actual operations, drives V2 priorities. |
 
 ## 7. Functional requirements
 
@@ -146,31 +146,31 @@ The MVP is shippable when **all** of these hold:
 | Hardbound canonical Web4 alignment debt (T3 dimensions misaligned per CANONICAL_AUDIT 2026-01-31) | MVP doesn't depend on Hardbound. Uses web4-core T3/V3 directly. If we integrate Hardbound later (V2), the alignment must be resolved first. |
 | ACT/Society4 maturity (~65% per audit) | MVP doesn't depend on ACT. Local file ledger is the contract. ACT anchoring is layered on as it matures. |
 | MCP server spec churn (cross-society binding spec is v0.1.3 DRAFT) | MVP implements the current draft. Spec changes propagate to hub through web4-standard refresh — same upgrade path the rest of the ecosystem follows. |
-| Pilot chapter not identified before MVP completes | MVP development continues regardless; first-deployable state is the gating event. AIC engagement is parallel to MVP build. |
+| Pilot chapter not identified before MVP completes | MVP development continues regardless; first-deployable state is the gating event. pilot engagement is parallel to MVP build. |
 | Drift toward reimplementation (web4 CLAUDE.md flagged risk: re-doing CS primitives with `hub_` prefix) | Discipline check before each sprint: if a primitive exists in web4-core / web4-trust-core / web4-standard, use it. No `hub::LinkedContextToken`, no `hub::TrustTensor`, etc. |
 
 ## 11. Sprint plan reference
 
 The detailed sprint breakdown lives in `SPRINTS.md` — Sprint 0 through Sprint 6, capability-defined (each sprint produces a verifiable milestone). No calendar dates; pace is set by the work, not by the calendar.
 
-## 12. Open questions (carried from the AIC inventory doc)
+## 12. Open questions (carried from the pilot inventory doc)
 
-These don't block MVP build but will influence V2 + pilot operations. They need AIC-side input when a pilot chapter is identified:
+These don't block MVP build but will influence V2 + pilot operations. They need community-side input when a pilot chapter is identified:
 
 1. Pilot chapter selection criteria
 2. Member opt-in model (default visibility for skill declarations)
 3. Federation default reputation weight on T3 import (deferred to V2)
 4. Slack-coexistence: is the chapter Slack constitutional?
-5. AIC-central overlay timing + role-fill (deferred to Phase 3)
+5. Central overlay timing + role-fill (deferred to Phase 3)
 6. ATP issuance default policy template per chapter
 7. Partner-lab engagement model (Citizen role vs peer-society federation)
-8. Existing AIC member directory backward-compatibility (migration shape)
+8. Existing community member directory backward-compatibility (migration shape)
 
 Full context: `private-context/proposals/2026-06-06-aic-hub-package/06-inventory-and-build-plan.md` §Open questions.
 
 ## 13. References
 
-- AIC inventory + build plan: `private-context/proposals/2026-06-06-aic-hub-package/06-inventory-and-build-plan.md`
+- pilot inventory + build plan: `private-context/proposals/2026-06-06-aic-hub-package/06-inventory-and-build-plan.md`
 - Web4 canonical equation + ontology: `web4/CLAUDE.md`, `web4/STATUS.md`
 - Web4 standard specs: `web4/web4-standard/core-spec/`
 - Web4 core implementation (Rust + Python): `web4/web4-core/`, `web4/web4-trust-core/`

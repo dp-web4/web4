@@ -308,7 +308,7 @@ web4/tools/dictionary-entity/
 - Multiple people asked what Web4 is
 - At least one person wants to contribute more
 - Windsurf team impressed with use case
-- Portland AI Collective aware of Web4
+- Local community aware of Web4
 
 ---
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Metalinxx Inc.
 
-//! AIC Hub — society logic library.
+//! Web4 Community Hub — society logic library.
 //!
 //! Modules (sprints 1-2 landed):
 //! - [`identity`] — on-disk LCT + KeyPair persistence (sprint 1)
