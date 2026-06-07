@@ -28,6 +28,7 @@ pub mod events;
 pub mod identity;
 pub mod init;
 pub mod ledger;
+pub mod state;
 
 /// Crate version, exposed for `hub --version`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

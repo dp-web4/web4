@@ -3,18 +3,24 @@
 
 //! AIC Hub daemon — single-binary entrypoint.
 //!
-//! Sprint 1 surface: `hub init` + `hub gen-lct` (chapter bootstrap + Sovereign
-//! LCT generation). Subsequent sprints add: `hub serve` (sprint 3, MCP server),
-//! `hub status / add-member / assign-role / record-event / query` (sprint 4),
-//! Docker entrypoint (sprint 5), error-message + docs polish (sprint 6).
+//! Sprint 1+2+3 surface: `hub init` + `hub gen-lct` + `hub verify-ledger`
+//! + `hub serve` (MCP HTTP server). Subsequent sprints add CLI parity for
+//! mutating commands (sprint 4), Docker entrypoint (sprint 5), and docs/
+//! polish (sprint 6).
+
+mod mcp;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
+use hub_lib::chapter::ChapterConfig;
 use hub_lib::identity::IdentityFile;
 use hub_lib::init::{init_chapter, verify_chapter, InitArgs, InitResult};
 use web4_core::lct::EntityType;
+
+use crate::mcp::{router as mcp_router, McpState};
 
 /// AIC Hub — minimum-viable Web4 society for a community chapter.
 #[derive(Parser, Debug)]
@@ -63,6 +69,23 @@ enum Command {
         /// Path to the chapter directory.
         chapter_dir: PathBuf,
     },
+
+    /// Run the MCP HTTP server for a chapter. Daemon loads the Sovereign
+    /// keypair from config.toml and signs ledger entries on behalf of
+    /// authenticated clients (MVP: localhost only; per-client signed
+    /// envelopes are V2).
+    Serve {
+        /// Chapter directory.
+        chapter_dir: PathBuf,
+
+        /// Override the port from config.toml.
+        #[arg(long)]
+        port: Option<u16>,
+
+        /// Bind address (default 127.0.0.1 — local-only).
+        #[arg(long, default_value = "127.0.0.1")]
+        bind: String,
+    },
 }
 
 /// Subset of web4_core::EntityType exposed via CLI. (clap can't derive
@@ -94,7 +117,8 @@ impl From<CliEntityType> for EntityType {
     }
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
     tracing_subscriber::fmt().with_env_filter(filter).init();
@@ -104,7 +128,7 @@ fn main() -> Result<()> {
     match cli.command {
         None => {
             // No subcommand — print short usage hint and exit 0.
-            println!("hub {} — AIC Hub (Sprint 1)", hub_lib::VERSION);
+            println!("hub {} — AIC Hub", hub_lib::VERSION);
             println!("Run `hub --help` for available commands.");
             Ok(())
         }
@@ -117,7 +141,42 @@ fn main() -> Result<()> {
         Some(Command::VerifyLedger { chapter_dir }) => {
             run_verify_ledger(chapter_dir)
         }
+        Some(Command::Serve { chapter_dir, port, bind }) => {
+            run_serve(chapter_dir, port, bind).await
+        }
     }
+}
+
+async fn run_serve(chapter_dir: PathBuf, port_override: Option<u16>, bind: String) -> Result<()> {
+    let config = ChapterConfig::load(hub_lib::chapter::ChapterPaths::new(&chapter_dir).config())?;
+    let port = port_override.unwrap_or(config.daemon.mcp_port);
+    let addr: SocketAddr = format!("{}:{}", bind, port).parse()?;
+
+    let state = McpState::open(chapter_dir.clone())?;
+    let app = mcp_router(state);
+
+    tracing::info!(
+        chapter = %config.chapter.name,
+        chapter_dir = %chapter_dir.display(),
+        bind = %addr,
+        "MCP HTTP server starting"
+    );
+    println!("hub serve — {} listening on http://{}", config.chapter.name, addr);
+    println!("  Tools:        http://{}/tools", addr);
+    println!("  Stop:         Ctrl-C");
+
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    println!("hub serve — shut down cleanly");
+    Ok(())
+}
+
+async fn shutdown_signal() {
+    let _ = tokio::signal::ctrl_c().await;
+    tracing::info!("ctrl-c received — shutting down");
 }
 
 fn run_verify_ledger(chapter_dir: PathBuf) -> Result<()> {

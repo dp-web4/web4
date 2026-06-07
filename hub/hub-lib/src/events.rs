@@ -71,6 +71,14 @@ pub enum ChapterEvent {
         amended_by: Uuid,
         diff_summary: Option<String>,
     },
+
+    /// A member declared a skill or interest. Self-attested in MVP; future
+    /// versions add witness/attestor chains and T3 accrual per task-role.
+    MemberSkillDeclared {
+        member_lct_id: Uuid,
+        skill: String,
+        declared_by: Uuid,
+    },
 }
 
 impl ChapterEvent {
@@ -83,6 +91,7 @@ impl ChapterEvent {
             Self::RoleAssigned { .. } => "role_assigned",
             Self::EventRecorded { .. } => "event_recorded",
             Self::CharterAmended { .. } => "charter_amended",
+            Self::MemberSkillDeclared { .. } => "member_skill_declared",
         }
     }
 }
