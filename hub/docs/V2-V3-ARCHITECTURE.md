@@ -141,6 +141,23 @@ AGPL-3.0-or-later. Patent grant per web4 root PATENTS.md. Any community can fork
 
 The community evolves the hub. We ship the foundation; communities adapt + extend + contribute back.
 
+### 8. Secrets in the vault only; access on verified authority + need-to-know; ZKP preferred
+
+Three rules, in order of specificity:
+
+**A. Vault is the exclusive home of secrets.** Private keys, API credentials, sealing material, any secret the system needs — all live in Hestia's vault. The hub never stores secrets. The hub's databases, ledgers, society state, charters, role assignments — all of it is public-by-design within the chapter (signed for integrity, not encrypted for confidentiality of the data itself). If something needs to be secret, it belongs in a vault, not in chapter storage.
+
+**B. Access is gated on verified authority + need-to-know — both, not either.** A caller asking for a secret (or even for a signature using a secret) must prove (i) they hold the authority to act, AND (ii) the action under that authority requires that specific secret right now. Authority alone is not enough. Need-to-know alone is not enough. Same gate applies to derived queries: even non-secret state should be returned at minimum granularity for the caller's role and current action.
+
+**C. Zero-knowledge proofs preferred over disclosure when possible.** Whenever the hub or another verifier needs to confirm a fact — "this caller is authorized," "this caller is a member," "this caller's trust score exceeds threshold," "this caller holds a current delegation for role X" — prefer a ZKP that confirms the fact without revealing the underlying secret, identity, or threshold value. Standard signatures remain correct where the signer's identity must be public (audit trail of consequential acts, council votes). ZKPs are the preferred shape for everywhere else.
+
+Implications across tracks:
+- **Track H (Hestia)**: vault interface design must support ZKP-producing operations, not just "give me the credential" or "sign this payload." The vault is the privacy-preserving prover. The vault enforces the authority+need-to-know gate at access time. See addendum to Track H delegation post.
+- **Track U (web4-core)**: signature primitives may need ZKP-variant additions (predicate proofs over membership, threshold proofs over T3/V3 scores, range proofs for ATP balances). Likely a U5 sprint once Hestia's ZKP requirements crystallize.
+- **Track B (hub)**: storage is secrets-free **by design** — the trait surface never includes secret material. Identity files in MVP (private key sitting in a JSON file the hub reads) are an anti-pattern under this commitment; they're tolerated through V2-7 only as a bootstrap convenience, then deprecated when Hestia-as-Sovereign ships. Query handlers enforce need-to-know via the law (PolicyEntity gates queries the same way it gates writes).
+
+This is constitutional alongside #1 (law) and #2 (Hestia). Privacy and authority discipline is foundational to the whole stack; bolting it on later means redesigning every interface.
+
 ---
 
 ## Track structure
