@@ -104,7 +104,7 @@ MCP clients (including AI models) are also Web4 entities:
     "context_window": 200000,
     "trust_profile": {
       "t3": {"talent": 0.9, "training": 0.95, "temperament": 0.85},
-      "v3": {"veracity": 0.92, "validity": 0.88, "value": 0.90}
+      "v3": {"veracity": 0.92, "validity": 0.88, "valuation": 0.90}
     }
   }
 }
@@ -157,7 +157,7 @@ def handle_resource_request(request, web4_context):
         return Error("Insufficient trust")
     
     # 3. Verify ATP stake if required
-    if not verify_atp_stake(web4_context.atp_stake):
+    if not verify_atp_stake(web4_context.trust_context.atp_stake):
         return Error("Insufficient ATP stake")
     
     # 4. Check agency delegation if present
@@ -271,7 +271,7 @@ Shared context maintained across interactions:
 {
   "resource_type": "mcp_context",
   "context_state": {
-    "session_id": "sess:...",
+    "session_id": "mcp:session:...",
     "accumulated_facts": [...],
     "mrh_graph": {
       "entities": [...],
@@ -394,7 +394,7 @@ R7 MCP actions extend the §7.1 R6 structure with a `reputation` field in the re
 - The `reputation.responding_society_signature` MUST be signed by the responding society's Policy-Entity (the role that made the decision per `society-roles.md` §2.3)
 - The `reputation.outcome_class` MUST be one of the canonical values; implementations MUST NOT invent new values without spec extension
 - The `reputation.trust_dimension_updates` deltas MUST be within bounds set by the responding society's Law Oracle for the role context (per `t3-v3-tensors.md` parameter governance)
-- The `reputation.propagation_scope` MUST be set; absent it, implementations SHOULD default to `both` for cross-society actions and `responding_society` for intra-society R7
+- The `reputation.propagation_scope` MUST be set; absent it, implementations SHOULD default by `cross_society.interaction_type` (§7.4): `responding_society` for intra-society R7; `both` for cross-society `first_contact`/`established` actions; and `encompassing_society` for `federated` actions where caller and responder share an encompassing society (the federation standard per §7.5), falling back to `both` when no encompassing society exists
 - For high-consequence actions (per the responding society's classification), `reputation.witness_signatures` MUST contain at least one signature from a Witness role per `society-roles.md` §4.1; the encompassing society's Witness is preferred when one exists
 
 - When `outcome_class` is `violation`, the `trust_dimension_updates` deltas MUST be non-positive (zero or negative); the responding society's Policy-Entity still signs the envelope (the violation is a completed adjudication, not a protocol error); and the caller's Archivist MUST persist it identically to any other R7 outcome. A `violation` is distinct from a §7.6 transport/protocol failure — it indicates the action completed but breached the responding society's rules.
@@ -410,12 +410,11 @@ When the MCP caller and responder are in different societies, the Web4 Context H
   "web4_context": {
     "sender_lct": "lct:web4:entity:...",
     "sender_society": "lct:web4:society:A:...",
-    "sender_role": "web4:role:...",
+    "sender_role": "web4:...",
     "responding_society": "lct:web4:society:B:...",
-    "responding_role_expected": "web4:role:resource_provider",
+    "responding_role_expected": "web4:ResourceProvider",
     "cross_society": {
       "interaction_type": "first_contact | established | federated",
-      "exchange_agreement_hash": "sha256:...",
       "applicable_law_oracle": "lct:web4:society:A:law-oracle:...  OR  lct:web4:encompassing:law-oracle:...",
       "atp_settlement": {
         "caller_currency": "lct:web4:society:A:atp",
@@ -444,7 +443,7 @@ When the MCP caller and responder are in different societies, the Web4 Context H
 - `applicable_law_oracle` resolves the "whose law applies under cross-society interaction" question by explicit reference. Two patterns are supported:
   - **Caller-law**: sender's Law Oracle governs the call; responder MAY refuse if local law conflicts
   - **Encompassing-law**: when caller and responder share a fractal-encompassing society, that society's Law Oracle governs (per `inter-society-protocol.md` §3.2 Option 3)
-- `atp_settlement` MUST be present for cross-society calls with non-zero ATP cost when the two societies use different currencies. The settlement block carries both societies' independent valuations of a common referent (per §7.7's referent-grounded model). Implementations MUST populate either:
+- `atp_settlement` MUST be present for cross-society calls with non-zero ATP cost when the two societies use different currencies (see the interim conformance note below for the scope of this MUST while §7.7 is WIP). The settlement block carries both societies' independent valuations of a common referent (per §7.7's referent-grounded model). Implementations MUST populate either:
   - An `exchange_agreement_ref` hash referencing a standing agreement (per §7.7.2 standing-agreement flow), OR
   - Inline `referent` + `caller_amount` + `responder_amount` fields representing a per-transaction negotiation outcome (per §7.7.3 acceptance payload)
 
@@ -477,14 +476,14 @@ Cross-society R7 actions interact with the witness role per `society-roles.md` �
 1. **Encompassing society's Witness** — when A and B share a fractal-encompassing society D, D's Witness role provides neutral attestation peer to both A and B
 2. **Third-society Witness** — when A and B do not share an encompassing D, they MAY invoke witnesses from a third society both trust (selection negotiated at first contact or by standing arrangement)
 3. **Bilateral witness** — A and B each provide a Witness; cross-signed attestations record the action in both ledgers
-4. **No witness** — low-consequence R6 calls MAY proceed without witnessing; R7 SHOULD NOT proceed without witnessing for high-consequence actions
+4. **No witness** — low-consequence R6 calls MAY proceed without witnessing; for high-consequence actions, R7 MUST NOT proceed without witnessing (consistent with the §7.3 normative requirement that `reputation.witness_signatures` MUST carry at least one Witness signature for high-consequence actions)
 
 **R7 Reputation propagation** rules:
 
 | `propagation_scope` | Effect |
 |---|---|
 | `responding_society` | Only Society B's view of the calling entity's T3/V3 updates. A does not record the Reputation in its own ledger. Used for intra-society or low-consequence cases. |
-| `caller_society` | Only Society A's view of the responding society / resource updates. B does not record the Reputation. Unusual; typically combined with `both` semantics. |
+| `caller_society` | Only Society A's view of the responding society / resource updates. B does not record the Reputation. Unusual; when both sides need to record, use the single `both` value below rather than combining scopes (`propagation_scope` is a single enum, not a set). |
 | `both` | Both A and B record the signed Reputation envelope to their respective ledgers. A updates its T3/V3 view of B; B updates its T3/V3 view of A's calling entity. Standard for cross-society R7 without an encompassing D. |
 | `encompassing_society` | The Reputation also propagates to the encompassing society's ledger and contributes to its society-society trust tensor between A and B. Standard for cross-society R7 within a federation. |
 
@@ -500,7 +499,7 @@ This resolves the `inter-society-protocol.md` §9 future-work item "society-soci
 |---|---|---|
 | Caller's LCT not recognized by responding society | `403 web4_cross_society_unrecognized_lct` | First-contact protocol per `inter-society-protocol.md` §3 |
 | Exchange rate stale or absent | `409 web4_cross_society_exchange_invalid` | Renegotiate per inter-society protocol |
-| Applicable Law Oracle disagrees with responding society's Law Oracle | `409 web4_cross_society_law_conflict` | Escalate to encompassing society or refuse |
+| Applicable Law Oracle disagrees with responding society's Law Oracle | `409 web4_cross_society_law_conflict` | If caller and responder share an encompassing society, escalate to its Law Oracle; otherwise no shared authority can adjudicate, so the responder refuses (the caller MAY retry under caller-law if the responder's local law permits) |
 | Witness signature required but absent | `412 web4_cross_society_witness_required` | Acquire witness and retry |
 | R7 Reputation signature invalid | `400 web4_r7_reputation_invalid` | Responding society's Policy-Entity must re-sign |
 | Propagation scope unsupported by responding society | `400 web4_propagation_scope_unsupported` | Caller must request a supported scope |
@@ -652,6 +651,8 @@ This is the same form-vs-substance split that runs through Web4: the protocol sp
 
 #### 7.7.5 Per-transaction vs. standing agreement guidance (informative)
 
+This subsection expands, with implementation rationale, the per-transaction-vs-standing distinction established normatively in §7.7.1; it adds no conformance requirements of its own.
+
 Per-transaction scoping is ideal because:
 - No stale rates
 - No ongoing rate-relationship maintenance overhead
@@ -664,11 +665,11 @@ Standing agreements are practical when:
 - Pre-commitment of resources is required before transaction begins
 - Operational simplicity outweighs the cost of occasional staleness
 
-Implementations SHOULD default to per-transaction unless the calling Treasurer explicitly references a standing agreement hash. Standing agreements MAY be unilaterally terminated by either Treasurer with notice per the agreement's own terms (or 24h default).
+As informative guidance (no conformance force), implementations typically default to per-transaction unless the calling Treasurer explicitly references a standing agreement hash. By convention, a standing agreement can be unilaterally terminated by either Treasurer with notice per the agreement's own terms — commonly a 24-hour default where the agreement is silent on its termination notice.
 
 #### 7.7.6 Oracle reference (informative)
 
-When two societies cannot independently value a referent, they MAY reference a third-party Oracle society. The Oracle publishes prices for common referents via its own MCP server (typically `web4_referent_price` tool). The two negotiating Treasurers each query the Oracle independently and use the returned price as their proposed rate, with explicit `reference_standard` in the proposal naming the Oracle's LCT.
+This subsection expands the third-party-oracle fallback introduced in §7.7.1; it adds no conformance requirements of its own. When two societies cannot independently value a referent, they may reference a third-party Oracle society. The Oracle publishes prices for common referents via its own MCP server (typically `web4_referent_price` tool). The two negotiating Treasurers each query the Oracle independently and use the returned price as their proposed rate, with explicit `reference_standard` in the proposal naming the Oracle's LCT.
 
 The Oracle's own T3 trust governs how much weight is placed on the reference. Oracle pricing does NOT remove the requirement that each society's Treasurer separately sign the agreement — the Oracle is an input to the negotiation, not the authority. This preserves the anti-hierarchical-by-design property: no Oracle has unilateral authority over what rates two societies use; both societies retain refusal authority.
 
@@ -736,7 +737,7 @@ class MCPMeter:
         
         total_cost = base_cost * trust_modifier * complexity_factor
         
-        return min(total_cost, context.atp_cap)  # Respect caps
+        return min(total_cost, context.atp_remaining)  # Cap at the session's remaining ATP balance (per §11)
 ```
 
 ### 9.2 Dynamic Pricing (informative)
