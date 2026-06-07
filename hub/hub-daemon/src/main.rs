@@ -9,6 +9,7 @@
 //! polish (sprint 6).
 
 mod mcp;
+mod rest;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -24,6 +25,7 @@ use web4_core::lct::EntityType;
 use web4_core::role::SocietyRole;
 
 use crate::mcp::{router as mcp_router, McpState};
+use crate::rest::{router as rest_router, RestState};
 
 /// AIC Hub — minimum-viable Web4 society for a community chapter.
 #[derive(Parser, Debug)]
@@ -67,6 +69,27 @@ enum Command {
         /// Entity type. Default: human (chapter organizers are humans).
         #[arg(long, value_enum, default_value = "human")]
         entity_type: CliEntityType,
+    },
+
+    /// V2-7 helper: build + print a SignedEnvelope for a given payload.
+    ///
+    /// Reads a keypair from an IdentityFile, signs (signer_lct_id ||
+    /// nonce || canonical(payload)) per the envelope spec, and prints
+    /// the SignedEnvelope JSON to stdout. Pair with `curl` to drive
+    /// REST endpoints from the shell. Real Hestia replaces this — but
+    /// it's a useful smoke + reference today.
+    EnvelopeSign {
+        /// Path to the signer's IdentityFile (LCT + keypair).
+        #[arg(long)]
+        identity: PathBuf,
+
+        /// Challenge nonce previously obtained from `POST /v1/auth/challenge`.
+        #[arg(long)]
+        nonce: String,
+
+        /// Payload as inline JSON.
+        #[arg(long)]
+        payload: String,
     },
 
     /// Verify the integrity of a chapter's ledger end-to-end.
@@ -235,6 +258,9 @@ async fn main() -> Result<()> {
         }
         Some(Command::GenLct { output, entity_type }) => {
             run_gen_lct(output, entity_type.into())
+        }
+        Some(Command::EnvelopeSign { identity, nonce, payload }) => {
+            run_envelope_sign(identity, nonce, payload)
         }
         Some(Command::VerifyLedger { chapter_dir }) => {
             run_verify_ledger(chapter_dir)
@@ -434,17 +460,19 @@ async fn run_serve(chapter_dir: PathBuf, port_override: Option<u16>, bind: Strin
     let port = port_override.unwrap_or(config.daemon.mcp_port);
     let addr: SocketAddr = format!("{}:{}", bind, port).parse()?;
 
-    let state = McpState::open(chapter_dir.clone())?;
-    let app = mcp_router(state);
+    let mcp_state = McpState::open(chapter_dir.clone())?;
+    let rest_state = RestState::open(chapter_dir.clone())?;
+    let app = mcp_router(mcp_state).merge(rest_router(rest_state));
 
     tracing::info!(
         chapter = %config.chapter.name,
         chapter_dir = %chapter_dir.display(),
         bind = %addr,
-        "MCP HTTP server starting"
+        "MCP + REST HTTP server starting"
     );
     println!("hub serve — {} listening on http://{}", config.chapter.name, addr);
-    println!("  Tools:        http://{}/tools", addr);
+    println!("  MCP tools:    http://{}/tools", addr);
+    println!("  REST v1:      http://{}/v1/", addr);
     println!("  Stop:         Ctrl-C");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -549,6 +577,33 @@ fn run_gen_lct(output: PathBuf, entity_type: EntityType) -> Result<()> {
     println!("  Entity type:   {:?}", identity.lct.entity_type);
     println!();
     println!("This file contains private key material. Protect it (chmod 600 recommended).");
+    Ok(())
+}
+
+fn run_envelope_sign(identity_path: PathBuf, nonce: String, payload_json: String) -> Result<()> {
+    use chrono::Utc;
+    use hub_lib::envelope::{build_envelope, Challenge};
+
+    let identity = IdentityFile::load(&identity_path)
+        .with_context(|| format!("loading identity from {}", identity_path.display()))?;
+    let kp = identity.keypair().context("reconstructing keypair")?;
+    let payload: serde_json::Value = serde_json::from_str(&payload_json)
+        .context("parsing --payload as JSON")?;
+
+    // Build a Challenge-shaped struct from the user-supplied nonce. The
+    // server checks LCT match + expiry on its own copy of the challenge;
+    // build_envelope only needs the nonce string from this side.
+    let now = Utc::now();
+    let stub_challenge = Challenge {
+        nonce,
+        for_lct_id: identity.lct.id,
+        issued_at: now,
+        expires_at: now,
+    };
+
+    let envelope = build_envelope(identity.lct.id, &kp, &stub_challenge, payload)?;
+    let json = serde_json::to_string_pretty(&envelope).context("serializing envelope")?;
+    println!("{}", json);
     Ok(())
 }
 
