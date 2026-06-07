@@ -24,6 +24,7 @@ use crate::identity::IdentityFile;
 use crate::init::load_society;
 use crate::ledger::{ChapterLedger, LedgerEntry};
 use crate::state::{ChapterState, Member};
+use crate::store::open_chapter_store;
 
 /// One open chapter, ready for ops. Drop to close.
 pub struct ChapterSession {
@@ -46,8 +47,10 @@ impl ChapterSession {
                 config.sovereign.lct_path.display()
             ))?;
         let keypair = sovereign.keypair()?;
-        let ledger = ChapterLedger::open(paths.ledger())
-            .with_context(|| format!("opening ledger at {}", paths.ledger().display()))?;
+        let store = open_chapter_store(chapter_dir)
+            .context("opening chapter store for session")?;
+        let ledger = ChapterLedger::open(store)
+            .context("opening ledger via chapter store")?;
         Ok(Self {
             paths,
             config,

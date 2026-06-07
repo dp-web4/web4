@@ -35,14 +35,12 @@ use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs::OpenOptions;
-use std::io::Write;
-use std::path::{Path, PathBuf};
 use uuid::Uuid;
 use web4_core::crypto::{sha256_hex, KeyPair, SignatureBytes};
 use web4_core::lct::Lct;
 
 use crate::events::ChapterEvent;
+use crate::store::ChapterStore;
 
 /// Sentinel prev-hash for the Genesis entry: 64 hex zeros.
 pub const GENESIS_PREV_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -79,58 +77,52 @@ fn compute_entry_hash(entry: &LedgerEntry) -> Result<String> {
     Ok(sha256_hex(json.as_bytes()))
 }
 
-/// Append-only chapter event ledger backed by a JSONL file.
-#[derive(Debug)]
+/// Append-only chapter event ledger.
+///
+/// Owns hash-chain integrity + signing logic. Delegates byte persistence
+/// to a [`ChapterStore`] — so the ledger works identically against file,
+/// SQLite, or future backends.
 pub struct ChapterLedger {
-    path: PathBuf,
+    store: Box<dyn ChapterStore>,
     entries: Vec<LedgerEntry>,
     head_hash: String,
 }
 
+impl std::fmt::Debug for ChapterLedger {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ChapterLedger")
+            .field("backend_kind", &self.store.backend_kind())
+            .field("entries", &self.entries.len())
+            .field("head_hash", &self.head_hash)
+            .finish()
+    }
+}
+
 impl ChapterLedger {
-    /// Open an existing ledger or create a new (empty) one.
-    /// Does NOT write a Genesis entry — that's the caller's responsibility
-    /// via [`Self::write_genesis`].
-    pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref().to_path_buf();
-
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)
-                    .with_context(|| format!("creating parent dir {}", parent.display()))?;
-            }
-        }
-
-        let mut entries = Vec::new();
-        let mut head_hash = GENESIS_PREV_HASH.to_string();
-
-        if path.exists() {
-            let content = std::fs::read_to_string(&path)
-                .with_context(|| format!("reading {}", path.display()))?;
-            for (line_num, line) in content.lines().enumerate() {
-                let trimmed = line.trim();
-                if trimmed.is_empty() {
-                    continue;
-                }
-                let entry: LedgerEntry = serde_json::from_str(trimmed)
-                    .with_context(|| format!("parsing line {} of {}", line_num + 1, path.display()))?;
-                head_hash = entry.entry_hash.clone();
-                entries.push(entry);
-            }
-        } else {
-            // Create empty file.
-            OpenOptions::new().create_new(true).write(true).open(&path)
-                .with_context(|| format!("creating {}", path.display()))?;
-        }
-
-        Ok(Self { path, entries, head_hash })
+    /// Open a ledger backed by the given store. Loads any existing entries
+    /// into memory + restores head_hash. Does NOT write a Genesis entry —
+    /// that's the caller's responsibility via [`Self::write_genesis`].
+    pub fn open(store: Box<dyn ChapterStore>) -> Result<Self> {
+        let entries = store.ledger_load_all()
+            .context("loading ledger entries from store")?;
+        let head_hash = entries
+            .last()
+            .map(|e| e.entry_hash.clone())
+            .unwrap_or_else(|| GENESIS_PREV_HASH.to_string());
+        Ok(Self { store, entries, head_hash })
     }
 
-    pub fn path(&self) -> &Path { &self.path }
     pub fn entries(&self) -> &[LedgerEntry] { &self.entries }
     pub fn len(&self) -> usize { self.entries.len() }
     pub fn is_empty(&self) -> bool { self.entries.is_empty() }
     pub fn head_hash(&self) -> &str { &self.head_hash }
+    pub fn backend_kind(&self) -> crate::store::BackendKind { self.store.backend_kind() }
+
+    /// Borrow the underlying store. Useful for callers that need to
+    /// read/write related artifacts (charter, society) through the same
+    /// backend.
+    pub fn store(&self) -> &dyn ChapterStore { self.store.as_ref() }
+    pub fn store_mut(&mut self) -> &mut dyn ChapterStore { self.store.as_mut() }
 
     /// Write the Genesis entry. Errors if the ledger is not empty.
     pub fn write_genesis(
@@ -194,12 +186,9 @@ impl ChapterLedger {
         // Now hash with signature filled in
         entry.entry_hash = compute_entry_hash(&entry)?;
 
-        // Append to file
-        let line = serde_json::to_string(&entry).context("serializing entry")?;
-        let mut f = OpenOptions::new().append(true).create(true).open(&self.path)
-            .with_context(|| format!("opening {} for append", self.path.display()))?;
-        writeln!(f, "{}", line)
-            .with_context(|| format!("writing to {}", self.path.display()))?;
+        // Persist via backend
+        self.store.ledger_append(&entry)
+            .context("persisting ledger entry via store")?;
 
         self.head_hash = entry.entry_hash.clone();
         self.entries.push(entry);
@@ -263,7 +252,9 @@ pub fn build_lookup(lcts: impl IntoIterator<Item = Lct>) -> HashMap<Uuid, Lct> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chapter::ChapterPaths;
     use crate::identity::IdentityFile;
+    use crate::store::FileBackend;
     use tempfile::tempdir;
     use web4_core::lct::EntityType;
 
@@ -271,12 +262,24 @@ mod tests {
         IdentityFile::generate(EntityType::Human)
     }
 
+    fn fresh_store(tmp: &tempfile::TempDir) -> (Box<dyn ChapterStore>, std::path::PathBuf) {
+        let chapter_dir = tmp.path().join("chap");
+        std::fs::create_dir_all(&chapter_dir).unwrap();
+        let paths = ChapterPaths::new(chapter_dir.clone());
+        let ledger_path = paths.ledger();
+        (Box::new(FileBackend::new(paths)), ledger_path)
+    }
+
+    fn reopen_file_backend(tmp: &tempfile::TempDir) -> Box<dyn ChapterStore> {
+        let chapter_dir = tmp.path().join("chap");
+        Box::new(FileBackend::new(ChapterPaths::new(chapter_dir)))
+    }
+
     #[test]
     fn open_creates_empty_file() {
         let tmp = tempdir().unwrap();
-        let path = tmp.path().join("ledger.jsonl");
-        let ledger = ChapterLedger::open(&path).unwrap();
-        assert!(path.exists());
+        let (store, _) = fresh_store(&tmp);
+        let ledger = ChapterLedger::open(store).unwrap();
         assert!(ledger.is_empty());
         assert_eq!(ledger.head_hash(), GENESIS_PREV_HASH);
     }
@@ -284,11 +287,11 @@ mod tests {
     #[test]
     fn genesis_then_one_event_signs_and_verifies() {
         let tmp = tempdir().unwrap();
-        let path = tmp.path().join("ledger.jsonl");
         let sovereign = fresh_sovereign();
         let keypair = sovereign.keypair().unwrap();
 
-        let mut ledger = ChapterLedger::open(&path).unwrap();
+        let (store, _) = fresh_store(&tmp);
+        let mut ledger = ChapterLedger::open(store).unwrap();
         ledger.write_genesis(
             sovereign.lct.id,
             &keypair,
@@ -316,12 +319,12 @@ mod tests {
     #[test]
     fn reopen_replays_chain_integrity() {
         let tmp = tempdir().unwrap();
-        let path = tmp.path().join("ledger.jsonl");
         let sovereign = fresh_sovereign();
         let keypair = sovereign.keypair().unwrap();
 
         {
-            let mut ledger = ChapterLedger::open(&path).unwrap();
+            let (store, _) = fresh_store(&tmp);
+            let mut ledger = ChapterLedger::open(store).unwrap();
             ledger.write_genesis(
                 sovereign.lct.id, &keypair,
                 "X".into(), "sha256:0".into(),
@@ -338,8 +341,8 @@ mod tests {
             }
         }
 
-        // Re-open and verify
-        let reopened = ChapterLedger::open(&path).unwrap();
+        // Re-open a fresh store pointing at the same dir and verify.
+        let reopened = ChapterLedger::open(reopen_file_backend(&tmp)).unwrap();
         assert_eq!(reopened.len(), 4);
         let lookup_map = build_lookup([sovereign.lct.clone()]);
         reopened.verify_chain(|id| lookup_map.get(&id).cloned()).unwrap();
@@ -348,11 +351,11 @@ mod tests {
     #[test]
     fn tampered_event_fails_verification() {
         let tmp = tempdir().unwrap();
-        let path = tmp.path().join("ledger.jsonl");
         let sovereign = fresh_sovereign();
         let keypair = sovereign.keypair().unwrap();
 
-        let mut ledger = ChapterLedger::open(&path).unwrap();
+        let (store, ledger_path) = fresh_store(&tmp);
+        let mut ledger = ChapterLedger::open(store).unwrap();
         ledger.write_genesis(
             sovereign.lct.id, &keypair,
             "X".into(), "sha256:0".into(),
@@ -365,16 +368,19 @@ mod tests {
                 member_name: Some("Original".into()),
             },
         ).unwrap();
+        drop(ledger);
 
-        // Tamper: overwrite the file with a modified version of entry 1
-        let content = std::fs::read_to_string(&path).unwrap();
+        // Tamper directly at the file-backed layer: this test is
+        // file-backend-specific (it knows where bytes live). SqliteBackend
+        // would need its own tamper test.
+        let content = std::fs::read_to_string(&ledger_path).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         let tampered_line = lines[1].replace("Original", "Tampered");
         let new_content = format!("{}\n{}\n", lines[0], tampered_line);
-        std::fs::write(&path, new_content).unwrap();
+        std::fs::write(&ledger_path, new_content).unwrap();
 
         // Re-open: hash recompute should now mismatch
-        let reopened = ChapterLedger::open(&path).unwrap();
+        let reopened = ChapterLedger::open(reopen_file_backend(&tmp)).unwrap();
         let lookup_map = build_lookup([sovereign.lct.clone()]);
         let result = reopened.verify_chain(|id| lookup_map.get(&id).cloned());
         assert!(result.is_err(), "tampered entry must fail verification");
@@ -386,11 +392,11 @@ mod tests {
     #[test]
     fn genesis_after_existing_entries_errors() {
         let tmp = tempdir().unwrap();
-        let path = tmp.path().join("ledger.jsonl");
         let sovereign = fresh_sovereign();
         let keypair = sovereign.keypair().unwrap();
 
-        let mut ledger = ChapterLedger::open(&path).unwrap();
+        let (store, _) = fresh_store(&tmp);
+        let mut ledger = ChapterLedger::open(store).unwrap();
         ledger.write_genesis(
             sovereign.lct.id, &keypair,
             "X".into(), "sha256:0".into(),
@@ -406,11 +412,11 @@ mod tests {
     #[test]
     fn append_before_genesis_errors() {
         let tmp = tempdir().unwrap();
-        let path = tmp.path().join("ledger.jsonl");
         let sovereign = fresh_sovereign();
         let keypair = sovereign.keypair().unwrap();
 
-        let mut ledger = ChapterLedger::open(&path).unwrap();
+        let (store, _) = fresh_store(&tmp);
+        let mut ledger = ChapterLedger::open(store).unwrap();
         let result = ledger.append(
             sovereign.lct.id, &keypair,
             ChapterEvent::MemberAdded {

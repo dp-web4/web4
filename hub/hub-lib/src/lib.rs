@@ -30,6 +30,7 @@ pub mod init;
 pub mod ledger;
 pub mod session;
 pub mod state;
+pub mod store;
 
 /// Crate version, exposed for `hub --version`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

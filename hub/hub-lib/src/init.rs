@@ -25,6 +25,7 @@ use crate::chapter::{ChapterConfig, ChapterPaths};
 use crate::charter::Charter;
 use crate::identity::IdentityFile;
 use crate::ledger::{build_lookup, ChapterLedger};
+use crate::store::open_chapter_store;
 
 /// Roles the founder fills at genesis per V2-1 architecture.
 ///
@@ -108,23 +109,28 @@ pub struct InitArgs {
 pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
     let paths = ChapterPaths::new(&args.chapter_dir);
 
-    // 1. Idempotency check.
-    if paths.is_initialized() {
-        let existing_society = std::fs::read_to_string(paths.society())
-            .with_context(|| format!("reading existing society at {}", paths.society().display()))?;
-        let society: Society = serde_json::from_str(&existing_society)
-            .context("parsing existing society.json")?;
+    // 1. Idempotency check — through the store, not the filesystem directly.
+    // For V2-2 Step A this is still file-backed; Step B will read from
+    // SqliteBackend transparently.
+    let probe_store = open_chapter_store(&args.chapter_dir)
+        .context("opening chapter store for idempotency probe")?;
+    if let Some(existing) = probe_store.read_society()
+        .context("probing for existing society")? {
         return Ok(InitResult::AlreadyInitialized {
-            society_lct_id: society.lct_id,
+            society_lct_id: existing.lct_id,
             chapter_dir: args.chapter_dir.clone(),
-            chapter_name: society.name,
+            chapter_name: existing.name,
         });
     }
+    drop(probe_store);
 
     std::fs::create_dir_all(&args.chapter_dir)
         .with_context(|| format!("creating chapter dir {}", args.chapter_dir.display()))?;
 
-    // 2. Load Sovereign identity.
+    // 2. Load Sovereign identity. NOTE per architecture commitment #8:
+    // identity-file-as-secret-store is the MVP bootstrap pattern; secrets
+    // belong in Hestia's vault and the file pattern deprecates with
+    // V2-7 (Hestia-as-Sovereign). Kept here until that sync point lands.
     let sovereign = IdentityFile::load(&args.sovereign_lct_path)
         .with_context(|| format!(
             "loading Sovereign LCT from {}",
@@ -137,11 +143,14 @@ pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
         "loaded Sovereign identity"
     );
 
-    // 3. Compose + hash founding charter.
+    // Open the real store now that the chapter dir exists.
+    let mut store = open_chapter_store(&args.chapter_dir)
+        .context("opening chapter store for init")?;
+
+    // 3. Compose + hash founding charter; write through store.
     let charter = Charter::found(args.chapter_name.clone(), sovereign_lct_id);
     let charter_hash = charter.hash().context("hashing charter")?;
-    charter.save(paths.charter())
-        .with_context(|| format!("writing charter to {}", paths.charter().display()))?;
+    store.write_charter(&charter).context("writing charter via store")?;
 
     // 4. Bootstrap the society, then V2-1 unfill: founder fills only
     // Sovereign + Citizen at genesis. The other 5 base-mandatory roles
@@ -160,15 +169,12 @@ pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
 
     let society_lct_id = society.lct_id;
 
-    // 5. Persist society state.
-    let society_json = serde_json::to_string_pretty(&society)
-        .context("serializing society")?;
-    std::fs::write(paths.society(), society_json)
-        .with_context(|| format!("writing society to {}", paths.society().display()))?;
+    // 5. Persist society state via store.
+    store.write_society(&society).context("writing society via store")?;
 
-    // 6. Persist config.toml (so subsequent `hub` commands know where the
-    // chapter lives + where to find the Sovereign). Canonicalize the
-    // Sovereign path so it survives `cd` between init and later commands.
+    // 6. Persist config.toml (operator-owned; file-based by design — not
+    // part of the storage backend abstraction). Canonicalize the Sovereign
+    // path so it survives `cd` between init and later commands.
     let sovereign_abs = std::fs::canonicalize(&args.sovereign_lct_path)
         .with_context(|| format!(
             "canonicalizing Sovereign LCT path {}",
@@ -178,11 +184,11 @@ pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
     config.save(paths.config())
         .with_context(|| format!("writing config to {}", paths.config().display()))?;
 
-    // 7. Initialize the chapter ledger + write Genesis entry (sprint 2).
+    // 7. Initialize the chapter ledger via store + write Genesis entry.
     // Genesis is signed by the Sovereign; subsequent events get signed by
     // their respective actors.
-    let mut ledger = ChapterLedger::open(paths.ledger())
-        .with_context(|| format!("opening chapter ledger at {}", paths.ledger().display()))?;
+    let mut ledger = ChapterLedger::open(store)
+        .context("opening chapter ledger via store")?;
     let sovereign_keypair = sovereign.keypair()
         .context("reconstructing Sovereign keypair for Genesis signing")?;
     ledger.write_genesis(
@@ -208,14 +214,14 @@ pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
     })
 }
 
-/// Load an already-initialized chapter's society state.
+/// Load an already-initialized chapter's society state. Routes through
+/// the storage backend abstraction, so works against any backend.
 pub fn load_society(chapter_dir: impl AsRef<Path>) -> Result<Society> {
-    let paths = ChapterPaths::new(chapter_dir.as_ref());
-    let json = std::fs::read_to_string(paths.society())
-        .with_context(|| format!("reading {}", paths.society().display()))?;
-    let society: Society = serde_json::from_str(&json)
-        .context("parsing society.json")?;
-    Ok(society)
+    let store = open_chapter_store(chapter_dir.as_ref())
+        .context("opening chapter store")?;
+    store.read_society()
+        .context("reading society via store")?
+        .ok_or_else(|| anyhow::anyhow!("no society found in chapter store"))
 }
 
 /// Result of a ledger verification pass.
@@ -247,9 +253,11 @@ pub fn verify_chapter(chapter_dir: impl AsRef<Path>) -> Result<VerifyResult> {
     let sovereign = IdentityFile::load(&sov_path)
         .with_context(|| format!("loading Sovereign identity from {}", sov_path.display()))?;
 
-    let society = load_society(chapter_dir).context("loading society.json")?;
-    let ledger = ChapterLedger::open(paths.ledger())
-        .with_context(|| format!("opening ledger at {}", paths.ledger().display()))?;
+    let society = load_society(chapter_dir).context("loading society")?;
+    let store = open_chapter_store(chapter_dir)
+        .context("opening chapter store for verify")?;
+    let ledger = ChapterLedger::open(store)
+        .context("opening ledger via store")?;
 
     // Build LCT lookup. MVP: just the Sovereign. Extension point: as the
     // ledger replays MemberAdded events, we'd need to register their LCTs
@@ -366,7 +374,8 @@ mod tests {
         assert!(paths.ledger().exists(), "ledger.jsonl missing");
 
         // Sprint 2: ledger now starts with Genesis entry (not empty)
-        let ledger = crate::ledger::ChapterLedger::open(paths.ledger()).unwrap();
+        let store = open_chapter_store(&chapter_dir).unwrap();
+        let ledger = crate::ledger::ChapterLedger::open(store).unwrap();
         assert_eq!(ledger.len(), 1, "expected single Genesis entry after init");
     }
 

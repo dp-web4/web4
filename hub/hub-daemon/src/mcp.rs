@@ -57,11 +57,12 @@ pub struct McpState {
 
 impl McpState {
     pub fn open(chapter_dir: PathBuf) -> Result<Self> {
-        let paths = ChapterPaths::new(chapter_dir);
+        let paths = ChapterPaths::new(chapter_dir.clone());
         let config = hub_lib::chapter::ChapterConfig::load(paths.config())?;
         let sovereign = IdentityFile::load(&config.sovereign.lct_path)?;
         let kp = sovereign.keypair()?;
-        let ledger = ChapterLedger::open(paths.ledger())?;
+        let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
+        let ledger = ChapterLedger::open(store)?;
         Ok(Self {
             paths,
             sovereign_lct_id: sovereign.lct.id,

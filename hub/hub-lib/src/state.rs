@@ -129,8 +129,10 @@ impl ChapterState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chapter::ChapterPaths;
     use crate::identity::IdentityFile;
     use crate::ledger::ChapterLedger;
+    use crate::store::FileBackend;
     use chrono::Utc;
     use tempfile::tempdir;
     use web4_core::lct::EntityType;
@@ -139,8 +141,11 @@ mod tests {
         -> (tempfile::TempDir, ChapterLedger)
     {
         let tmp = tempdir().unwrap();
-        let path = tmp.path().join("ledger.jsonl");
-        let mut ledger = ChapterLedger::open(&path).unwrap();
+        let chap = tmp.path().join("chap");
+        std::fs::create_dir_all(&chap).unwrap();
+        let store: Box<dyn crate::store::ChapterStore> =
+            Box::new(FileBackend::new(ChapterPaths::new(chap)));
+        let mut ledger = ChapterLedger::open(store).unwrap();
         for (actor, kp, event) in events {
             // First event must be Genesis; for tests we treat all as plain entries
             // but use write_genesis for the first.
