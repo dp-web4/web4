@@ -57,6 +57,7 @@
 pub mod atp;
 pub mod coherence;
 pub mod crypto;
+pub mod delegation;
 pub mod error;
 pub mod lct;
 pub mod ledger;
@@ -82,6 +83,7 @@ pub use r6::{
     ActionResult, ActionRole, ActionStatus, R7Action, ReputationDelta, Request, ResourceRequirements,
     Rules,
 };
+pub use delegation::{DelegatedAuthority, DelegationScope};
 pub use role::{RoleAssignment, RoleEvent, RoleEventKind, SocietyRole};
 pub use society::{MetabolicState, Society};
 pub use t3::{TrustDimension, TrustObservation, TrustRelation, T3, T3_DIMENSIONS};
@@ -98,6 +100,7 @@ pub mod prelude {
     pub use crate::lct::{EntityType, Lct, LctBuilder, LctStatus};
     pub use crate::atp::ATPAccount;
     pub use crate::r6::{R7Action, ReputationDelta, Rules};
+    pub use crate::delegation::{DelegatedAuthority, DelegationScope};
     pub use crate::role::{RoleAssignment, SocietyRole};
     pub use crate::society::{MetabolicState, Society};
     pub use crate::t3::{TrustDimension, T3};
