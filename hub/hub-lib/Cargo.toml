@@ -1,0 +1,16 @@
+[package]
+name = "hub-lib"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "AIC Hub — society logic library (chapter state, ledger, roles, charter)"
+
+[dependencies]
+web4-core.workspace = true
+web4-trust-core.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true

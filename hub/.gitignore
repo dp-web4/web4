@@ -1,0 +1,12 @@
+/target
+**/*.rs.bk
+Cargo.lock.bak
+
+# Per-chapter state (developer testing — never commit chapter LCTs or ledgers)
+/chapters/
+/test_keys/
+*.lct.json
+*.ledger.jsonl
+
+# Logs
+*.log

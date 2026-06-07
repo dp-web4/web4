@@ -1,0 +1,25 @@
+[workspace]
+members = ["hub-lib", "hub-daemon"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0-alpha.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+authors = ["dp / Metalinxx Inc."]
+repository = "https://github.com/dp-web4/web4"
+description = "AIC Hub — minimum-viable Web4 society for a community chapter"
+
+[workspace.dependencies]
+# Web4 primitives — DO NOT reimplement. Use these directly.
+web4-core = { path = "../web4-core" }
+web4-trust-core = { path = "../web4-trust-core" }
+
+# Common third-party
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
