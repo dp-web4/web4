@@ -30,6 +30,7 @@ pub mod identity;
 pub mod init;
 pub mod ledger;
 pub mod session;
+pub mod signer;
 pub mod state;
 pub mod store;
 

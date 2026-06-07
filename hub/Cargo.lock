@@ -660,6 +660,7 @@ name = "hub-lib"
 version = "0.1.0-alpha.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
  "hex",
  "rand",
@@ -668,6 +669,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+ "tokio",
  "toml",
  "tracing",
  "uuid",
