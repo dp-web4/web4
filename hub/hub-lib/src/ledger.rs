@@ -77,6 +77,21 @@ fn compute_entry_hash(entry: &LedgerEntry) -> Result<String> {
     Ok(sha256_hex(json.as_bytes()))
 }
 
+/// A ledger entry that has been assigned its index + prev_hash but not
+/// yet signed. The caller (or a remote signer) signs `signing_bytes`
+/// and passes the resulting signature to [`ChapterLedger::append_signed`].
+///
+/// Holding this struct outside the ledger does NOT mutate the ledger;
+/// it's a draft. If a parallel append lands between build_entry and
+/// append_signed, the commit will error rather than corrupt the chain.
+#[derive(Debug)]
+pub struct UnsignedEntry {
+    pub entry: LedgerEntry,
+    /// The exact bytes the actor must sign. Don't reconstruct these
+    /// yourself — use what build_entry returned.
+    pub signing_bytes: Vec<u8>,
+}
+
 /// Append-only chapter event ledger.
 ///
 /// Owns hash-chain integrity + signing logic. Delegates byte persistence
@@ -125,6 +140,7 @@ impl ChapterLedger {
     pub fn store_mut(&mut self) -> &mut dyn ChapterStore { self.store.as_mut() }
 
     /// Write the Genesis entry. Errors if the ledger is not empty.
+    /// Convenience wrapper for callers holding a local keypair.
     pub fn write_genesis(
         &mut self,
         sovereign_lct_id: Uuid,
@@ -132,6 +148,20 @@ impl ChapterLedger {
         chapter_name: String,
         charter_hash: String,
     ) -> Result<&LedgerEntry> {
+        let (unsigned, _) = self.build_genesis(sovereign_lct_id, chapter_name, charter_hash)?;
+        let sig = sovereign_keypair.sign(&unsigned.signing_bytes);
+        self.append_signed(unsigned, SignatureBytes::from_bytes(sig.bytes))
+    }
+
+    /// Build the unsigned Genesis entry. Errors if the ledger is not empty.
+    /// Returns the unsigned entry + the canonical timestamp it uses (so a
+    /// Hestia-mode init can include the timestamp in the sign-request).
+    pub fn build_genesis(
+        &self,
+        sovereign_lct_id: Uuid,
+        chapter_name: String,
+        charter_hash: String,
+    ) -> Result<(UnsignedEntry, DateTime<Utc>)> {
         if !self.entries.is_empty() {
             return Err(anyhow!("ledger already has entries; Genesis would be illegal"));
         }
@@ -142,10 +172,15 @@ impl ChapterLedger {
             founding_sovereign_lct_id: sovereign_lct_id,
             created_at: now,
         };
-        self.append_inner(sovereign_lct_id, sovereign_keypair, event, now)
+        let unsigned = self.build_entry(sovereign_lct_id, event, now)?;
+        Ok((unsigned, now))
     }
 
-    /// Append a signed entry to the ledger. Returns the appended entry.
+    /// Append a signed entry to the ledger using a local keypair.
+    /// Convenience wrapper over [`Self::build_entry`] + [`Self::append_signed`]
+    /// for callers that hold the actor's keypair in-process (MVP path).
+    /// For Hestia-mode (the actor's keypair is in a remote vault), use the
+    /// split API directly.
     pub fn append(
         &mut self,
         actor_lct_id: Uuid,
@@ -155,45 +190,76 @@ impl ChapterLedger {
         if self.entries.is_empty() {
             return Err(anyhow!("ledger has no Genesis entry; call write_genesis first"));
         }
-        self.append_inner(actor_lct_id, actor_keypair, event, Utc::now())
+        let unsigned = self.build_entry(actor_lct_id, event, Utc::now())?;
+        let sig = actor_keypair.sign(&unsigned.signing_bytes);
+        self.append_signed(unsigned, SignatureBytes::from_bytes(sig.bytes))
     }
 
-    fn append_inner(
-        &mut self,
+    /// Build an unsigned entry: assigns index + prev_hash + actor + event,
+    /// returns the exact signing bytes the actor must sign. Does NOT mutate
+    /// the ledger — caller commits via [`Self::append_signed`].
+    ///
+    /// Enables async signing: caller hands `signing_bytes` to a remote
+    /// signer (vault, HSM, Hestia), awaits the signature, then commits.
+    pub fn build_entry(
+        &self,
         actor_lct_id: Uuid,
-        actor_keypair: &KeyPair,
         event: ChapterEvent,
         timestamp: DateTime<Utc>,
-    ) -> Result<&LedgerEntry> {
-        let index = self.entries.len() as u64;
-        let prev_hash = self.head_hash.clone();
-
-        // Build entry with empty signature + entry_hash for signing
-        let mut entry = LedgerEntry {
-            index,
+    ) -> Result<UnsignedEntry> {
+        // Genesis is its own path (write_genesis). All other entries
+        // require a Genesis to exist.
+        let entry = LedgerEntry {
+            index: self.entries.len() as u64,
             timestamp,
-            prev_hash,
+            prev_hash: self.head_hash.clone(),
             actor_lct_id,
             event,
             signature: String::new(),
             entry_hash: String::new(),
         };
+        let signing_bytes = signing_payload(&entry)?;
+        Ok(UnsignedEntry { entry, signing_bytes })
+    }
 
-        let payload = signing_payload(&entry)?;
-        let sig = actor_keypair.sign(&payload);
-        entry.signature = hex::encode(sig.bytes);
+    /// Commit a signed entry: fills in the signature + computes
+    /// entry_hash + persists to the store + advances head_hash.
+    /// Caller is responsible for producing a valid signature over
+    /// `unsigned.signing_bytes`.
+    pub fn append_signed(
+        &mut self,
+        mut unsigned: UnsignedEntry,
+        signature: SignatureBytes,
+    ) -> Result<&LedgerEntry> {
+        // Sanity: the unsigned entry's index must match our current tail.
+        // (Could happen if a parallel append landed between build and commit.)
+        let expected_index = self.entries.len() as u64;
+        if unsigned.entry.index != expected_index {
+            return Err(anyhow!(
+                "ledger advanced between build_entry and append_signed: \
+                 unsigned.index={}, current expected={}",
+                unsigned.entry.index, expected_index
+            ));
+        }
+        if unsigned.entry.prev_hash != self.head_hash {
+            return Err(anyhow!(
+                "ledger head changed between build_entry and append_signed: \
+                 unsigned.prev_hash={}, current head_hash={}",
+                unsigned.entry.prev_hash, self.head_hash
+            ));
+        }
 
-        // Now hash with signature filled in
-        entry.entry_hash = compute_entry_hash(&entry)?;
+        unsigned.entry.signature = hex::encode(signature.bytes);
+        unsigned.entry.entry_hash = compute_entry_hash(&unsigned.entry)?;
 
-        // Persist via backend
-        self.store.ledger_append(&entry)
+        self.store.ledger_append(&unsigned.entry)
             .context("persisting ledger entry via store")?;
 
-        self.head_hash = entry.entry_hash.clone();
-        self.entries.push(entry);
+        self.head_hash = unsigned.entry.entry_hash.clone();
+        self.entries.push(unsigned.entry);
         Ok(self.entries.last().unwrap())
     }
+
 
     /// Verify the entire chain.
     /// `lct_lookup` maps an actor LCT id to its Lct (for signature verification).
@@ -407,6 +473,90 @@ mod tests {
             "Y".into(), "sha256:1".into(),
         );
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn split_api_simulates_remote_signing() {
+        // The split build_entry / append_signed API enables Hestia-mode
+        // where the actor's keypair lives in a remote vault. Simulate it
+        // here: we hold the keypair locally, but pretend we're a "remote
+        // signer" that only sees the signing bytes the ledger hands us.
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+        let kp = sovereign.keypair().unwrap();
+
+        let (store, _) = fresh_store(&tmp);
+        let mut ledger = ChapterLedger::open(store).unwrap();
+
+        // Genesis via the split path
+        let (unsigned_genesis, _ts) = ledger.build_genesis(
+            sovereign.lct.id,
+            "Split Test".into(),
+            "0".repeat(64),
+        ).unwrap();
+        // "Remote signer" sees only signing_bytes
+        let bytes_to_sign = unsigned_genesis.signing_bytes.clone();
+        let sig_obj = kp.sign(&bytes_to_sign);
+        let sig = SignatureBytes::from_bytes(sig_obj.bytes);
+        ledger.append_signed(unsigned_genesis, sig).unwrap();
+
+        // Member added via the split path
+        let unsigned_member = ledger.build_entry(
+            sovereign.lct.id,
+            ChapterEvent::MemberAdded {
+                member_lct_id: Uuid::new_v4(),
+                added_by: sovereign.lct.id,
+                member_name: Some("Alice".into()),
+            },
+            Utc::now(),
+        ).unwrap();
+        let bytes_to_sign = unsigned_member.signing_bytes.clone();
+        let sig = SignatureBytes::from_bytes(kp.sign(&bytes_to_sign).bytes);
+        ledger.append_signed(unsigned_member, sig).unwrap();
+
+        assert_eq!(ledger.len(), 2);
+
+        // Chain verifies
+        let lookup_map = build_lookup([sovereign.lct.clone()]);
+        ledger.verify_chain(|id| lookup_map.get(&id).cloned()).unwrap();
+    }
+
+    #[test]
+    fn append_signed_rejects_stale_unsigned_entry() {
+        // If a parallel append landed between build_entry and append_signed,
+        // the commit must fail rather than corrupt the chain.
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+        let kp = sovereign.keypair().unwrap();
+
+        let (store, _) = fresh_store(&tmp);
+        let mut ledger = ChapterLedger::open(store).unwrap();
+        ledger.write_genesis(
+            sovereign.lct.id, &kp,
+            "X".into(), "0".repeat(64),
+        ).unwrap();
+
+        // Build entry A (gets index=1, prev_hash=genesis_hash)
+        let unsigned_a = ledger.build_entry(
+            sovereign.lct.id,
+            ChapterEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: None },
+            Utc::now(),
+        ).unwrap();
+
+        // In parallel, entry B lands first (also index=1 at build time,
+        // but commits before A and becomes the actual index=1)
+        ledger.append(
+            sovereign.lct.id, &kp,
+            ChapterEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: Some("B".into()) },
+        ).unwrap();
+
+        // Now A tries to commit; should fail because the ledger advanced
+        let sig = SignatureBytes::from_bytes(kp.sign(&unsigned_a.signing_bytes).bytes);
+        let result = ledger.append_signed(unsigned_a, sig);
+        assert!(result.is_err(), "stale unsigned must be rejected, not silently overwrite");
+        let err = format!("{:?}", result.unwrap_err());
+        assert!(err.contains("ledger advanced") || err.contains("head changed"),
+            "expected stale-detection error, got: {}", err);
     }
 
     #[test]
