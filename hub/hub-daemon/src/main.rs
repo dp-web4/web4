@@ -10,7 +10,7 @@
 
 mod mcp;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -48,6 +48,12 @@ enum Command {
         /// Directory to create the chapter in. Defaults to ./<name-slug>.
         #[arg(long)]
         chapter_dir: Option<PathBuf>,
+
+        /// Storage backend for chapter state. Defaults to `file` (MVP-
+        /// compatible JSON/JSONL). `sqlite` uses a single chapter.db file
+        /// for better query performance + simpler ops.
+        #[arg(long, default_value = "file")]
+        storage: String,
     },
 
     /// Generate a fresh LCT + keypair, save to a JSON file.
@@ -208,8 +214,8 @@ async fn main() -> Result<()> {
             println!("Run `hub --help` for available commands.");
             Ok(())
         }
-        Some(Command::Init { name, sovereign_lct, chapter_dir }) => {
-            run_init(name, sovereign_lct, chapter_dir)
+        Some(Command::Init { name, sovereign_lct, chapter_dir, storage }) => {
+            run_init(name, sovereign_lct, chapter_dir, storage)
         }
         Some(Command::GenLct { output, entity_type }) => {
             run_gen_lct(output, entity_type.into())
@@ -446,13 +452,17 @@ fn run_verify_ledger(chapter_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn run_init(name: String, sovereign_lct: PathBuf, chapter_dir: Option<PathBuf>) -> Result<()> {
+fn run_init(name: String, sovereign_lct: PathBuf, chapter_dir: Option<PathBuf>, storage: String) -> Result<()> {
+    use std::str::FromStr;
     let chapter_dir = chapter_dir.unwrap_or_else(|| PathBuf::from(slugify(&name)));
+    let backend = hub_lib::store::BackendKind::from_str(&storage)
+        .context("parsing --storage")?;
 
     let result = init_chapter(InitArgs {
         chapter_name: name,
         chapter_dir,
         sovereign_lct_path: sovereign_lct,
+        storage: Some(backend),
     })?;
 
     match result {

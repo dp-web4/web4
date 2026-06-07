@@ -25,7 +25,7 @@ use crate::chapter::{ChapterConfig, ChapterPaths};
 use crate::charter::Charter;
 use crate::identity::IdentityFile;
 use crate::ledger::{build_lookup, ChapterLedger};
-use crate::store::open_chapter_store;
+use crate::store::{open_chapter_store, open_chapter_store_with, BackendKind};
 
 /// Roles the founder fills at genesis per V2-1 architecture.
 ///
@@ -103,6 +103,10 @@ pub struct InitArgs {
 
     /// Path to the Sovereign identity file (see IdentityFile).
     pub sovereign_lct_path: PathBuf,
+
+    /// Which storage backend to use. `None` = file-backed (MVP-compatible default).
+    /// V2-2 added SQLite as an option; future backends slot here.
+    pub storage: Option<BackendKind>,
 }
 
 /// Run the init flow.
@@ -110,19 +114,21 @@ pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
     let paths = ChapterPaths::new(&args.chapter_dir);
 
     // 1. Idempotency check — through the store, not the filesystem directly.
-    // For V2-2 Step A this is still file-backed; Step B will read from
-    // SqliteBackend transparently.
-    let probe_store = open_chapter_store(&args.chapter_dir)
-        .context("opening chapter store for idempotency probe")?;
-    if let Some(existing) = probe_store.read_society()
-        .context("probing for existing society")? {
-        return Ok(InitResult::AlreadyInitialized {
-            society_lct_id: existing.lct_id,
-            chapter_dir: args.chapter_dir.clone(),
-            chapter_name: existing.name,
-        });
+    // open_chapter_store auto-detects existing backend (sqlite if chapter.db
+    // present, else file).
+    if args.chapter_dir.exists() {
+        let probe_store = open_chapter_store(&args.chapter_dir)
+            .context("opening chapter store for idempotency probe")?;
+        if let Some(existing) = probe_store.read_society()
+            .context("probing for existing society")? {
+            return Ok(InitResult::AlreadyInitialized {
+                society_lct_id: existing.lct_id,
+                chapter_dir: args.chapter_dir.clone(),
+                chapter_name: existing.name,
+            });
+        }
+        drop(probe_store);
     }
-    drop(probe_store);
 
     std::fs::create_dir_all(&args.chapter_dir)
         .with_context(|| format!("creating chapter dir {}", args.chapter_dir.display()))?;
@@ -143,9 +149,11 @@ pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
         "loaded Sovereign identity"
     );
 
-    // Open the real store now that the chapter dir exists.
-    let mut store = open_chapter_store(&args.chapter_dir)
-        .context("opening chapter store for init")?;
+    // Open the real store for the requested backend (default: file).
+    let backend = args.storage.unwrap_or(BackendKind::File);
+    let mut store = open_chapter_store_with(&args.chapter_dir, backend)
+        .with_context(|| format!("opening chapter store with backend {:?}", backend))?;
+    tracing::info!(backend = backend.as_str(), "chapter storage backend selected");
 
     // 3. Compose + hash founding charter; write through store.
     let charter = Charter::found(args.chapter_name.clone(), sovereign_lct_id);
@@ -303,6 +311,7 @@ mod tests {
             chapter_name: "Lisbon Chapter".into(),
             chapter_dir: chapter_dir.clone(),
             sovereign_lct_path: sovereign_path,
+            storage: None,
         }).unwrap();
 
         let role_lcts = match result {
@@ -345,6 +354,7 @@ mod tests {
             chapter_name: "Lisbon".into(),
             chapter_dir: chapter_dir.clone(),
             sovereign_lct_path: sovereign_path,
+            storage: None,
         }).unwrap();
 
         let society = load_society(&chapter_dir).unwrap();
@@ -365,6 +375,7 @@ mod tests {
             chapter_name: "Lisbon".into(),
             chapter_dir: chapter_dir.clone(),
             sovereign_lct_path: sovereign_path,
+            storage: None,
         }).unwrap();
 
         let paths = ChapterPaths::new(&chapter_dir);
@@ -389,6 +400,7 @@ mod tests {
             chapter_name: "Lisbon".into(),
             chapter_dir: chapter_dir.clone(),
             sovereign_lct_path: sovereign_path,
+            storage: None,
         }).unwrap();
 
         // verify_chapter does end-to-end: config → identity → society → ledger
@@ -409,6 +421,7 @@ mod tests {
             chapter_name: "Lisbon".into(),
             chapter_dir: chapter_dir.clone(),
             sovereign_lct_path: sovereign_path.clone(),
+            storage: None,
         }).unwrap();
         let first_id = match first {
             InitResult::Initialized { society_lct_id, .. } => society_lct_id,
@@ -424,6 +437,7 @@ mod tests {
             chapter_name: "Different Name (should be ignored)".into(),
             chapter_dir: chapter_dir.clone(),
             sovereign_lct_path: sovereign_path,
+            storage: None,
         }).unwrap();
 
         match second {
@@ -452,6 +466,7 @@ mod tests {
             chapter_name: "Lisbon".into(),
             chapter_dir: chapter_dir.clone(),
             sovereign_lct_path: sovereign_path,
+            storage: None,
         }).unwrap();
 
         // Re-read charter, hash it, compare against society.charter_hash
@@ -476,6 +491,7 @@ mod tests {
             chapter_name: "Lisbon".into(),
             chapter_dir,
             sovereign_lct_path: sovereign_path.clone(),
+            storage: None,
         }).unwrap();
 
         let sovereign = IdentityFile::load(&sovereign_path).unwrap();

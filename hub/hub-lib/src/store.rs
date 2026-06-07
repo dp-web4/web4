@@ -116,14 +116,59 @@ pub trait ChapterStore: Send {
     }
 }
 
-/// Open a `ChapterStore` for the given chapter dir, choosing backend by
-/// what's already on disk. If neither a `chapter.db` nor a `society.json`
-/// is present, defaults to file-backed for V2-2 Step A.
+/// Default SQLite filename inside a chapter dir.
+pub const SQLITE_DB_FILENAME: &str = "chapter.db";
+
+/// Open a `ChapterStore` for the given chapter dir. Backend selection:
 ///
-/// V2-2 Step B will look at `config.toml`'s `[storage]` section to decide.
+/// 1. If `<chapter-dir>/chapter.db` exists → SqliteBackend.
+/// 2. Else if `<chapter-dir>/society.json` (or any MVP file) exists → FileBackend.
+/// 3. Else (fresh chapter) → FileBackend default (MVP-compatible).
+///
+/// To force a specific backend at create time, use [`open_chapter_store_with`].
 pub fn open_chapter_store(chapter_dir: impl AsRef<Path>) -> Result<Box<dyn ChapterStore>> {
-    let paths = ChapterPaths::new(chapter_dir.as_ref().to_path_buf());
-    Ok(Box::new(FileBackend::new(paths)))
+    let chapter_dir = chapter_dir.as_ref();
+    let paths = ChapterPaths::new(chapter_dir.to_path_buf());
+    let db_path = chapter_dir.join(SQLITE_DB_FILENAME);
+
+    if db_path.exists() {
+        Ok(Box::new(SqliteBackend::open(&db_path)?))
+    } else {
+        Ok(Box::new(FileBackend::new(paths)))
+    }
+}
+
+/// Open a `ChapterStore` for the given chapter dir, forcing the backend
+/// kind. Used by `hub init --storage <kind>` and the migration tool.
+pub fn open_chapter_store_with(
+    chapter_dir: impl AsRef<Path>,
+    kind: BackendKind,
+) -> Result<Box<dyn ChapterStore>> {
+    let chapter_dir = chapter_dir.as_ref();
+    let paths = ChapterPaths::new(chapter_dir.to_path_buf());
+    match kind {
+        BackendKind::File => Ok(Box::new(FileBackend::new(paths))),
+        BackendKind::Sqlite => {
+            std::fs::create_dir_all(chapter_dir)
+                .with_context(|| format!("creating chapter dir {}", chapter_dir.display()))?;
+            let db_path = chapter_dir.join(SQLITE_DB_FILENAME);
+            Ok(Box::new(SqliteBackend::open(&db_path)?))
+        }
+    }
+}
+
+impl std::str::FromStr for BackendKind {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s.to_ascii_lowercase().as_str() {
+            "file" | "files" | "jsonl" => Ok(BackendKind::File),
+            "sqlite" | "sqlite3" | "db" => Ok(BackendKind::Sqlite),
+            other => Err(anyhow::anyhow!(
+                "unknown storage backend '{}'; expected 'file' or 'sqlite'",
+                other
+            )),
+        }
+    }
 }
 
 // ============================================================================
@@ -255,13 +300,197 @@ impl ChapterStore for FileBackend {
     }
 }
 
+// ============================================================================
+// SqliteBackend
+// ============================================================================
+
+/// SQLite-backed [`ChapterStore`] — one `chapter.db` file per chapter.
+///
+/// ## Schema
+///
+/// ```sql
+/// CREATE TABLE metadata (
+///     key   TEXT PRIMARY KEY,
+///     value TEXT NOT NULL    -- JSON-serialized
+/// );
+/// -- keys: "charter", "society"
+///
+/// CREATE TABLE ledger_entries (
+///     idx        INTEGER PRIMARY KEY,
+///     entry_json TEXT NOT NULL  -- full LedgerEntry as canonical JSON
+/// );
+/// ```
+///
+/// Append-only discipline: ledger entries are inserted with their `index`
+/// as PRIMARY KEY; collisions error. Charter is written once via UPSERT
+/// (overwrite would only happen if a caller violated the write-once
+/// discipline at the ChapterLedger / init layer, which is the source of
+/// truth for that invariant).
+///
+/// ## Why one DB per chapter (not one shared DB)
+///
+/// V2-2 ships SQLite for single-machine operators. Multi-chapter deployments
+/// scale via PostgresBackend later (V2-15, B6) with schema-per-chapter
+/// isolation. SQLite-per-chapter keeps the per-chapter blast radius small
+/// and migration (file ↔ sqlite ↔ postgres) shape-symmetric.
+pub struct SqliteBackend {
+    conn: rusqlite::Connection,
+    /// Stored for debug + future migration tooling.
+    db_path: PathBuf,
+}
+
+impl std::fmt::Debug for SqliteBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SqliteBackend")
+            .field("db_path", &self.db_path)
+            .finish()
+    }
+}
+
+impl SqliteBackend {
+    pub fn open(db_path: impl AsRef<Path>) -> Result<Self> {
+        let db_path = db_path.as_ref().to_path_buf();
+        if let Some(parent) = db_path.parent() {
+            if !parent.as_os_str().is_empty() && !parent.exists() {
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("creating parent dir {}", parent.display()))?;
+            }
+        }
+        let conn = rusqlite::Connection::open(&db_path)
+            .with_context(|| format!("opening sqlite db at {}", db_path.display()))?;
+        // Enforce foreign keys + reasonable durability defaults
+        conn.execute_batch(
+            "PRAGMA foreign_keys = ON;
+             PRAGMA journal_mode = WAL;
+             PRAGMA synchronous = NORMAL;",
+        ).context("setting sqlite pragmas")?;
+        // Schema
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS metadata (
+                 key   TEXT PRIMARY KEY,
+                 value TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS ledger_entries (
+                 idx        INTEGER PRIMARY KEY,
+                 entry_json TEXT NOT NULL
+             );",
+        ).context("initializing sqlite schema")?;
+        Ok(Self { conn, db_path })
+    }
+
+    pub fn db_path(&self) -> &Path {
+        &self.db_path
+    }
+
+    fn read_meta(&self, key: &str) -> Result<Option<String>> {
+        let mut stmt = self.conn
+            .prepare("SELECT value FROM metadata WHERE key = ?1")
+            .context("preparing metadata SELECT")?;
+        let mut rows = stmt
+            .query(rusqlite::params![key])
+            .context("querying metadata")?;
+        match rows.next().context("stepping metadata query")? {
+            Some(row) => Ok(Some(row.get::<_, String>(0).context("reading metadata value")?)),
+            None => Ok(None),
+        }
+    }
+
+    fn write_meta(&self, key: &str, value: &str) -> Result<()> {
+        self.conn
+            .execute(
+                "INSERT INTO metadata (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                rusqlite::params![key, value],
+            )
+            .context("writing metadata")?;
+        Ok(())
+    }
+}
+
+impl ChapterStore for SqliteBackend {
+    fn backend_kind(&self) -> BackendKind {
+        BackendKind::Sqlite
+    }
+
+    fn read_charter(&self) -> Result<Option<Charter>> {
+        match self.read_meta("charter")? {
+            None => Ok(None),
+            Some(json) => {
+                let charter: Charter = serde_json::from_str(&json)
+                    .context("parsing charter from sqlite metadata")?;
+                Ok(Some(charter))
+            }
+        }
+    }
+
+    fn write_charter(&mut self, charter: &Charter) -> Result<()> {
+        let json = serde_json::to_string(charter).context("serializing charter")?;
+        self.write_meta("charter", &json)
+    }
+
+    fn read_society(&self) -> Result<Option<Society>> {
+        match self.read_meta("society")? {
+            None => Ok(None),
+            Some(json) => {
+                let society: Society = serde_json::from_str(&json)
+                    .context("parsing society from sqlite metadata")?;
+                Ok(Some(society))
+            }
+        }
+    }
+
+    fn write_society(&mut self, society: &Society) -> Result<()> {
+        let json = serde_json::to_string(society).context("serializing society")?;
+        self.write_meta("society", &json)
+    }
+
+    fn ledger_load_all(&self) -> Result<Vec<LedgerEntry>> {
+        let mut stmt = self.conn
+            .prepare("SELECT entry_json FROM ledger_entries ORDER BY idx ASC")
+            .context("preparing ledger SELECT")?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .context("querying ledger entries")?;
+        let mut entries = Vec::new();
+        for row in rows {
+            let json = row.context("reading ledger row")?;
+            let entry: LedgerEntry = serde_json::from_str(&json)
+                .context("parsing ledger entry from sqlite")?;
+            entries.push(entry);
+        }
+        Ok(entries)
+    }
+
+    fn ledger_append(&mut self, entry: &LedgerEntry) -> Result<()> {
+        let json = serde_json::to_string(entry).context("serializing ledger entry")?;
+        self.conn
+            .execute(
+                "INSERT INTO ledger_entries (idx, entry_json) VALUES (?1, ?2)",
+                rusqlite::params![entry.index as i64, json],
+            )
+            .with_context(|| format!("inserting ledger entry idx={}", entry.index))?;
+        Ok(())
+    }
+
+    fn ledger_is_empty(&self) -> Result<bool> {
+        let count: i64 = self.conn
+            .query_row(
+                "SELECT COUNT(*) FROM ledger_entries",
+                [],
+                |row| row.get(0),
+            )
+            .context("counting ledger entries")?;
+        Ok(count == 0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
     use uuid::Uuid;
 
-    fn fresh_backend() -> (tempfile::TempDir, FileBackend) {
+    fn fresh_file_backend() -> (tempfile::TempDir, FileBackend) {
         let tmp = tempdir().unwrap();
         let chapter_dir = tmp.path().join("test-chapter");
         std::fs::create_dir_all(&chapter_dir).unwrap();
@@ -269,15 +498,29 @@ mod tests {
         (tmp, backend)
     }
 
+    fn fresh_sqlite_backend() -> (tempfile::TempDir, SqliteBackend) {
+        let tmp = tempdir().unwrap();
+        let chapter_dir = tmp.path().join("test-chapter");
+        std::fs::create_dir_all(&chapter_dir).unwrap();
+        let backend = SqliteBackend::open(chapter_dir.join(SQLITE_DB_FILENAME)).unwrap();
+        (tmp, backend)
+    }
+
     #[test]
     fn file_backend_kind_is_file() {
-        let (_tmp, b) = fresh_backend();
+        let (_tmp, b) = fresh_file_backend();
         assert_eq!(b.backend_kind(), BackendKind::File);
     }
 
     #[test]
-    fn read_returns_none_when_empty() {
-        let (_tmp, b) = fresh_backend();
+    fn sqlite_backend_kind_is_sqlite() {
+        let (_tmp, b) = fresh_sqlite_backend();
+        assert_eq!(b.backend_kind(), BackendKind::Sqlite);
+    }
+
+    #[test]
+    fn file_read_returns_none_when_empty() {
+        let (_tmp, b) = fresh_file_backend();
         assert!(b.read_charter().unwrap().is_none());
         assert!(b.read_society().unwrap().is_none());
         assert!(b.ledger_load_all().unwrap().is_empty());
@@ -285,8 +528,17 @@ mod tests {
     }
 
     #[test]
-    fn charter_round_trips() {
-        let (_tmp, mut b) = fresh_backend();
+    fn sqlite_read_returns_none_when_empty() {
+        let (_tmp, b) = fresh_sqlite_backend();
+        assert!(b.read_charter().unwrap().is_none());
+        assert!(b.read_society().unwrap().is_none());
+        assert!(b.ledger_load_all().unwrap().is_empty());
+        assert!(b.ledger_is_empty().unwrap());
+    }
+
+    #[test]
+    fn file_charter_round_trips() {
+        let (_tmp, mut b) = fresh_file_backend();
         let founder = Uuid::new_v4();
         let charter = Charter::found("Test".into(), founder);
         b.write_charter(&charter).unwrap();
@@ -296,13 +548,130 @@ mod tests {
     }
 
     #[test]
-    fn society_round_trips() {
-        let (_tmp, mut b) = fresh_backend();
+    fn sqlite_charter_round_trips() {
+        let (_tmp, mut b) = fresh_sqlite_backend();
+        let founder = Uuid::new_v4();
+        let charter = Charter::found("Test".into(), founder);
+        b.write_charter(&charter).unwrap();
+        let loaded = b.read_charter().unwrap().expect("charter present");
+        assert_eq!(loaded.chapter_name, charter.chapter_name);
+        assert_eq!(loaded.founding_sovereign_lct_id, founder);
+    }
+
+    #[test]
+    fn file_society_round_trips() {
+        let (_tmp, mut b) = fresh_file_backend();
         let founder = Uuid::new_v4();
         let (society, _) = Society::bootstrap("Test".into(), "0".repeat(64), founder);
         b.write_society(&society).unwrap();
         let loaded = b.read_society().unwrap().expect("society present");
         assert_eq!(loaded.name, society.name);
         assert_eq!(loaded.founder_lct_id, founder);
+    }
+
+    #[test]
+    fn sqlite_society_round_trips() {
+        let (_tmp, mut b) = fresh_sqlite_backend();
+        let founder = Uuid::new_v4();
+        let (society, _) = Society::bootstrap("Test".into(), "0".repeat(64), founder);
+        b.write_society(&society).unwrap();
+        let loaded = b.read_society().unwrap().expect("society present");
+        assert_eq!(loaded.name, society.name);
+        assert_eq!(loaded.founder_lct_id, founder);
+    }
+
+    #[test]
+    fn sqlite_ledger_persists_across_reopen() {
+        let tmp = tempdir().unwrap();
+        let chapter_dir = tmp.path().join("test-chapter");
+        std::fs::create_dir_all(&chapter_dir).unwrap();
+        let db_path = chapter_dir.join(SQLITE_DB_FILENAME);
+
+        // Synthesize a couple of fake ledger entries (just to exercise the
+        // store; chain integrity is the ChapterLedger's responsibility).
+        use chrono::Utc;
+        use crate::events::ChapterEvent;
+        let founder = Uuid::new_v4();
+        let e0 = LedgerEntry {
+            index: 0,
+            timestamp: Utc::now(),
+            prev_hash: "0".repeat(64),
+            actor_lct_id: founder,
+            event: ChapterEvent::Genesis {
+                chapter_name: "X".into(),
+                charter_hash: "h".into(),
+                founding_sovereign_lct_id: founder,
+                created_at: Utc::now(),
+            },
+            signature: "deadbeef".into(),
+            entry_hash: "abc".repeat(20).chars().take(64).collect(),
+        };
+
+        {
+            let mut b = SqliteBackend::open(&db_path).unwrap();
+            b.ledger_append(&e0).unwrap();
+            assert!(!b.ledger_is_empty().unwrap());
+        }
+
+        let b2 = SqliteBackend::open(&db_path).unwrap();
+        let loaded = b2.ledger_load_all().unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].index, 0);
+        assert_eq!(loaded[0].actor_lct_id, founder);
+    }
+
+    #[test]
+    fn sqlite_duplicate_index_errors() {
+        let (_tmp, mut b) = fresh_sqlite_backend();
+        use chrono::Utc;
+        use crate::events::ChapterEvent;
+        let founder = Uuid::new_v4();
+        let make = |index: u64| LedgerEntry {
+            index,
+            timestamp: Utc::now(),
+            prev_hash: "0".repeat(64),
+            actor_lct_id: founder,
+            event: ChapterEvent::Genesis {
+                chapter_name: "X".into(),
+                charter_hash: "h".into(),
+                founding_sovereign_lct_id: founder,
+                created_at: Utc::now(),
+            },
+            signature: "".into(),
+            entry_hash: "".into(),
+        };
+        b.ledger_append(&make(0)).unwrap();
+        // Duplicate index: PRIMARY KEY constraint should reject
+        assert!(b.ledger_append(&make(0)).is_err());
+    }
+
+    #[test]
+    fn open_chapter_store_selects_sqlite_when_db_present() {
+        let tmp = tempdir().unwrap();
+        let chapter_dir = tmp.path().join("test-chapter");
+        std::fs::create_dir_all(&chapter_dir).unwrap();
+        // Create an empty sqlite db
+        let _ = SqliteBackend::open(chapter_dir.join(SQLITE_DB_FILENAME)).unwrap();
+        // open_chapter_store should now pick sqlite
+        let store = open_chapter_store(&chapter_dir).unwrap();
+        assert_eq!(store.backend_kind(), BackendKind::Sqlite);
+    }
+
+    #[test]
+    fn open_chapter_store_defaults_to_file_when_empty_dir() {
+        let tmp = tempdir().unwrap();
+        let chapter_dir = tmp.path().join("test-chapter");
+        std::fs::create_dir_all(&chapter_dir).unwrap();
+        let store = open_chapter_store(&chapter_dir).unwrap();
+        assert_eq!(store.backend_kind(), BackendKind::File);
+    }
+
+    #[test]
+    fn backend_kind_from_str_parses_both() {
+        use std::str::FromStr;
+        assert_eq!(BackendKind::from_str("file").unwrap(), BackendKind::File);
+        assert_eq!(BackendKind::from_str("sqlite").unwrap(), BackendKind::Sqlite);
+        assert_eq!(BackendKind::from_str("SQLITE").unwrap(), BackendKind::Sqlite);
+        assert!(BackendKind::from_str("xyz").is_err());
     }
 }

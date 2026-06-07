@@ -203,6 +203,7 @@ mod tests {
             chapter_name: "Test Chapter".into(),
             chapter_dir: chapter_dir.clone(),
             sovereign_lct_path: sovereign_path,
+            storage: None,
         }).unwrap();
         (tmp, chapter_dir)
     }
