@@ -22,7 +22,9 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 rand = "0.8"
 thiserror = "1"
 async-trait = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 [dev-dependencies]
 tempfile = "3"
-tokio = { version = "1", features = ["rt", "macros"] }
+tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }
+axum = "0.7"

@@ -197,6 +197,115 @@ impl RemoteSigner for LocalKeypairSigner {
     }
 }
 
+// ============================================================================
+// HestiaCallbackSigner — POSTs sign-request to a Hestia callback URL
+// ============================================================================
+
+/// Default timeout for the sign-request HTTP roundtrip. Long enough
+/// for interactive Hestia prompts (human approves on their device),
+/// short enough that wedged requests don't pile up on the hub.
+pub const DEFAULT_HESTIA_TIMEOUT_SECONDS: u64 = 30;
+
+/// Signer that POSTs a [`SignRequest`] to a Hestia callback URL and
+/// awaits the [`SignResponse`]. The Hestia operator's authority +
+/// need-to-know gate runs server-side; the hub just delivers the
+/// request + receives the result.
+///
+/// Per architecture commitment #8: this is the path that fully honors
+/// the secrets-in-vault rule on the hub side — the hub holds no keys.
+///
+/// ## Wire shape
+///
+/// `POST {callback_url}` (the URL is whatever Hestia registered with
+/// the hub at `hub init --sovereign-hestia <url>`). Body is a JSON
+/// [`SignRequest`]. Response is a JSON [`SignResponse`] (Approved or
+/// Denied).
+///
+/// ## Bound actor
+///
+/// Like LocalKeypairSigner, this signer is bound to a specific
+/// `actor_lct_id` at construction. Hestia's vault may host multiple
+/// LCTs; the binding ensures the hub asks the right one. The vault
+/// independently verifies the bytes-vs-intent match.
+pub struct HestiaCallbackSigner {
+    actor_lct_id: Uuid,
+    callback_url: String,
+    http: reqwest::Client,
+}
+
+impl HestiaCallbackSigner {
+    pub fn new(actor_lct_id: Uuid, callback_url: impl Into<String>) -> Result<Self> {
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(DEFAULT_HESTIA_TIMEOUT_SECONDS))
+            .build()
+            .map_err(|e| anyhow!("building reqwest client: {}", e))?;
+        Ok(Self {
+            actor_lct_id,
+            callback_url: callback_url.into(),
+            http,
+        })
+    }
+
+    pub fn callback_url(&self) -> &str {
+        &self.callback_url
+    }
+}
+
+#[async_trait]
+impl RemoteSigner for HestiaCallbackSigner {
+    async fn sign(
+        &self,
+        actor_lct_id: Uuid,
+        signing_bytes: &[u8],
+        intent: &SignIntent,
+    ) -> std::result::Result<SignatureBytes, SignError> {
+        if actor_lct_id != self.actor_lct_id {
+            return Err(SignError::Internal(anyhow!(
+                "HestiaCallbackSigner bound to actor {} but asked to sign for {}",
+                self.actor_lct_id, actor_lct_id
+            )));
+        }
+
+        let request = SignRequest {
+            intent: intent.clone(),
+            signing_bytes_hex: hex::encode(signing_bytes),
+        };
+
+        let response = self.http
+            .post(&self.callback_url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| SignError::Transport(format!("POST {}: {}", self.callback_url, e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(SignError::Transport(format!(
+                "callback returned HTTP {}: {}", status, body
+            )));
+        }
+
+        let parsed: SignResponse = response.json().await
+            .map_err(|e| SignError::Malformed(format!("parsing response: {}", e)))?;
+
+        match parsed {
+            SignResponse::Denied { deny_reason, .. } => Err(SignError::Denied(deny_reason)),
+            SignResponse::Approved { signature, .. } => {
+                let sig_bytes = hex::decode(&signature)
+                    .map_err(|e| SignError::Malformed(format!("hex decode: {}", e)))?;
+                let arr: [u8; 64] = sig_bytes.as_slice().try_into()
+                    .map_err(|_| SignError::Malformed("signature must be 64 bytes".into()))?;
+                Ok(SignatureBytes::from_bytes(arr))
+            }
+        }
+    }
+
+    fn signer_kind(&self) -> SignerKind {
+        SignerKind::HestiaCallback
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,6 +358,124 @@ mod tests {
         let signer: Box<dyn RemoteSigner> = Box::new(LocalKeypairSigner::new(id.lct.id, kp));
         let sig = signer.sign(id.lct.id, b"bytes", &intent(id.lct.id)).await.unwrap();
         id.lct.verify_signature(b"bytes", &sig).unwrap();
+    }
+
+    // ---------- HestiaCallbackSigner integration tests ----------
+    //
+    // These spin up a tiny axum server in-process that emulates Hestia's
+    // sign-request endpoint, then drive HestiaCallbackSigner against it.
+    // Real Hestia (Track H) implements the same wire shape; these tests
+    // are the canonical hub-side proof that the wire works.
+
+    use axum::{routing::post, Router};
+    use std::sync::Arc;
+    use tokio::sync::oneshot;
+
+    /// Mock Hestia state: which keypair to sign with + a policy hook.
+    #[derive(Clone)]
+    struct MockHestia {
+        actor_lct_id: Uuid,
+        keypair: Arc<KeyPair>,
+        deny_reason: Option<String>,
+    }
+
+    async fn mock_sign_handler(
+        axum::extract::State(state): axum::extract::State<MockHestia>,
+        axum::Json(req): axum::Json<SignRequest>,
+    ) -> axum::Json<SignResponse> {
+        if let Some(reason) = &state.deny_reason {
+            return axum::Json(SignResponse::Denied {
+                request_id: req.intent.request_id,
+                denied: true,
+                deny_reason: reason.clone(),
+            });
+        }
+        let bytes = hex::decode(&req.signing_bytes_hex).expect("hex bytes");
+        let sig = state.keypair.sign(&bytes);
+        axum::Json(SignResponse::Approved {
+            request_id: req.intent.request_id,
+            signature: hex::encode(sig.bytes),
+        })
+    }
+
+    async fn spawn_mock_hestia(state: MockHestia) -> (String, oneshot::Sender<()>) {
+        let app = Router::new()
+            .route("/sign-request", post(mock_sign_handler))
+            .with_state(state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = oneshot::channel::<()>();
+        tokio::spawn(async move {
+            axum::serve(listener, app)
+                .with_graceful_shutdown(async {
+                    let _ = rx.await;
+                })
+                .await
+                .ok();
+        });
+        // Small grace for the listener to start accepting
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        (format!("http://{}/sign-request", addr), tx)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn hestia_callback_signs_and_verifies() {
+        let (id, kp) = fresh_actor();
+        let mock = MockHestia {
+            actor_lct_id: id.lct.id,
+            keypair: Arc::new(kp),
+            deny_reason: None,
+        };
+        let (url, stop) = spawn_mock_hestia(mock).await;
+
+        let signer = HestiaCallbackSigner::new(id.lct.id, url).unwrap();
+        let bytes = b"some ledger entry signing bytes";
+        let sig = signer.sign(id.lct.id, bytes, &intent(id.lct.id)).await.unwrap();
+
+        // The mock signed with the real keypair, so the LCT's pubkey
+        // must verify the signature against the bytes.
+        id.lct.verify_signature(bytes, &sig).unwrap();
+        assert_eq!(signer.signer_kind(), SignerKind::HestiaCallback);
+
+        let _ = stop.send(());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn hestia_callback_denied_returns_denied() {
+        let (id, kp) = fresh_actor();
+        let mock = MockHestia {
+            actor_lct_id: id.lct.id,
+            keypair: Arc::new(kp),
+            deny_reason: Some("policy: chapter not whitelisted".into()),
+        };
+        let (url, stop) = spawn_mock_hestia(mock).await;
+
+        let signer = HestiaCallbackSigner::new(id.lct.id, url).unwrap();
+        let result = signer.sign(id.lct.id, b"bytes", &intent(id.lct.id)).await;
+        match result {
+            Err(SignError::Denied(reason)) => assert!(reason.contains("policy")),
+            other => panic!("expected Denied, got {:?}", other),
+        }
+
+        let _ = stop.send(());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn hestia_callback_unreachable_url_errors_transport() {
+        // No server running on this port — connection refused
+        let (id, _) = fresh_actor();
+        let signer = HestiaCallbackSigner::new(id.lct.id, "http://127.0.0.1:1/sign-request").unwrap();
+        let result = signer.sign(id.lct.id, b"bytes", &intent(id.lct.id)).await;
+        assert!(matches!(result, Err(SignError::Transport(_))));
+    }
+
+    #[tokio::test]
+    async fn hestia_callback_wrong_actor_errors_internal() {
+        let (id, _kp) = fresh_actor();
+        let signer = HestiaCallbackSigner::new(id.lct.id, "http://unused").unwrap();
+        let other_actor = Uuid::new_v4();
+        let result = signer.sign(other_actor, b"bytes", &intent(other_actor)).await;
+        assert!(matches!(result, Err(SignError::Internal(_))));
     }
 
     #[test]
