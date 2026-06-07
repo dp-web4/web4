@@ -3,16 +3,28 @@
 
 //! AIC Hub — society logic library.
 //!
-//! Sprint 0 stub. Subsequent sprints fill in:
-//! - `society` — 7-role state, founding charter, role assignments (Sprint 1)
-//! - `ledger` — append-only witnessed event log (Sprint 2)
-//! - `charter` — LCT-signed founding document + amendments (Sprint 1)
-//! - `mcp` — MCP tool implementations (Sprint 3)
+//! Sprint 1 modules:
+//! - [`identity`] — on-disk LCT + KeyPair persistence
+//! - [`charter`] — chapter founding charter (compose, hash, persist)
+//! - [`chapter`] — chapter directory layout + config.toml
+//! - [`init`] — `hub init` flow: bootstrap a chapter society
 //!
-//! Discipline: this crate IS NOT the place to reimplement LCT, T3/V3, MRH,
-//! ATP, R6, or any other Web4 primitive. Those live in `web4-core` and
-//! `web4-trust-core` and are used as dependencies. See `docs/PRD.md` §10
-//! "Risks + mitigations" for the drift-prevention rationale.
+//! Later sprints (per `docs/SPRINTS.md`):
+//! - Sprint 2: `ledger` — witnessed event log via web4-core's LocalLedger
+//! - Sprint 3: `mcp` — MCP server tool implementations
+//! - Sprint 4: CLI subcommand handlers (most live in hub-daemon)
+//!
+//! Discipline reminder: this crate IS NOT the place to reimplement LCT,
+//! T3/V3, MRH, ATP, R6, or Society/Role primitives. Those live in
+//! `web4-core` / `web4-trust-core` and are used as dependencies. See
+//! `docs/PRD.md` §10 "Risks + mitigations" for the rationale and
+//! `web4/CLAUDE.md` "MRH-Specific Policy" for the development-phase
+//! drift prevention.
+
+pub mod chapter;
+pub mod charter;
+pub mod identity;
+pub mod init;
 
 /// Crate version, exposed for `hub --version`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
