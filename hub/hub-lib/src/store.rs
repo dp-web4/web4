@@ -407,6 +407,149 @@ impl SqliteBackend {
     }
 }
 
+// ============================================================================
+// Migration tool
+// ============================================================================
+
+/// Outcome of [`migrate_chapter`]. Caller decides how to surface this.
+#[derive(Debug)]
+pub struct MigrationResult {
+    pub source_backend: BackendKind,
+    pub target_backend: BackendKind,
+    pub charter_copied: bool,
+    pub society_copied: bool,
+    pub ledger_entries_copied: usize,
+    /// Renamed pre-migration artifacts (paths relative to chapter dir),
+    /// preserved so operators can roll back if needed.
+    pub preserved_artifacts: Vec<PathBuf>,
+}
+
+/// Migrate a chapter from its current backend to `target_backend`.
+///
+/// Algorithm:
+/// 1. Auto-detect source backend at `chapter_dir`.
+/// 2. If source == target, no-op (returns OK with zero-copied counters).
+/// 3. Open target backend (forced kind via [`open_chapter_store_with`]).
+///    For sqlite, this creates `chapter.db`.
+/// 4. Copy charter (if present) → target.
+/// 5. Copy society (if present) → target.
+/// 6. Walk ledger entries in order from source; append each to target.
+///    No re-signing — entries copy byte-for-byte (canonical JSON).
+/// 7. Rename source artifacts to `<name>.pre-migration` so they don't
+///    interfere with future auto-detection but remain recoverable.
+///
+/// The caller (typically `hub migrate` CLI) should run a verify-ledger
+/// pass against the chapter dir after this returns to confirm chain
+/// integrity is intact on the target backend.
+///
+/// Note: this function does NOT touch identity files, config.toml, or
+/// anything else outside the chapter storage abstraction. Those stay
+/// where they were.
+pub fn migrate_chapter(
+    chapter_dir: impl AsRef<Path>,
+    target_backend: BackendKind,
+) -> Result<MigrationResult> {
+    let chapter_dir = chapter_dir.as_ref();
+    if !chapter_dir.exists() {
+        anyhow::bail!("chapter dir {} does not exist", chapter_dir.display());
+    }
+
+    // 1. Auto-detect source.
+    let source = open_chapter_store(chapter_dir)
+        .context("opening source store for migration")?;
+    let source_kind = source.backend_kind();
+
+    if source_kind == target_backend {
+        return Ok(MigrationResult {
+            source_backend: source_kind,
+            target_backend,
+            charter_copied: false,
+            society_copied: false,
+            ledger_entries_copied: 0,
+            preserved_artifacts: Vec::new(),
+        });
+    }
+
+    // 2. Read source state.
+    let charter = source.read_charter().context("reading source charter")?;
+    let society = source.read_society().context("reading source society")?;
+    let ledger_entries = source.ledger_load_all().context("reading source ledger")?;
+
+    // Drop source handle BEFORE creating target — particularly important
+    // for sqlite, where a stale connection could conflict on WAL files.
+    drop(source);
+
+    // 3. Open target.
+    let mut target = open_chapter_store_with(chapter_dir, target_backend)
+        .with_context(|| format!("opening target store ({:?})", target_backend))?;
+
+    // 4-6. Copy state.
+    let mut charter_copied = false;
+    if let Some(c) = charter {
+        target.write_charter(&c).context("writing charter to target")?;
+        charter_copied = true;
+    }
+    let mut society_copied = false;
+    if let Some(s) = society {
+        target.write_society(&s).context("writing society to target")?;
+        society_copied = true;
+    }
+    let entries_copied = ledger_entries.len();
+    for entry in &ledger_entries {
+        target.ledger_append(entry)
+            .with_context(|| format!("appending ledger entry idx={} to target", entry.index))?;
+    }
+    // Drop target so any flushes complete before we rename source files
+    drop(target);
+
+    // 7. Preserve source artifacts.
+    let paths = ChapterPaths::new(chapter_dir.to_path_buf());
+    let mut preserved = Vec::new();
+    match source_kind {
+        BackendKind::File => {
+            for f in [paths.charter(), paths.society(), paths.ledger()] {
+                if f.exists() {
+                    let backup = f.with_extension(
+                        format!("{}.pre-migration",
+                            f.extension().and_then(|s| s.to_str()).unwrap_or("bak"))
+                    );
+                    std::fs::rename(&f, &backup)
+                        .with_context(|| format!("renaming {} to backup", f.display()))?;
+                    preserved.push(backup);
+                }
+            }
+        }
+        BackendKind::Sqlite => {
+            let db = chapter_dir.join(SQLITE_DB_FILENAME);
+            if db.exists() {
+                let backup = chapter_dir.join(format!("{}.pre-migration", SQLITE_DB_FILENAME));
+                std::fs::rename(&db, &backup)
+                    .with_context(|| format!("renaming {} to backup", db.display()))?;
+                preserved.push(backup);
+            }
+            // SQLite WAL/SHM files if present (after journal_mode=WAL)
+            for sidecar in &["chapter.db-wal", "chapter.db-shm"] {
+                let p = chapter_dir.join(sidecar);
+                if p.exists() {
+                    let backup = chapter_dir.join(format!("{}.pre-migration", sidecar));
+                    std::fs::rename(&p, &backup)
+                        .with_context(|| format!("renaming {} to backup", p.display()))?;
+                    preserved.push(backup);
+                }
+            }
+        }
+    }
+
+    Ok(MigrationResult {
+        source_backend: source_kind,
+        target_backend,
+        charter_copied,
+        society_copied,
+        ledger_entries_copied: entries_copied,
+        preserved_artifacts: preserved,
+    })
+}
+
 impl ChapterStore for SqliteBackend {
     fn backend_kind(&self) -> BackendKind {
         BackendKind::Sqlite
@@ -664,6 +807,85 @@ mod tests {
         std::fs::create_dir_all(&chapter_dir).unwrap();
         let store = open_chapter_store(&chapter_dir).unwrap();
         assert_eq!(store.backend_kind(), BackendKind::File);
+    }
+
+    #[test]
+    fn migrate_file_to_sqlite_round_trips_state() {
+        use chrono::Utc;
+        use crate::events::ChapterEvent;
+
+        let tmp = tempdir().unwrap();
+        let chapter_dir = tmp.path().join("chap");
+        std::fs::create_dir_all(&chapter_dir).unwrap();
+
+        // Build a file-backed chapter with charter + society + 3 ledger entries
+        let founder = Uuid::new_v4();
+        let charter = Charter::found("Migrate Test".into(), founder);
+        let (society, _) = Society::bootstrap("Migrate Test".into(), "h".repeat(64), founder);
+        let entries: Vec<LedgerEntry> = (0..3).map(|i| LedgerEntry {
+            index: i,
+            timestamp: Utc::now(),
+            prev_hash: if i == 0 { "0".repeat(64) } else { format!("h{}", i - 1) },
+            actor_lct_id: founder,
+            event: ChapterEvent::Genesis {
+                chapter_name: "Migrate Test".into(),
+                charter_hash: "h".into(),
+                founding_sovereign_lct_id: founder,
+                created_at: Utc::now(),
+            },
+            signature: format!("sig{}", i),
+            entry_hash: format!("h{}", i),
+        }).collect();
+
+        {
+            let mut src = FileBackend::new(ChapterPaths::new(chapter_dir.clone()));
+            src.write_charter(&charter).unwrap();
+            src.write_society(&society).unwrap();
+            for e in &entries {
+                src.ledger_append(e).unwrap();
+            }
+        }
+
+        // Migrate file → sqlite
+        let result = migrate_chapter(&chapter_dir, BackendKind::Sqlite).unwrap();
+        assert_eq!(result.source_backend, BackendKind::File);
+        assert_eq!(result.target_backend, BackendKind::Sqlite);
+        assert!(result.charter_copied);
+        assert!(result.society_copied);
+        assert_eq!(result.ledger_entries_copied, 3);
+        assert!(!result.preserved_artifacts.is_empty(),
+            "source artifacts should be renamed for rollback");
+
+        // Auto-detect should now resolve sqlite
+        let after = open_chapter_store(&chapter_dir).unwrap();
+        assert_eq!(after.backend_kind(), BackendKind::Sqlite);
+
+        // Charter + society + ledger byte-identical
+        let after_charter = after.read_charter().unwrap().expect("charter");
+        assert_eq!(after_charter.chapter_name, charter.chapter_name);
+        let after_society = after.read_society().unwrap().expect("society");
+        assert_eq!(after_society.lct_id, society.lct_id);
+        let after_ledger = after.ledger_load_all().unwrap();
+        assert_eq!(after_ledger.len(), 3);
+        for (i, e) in after_ledger.iter().enumerate() {
+            assert_eq!(e.index, i as u64);
+            assert_eq!(e.signature, entries[i].signature);
+            assert_eq!(e.entry_hash, entries[i].entry_hash);
+        }
+    }
+
+    #[test]
+    fn migrate_same_backend_is_noop() {
+        let tmp = tempdir().unwrap();
+        let chapter_dir = tmp.path().join("chap");
+        std::fs::create_dir_all(&chapter_dir).unwrap();
+        // Empty dir → file-backed default
+        let result = migrate_chapter(&chapter_dir, BackendKind::File).unwrap();
+        assert_eq!(result.source_backend, result.target_backend);
+        assert_eq!(result.ledger_entries_copied, 0);
+        assert!(!result.charter_copied);
+        assert!(!result.society_copied);
+        assert!(result.preserved_artifacts.is_empty());
     }
 
     #[test]

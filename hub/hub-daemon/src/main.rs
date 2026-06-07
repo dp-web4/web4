@@ -79,6 +79,22 @@ enum Command {
         chapter_dir: PathBuf,
     },
 
+    /// Migrate a chapter's storage backend (e.g. file → sqlite).
+    ///
+    /// Auto-detects the current backend, copies charter + society +
+    /// ledger entries (byte-for-byte; no re-signing) to the target
+    /// backend, then renames source artifacts to `.pre-migration`
+    /// suffixes so they remain recoverable. Runs verify-ledger on the
+    /// migrated chapter before returning success.
+    Migrate {
+        /// Path to the chapter directory.
+        chapter_dir: PathBuf,
+
+        /// Target backend: `file` or `sqlite`.
+        #[arg(long)]
+        to: String,
+    },
+
     /// Run the MCP HTTP server for a chapter. Daemon loads the Sovereign
     /// keypair from config.toml and signs ledger entries on behalf of
     /// authenticated clients (MVP: localhost only; per-client signed
@@ -222,6 +238,9 @@ async fn main() -> Result<()> {
         }
         Some(Command::VerifyLedger { chapter_dir }) => {
             run_verify_ledger(chapter_dir)
+        }
+        Some(Command::Migrate { chapter_dir, to }) => {
+            run_migrate(chapter_dir, to)
         }
         Some(Command::Serve { chapter_dir, port, bind }) => {
             run_serve(chapter_dir, port, bind).await
@@ -449,6 +468,36 @@ fn run_verify_ledger(chapter_dir: PathBuf) -> Result<()> {
     println!("  Chapter name:   {}", result.chapter_name);
     println!("  Entries:        {}", result.entries);
     println!("  Head hash:      {}", result.head_hash);
+    Ok(())
+}
+
+fn run_migrate(chapter_dir: PathBuf, to: String) -> Result<()> {
+    use std::str::FromStr;
+    let target = hub_lib::store::BackendKind::from_str(&to)
+        .context("parsing --to")?;
+    println!("Migrating {} → {}", chapter_dir.display(), target.as_str());
+    let result = hub_lib::store::migrate_chapter(&chapter_dir, target)
+        .context("migrating chapter")?;
+    if result.source_backend == result.target_backend {
+        println!("Source backend is already {}; nothing to do.", target.as_str());
+        return Ok(());
+    }
+    println!("  Source backend:  {}", result.source_backend.as_str());
+    println!("  Target backend:  {}", result.target_backend.as_str());
+    println!("  Charter copied:  {}", result.charter_copied);
+    println!("  Society copied:  {}", result.society_copied);
+    println!("  Ledger entries:  {}", result.ledger_entries_copied);
+    println!("  Preserved (rollback-recoverable):");
+    for p in &result.preserved_artifacts {
+        println!("    {}", p.display());
+    }
+    println!();
+    println!("Verifying migrated chapter end-to-end ...");
+    let verify = verify_chapter(&chapter_dir)
+        .context("post-migration ledger verification failed")?;
+    println!("Ledger verified on {} backend.", target.as_str());
+    println!("  Entries:        {}", verify.entries);
+    println!("  Head hash:      {}", verify.head_hash);
     Ok(())
 }
 
