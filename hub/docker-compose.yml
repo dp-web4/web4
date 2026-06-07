@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Metalinxx Inc.
+#
+# AIC Hub — docker-compose for a single chapter deployment.
+#
+# Usage:
+#   1. Generate a Sovereign LCT (one-off, outside the container):
+#        docker compose run --rm hub gen-lct /chapter/sovereign.json
+#
+#   2. Initialize the chapter (one-off):
+#        docker compose run --rm hub init "Your Chapter Name" \
+#          --sovereign-lct /chapter/sovereign.json \
+#          --chapter-dir /chapter/data
+#
+#   3. Start the daemon:
+#        docker compose up -d hub
+#
+#   4. Query / mutate via MCP:
+#        curl http://localhost:8770/tools/query_chapter
+#        curl -X POST http://localhost:8770/tools/add_member ...
+#
+#   5. Tear down:
+#        docker compose down
+#
+# State lives in ./chapter-data/ on the host, mounted into the container
+# at /chapter. The Sovereign LCT and ledger persist across container
+# restarts.
+
+services:
+  hub:
+    build:
+      context: ..   # web4 root — needs siblings web4-core + web4-trust-core
+      dockerfile: hub/Dockerfile
+    image: hub:0.1.0-alpha.0
+    container_name: aic-hub
+    ports:
+      - "8770:8770"
+    volumes:
+      - ./chapter-data:/chapter
+    # When the daemon is the long-running command, it reads the
+    # chapter dir and serves on port 8770.
+    command:
+      - serve
+      - /chapter/data
+      - --bind
+      - 0.0.0.0   # listen on container's external interface
+    restart: unless-stopped
