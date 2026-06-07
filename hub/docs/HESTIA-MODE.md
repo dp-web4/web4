@@ -1,6 +1,6 @@
 # Hestia Mode
 
-**Status:** V2-7 Step 3b — landed end-to-end. Production wire is the same; only the bootstrap CLI ergonomics (`hub init --sovereign-hestia`) is follow-up work.
+**Status:** V2-7 Step 3b — landed end-to-end including the ergonomic `hub init --sovereign-hestia` CLI. Hub binary holds NO Sovereign keypair during init or serve.
 
 In Hestia mode, the hub holds **NO Sovereign keypair**. Every signature attributed to the Sovereign is produced by a remote signer (Hestia) that the hub calls over HTTP. This honors architecture commitment #8 (secrets in vault only) on the hub side.
 
@@ -88,24 +88,46 @@ cargo build --release --example mock-hestia
 
 It loads an `IdentityFile`, listens on `/sign-request`, and signs every request (no policy gating). `--deny-all "<reason>"` flips it to deny mode for testing the denial path.
 
-## Today's manual smoke
+## End-to-end smoke
 
-Until `hub init --sovereign-hestia` lands:
+```bash
+# 1. Generate a Sovereign identity (this becomes the keypair Hestia holds)
+hub gen-lct sov.json
 
-1. `hub gen-lct sov.json` (generates IdentityFile)
-2. `hub init "Chapter Name" --sovereign-lct sov.json` (creates Local-mode chapter so Genesis is signed by the to-be-Hestia identity)
-3. `./target/release/examples/mock-hestia --identity sov.json --port 9001` (load the same identity into mock-Hestia)
-4. Manually rewrite `chapter-name/config.toml` to Hestia mode (see "Configuration" above; remove `lct_path`)
-5. `hub serve chapter-name/` (REST-only; "MCP tools: (disabled — Hestia-mode chapter)")
-6. Drive REST events as usual; every ledger entry is signed by mock-Hestia
+# 2. Start mock-Hestia with that identity
+cargo build --release --example mock-hestia
+./target/release/examples/mock-hestia --identity sov.json --port 9001
 
-After step 4, the hub process never sees the private key again, but the chain still verifies because the pubkey is in the config.
+# 3. In another terminal, init the chapter in Hestia mode
+SOV_ID=$(python3 -c "import json; print(json.load(open('sov.json'))['lct']['id'])")
+SOV_PUBKEY=$(python3 -c "import json; print(json.load(open('sov.json'))['lct']['public_key']['key'])")
 
-## What's still ahead
+hub init "My Chapter" \
+  --sovereign-hestia http://127.0.0.1:9001/sign-request \
+  --sovereign-lct-id "$SOV_ID" \
+  --sovereign-pubkey "$SOV_PUBKEY" \
+  --chapter-dir ./my-chapter
 
-- **`hub init --sovereign-hestia <url> --sovereign-lct-id <id> --sovereign-pubkey <hex>`**: ergonomic init that does the Hestia-callback Genesis sign automatically (no manual config rewrite).
-- **V2-7 Step 4**: MCP signer integration so MCP tools work on Hestia chapters too.
-- **Sync CLI mutations on Hestia chapters**: design TBD — sync CLI on async-signing seems wrong; consider async-CLI variant.
+# Hub builds the unsigned Genesis, POSTs to mock-Hestia, gets back the
+# signature, commits. mock-Hestia logs the request. The hub binary's
+# process memory never contained the private key.
+
+# 4. Verify
+hub verify-ledger ./my-chapter        # → passes (using pubkey from config)
+ls ./my-chapter                       # → charter.json, society.json, ledger.jsonl, config.toml
+                                      #   (no IdentityFile copied or needed)
+
+# 5. Serve + drive a REST event
+hub serve ./my-chapter --port 8770    # → "MCP tools: (disabled — Hestia-mode chapter)"
+                                      # → REST: every event signed via the Hestia callback
+```
+
+After init, the hub process at no point sees the private key. The chain still verifies because the pubkey is in `config.toml`.
+
+## What's still ahead (V2-7 §4)
+
+- **MCP signer integration**: MCP tools currently refuse to open Hestia-mode chapters with a clear error pointing to REST. Once MCP routes through the signer abstraction (same shape as REST does today), MCP tools work on Hestia chapters too.
+- **Sync CLI mutations on Hestia chapters**: design TBD — sync CLI on async-signing wants either an async-CLI variant or block_on'd internal client.
 
 ## See also
 
