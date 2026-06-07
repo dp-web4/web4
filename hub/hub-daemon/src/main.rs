@@ -377,6 +377,7 @@ fn run_query(sub: QueryCommand) -> Result<()> {
             let session = ChapterSession::open(&chapter_dir)?;
             let society = session.society()?;
             let state = session.state();
+            let unfilled = session.unfilled_base_roles()?;
             println!("Chapter:");
             println!("  Name:        {}", society.name);
             println!("  Society LCT: {}", society.lct_id);
@@ -384,12 +385,19 @@ fn run_query(sub: QueryCommand) -> Result<()> {
             println!("  Founder:     {}", society.founder_lct_id);
             println!("  Members:     {}", state.member_count());
             println!("  Charter:     {}", society.charter_hash);
-            println!("  Role fill:");
+            println!("  Roles filled ({}):", society.roles.len());
             let mut roles: Vec<_> = society.roles.iter().collect();
             roles.sort_by(|a, b| a.0.cmp(b.0));
             for (role_key, assignment) in roles {
                 println!("    {:18} role_lct={}  filled_by={}",
                     role_key, assignment.role_lct_id, assignment.filling_entity_lct_id);
+            }
+            if !unfilled.is_empty() {
+                println!("  Roles unfilled ({}):", unfilled.len());
+                for role in &unfilled {
+                    println!("    {:?}", role);
+                }
+                println!("    (assign via `hub assign-role <chapter-dir> <role> <role-lct-id> <member-lct-id>` per chapter law)");
             }
             Ok(())
         }

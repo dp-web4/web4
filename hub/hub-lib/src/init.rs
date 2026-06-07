@@ -26,6 +26,55 @@ use crate::charter::Charter;
 use crate::identity::IdentityFile;
 use crate::ledger::{build_lookup, ChapterLedger};
 
+/// Roles the founder fills at genesis per V2-1 architecture.
+///
+/// Founder is Sovereign (constitutional) + Citizen (base membership).
+/// Other roles (LawOracle, PolicyEntity, Treasurer, Administrator, Archivist)
+/// start unfilled. Assignment happens via `hub assign-role` per chapter law.
+/// Witness + Auditor are context-mandatory and stay unfilled until federation
+/// or trust-issuance starts.
+pub const FOUNDER_ROLES_AT_GENESIS: &[SocietyRole] =
+    &[SocietyRole::Sovereign, SocietyRole::Citizen];
+
+/// V2-1 transitional helper: walks the society's role map after
+/// `Society::bootstrap` (which fills all 7 base-mandatory roles by default)
+/// and drops every role assignment except Sovereign + Citizen.
+///
+/// Will be replaced when web4-core PR U1 lands a "fill which roles at
+/// bootstrap" API. See `web4/hub/docs/V2-V3-ARCHITECTURE.md` §Track U.
+fn v2_unfill_non_founder_roles(
+    society: &mut Society,
+    all_role_lcts: Vec<(SocietyRole, Uuid)>,
+) -> Vec<(SocietyRole, Uuid)> {
+    // Build the set of role keys the founder keeps.
+    let keep: std::collections::HashSet<String> = FOUNDER_ROLES_AT_GENESIS
+        .iter()
+        .map(role_key_for)
+        .collect();
+
+    // Drop role assignments for the others.
+    society.roles.retain(|key, _| keep.contains(key));
+
+    // Filter the role_lcts return to just the kept roles (others were
+    // freshly minted Uuids not anchored anywhere; orphaning is benign).
+    all_role_lcts
+        .into_iter()
+        .filter(|(role, _)| FOUNDER_ROLES_AT_GENESIS.contains(role))
+        .collect()
+}
+
+/// Map a SocietyRole to its serde-snake_case key (matches the convention
+/// `Society::bootstrap` uses for the HashMap keys).
+fn role_key_for(role: &SocietyRole) -> String {
+    // Use serde to get the canonical snake_case rendering — this is the same
+    // discipline `web4-core` uses internally and stays consistent if the
+    // serde tag scheme changes upstream.
+    serde_json::to_value(role)
+        .ok()
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .unwrap_or_else(|| format!("{:?}", role).to_lowercase())
+}
+
 /// Outcome of an `init` call.
 #[derive(Debug)]
 pub enum InitResult {
@@ -94,13 +143,20 @@ pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
     charter.save(paths.charter())
         .with_context(|| format!("writing charter to {}", paths.charter().display()))?;
 
-    // 4. Bootstrap the society. Sprint 1 uses the founder for all 7 roles
-    // (solo organizer pattern). Role rotation lands in later sprints.
-    let (society, role_lcts) = Society::bootstrap(
+    // 4. Bootstrap the society, then V2-1 unfill: founder fills only
+    // Sovereign + Citizen at genesis. The other 5 base-mandatory roles
+    // (LawOracle, PolicyEntity, Treasurer, Administrator, Archivist) start
+    // unfilled and are assigned later via `hub assign-role` per chapter law.
+    //
+    // This is a hub-side workaround until web4-core upstream PR U1 lands a
+    // proper "fill which roles at bootstrap" API. Tracked at
+    // `web4/hub/docs/V2-V3-ARCHITECTURE.md` §Track U.
+    let (mut society, all_role_lcts) = Society::bootstrap(
         args.chapter_name.clone(),
         charter_hash,
         sovereign_lct_id,
     );
+    let role_lcts = v2_unfill_non_founder_roles(&mut society, all_role_lcts);
 
     let society_lct_id = society.lct_id;
 
@@ -227,7 +283,10 @@ mod tests {
     }
 
     #[test]
-    fn init_wires_all_seven_base_roles() {
+    fn init_fills_only_sovereign_and_citizen_at_genesis() {
+        // V2-1: founder fills Sovereign + Citizen only. Other 5 base-mandatory
+        // roles (LawOracle, PolicyEntity, Treasurer, Administrator, Archivist)
+        // start unfilled and are assigned later per chapter law.
         let tmp = tempdir().unwrap();
         let sovereign_path = fresh_sovereign(tmp.path());
         let chapter_dir = tmp.path().join("lisbon");
@@ -243,16 +302,49 @@ mod tests {
             other => panic!("expected Initialized, got {:?}", other),
         };
 
-        let role_names: std::collections::HashSet<_> = role_lcts
+        assert_eq!(role_lcts.len(), 2,
+            "V2-1: only 2 roles wired at genesis (Sovereign + Citizen), got {}: {:?}",
+            role_lcts.len(),
+            role_lcts.iter().map(|(r, _)| format!("{:?}", r)).collect::<Vec<_>>());
+
+        let role_set: std::collections::HashSet<_> = role_lcts
             .iter()
             .map(|(r, _)| format!("{:?}", r))
             .collect();
+        assert!(role_set.contains("Sovereign"));
+        assert!(role_set.contains("Citizen"));
 
-        for expected in &["Sovereign", "LawOracle", "PolicyEntity", "Treasurer",
-                          "Administrator", "Archivist", "Citizen"] {
-            assert!(role_names.contains(*expected),
-                "missing base-mandatory role: {}", expected);
+        // Verify the society state on disk reflects this too
+        let society = load_society(&chapter_dir).unwrap();
+        assert_eq!(society.roles.len(), 2,
+            "society.json should hold 2 role assignments at genesis (V2-1)");
+        assert!(society.roles.contains_key("sovereign"));
+        assert!(society.roles.contains_key("citizen"));
+        for unfilled in &["law_oracle", "policy_entity", "treasurer",
+                          "administrator", "archivist"] {
+            assert!(!society.roles.contains_key(*unfilled),
+                "role '{}' should be unfilled at genesis (V2-1)", unfilled);
         }
+    }
+
+    #[test]
+    fn founder_lct_holds_both_sovereign_and_citizen() {
+        let tmp = tempdir().unwrap();
+        let sovereign_path = fresh_sovereign(tmp.path());
+        let chapter_dir = tmp.path().join("lisbon");
+
+        init_chapter(InitArgs {
+            chapter_name: "Lisbon".into(),
+            chapter_dir: chapter_dir.clone(),
+            sovereign_lct_path: sovereign_path,
+        }).unwrap();
+
+        let society = load_society(&chapter_dir).unwrap();
+        let sovereign = society.roles.get("sovereign").unwrap();
+        let citizen = society.roles.get("citizen").unwrap();
+        assert_eq!(sovereign.filling_entity_lct_id, citizen.filling_entity_lct_id,
+            "founder should fill both Sovereign and Citizen at genesis");
+        assert_eq!(sovereign.filling_entity_lct_id, society.founder_lct_id);
     }
 
     #[test]

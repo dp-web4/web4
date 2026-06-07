@@ -133,6 +133,24 @@ impl ChapterSession {
         load_society(self.chapter_dir())
     }
 
+    /// Base-mandatory roles per Web4 spec that are NOT currently filled in
+    /// the society state. Useful for status reporting and "what does the
+    /// chapter still need to assign?" guidance.
+    pub fn unfilled_base_roles(&self) -> Result<Vec<SocietyRole>> {
+        let society = self.society()?;
+        let mut unfilled = Vec::new();
+        for role in SocietyRole::base_mandatory() {
+            let key = match serde_json::to_value(&role).ok().and_then(|v| v.as_str().map(|s| s.to_string())) {
+                Some(k) => k,
+                None => continue,
+            };
+            if !society.roles.contains_key(&key) {
+                unfilled.push(role);
+            }
+        }
+        Ok(unfilled)
+    }
+
     // ---------- internal ----------
 
     fn append(&mut self, event: ChapterEvent) -> Result<&LedgerEntry> {
