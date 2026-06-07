@@ -53,7 +53,7 @@ Use cases: finance, defense, healthcare, infrastructure.
 
 > If an AI approves a transaction, you can prove why — on whose authority, under what rules, in what context. Verifiable by a regulator or counterparty.
 
-Hardware-bound identity. Verifiable audit chains. Contextual, computable trust. Contact dp@metalinxx.io for evaluation and deployment.
+Hardware-bound identity. Verifiable audit chains. Contextual, computable trust. Contact Metalinxx Inc. via the [project repository](https://github.com/dp-web4/web4) for evaluation and deployment.
 
 ## Why this matters now
 
@@ -79,7 +79,7 @@ Try it. Break it. Tell us where it fails. **Help us make it work for everyone.**
 | **4-gov** (public site, full demo deck) | https://4-gov.org |
 | **4-life** (interactive trust-evolution explainer) | https://4-life-ivory.vercel.app |
 | **ARC-AGI-3 scorecard** | https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4 |
-| **Contact** | dp@metalinxx.io · linkedin.com/in/dennis-palatov |
+| **Contact** | Metalinxx Inc. — via the [project repository](https://github.com/dp-web4/web4) |
 
 ---
 

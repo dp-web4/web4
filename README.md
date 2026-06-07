@@ -520,7 +520,7 @@ This project is licensed under the **GNU Affero General Public License v3.0 (AGP
 
 This software implements technology covered by patents owned by MetaLINXX Inc. A royalty-free patent license is granted for non-commercial and research use under AGPL-3.0 terms.
 
-**For commercial licensing**: Contact dp@metalinxx.io
+**For commercial licensing**: Contact Metalinxx Inc. via the [project repository](https://github.com/dp-web4/web4) or see [PATENTS.md](PATENTS.md).
 
 See [PATENTS.md](PATENTS.md) for full patent details.
 

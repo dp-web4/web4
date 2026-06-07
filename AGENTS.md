@@ -55,7 +55,7 @@ Web4 is the open standard ontology for verifiable presence in agentic AI. Provid
 - Economic attack modeling at scale (no real-market testing)
 - Formal Sybil-resistance proofs (empirical defenses only)
 - Hardware-binding reference implementation (Python `AttestationEnvelope` shipped in `web4-core/python/web4/trust/attestation/`; Rust port and on-device integration in progress)
-- Note: production hardware binding (TPM 2.0 on Linux) and policy enforcement live in **Hardbound** — enterprise product, contact dp@metalinxx.io
+- Note: production hardware binding (TPM 2.0 on Linux) and policy enforcement live in **Hardbound** — Metalinxx Inc.'s enterprise product; inquire via the [project repository](https://github.com/dp-web4/web4) or see [PATENTS.md](PATENTS.md)
 
 ## Related Repositories
 

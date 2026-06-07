@@ -34,7 +34,7 @@ The strongest single external validation: a 2026-05-13 three-round Kimi 2.6 cros
 
 > v0.1.0 yanked from crates.io: the Python `web4-core` wheel shipped without `__init__.py`, so `import web4_core` returned an empty module. Fixed in v0.1.1; v0.1.0 PyPI artifacts remain installable but `web4-trust`'s docstring also incorrectly described tensors as "6-dimensional" (canonical: 3 root dims, fractally extensible via `web4:subDimensionOf`). Use v0.1.1.
 
-All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial licensing: dp@metalinxx.io.
+All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial licensing: contact Metalinxx Inc. via the [project repository](https://github.com/dp-web4/web4).
 
 `web4-core` provides LCT (Linked Context Token) primitives + T3/V3 trust tensors + identity coherence + ledger anchoring (`InMemoryLedger`, `LocalLedger`). `web4-trust-core` adds trust persistence and witnessing primitives. The Python wheels are PyO3-built bindings over the same Rust core.
 
@@ -64,7 +64,7 @@ All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial 
 
 | Gap | Where it stands | Where production lives |
 |---|---|---|
-| Hardware binding reference (TPM 2.0 on real devices) | Python `AttestationEnvelope` shipped; Rust port and on-device integration in progress | **Hardbound** (enterprise, contact dp@metalinxx.io) |
+| Hardware binding reference (TPM 2.0 on real devices) | Python `AttestationEnvelope` shipped; Rust port and on-device integration in progress | **Hardbound** (Metalinxx Inc. enterprise; inquire via [project repository](https://github.com/dp-web4/web4)) |
 | Economic attack modeling at scale | Empirical defenses only; no real-market testing | Open research |
 | Formal Sybil-resistance proofs | Empirical defenses only | Open research |
 | Production deployment | All testing is synthetic | Hardbound for regulated environments |
