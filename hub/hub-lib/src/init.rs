@@ -102,10 +102,27 @@ pub struct InitArgs {
     pub chapter_dir: PathBuf,
 
     /// Path to the Sovereign identity file (see IdentityFile).
+    /// For Local-mode init only — Hestia-mode uses [`init_chapter_with_signer`]
+    /// and doesn't need a local IdentityFile.
     pub sovereign_lct_path: PathBuf,
 
     /// Which storage backend to use. `None` = file-backed (MVP-compatible default).
     /// V2-2 added SQLite as an option; future backends slot here.
+    pub storage: Option<BackendKind>,
+}
+
+/// Hestia-mode init parameters. Distinct from [`InitArgs`] because the
+/// hub holds NO IdentityFile in Hestia mode — it knows only the
+/// Sovereign's LCT id + public key + callback URL.
+pub struct HestiaInitArgs {
+    pub chapter_name: String,
+    pub chapter_dir: PathBuf,
+    /// The Sovereign's LCT id (what Hestia signs for).
+    pub sovereign_lct_id: Uuid,
+    /// The Sovereign's public key (hex-encoded 32 bytes).
+    pub sovereign_pubkey_hex: String,
+    /// URL where the hub POSTs SignRequest for Sovereign signatures.
+    pub hestia_callback_url: String,
     pub storage: Option<BackendKind>,
 }
 
@@ -230,6 +247,131 @@ pub fn load_society(chapter_dir: impl AsRef<Path>) -> Result<Society> {
     store.read_society()
         .context("reading society via store")?
         .ok_or_else(|| anyhow::anyhow!("no society found in chapter store"))
+}
+
+/// Run the Hestia-mode init flow. The hub holds NO Sovereign keypair;
+/// Genesis is signed by Hestia via HTTP callback.
+///
+/// Per architecture commitment #8: secrets live in Hestia's vault.
+/// This entry point is the canonical Hestia-mode bootstrap.
+pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
+    use crate::signer::{HestiaCallbackSigner, RemoteSigner, SignIntent};
+    use web4_core::crypto::SignatureBytes;
+
+    let paths = ChapterPaths::new(&args.chapter_dir);
+
+    // 1. Idempotency check.
+    if args.chapter_dir.exists() {
+        let probe_store = open_chapter_store(&args.chapter_dir)
+            .context("opening chapter store for idempotency probe")?;
+        if let Some(existing) = probe_store.read_society()
+            .context("probing for existing society")? {
+            return Ok(InitResult::AlreadyInitialized {
+                society_lct_id: existing.lct_id,
+                chapter_dir: args.chapter_dir.clone(),
+                chapter_name: existing.name,
+            });
+        }
+        drop(probe_store);
+    }
+
+    std::fs::create_dir_all(&args.chapter_dir)
+        .with_context(|| format!("creating chapter dir {}", args.chapter_dir.display()))?;
+
+    // 2. Synthesize the Sovereign's Lct from the supplied pubkey
+    // (no IdentityFile in Hestia mode).
+    let sovereign_lct = crate::chapter::hestia_sovereign_lct(
+        args.sovereign_lct_id, &args.sovereign_pubkey_hex,
+    ).context("synthesizing Sovereign Lct from Hestia init args")?;
+    tracing::info!(
+        sovereign_lct_id = %args.sovereign_lct_id,
+        callback_url = %args.hestia_callback_url,
+        "Hestia-mode init: Sovereign LCT synthesized from pubkey",
+    );
+
+    // 3. Open store.
+    let backend = args.storage.unwrap_or(BackendKind::File);
+    let mut store = open_chapter_store_with(&args.chapter_dir, backend)
+        .with_context(|| format!("opening chapter store with backend {:?}", backend))?;
+
+    // 4. Charter.
+    let charter = Charter::found(args.chapter_name.clone(), args.sovereign_lct_id);
+    let charter_hash = charter.hash().context("hashing charter")?;
+    store.write_charter(&charter).context("writing charter via store")?;
+
+    // 5. Bootstrap society + V2-1 unfill.
+    let (mut society, all_role_lcts) = Society::bootstrap(
+        args.chapter_name.clone(),
+        charter_hash,
+        args.sovereign_lct_id,
+    );
+    let role_lcts = v2_unfill_non_founder_roles(&mut society, all_role_lcts);
+    let society_lct_id = society.lct_id;
+    let society_charter_hash = society.charter_hash.clone();
+    store.write_society(&society).context("writing society via store")?;
+
+    // 6. Persist Hestia-mode config.
+    let config = ChapterConfig::new_hestia(
+        args.chapter_name.clone(),
+        args.hestia_callback_url.clone(),
+        args.sovereign_lct_id,
+        args.sovereign_pubkey_hex.clone(),
+    );
+    config.save(paths.config())
+        .with_context(|| format!("writing config to {}", paths.config().display()))?;
+
+    // 7. Open ledger + build unsigned Genesis.
+    let mut ledger = ChapterLedger::open(store)
+        .context("opening chapter ledger via store")?;
+    let (unsigned, _ts) = ledger.build_genesis(
+        args.sovereign_lct_id,
+        args.chapter_name.clone(),
+        society_charter_hash,
+    ).context("building unsigned Genesis entry")?;
+
+    // 8. Ask Hestia to sign the Genesis. The hub never sees the
+    // private key on this path.
+    let signer = HestiaCallbackSigner::new(args.sovereign_lct_id, args.hestia_callback_url.clone())
+        .context("constructing HestiaCallbackSigner")?;
+    let intent = SignIntent {
+        request_id: Uuid::new_v4(),
+        chapter_id: society_lct_id,
+        chapter_name: args.chapter_name.clone(),
+        actor_lct_id: args.sovereign_lct_id,
+        ledger_index: unsigned.entry.index,
+        event_kind: unsigned.entry.event.kind().to_string(),
+        event: serde_json::to_value(&unsigned.entry.event)
+            .context("serializing Genesis event for intent")?,
+    };
+    let signing_bytes = unsigned.signing_bytes.clone();
+    let signature: SignatureBytes = signer
+        .sign(args.sovereign_lct_id, &signing_bytes, &intent)
+        .await
+        .map_err(|e| anyhow::anyhow!("Hestia denied or failed Genesis signing: {}", e))?;
+
+    // 9. Commit signed Genesis.
+    ledger.append_signed(unsigned, signature)
+        .context("committing signed Genesis entry to ledger")?;
+
+    // 10. Sanity verify with synthesized Lct.
+    let lookup = build_lookup([sovereign_lct]);
+    ledger.verify_chain(|id| lookup.get(&id).cloned())
+        .context("post-Genesis verify_chain failed — likely a wire mismatch with Hestia")?;
+
+    tracing::info!(
+        society_lct_id = %society_lct_id,
+        chapter_name = %args.chapter_name,
+        chapter_dir = %args.chapter_dir.display(),
+        roles_wired = role_lcts.len(),
+        ledger_entries = ledger.len(),
+        "Hestia-mode chapter society bootstrapped"
+    );
+
+    Ok(InitResult::Initialized {
+        society_lct_id,
+        chapter_dir: args.chapter_dir,
+        role_lcts,
+    })
 }
 
 /// Result of a ledger verification pass.

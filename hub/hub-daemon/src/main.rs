@@ -38,14 +38,36 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Command {
     /// Initialize a new chapter society in the given directory.
+    ///
+    /// Two modes:
+    /// - **Local mode** (MVP-compatible): pass `--sovereign-lct PATH` to a
+    ///   local IdentityFile. The hub loads the keypair from the file.
+    /// - **Hestia mode** (V2-7+, recommended): pass
+    ///   `--sovereign-hestia URL --sovereign-lct-id ID --sovereign-pubkey HEX`.
+    ///   The hub holds NO keypair; Genesis is signed by Hestia via the
+    ///   callback URL.
     Init {
         /// Human-readable chapter name (e.g. "Lisbon Chapter").
         name: String,
 
-        /// Path to the Sovereign identity file (LCT + keypair). Generate
-        /// one with `hub gen-lct` if you don't have one yet.
+        /// **Local mode**: path to the Sovereign IdentityFile (LCT + keypair).
+        /// Generate one with `hub gen-lct` if you don't have one yet.
+        /// Mutually exclusive with --sovereign-hestia.
+        #[arg(long, conflicts_with = "sovereign_hestia")]
+        sovereign_lct: Option<PathBuf>,
+
+        /// **Hestia mode**: URL of the Sovereign's Hestia sign-request callback.
+        /// Requires --sovereign-lct-id and --sovereign-pubkey.
+        #[arg(long, requires_all = ["sovereign_lct_id", "sovereign_pubkey"])]
+        sovereign_hestia: Option<String>,
+
+        /// **Hestia mode**: the Sovereign's LCT id (uuid).
         #[arg(long)]
-        sovereign_lct: PathBuf,
+        sovereign_lct_id: Option<Uuid>,
+
+        /// **Hestia mode**: the Sovereign's public key (hex-encoded 32 bytes).
+        #[arg(long)]
+        sovereign_pubkey: Option<String>,
 
         /// Directory to create the chapter in. Defaults to ./<name-slug>.
         #[arg(long)]
@@ -253,8 +275,12 @@ async fn main() -> Result<()> {
             println!("Run `hub --help` for available commands.");
             Ok(())
         }
-        Some(Command::Init { name, sovereign_lct, chapter_dir, storage }) => {
-            run_init(name, sovereign_lct, chapter_dir, storage)
+        Some(Command::Init {
+            name, sovereign_lct, sovereign_hestia, sovereign_lct_id, sovereign_pubkey,
+            chapter_dir, storage,
+        }) => {
+            run_init(name, sovereign_lct, sovereign_hestia, sovereign_lct_id,
+                     sovereign_pubkey, chapter_dir, storage).await
         }
         Some(Command::GenLct { output, entity_type }) => {
             run_gen_lct(output, entity_type.into())
@@ -548,18 +574,52 @@ fn run_migrate(chapter_dir: PathBuf, to: String) -> Result<()> {
     Ok(())
 }
 
-fn run_init(name: String, sovereign_lct: PathBuf, chapter_dir: Option<PathBuf>, storage: String) -> Result<()> {
+async fn run_init(
+    name: String,
+    sovereign_lct: Option<PathBuf>,
+    sovereign_hestia: Option<String>,
+    sovereign_lct_id: Option<Uuid>,
+    sovereign_pubkey: Option<String>,
+    chapter_dir: Option<PathBuf>,
+    storage: String,
+) -> Result<()> {
     use std::str::FromStr;
     let chapter_dir = chapter_dir.unwrap_or_else(|| PathBuf::from(slugify(&name)));
     let backend = hub_lib::store::BackendKind::from_str(&storage)
         .context("parsing --storage")?;
 
-    let result = init_chapter(InitArgs {
-        chapter_name: name,
-        chapter_dir,
-        sovereign_lct_path: sovereign_lct,
-        storage: Some(backend),
-    })?;
+    let result = match (sovereign_lct, sovereign_hestia) {
+        (Some(path), None) => {
+            // Local mode
+            init_chapter(InitArgs {
+                chapter_name: name,
+                chapter_dir,
+                sovereign_lct_path: path,
+                storage: Some(backend),
+            })?
+        }
+        (None, Some(callback_url)) => {
+            // Hestia mode — clap's `requires_all` guarantees lct_id + pubkey are present
+            let lct_id = sovereign_lct_id.expect("clap requires_all");
+            let pubkey_hex = sovereign_pubkey.expect("clap requires_all");
+            println!("hub init: Hestia mode — Genesis will be signed by {}", callback_url);
+            hub_lib::init::init_chapter_hestia(hub_lib::init::HestiaInitArgs {
+                chapter_name: name,
+                chapter_dir,
+                sovereign_lct_id: lct_id,
+                sovereign_pubkey_hex: pubkey_hex,
+                hestia_callback_url: callback_url,
+                storage: Some(backend),
+            }).await?
+        }
+        (None, None) => {
+            anyhow::bail!(
+                "hub init requires one of: --sovereign-lct PATH (Local mode) \
+                 OR --sovereign-hestia URL --sovereign-lct-id ID --sovereign-pubkey HEX (Hestia mode)"
+            );
+        }
+        (Some(_), Some(_)) => unreachable!("clap conflicts_with should catch this"),
+    };
 
     match result {
         InitResult::Initialized { society_lct_id, chapter_dir, role_lcts } => {
