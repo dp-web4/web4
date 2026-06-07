@@ -138,7 +138,6 @@ impl From<VerifyError> for ApiError {
             VerifyError::ExpiredNonce(_) => ApiError::unauthorized(e.to_string()),
             VerifyError::NonceLctMismatch(_) => ApiError::unauthorized(e.to_string()),
             VerifyError::BadSignature(_) => ApiError::unauthorized(e.to_string()),
-            VerifyError::UnsupportedProof => ApiError::bad_request(e.to_string()),
             VerifyError::Internal(err) => ApiError::internal(err),
         }
     }

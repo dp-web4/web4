@@ -66,58 +66,56 @@ impl Challenge {
     }
 }
 
-/// Proof variants. Non-exhaustive: future ZKP shapes slot in here
-/// without invalidating envelope verification at handlers.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-#[non_exhaustive]
-pub enum Proof {
-    /// Standard Ed25519 signature over the canonical signing bytes.
-    /// Hex-encoded 64-byte signature.
-    EdDsa { signature: String },
-    // Future: Zkp { proof_bytes: String, system: String, ... }
-}
-
 /// A signed request from an external client. Verified by the hub
 /// before its payload is routed to a handler.
+///
+/// ## Wire shape (V2-7 — interop with Hestia H2/H3)
+///
+/// ```json
+/// {
+///   "challenge_nonce": "...",
+///   "payload": { ... },
+///   "signature": "hex-encoded-64-byte-ed25519-sig",
+///   "signer_lct_id": "uuid"
+/// }
+/// ```
+///
+/// Per agreement with Legion's Hestia H2/H3 (`hestia@253c611` core/src/hub.rs):
+/// flat `signature` field, Ed25519 only for now. ZKP-friendly extension
+/// path: add an optional `proof_kind: String` field (default "ed25519")
+/// when ZKP variants need to flow over the same wire shape.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SignedEnvelope {
-    /// LCT id of the signer.
-    pub signer_lct_id: Uuid,
-    /// Server-issued nonce being redeemed.
     pub challenge_nonce: String,
-    /// Opaque JSON payload — handler-specific shape.
     pub payload: serde_json::Value,
-    /// Authority proof. Today: EdDsa; future: Zkp variants.
-    pub proof: Proof,
+    /// Hex-encoded Ed25519 signature (64 bytes = 128 hex chars) over
+    /// `signing_bytes()`.
+    pub signature: String,
+    pub signer_lct_id: Uuid,
 }
 
 impl SignedEnvelope {
-    /// Canonical bytes signed: `signer_lct_id || challenge_nonce || payload_json`.
-    /// `payload` is serialized with sorted keys so signers + verifiers
-    /// produce the same bytes regardless of map iteration order.
+    /// Bytes signed: `challenge_nonce ++ canonical(payload)`.
+    ///
+    /// Matches Hestia's signing algorithm exactly (`nonce.as_bytes() ++
+    /// payload.to_string().as_bytes()`). With serde_json's default
+    /// features (no `preserve_order`), `Value::to_string()` produces
+    /// alphabetically-keyed output, so this is canonical-by-default
+    /// without an explicit canonicalization pass. We still use an
+    /// explicit canonicalizer here so the hub doesn't depend on
+    /// upstream feature flags staying off.
     pub fn signing_bytes(&self) -> Result<Vec<u8>> {
-        canonical_signing_bytes(self.signer_lct_id, &self.challenge_nonce, &self.payload)
+        canonical_signing_bytes(&self.challenge_nonce, &self.payload)
     }
 }
 
 fn canonical_signing_bytes(
-    signer_lct_id: Uuid,
     challenge_nonce: &str,
     payload: &serde_json::Value,
 ) -> Result<Vec<u8>> {
-    // Serialize payload with sorted keys for determinism. serde_json's
-    // default Map is BTreeMap-equivalent ONLY when the `preserve_order`
-    // feature is OFF — which is the default. So pretty-printing via
-    // `to_string` over a Value gives stable bytes provided the Value was
-    // constructed in a way that uses BTreeMap. We re-roundtrip through a
-    // canonical-mode serializer to be safe across construction styles.
     let canonical = serialize_canonical(payload)?;
-    let mut buf = Vec::with_capacity(16 + challenge_nonce.len() + canonical.len() + 2);
-    buf.extend_from_slice(signer_lct_id.as_bytes());
-    buf.push(0x1f); // unit separator
+    let mut buf = Vec::with_capacity(challenge_nonce.len() + canonical.len());
     buf.extend_from_slice(challenge_nonce.as_bytes());
-    buf.push(0x1f);
     buf.extend_from_slice(canonical.as_bytes());
     Ok(buf)
 }
@@ -216,9 +214,6 @@ pub enum VerifyError {
 
     #[error("signature verification failed: {0}")]
     BadSignature(String),
-
-    #[error("proof kind not supported by this verifier")]
-    UnsupportedProof,
 
     #[error("internal error: {0}")]
     Internal(#[from] anyhow::Error),
@@ -323,20 +318,16 @@ pub fn verify_envelope(
         return Err(VerifyError::ExpiredNonce(envelope.challenge_nonce.clone()));
     }
 
-    // 4. Verify proof.
+    // 4. Verify signature.
     let signing_bytes = envelope.signing_bytes()
         .map_err(VerifyError::Internal)?;
-    match &envelope.proof {
-        Proof::EdDsa { signature } => {
-            let sig_bytes = hex::decode(signature)
-                .map_err(|e| VerifyError::BadSignature(format!("hex decode: {}", e)))?;
-            let sig_arr: [u8; 64] = sig_bytes.as_slice().try_into()
-                .map_err(|_| VerifyError::BadSignature("signature must be 64 bytes".into()))?;
-            let sig = SignatureBytes::from_bytes(sig_arr);
-            signer_lct.verify_signature(&signing_bytes, &sig)
-                .map_err(|e| VerifyError::BadSignature(e.to_string()))?;
-        }
-    }
+    let sig_bytes = hex::decode(&envelope.signature)
+        .map_err(|e| VerifyError::BadSignature(format!("hex decode: {}", e)))?;
+    let sig_arr: [u8; 64] = sig_bytes.as_slice().try_into()
+        .map_err(|_| VerifyError::BadSignature("signature must be 64 bytes".into()))?;
+    let sig = SignatureBytes::from_bytes(sig_arr);
+    signer_lct.verify_signature(&signing_bytes, &sig)
+        .map_err(|e| VerifyError::BadSignature(e.to_string()))?;
 
     Ok(challenge)
 }
@@ -349,13 +340,13 @@ pub fn build_envelope(
     challenge: &Challenge,
     payload: serde_json::Value,
 ) -> Result<SignedEnvelope> {
-    let signing_bytes = canonical_signing_bytes(signer_lct_id, &challenge.nonce, &payload)?;
+    let signing_bytes = canonical_signing_bytes(&challenge.nonce, &payload)?;
     let sig = keypair.sign(&signing_bytes);
     Ok(SignedEnvelope {
-        signer_lct_id,
         challenge_nonce: challenge.nonce.clone(),
         payload,
-        proof: Proof::EdDsa { signature: hex::encode(sig.bytes) },
+        signature: hex::encode(sig.bytes),
+        signer_lct_id,
     })
 }
 
@@ -534,10 +525,43 @@ mod tests {
         // produce identical signing bytes.
         let p1 = json!({"a": 1, "b": 2, "c": 3});
         let p2 = json!({"c": 3, "a": 1, "b": 2});
-        let id = Uuid::new_v4();
-        let bytes1 = canonical_signing_bytes(id, "nonce", &p1).unwrap();
-        let bytes2 = canonical_signing_bytes(id, "nonce", &p2).unwrap();
+        let bytes1 = canonical_signing_bytes("nonce", &p1).unwrap();
+        let bytes2 = canonical_signing_bytes("nonce", &p2).unwrap();
         assert_eq!(bytes1, bytes2);
+    }
+
+    #[test]
+    fn interop_with_hestia_signing_algorithm() {
+        // Lock-in test: our signing bytes MUST equal Hestia's algorithm
+        // `nonce.as_bytes() ++ payload.to_string().as_bytes()`.
+        // This test must keep passing or interop with Hestia breaks.
+        let payload = json!({"a": 1, "b": "hello"});
+        let nonce = "abc123";
+
+        let ours = canonical_signing_bytes(nonce, &payload).unwrap();
+
+        let mut hestia_style = Vec::new();
+        hestia_style.extend_from_slice(nonce.as_bytes());
+        hestia_style.extend_from_slice(payload.to_string().as_bytes());
+
+        assert_eq!(ours, hestia_style,
+            "hub signing bytes must match hestia's algorithm exactly");
+    }
+
+    #[test]
+    fn deserialize_hestia_wire_envelope() {
+        // Lock-in test: a JSON envelope produced by Hestia (per their
+        // SignedEnvelope shape in hestia@253c611 core/src/hub.rs) MUST
+        // deserialize into ours.
+        let hestia_json = json!({
+            "challenge_nonce": "abc123",
+            "payload": {"action": "add_member"},
+            "signature": "00".repeat(64),
+            "signer_lct_id": Uuid::new_v4().to_string(),
+        });
+        let env: SignedEnvelope = serde_json::from_value(hestia_json).unwrap();
+        assert_eq!(env.challenge_nonce, "abc123");
+        assert_eq!(env.signature.len(), 128);
     }
 
     #[test]
