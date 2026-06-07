@@ -3,7 +3,7 @@
 **Status:** Working document. Captures the outer-landscape MRH from the 2026-06-07 conversation. Evolves as fractal subsets get worked through.
 **Companion to:** `PRD.md` (MVP), `SPRINTS.md` (sprints 0-6 history), `README.md` (current state)
 **Date initiated:** 2026-06-07
-**Maintained by:** dp + the building entities
+**Maintained by:** Metalinxx Inc. + the building entities
 
 ---
 
@@ -320,4 +320,4 @@ Don't try to keep it perfect or final. The goal is **enough alignment to act**, 
 
 ---
 
-*— dp + Claude, 2026-06-07, scoping outer landscape*
+*— Metalinxx + Claude, 2026-06-07, scoping outer landscape*

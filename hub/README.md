@@ -115,4 +115,4 @@ POST /tools/declare_skill         { member_lct_id, skill }
 
 AGPL-3.0-or-later. See [`LICENSE`](../LICENSE) at the web4 root.
 
-Commercial licensing available for organizations that need non-AGPL terms — contact `dp@metalinxx.io`.
+Commercial licensing available from Metalinxx Inc. for organizations that need non-AGPL terms — inquire via the [project repository](https://github.com/dp-web4/web4).

@@ -2,7 +2,7 @@
 
 **Version:** 0.1 (Draft)
 **Date:** 2026-06-07
-**Owner:** dp / Metalinxx
+**Owner:** Metalinxx Inc.
 **Status:** Pre-build (sprint 0 scaffold lands alongside this document)
 **License:** AGPL-3.0-or-later (inherits web4 root)
 **Repo location:** `web4/hub/` (new Cargo workspace, sibling to `web4/web4-core/` and `web4/web4-trust-core/`)
@@ -11,9 +11,9 @@
 
 ## 1. Background
 
-dp 2026-06-07 directive: build an MVP of the community-hub package described in `private-context/proposals/2026-06-06-aic-hub-package/06-inventory-and-build-plan.md`. First deployment target is The AI Collective (AIC) — a ~1M-member, 180-chapter, volunteer-driven non-profit growing 4× in 60 days, with a stated mission to *"be the human layer of AI"* and a structural concern about 1%-controlling-99%. dp's recent in-person conversation with AIC founder/ED AJ Green established the relationship; this MVP turns the conversation into demonstrable software.
+Build an MVP of a Web4 community-hub package: generic open-source infrastructure for trust-native community governance. First deployment target: a large-scale, volunteer-driven non-profit community concerned about concentration of power in AI infrastructure. The MVP turns the design intent into demonstrable software.
 
-The hub package isn't AIC-specific by design. Any community willing to operate as a Web4 society can deploy it.
+The hub package is not specific to any single community by design. Any community willing to operate as a Web4 society can deploy it.
 
 This document is **the PRD** — what gets built, what doesn't, why, and how we'll know we're done. The sprint plan lives in `SPRINTS.md`.
 
