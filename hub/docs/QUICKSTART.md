@@ -75,17 +75,25 @@ Do not commit this file to git. Keep a backup somewhere safe.
 ## Step 3: Initialize your chapter
 
 ```bash
+# File-backed (default; MVP-compatible JSON/JSONL layout)
 hub init "Your Chapter Name" --sovereign-lct ./sovereign.json
+
+# Or SQLite-backed (one chapter.db file; better for ops)
+hub init "Your Chapter Name" --sovereign-lct ./sovereign.json --storage sqlite
 ```
 
-This creates a `your-chapter-name/` directory (slug derived from the name) containing:
+This creates a `your-chapter-name/` directory (slug derived from the name). With the file backend you get:
 
 - `charter.json` — your chapter's founding charter (auto-generated; see [`CHAPTER-LAW.md`](CHAPTER-LAW.md) to amend later)
-- `society.json` — the 7-role society state (all roles initially filled by Sovereign; see [`ROLES.md`](ROLES.md) to delegate)
+- `society.json` — society state (V2-1: founder fills Sovereign + Citizen; other roles assigned later per chapter law — see [`ROLES.md`](ROLES.md))
 - `ledger.jsonl` — the witnessed event log (Genesis entry already written)
 - `config.toml` — daemon config (MCP port, Sovereign LCT path)
 
-The output prints 7 role LCT ids. **Save these somewhere** — you'll need them when delegating roles to other people later.
+With the sqlite backend, all chapter state lives in `chapter.db`; only `config.toml` sits alongside.
+
+The output prints the founder's role LCT ids. **Save these somewhere** — you'll need them when assigning roles to other members later.
+
+See [`STORAGE.md`](STORAGE.md) for backend comparison and migration (`hub migrate <dir> --to sqlite`).
 
 ---
 
