@@ -82,7 +82,7 @@ pub use r6::{
     ActionResult, ActionRole, ActionStatus, R7Action, ReputationDelta, Request, ResourceRequirements,
     Rules,
 };
-pub use role::{RoleAssignment, SocietyRole};
+pub use role::{RoleAssignment, RoleEvent, RoleEventKind, SocietyRole};
 pub use society::{MetabolicState, Society};
 pub use t3::{TrustDimension, TrustObservation, TrustRelation, T3, T3_DIMENSIONS};
 pub use v3::{TrustValueScore, ValueDimension, ValueObservation, V3, V3_DIMENSIONS};
