@@ -677,6 +677,7 @@ dependencies = [
  "chrono",
  "clap",
  "ctrlc",
+ "hex",
  "hub-lib",
  "serde",
  "serde_json",

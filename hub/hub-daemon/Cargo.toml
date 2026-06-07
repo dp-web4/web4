@@ -26,3 +26,8 @@ tower = "0.5"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 ctrlc = "3"
+hex = "0.4"
+
+[[example]]
+name = "mock-hestia"
+path = "examples/mock_hestia.rs"
