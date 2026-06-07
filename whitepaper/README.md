@@ -150,5 +150,4 @@ When contributing to the whitepaper:
 ## Contact
 
 For questions or contributions:
-- Email: dp@metalinxx.io
-- GitHub: https://github.com/dp-web4/web4
+- GitHub: https://github.com/dp-web4/web4 (open an issue or PR)

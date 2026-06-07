@@ -138,7 +138,7 @@ cd whitepaper
 - [Changelog](whitepaper/log/CHANGELOG.md) - Track whitepaper evolution
 
 ### Contact
-📩 **dp@metalinxx.io**
+📩 **Metalinxx Inc.** — via the [project repository](https://github.com/dp-web4/web4)
 
 We invite thoughtful critique, aligned contribution, and resonant imagination.
 

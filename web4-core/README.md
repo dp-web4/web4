@@ -117,7 +117,7 @@ R&D — not production. See parent repo [STATUS.md](https://github.com/dp-web4/w
 
 ## Patent notice
 
-This software implements technology covered by US Patents 11,477,027 and 12,278,913, and pending application 19/178,619 (assigned to MetaLINXX Inc.). A royalty-free patent license is granted under AGPL-3.0 terms for non-commercial / research / open-source use. For commercial licensing, contact dp@metalinxx.io. See [PATENTS.md](PATENTS.md) for full terms.
+This software implements technology covered by US Patents 11,477,027 and 12,278,913, and pending application 19/178,619 (assigned to MetaLINXX Inc.). A royalty-free patent license is granted under AGPL-3.0 terms for non-commercial / research / open-source use. For commercial licensing, see [PATENTS.md](PATENTS.md) for full terms.
 
 ## License
 

@@ -170,7 +170,7 @@ This is an experimental prototype exploring practical Web4 implementation. Contr
 
 ## Contact
 
-Dennis Palatov - dp@metalinxx.io
+Metalinxx Inc. — via the [project repository](https://github.com/dp-web4/web4)
 
 ---
 

@@ -38,8 +38,6 @@ Substantial portions of this work — including the published `web4-core` / `web
 
 ## An Invitation to Participate
 
-To participate in ongoing development or collaborative application of the WEB4 framework, please contact:
-
-📩 **dp@metalinxx.io**
+To participate in ongoing development or collaborative application of the WEB4 framework, please reach out via the [project repository](https://github.com/dp-web4/web4).
 
 We invite thoughtful critique and aligned contribution. This is not a finished system; it is research-stage work being developed in the open. Engagement at any depth — from running the published packages to challenging specification details — is welcome.

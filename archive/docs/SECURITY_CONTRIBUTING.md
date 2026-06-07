@@ -164,7 +164,7 @@ Write tests, review code, validate fixes, provide feedback.
 We'll set up a Discord for real-time collaboration.
 
 ### Email
-For sensitive security issues: dp@metalinxx.io
+For sensitive security issues: see `SECURITY.md` at the web4 root.
 
 ---
 
@@ -311,7 +311,7 @@ git push origin fix-atp-tracking
 ## Questions?
 
 - Open a GitHub issue with `question` label
-- Email dp@metalinxx.io
+- Contact Metalinxx Inc. via the [project repository](https://github.com/dp-web4/web4)
 - Comment on the security issue
 
 **We're here to help you contribute!**

@@ -51,7 +51,7 @@ Use when: reasoning about why MRH is fractal, how trust thresholds emerge, and t
 
 Built on the open Web4 ontology — Hardbound is the deployment, Web4 is the substrate.
 
-**Contact**: dp@metalinxx.io for evaluation and deployment.
+**Contact**: Metalinxx Inc. — via the [project repository](https://github.com/dp-web4/web4) for evaluation and deployment.
 
 ---
 
@@ -63,6 +63,6 @@ Built on the open Web4 ontology — Hardbound is the deployment, Web4 is the sub
 | See the 94.85% proof point | [SAGE](https://github.com/dp-web4/SAGE) + [docs/proof/ARC-AGI-3.md](../proof/ARC-AGI-3.md) |
 | Understand trust evolution interactively | [4-life-ivory.vercel.app](https://4-life-ivory.vercel.app/) |
 | See the audience-tested public framing | [4-gov.org](https://4-gov.org) + [docs/why/DEMO_DAY_2026-04.md](../why/DEMO_DAY_2026-04.md) |
-| Deploy in a regulated environment | Contact dp@metalinxx.io about Hardbound |
+| Deploy in a regulated environment | Contact Metalinxx Inc. via the [project repository](https://github.com/dp-web4/web4) about Hardbound |
 | Study the formal foundations | [Synchronism](https://github.com/dp-web4/Synchronism) |
 | Persist ATP/LCT state | [ACT](https://github.com/dp-web4/ACT) |

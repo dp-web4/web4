@@ -110,7 +110,7 @@ For accurate calibration:
 3. Try the agent authorization demo: `/demo` (166 passing tests)
 4. Read [STATUS.md](https://github.com/dp-web4/web4/blob/main/STATUS.md) for current implementation state
 5. Read [`docs/specs/`](https://github.com/dp-web4/web4/tree/main/docs/specs) for current specifications
-6. File an issue, open a PR, or engage at [dp@metalinxx.io](mailto:dp@metalinxx.io)
+6. File an issue, open a PR, or engage via the [project repository](https://github.com/dp-web4/web4)
 
 ---
 

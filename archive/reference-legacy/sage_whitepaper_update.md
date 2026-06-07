@@ -131,5 +131,5 @@ SAGE emerges from collaborative exploration between human and AI researchers, de
 
 **Keywords**: Hierarchical Reasoning, Affect-Gated Memory, Sensor Fusion, Learned Coherence, Experimental AI
 
-**Contact**: Dennis Palatov - [https://github.com/dp-web4](https://github.com/dp-web4)
+**Contact**: Metalinxx Inc. — [https://github.com/dp-web4](https://github.com/dp-web4)
 

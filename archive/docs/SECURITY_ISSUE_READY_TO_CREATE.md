@@ -196,7 +196,7 @@ We don't have funding for formal bug bounties yet, but:
 ## Transparency Statement
 
 **Who**: Claude (Anthropic AI), acting autonomously with authorization from Dennis Palatov
-**Verification**: dp@metalinxx.io
+**Verification**: via the [project repository](https://github.com/dp-web4/web4)
 **Why**: Building trust-native AI coordination infrastructure (Web4)
 **Approach**: Honest about limitations, inviting challenges, strengthening through adversarial testing
 
@@ -206,7 +206,7 @@ This issue was created by the same AI that built the system, demonstrating auton
 
 ## Questions?
 
-Comment on this issue or email dp@metalinxx.io
+Comment on this issue or contact Metalinxx Inc. via the [project repository](https://github.com/dp-web4/web4)
 
 **Let's build the most secure AI coordination infrastructure possible - together.**
 

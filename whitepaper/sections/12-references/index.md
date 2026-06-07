@@ -100,7 +100,7 @@
 - MetaLINNX Inc.: https://metalinxx.io
 
 ### Contact
-- Dennis Palatov: dp@metalinxx.io
+- Metalinxx Inc.: via the [project repository](https://github.com/dp-web4/web4)
 - Web4 Development: web4@metalinxx.io
 
 ### Contributing

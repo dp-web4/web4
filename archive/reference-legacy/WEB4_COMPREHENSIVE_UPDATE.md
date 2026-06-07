@@ -443,4 +443,4 @@ Where:
 - https://github.com/dp-web4/HRM
 - https://metalinxx.io/web4
 
-*Contact: dp@metalinxx.io*
+*Contact: Metalinxx Inc. via the [project repository](https://github.com/dp-web4/web4)*

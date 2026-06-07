@@ -15,9 +15,7 @@ Funding for portions of this research and development has been provided by **Met
 
 The authors intend to release substantial portions of this work, including simulation code, governance tools, and Web4-native protocols, under the **GNU Affero General Public License (AGPL)**. Our aim is to foster a living, collaborative, and ethically grounded ecosystem—open to audit, extension, and shared stewardship.
 
-To participate in ongoing development or collaborative application of the WEB4 framework, please contact:
-
-📩 **dp@metalinxx.io**
+To participate in ongoing development or collaborative application of the WEB4 framework, please reach out via the [project repository](https://github.com/dp-web4/web4).
 
 We invite thoughtful critique, aligned contribution, and resonant imagination.
 

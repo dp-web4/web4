@@ -126,9 +126,7 @@ Substantial portions of this work — including the published `web4-core` / `web
 
 ## An Invitation to Participate
 
-To participate in ongoing development or collaborative application of the WEB4 framework, please contact:
-
-📩 **dp@metalinxx.io**
+To participate in ongoing development or collaborative application of the WEB4 framework, please reach out via the [project repository](https://github.com/dp-web4/web4).
 
 We invite thoughtful critique and aligned contribution. This is not a finished system; it is research-stage work being developed in the open. Engagement at any depth — from running the published packages to challenging specification details — is welcome.
 
@@ -3174,7 +3172,7 @@ For accurate calibration:
 3. Try the agent authorization demo: `/demo` (166 passing tests)
 4. Read [STATUS.md](https://github.com/dp-web4/web4/blob/main/STATUS.md) for current implementation state
 5. Read [`docs/specs/`](https://github.com/dp-web4/web4/tree/main/docs/specs) for current specifications
-6. File an issue, open a PR, or engage at [dp@metalinxx.io](mailto:dp@metalinxx.io)
+6. File an issue, open a PR, or engage via the [project repository](https://github.com/dp-web4/web4)
 
 ---
 
@@ -3289,7 +3287,7 @@ It is not a finished system. It is research-stage work, developed in the open. T
 - MetaLINNX Inc.: https://metalinxx.io
 
 ### Contact
-- Dennis Palatov: dp@metalinxx.io
+- Metalinxx Inc.: via the [project repository](https://github.com/dp-web4/web4)
 - Web4 Development: web4@metalinxx.io
 
 ### Contributing

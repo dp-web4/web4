@@ -2,7 +2,7 @@
 
 **Version:** 0.1 (Draft)
 **Date:** 2026-06-07
-**Owner:** Metalinxx Inc.
+**Owner:** Dennis Palatov / Metalinxx Inc.
 **Status:** Pre-build (sprint 0 scaffold lands alongside this document)
 **License:** AGPL-3.0-or-later (inherits web4 root)
 **Repo location:** `web4/hub/` (new Cargo workspace, sibling to `web4/web4-core/` and `web4/web4-trust-core/`)
@@ -11,7 +11,7 @@
 
 ## 1. Background
 
-Build an MVP of a Web4 community-hub package: generic open-source infrastructure for trust-native community governance. First deployment target: a large-scale, volunteer-driven non-profit community concerned about concentration of power in AI infrastructure. The MVP turns the design intent into demonstrable software.
+dp 2026-06-07 directive: build an MVP of a Web4 community-hub package — generic open-source infrastructure for trust-native community governance. First deployment target: a large-scale, volunteer-driven non-profit community concerned about concentration of power in AI infrastructure. The MVP turns the design intent into demonstrable software.
 
 The hub package is not specific to any single community by design. Any community willing to operate as a Web4 society can deploy it.
 
