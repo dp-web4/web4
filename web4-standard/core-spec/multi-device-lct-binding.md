@@ -178,7 +178,6 @@ The Root LCT extends the base LCT with device constellation management:
         "platform": "ios",
         "enrolled_at": "2026-01-13T00:00:00Z",
         "last_witnessed": "2026-01-13T12:00:00Z",
-        "trust_weight": 0.4,
         "status": "active"
       },
       {
@@ -187,7 +186,6 @@ The Root LCT extends the base LCT with device constellation management:
         "transport": "usb",
         "enrolled_at": "2026-01-14T00:00:00Z",
         "last_witnessed": "2026-01-14T08:00:00Z",
-        "trust_weight": 0.35,
         "status": "active"
       },
       {
@@ -196,7 +194,6 @@ The Root LCT extends the base LCT with device constellation management:
         "platform": "linux",
         "enrolled_at": "2026-01-15T00:00:00Z",
         "last_witnessed": "2026-01-15T10:00:00Z",
-        "trust_weight": 0.25,
         "status": "active"
       }
     ],
@@ -278,8 +275,7 @@ Each device has its own LCT that binds to the root:
     {
       "device_lct_id": "lct:web4:device:laptop:...",
       "last_witness": "2026-01-13T11:00:00Z",
-      "witness_count": 42,
-      "mutual": true
+      "witness_count": 42
     }
   ],
 
@@ -297,7 +293,7 @@ Each device has its own LCT that binds to the root:
 
 - `"active"` — Device participates in trust computation, cross-witnessing, and may authorize removal/recovery.
 - `"suspended"` — Device is temporarily excluded from trust computation and cross-witnessing without being permanently revoked. Re-activation by quorum is a future extension; this spec does not define entry/exit transitions for `suspended`. Implementations that do not require suspension semantics MAY treat `suspended` as equivalent to `revoked` for trust-computation purposes.
-- `"revoked"` — Device is permanently removed from the constellation (see §3.5 Device Removal). A revoked device's keys MUST NOT authorize any further operations.
+- `"revoked"` — Device is permanently removed from the constellation (see §3.5 Device Removal). A revoked device's keys MUST NOT authorize any further operations. A revoked device record additionally carries `revoked_at` (ISO 8601 timestamp) and `revocation_reason` (one of `lost` | `sold` | `compromised` | `upgrade` | `recovery_revoked`); both are absent on `active`/`suspended` records.
 
 ## 3. Protocols
 
@@ -501,11 +497,13 @@ def enroll_additional_device(root_lct, existing_device, new_device, society):
 Devices periodically witness each other to strengthen constellation coherence:
 
 ```python
-def cross_witness(device_a, device_b):
+def cross_witness(constellation, device_a, device_b):
     """
     Mutual witnessing between two devices.
 
-    Increases constellation_coherence in T3 tensor.
+    Increases constellation_coherence in T3 tensor. `constellation` is the
+    device constellation both devices belong to; it is threaded through so the
+    mutual-witness record can be persisted (step 5).
     """
     # 1. Create bilateral witness challenge
     challenge_a = device_a.create_witness_challenge()
@@ -534,7 +532,10 @@ def cross_witness(device_a, device_b):
         "sig_b": sig_b_for_a
     }
 
-    # 5. Update cross_device_witnesses in both device LCTs
+    # 5. Update cross_device_witnesses in both device LCTs.
+    # record_cross_witness (canonical definition in the Web4 SDK,
+    # implementation/sdk/web4/binding.py) adds each device to the other's
+    # cross-witness list and refreshes last_witnessed; it is idempotent.
     record_cross_witness(constellation, device_a.device_lct_id, device_b.device_lct_id, utc_now())
 
     return witness_record
@@ -556,9 +557,11 @@ def compute_constellation_trust(root_lct):
     Compute aggregate trust from device constellation.
 
     Per-device trust = anchor_weight × witness_freshness × attestation_freshness.
-    Constellation trust is the weighted average modulated by coherence bonus
-    and cross-witness density, then clamped to the §4.2 anchor-composition-derived
-    ceiling.
+    Constellation trust is the uniform average (simple mean) of per-device trust,
+    modulated by coherence bonus and cross-witness density, then clamped to the
+    §4.2 anchor-composition-derived ceiling. Each active device contributes
+    equally — matches the SDK and the `constellation_trust_multi_device` test
+    vector (which computes a simple average of per-device trust).
     """
     devices = root_lct.device_constellation.devices
     active = [d for d in devices if d.status == "active"]
@@ -571,16 +574,23 @@ def compute_constellation_trust(root_lct):
     # contained in a separate `composite` aggregate — see §2.4 device_trust).
     device_trusts = []
     for device in active:
-        anchor_weight = ANCHOR_WEIGHTS[device.anchor_type]
+        anchor_weight = ANCHOR_TRUST_WEIGHT[device.anchor_type]
         w_fresh = witness_freshness(days_since_last_witness(device))
-        a_fresh = device.device_trust.attestation_freshness
+        # Attestation freshness defaults to 1.0 when no attestation proof is
+        # present (no penalty); otherwise it is sourced from the freshness of the
+        # device's latest attestation envelope (AttestationEnvelope). Matches the
+        # SDK compute_device_trust.
+        a_fresh = 1.0
+        if device.latest_attestation is not None:
+            a_fresh = device.latest_attestation.freshness_factor
         device_trust = anchor_weight * w_fresh * a_fresh
-        device_trusts.append((device, device_trust, device.trust_weight))
+        device_trusts.append(device_trust)
 
-    # Weighted average
-    weighted_sum = sum(t * w for _, t, w in device_trusts)
-    weight_total = sum(w for _, _, w in device_trusts)
-    base_trust = weighted_sum / weight_total
+    # Uniform average: every active device contributes equally (matches the SDK
+    # and the `constellation_trust_multi_device` vector). Anchor-type strength is
+    # already captured per-device via anchor_weight; the §4.2 ceiling provides
+    # the composition-dependent cap.
+    base_trust = sum(device_trusts) / len(device_trusts)
 
     # Multi-device bonus: coherence across witnesses strengthens identity
     coherence_bonus = compute_coherence_bonus(active)
@@ -593,16 +603,66 @@ def compute_constellation_trust(root_lct):
     # of the actual anchor composition (e.g. a single phone SE caps at 0.75).
     raw_trust = base_trust * (1 + coherence_bonus) * (1 + witness_density * 0.1)
     ceiling = constellation_trust_ceiling(root_lct.device_constellation)
-    constellation_trust = min(ceiling, raw_trust)
+    constellation_trust = round(min(ceiling, raw_trust), 4)
 
     return constellation_trust
 
-ANCHOR_WEIGHTS = {
+ANCHOR_TRUST_WEIGHT = {
     "phone_secure_element": 0.95,
     "fido2": 0.98,
     "tpm2": 0.93,
     "software": 0.40
 }
+
+def constellation_trust_ceiling(constellation):
+    """
+    Max trust achievable given the active device set's anchor composition (§4.2).
+
+    Software anchors are EXCLUDED before counting hardware-anchor diversity, and
+    named configurations are matched BEFORE the generic diversity fallbacks. This
+    is why a [phone_se, fido2, tpm2, software] constellation resolves to 0.98
+    (three diverse HARDWARE anchors) rather than the 3-type named 0.95 row.
+    Mirrors the canonical SDK (implementation/sdk/web4/binding.py).
+    """
+    active = [d for d in constellation.devices if d.status == "active"]
+    if len(active) == 0:
+        return 0.0
+
+    anchor_types = set(d.anchor_type for d in active)
+    hardware_types = anchor_types - {"software"}
+
+    # Single-device configurations
+    if len(active) == 1:
+        anchor = active[0].anchor_type
+        if anchor == "software":
+            return 0.40
+        if anchor == "phone_secure_element":
+            return 0.75
+        if anchor == "fido2":
+            return 0.80
+        if anchor == "tpm2":
+            return 0.75
+
+    # Named multi-device configuration: EXACTLY phone SE + FIDO2 + TPM2
+    if anchor_types == {"phone_secure_element", "fido2", "tpm2"}:
+        return 0.95
+
+    # 3+ diverse HARDWARE anchors (software excluded) — generic, covers configs
+    # not named above (including the named 3 types plus a 4th, e.g. software).
+    if len(hardware_types) >= 3:
+        return 0.98
+
+    # Phone SE + FIDO2
+    if "phone_secure_element" in anchor_types and "fido2" in anchor_types:
+        return 0.90
+
+    # Generic hardware-diversity fallbacks
+    if len(hardware_types) >= 2:
+        return 0.90
+    if len(hardware_types) == 1:
+        return 0.80
+    # Software-only with multiple devices
+    return 0.40
 
 def compute_coherence_bonus(devices):
     """
@@ -625,18 +685,27 @@ def compute_cross_witness_density(devices):
     """
     How densely are devices witnessing each other?
 
-    Full mesh = 1.0, no witnessing = 0.0
+    Full mesh = 1.0, no witnessing = 0.0. Only unique, mutual, in-constellation
+    witness pairs are counted (deduped via a set; a witness pointing outside the
+    constellation is ignored). Matches the SDK cross_witness_density — there is
+    no recency filter at this layer (witness staleness is handled separately by
+    witness_freshness in §4.3).
     """
     if len(devices) < 2:
         return 0.0
 
     possible_pairs = len(devices) * (len(devices) - 1) / 2
-    actual_witnesses = sum(
-        len([w for w in d.cross_device_witnesses if is_recent(w)])
-        for d in devices
-    ) / 2  # Divide by 2 because each pair counted twice
+    device_ids = set(d.device_lct_id for d in devices)
 
-    return min(1.0, actual_witnesses / possible_pairs)
+    # Count unique mutual witness pairs (in-constellation only)
+    witness_pairs = set()
+    for d in devices:
+        for w in d.cross_device_witnesses:
+            w_id = w["device_lct_id"]
+            if w_id in device_ids:
+                witness_pairs.add(tuple(sorted([d.device_lct_id, w_id])))
+
+    return min(1.0, len(witness_pairs) / possible_pairs)
 ```
 
 ### 3.5 Device Removal
@@ -650,19 +719,26 @@ def remove_device(root_lct, device_to_remove, reason, authorizing_devices):
 
     Requires: Quorum of remaining devices to authorize.
     """
-    # 1. Verify quorum
-    remaining = [d for d in root_lct.device_constellation.devices
-                 if d.device_lct_id != device_to_remove.lct_id]
+    # 1. Verify quorum among the devices that REMAIN after removal.
+    # Each authorizing device counts only if it is an active remaining device
+    # (the device being removed cannot authorize its own removal). Matches the
+    # SDK remove_device, which intersects authorizing_devices with the remaining
+    # active set.
+    remaining_active = {d.device_lct_id
+                        for d in root_lct.device_constellation.devices
+                        if d.status == "active"
+                        and d.device_lct_id != device_to_remove.device_lct_id}
+    authorizing_active = remaining_active & set(authorizing_devices)
 
-    if len(authorizing_devices) < root_lct.device_constellation.recovery_quorum:
+    if len(authorizing_active) < root_lct.device_constellation.recovery_quorum:
         raise InsufficientQuorumError(
             f"Need {root_lct.device_constellation.recovery_quorum} devices, "
-            f"got {len(authorizing_devices)}"
+            f"got {len(authorizing_active)}"
         )
 
     # 2. Collect removal signatures
     removal_request = {
-        "device_to_remove": device_to_remove.lct_id,
+        "device_to_remove": device_to_remove.device_lct_id,
         "reason": reason,  # "lost" | "sold" | "compromised" | "upgrade"
         "requested_at": utc_now()
     }
@@ -680,10 +756,10 @@ def remove_device(root_lct, device_to_remove, reason, authorizing_devices):
     )
 
     # 4. Update root LCT
-    root_lct.device_constellation.remove_device(device_to_remove.lct_id)
+    root_lct.device_constellation.remove_device(device_to_remove.device_lct_id)
     device_to_remove.status = "revoked"
-    device_to_remove.revocation.reason = reason
-    device_to_remove.revocation.ts = utc_now()
+    device_to_remove.revocation_reason = reason
+    device_to_remove.revoked_at = utc_now()
 
     # 5. If compromised, escalate alert
     if reason == "compromised":
@@ -757,11 +833,11 @@ def recover_identity(root_lct_id, recovery_devices, new_device, society):
     for device in root_lct.device_constellation.devices:
         if device.device_lct_id not in [d.device_lct_id for d in recovery_devices]:
             device.status = "revoked"
-            device.revocation.reason = "recovery_revoked"
+            device.revocation_reason = "recovery_revoked"
 
     # 7. Initiate cross-witnessing with recovery devices
     for recovery_device in recovery_devices:
-        cross_witness(recovery_device, new_device)
+        cross_witness(root_lct.device_constellation, recovery_device, new_device)
 
     return new_device_lct
 ```
@@ -806,10 +882,22 @@ The multi-device binding adds two dimensions to the T3 tensor:
 | 3+ diverse hardware anchors | 0.98 |
 
 The ceiling is applied by §3.4 `compute_constellation_trust` via
-`constellation_trust_ceiling(constellation)`, which derives the applicable row
-from the anchor composition of the active device set. Implementations MUST use
-the anchor-composition-derived ceiling (not a universal `1.0` cap) when
-clamping the final constellation trust.
+`constellation_trust_ceiling(constellation)` (defined in §3.4), which derives
+the applicable row from the anchor composition of the active device set.
+Implementations MUST use the anchor-composition-derived ceiling (not a
+universal `1.0` cap) when clamping the final constellation trust.
+
+Two precedence rules govern how `constellation_trust_ceiling` selects a row, and
+they are normative (the table alone is ambiguous for mixed compositions):
+
+1. **Software anchors are excluded before counting hardware-anchor diversity.**
+   A `software` anchor never contributes to the "3+ diverse hardware anchors"
+   count. Thus `[phone_se, fido2, tpm2, software]` has three diverse *hardware*
+   anchors and resolves to `0.98`.
+2. **Named configurations match before generic diversity fallbacks.** The
+   "Phone + FIDO2 + TPM" row (`0.95`) applies only when the active set contains
+   *exactly* those three anchor types; adding a fourth type promotes the set to
+   the generic "3+ diverse hardware anchors" row (`0.98`).
 
 ### 4.3 Trust Decay
 
@@ -912,7 +1000,9 @@ When a device is marked compromised:
 
 1. **Immediate**: Revoke device LCT
 2. **Broadcast**: Alert to all societies where root LCT has membership
-3. **Review**: All actions from device within last 24h flagged for review
+3. **Review**: All actions from the device within a recent review window
+   (RECOMMENDED default: 24h; deployments MAY tune this to their risk profile)
+   flagged for review
 4. **Recovery**: Trigger re-enrollment ceremony for remaining devices
 
 ## 6. Platform Implementation Notes
@@ -1031,6 +1121,6 @@ Device operations consume ATP:
 
 **Version**: 1.0.0 (Draft)
 **Status**: Core Specification
-**Last Updated**: January 13, 2026
+**Last Updated**: 2026-06-07
 
 *"Identity is not a single point. It is the coherence pattern across all your witnesses."*
