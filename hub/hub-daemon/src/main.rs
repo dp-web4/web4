@@ -18,7 +18,10 @@ use std::path::PathBuf;
 use hub_lib::chapter::ChapterConfig;
 use hub_lib::identity::IdentityFile;
 use hub_lib::init::{init_chapter, verify_chapter, InitArgs, InitResult};
+use hub_lib::session::ChapterSession;
+use uuid::Uuid;
 use web4_core::lct::EntityType;
+use web4_core::role::SocietyRole;
 
 use crate::mcp::{router as mcp_router, McpState};
 
@@ -86,6 +89,79 @@ enum Command {
         #[arg(long, default_value = "127.0.0.1")]
         bind: String,
     },
+
+    /// Print chapter status (name, members, ledger length, head hash, port).
+    Status {
+        chapter_dir: PathBuf,
+    },
+
+    /// Add a member to the chapter.
+    AddMember {
+        chapter_dir: PathBuf,
+        /// Member's LCT id (uuid).
+        member_lct_id: Uuid,
+        /// Optional display name.
+        #[arg(long)]
+        name: Option<String>,
+    },
+
+    /// Remove a member from the chapter.
+    RemoveMember {
+        chapter_dir: PathBuf,
+        member_lct_id: Uuid,
+        #[arg(long)]
+        reason: Option<String>,
+    },
+
+    /// Assign a role to a member.
+    AssignRole {
+        chapter_dir: PathBuf,
+        /// One of: sovereign | law_oracle | policy_entity | treasurer
+        /// | administrator | archivist | citizen | witness | auditor.
+        role: String,
+        /// The role LCT id (taken from `hub init` output or `hub status`).
+        role_lct_id: Uuid,
+        /// The member LCT id.
+        member_lct_id: Uuid,
+    },
+
+    /// Record a chapter event (demo night, workshop, etc.).
+    RecordEvent {
+        chapter_dir: PathBuf,
+        /// Short event kind (e.g. "demo_night", "workshop").
+        event_kind: String,
+        /// Event title.
+        title: String,
+        /// Attendee LCT ids (comma-separated). Optional.
+        #[arg(long, value_delimiter = ',')]
+        attended_by: Vec<Uuid>,
+    },
+
+    /// Declare a skill for a member.
+    DeclareSkill {
+        chapter_dir: PathBuf,
+        member_lct_id: Uuid,
+        skill: String,
+    },
+
+    /// Query chapter state (members, skills, etc.).
+    Query {
+        #[command(subcommand)]
+        subcommand: QueryCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum QueryCommand {
+    /// List all current chapter members.
+    Members { chapter_dir: PathBuf },
+    /// Find members by skill (case-insensitive substring).
+    Skill {
+        chapter_dir: PathBuf,
+        query: String,
+    },
+    /// Print chapter identity + role-fill snapshot.
+    Chapter { chapter_dir: PathBuf },
 }
 
 /// Subset of web4_core::EntityType exposed via CLI. (clap can't derive
@@ -143,6 +219,179 @@ async fn main() -> Result<()> {
         }
         Some(Command::Serve { chapter_dir, port, bind }) => {
             run_serve(chapter_dir, port, bind).await
+        }
+        Some(Command::Status { chapter_dir }) => run_status(chapter_dir),
+        Some(Command::AddMember { chapter_dir, member_lct_id, name }) => {
+            run_add_member(chapter_dir, member_lct_id, name)
+        }
+        Some(Command::RemoveMember { chapter_dir, member_lct_id, reason }) => {
+            run_remove_member(chapter_dir, member_lct_id, reason)
+        }
+        Some(Command::AssignRole { chapter_dir, role, role_lct_id, member_lct_id }) => {
+            run_assign_role(chapter_dir, role, role_lct_id, member_lct_id)
+        }
+        Some(Command::RecordEvent { chapter_dir, event_kind, title, attended_by }) => {
+            run_record_event(chapter_dir, event_kind, title, attended_by)
+        }
+        Some(Command::DeclareSkill { chapter_dir, member_lct_id, skill }) => {
+            run_declare_skill(chapter_dir, member_lct_id, skill)
+        }
+        Some(Command::Query { subcommand }) => run_query(subcommand),
+    }
+}
+
+// ---------- Sprint 4 CLI handlers ----------
+
+fn parse_role(s: &str) -> Result<SocietyRole> {
+    use SocietyRole::*;
+    Ok(match s.to_lowercase().replace('-', "_").as_str() {
+        "sovereign" => Sovereign,
+        "law_oracle" | "laworacle" => LawOracle,
+        "policy_entity" | "policyentity" => PolicyEntity,
+        "treasurer" => Treasurer,
+        "administrator" => Administrator,
+        "archivist" => Archivist,
+        "citizen" => Citizen,
+        "witness" => Witness,
+        "auditor" => Auditor,
+        other => return Err(anyhow::anyhow!(
+            "unknown role '{}'. Expected one of: sovereign, law_oracle, \
+             policy_entity, treasurer, administrator, archivist, citizen, \
+             witness, auditor", other
+        )),
+    })
+}
+
+fn run_status(chapter_dir: PathBuf) -> Result<()> {
+    let session = ChapterSession::open(&chapter_dir)?;
+    let st = session.status();
+    println!("Chapter status:");
+    println!("  Chapter dir:     {}", st.chapter_dir.display());
+    println!("  Chapter name:    {}", st.chapter_name);
+    println!("  Members:         {}", st.member_count);
+    println!("  Ledger entries:  {}", st.ledger_entries);
+    println!("  Head hash:       {}", st.head_hash);
+    println!("  MCP port:        {} (config; not necessarily running)", st.mcp_port);
+    Ok(())
+}
+
+fn run_add_member(chapter_dir: PathBuf, member_lct_id: Uuid, name: Option<String>) -> Result<()> {
+    let mut session = ChapterSession::open(&chapter_dir)?;
+    let entry = session.add_member(member_lct_id, name.clone())?;
+    println!("Member added.");
+    println!("  Member LCT:   {}", member_lct_id);
+    if let Some(n) = name { println!("  Name:         {}", n); }
+    println!("  Entry index:  {}", entry.index);
+    println!("  Entry hash:   {}", entry.entry_hash);
+    Ok(())
+}
+
+fn run_remove_member(chapter_dir: PathBuf, member_lct_id: Uuid, reason: Option<String>) -> Result<()> {
+    let mut session = ChapterSession::open(&chapter_dir)?;
+    let entry = session.remove_member(member_lct_id, reason)?;
+    println!("Member removed.");
+    println!("  Member LCT:   {}", member_lct_id);
+    println!("  Entry index:  {}", entry.index);
+    println!("  Entry hash:   {}", entry.entry_hash);
+    Ok(())
+}
+
+fn run_assign_role(
+    chapter_dir: PathBuf,
+    role: String,
+    role_lct_id: Uuid,
+    member_lct_id: Uuid,
+) -> Result<()> {
+    let parsed = parse_role(&role)?;
+    let mut session = ChapterSession::open(&chapter_dir)?;
+    let entry = session.assign_role(parsed.clone(), role_lct_id, member_lct_id)?;
+    println!("Role assigned.");
+    println!("  Role:         {:?}", parsed);
+    println!("  Role LCT:     {}", role_lct_id);
+    println!("  Member LCT:   {}", member_lct_id);
+    println!("  Entry index:  {}", entry.index);
+    println!("  Entry hash:   {}", entry.entry_hash);
+    Ok(())
+}
+
+fn run_record_event(
+    chapter_dir: PathBuf,
+    event_kind: String,
+    title: String,
+    attended_by: Vec<Uuid>,
+) -> Result<()> {
+    let mut session = ChapterSession::open(&chapter_dir)?;
+    let entry = session.record_event(event_kind.clone(), title.clone(), attended_by.clone(), None)?;
+    println!("Event recorded.");
+    println!("  Kind:         {}", event_kind);
+    println!("  Title:        {}", title);
+    println!("  Attendees:    {}", attended_by.len());
+    println!("  Entry index:  {}", entry.index);
+    println!("  Entry hash:   {}", entry.entry_hash);
+    Ok(())
+}
+
+fn run_declare_skill(chapter_dir: PathBuf, member_lct_id: Uuid, skill: String) -> Result<()> {
+    let mut session = ChapterSession::open(&chapter_dir)?;
+    let entry = session.declare_skill(member_lct_id, skill.clone())?;
+    println!("Skill declared.");
+    println!("  Member LCT:   {}", member_lct_id);
+    println!("  Skill:        {}", skill);
+    println!("  Entry index:  {}", entry.index);
+    println!("  Entry hash:   {}", entry.entry_hash);
+    Ok(())
+}
+
+fn run_query(sub: QueryCommand) -> Result<()> {
+    match sub {
+        QueryCommand::Members { chapter_dir } => {
+            let session = ChapterSession::open(&chapter_dir)?;
+            let members = session.list_members();
+            println!("Members ({}):", members.len());
+            for m in members {
+                let skills = if m.skills.is_empty() {
+                    "(none)".to_string()
+                } else {
+                    m.skills.iter().cloned().collect::<Vec<_>>().join(", ")
+                };
+                println!("  - {:36}  {}  [{}]",
+                    m.lct_id,
+                    m.name.as_deref().unwrap_or("(unnamed)"),
+                    skills);
+            }
+            Ok(())
+        }
+        QueryCommand::Skill { chapter_dir, query } => {
+            let session = ChapterSession::open(&chapter_dir)?;
+            let matches = session.find_skill(&query);
+            println!("Skill search '{}' — {} match(es):", query, matches.len());
+            for m in matches {
+                println!("  - {} ({}): {}",
+                    m.name.as_deref().unwrap_or("(unnamed)"),
+                    m.lct_id,
+                    m.skills.iter().cloned().collect::<Vec<_>>().join(", "));
+            }
+            Ok(())
+        }
+        QueryCommand::Chapter { chapter_dir } => {
+            let session = ChapterSession::open(&chapter_dir)?;
+            let society = session.society()?;
+            let state = session.state();
+            println!("Chapter:");
+            println!("  Name:        {}", society.name);
+            println!("  Society LCT: {}", society.lct_id);
+            println!("  State:       {:?}", society.state);
+            println!("  Founder:     {}", society.founder_lct_id);
+            println!("  Members:     {}", state.member_count());
+            println!("  Charter:     {}", society.charter_hash);
+            println!("  Role fill:");
+            let mut roles: Vec<_> = society.roles.iter().collect();
+            roles.sort_by(|a, b| a.0.cmp(b.0));
+            for (role_key, assignment) in roles {
+                println!("    {:18} role_lct={}  filled_by={}",
+                    role_key, assignment.role_lct_id, assignment.filling_entity_lct_id);
+            }
+            Ok(())
         }
     }
 }

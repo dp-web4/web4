@@ -28,6 +28,7 @@ pub mod events;
 pub mod identity;
 pub mod init;
 pub mod ledger;
+pub mod session;
 pub mod state;
 
 /// Crate version, exposed for `hub --version`.
