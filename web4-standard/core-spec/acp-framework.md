@@ -38,7 +38,6 @@ A declarative specification of what an agent intends to accomplish:
 
 ```json
 {
-  "@context": ["https://web4.io/contexts/acp.jsonld"],
   "type": "ACP.AgentPlan",
   "planId": "acp:plan:invoice-processor",
   "principal": "lct:web4:entity:CLIENT",
@@ -47,7 +46,7 @@ A declarative specification of what an agent intends to accomplish:
   
   "triggers": [
     {"kind": "cron", "expr": "0 */6 * * *"},  // Every 6 hours
-    {"kind": "event", "topic": "invoice.ready"},  // On event
+    {"kind": "event", "expr": "invoice.ready"},  // On event
     {"kind": "manual", "authorized": ["lct:web4:human:CFO"]}  // Manual trigger
   ],
   
@@ -85,11 +84,9 @@ A declarative specification of what an agent intends to accomplish:
       "autoThreshold": 10,
       "timeout": 3600,
       "fallback": "deny"
-    }
-  },
-  
-  "expiresAt": "2026-01-01T00:00:00Z",
-  "signatures": [...]
+    },
+    "expiresAt": "2026-01-01T00:00:00Z"
+  }
 }
 ```
 
@@ -102,18 +99,20 @@ An actionable proposal generated from plan evaluation:
   "type": "ACP.Intent",
   "intentId": "acp:intent:...",
   "planId": "acp:plan:invoice-processor",
+  "stepId": "approve",
   "proposedAction": {
     "mcp": "invoice.approve",
     "args": {"id": "INV-123", "amount": 9.5}
   },
   "proofOfAgency": {
     "grantId": "agy:grant:...",
-    "ledgerProof": {"hash": "...", "block": 12345}
+    "planId": "acp:plan:invoice-processor",
+    "intentId": "acp:intent:...",
+    "nonce": "0x9f2c..."
   },
   "explain": {
     "why": "Invoice matches auto-approval criteria",
     "confidence": 0.95,
-    "alternatives": ["route_to_manual", "request_clarification"],
     "riskAssessment": "low"
   },
   "needsApproval": false,
@@ -130,7 +129,6 @@ Human or automated decision on an intent:
   "type": "ACP.Decision",
   "intentId": "acp:intent:...",
   "decision": "approve",  // approve | deny | modify
-  "modifications": null,
   "by": "lct:web4:entity:AUTO-APPROVER",
   "rationale": "Within auto-approval limits",
   "witnesses": ["lct:web4:witness:A", "lct:web4:witness:B"],
@@ -145,6 +143,7 @@ Immutable record of action execution:
 ```json
 {
   "type": "ACP.ExecutionRecord",
+  "recordId": "exec:web4:001",
   "intentId": "acp:intent:...",
   "grantId": "agy:grant:...",
   "lawHash": "sha256:...",
@@ -163,11 +162,8 @@ Immutable record of action execution:
     "client": {"v3": {"valuation": +0.02}}
   },
   "witnesses": ["lct:web4:witness:A"],
-  "ledgerInclusion": {
-    "hash": "0x...",
-    "block": 12346,
-    "proof": "..."
-  }
+  "timestamp": "2025-09-15T15:30:10Z",
+  "canonicalHash": "sha256:exec_hash_002"
 }
 ```
 
@@ -189,16 +185,16 @@ Immutable record of action execution:
                               Pass    │    Fail
                                       │     │
                                       v     v
-                              ┌──────────┐ Reject
-                              │ Approval │
+                              ┌──────────┐ Failed
+                              │ Approval │ (Fail → law/scope reject)
                               │   Gate   │
                               └──────────┘
                                       │
                              Approve  │  Deny
                                       │   │
                                       v   v
-                              ┌──────────┐ Abort
-                              │ Execute  │
+                              ┌──────────┐ Failed
+                              │ Execute  │ (Deny → approval abort)
                               └──────────┘
                                       │
                                       v
@@ -223,7 +219,11 @@ Immutable record of action execution:
 | Approval Gate | Approved | Executing | Call MCP resources |
 | Executing | Success | Recording | Write execution record |
 | Recording | Witnessed | Complete | Update trust tensors |
-| Any | Error/Timeout | Failed | Log error, rollback |
+| Complete | Reset / Retrigger | Idle | Clear intent/decision/record, ready for re-execution |
+| Failed | Retry | Idle | Reset state for retry |
+| Any active state¹ | Error / Timeout / Deny / Law-check fail | Failed | Log reason, rollback |
+
+¹ **"Any active state"** = the five in-flight states (Planning, Intent Created, Approval Gate, Executing, Recording). `Idle` and `Complete` are excluded: a terminal/idle plan does not transition straight to `Failed` (the SDK `VALID_TRANSITIONS` permits `→Failed` only from the five active states). The wildcard row therefore expands to **six** distinct `→Failed` edges (one per active state, plus the Intent-Created law-check-fail / Approval-Gate deny edges collapse into their source-state entry). Counting the six wildcard-expanded `→Failed` edges plus the seven explicit rows above yields the **13 transitions** asserted by conformance vector `acp-002` (`totalValidTransitions=13`). The `Deny` and `Law-check fail` events are normal governance outcomes routed to `Failed`, not transport errors.
 
 ## 4. ACP-AGY Integration
 
@@ -297,6 +297,7 @@ def check_law_compliance(plan, law_oracle):
     # 2. Check plan triggers against law
     for trigger in plan.triggers:
         if not law.allows_trigger(trigger):
+            # law-scope violation: §10.2 must NOT route this to grant expansion
             raise ScopeViolation(f"trigger {trigger} not allowed by law")
     
     # 3. Verify resource caps within law limits
@@ -305,6 +306,7 @@ def check_law_compliance(plan, law_oracle):
     
     # 4. Ensure witness requirements met
     if plan.guards.witnessLevel < law.min_witness_level:
+        # config-level deficit (static): §10.2 must amend/abort, not wait
         raise WitnessDeficit()
     
     return True
@@ -339,7 +341,7 @@ Humans interact with ACP through the console:
 interface ApprovalRequest {
   intent: Intent;
   plan: AgentPlan;
-  riskAssessment: RiskProfile;
+  riskAssessment: "low" | "medium" | "high" | "critical";
   explanation: {
     summary: string;
     details: string;
@@ -527,6 +529,14 @@ class ResourceCapExceeded(ACPError):
 
 Graceful degradation strategies:
 
+Recovery dispatches over the §10.1 error **taxonomy** (the defined error
+classes), not over the raise-site inventory. A single class may be raised
+from more than one site with different underlying semantics (`ScopeViolation`
+from both §4.1 grant checks and §5.1 law checks; `WitnessDeficit` from both
+runtime-count and plan-configuration checks), so those branches MUST
+discriminate on context before selecting a remedy — applying the wrong remedy
+(e.g. expanding a grant to cure a LAW violation) cannot resolve the fault.
+
 ```python
 def handle_acp_error(error, context):
     if isinstance(error, ApprovalRequired):
@@ -534,11 +544,24 @@ def handle_acp_error(error, context):
         return escalate_to_human(context)
     
     elif isinstance(error, WitnessDeficit):
-        # Wait for more witnesses
+        # This class is raised for two distinct deficits:
+        #   - runtime-count deficit (§4.1): too few witnesses gathered at
+        #     execution time -> waiting can still satisfy the requirement.
+        #   - config-level deficit (§5.1): the plan's DECLARED witnessLevel is
+        #     below the law minimum -> waiting cannot raise a static config
+        #     value; the plan must be amended or aborted.
+        if context.get("witness_deficit") == "config":
+            return escalate_or_amend_plan(context)
         return wait_for_witnesses(context, timeout=300)
     
     elif isinstance(error, ScopeViolation):
-        # Request grant expansion
+        # This class is raised for two distinct violations:
+        #   - grant-scope (§4.1): action exceeds the agency grant -> a wider
+        #     grant could legitimately authorize it.
+        #   - law-scope (§5.1): action/trigger is forbidden by society LAW ->
+        #     laws bound the grant, so expanding the grant cannot cure it.
+        if context.get("scope") == "law":
+            return escalate_or_abort(context)
         return request_grant_expansion(context)
     
     elif isinstance(error, LedgerWriteFailure):
