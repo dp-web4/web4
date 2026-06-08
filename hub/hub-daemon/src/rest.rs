@@ -46,6 +46,7 @@ use hub_lib::envelope::{verify_envelope, Challenge, MapResolver, NonceStore, Sig
 use hub_lib::events::ChapterEvent;
 use hub_lib::identity::IdentityFile;
 use hub_lib::init::load_society;
+use hub_lib::law::{Decision, Law, R6Request};
 use hub_lib::ledger::ChapterLedger;
 use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, RemoteSigner, SignIntent};
 use hub_lib::state::ChapterState;
@@ -63,6 +64,10 @@ pub struct RestState {
     pub ledger: Arc<Mutex<ChapterLedger>>,
     pub nonces: Arc<NonceStore>,
     pub resolver: Arc<MapResolver>,
+    /// Chapter law, loaded at open() time. None = no law set (all
+    /// envelope-authenticated acts allowed). When present, the PolicyEntity
+    /// gate runs before each act is committed to the ledger.
+    pub law: Arc<Option<Law>>,
 }
 
 impl RestState {
@@ -70,6 +75,14 @@ impl RestState {
         let paths = ChapterPaths::new(chapter_dir.clone());
         let config = hub_lib::chapter::ChapterConfig::load(paths.config())?;
         let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
+        // Load chapter law if set (V2-8 §4). Parsed once at startup; act
+        // handlers evaluate against this snapshot. Hot-reload on amendment
+        // is a future sprint — for now, restart hub serve after set-law.
+        let law: Option<Law> = match store.read_law()? {
+            Some(yaml) => Some(Law::parse_and_validate(&yaml)
+                .map_err(|e| anyhow::anyhow!("loading chapter law on serve: {}", e))?),
+            None => None,
+        };
         let ledger = ChapterLedger::open(store)?;
         let society = load_society(&chapter_dir)?;
 
@@ -102,6 +115,7 @@ impl RestState {
             ledger: Arc::new(Mutex::new(ledger)),
             nonces: Arc::new(NonceStore::new()),
             resolver: Arc::new(resolver),
+            law: Arc::new(law),
         })
     }
 }
@@ -243,6 +257,37 @@ async fn submit_event(
         },
     };
 
+    // 3.5 PolicyEntity gate (V2-8 §4): if a chapter law is loaded,
+    // evaluate the act against it. Deny → 403; Escalate → 202 with the
+    // escalate_to role; Allow → proceed.
+    if let Some(law) = s.law.as_ref() {
+        let req = build_r6_request(&envelope, &event)
+            .map_err(ApiError::internal)?;
+        let outcome = law.evaluate_outcome(&req);
+        match outcome.decision {
+            Decision::Allow => { /* proceed */ }
+            Decision::Deny => {
+                return Err(ApiError {
+                    status: StatusCode::FORBIDDEN,
+                    message: format!(
+                        "act denied by chapter law (norm: {})",
+                        outcome.winning_norm.as_deref().unwrap_or("?")
+                    ),
+                });
+            }
+            Decision::Escalate => {
+                return Err(ApiError {
+                    status: StatusCode::ACCEPTED,
+                    message: format!(
+                        "act requires escalation to {} ({}); admin review queue is V2-16",
+                        outcome.escalate_to.as_deref().unwrap_or("sovereign"),
+                        outcome.winning_norm.as_deref().unwrap_or("escalation trigger"),
+                    ),
+                });
+            }
+        }
+    }
+
     // 4. Build the unsigned entry. We need the ledger lock briefly to
     // assign index + prev_hash, then we release it during the (possibly
     // remote) signing roundtrip, then re-acquire to commit. The
@@ -357,4 +402,23 @@ async fn read_state(
         head_hash,
         filled_roles,
     }))
+}
+
+// ---------- PolicyEntity gate helper (V2-8 §4) ----------
+
+/// Build an R6Request from a SignedEnvelope + the resolved ChapterEvent.
+/// V2-8 §4 first cut: role is hardcoded to "sovereign" since
+/// envelope-authenticated submissions today require the Sovereign
+/// signer (V2-7 §2 restriction; member-signing arrives with V2-12).
+/// `resource` is empty for V2-8 — future sprints add ATP tracking,
+/// witness counts, etc. via additional context.
+fn build_r6_request(_envelope: &SignedEnvelope, event: &ChapterEvent) -> anyhow::Result<R6Request> {
+    let payload = serde_yaml::to_value(event)
+        .map_err(|e| anyhow::anyhow!("serializing event for R6: {}", e))?;
+    Ok(R6Request {
+        role: "sovereign".to_string(),
+        action: event.kind().to_string(),
+        payload,
+        resource: Default::default(),
+    })
 }

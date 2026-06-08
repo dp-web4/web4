@@ -43,6 +43,7 @@ use hub_lib::chapter::{ChapterPaths, SovereignMode};
 use hub_lib::events::ChapterEvent;
 use hub_lib::identity::IdentityFile;
 use hub_lib::init::load_society;
+use hub_lib::law::{Decision, Law, R6Request};
 use hub_lib::ledger::ChapterLedger;
 use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, RemoteSigner, SignIntent};
 use hub_lib::state::ChapterState;
@@ -58,6 +59,9 @@ pub struct McpState {
     /// signing through this trait, same shape as REST.
     pub signer: Arc<dyn RemoteSigner>,
     pub ledger: Arc<Mutex<ChapterLedger>>,
+    /// Chapter law snapshot (loaded at open). PolicyEntity gate runs
+    /// before each act-recording tool commits to the ledger.
+    pub law: Arc<Option<Law>>,
 }
 
 impl McpState {
@@ -78,6 +82,10 @@ impl McpState {
             }
         };
         let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
+        let law: Option<Law> = match store.read_law()? {
+            Some(yaml) => Some(Law::parse_and_validate(&yaml)?),
+            None => None,
+        };
         let ledger = ChapterLedger::open(store)?;
         Ok(Self {
             paths,
@@ -86,6 +94,7 @@ impl McpState {
             sovereign_lct_id,
             signer,
             ledger: Arc::new(Mutex::new(ledger)),
+            law: Arc::new(law),
         })
     }
 }
@@ -311,6 +320,39 @@ async fn append_with_sovereign(
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
     use chrono::Utc;
     use uuid::Uuid;
+
+    // PolicyEntity gate (V2-8 §4): if a chapter law is loaded, evaluate
+    // before signing. MCP returns the same allow/deny/escalate decisions
+    // as REST. For MCP we encode deny + escalate as ApiError (which becomes
+    // a 500 with the error body for now — V2-16 admin UI is where escalation
+    // queueing actually lands).
+    if let Some(law) = s.law.as_ref() {
+        let req = R6Request {
+            role: "sovereign".to_string(),
+            action: event.kind().to_string(),
+            payload: serde_yaml::to_value(&event)
+                .map_err(|e| ApiError(anyhow::anyhow!("serializing event for R6: {}", e)))?,
+            resource: Default::default(),
+        };
+        let outcome = law.evaluate_outcome(&req);
+        match outcome.decision {
+            Decision::Allow => { /* proceed */ }
+            Decision::Deny => {
+                return Err(ApiError(anyhow::anyhow!(
+                    "act denied by chapter law (norm: {})",
+                    outcome.winning_norm.as_deref().unwrap_or("?")
+                )));
+            }
+            Decision::Escalate => {
+                return Err(ApiError(anyhow::anyhow!(
+                    "act requires escalation to {} ({}); admin review queue is V2-16",
+                    outcome.escalate_to.as_deref().unwrap_or("sovereign"),
+                    outcome.winning_norm.as_deref().unwrap_or("escalation trigger"),
+                )));
+            }
+        }
+    }
+
     // Build the unsigned entry under the lock, release for the (possibly
     // remote) sign, then re-acquire to commit. Same shape as REST.
     // ChapterLedger::append_signed detects stale state if a parallel

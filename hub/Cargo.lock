@@ -681,6 +681,7 @@ dependencies = [
  "hub-lib",
  "serde",
  "serde_json",
+ "serde_yaml",
  "tokio",
  "tower",
  "tracing",
