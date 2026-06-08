@@ -26,6 +26,15 @@ thiserror = "1"
 async-trait = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
+# V2-Sprint2: DynamoDB backend (opt-in via `dynamodb` feature).
+# The AWS SDK is heavyweight; gating keeps the default build slim.
+aws-config = { version = "1", default-features = false, features = ["behavior-version-latest", "rustls"], optional = true }
+aws-sdk-dynamodb = { version = "1", default-features = false, features = ["behavior-version-latest", "rustls"], optional = true }
+
+[features]
+default = []
+dynamodb = ["dep:aws-config", "dep:aws-sdk-dynamodb"]
+
 [dev-dependencies]
 tempfile = "3"
 tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }

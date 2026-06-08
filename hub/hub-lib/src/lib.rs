@@ -32,6 +32,9 @@ pub mod law;
 pub mod ledger;
 pub mod proposal;
 pub mod session;
+
+#[cfg(feature = "dynamodb")]
+pub mod dynamodb_store;
 pub mod signer;
 pub mod state;
 pub mod store;

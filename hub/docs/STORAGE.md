@@ -72,9 +72,42 @@ Trade-offs:
 - Less human-inspectable than JSON files (need `sqlite3 chapter.db`)
 - One file holds everything → backup strategy concentrates on one artifact
 
-### `postgres` (V2-15, planned)
+### `dynamodb` (V2-Sprint2, opt-in via `dynamodb` feature)
 
-For multi-chapter / multi-tenant deployments. Schema-per-chapter (default), one Postgres deployment hosting thousands of chapters. Implements the same `HubStore` trait.
+AWS DynamoDB single-table backend. Operator picks a table name; many chapters share it, partitioned by `PK = HUB#<hub_id>`. Implements the same `HubStore` trait. Build with `--features dynamodb` to compile in the AWS SDK dep; default build stays slim.
+
+Schema (single-table-design):
+
+| PK              | SK                 | item                  |
+|-----------------|--------------------|-----------------------|
+| `HUB#<hub_id>`  | `CHARTER`          | charter JSON          |
+| `HUB#<hub_id>`  | `SOCIETY`          | society JSON          |
+| `HUB#<hub_id>`  | `LAW`              | law YAML              |
+| `HUB#<hub_id>`  | `LEDGER#<idx20>`   | ledger entry JSON     |
+| `HUB#<hub_id>`  | `PROPOSAL#<uuid>`  | council proposal JSON |
+
+`<idx20>` is the 20-digit zero-padded entry index so DynamoDB's lexicographic Sort Key ordering matches numeric ledger order through u64::MAX.
+
+**Atomic append.** `PutItem` with `ConditionExpression: attribute_not_exists(SK)` is the primitive — equivalent to sqlite's `INTEGER PRIMARY KEY` constraint. Concurrent appenders racing at the same index → exactly one commits, the other gets `ConditionalCheckFailedException` and propagates as the existing "ledger advanced between build_entry and append_signed" stale-detection.
+
+**Wiring status.** The backend implementation is shipped (`hub_lib::dynamodb_store::DynamoDbBackend`). CLI integration for `hub init --storage dynamodb` and `hub serve` against a dynamodb-backed chapter is **not yet** wired — `open_chapter_store_with(dir, BackendKind::Dynamodb)` returns an error pointing operators at the Rust API. Wiring needs a `[storage]` block in `config.toml` to record table name + hub_id (so future `hub serve` can dispatch). That's a follow-up sprint.
+
+**Testing.** No in-process tests (AWS SDK doesn't have a clean offline mode). Manual smoke against DynamoDB Local:
+
+```bash
+# Download DynamoDB Local once (one-time setup)
+wget https://s3.us-west-2.amazonaws.com/dynamodb-local/dynamodb_local_latest.zip
+unzip dynamodb_local_latest.zip -d ./ddb-local
+
+# Run the smoke
+bash web4/hub/examples/dynamodb_local_smoke.sh
+```
+
+The smoke exercises charter/society/law round-trips, ledger append+load+atomicity, and proposal CRUD. The CI build verifies the code compiles with `--features dynamodb`.
+
+### `postgres` (planned)
+
+For multi-chapter / multi-tenant SQL deployments. Schema-per-chapter (default), one Postgres deployment hosting many chapters. Implements the same `HubStore` trait.
 
 ### `s3-cold` (later)
 

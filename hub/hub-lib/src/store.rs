@@ -59,7 +59,9 @@ pub enum BackendKind {
     File,
     /// Single-file SQLite per chapter (V2-2 Step B).
     Sqlite,
-    // Future: Postgres, S3ColdArchive, etc.
+    /// AWS DynamoDB single-table design (Sprint 2, gated on `dynamodb` feature).
+    /// PK = `HUB#<hub_id>`, SK ∈ {CHARTER, SOCIETY, LAW, LEDGER#<idx>, PROPOSAL#<uuid>}.
+    Dynamodb,
 }
 
 impl BackendKind {
@@ -67,6 +69,7 @@ impl BackendKind {
         match self {
             BackendKind::File => "file",
             BackendKind::Sqlite => "sqlite",
+            BackendKind::Dynamodb => "dynamodb",
         }
     }
 }
@@ -206,6 +209,19 @@ pub fn open_chapter_store_with(
             let db_path = hub_dir.join(SQLITE_DB_FILENAME);
             Ok(Box::new(SqliteBackend::open(&db_path)?))
         }
+        BackendKind::Dynamodb => {
+            // DynamoDB needs out-of-band config (table name, AWS region,
+            // hub_id) that doesn't live in the hub_dir. The dir-based
+            // factory can't construct it; callers must use
+            // `crate::dynamodb_store::DynamoDbBackend::open` directly
+            // and pass the constructed Box<dyn HubStore> into
+            // HubLedger::open.
+            anyhow::bail!(
+                "dynamodb backend cannot be opened from hub_dir alone; \
+                 construct via dynamodb_store::DynamoDbBackend::open and \
+                 pass the Box<dyn HubStore> to HubLedger::open directly"
+            )
+        }
     }
 }
 
@@ -215,8 +231,9 @@ impl std::str::FromStr for BackendKind {
         match s.to_ascii_lowercase().as_str() {
             "file" | "files" | "jsonl" => Ok(BackendKind::File),
             "sqlite" | "sqlite3" | "db" => Ok(BackendKind::Sqlite),
+            "dynamodb" | "dynamo" | "ddb" => Ok(BackendKind::Dynamodb),
             other => Err(anyhow::anyhow!(
-                "unknown storage backend '{}'; expected 'file' or 'sqlite'",
+                "unknown storage backend '{}'; expected 'file', 'sqlite', or 'dynamodb'",
                 other
             )),
         }
@@ -695,6 +712,14 @@ pub async fn migrate_chapter(
                     preserved.push(backup);
                 }
             }
+        }
+        BackendKind::Dynamodb => {
+            // For dynamodb, "preservation" is a different concept — the
+            // bytes live in AWS, not on disk. Migration from dynamodb
+            // would mean exporting to file/sqlite which is a separate
+            // operator workflow (use the SDK's table-export feature, or
+            // walk via ledger_load_all + write to target backend). Not
+            // wired through this convenience function yet.
         }
     }
 
