@@ -66,6 +66,7 @@ fn layout(hub_name: &str, title: &str, body: &str) -> Html<String> {
       <a href="/admin/roles">Roles</a>
       <a href="/admin/ledger">Ledger</a>
       <a href="/admin/law">Law</a>
+      <a href="/admin/council">Council</a>
     </nav>"#;
     Html(format!(
         "<!doctype html><html><head><meta charset=\"utf-8\">\
@@ -93,6 +94,7 @@ pub fn router(state: RestState) -> Router {
         .route("/admin/ledger", get(ledger_list))
         .route("/admin/ledger/:index", get(ledger_detail))
         .route("/admin/law", get(law))
+        .route("/admin/council", get(council))
         .with_state(state)
 }
 
@@ -324,6 +326,73 @@ async fn ledger_detail(
         html_escape(&event_json),
     );
     Ok(layout(&s.hub_name, &format!("Entry #{}", index), &body))
+}
+
+async fn council(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
+    use hub_lib::proposal::ProposalStatus;
+    let ledger = s.ledger.lock().await;
+    let projected = HubState::project(&*ledger);
+    drop(ledger);
+    let proposals = {
+        let hub_dir = s.paths.root.clone();
+        tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<hub_lib::proposal::CouncilProposal>> {
+            let store = hub_lib::store::open_chapter_store(&hub_dir)?;
+            store.list_proposals()
+        })
+        .await
+        .map_err(|e| AdminError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .map_err(|e| AdminError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    };
+
+    let mut body = String::from("<h2>Sovereign Council proposals</h2><dl class=\"grid\">");
+    let (m, n) = projected.council_threshold.unwrap_or((1, (projected.council_holders.len() + 1) as u32));
+    body.push_str(&format!("<dt>Threshold</dt><dd>{}-of-{}", m, n));
+    if m < 2 {
+        body.push_str(" <span class=\"pill\">single-signer mode — propose flow optional</span>");
+    } else {
+        body.push_str(" <span class=\"pill\">council enforcement active — /v1/hubs/.../events rejects single-signer</span>");
+    }
+    body.push_str("</dd>");
+    body.push_str(&format!("<dt>Holders eligible to vote</dt><dd>{}</dd>", projected.council_holders.len() + 1));
+    body.push_str(&format!("<dt>Proposals on record</dt><dd>{}</dd>", proposals.len()));
+    body.push_str("</dl>");
+
+    if proposals.is_empty() {
+        body.push_str("<p class=\"muted\">No proposals yet. POST a council_propose envelope to /v1/hubs/{id}/council/propose to create one.</p>");
+    } else {
+        body.push_str("<table><thead><tr><th>Proposal</th><th>Act</th><th>Proposer</th><th>Votes</th><th>Status</th><th>Proposed</th><th>Expires</th></tr></thead><tbody>");
+        for p in &proposals {
+            let votes = p.unique_signers().len();
+            let status_html = match &p.status {
+                ProposalStatus::Open => format!(
+                    "<span class=\"pill\">open ({}/{})</span>",
+                    votes.min(m as usize), m,
+                ),
+                ProposalStatus::Committed { entry_index, .. } => format!(
+                    "<span class=\"pill\">committed → <a href=\"/admin/ledger/{}\">#{}</a></span>",
+                    entry_index, entry_index,
+                ),
+                ProposalStatus::Rejected { reason } => format!(
+                    "<span class=\"pill pill-warn\">rejected: {}</span>",
+                    html_escape(reason),
+                ),
+                ProposalStatus::Expired => "<span class=\"pill pill-warn\">expired</span>".into(),
+            };
+            body.push_str(&format!(
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                short(&p.id),
+                p.proposed_event.kind(),
+                short(&p.proposed_by),
+                votes,
+                status_html,
+                p.proposed_at.format("%Y-%m-%d %H:%M:%S UTC"),
+                p.expires_at.format("%Y-%m-%d %H:%M:%S UTC"),
+            ));
+        }
+        body.push_str("</tbody></table>");
+    }
+
+    Ok(layout(&s.hub_name, "Council", &body))
 }
 
 async fn law(State(s): State<RestState>) -> Result<Html<String>, AdminError> {

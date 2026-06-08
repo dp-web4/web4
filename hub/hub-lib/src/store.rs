@@ -130,6 +130,35 @@ pub trait HubStore: Send {
     fn write_law(&mut self, _yaml: &str) -> Result<()> {
         anyhow::bail!("this backend does not yet support law storage")
     }
+
+    // ----- Council proposals (V2-9 Phase 2) -----
+
+    /// Persist a council proposal (insert-or-update). Proposals carry
+    /// council-holder signatures awaiting M-of-N threshold; storage
+    /// is separate from the ledger because they're not yet committed
+    /// acts. Implementations that don't support council proposals
+    /// reject calls so the operator gets a clear error rather than a
+    /// silent no-op.
+    fn write_proposal(&mut self, _proposal: &crate::proposal::CouncilProposal) -> Result<()> {
+        anyhow::bail!("this backend does not yet support council proposals")
+    }
+
+    /// Read a single proposal by id.
+    fn read_proposal(&self, _id: uuid::Uuid) -> Result<Option<crate::proposal::CouncilProposal>> {
+        anyhow::bail!("this backend does not yet support council proposals")
+    }
+
+    /// List all currently-stored proposals (open, committed,
+    /// rejected, expired). Caller filters by status if needed.
+    fn list_proposals(&self) -> Result<Vec<crate::proposal::CouncilProposal>> {
+        anyhow::bail!("this backend does not yet support council proposals")
+    }
+
+    /// Remove a proposal. Used by the cleanup pass that drops
+    /// expired proposals on the next propose/sign call. Idempotent.
+    fn delete_proposal(&mut self, _id: uuid::Uuid) -> Result<()> {
+        anyhow::bail!("this backend does not yet support council proposals")
+    }
 }
 
 /// Default SQLite filename inside a chapter dir.
@@ -344,6 +373,73 @@ impl HubStore for FileBackend {
         Self::ensure_parent(&path)?;
         std::fs::write(&path, yaml)
             .with_context(|| format!("writing law to {}", path.display()))
+    }
+
+    // ----- V2-9 Phase 2: council proposals -----
+
+    fn write_proposal(&mut self, proposal: &crate::proposal::CouncilProposal) -> Result<()> {
+        let dir = self.paths.root.join("proposals");
+        std::fs::create_dir_all(&dir)
+            .with_context(|| format!("creating proposals dir {}", dir.display()))?;
+        let path = dir.join(format!("{}.json", proposal.id));
+        // Atomic write: temp + rename. Avoids torn reads if another
+        // request (admin UI, sign, list) reads concurrently.
+        let tmp = path.with_extension("json.tmp");
+        let json = serde_json::to_string_pretty(proposal)
+            .context("serializing proposal")?;
+        std::fs::write(&tmp, json)
+            .with_context(|| format!("writing temp proposal {}", tmp.display()))?;
+        std::fs::rename(&tmp, &path)
+            .with_context(|| format!("renaming {} -> {}", tmp.display(), path.display()))?;
+        Ok(())
+    }
+
+    fn read_proposal(&self, id: uuid::Uuid) -> Result<Option<crate::proposal::CouncilProposal>> {
+        let path = self.paths.root.join("proposals").join(format!("{}.json", id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let s = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading proposal {}", path.display()))?;
+        let proposal = serde_json::from_str(&s)
+            .with_context(|| format!("parsing proposal {}", path.display()))?;
+        Ok(Some(proposal))
+    }
+
+    fn list_proposals(&self) -> Result<Vec<crate::proposal::CouncilProposal>> {
+        let dir = self.paths.root.join("proposals");
+        if !dir.exists() {
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(&dir)
+            .with_context(|| format!("reading proposals dir {}", dir.display()))?
+        {
+            let entry = entry?;
+            let path = entry.path();
+            // Skip non-JSON (e.g., leftover .tmp from a crashed write)
+            if path.extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            let s = std::fs::read_to_string(&path)
+                .with_context(|| format!("reading proposal {}", path.display()))?;
+            match serde_json::from_str::<crate::proposal::CouncilProposal>(&s) {
+                Ok(p) => out.push(p),
+                Err(e) => tracing::warn!("skipping unparseable proposal {}: {}", path.display(), e),
+            }
+        }
+        // Newest first so admin UI shows recent activity at the top.
+        out.sort_by(|a, b| b.proposed_at.cmp(&a.proposed_at));
+        Ok(out)
+    }
+
+    fn delete_proposal(&mut self, id: uuid::Uuid) -> Result<()> {
+        let path = self.paths.root.join("proposals").join(format!("{}.json", id));
+        if path.exists() {
+            std::fs::remove_file(&path)
+                .with_context(|| format!("removing proposal {}", path.display()))?;
+        }
+        Ok(())
     }
 }
 

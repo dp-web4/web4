@@ -30,6 +30,7 @@ pub mod identity;
 pub mod init;
 pub mod law;
 pub mod ledger;
+pub mod proposal;
 pub mod session;
 pub mod signer;
 pub mod state;

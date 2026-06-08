@@ -195,6 +195,11 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/events", post(submit_event))
         .route("/v1/hubs/:hub_id/state", get(read_state))
         .route("/v1/hubs/:hub_id/members/join", post(submit_join))
+        // V2-9 Phase 2: Sovereign Council proposal + aggregation flow.
+        .route("/v1/hubs/:hub_id/council/propose", post(submit_proposal))
+        .route("/v1/hubs/:hub_id/council/sign", post(sign_proposal))
+        .route("/v1/hubs/:hub_id/council/proposals", get(list_proposals))
+        .route("/v1/hubs/:hub_id/council/proposals/:proposal_id", get(get_proposal))
         .route("/v1/admin/reload-law", post(reload_law))
         .with_state(state)
 }
@@ -311,6 +316,24 @@ async fn submit_event(
             "V2-7 Step 2: only Sovereign LCT may submit signed envelopes; got {}",
             envelope.signer_lct_id
         )));
+    }
+
+    // 2.5 V2-9 Phase 2 council gate: if a council threshold of 2+ is
+    // recorded in state, no single-signer commit is permitted — all
+    // acts must flow through the council propose/sign endpoints so
+    // M-of-N is actually enforced. The founding Sovereign is still a
+    // valid voter; they just participate as one of M like any holder.
+    let council_threshold_active = {
+        let ledger = s.ledger.lock().await;
+        let projected = hub_lib::state::HubState::project(&*ledger);
+        matches!(projected.council_threshold, Some((m, _)) if m >= 2)
+    };
+    if council_threshold_active {
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: "council mode active (threshold >= 2-of-N): submit acts via \
+                      POST /v1/hubs/{hub_id}/council/propose + /sign".into(),
+        });
     }
 
     // 3. Parse the action.
@@ -674,4 +697,365 @@ fn build_r6_request(_envelope: &SignedEnvelope, event: &HubEvent) -> anyhow::Res
         payload,
         resource: Default::default(),
     })
+}
+
+// ============================================================================
+// V2-9 Phase 2 — Sovereign Council propose / sign / list / get
+// ============================================================================
+
+use hub_lib::proposal::{CouncilProposal, ProposalStatus};
+
+#[derive(Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case")]
+enum CouncilAction {
+    CouncilPropose { proposed_event: HubEvent },
+    CouncilSign { proposal_id: Uuid },
+}
+
+#[derive(Serialize)]
+struct ProposalSummary {
+    id: Uuid,
+    event_kind: String,
+    proposed_by: Uuid,
+    proposed_at: chrono::DateTime<Utc>,
+    expires_at: chrono::DateTime<Utc>,
+    signatures: usize,
+    threshold_m: u32,
+    threshold_n: u32,
+    status: ProposalStatusTag,
+    /// Set when status == "committed".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    entry_index: Option<u64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ProposalStatusTag {
+    Open,
+    Committed,
+    Rejected,
+    Expired,
+}
+
+impl From<&ProposalStatus> for ProposalStatusTag {
+    fn from(s: &ProposalStatus) -> Self {
+        match s {
+            ProposalStatus::Open => Self::Open,
+            ProposalStatus::Committed { .. } => Self::Committed,
+            ProposalStatus::Rejected { .. } => Self::Rejected,
+            ProposalStatus::Expired => Self::Expired,
+        }
+    }
+}
+
+fn summarize(p: &CouncilProposal, threshold: (u32, u32)) -> ProposalSummary {
+    let entry_index = match &p.status {
+        ProposalStatus::Committed { entry_index, .. } => Some(*entry_index),
+        _ => None,
+    };
+    ProposalSummary {
+        id: p.id,
+        event_kind: p.proposed_event.kind().to_string(),
+        proposed_by: p.proposed_by,
+        proposed_at: p.proposed_at,
+        expires_at: p.expires_at,
+        signatures: p.unique_signers().len(),
+        threshold_m: threshold.0,
+        threshold_n: threshold.1,
+        status: (&p.status).into(),
+        entry_index,
+    }
+}
+
+/// Project the current set of valid council holders (founding Sovereign
+/// included) + the threshold from the ledger. Used by both propose
+/// and sign to know who counts as a vote.
+fn project_council(
+    s: &RestState,
+    ledger: &hub_lib::ledger::HubLedger,
+) -> (std::collections::BTreeSet<Uuid>, (u32, u32)) {
+    let projected = hub_lib::state::HubState::project(ledger);
+    let mut holders = projected.council_holders.clone();
+    holders.insert(s.sovereign_lct_id);
+    // Default threshold when none set: 1-of-1 (current behavior). The
+    // propose flow still works without an explicit threshold — it just
+    // commits on first signature, which mirrors single-Sovereign mode
+    // but produces a council audit trail.
+    let threshold = projected.council_threshold
+        .unwrap_or((1, holders.len() as u32));
+    (holders, threshold)
+}
+
+async fn submit_proposal(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<ProposalSummary>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+
+    // 1. Envelope verifies (signature + nonce + signer known).
+    let resolver_guard = s.resolver.read().await;
+    let _redeemed = verify_envelope(&envelope, &s.nonces, &*resolver_guard, Utc::now())?;
+    drop(resolver_guard);
+
+    // 2. Parse + validate action shape.
+    let action: CouncilAction = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("payload not a council action: {}", e)))?;
+    let proposed_event = match action {
+        CouncilAction::CouncilPropose { proposed_event } => proposed_event,
+        CouncilAction::CouncilSign { .. } => {
+            return Err(ApiError::bad_request(
+                String::from("this endpoint expects action=council_propose; use /council/sign for council_sign")
+            ));
+        }
+    };
+
+    // 3. Authorization: signer must be a current council holder (or
+    // founding Sovereign). Members can't propose chapter acts.
+    let (holders, threshold) = {
+        let ledger = s.ledger.lock().await;
+        project_council(&s, &*ledger)
+    };
+    if !holders.contains(&envelope.signer_lct_id) {
+        return Err(ApiError::unauthorized(format!(
+            "signer {} is not a Sovereign Council holder", envelope.signer_lct_id
+        )));
+    }
+
+    // 4. Create proposal + record proposer's vote. Cleanup any expired
+    // proposals while we're touching the store, so they don't pile up.
+    let now = Utc::now();
+    let mut proposal = CouncilProposal::new(proposed_event, envelope.signer_lct_id, now);
+    proposal.add_vote(envelope, now);
+
+    // If proposer alone meets threshold (1-of-1 case or 1-of-N with
+    // M=1), commit immediately so this works as a strict superset of
+    // the existing /events flow.
+    if proposal.meets_threshold(threshold.0, &holders) {
+        let entry_index = commit_proposed_event(&s, &proposal.proposed_event).await?;
+        proposal.status = ProposalStatus::Committed { entry_index, committed_at: now };
+    }
+
+    persist_proposal(&s, &proposal).await?;
+    cleanup_expired_proposals(&s, now).await;
+
+    Ok(Json(summarize(&proposal, threshold)))
+}
+
+async fn sign_proposal(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<ProposalSummary>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+
+    let resolver_guard = s.resolver.read().await;
+    let _redeemed = verify_envelope(&envelope, &s.nonces, &*resolver_guard, Utc::now())?;
+    drop(resolver_guard);
+
+    let action: CouncilAction = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("payload not a council action: {}", e)))?;
+    let proposal_id = match action {
+        CouncilAction::CouncilSign { proposal_id } => proposal_id,
+        CouncilAction::CouncilPropose { .. } => {
+            return Err(ApiError::bad_request(
+                String::from("this endpoint expects action=council_sign; use /council/propose for council_propose")
+            ));
+        }
+    };
+
+    let (holders, threshold) = {
+        let ledger = s.ledger.lock().await;
+        project_council(&s, &*ledger)
+    };
+    if !holders.contains(&envelope.signer_lct_id) {
+        return Err(ApiError::unauthorized(format!(
+            "signer {} is not a Sovereign Council holder", envelope.signer_lct_id
+        )));
+    }
+
+    let mut proposal = read_proposal(&s, proposal_id).await?
+        .ok_or_else(|| ApiError::not_found(format!("proposal {} not found", proposal_id)))?;
+
+    if !proposal.is_open() {
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: format!("proposal {} is not open (status: {:?})", proposal_id, proposal.status),
+        });
+    }
+    let now = Utc::now();
+    if proposal.is_expired_at(now) {
+        proposal.status = ProposalStatus::Expired;
+        persist_proposal(&s, &proposal).await?;
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: format!("proposal {} expired at {}", proposal_id, proposal.expires_at),
+        });
+    }
+
+    proposal.add_vote(envelope, now);
+
+    if proposal.meets_threshold(threshold.0, &holders) {
+        let entry_index = commit_proposed_event(&s, &proposal.proposed_event).await?;
+        proposal.status = ProposalStatus::Committed { entry_index, committed_at: now };
+    }
+
+    persist_proposal(&s, &proposal).await?;
+    Ok(Json(summarize(&proposal, threshold)))
+}
+
+async fn list_proposals(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+) -> Result<Json<Vec<ProposalSummary>>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let (_holders, threshold) = {
+        let ledger = s.ledger.lock().await;
+        project_council(&s, &*ledger)
+    };
+    let proposals = read_all_proposals(&s).await?;
+    Ok(Json(proposals.iter().map(|p| summarize(p, threshold)).collect()))
+}
+
+async fn get_proposal(
+    State(s): State<RestState>,
+    Path((hub_id, proposal_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<CouncilProposal>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let proposal = read_proposal(&s, proposal_id).await?
+        .ok_or_else(|| ApiError::not_found(format!("proposal {} not found", proposal_id)))?;
+    Ok(Json(proposal))
+}
+
+// ---------- council helpers (store I/O on the blocking pool) ----------
+
+async fn persist_proposal(s: &RestState, proposal: &CouncilProposal) -> Result<(), ApiError> {
+    let hub_dir = s.paths.root.clone();
+    let proposal = proposal.clone();
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        let mut store = hub_lib::store::open_chapter_store(&hub_dir)?;
+        store.write_proposal(&proposal)
+    })
+    .await
+    .map_err(|e| ApiError::internal(anyhow::anyhow!("spawn_blocking join: {}", e)))?
+    .map_err(ApiError::internal)
+}
+
+async fn read_proposal(s: &RestState, id: Uuid) -> Result<Option<CouncilProposal>, ApiError> {
+    let hub_dir = s.paths.root.clone();
+    tokio::task::spawn_blocking(move || -> anyhow::Result<Option<CouncilProposal>> {
+        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
+        store.read_proposal(id)
+    })
+    .await
+    .map_err(|e| ApiError::internal(anyhow::anyhow!("spawn_blocking join: {}", e)))?
+    .map_err(ApiError::internal)
+}
+
+async fn read_all_proposals(s: &RestState) -> Result<Vec<CouncilProposal>, ApiError> {
+    let hub_dir = s.paths.root.clone();
+    tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<CouncilProposal>> {
+        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
+        store.list_proposals()
+    })
+    .await
+    .map_err(|e| ApiError::internal(anyhow::anyhow!("spawn_blocking join: {}", e)))?
+    .map_err(ApiError::internal)
+}
+
+async fn cleanup_expired_proposals(s: &RestState, now: chrono::DateTime<Utc>) {
+    // Best-effort: mark expired proposals so listings reflect reality.
+    // We don't delete — keeping them as audit trail of attempted-but-
+    // never-committed acts. Deletion is a separate operator action.
+    let Ok(all) = read_all_proposals(s).await else { return };
+    for mut p in all {
+        if p.is_open() && p.is_expired_at(now) {
+            p.status = ProposalStatus::Expired;
+            let _ = persist_proposal(s, &p).await;
+        }
+    }
+}
+
+/// Commit a proposed event to the ledger via the hub's signer (founding
+/// Sovereign). The ledger entry's `actor_lct_id` is the founding
+/// Sovereign — they're the executor of the council's decision. The
+/// authorization audit trail (M holder signatures) lives in the
+/// proposal record, linked via `entry_index` in ProposalStatus::Committed.
+async fn commit_proposed_event(s: &RestState, event: &HubEvent) -> Result<u64, ApiError> {
+    let event_kind_str = event.kind().to_string();
+    let event_value = serde_json::to_value(event)
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
+    let (unsigned, intent) = {
+        let ledger = s.ledger.lock().await;
+        let unsigned = ledger.build_entry(s.sovereign_lct_id, event.clone(), Utc::now())
+            .map_err(ApiError::internal)?;
+        let intent = SignIntent {
+            request_id: Uuid::new_v4(),
+            hub_id: s.hub_id,
+            hub_name: s.hub_name.clone(),
+            actor_lct_id: s.sovereign_lct_id,
+            ledger_index: unsigned.entry.index,
+            event_kind: event_kind_str,
+            event: event_value,
+        };
+        (unsigned, intent)
+    };
+    let signing_bytes = unsigned.signing_bytes.clone();
+    let signature = s.signer
+        .sign(s.sovereign_lct_id, &signing_bytes, &intent)
+        .await
+        .map_err(|e| match e {
+            hub_lib::signer::SignError::Denied(reason) => ApiError::unauthorized(
+                format!("Sovereign signer denied: {}", reason)
+            ),
+            hub_lib::signer::SignError::Transport(msg) => ApiError {
+                status: StatusCode::SERVICE_UNAVAILABLE,
+                message: format!("Sovereign signer unreachable: {}", msg),
+            },
+            hub_lib::signer::SignError::Malformed(msg) => ApiError::internal(
+                anyhow::anyhow!("malformed signer response: {}", msg)
+            ),
+            hub_lib::signer::SignError::Internal(err) => ApiError::internal(err),
+        })?;
+    let mut ledger = s.ledger.lock().await;
+    let (entry_index, needs_resolver_refresh) = {
+        let entry = ledger.append_signed(unsigned, signature)
+            .map_err(ApiError::internal)?;
+        let needs = matches!(
+            &entry.event,
+            HubEvent::CouncilMemberAdded { .. } | HubEvent::MemberAdded { .. }
+        );
+        (entry.index, needs)
+    };
+    // If the committed act was a council membership / member-add,
+    // refresh the resolver so the new pubkey can verify envelopes
+    // immediately (same pattern as submit_join's live insert).
+    if needs_resolver_refresh {
+        let projected = hub_lib::state::HubState::project(&*ledger);
+        let mut resolver = s.resolver.write().await;
+        for (lct_id, pk) in projected.member_pubkeys.iter()
+            .chain(projected.council_pubkeys.iter())
+        {
+            if let Ok(lct) = hub_lib::hub::hestia_sovereign_lct(*lct_id, pk) {
+                resolver.insert(lct);
+            }
+        }
+    }
+    Ok(entry_index)
 }
