@@ -8,6 +8,7 @@
 //! act-recording commands (sprint 4), Docker entrypoint (sprint 5), and docs/
 //! polish (sprint 6).
 
+mod admin;
 mod mcp;
 mod rest;
 
@@ -607,7 +608,11 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
     let shared_law = std::sync::Arc::new(tokio::sync::RwLock::new(initial_law));
     let mcp_state = McpState::open_with_law(hub_dir.clone(), shared_law.clone())?;
     let rest_state = RestState::open_with_law(hub_dir.clone(), shared_law)?;
-    let app = mcp_router(mcp_state).merge(rest_router(rest_state));
+    // Admin UI reuses RestState (read-only; shares ledger + law snapshot).
+    let admin_state = rest_state.clone();
+    let app = mcp_router(mcp_state)
+        .merge(rest_router(rest_state))
+        .merge(admin::router(admin_state));
 
     tracing::info!(
         hub = %config.hub.name,
@@ -618,6 +623,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
     println!("hub serve — {} listening on http://{}", config.hub.name, addr);
     println!("  MCP tools:    http://{}/tools", addr);
     println!("  REST v1:      http://{}/v1/", addr);
+    println!("  Admin UI:     http://{}/admin", addr);
     println!("  Stop:         Ctrl-C");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
