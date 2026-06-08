@@ -69,21 +69,17 @@ pub struct McpState {
 }
 
 impl McpState {
-    /// Backward-compat: load law from the chapter store into a fresh slot.
-    pub async fn open(hub_dir: PathBuf) -> Result<Self> {
-        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
-        let law: Option<Law> = match store.read_law().await? {
-            Some(yaml) => Some(Law::parse_and_validate(&yaml)?),
-            None => None,
-        };
-        Self::open_with_law(hub_dir, Arc::new(tokio::sync::RwLock::new(law))).await
-    }
-
-    /// Open with a caller-supplied shared law slot. `hub serve` uses
-    /// this so REST + MCP evaluate against the same law + share reload.
-    pub async fn open_with_law(
+    /// Open with a caller-supplied shared law slot AND a shared in-memory
+    /// ledger handle. `hub serve` uses this to give MCP, REST, and the admin
+    /// dashboard a *single* `Arc<Mutex<HubLedger>>`, so an act recorded
+    /// through any one surface is immediately visible to the others. Without
+    /// this, each surface held its own ledger loaded at startup and only
+    /// reconverged on daemon restart — live writes (e.g. a member declaring a
+    /// skill via MCP) were invisible to the admin dashboard until then.
+    pub async fn open_with_law_and_ledger(
         hub_dir: PathBuf,
         law: Arc<tokio::sync::RwLock<Option<Law>>>,
+        ledger: Arc<Mutex<HubLedger>>,
     ) -> Result<Self> {
         let paths = HubPaths::new(hub_dir.clone());
         let config = hub_lib::hub::HubConfig::load(paths.config())?;
@@ -100,15 +96,13 @@ impl McpState {
                 (lct_id, signer)
             }
         };
-        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
-        let ledger = HubLedger::open(store).await?;
         Ok(Self {
             paths,
             hub_id: society.lct_id,
             hub_name: society.name,
             sovereign_lct_id,
             signer,
-            ledger: Arc::new(Mutex::new(ledger)),
+            ledger,
             law,
         })
     }

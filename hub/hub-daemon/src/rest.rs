@@ -77,16 +77,19 @@ pub struct RestState {
 }
 
 impl RestState {
-    /// Open with the caller-supplied shared law slot. Used by `hub serve`
-    /// so REST + MCP evaluate against the same snapshot + share reload.
-    pub async fn open_with_law(
+    /// As `hub serve` needs it: a caller-supplied shared in-memory ledger
+    /// handle. `hub serve` passes the *same* `Arc<Mutex<HubLedger>>` here and
+    /// to `McpState`, so MCP, REST, and the admin dashboard all read/write one
+    /// ledger — an act recorded through any surface is immediately visible to
+    /// the others (previously each held its own startup snapshot and only
+    /// reconverged on restart).
+    pub async fn open_with_law_and_ledger(
         hub_dir: PathBuf,
         law: Arc<tokio::sync::RwLock<Option<Law>>>,
+        ledger: Arc<Mutex<HubLedger>>,
     ) -> Result<Self> {
         let paths = HubPaths::new(hub_dir.clone());
         let config = hub_lib::hub::HubConfig::load(paths.config())?;
-        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
-        let ledger = HubLedger::open(store).await?;
         let society = load_society(&hub_dir).await?;
 
         // Build the right Sovereign LCT + signer for the chapter's mode.
@@ -111,7 +114,10 @@ impl RestState {
         // public key recorded at admission time.
         let mut resolver = MapResolver::new();
         resolver.insert(sovereign_lct.clone());
-        let projected = HubState::project(&ledger);
+        let projected = {
+            let l = ledger.lock().await;
+            HubState::project(&*l)
+        };
         for (member_lct_id, pubkey_hex) in &projected.member_pubkeys {
             match hub_lib::hub::hestia_sovereign_lct(*member_lct_id, pubkey_hex) {
                 Ok(lct) => resolver.insert(lct),
@@ -144,24 +150,11 @@ impl RestState {
             hub_name: society.name.clone(),
             sovereign_lct_id: sovereign_lct.id,
             signer,
-            ledger: Arc::new(Mutex::new(ledger)),
+            ledger,
             nonces: Arc::new(NonceStore::new()),
             resolver: Arc::new(tokio::sync::RwLock::new(resolver)),
             law,
         })
-    }
-
-    /// Backward-compat: load the chapter's law from storage into a
-    /// fresh slot. Standalone callers that don't need REST/MCP shared
-    /// reload can use this.
-    pub async fn open(hub_dir: PathBuf) -> Result<Self> {
-        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
-        let law: Option<Law> = match store.read_law().await? {
-            Some(yaml) => Some(Law::parse_and_validate(&yaml)
-                .map_err(|e| anyhow::anyhow!("loading chapter law: {}", e))?),
-            None => None,
-        };
-        Self::open_with_law(hub_dir, Arc::new(tokio::sync::RwLock::new(law))).await
     }
 
     /// Re-read the chapter law from storage and swap it into the

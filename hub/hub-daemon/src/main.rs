@@ -752,8 +752,21 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
         }
     };
     let shared_law = std::sync::Arc::new(tokio::sync::RwLock::new(initial_law));
-    let mcp_state = McpState::open_with_law(hub_dir.clone(), shared_law.clone()).await?;
-    let rest_state = RestState::open_with_law(hub_dir.clone(), shared_law).await?;
+    // Single in-memory ledger shared across MCP, REST, and admin so an act
+    // recorded through any surface is immediately visible to the others
+    // (previously each surface loaded its own ledger at startup and only
+    // reconverged on restart).
+    let shared_ledger = {
+        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
+        std::sync::Arc::new(tokio::sync::Mutex::new(
+            hub_lib::ledger::HubLedger::open(store).await?,
+        ))
+    };
+    let mcp_state =
+        McpState::open_with_law_and_ledger(hub_dir.clone(), shared_law.clone(), shared_ledger.clone())
+            .await?;
+    let rest_state =
+        RestState::open_with_law_and_ledger(hub_dir.clone(), shared_law, shared_ledger).await?;
     // Admin UI reuses RestState (read-only; shares ledger + law snapshot).
     let admin_state = rest_state.clone();
     let app = mcp_router(mcp_state)
