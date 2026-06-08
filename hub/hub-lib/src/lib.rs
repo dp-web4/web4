@@ -28,6 +28,7 @@ pub mod envelope;
 pub mod events;
 pub mod identity;
 pub mod init;
+pub mod law;
 pub mod ledger;
 pub mod session;
 pub mod signer;
