@@ -183,6 +183,9 @@ Don't add secret-handling operations to the trait. Don't add anything that requi
 
 ## See also
 
+- `BACKEND-OPTIONS.md` — design exploration of the wider backend space
+  (DynamoDB, Postgres, S3, edge-SQL, distributed consensus) + the
+  async-trait open question that gates the first network-backed backend
 - `V2-V3-ARCHITECTURE.md` §Load-bearing commitment #8 (secrets posture)
 - `hub-lib/src/store.rs` (trait + backends)
 - `hub-lib/src/ledger.rs` (uses `HubStore` for persistence; owns chain integrity)
