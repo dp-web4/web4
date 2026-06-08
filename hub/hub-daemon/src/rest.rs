@@ -157,14 +157,11 @@ impl RestState {
 pub fn router(state: RestState) -> Router {
     Router::new()
         .route("/v1/auth/challenge", post(issue_challenge))
-        // Canonical hub-named routes.
+        // Hub-named routes (canonical; chapter→hub rename mirrored on
+        // Hestia side at hestia@c3932a8 — back-compat /v1/chapters/*
+        // aliases dropped 2026-06-08).
         .route("/v1/hubs/:hub_id/events", post(submit_event))
         .route("/v1/hubs/:hub_id/state", get(read_state))
-        // Back-compat: Legion's Hestia H2/H3 client (hestia@253c611)
-        // targets /v1/chapters/{id}/* — register the same handlers
-        // under that path until Hestia rolls forward to /v1/hubs/.
-        .route("/v1/chapters/:hub_id/events", post(submit_event))
-        .route("/v1/chapters/:hub_id/state", get(read_state))
         .route("/v1/admin/reload-law", post(reload_law))
         .with_state(state)
 }

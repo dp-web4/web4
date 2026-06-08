@@ -1352,6 +1352,53 @@ escalation:
         assert_eq!(outcome.decision, Decision::Escalate);
     }
 
+    // ----- Interop fixtures (shared-context/interop-fixtures/chapter-law/) -----
+    //
+    // Legion seeded shared fixtures so the hub parser + the web4-law-check
+    // validator CLI assert against the same source-of-truth files. Catches
+    // divergence early. If these fail after a pull, the schema has shifted
+    // and the parser needs updating.
+
+    const FIXTURE_MINIMAL: &str = include_str!(
+        "../../../../shared-context/interop-fixtures/chapter-law/minimal.yaml"
+    );
+    const FIXTURE_FULL: &str = include_str!(
+        "../../../../shared-context/interop-fixtures/chapter-law/full-featured.yaml"
+    );
+    const FIXTURE_INVALID_BAD_OPERATOR: &str = include_str!(
+        "../../../../shared-context/interop-fixtures/chapter-law/invalid-bad-operator.yaml"
+    );
+    const FIXTURE_INVALID_MISSING_NORM_ID: &str = include_str!(
+        "../../../../shared-context/interop-fixtures/chapter-law/invalid-missing-norm-id.yaml"
+    );
+
+    #[test]
+    fn interop_minimal_parses_and_validates() {
+        Law::parse_and_validate(FIXTURE_MINIMAL)
+            .expect("interop minimal fixture must parse + validate");
+    }
+
+    #[test]
+    fn interop_full_featured_parses_and_validates() {
+        let law = Law::parse_and_validate(FIXTURE_FULL)
+            .expect("interop full-featured fixture must parse + validate");
+        assert!(!law.norms.is_empty(), "full-featured should have norms");
+    }
+
+    #[test]
+    fn interop_invalid_bad_operator_rejected() {
+        let result = Law::parse_and_validate(FIXTURE_INVALID_BAD_OPERATOR);
+        assert!(result.is_err(),
+            "fixture with operator 'LIKE' must be rejected by validator");
+    }
+
+    #[test]
+    fn interop_invalid_missing_norm_id_rejected() {
+        let result = Law::parse_and_validate(FIXTURE_INVALID_MISSING_NORM_ID);
+        assert!(result.is_err(),
+            "fixture with norm missing id must be rejected by validator");
+    }
+
     #[test]
     fn canonical_example_evaluates_admin_only_roles() {
         let law = Law::parse_and_validate(EXAMPLE_LAW).unwrap();
