@@ -1,0 +1,114 @@
+# Starter chapter law — sensible defaults for a new Web4 community.
+#
+# This file is a template. Edit it, then apply with:
+#   hub set-law <chapter-dir> ./chapter-law.yaml
+#   curl -X POST http://localhost:8770/v1/admin/reload-law   # if serve is running
+#
+# Full schema: web4-standard/core-spec/chapter-law-schema.md
+# Hub interpreter: web4/hub/hub-lib/src/law.rs
+#
+# The starter defaults below are PERMISSIVE — most acts are allowed.
+# Tighten the norms (decision: deny / escalate) as your chapter matures.
+
+version: "1.0.0"
+
+# -----------------------------------------------------------------------------
+# Norms — atomic rules. Highest-priority matching norm wins.
+#   selector  : path into the R6 request (r6.role / r6.request.action /
+#               r6.request.payload.<field> / r6.resource.<field>)
+#   operator  : <= >= == != < > in not_in matches
+#   decision  : allow | deny | escalate
+#   priority  : higher wins (default 0)
+# -----------------------------------------------------------------------------
+norms:
+  # Default to ALLOW (priority 0). Specific deny/escalate norms below
+  # override this for the sensitive operations.
+  - id: DEFAULT-ALLOW
+    selector: r6.request.action
+    operator: "!="
+    value: __never_match__
+    decision: allow
+    priority: 0
+    description: "Default-allow base policy. Specific norms override."
+
+  # Charter amendments are high-impact; escalate to the Sovereign.
+  - id: ESCALATE-CHARTER-AMEND
+    selector: r6.request.action
+    operator: "=="
+    value: charter_amended
+    decision: escalate
+    priority: 100
+    description: "Charter amendments require human Sovereign review."
+
+  # Law amendments are even higher impact (they change the rules
+  # themselves). Escalate.
+  - id: ESCALATE-LAW-AMEND
+    selector: r6.request.action
+    operator: "=="
+    value: law_amended
+    decision: escalate
+    priority: 100
+    description: "Law amendments require human Sovereign review."
+
+  # Role assignments touch governance; escalate by default. Loosen this
+  # if your chapter delegates role assignment to an Administrator role.
+  - id: ESCALATE-ROLE-ASSIGN
+    selector: r6.request.action
+    operator: "=="
+    value: role_assigned
+    decision: escalate
+    priority: 50
+    description: "Role assignment requires Sovereign / Administrator review."
+
+# -----------------------------------------------------------------------------
+# Procedures — process requirements attached to action classes.
+# Today the procedures are descriptive (the hub doesn't enforce them
+# directly); future sprints will gate acts on witness/quorum counts.
+# -----------------------------------------------------------------------------
+procedures:
+  - id: WITNESS-3
+    requires_witnesses: 3
+    applies_to: "consequential_actions"
+    description: "Consequential acts should accumulate 3 independent witnesses."
+
+# -----------------------------------------------------------------------------
+# Delegation — when role-fillers can delegate to AI agents.
+# -----------------------------------------------------------------------------
+delegation:
+  max_depth: 2
+  requires_approval: true
+  allowed_roles:
+    - administrator
+    - archivist
+    - witness
+
+# -----------------------------------------------------------------------------
+# Escalation triggers — conditions that force review even when no norm
+# explicitly says so. Independent of priority — any trigger that fires
+# overrides Allow to Escalate (but cannot override Deny).
+# -----------------------------------------------------------------------------
+escalation:
+  - condition: "r6.resource.atp > 100"
+    escalate_to: sovereign
+    description: "High-ATP acts (over 100) need Sovereign review."
+
+# -----------------------------------------------------------------------------
+# Admission — how new members join.
+# -----------------------------------------------------------------------------
+admission:
+  # Open admission: anyone with a Web4 LCT can request membership.
+  # Set `open: false` and use `requires_sponsor: true` for closed
+  # communities where existing members must vouch.
+  open: true
+  requires_sponsor: false
+  min_trust_score: 0.0
+  description: "Open membership for the starter law. Tighten for closed communities."
+
+# -----------------------------------------------------------------------------
+# ATP issuance — how the chapter mints internal currency.
+# -----------------------------------------------------------------------------
+atp_issuance:
+  mint_authority: treasurer
+  max_mint_per_cycle: 1000
+  distribution: proportional_to_contribution
+  description: "Treasurer mints up to 1000 ATP per cycle, distributed by V3 contribution score."

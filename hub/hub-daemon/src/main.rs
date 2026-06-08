@@ -230,6 +230,18 @@ enum Command {
         chapter_dir: PathBuf,
     },
 
+    /// Write the starter chapter-law template to a file the operator
+    /// can review + edit, then apply via `hub set-law`. Doesn't touch
+    /// any chapter directly.
+    InitLaw {
+        /// Where to write the starter YAML (e.g. ./chapter-law.yaml).
+        #[arg(default_value = "./chapter-law.yaml")]
+        output: PathBuf,
+        /// Overwrite if the file already exists.
+        #[arg(long)]
+        force: bool,
+    },
+
     /// Query chapter state (members, skills, etc.).
     Query {
         #[command(subcommand)]
@@ -336,6 +348,7 @@ async fn main() -> Result<()> {
             run_set_law(chapter_dir, yaml, diff_summary)
         }
         Some(Command::GetLaw { chapter_dir }) => run_get_law(chapter_dir),
+        Some(Command::InitLaw { output, force }) => run_init_law(output, force),
         Some(Command::Query { subcommand }) => run_query(subcommand),
     }
 }
@@ -461,6 +474,41 @@ fn run_get_law(chapter_dir: PathBuf) -> Result<()> {
         Some(yaml) => print!("{}", yaml),
         None => println!("No chapter law set."),
     }
+    Ok(())
+}
+
+/// Starter chapter-law template — embedded at compile time so the
+/// binary ships with it. Source: `web4/hub/examples/starter-law.yaml`.
+const STARTER_LAW_YAML: &str = include_str!("../../examples/starter-law.yaml");
+
+fn run_init_law(output: PathBuf, force: bool) -> Result<()> {
+    if output.exists() && !force {
+        anyhow::bail!(
+            "{} already exists. Pass --force to overwrite, or pick a different --output path.",
+            output.display()
+        );
+    }
+    // Sanity-check that the embedded template still parses + validates.
+    // If this fires, the starter template has drifted from the schema —
+    // catch at write time, not at the operator's `set-law` boundary.
+    hub_lib::law::Law::parse_and_validate(STARTER_LAW_YAML)
+        .context("embedded starter-law.yaml failed to parse/validate (bug in the binary, not the operator)")?;
+
+    if let Some(parent) = output.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("creating parent dir {}", parent.display()))?;
+        }
+    }
+    std::fs::write(&output, STARTER_LAW_YAML)
+        .with_context(|| format!("writing starter law to {}", output.display()))?;
+
+    println!("Starter chapter-law written to {}.", output.display());
+    println!();
+    println!("Next steps:");
+    println!("  1. Edit {} — adjust norms, admission, atp_issuance, etc.", output.display());
+    println!("  2. Apply to a chapter:  hub set-law <chapter-dir> {}", output.display());
+    println!("  3. If serve is running: curl -X POST http://<host>/v1/admin/reload-law");
     Ok(())
 }
 
