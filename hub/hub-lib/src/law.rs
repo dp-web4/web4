@@ -349,6 +349,145 @@ fn is_known_role(role: &str) -> bool {
 }
 
 // ============================================================================
+// Escalation conditions (V2-8 Step 3b)
+// ============================================================================
+
+/// A parsed escalation-trigger condition: `<selector> <op> <value>`.
+///
+/// The schema represents conditions as free-text strings like
+/// `"r6.resource.atp > 50"` or `"r6.request.action == 'amend_charter'"`.
+/// This struct is the parsed form; it reuses the same operator-evaluation
+/// machinery as norms via [`R6Request::resolve_selector`] + the
+/// `operator_matches` helper.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Condition {
+    pub selector: String,
+    pub operator: Operator,
+    pub value: serde_yaml::Value,
+}
+
+impl Condition {
+    /// Parse a condition expression.
+    ///
+    /// Grammar (informal):
+    ///   condition := selector OP value
+    ///   selector  := identifier ( "." identifier )*    (must start with "r6")
+    ///   OP        := "<=" | ">=" | "==" | "!=" | "<" | ">" | "in" | "not_in" | "matches"
+    ///   value     := number | quoted_string | bare_word | list
+    ///   list      := "[" value ( "," value )* "]"
+    ///
+    /// Whitespace around tokens is forgiving. Quoted strings use either
+    /// `"..."` or `'...'`. Bare words become strings.
+    pub fn parse(s: &str) -> Result<Self> {
+        let s = s.trim();
+        // Operators must be tried longest-first so "<=" beats "<", etc.
+        // Word ops ("in", "not_in", "matches") need word boundaries.
+        const SYMBOL_OPS: &[(&str, Operator)] = &[
+            ("<=", Operator::Le),
+            (">=", Operator::Ge),
+            ("==", Operator::Eq),
+            ("!=", Operator::Ne),
+            ("<", Operator::Lt),
+            (">", Operator::Gt),
+        ];
+        const WORD_OPS: &[(&str, Operator)] = &[
+            ("not_in", Operator::NotIn),
+            ("matches", Operator::Matches),
+            ("in", Operator::In),
+        ];
+
+        for (sym, op) in SYMBOL_OPS {
+            if let Some(pos) = s.find(sym) {
+                let selector = s[..pos].trim();
+                let value_str = s[pos + sym.len()..].trim();
+                return Self::build(selector, op.clone(), value_str);
+            }
+        }
+        // Word ops need to be surrounded by whitespace (otherwise "matches"
+        // could match a substring of a selector).
+        for (word, op) in WORD_OPS {
+            let needle = format!(" {} ", word);
+            if let Some(pos) = s.find(&needle) {
+                let selector = s[..pos].trim();
+                let value_str = s[pos + needle.len()..].trim();
+                return Self::build(selector, op.clone(), value_str);
+            }
+        }
+
+        Err(anyhow!(
+            "escalation condition '{}' has no recognized operator \
+             (expected one of: <=, >=, ==, !=, <, >, in, not_in, matches)",
+            s
+        ))
+    }
+
+    fn build(selector: &str, operator: Operator, value_str: &str) -> Result<Self> {
+        if selector.is_empty() {
+            return Err(anyhow!("escalation condition has empty selector"));
+        }
+        if !selector.starts_with("r6.") && selector != "r6" {
+            return Err(anyhow!(
+                "escalation condition selector '{}' must start with 'r6.'",
+                selector
+            ));
+        }
+        let value = parse_value(value_str)?;
+        Ok(Condition {
+            selector: selector.to_string(),
+            operator,
+            value,
+        })
+    }
+
+    /// Does this condition match the request?
+    pub fn matches(&self, req: &R6Request) -> bool {
+        match req.resolve_selector(&self.selector) {
+            Some(actual) => operator_matches(&self.operator, &actual, &self.value),
+            None => false,
+        }
+    }
+}
+
+/// Parse a value literal: number, quoted string, bare word, or list.
+fn parse_value(s: &str) -> Result<serde_yaml::Value> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Err(anyhow!("empty value in escalation condition"));
+    }
+    // List
+    if s.starts_with('[') && s.ends_with(']') {
+        let inner = &s[1..s.len() - 1];
+        if inner.trim().is_empty() {
+            return Ok(serde_yaml::Value::Sequence(vec![]));
+        }
+        let items: Result<Vec<_>> = inner.split(',').map(|p| parse_value(p.trim())).collect();
+        return Ok(serde_yaml::Value::Sequence(items?));
+    }
+    // Quoted string
+    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
+        if s.len() < 2 {
+            return Err(anyhow!("malformed quoted string in escalation condition"));
+        }
+        return Ok(serde_yaml::Value::String(s[1..s.len() - 1].to_string()));
+    }
+    // Number
+    if let Ok(n) = s.parse::<i64>() {
+        return Ok(serde_yaml::Value::Number(n.into()));
+    }
+    if let Ok(n) = s.parse::<f64>() {
+        return Ok(serde_yaml::Value::Number(serde_yaml::Number::from(n)));
+    }
+    // Bool
+    match s {
+        "true" => return Ok(serde_yaml::Value::Bool(true)),
+        "false" => return Ok(serde_yaml::Value::Bool(false)),
+        _ => {}
+    }
+    // Bare word as string
+    Ok(serde_yaml::Value::String(s.to_string()))
+}
+
+// ============================================================================
 // Evaluator (V2-8 Step 3) — (Law, R6Request) → Decision
 // ============================================================================
 
@@ -412,42 +551,117 @@ impl R6Request {
     }
 }
 
+/// Rich evaluation outcome: decision + which rule fired (for audit /
+/// debugging / human-review queueing).
+#[derive(Clone, Debug)]
+pub struct DecisionOutcome {
+    pub decision: Decision,
+    /// Norm id that fired (highest priority), if any.
+    pub winning_norm: Option<String>,
+    /// Index of the escalation trigger that fired, if any. Pair with
+    /// `law.escalation[index]` to get the trigger's escalate_to.
+    pub escalation_index: Option<usize>,
+    /// Role to escalate to (populated from the matching trigger). None
+    /// if no escalation fired. Defaults to "sovereign" if a norm
+    /// produced Escalate but no escalation trigger fired (per architecture
+    /// convention — escalations without a target route to Sovereign).
+    pub escalate_to: Option<String>,
+}
+
 impl Law {
-    /// Evaluate this law against an [`R6Request`]. Returns a [`Decision`].
+    /// Evaluate this law against an [`R6Request`]. Returns a [`Decision`]
+    /// (use [`Self::evaluate_outcome`] for the full audit info).
+    ///
+    /// See [`Self::evaluate_outcome`] for the algorithm.
+    pub fn evaluate(&self, req: &R6Request) -> Decision {
+        self.evaluate_outcome(req).decision
+    }
+
+    /// Full evaluation: returns Decision + which rule fired.
     ///
     /// Algorithm:
-    /// 1. Walk every norm. For each, resolve the norm's selector against
-    ///    the request, then apply the norm's operator + value. If they
-    ///    match, the norm "fires."
-    /// 2. Among firing norms, the one with highest `priority` wins (ties
-    ///    broken by first-defined).
-    /// 3. Return the winning norm's decision.
-    /// 4. If no norm fires, default to Allow.
-    ///
-    /// V2-8 Step 3b will add escalation-trigger evaluation: if any
-    /// `escalation[].condition` matches, override to Escalate (unless a
-    /// higher-priority Deny norm fired). For Step 3 (this cut),
-    /// escalation triggers are parsed but not evaluated.
-    pub fn evaluate(&self, req: &R6Request) -> Decision {
+    /// 1. Walk every norm. Resolve selector against the request, apply
+    ///    operator + value. If matches, the norm "fires."
+    /// 2. Among firing norms, highest `priority` wins (ties broken by
+    ///    first-defined).
+    /// 3. Walk every escalation trigger. Parse `condition` into a
+    ///    [`Condition`] and check whether it matches the request.
+    /// 4. Combine:
+    ///    - Norm winner is Deny → Deny is terminal; return Deny.
+    ///    - Any escalation matches → return Escalate with escalate_to.
+    ///    - Norm winner is Escalate → return Escalate with escalate_to
+    ///      defaulted to "sovereign" (norms don't carry an explicit
+    ///      target per the schema).
+    ///    - Norm winner is Allow → return Allow.
+    ///    - No norm fired AND no escalation fired → default Allow.
+    pub fn evaluate_outcome(&self, req: &R6Request) -> DecisionOutcome {
         let mut winner: Option<&Norm> = None;
         for norm in &self.norms {
             let actual = match req.resolve_selector(&norm.selector) {
                 Some(v) => v,
-                None => continue, // selector didn't resolve; norm doesn't fire
+                None => continue,
             };
             if !operator_matches(&norm.operator, &actual, &norm.value) {
                 continue;
             }
-            // Fires. Keep the highest priority.
             match winner {
                 None => winner = Some(norm),
                 Some(current) if norm.priority > current.priority => winner = Some(norm),
                 _ => {}
             }
         }
+
+        // Deny is terminal — no escalation can override.
+        if let Some(w) = winner {
+            if w.decision == Decision::Deny {
+                return DecisionOutcome {
+                    decision: Decision::Deny,
+                    winning_norm: Some(w.id.clone()),
+                    escalation_index: None,
+                    escalate_to: None,
+                };
+            }
+        }
+
+        // Check escalation triggers.
+        for (idx, trigger) in self.escalation.iter().enumerate() {
+            let condition = match Condition::parse(&trigger.condition) {
+                Ok(c) => c,
+                // Malformed condition: treat as non-firing rather than
+                // crash. validate() should have caught it, but be defensive.
+                Err(_) => continue,
+            };
+            if condition.matches(req) {
+                return DecisionOutcome {
+                    decision: Decision::Escalate,
+                    winning_norm: winner.map(|w| w.id.clone()),
+                    escalation_index: Some(idx),
+                    escalate_to: Some(trigger.escalate_to.clone()),
+                };
+            }
+        }
+
+        // No escalation fired. Use the winning norm if any.
         match winner {
-            Some(norm) => norm.decision.clone(),
-            None => Decision::Allow, // No norm fired → default allow
+            Some(norm) => {
+                let escalate_to = if norm.decision == Decision::Escalate {
+                    Some("sovereign".to_string())
+                } else {
+                    None
+                };
+                DecisionOutcome {
+                    decision: norm.decision.clone(),
+                    winning_norm: Some(norm.id.clone()),
+                    escalation_index: None,
+                    escalate_to,
+                }
+            }
+            None => DecisionOutcome {
+                decision: Decision::Allow,
+                winning_norm: None,
+                escalation_index: None,
+                escalate_to: None,
+            },
         }
     }
 }
@@ -991,9 +1205,151 @@ norms:
 
         // Confirms our evaluator matches the literal schema: <= 100 fires for 50.
         assert_eq!(law.evaluate(&under), Decision::Deny);
-        // Doesn't fire for 150. ADMIN-ONLY-ROLES doesn't match either
-        // (action is spend_a_lot, not assign_role), so default allow.
-        assert_eq!(law.evaluate(&over_budget), Decision::Allow);
+        // atp=150 doesn't trigger ATP-LIMIT (150 NOT <= 100). But the
+        // canonical example also has an escalation trigger
+        // "r6.resource.atp > 50 → escalate_to sovereign" — which DOES
+        // fire for 150. So Escalate, not Allow.
+        assert_eq!(law.evaluate(&over_budget), Decision::Escalate);
+    }
+
+    // ----- Condition parser tests (V2-8 Step 3b) -----
+
+    #[test]
+    fn condition_parses_numeric_gt() {
+        let c = Condition::parse("r6.resource.atp > 50").unwrap();
+        assert_eq!(c.selector, "r6.resource.atp");
+        assert_eq!(c.operator, Operator::Gt);
+        assert_eq!(c.value, serde_yaml::Value::Number(50.into()));
+    }
+
+    #[test]
+    fn condition_parses_quoted_string_eq() {
+        let c = Condition::parse("r6.request.action == 'amend_charter'").unwrap();
+        assert_eq!(c.selector, "r6.request.action");
+        assert_eq!(c.operator, Operator::Eq);
+        assert_eq!(c.value, serde_yaml::Value::String("amend_charter".into()));
+    }
+
+    #[test]
+    fn condition_parses_double_quoted_string() {
+        let c = Condition::parse("r6.role == \"sovereign\"").unwrap();
+        assert_eq!(c.value, serde_yaml::Value::String("sovereign".into()));
+    }
+
+    #[test]
+    fn condition_parses_bare_word() {
+        let c = Condition::parse("r6.request.action == add_member").unwrap();
+        assert_eq!(c.value, serde_yaml::Value::String("add_member".into()));
+    }
+
+    #[test]
+    fn condition_parses_list_for_in() {
+        let c = Condition::parse("r6.role in [administrator, archivist]").unwrap();
+        assert_eq!(c.operator, Operator::In);
+        match c.value {
+            serde_yaml::Value::Sequence(items) => assert_eq!(items.len(), 2),
+            _ => panic!("expected sequence"),
+        }
+    }
+
+    #[test]
+    fn condition_parses_le_and_ge() {
+        assert_eq!(Condition::parse("r6.x <= 5").unwrap().operator, Operator::Le);
+        assert_eq!(Condition::parse("r6.x >= 5").unwrap().operator, Operator::Ge);
+    }
+
+    #[test]
+    fn condition_rejects_non_r6_selector() {
+        let result = Condition::parse("user.role == sovereign");
+        assert!(result.is_err());
+        let err = format!("{:?}", result.unwrap_err());
+        assert!(err.contains("must start with 'r6.'"));
+    }
+
+    #[test]
+    fn condition_rejects_missing_operator() {
+        let result = Condition::parse("r6.role sovereign");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn condition_matches_request() {
+        let c = Condition::parse("r6.resource.atp > 50").unwrap();
+        let mut req = request_with("citizen", "anything");
+        req.resource.insert("atp".into(), serde_yaml::Value::Number(75.into()));
+        assert!(c.matches(&req));
+        req.resource.insert("atp".into(), serde_yaml::Value::Number(25.into()));
+        assert!(!c.matches(&req));
+    }
+
+    // ----- Full evaluator with escalation -----
+
+    #[test]
+    fn escalation_fires_when_norms_silent() {
+        let yaml = r#"
+version: "1.0.0"
+escalation:
+  - condition: "r6.resource.atp > 50"
+    escalate_to: sovereign
+"#;
+        let law = Law::parse_and_validate(yaml).unwrap();
+        let mut req = request_with("citizen", "spend");
+        req.resource.insert("atp".into(), serde_yaml::Value::Number(75.into()));
+        let outcome = law.evaluate_outcome(&req);
+        assert_eq!(outcome.decision, Decision::Escalate);
+        assert_eq!(outcome.escalate_to, Some("sovereign".to_string()));
+        assert_eq!(outcome.escalation_index, Some(0));
+    }
+
+    #[test]
+    fn deny_norm_overrides_escalation_trigger() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: HARD-DENY
+    selector: r6.request.action
+    operator: "=="
+    value: forbidden
+    decision: deny
+escalation:
+  - condition: "r6.request.action == forbidden"
+    escalate_to: sovereign
+"#;
+        let law = Law::parse_and_validate(yaml).unwrap();
+        let outcome = law.evaluate_outcome(&request_with("citizen", "forbidden"));
+        // Deny is terminal; escalation can't override.
+        assert_eq!(outcome.decision, Decision::Deny);
+        assert_eq!(outcome.winning_norm, Some("HARD-DENY".to_string()));
+    }
+
+    #[test]
+    fn norm_escalate_defaults_to_sovereign() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: ESC
+    selector: r6.request.action
+    operator: "=="
+    value: review_me
+    decision: escalate
+"#;
+        let law = Law::parse_and_validate(yaml).unwrap();
+        let outcome = law.evaluate_outcome(&request_with("citizen", "review_me"));
+        assert_eq!(outcome.decision, Decision::Escalate);
+        assert_eq!(outcome.escalate_to, Some("sovereign".to_string()));
+    }
+
+    #[test]
+    fn escalation_with_quoted_string_value() {
+        let yaml = r#"
+version: "1.0.0"
+escalation:
+  - condition: "r6.request.action == 'amend_charter'"
+    escalate_to: sovereign
+"#;
+        let law = Law::parse_and_validate(yaml).unwrap();
+        let outcome = law.evaluate_outcome(&request_with("admin", "amend_charter"));
+        assert_eq!(outcome.decision, Decision::Escalate);
     }
 
     #[test]
