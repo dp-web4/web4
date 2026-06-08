@@ -308,12 +308,26 @@ async fn submit_event(
     let _redeemed = verify_envelope(&envelope, &s.nonces, &*resolver_guard, Utc::now())?;
     drop(resolver_guard);
 
-    // 2. V2-7 Step 2 authorization: only Sovereign can submit signed
-    // envelopes. Member-signing arrives with V2-12. PolicyEntity gating
-    // arrives with V2-8.
-    if envelope.signer_lct_id != s.sovereign_lct_id {
+    // 2. V2-7 §2 broadening (Sprint 3): the founding Sovereign OR any
+    // current member may sign envelopes. Per-action authorization
+    // (below at action match) constrains *which* acts each may perform
+    // — Sovereign-only acts (add_member) reject member envelopes;
+    // self-acts (declare_skill) require envelope.signer == act subject.
+    //
+    // Pre-Sprint-3 behavior was Sovereign-only at this layer. The
+    // restriction moved into per-action checks because V2-12 admitted
+    // members already authenticate via the resolver — gating their
+    // envelopes here was just delaying the inevitable.
+    let (signer_is_sovereign, signer_is_member) = {
+        let ledger = s.ledger.lock().await;
+        let projected = hub_lib::state::HubState::project(&*ledger);
+        let is_sov = envelope.signer_lct_id == s.sovereign_lct_id;
+        let is_member = projected.members.contains_key(&envelope.signer_lct_id);
+        (is_sov, is_member)
+    };
+    if !signer_is_sovereign && !signer_is_member {
         return Err(ApiError::unauthorized(format!(
-            "V2-7 Step 2: only Sovereign LCT may submit signed envelopes; got {}",
+            "signer {} is neither the founding Sovereign nor a current member",
             envelope.signer_lct_id
         )));
     }
@@ -340,18 +354,42 @@ async fn submit_event(
     let action: EnvelopeAction = serde_json::from_value(envelope.payload.clone())
         .map_err(|e| ApiError::bad_request(format!("payload not a known action: {}", e)))?;
 
+    // Per-action authorization. Sprint 3 carves the action space into
+    // "Sovereign-only" (membership control, role assignment, charter,
+    // law) and "member-self" (declare your own skill, etc.). The
+    // founding Sovereign can do anything; members are restricted to
+    // acts about themselves.
     let event = match action {
-        EnvelopeAction::AddMember { member_lct_id, name } => HubEvent::MemberAdded {
-            member_lct_id,
-            added_by: envelope.signer_lct_id,
-            member_name: name,
-            member_pubkey_hex: None,
-        },
-        EnvelopeAction::DeclareSkill { member_lct_id, skill } => HubEvent::MemberSkillDeclared {
-            member_lct_id,
-            skill,
-            declared_by: envelope.signer_lct_id,
-        },
+        EnvelopeAction::AddMember { member_lct_id, name } => {
+            if !signer_is_sovereign {
+                return Err(ApiError::unauthorized(String::from(
+                    "add_member is a Sovereign-only act; members cannot admit other members \
+                     (members self-add via POST /v1/hubs/{id}/members/join — V2-12)"
+                )));
+            }
+            HubEvent::MemberAdded {
+                member_lct_id,
+                added_by: envelope.signer_lct_id,
+                member_name: name,
+                member_pubkey_hex: None,
+            }
+        }
+        EnvelopeAction::DeclareSkill { member_lct_id, skill } => {
+            // Sovereign can declare skills for any member (operator
+            // convenience). Members can declare only their OWN skills —
+            // signer must match the subject, no impersonation.
+            if !signer_is_sovereign && envelope.signer_lct_id != member_lct_id {
+                return Err(ApiError::unauthorized(format!(
+                    "members may only declare their own skills (signer {} != subject {})",
+                    envelope.signer_lct_id, member_lct_id,
+                )));
+            }
+            HubEvent::MemberSkillDeclared {
+                member_lct_id,
+                skill,
+                declared_by: envelope.signer_lct_id,
+            }
+        }
     };
 
     // 3.5 PolicyEntity gate (V2-8 §4): if a chapter law is loaded,
@@ -359,7 +397,7 @@ async fn submit_event(
     // escalate_to role; Allow → proceed.
     let law_guard = s.law.read().await;
     if let Some(law) = law_guard.as_ref() {
-        let req = build_r6_request(&envelope, &event)
+        let req = build_r6_request(&envelope, &event, s.sovereign_lct_id)
             .map_err(ApiError::internal)?;
         let outcome = law.evaluate_outcome(&req);
         match outcome.decision {
@@ -683,16 +721,28 @@ async fn submit_join(
 // ---------- PolicyEntity gate helper (V2-8 §4) ----------
 
 /// Build an R6Request from a SignedEnvelope + the resolved HubEvent.
-/// V2-8 §4 first cut: role is hardcoded to "sovereign" since
-/// envelope-authenticated submissions today require the Sovereign
-/// signer (V2-7 §2 restriction; member-signing arrives with V2-12).
-/// `resource` is empty for V2-8 — future sprints add ATP tracking,
-/// witness counts, etc. via additional context.
-fn build_r6_request(_envelope: &SignedEnvelope, event: &HubEvent) -> anyhow::Result<R6Request> {
+///
+/// Sprint 3 (V2-7 §2 broadening): the role is now derived from the
+/// signer. Sovereign envelopes get role="sovereign"; member envelopes
+/// get role="citizen" (the base membership role per Web4 spec). Chapter
+/// law can therefore write different norms for each — e.g., allow
+/// citizens to declare_skill but deny them from add_member (which
+/// is already enforced upstream in submit_event's per-action check;
+/// the law can add policy on top of code-level authorization).
+fn build_r6_request(
+    envelope: &SignedEnvelope,
+    event: &HubEvent,
+    sovereign_lct_id: Uuid,
+) -> anyhow::Result<R6Request> {
     let payload = serde_yaml::to_value(event)
         .map_err(|e| anyhow::anyhow!("serializing event for R6: {}", e))?;
+    let role = if envelope.signer_lct_id == sovereign_lct_id {
+        "sovereign"
+    } else {
+        "citizen"
+    };
     Ok(R6Request {
-        role: "sovereign".to_string(),
+        role: role.to_string(),
         action: event.kind().to_string(),
         payload,
         resource: Default::default(),
