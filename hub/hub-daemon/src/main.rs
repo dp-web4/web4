@@ -245,11 +245,82 @@ enum Command {
         force: bool,
     },
 
+    /// V2-9 Phase 1: Sovereign Council management.
+    ///
+    /// Multi-Sovereign Council per architecture commitment #5. Phase 1
+    /// ships data-model + management + admin UI; threshold is recorded
+    /// but NOT yet enforced on `submit_event` (single-Sovereign signing
+    /// still suffices). Phase 2 adds the proposal/aggregation flow that
+    /// gates council-gated acts on M-of-N counter-signatures.
+    Council {
+        #[command(subcommand)]
+        subcommand: CouncilCommand,
+    },
+
     /// Query chapter state (members, skills, etc.).
     Query {
         #[command(subcommand)]
         subcommand: QueryCommand,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum CouncilCommand {
+    /// Admit a Sovereign Council holder. They become a co-Sovereign
+    /// (in the resolver; can sign envelopes in Phase 2). Pubkey is
+    /// pinned into the ledger so future verification needs no registry.
+    Add {
+        hub_dir: PathBuf,
+        /// The new holder's LCT id (uuid).
+        member_lct_id: Uuid,
+        /// The new holder's public key (hex-encoded 32 bytes). Get
+        /// from their identity file or `hub gen-lct`'s output.
+        #[arg(long)]
+        pubkey: String,
+        /// Optional display name.
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Remove a Sovereign Council holder.
+    Remove {
+        hub_dir: PathBuf,
+        member_lct_id: Uuid,
+        /// Removal kind for audit trail.
+        #[arg(long, value_enum, default_value = "resigned")]
+        kind: CliRoleEventKind,
+        #[arg(long)]
+        reason: Option<String>,
+    },
+    /// Set the council's M-of-N threshold. N is derived from
+    /// holder count + 1 (the founding Sovereign) at apply time.
+    /// Recorded but not yet enforced — Phase 2.
+    SetThreshold {
+        hub_dir: PathBuf,
+        /// M — minimum number of signatures required.
+        m: u32,
+    },
+    /// Show the current council state.
+    Show {
+        hub_dir: PathBuf,
+    },
+}
+
+#[derive(Copy, Clone, Debug, clap::ValueEnum)]
+enum CliRoleEventKind {
+    Resigned,
+    Ejected,
+    Elected,
+}
+
+impl From<CliRoleEventKind> for web4_core::role::RoleEventKind {
+    fn from(c: CliRoleEventKind) -> Self {
+        use web4_core::role::RoleEventKind;
+        match c {
+            CliRoleEventKind::Resigned => RoleEventKind::FillerResigned,
+            CliRoleEventKind::Ejected => RoleEventKind::FillerEjected,
+            CliRoleEventKind::Elected => RoleEventKind::FillerElected,
+        }
+    }
 }
 
 #[derive(Subcommand, Debug)]
@@ -352,7 +423,82 @@ async fn main() -> Result<()> {
         }
         Some(Command::GetLaw { hub_dir }) => run_get_law(hub_dir),
         Some(Command::InitLaw { output, force }) => run_init_law(output, force),
+        Some(Command::Council { subcommand }) => run_council(subcommand),
         Some(Command::Query { subcommand }) => run_query(subcommand),
+    }
+}
+
+fn run_council(sub: CouncilCommand) -> Result<()> {
+    match sub {
+        CouncilCommand::Add { hub_dir, member_lct_id, pubkey, name } => {
+            // Validate pubkey hex shape early so the operator gets a clear
+            // error at the CLI boundary rather than at envelope-verify time.
+            let decoded = hex::decode(&pubkey)
+                .context("decoding --pubkey as hex")?;
+            if decoded.len() != 32 {
+                anyhow::bail!("--pubkey must be 32 bytes (got {})", decoded.len());
+            }
+            let mut session = HubSession::open(&hub_dir)?;
+            let entry = session.add_council_member(member_lct_id, pubkey, name.clone())?;
+            println!("Council member added.");
+            println!("  Member LCT:   {}", member_lct_id);
+            if let Some(n) = name { println!("  Name:         {}", n); }
+            println!("  Entry index:  {}", entry.index);
+            println!("  Entry hash:   {}", entry.entry_hash);
+            println!();
+            println!("Note: V2-9 Phase 1 records council state + adds the holder to the");
+            println!("resolver. Phase 2 will add the M-of-N proposal/aggregation flow.");
+            Ok(())
+        }
+        CouncilCommand::Remove { hub_dir, member_lct_id, kind, reason } => {
+            let mut session = HubSession::open(&hub_dir)?;
+            let entry = session.remove_council_member(member_lct_id, kind.into(), reason)?;
+            println!("Council member removed.");
+            println!("  Member LCT:   {}", member_lct_id);
+            println!("  Entry index:  {}", entry.index);
+            println!("  Entry hash:   {}", entry.entry_hash);
+            Ok(())
+        }
+        CouncilCommand::SetThreshold { hub_dir, m } => {
+            let mut session = HubSession::open(&hub_dir)?;
+            let (entry_index, entry_hash) = {
+                let entry = session.set_council_threshold(m)?;
+                (entry.index, entry.entry_hash.clone())
+            };
+            let state = session.state();
+            let (eff_m, n) = state.council_threshold.unwrap_or((1, 1));
+            println!("Council threshold set.");
+            println!("  Requested M:  {}", m);
+            println!("  Applied:      {}-of-{}", eff_m, n);
+            println!("  Entry index:  {}", entry_index);
+            println!("  Entry hash:   {}", entry_hash);
+            if m != eff_m {
+                println!("  Note:         requested M was clamped to applied (1..=N).");
+            }
+            println!();
+            println!("Note: threshold is recorded but NOT yet enforced on submit_event.");
+            println!("Phase 2 will gate council-gated acts on M-of-N counter-signatures.");
+            Ok(())
+        }
+        CouncilCommand::Show { hub_dir } => {
+            let session = HubSession::open(&hub_dir)?;
+            let state = session.state();
+            let society = session.society()?;
+            println!("Sovereign Council:");
+            println!("  Founding Sovereign: {}", society.founder_lct_id);
+            println!("  Council holders: {}", state.council_holders.len());
+            for holder in &state.council_holders {
+                let name = state.members.get(holder)
+                    .and_then(|m| m.name.clone())
+                    .unwrap_or_else(|| "(unnamed)".into());
+                println!("    - {} {}", holder, name);
+            }
+            match state.council_threshold {
+                Some((m, n)) => println!("  Threshold: {}-of-{} (informational; not yet enforced)", m, n),
+                None => println!("  Threshold: single-signer (none set)"),
+            }
+            Ok(())
+        }
     }
 }
 

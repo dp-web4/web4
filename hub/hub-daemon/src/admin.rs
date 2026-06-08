@@ -208,6 +208,10 @@ async fn members(State(s): State<RestState>) -> Result<Html<String>, AdminError>
 
 async fn roles(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
     let society = load_society(&s.paths.root)?;
+    let ledger = s.ledger.lock().await;
+    let projected = HubState::project(&*ledger);
+    drop(ledger);
+
     let mut body = String::from("<h2>Role assignments</h2>");
     if society.roles.is_empty() {
         body.push_str("<p class=\"muted\">No roles assigned.</p>");
@@ -226,13 +230,46 @@ async fn roles(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
         body.push_str("</tbody></table>");
     }
 
-    body.push_str("<h2 style=\"margin-top:2rem\">Sovereign</h2><dl class=\"grid\">");
-    body.push_str(&format!("<dt>Founder LCT</dt><dd>{}</dd>", society.founder_lct_id));
+    body.push_str("<h2 style=\"margin-top:2rem\">Sovereign Council</h2>");
+    body.push_str("<dl class=\"grid\">");
+    body.push_str(&format!("<dt>Founding Sovereign</dt><dd>{}</dd>", society.founder_lct_id));
     body.push_str(&format!("<dt>Active sovereign</dt><dd>{}</dd>", s.sovereign_lct_id));
     if society.founder_lct_id != s.sovereign_lct_id {
         body.push_str("<dt>Note</dt><dd><span class=\"pill pill-warn\">sovereignty has rotated since founding</span></dd>");
     }
+    body.push_str(&format!("<dt>Council holders</dt><dd>{}</dd>", projected.council_holders.len()));
+    match projected.council_threshold {
+        Some((m, n)) => {
+            body.push_str(&format!(
+                "<dt>Threshold</dt><dd>{}-of-{} \
+                 <span class=\"pill pill-warn\">recorded only; Phase 2 will enforce on submit_event</span></dd>",
+                m, n,
+            ));
+        }
+        None => {
+            body.push_str("<dt>Threshold</dt><dd>single-signer (none set)</dd>");
+        }
+    }
     body.push_str("</dl>");
+
+    if !projected.council_holders.is_empty() {
+        body.push_str("<table style=\"margin-top:0.6rem\"><thead><tr><th>Holder LCT</th><th>Name</th><th>Pubkey pinned</th></tr></thead><tbody>");
+        for holder in &projected.council_holders {
+            let name = projected.members.get(holder)
+                .and_then(|m| m.name.clone())
+                .unwrap_or_else(|| "(unnamed)".into());
+            let pk_pill = if projected.council_pubkeys.contains_key(holder) {
+                "<span class=\"pill\">yes</span>"
+            } else {
+                "<span class=\"pill pill-warn\">no</span>"
+            };
+            body.push_str(&format!(
+                "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
+                holder, html_escape(&name), pk_pill,
+            ));
+        }
+        body.push_str("</tbody></table>");
+    }
 
     Ok(layout(&s.hub_name, "Roles", &body))
 }
@@ -393,6 +430,20 @@ fn event_summary(event: &HubEvent) -> String {
                 .map(|s| format!(" · {}", html_escape(s)))
                 .unwrap_or_default(),
         ),
+        HubEvent::CouncilMemberAdded { member_lct_id, member_name, .. } => {
+            let name = member_name.as_deref().unwrap_or("(unnamed)");
+            format!(
+                "Council holder {} admitted <span class=\"muted\">[{}]</span>",
+                html_escape(name),
+                short(member_lct_id),
+            )
+        }
+        HubEvent::CouncilMemberRemoved { member_lct_id, removal_kind, .. } => {
+            format!("Council holder {} removed ({:?})", short(member_lct_id), removal_kind)
+        }
+        HubEvent::CouncilThresholdChanged { new_m, .. } => {
+            format!("Council threshold M={} requested", new_m)
+        }
     }
 }
 

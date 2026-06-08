@@ -121,6 +121,22 @@ impl RestState {
                 ),
             }
         }
+        // V2-9 Phase 1: seed the resolver with every Sovereign Council
+        // holder's pubkey so any holder can sign chapter acts as a
+        // co-Sovereign. Holders are also auto-added to member_pubkeys
+        // when they're admitted (CouncilMemberAdded handler in state.rs
+        // inserts them into the member registry); this loop is the
+        // explicit council-holder pass for clarity + to surface
+        // reconstruction errors with the council label.
+        for (holder_lct_id, pubkey_hex) in &projected.council_pubkeys {
+            match hub_lib::hub::hestia_sovereign_lct(*holder_lct_id, pubkey_hex) {
+                Ok(lct) => resolver.insert(lct),
+                Err(e) => tracing::warn!(
+                    "skipping council holder {} pubkey reconstruction: {}",
+                    holder_lct_id, e
+                ),
+            }
+        }
 
         Ok(Self {
             paths,

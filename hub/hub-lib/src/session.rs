@@ -169,6 +169,55 @@ impl HubSession {
         self.append(event)
     }
 
+    /// V2-9 Phase 1: admit a new Sovereign Council holder. The holder
+    /// can sign chapter acts as a co-Sovereign starting immediately.
+    /// `pubkey_hex` is pinned into the ledger so future envelopes
+    /// from this holder verify without an external registry.
+    pub fn add_council_member(
+        &mut self,
+        member_lct_id: Uuid,
+        pubkey_hex: String,
+        name: Option<String>,
+    ) -> Result<&LedgerEntry> {
+        let event = HubEvent::CouncilMemberAdded {
+            member_lct_id,
+            member_pubkey_hex: pubkey_hex,
+            added_by: self.sovereign_lct_id,
+            member_name: name,
+        };
+        self.append(event)
+    }
+
+    /// V2-9 Phase 1: remove a Sovereign Council holder. `kind` lets
+    /// callers distinguish voluntary resignation, ejection, or election
+    /// replacement for audit consumers.
+    pub fn remove_council_member(
+        &mut self,
+        member_lct_id: Uuid,
+        kind: web4_core::role::RoleEventKind,
+        reason: Option<String>,
+    ) -> Result<&LedgerEntry> {
+        let event = HubEvent::CouncilMemberRemoved {
+            member_lct_id,
+            removed_by: self.sovereign_lct_id,
+            removal_kind: kind,
+            reason,
+        };
+        self.append(event)
+    }
+
+    /// V2-9 Phase 1: set the council's M-of-N threshold. N is derived
+    /// from current holder count + 1 (the founding Sovereign) at apply
+    /// time. Recorded but not yet enforced — Phase 2 ships the
+    /// proposal/aggregation flow that gates submit_event on threshold.
+    pub fn set_council_threshold(&mut self, new_m: u32) -> Result<&LedgerEntry> {
+        let event = HubEvent::CouncilThresholdChanged {
+            new_m,
+            initiated_by: self.sovereign_lct_id,
+        };
+        self.append(event)
+    }
+
     // ---------- queries ----------
 
     pub fn state(&self) -> HubState {

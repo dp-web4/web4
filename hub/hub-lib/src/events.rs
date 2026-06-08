@@ -104,6 +104,44 @@ pub enum HubEvent {
         version: String,
         diff_summary: Option<String>,
     },
+
+    /// A new Sovereign Council holder was admitted (V2-9 Phase 1). The
+    /// added holder co-signs chapter acts as a co-Sovereign. Their
+    /// public key is pinned at admission time so future envelopes
+    /// verify without an external registry.
+    ///
+    /// Per architecture commitment #5: multi-Sovereign Council from the
+    /// start — no single-founder pattern in production. Phase 1 ships
+    /// the data model + per-holder envelope signing. Phase 2 lands the
+    /// proposal/aggregation flow that enforces M-of-N on council-gated
+    /// acts.
+    CouncilMemberAdded {
+        member_lct_id: Uuid,
+        member_pubkey_hex: String,
+        added_by: Uuid,
+        member_name: Option<String>,
+    },
+
+    /// A Sovereign Council holder was removed. `removal_kind` captures
+    /// whether the holder left voluntarily, was ejected, or was replaced
+    /// by election — for audit trail consumers that care about the
+    /// distinction (web4_core::role::RoleEventKind).
+    CouncilMemberRemoved {
+        member_lct_id: Uuid,
+        removed_by: Uuid,
+        removal_kind: web4_core::role::RoleEventKind,
+        reason: Option<String>,
+    },
+
+    /// The Sovereign Council's M-of-N threshold changed. N is derived
+    /// from current holder count at apply time. Until V2-9 Phase 2
+    /// ships the proposal/aggregation flow, this value is recorded
+    /// but NOT enforced on `submit_event` — any single council
+    /// holder's signature still commits.
+    CouncilThresholdChanged {
+        new_m: u32,
+        initiated_by: Uuid,
+    },
 }
 
 impl HubEvent {
@@ -118,6 +156,9 @@ impl HubEvent {
             Self::CharterAmended { .. } => "charter_amended",
             Self::MemberSkillDeclared { .. } => "member_skill_declared",
             Self::LawAmended { .. } => "law_amended",
+            Self::CouncilMemberAdded { .. } => "council_member_added",
+            Self::CouncilMemberRemoved { .. } => "council_member_removed",
+            Self::CouncilThresholdChanged { .. } => "council_threshold_changed",
         }
     }
 }

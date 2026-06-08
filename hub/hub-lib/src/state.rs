@@ -38,6 +38,24 @@ pub struct HubState {
     /// envelopes until re-added with a pubkey.
     pub member_pubkeys: BTreeMap<Uuid, String>,
 
+    /// V2-9 Phase 1: Sovereign Council holders beyond the founding
+    /// Sovereign. Empty for single-Sovereign chapters. Each holder
+    /// can sign chapter acts as a co-Sovereign; their pubkey is in
+    /// `council_pubkeys`.
+    pub council_holders: BTreeSet<Uuid>,
+
+    /// V2-9 Phase 1: pubkeys of council holders. Resolver bootstrap
+    /// merges these with `member_pubkeys` at hub serve startup so any
+    /// council holder's envelope verifies.
+    pub council_pubkeys: BTreeMap<Uuid, String>,
+
+    /// V2-9 Phase 1: current M-of-N threshold for council-gated acts.
+    /// `None` means single-signer mode. The N component is recomputed
+    /// from `council_holders.len() + 1` (the founding Sovereign counts)
+    /// at apply time. **Not yet enforced** — informational until
+    /// V2-9 Phase 2 ships the proposal/aggregation flow.
+    pub council_threshold: Option<(u32, u32)>,
+
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
 }
@@ -113,6 +131,38 @@ impl HubState {
                 // Not projected into HubState yet — these affect society.json /
                 // charter.json / hub-law.yaml instead. Future sprints surface
                 // them here too.
+            }
+            HubEvent::CouncilMemberAdded { member_lct_id, member_pubkey_hex, member_name, .. } => {
+                self.council_holders.insert(*member_lct_id);
+                self.council_pubkeys.insert(*member_lct_id, member_pubkey_hex.clone());
+                // Council holders are also members (co-Sovereigns participate
+                // in chapter life). Auto-add them to the member registry if
+                // not already present, so /admin/members shows them.
+                self.members.entry(*member_lct_id).or_insert_with(|| Member {
+                    lct_id: *member_lct_id,
+                    name: member_name.clone(),
+                    skills: BTreeSet::new(),
+                });
+                // Rebalance N component of threshold if set.
+                if let Some((m, _)) = self.council_threshold {
+                    let n = (self.council_holders.len() + 1) as u32;
+                    self.council_threshold = Some((m, n));
+                }
+            }
+            HubEvent::CouncilMemberRemoved { member_lct_id, .. } => {
+                self.council_holders.remove(member_lct_id);
+                self.council_pubkeys.remove(member_lct_id);
+                if let Some((m, _)) = self.council_threshold {
+                    let n = (self.council_holders.len() + 1) as u32;
+                    // If removing a holder drops N below M, clamp M to N.
+                    let m_clamped = m.min(n.max(1));
+                    self.council_threshold = Some((m_clamped, n));
+                }
+            }
+            HubEvent::CouncilThresholdChanged { new_m, .. } => {
+                let n = (self.council_holders.len() + 1) as u32;
+                let m = (*new_m).clamp(1, n.max(1));
+                self.council_threshold = Some((m, n));
             }
         }
     }
