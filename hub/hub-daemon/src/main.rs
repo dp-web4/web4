@@ -211,6 +211,25 @@ enum Command {
         skill: String,
     },
 
+    /// Set (or amend) the chapter's law from a YAML file (V2-8).
+    /// Validates the YAML against the chapter-law schema, writes it
+    /// to the chapter store, and appends a LawAmended event to the
+    /// ledger for audit.
+    SetLaw {
+        chapter_dir: PathBuf,
+        /// Path to a YAML file matching the chapter-law schema (see
+        /// web4-standard/core-spec/chapter-law-schema.md).
+        yaml: PathBuf,
+        /// Optional one-line summary of what changed.
+        #[arg(long)]
+        diff_summary: Option<String>,
+    },
+
+    /// Print the current chapter law YAML (or report none is set).
+    GetLaw {
+        chapter_dir: PathBuf,
+    },
+
     /// Query chapter state (members, skills, etc.).
     Query {
         #[command(subcommand)]
@@ -313,6 +332,10 @@ async fn main() -> Result<()> {
         Some(Command::DeclareSkill { chapter_dir, member_lct_id, skill }) => {
             run_declare_skill(chapter_dir, member_lct_id, skill)
         }
+        Some(Command::SetLaw { chapter_dir, yaml, diff_summary }) => {
+            run_set_law(chapter_dir, yaml, diff_summary)
+        }
+        Some(Command::GetLaw { chapter_dir }) => run_get_law(chapter_dir),
         Some(Command::Query { subcommand }) => run_query(subcommand),
     }
 }
@@ -405,6 +428,39 @@ fn run_record_event(
     println!("  Attendees:    {}", attended_by.len());
     println!("  Entry index:  {}", entry.index);
     println!("  Entry hash:   {}", entry.entry_hash);
+    Ok(())
+}
+
+fn run_set_law(chapter_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<String>) -> Result<()> {
+    let yaml = std::fs::read_to_string(&yaml_path)
+        .with_context(|| format!("reading law YAML from {}", yaml_path.display()))?;
+    // Parse + validate at the operator boundary so errors land clearly.
+    let law = hub_lib::law::Law::parse_and_validate(&yaml)
+        .context("parsing/validating law YAML")?;
+    let version = law.version.clone();
+
+    let mut session = ChapterSession::open(&chapter_dir)?;
+    let entry = session.set_law(&yaml, version.clone(), diff_summary.clone())?;
+
+    println!("Law set.");
+    println!("  Chapter dir:  {}", chapter_dir.display());
+    println!("  Version:      {}", version);
+    println!("  Norms:        {}", law.norms.len());
+    println!("  Procedures:   {}", law.procedures.len());
+    println!("  Entry index:  {}", entry.index);
+    println!("  Entry hash:   {}", entry.entry_hash);
+    if let Some(s) = diff_summary {
+        println!("  Diff summary: {}", s);
+    }
+    Ok(())
+}
+
+fn run_get_law(chapter_dir: PathBuf) -> Result<()> {
+    let session = ChapterSession::open(&chapter_dir)?;
+    match session.get_law()? {
+        Some(yaml) => print!("{}", yaml),
+        None => println!("No chapter law set."),
+    }
     Ok(())
 }
 

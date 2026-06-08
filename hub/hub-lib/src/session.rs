@@ -126,6 +126,39 @@ impl ChapterSession {
         self.append(event)
     }
 
+    /// Amend the chapter's law. Writes the new YAML to the store and
+    /// appends a [`crate::events::ChapterEvent::LawAmended`] event to
+    /// the ledger so the amendment is part of the audit trail.
+    ///
+    /// `yaml` MUST already be validated via
+    /// [`crate::law::Law::parse_and_validate`] before calling — this
+    /// method does not re-validate. (Caller validates so the error
+    /// from a bad YAML lands at the operator boundary, not deep in a
+    /// ledger op.)
+    pub fn set_law(
+        &mut self,
+        yaml: &str,
+        version: String,
+        diff_summary: Option<String>,
+    ) -> Result<&LedgerEntry> {
+        let sha = crate::law::Law::sha256_hex_of(yaml);
+        self.ledger.store_mut()
+            .write_law(yaml)
+            .context("writing law to chapter store")?;
+        let event = ChapterEvent::LawAmended {
+            new_law_sha256: sha,
+            amended_by: self.sovereign_lct_id,
+            version,
+            diff_summary,
+        };
+        self.append(event)
+    }
+
+    /// Read the current chapter law YAML, or None if no law is set.
+    pub fn get_law(&self) -> Result<Option<String>> {
+        self.ledger.store().read_law()
+    }
+
     pub fn declare_skill(&mut self, member_lct_id: Uuid, skill: String) -> Result<&LedgerEntry> {
         let event = ChapterEvent::MemberSkillDeclared {
             member_lct_id,
