@@ -124,14 +124,20 @@ structured content. See spec §6.
 - `TrustState` is missing `entityId`, `successCount`, `successRate`
   fields in all three SDKs (daemon emits them; SDKs ignore).
 - Daemon's `hestia://society/state` returns `trust_states_known`
-  in snake_case — should be `trustStatesKnown` for consistency
-  (deferred to v1).
+  in snake_case — at v0 this was filed as a casing inconsistency to
+  rename to `trustStatesKnown` (deferred to v1). _Later resolved the
+  other way: `society/state` is an ad-hoc snake_case stats object
+  bound by vector P0-009, so **no rename** — see the Upcoming note
+  and spec §8._
 
 **Not yet implemented at v0 (reserved fields):**
 - `hestia_query_policy` returns default-allow for every action.
   Real policy engine arrives in v1.
 - `approvalToken` in vault_get response is always `null`.
-  Interactive vault approval arrives in v1.
+  Interactive vault approval was forecast for v1 but **deferred** —
+  it did not land in v1 and is now targeted for v2+ (see the v1
+  "Not yet implemented" and "Upcoming" sections). `vault_denied`
+  remains reserved-but-unemittable until it ships.
 - Error codes `policy_denied`, `vault_denied`, `invalid_role` are
   reserved in the registry but the v0 daemon emits
   `internal_error` for these conditions instead.
@@ -152,9 +158,12 @@ implemented at v1" in the v1 section above, and "Known drift" in v0):
 - **Hardbound parity.** Hardbound exposes the v1 trait surface from
   `hardbound-pak`; an actual Hardbound implementation is its own
   private workstream.
-- **`trust_states_known` → `trustStatesKnown`** case fix in
-  `hestia://society/state`. Noted as drift in v0 (deferred to v1)
-  but not resolved in the v1 release.
+_(The v0 "known drift" item `trust_states_known` → `trustStatesKnown`
+is intentionally **not** listed here: the v1 spec resolved it as **no
+rename**. `hestia://society/state` is an ad-hoc stats object that
+stays `snake_case`, bound by conformance vector P0-009; the earlier
+camelCase aspiration contradicted that vector. See spec §8 and the
+per-resource casing split in §3. No casing rename is pending.)_
 
 ---
 

@@ -111,8 +111,19 @@ is split by surface and is fixed by the JSON Schemas in
   `host_agent`, `action_id`, …), as the input schemas require.
 - **Tool output and all §5 type-catalog shapes are `camelCase`**
   (`sessionId`, `softLct`, `protocolVersion`, …).
-- **§4 resource bodies are `snake_case`** (`sovereign_lct`,
-  `chain_length`, …), matching the bound conformance vectors.
+- **§4 resource bodies follow the casing of what they return** —
+  there is no single blanket rule, because the six resources return
+  different kinds of payload:
+  - `hestia://society/state` returns an **ad-hoc `snake_case`** stats
+    object (`sovereign_lct`, `chain_length`, …) — it is *not* a §5
+    type-catalog struct; its casing is bound by vector P0-009.
+  - `hestia://context/shared` is an **opaque** user-owned JSON
+    namespace with no casing mandate.
+  - The other four resources return §5 type-catalog structs and so
+    carry the same **`camelCase`** keys: `witness/recent` →
+    `WitnessEntry` (`chainPosition`, …; bound by vector P0-010),
+    `session/own` → `Session`, `society/trust/{plugin_id}` →
+    `TrustState`, `vault/{name}` → `VaultEntry`.
 
 Timestamps are ISO-8601 UTC strings. UUIDs are RFC 4122 v4 hex
 with dashes. Session IDs are UUIDs.
@@ -294,8 +305,9 @@ entity or external attestation service; orchestrator implementations
 MUST support both branches today so the protocol stays back-compatible
 when those engines arrive.
 
-**Errors:** `hestia.action_not_found`, `hestia.policy_denied` (when
-deny is enforced), `hestia.internal_error`.
+**Errors:** `hestia.action_not_found`, `hestia.policy_denied` (v1+;
+when deny is enforced — v0 daemons MAY emit `hestia.internal_error`
+instead, see §6.1), `hestia.internal_error`.
 
 ### 3.5 `hestia_vault_get`
 
@@ -447,8 +459,13 @@ The type-catalog shapes below — and all tool **output** shapes —
 use **camelCase keys** regardless of the source language's native
 convention. Languages map to their native casing via serializer
 hints. This camelCase rule does **not** extend to tool *input*
-arguments or §4 resource bodies, both of which are `snake_case`
-per §3 and the bound schemas/vectors.
+arguments, which are `snake_case` per §3 and the bound input
+schemas. For §4 resource bodies the casing is per-resource (see the
+split in §3): a resource that returns one of these §5 structs carries
+its `camelCase` keys (e.g. `witness/recent` → `WitnessEntry`,
+`session/own` → `Session`), while the ad-hoc `society/state` stats
+object is `snake_case` (bound by vector P0-009) and `context/shared`
+is opaque.
 
 ### 5.1 Session
 
@@ -659,9 +676,10 @@ honesty about where it isn't yet held.
 |---|---|---|
 | `PROTOCOL_VERSION` constant exists only in Rust SDK | TS, Python SDKs | Add to both — covered by `1a-4`. |
 | `TrustState` is missing `entityId`, `successCount`, `successRate` in all SDKs | All 3 SDKs | Add fields — covered by `1a-4`. |
-| ~~Error codes `policy_denied`, `vault_denied`, `invalid_role` referenced by SDKs but never emitted by daemon~~ | ~~Daemon~~ | **Resolved in v1.** The policy engine is wired (v1, 2026-05-16); these codes are now emittable. §6.1 marks them `(v1+)`. |
+| ~~Error codes `policy_denied`, `invalid_role` referenced by SDKs but never emitted by daemon~~ | ~~Daemon~~ | **Resolved in v1.** The policy engine is wired (v1, 2026-05-16); these two codes are now emittable. §6.1 marks them `(v1+)`. |
+| `vault_denied` referenced by SDKs but not yet emittable | Daemon | **Still pending.** Its only trigger — interactive vault approval refused (§6.1) — is deferred to v2+ (see §3.5/§3.6 and the CHANGELOG). Reserved in §6.1 as `(v1+)` so SDKs MAY map it, but no daemon can emit it until that approval flow ships. |
 | `WitnessEntry.timestamp` is a string in SDK types but parsed as `chrono::DateTime` in Rust | Rust SDK | Internal — wire format is the string. No spec change. |
-| Daemon's `hestia://society/state` resource returns `trust_states_known` (snake_case) | None — not drift | §3/§4.1 fix `snake_case` as the normative casing for resource bodies, consistent with the §7-bound conformance vectors (`sovereign_lct`, `chain_length`, …). No rename: the earlier camelCase aspiration contradicted the bound vectors. |
+| Daemon's `hestia://society/state` resource returns `trust_states_known` (snake_case) | None — not drift | `society/state` is an **ad-hoc stats object** (not a §5 struct); its `snake_case` keys are bound by vector P0-009 (`sovereign_lct`, `chain_length`, …). **No rename:** the earlier camelCase aspiration contradicted that vector. This is resource-specific — the four §5-typed resource bodies (`witness/recent`, `session/own`, `society/trust/{plugin_id}`, `vault/{name}`) stay `camelCase`, as vector P0-010 (`entries[0].chainPosition`) and the `witness_entry`/`trust_state` schemas require. See the per-resource casing split in §3. |
 | `synthetic` field in §3.1 `hestia_connect` input has no JSON Schema, no conformance vector, no CHANGELOG entry | Spec ↔ artifacts | Discipline gap (C5 audit P2). No v1 `hestia_connect` schema exists (only `v0/tools/hestia_connect.schema.json`); creating one is a structural prerequisite. Until then, `synthetic` is spec-documented but not artifact-conformed. |
 
 ---
