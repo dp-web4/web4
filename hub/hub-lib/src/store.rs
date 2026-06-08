@@ -114,6 +114,22 @@ pub trait ChapterStore: Send {
     fn ledger_is_empty(&self) -> Result<bool> {
         Ok(self.ledger_load_all()?.is_empty())
     }
+
+    // ----- Law (V2-8: signed YAML, amended via LawAmended events) -----
+
+    /// Read the current chapter law YAML, or None if no law has been
+    /// set yet. Returns the raw bytes (not the parsed [`crate::law::Law`])
+    /// so the store layer stays parser-agnostic.
+    fn read_law(&self) -> Result<Option<String>> {
+        Ok(None) // Default: backends not yet supporting law return None
+    }
+
+    /// Write/overwrite the current chapter law. Callers should also
+    /// append a [`crate::events::ChapterEvent::LawAmended`] event to
+    /// the ledger so the amendment is part of the audit trail.
+    fn write_law(&mut self, _yaml: &str) -> Result<()> {
+        anyhow::bail!("this backend does not yet support law storage")
+    }
 }
 
 /// Default SQLite filename inside a chapter dir.
@@ -207,6 +223,10 @@ impl FileBackend {
         self.paths.ledger()
     }
 
+    pub fn law_path(&self) -> PathBuf {
+        self.paths.root.join("chapter-law.yaml")
+    }
+
     fn ensure_parent(path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() && !parent.exists() {
@@ -297,6 +317,23 @@ impl ChapterStore for FileBackend {
         writeln!(f, "{}", line)
             .with_context(|| format!("writing to {}", path.display()))?;
         Ok(())
+    }
+
+    fn read_law(&self) -> Result<Option<String>> {
+        let path = self.law_path();
+        if !path.exists() {
+            return Ok(None);
+        }
+        std::fs::read_to_string(&path)
+            .map(Some)
+            .with_context(|| format!("reading law from {}", path.display()))
+    }
+
+    fn write_law(&mut self, yaml: &str) -> Result<()> {
+        let path = self.law_path();
+        Self::ensure_parent(&path)?;
+        std::fs::write(&path, yaml)
+            .with_context(|| format!("writing law to {}", path.display()))
     }
 }
 
@@ -625,6 +662,14 @@ impl ChapterStore for SqliteBackend {
             .context("counting ledger entries")?;
         Ok(count == 0)
     }
+
+    fn read_law(&self) -> Result<Option<String>> {
+        self.read_meta("law")
+    }
+
+    fn write_law(&mut self, yaml: &str) -> Result<()> {
+        self.write_meta("law", yaml)
+    }
 }
 
 #[cfg(test)]
@@ -886,6 +931,34 @@ mod tests {
         assert!(!result.charter_copied);
         assert!(!result.society_copied);
         assert!(result.preserved_artifacts.is_empty());
+    }
+
+    #[test]
+    fn file_law_round_trips() {
+        let (_tmp, mut b) = fresh_file_backend();
+        assert!(b.read_law().unwrap().is_none());
+        b.write_law("version: \"1.0.0\"\n").unwrap();
+        let back = b.read_law().unwrap().unwrap();
+        assert_eq!(back, "version: \"1.0.0\"\n");
+    }
+
+    #[test]
+    fn sqlite_law_round_trips() {
+        let (_tmp, mut b) = fresh_sqlite_backend();
+        assert!(b.read_law().unwrap().is_none());
+        b.write_law("version: \"1.0.0\"\nnorms: []\n").unwrap();
+        let back = b.read_law().unwrap().unwrap();
+        assert!(back.contains("1.0.0"));
+    }
+
+    #[test]
+    fn file_law_overwrites_on_amendment() {
+        let (_tmp, mut b) = fresh_file_backend();
+        b.write_law("version: \"1.0.0\"\n").unwrap();
+        b.write_law("version: \"1.1.0\"\n").unwrap();
+        let back = b.read_law().unwrap().unwrap();
+        assert!(back.contains("1.1.0"));
+        assert!(!back.contains("1.0.0"));
     }
 
     #[test]

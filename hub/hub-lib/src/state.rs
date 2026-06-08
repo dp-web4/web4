@@ -97,9 +97,11 @@ impl ChapterState {
             }
             ChapterEvent::RoleAssigned { .. }
             | ChapterEvent::EventRecorded { .. }
-            | ChapterEvent::CharterAmended { .. } => {
+            | ChapterEvent::CharterAmended { .. }
+            | ChapterEvent::LawAmended { .. } => {
                 // Not projected into ChapterState yet — these affect society.json /
-                // charter.json instead. Future sprints surface them here too.
+                // charter.json / chapter-law.yaml instead. Future sprints surface
+                // them here too.
             }
         }
     }

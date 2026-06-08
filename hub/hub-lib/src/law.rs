@@ -326,6 +326,22 @@ impl Law {
         law.validate()?;
         Ok(law)
     }
+
+    /// Canonical SHA-256 of the law's serialized YAML form. Used to
+    /// populate `ChapterEvent::LawAmended.new_law_sha256` when recording
+    /// an amendment in the ledger.
+    pub fn sha256_hex(&self) -> Result<String> {
+        use web4_core::crypto::sha256_hex;
+        let yaml = self.to_yaml()?;
+        Ok(sha256_hex(yaml.as_bytes()))
+    }
+
+    /// SHA-256 of a raw YAML string (without round-tripping through the
+    /// parser). Useful when the caller already has the canonical bytes
+    /// and wants to avoid re-serialization drift.
+    pub fn sha256_hex_of(yaml: &str) -> String {
+        web4_core::crypto::sha256_hex(yaml.as_bytes())
+    }
 }
 
 fn is_known_role(role: &str) -> bool {

@@ -79,6 +79,23 @@ pub enum ChapterEvent {
         skill: String,
         declared_by: Uuid,
     },
+
+    /// The chapter law was amended (V2-8). The new law's YAML bytes are
+    /// stored separately via [`crate::store::ChapterStore::write_law`];
+    /// this event records the amendment in the ledger for audit. The
+    /// `new_law_sha256` is the canonical hash of the YAML content,
+    /// enabling cross-verification: any party can walk the ledger,
+    /// follow the LawAmended events, and reconstruct which law was
+    /// in force at any historical point.
+    ///
+    /// Per architecture commitment #1: law is always signed and
+    /// auditable, never hardcoded. This event is the auditable trace.
+    LawAmended {
+        new_law_sha256: String,
+        amended_by: Uuid,
+        version: String,
+        diff_summary: Option<String>,
+    },
 }
 
 impl ChapterEvent {
@@ -92,6 +109,7 @@ impl ChapterEvent {
             Self::EventRecorded { .. } => "event_recorded",
             Self::CharterAmended { .. } => "charter_amended",
             Self::MemberSkillDeclared { .. } => "member_skill_declared",
+            Self::LawAmended { .. } => "law_amended",
         }
     }
 }
