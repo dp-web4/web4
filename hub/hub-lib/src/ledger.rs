@@ -56,6 +56,21 @@ pub struct LedgerEntry {
     pub signature: String,
     /// sha256 hex of the canonical entry (computed with `entry_hash` field cleared).
     pub entry_hash: String,
+    /// V2-9 Phase 2: when this entry was committed via the Sovereign
+    /// Council propose/sign flow, this references the proposal whose
+    /// M-of-N signatures authorized the act. Single-pane audit:
+    /// auditors walk the ledger, find entries with `proposal_ref =
+    /// Some(id)`, fetch the proposal from the store, and verify the
+    /// M holder envelopes against the council's pubkeys.
+    ///
+    /// `None` for entries committed via the direct /events path (no
+    /// council authorization), and for all pre-V2-9-P2 entries
+    /// (back-compat via serde default + skip_serializing_if).
+    /// Because the field is part of `signing_payload`, an attacker
+    /// cannot forge a fake `proposal_ref` onto an existing entry —
+    /// the signature wouldn't verify.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proposal_ref: Option<Uuid>,
 }
 
 /// The bytes that get signed: the entry's content with `signature` and
@@ -208,8 +223,22 @@ impl HubLedger {
         event: HubEvent,
         timestamp: DateTime<Utc>,
     ) -> Result<UnsignedEntry> {
-        // Genesis is its own path (write_genesis). All other entries
-        // require a Genesis to exist.
+        self.build_entry_with_proposal_ref(actor_lct_id, event, timestamp, None)
+    }
+
+    /// V2-9 Phase 2: variant of [`Self::build_entry`] that pins a
+    /// council proposal reference into the entry. Used by the
+    /// council propose/sign commit path so single-pane auditors can
+    /// link the ledger entry to the proposal record holding the
+    /// M-of-N holder signatures. `proposal_ref` is part of
+    /// `signing_payload` so it can't be forged after the fact.
+    pub fn build_entry_with_proposal_ref(
+        &self,
+        actor_lct_id: Uuid,
+        event: HubEvent,
+        timestamp: DateTime<Utc>,
+        proposal_ref: Option<Uuid>,
+    ) -> Result<UnsignedEntry> {
         let entry = LedgerEntry {
             index: self.entries.len() as u64,
             timestamp,
@@ -218,6 +247,7 @@ impl HubLedger {
             event,
             signature: String::new(),
             entry_hash: String::new(),
+            proposal_ref,
         };
         let signing_bytes = signing_payload(&entry)?;
         Ok(UnsignedEntry { entry, signing_bytes })
@@ -582,5 +612,113 @@ mod tests {
             },
         );
         assert!(result.is_err());
+    }
+
+    /// V2-9 Phase 2 back-compat: a ledger entry serialized BEFORE the
+    /// `proposal_ref` field existed must still parse + verify cleanly.
+    /// We simulate this by:
+    /// 1. Build + commit an entry with proposal_ref=None (the normal
+    ///    path; output JSON has no `proposal_ref` key thanks to
+    ///    skip_serializing_if).
+    /// 2. Round-trip it through serde and confirm proposal_ref is
+    ///    still None (deserialized via serde default).
+    /// 3. Construct a hand-written JSON string with NO proposal_ref
+    ///    key, deserialize, confirm it parses + has None.
+    /// 4. Verify the chain (signature still validates).
+    #[test]
+    fn proposal_ref_is_back_compat_via_serde_default() {
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+        let keypair = sovereign.keypair().unwrap();
+        let (store, _) = fresh_store(&tmp);
+        let mut ledger = HubLedger::open(store).unwrap();
+        ledger.write_genesis(
+            sovereign.lct.id, &keypair,
+            "Test".into(), "sha256:0".into(),
+        ).unwrap();
+        // Append a normal entry (proposal_ref = None by default).
+        let entry = ledger.append(
+            sovereign.lct.id, &keypair,
+            HubEvent::MemberAdded {
+                member_lct_id: Uuid::new_v4(),
+                added_by: sovereign.lct.id,
+                member_name: Some("Alice".into()),
+                member_pubkey_hex: None,
+            },
+        ).unwrap().clone();
+
+        // 1. Serialized form should NOT contain `proposal_ref` (skip_if None)
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(!json.contains("proposal_ref"),
+            "default None proposal_ref must be skipped in serialization (saw: {})", json);
+
+        // 2. Round-trip — still None.
+        let back: LedgerEntry = serde_json::from_str(&json).unwrap();
+        assert!(back.proposal_ref.is_none());
+        assert_eq!(back.entry_hash, entry.entry_hash);
+
+        // 3. Build a JSON string that LITERALLY omits the field
+        // (mimicking a pre-V2-9-P2 ledger entry on disk) — must parse.
+        let no_field_json = json.clone();
+        assert!(!no_field_json.contains("proposal_ref"));
+        let parsed: LedgerEntry = serde_json::from_str(&no_field_json).unwrap();
+        assert!(parsed.proposal_ref.is_none());
+
+        // 4. Chain verifies — signature still valid against the same bytes.
+        let lookup = build_lookup([sovereign.lct.clone()]);
+        ledger.verify_chain(|id| lookup.get(&id).cloned()).unwrap();
+    }
+
+    /// V2-9 Phase 2: an entry committed WITH a proposal_ref serializes
+    /// + verifies correctly. The field is part of signing_payload so
+    /// the signature covers it (forgery resistance).
+    #[test]
+    fn proposal_ref_when_set_is_signed_and_verifies() {
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+        let keypair = sovereign.keypair().unwrap();
+        let (store, _) = fresh_store(&tmp);
+        let mut ledger = HubLedger::open(store).unwrap();
+        ledger.write_genesis(
+            sovereign.lct.id, &keypair,
+            "Test".into(), "sha256:0".into(),
+        ).unwrap();
+        let proposal_id = Uuid::new_v4();
+        let event = HubEvent::MemberAdded {
+            member_lct_id: Uuid::new_v4(),
+            added_by: sovereign.lct.id,
+            member_name: Some("Carol".into()),
+            member_pubkey_hex: None,
+        };
+        // Build with proposal_ref + sign + commit.
+        let unsigned = ledger.build_entry_with_proposal_ref(
+            sovereign.lct.id, event, Utc::now(), Some(proposal_id),
+        ).unwrap();
+        let sig = keypair.sign(&unsigned.signing_bytes);
+        let entry = ledger.append_signed(unsigned, SignatureBytes::from_bytes(sig.bytes))
+            .unwrap()
+            .clone();
+        assert_eq!(entry.proposal_ref, Some(proposal_id));
+
+        // Serialized form DOES contain `proposal_ref` now.
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(json.contains("proposal_ref"));
+
+        // Chain verifies — signature covers the proposal_ref field.
+        let lookup = build_lookup([sovereign.lct.clone()]);
+        ledger.verify_chain(|id| lookup.get(&id).cloned()).unwrap();
+
+        // Tamper test: flipping proposal_ref invalidates the signature.
+        let mut tampered = entry.clone();
+        tampered.proposal_ref = Some(Uuid::new_v4());
+        let payload = signing_payload(&tampered).unwrap();
+        let sig_bytes = hex::decode(&tampered.signature).unwrap();
+        let sig_arr: [u8; 64] = sig_bytes.as_slice().try_into().unwrap();
+        let result = sovereign.lct.verify_signature(
+            &payload,
+            &SignatureBytes::from_bytes(sig_arr),
+        );
+        assert!(result.is_err(),
+            "tampering with proposal_ref must invalidate signature");
     }
 }

@@ -836,7 +836,7 @@ async fn submit_proposal(
     // M=1), commit immediately so this works as a strict superset of
     // the existing /events flow.
     if proposal.meets_threshold(threshold.0, &holders) {
-        let entry_index = commit_proposed_event(&s, &proposal.proposed_event).await?;
+        let entry_index = commit_proposed_event(&s, &proposal.proposed_event, Some(proposal.id)).await?;
         proposal.status = ProposalStatus::Committed { entry_index, committed_at: now };
     }
 
@@ -904,7 +904,7 @@ async fn sign_proposal(
     proposal.add_vote(envelope, now);
 
     if proposal.meets_threshold(threshold.0, &holders) {
-        let entry_index = commit_proposed_event(&s, &proposal.proposed_event).await?;
+        let entry_index = commit_proposed_event(&s, &proposal.proposed_event, Some(proposal.id)).await?;
         proposal.status = ProposalStatus::Committed { entry_index, committed_at: now };
     }
 
@@ -996,15 +996,25 @@ async fn cleanup_expired_proposals(s: &RestState, now: chrono::DateTime<Utc>) {
 /// Sovereign). The ledger entry's `actor_lct_id` is the founding
 /// Sovereign — they're the executor of the council's decision. The
 /// authorization audit trail (M holder signatures) lives in the
-/// proposal record, linked via `entry_index` in ProposalStatus::Committed.
-async fn commit_proposed_event(s: &RestState, event: &HubEvent) -> Result<u64, ApiError> {
+/// proposal record, linked bidirectionally:
+/// - proposal → ledger: `ProposalStatus::Committed { entry_index }`
+/// - ledger → proposal: `LedgerEntry.proposal_ref = Some(proposal_id)`
+/// The ledger-side reference is part of `signing_payload`, so an
+/// attacker can't forge a `proposal_ref` onto an existing entry
+/// without invalidating the founding Sovereign's signature.
+async fn commit_proposed_event(
+    s: &RestState,
+    event: &HubEvent,
+    proposal_ref: Option<Uuid>,
+) -> Result<u64, ApiError> {
     let event_kind_str = event.kind().to_string();
     let event_value = serde_json::to_value(event)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
     let (unsigned, intent) = {
         let ledger = s.ledger.lock().await;
-        let unsigned = ledger.build_entry(s.sovereign_lct_id, event.clone(), Utc::now())
-            .map_err(ApiError::internal)?;
+        let unsigned = ledger.build_entry_with_proposal_ref(
+            s.sovereign_lct_id, event.clone(), Utc::now(), proposal_ref,
+        ).map_err(ApiError::internal)?;
         let intent = SignIntent {
             request_id: Uuid::new_v4(),
             hub_id: s.hub_id,

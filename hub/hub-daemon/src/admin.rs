@@ -304,12 +304,21 @@ async fn ledger_detail(
     let event_json = serde_json::to_string_pretty(&entry.event)
         .map_err(|e| AdminError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    let proposal_ref_html = match entry.proposal_ref {
+        Some(id) => format!(
+            "<dt>Proposal</dt><dd><a href=\"/admin/council\">{}</a> \
+             <span class=\"pill\">council-authorized</span></dd>",
+            id,
+        ),
+        None => String::new(),
+    };
     let body = format!(
         "<h2>Entry #{}</h2><dl class=\"grid\">\
          <dt>Index</dt><dd>{}</dd>\
          <dt>Timestamp</dt><dd>{}</dd>\
          <dt>Actor LCT</dt><dd>{}</dd>\
          <dt>Event kind</dt><dd>{}</dd>\
+         {}\
          <dt>Prev hash</dt><dd>{}</dd>\
          <dt>Entry hash</dt><dd>{}</dd>\
          <dt>Signature</dt><dd>{}</dd>\
@@ -320,6 +329,7 @@ async fn ledger_detail(
         entry.timestamp,
         entry.actor_lct_id,
         entry.event.kind(),
+        proposal_ref_html,
         html_escape(&entry.prev_hash),
         html_escape(&entry.entry_hash),
         html_escape(&entry.signature),
@@ -441,10 +451,16 @@ fn render_ledger_table(entries: &[hub_lib::ledger::LedgerEntry]) -> String {
         "<table><thead><tr><th>#</th><th>Kind</th><th>Actor</th><th>When</th><th>Summary</th></tr></thead><tbody>",
     );
     for e in entries {
+        let council_pill = if e.proposal_ref.is_some() {
+            " <span class=\"pill\">council</span>"
+        } else {
+            ""
+        };
         out.push_str(&format!(
-            "<tr><td><a href=\"/admin/ledger/{idx}\">#{idx}</a></td>\
+            "<tr><td><a href=\"/admin/ledger/{idx}\">#{idx}</a>{pill}</td>\
              <td>{kind}</td><td>{actor}</td><td>{ts}</td><td>{summary}</td></tr>",
             idx = e.index,
+            pill = council_pill,
             kind = e.event.kind(),
             actor = e.actor_lct_id,
             ts = e.timestamp.format("%Y-%m-%d %H:%M:%S UTC"),

@@ -899,6 +899,7 @@ mod tests {
             },
             signature: "deadbeef".into(),
             entry_hash: "abc".repeat(20).chars().take(64).collect(),
+            proposal_ref: None,
         };
 
         {
@@ -933,6 +934,7 @@ mod tests {
             },
             signature: "".into(),
             entry_hash: "".into(),
+            proposal_ref: None,
         };
         b.ledger_append(&make(0)).unwrap();
         // Duplicate index: PRIMARY KEY constraint should reject
@@ -986,6 +988,7 @@ mod tests {
             },
             signature: format!("sig{}", i),
             entry_hash: format!("h{}", i),
+            proposal_ref: None,
         }).collect();
 
         {
