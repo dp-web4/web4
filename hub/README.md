@@ -14,7 +14,7 @@ A single-binary Rust daemon (~6 MB) that turns a community chapter into a sovere
 | 1 | Society instantiation (7 roles + signed charter) | ✓ |
 | 2 | Chapter ledger (hash-chained signed event log) | ✓ |
 | 3 | MCP HTTP server (`/tools/*` for all operations) | ✓ |
-| 4 | Admin CLI parity via ChapterSession | ✓ |
+| 4 | Admin CLI parity via HubSession | ✓ |
 | 5 | Docker package + first-chapter demo scripts | ✓ (Docker untested on dev machine; first operator with Docker should report) |
 | 6 | Pilot-organizer docs + polish | ✓ |
 

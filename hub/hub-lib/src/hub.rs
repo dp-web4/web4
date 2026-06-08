@@ -27,17 +27,20 @@ use web4_core::lct::{EntityType, Lct};
 /// Default MCP listen port. 8760 is sage-daemon's; 8770 leaves room.
 pub const DEFAULT_MCP_PORT: u16 = 8770;
 
-/// On-disk chapter config.
+/// On-disk hub config.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ChapterConfig {
-    pub chapter: ChapterSection,
+pub struct HubConfig {
+    /// Serialized as `[hub]` in TOML. Accepts `[chapter]` for back-compat
+    /// with hub dirs created before the chapter→hub rename.
+    #[serde(alias = "chapter")]
+    pub hub: HubSection,
     pub daemon: DaemonSection,
     pub sovereign: SovereignSection,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ChapterSection {
-    /// Human-readable chapter name.
+pub struct HubSection {
+    /// Human-readable hub name.
     pub name: String,
 }
 
@@ -164,11 +167,11 @@ impl SovereignSection {
     }
 }
 
-impl ChapterConfig {
+impl HubConfig {
     /// Local-mode constructor (MVP-compat).
     pub fn new(name: String, sovereign_lct_path: PathBuf) -> Self {
         Self {
-            chapter: ChapterSection { name },
+            hub: HubSection { name },
             daemon: DaemonSection { mcp_port: DEFAULT_MCP_PORT },
             sovereign: SovereignSection {
                 lct_path: Some(sovereign_lct_path),
@@ -185,7 +188,7 @@ impl ChapterConfig {
         pubkey_hex: String,
     ) -> Self {
         Self {
-            chapter: ChapterSection { name },
+            hub: HubSection { name },
             daemon: DaemonSection { mcp_port: DEFAULT_MCP_PORT },
             sovereign: SovereignSection {
                 lct_path: None,
@@ -216,11 +219,11 @@ impl ChapterConfig {
 
 /// File-path helper bound to a chapter directory.
 #[derive(Clone, Debug)]
-pub struct ChapterPaths {
+pub struct HubPaths {
     pub root: PathBuf,
 }
 
-impl ChapterPaths {
+impl HubPaths {
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self { root: root.into() }
     }
@@ -245,20 +248,20 @@ mod tests {
     fn config_round_trips() {
         let dir = tempdir().unwrap();
         let cfg_path = dir.path().join("config.toml");
-        let cfg = ChapterConfig::new(
+        let cfg = HubConfig::new(
             "Test Chapter".into(),
             PathBuf::from("../sovereign.json"),
         );
         cfg.save(&cfg_path).unwrap();
-        let loaded = ChapterConfig::load(&cfg_path).unwrap();
-        assert_eq!(loaded.chapter.name, "Test Chapter");
+        let loaded = HubConfig::load(&cfg_path).unwrap();
+        assert_eq!(loaded.hub.name, "Test Chapter");
         assert_eq!(loaded.daemon.mcp_port, DEFAULT_MCP_PORT);
         assert_eq!(loaded.sovereign.lct_path, Some(PathBuf::from("../sovereign.json")));
     }
 
     #[test]
     fn paths_resolve_off_root() {
-        let p = ChapterPaths::new("/tmp/chapter");
+        let p = HubPaths::new("/tmp/chapter");
         assert_eq!(p.config(), PathBuf::from("/tmp/chapter/config.toml"));
         assert_eq!(p.charter(), PathBuf::from("/tmp/chapter/charter.json"));
         assert_eq!(p.society(), PathBuf::from("/tmp/chapter/society.json"));
@@ -268,7 +271,7 @@ mod tests {
     #[test]
     fn is_initialized_reflects_society_file() {
         let dir = tempdir().unwrap();
-        let paths = ChapterPaths::new(dir.path());
+        let paths = HubPaths::new(dir.path());
         assert!(!paths.is_initialized());
         std::fs::write(paths.society(), "{}").unwrap();
         assert!(paths.is_initialized());

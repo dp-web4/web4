@@ -50,9 +50,9 @@ pub struct SignIntent {
     /// Correlation id for matching response to request.
     pub request_id: Uuid,
     /// Which chapter the entry belongs to.
-    pub chapter_id: Uuid,
+    pub hub_id: Uuid,
     /// Human-readable chapter name (for vault policy / UX prompts).
-    pub chapter_name: String,
+    pub hub_name: String,
     /// Which actor (role-filler) the signature is being attributed to.
     pub actor_lct_id: Uuid,
     /// Ledger index of the proposed entry.
@@ -322,8 +322,8 @@ mod tests {
     fn intent(actor_id: Uuid) -> SignIntent {
         SignIntent {
             request_id: Uuid::new_v4(),
-            chapter_id: Uuid::new_v4(),
-            chapter_name: "Test".into(),
+            hub_id: Uuid::new_v4(),
+            hub_name: "Test".into(),
             actor_lct_id: actor_id,
             ledger_index: 0,
             event_kind: "test".into(),

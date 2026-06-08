@@ -14,7 +14,7 @@ Hub operations split into **reads** and **acts** — not reads and "mutations." 
 | Surface | Reads | Acts |
 |---|---|---|
 | CLI | `query`, `status`, `verify-ledger` | `add-member`, `remove-member`, `assign-role`, `record-event`, `declare-skill` |
-| REST | `GET /v1/chapters/{id}/state` | `POST /v1/chapters/{id}/events` |
+| REST | `GET /v1/hubs/{id}/state` | `POST /v1/hubs/{id}/events` |
 | MCP | `query_chapter`, `list_members`, `find_skill` | `add_member`, `assign_role`, `record_event`, `declare_skill` |
 
 Acts in Hestia mode require an async HTTP roundtrip to the vault — that's what makes "sync CLI acts on Hestia chapters" an open design question, while sync CLI reads remain trivial.

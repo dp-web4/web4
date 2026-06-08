@@ -14,13 +14,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
-use crate::events::ChapterEvent;
-use crate::ledger::ChapterLedger;
+use crate::events::HubEvent;
+use crate::ledger::HubLedger;
 
 /// Projected current state of a chapter, derived from ledger events.
 #[derive(Clone, Debug, Default, Serialize)]
-pub struct ChapterState {
-    pub chapter_name: String,
+pub struct HubState {
+    pub hub_name: String,
     pub founding_sovereign_lct_id: Option<Uuid>,
     pub charter_hash: Option<String>,
 
@@ -41,10 +41,10 @@ pub struct Member {
     pub skills: BTreeSet<String>,
 }
 
-impl ChapterState {
+impl HubState {
     /// Build the projection from a ledger.
-    pub fn project(ledger: &ChapterLedger) -> Self {
-        let mut state = ChapterState::default();
+    pub fn project(ledger: &HubLedger) -> Self {
+        let mut state = HubState::default();
         for entry in ledger.entries() {
             state.apply(&entry.event);
             state.last_index = entry.index;
@@ -52,10 +52,10 @@ impl ChapterState {
         state
     }
 
-    fn apply(&mut self, event: &ChapterEvent) {
+    fn apply(&mut self, event: &HubEvent) {
         match event {
-            ChapterEvent::Genesis { chapter_name, charter_hash, founding_sovereign_lct_id, .. } => {
-                self.chapter_name = chapter_name.clone();
+            HubEvent::Genesis { hub_name, charter_hash, founding_sovereign_lct_id, .. } => {
+                self.hub_name = hub_name.clone();
                 self.charter_hash = Some(charter_hash.clone());
                 self.founding_sovereign_lct_id = Some(*founding_sovereign_lct_id);
                 // Sovereign is implicitly a member.
@@ -66,14 +66,14 @@ impl ChapterState {
                         skills: BTreeSet::new(),
                     });
             }
-            ChapterEvent::MemberAdded { member_lct_id, member_name, .. } => {
+            HubEvent::MemberAdded { member_lct_id, member_name, .. } => {
                 self.members.entry(*member_lct_id).or_insert_with(|| Member {
                     lct_id: *member_lct_id,
                     name: member_name.clone(),
                     skills: BTreeSet::new(),
                 });
             }
-            ChapterEvent::MemberRemoved { member_lct_id, .. } => {
+            HubEvent::MemberRemoved { member_lct_id, .. } => {
                 if let Some(removed) = self.members.remove(member_lct_id) {
                     // Also drop from skill index.
                     for skill in &removed.skills {
@@ -86,7 +86,7 @@ impl ChapterState {
                     }
                 }
             }
-            ChapterEvent::MemberSkillDeclared { member_lct_id, skill, .. } => {
+            HubEvent::MemberSkillDeclared { member_lct_id, skill, .. } => {
                 let key = skill.to_lowercase();
                 if let Some(member) = self.members.get_mut(member_lct_id) {
                     member.skills.insert(key.clone());
@@ -95,12 +95,12 @@ impl ChapterState {
                 // If member doesn't exist, silently ignore — event predates
                 // their MemberAdded. (Real impl would error or queue.)
             }
-            ChapterEvent::RoleAssigned { .. }
-            | ChapterEvent::EventRecorded { .. }
-            | ChapterEvent::CharterAmended { .. }
-            | ChapterEvent::LawAmended { .. } => {
-                // Not projected into ChapterState yet — these affect society.json /
-                // charter.json / chapter-law.yaml instead. Future sprints surface
+            HubEvent::RoleAssigned { .. }
+            | HubEvent::EventRecorded { .. }
+            | HubEvent::CharterAmended { .. }
+            | HubEvent::LawAmended { .. } => {
+                // Not projected into HubState yet — these affect society.json /
+                // charter.json / hub-law.yaml instead. Future sprints surface
                 // them here too.
             }
         }
@@ -131,31 +131,31 @@ impl ChapterState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chapter::ChapterPaths;
+    use crate::hub::HubPaths;
     use crate::identity::IdentityFile;
-    use crate::ledger::ChapterLedger;
+    use crate::ledger::HubLedger;
     use crate::store::FileBackend;
     use chrono::Utc;
     use tempfile::tempdir;
     use web4_core::lct::EntityType;
 
-    fn make_ledger_with(events: Vec<(Uuid, &web4_core::crypto::KeyPair, ChapterEvent)>)
-        -> (tempfile::TempDir, ChapterLedger)
+    fn make_ledger_with(events: Vec<(Uuid, &web4_core::crypto::KeyPair, HubEvent)>)
+        -> (tempfile::TempDir, HubLedger)
     {
         let tmp = tempdir().unwrap();
         let chap = tmp.path().join("chap");
         std::fs::create_dir_all(&chap).unwrap();
-        let store: Box<dyn crate::store::ChapterStore> =
-            Box::new(FileBackend::new(ChapterPaths::new(chap)));
-        let mut ledger = ChapterLedger::open(store).unwrap();
+        let store: Box<dyn crate::store::HubStore> =
+            Box::new(FileBackend::new(HubPaths::new(chap)));
+        let mut ledger = HubLedger::open(store).unwrap();
         for (actor, kp, event) in events {
             // First event must be Genesis; for tests we treat all as plain entries
             // but use write_genesis for the first.
             if ledger.is_empty() {
-                if let ChapterEvent::Genesis { chapter_name, charter_hash, founding_sovereign_lct_id, .. } = &event {
+                if let HubEvent::Genesis { hub_name, charter_hash, founding_sovereign_lct_id, .. } = &event {
                     ledger.write_genesis(
                         *founding_sovereign_lct_id, kp,
-                        chapter_name.clone(),
+                        hub_name.clone(),
                         charter_hash.clone(),
                     ).unwrap();
                     continue;
@@ -173,14 +173,14 @@ mod tests {
         let sov = IdentityFile::generate(EntityType::Human);
         let kp = sov.keypair().unwrap();
         let (_tmp, ledger) = make_ledger_with(vec![
-            (sov.lct.id, &kp, ChapterEvent::Genesis {
-                chapter_name: "Test".into(),
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(),
                 charter_hash: "sha256:0".into(),
                 founding_sovereign_lct_id: sov.lct.id,
                 created_at: Utc::now(),
             }),
         ]);
-        let state = ChapterState::project(&ledger);
+        let state = HubState::project(&ledger);
         assert_eq!(state.member_count(), 1);
         assert!(state.members.contains_key(&sov.lct.id));
     }
@@ -191,29 +191,29 @@ mod tests {
         let kp = sov.keypair().unwrap();
         let alice = Uuid::new_v4();
         let (_tmp, ledger) = make_ledger_with(vec![
-            (sov.lct.id, &kp, ChapterEvent::Genesis {
-                chapter_name: "Test".into(),
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(),
                 charter_hash: "sha256:0".into(),
                 founding_sovereign_lct_id: sov.lct.id,
                 created_at: Utc::now(),
             }),
-            (sov.lct.id, &kp, ChapterEvent::MemberAdded {
+            (sov.lct.id, &kp, HubEvent::MemberAdded {
                 member_lct_id: alice,
                 added_by: sov.lct.id,
                 member_name: Some("Alice".into()),
             }),
-            (sov.lct.id, &kp, ChapterEvent::MemberSkillDeclared {
+            (sov.lct.id, &kp, HubEvent::MemberSkillDeclared {
                 member_lct_id: alice,
                 skill: "Rust".into(),
                 declared_by: sov.lct.id,
             }),
-            (sov.lct.id, &kp, ChapterEvent::MemberRemoved {
+            (sov.lct.id, &kp, HubEvent::MemberRemoved {
                 member_lct_id: alice,
                 removed_by: sov.lct.id,
                 reason: Some("left chapter".into()),
             }),
         ]);
-        let state = ChapterState::project(&ledger);
+        let state = HubState::project(&ledger);
         assert_eq!(state.member_count(), 1); // just Sovereign
         assert!(!state.members.contains_key(&alice));
         // Skill index should also drop the orphaned skill entry.
@@ -227,18 +227,18 @@ mod tests {
         let alice = Uuid::new_v4();
         let bob = Uuid::new_v4();
         let (_tmp, ledger) = make_ledger_with(vec![
-            (sov.lct.id, &kp, ChapterEvent::Genesis {
-                chapter_name: "Test".into(),
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(),
                 charter_hash: "sha256:0".into(),
                 founding_sovereign_lct_id: sov.lct.id,
                 created_at: Utc::now(),
             }),
-            (sov.lct.id, &kp, ChapterEvent::MemberAdded { member_lct_id: alice, added_by: sov.lct.id, member_name: Some("Alice".into()) }),
-            (sov.lct.id, &kp, ChapterEvent::MemberAdded { member_lct_id: bob, added_by: sov.lct.id, member_name: Some("Bob".into()) }),
-            (sov.lct.id, &kp, ChapterEvent::MemberSkillDeclared { member_lct_id: alice, skill: "Medical Imaging RAG".into(), declared_by: sov.lct.id }),
-            (sov.lct.id, &kp, ChapterEvent::MemberSkillDeclared { member_lct_id: bob, skill: "Distributed Systems".into(), declared_by: sov.lct.id }),
+            (sov.lct.id, &kp, HubEvent::MemberAdded { member_lct_id: alice, added_by: sov.lct.id, member_name: Some("Alice".into()) }),
+            (sov.lct.id, &kp, HubEvent::MemberAdded { member_lct_id: bob, added_by: sov.lct.id, member_name: Some("Bob".into()) }),
+            (sov.lct.id, &kp, HubEvent::MemberSkillDeclared { member_lct_id: alice, skill: "Medical Imaging RAG".into(), declared_by: sov.lct.id }),
+            (sov.lct.id, &kp, HubEvent::MemberSkillDeclared { member_lct_id: bob, skill: "Distributed Systems".into(), declared_by: sov.lct.id }),
         ]);
-        let state = ChapterState::project(&ledger);
+        let state = HubState::project(&ledger);
         let matches = state.find_skill("RAG");
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].lct_id, alice);

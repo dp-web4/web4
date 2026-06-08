@@ -1,7 +1,7 @@
 # Starter chapter law — sensible defaults for a new Web4 community.
 #
 # This file is a template. Edit it, then apply with:
-#   hub set-law <chapter-dir> ./chapter-law.yaml
+#   hub set-law <chapter-dir> ./hub-law.yaml
 #   curl -X POST http://localhost:8770/v1/admin/reload-law   # if serve is running
 #
 # Full schema: web4-standard/core-spec/chapter-law-schema.md

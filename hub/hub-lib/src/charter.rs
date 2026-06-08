@@ -28,7 +28,7 @@ pub struct Charter {
     pub schema_version: String,
 
     /// Human-readable chapter name (e.g. "Lisbon Chapter").
-    pub chapter_name: String,
+    pub hub_name: String,
 
     /// When the charter was founded.
     pub founded_at: DateTime<Utc>,
@@ -53,13 +53,13 @@ pub struct Charter {
 
 impl Charter {
     /// Compose a fresh founding charter for a new chapter.
-    pub fn found(chapter_name: String, sovereign_lct_id: Uuid) -> Self {
+    pub fn found(hub_name: String, sovereign_lct_id: Uuid) -> Self {
         Self {
             schema_version: CHARTER_SCHEMA_VERSION.to_string(),
-            chapter_name: chapter_name.clone(),
+            hub_name: hub_name.clone(),
             founded_at: Utc::now(),
             founding_sovereign_lct_id: sovereign_lct_id,
-            preamble: default_preamble(&chapter_name),
+            preamble: default_preamble(&hub_name),
             rules: Vec::new(),
             amendments: Vec::new(),
         }
@@ -100,7 +100,7 @@ impl Charter {
     }
 }
 
-fn default_preamble(chapter_name: &str) -> String {
+fn default_preamble(hub_name: &str) -> String {
     format!(
         "This is the founding charter of the {name}. \
          The {name} is constituted as a Web4 society — sovereign, \
@@ -109,7 +109,7 @@ fn default_preamble(chapter_name: &str) -> String {
          accrue reputation (T3/V3) by attested contribution. The \
          chapter operates by chapter law, signed by the Sovereign and \
          amendable through the witnessed process the law itself defines.",
-        name = chapter_name
+        name = hub_name
     )
 }
 
@@ -124,7 +124,7 @@ mod tests {
         let charter = Charter::found("Lisbon Chapter".into(), sovereign);
 
         assert_eq!(charter.schema_version, CHARTER_SCHEMA_VERSION);
-        assert_eq!(charter.chapter_name, "Lisbon Chapter");
+        assert_eq!(charter.hub_name, "Lisbon Chapter");
         assert_eq!(charter.founding_sovereign_lct_id, sovereign);
         assert!(charter.rules.is_empty());
         assert!(charter.amendments.is_empty());

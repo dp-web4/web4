@@ -55,8 +55,8 @@ Per agreement with Legion's Hestia (`hestia@253c611`):
 {
   "intent": {
     "request_id": "uuid",
-    "chapter_id": "uuid",
-    "chapter_name": "string",
+    "hub_id": "uuid",
+    "hub_name": "string",
     "actor_lct_id": "uuid",
     "ledger_index": 5,
     "event_kind": "member_added",
@@ -106,7 +106,7 @@ hub init "My Chapter" \
   --sovereign-hestia http://127.0.0.1:9001/sign-request \
   --sovereign-lct-id "$SOV_ID" \
   --sovereign-pubkey "$SOV_PUBKEY" \
-  --chapter-dir ./my-chapter
+  --hub-dir ./my-chapter
 
 # Hub builds the unsigned Genesis, POSTs to mock-Hestia, gets back the
 # signature, commits. mock-Hestia logs the request. The hub binary's

@@ -13,7 +13,7 @@
 //!
 //! - **Step 1 (this module)**: types + YAML parser + structural validator.
 //!   Pure library, no PolicyEntity integration yet.
-//! - Step 2: signed law storage + LawAmended ChapterEvent for audit trail.
+//! - Step 2: signed law storage + LawAmended HubEvent for audit trail.
 //! - Step 3: evaluator — given (Law, R6Request) → Decision.
 //! - Step 4: PolicyEntity integration in REST + MCP act handlers.
 //!
@@ -328,7 +328,7 @@ impl Law {
     }
 
     /// Canonical SHA-256 of the law's serialized YAML form. Used to
-    /// populate `ChapterEvent::LawAmended.new_law_sha256` when recording
+    /// populate `HubEvent::LawAmended.new_law_sha256` when recording
     /// an amendment in the ledger.
     pub fn sha256_hex(&self) -> Result<String> {
         use web4_core::crypto::sha256_hex;

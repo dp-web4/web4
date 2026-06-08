@@ -51,7 +51,7 @@ async fn sign_handler(
 ) -> axum::Json<SignResponse> {
     eprintln!(
         "[mock-hestia] sign-request: chapter='{}' actor={} event_kind={} ledger_index={}",
-        req.intent.chapter_name, req.intent.actor_lct_id,
+        req.intent.hub_name, req.intent.actor_lct_id,
         req.intent.event_kind, req.intent.ledger_index,
     );
 

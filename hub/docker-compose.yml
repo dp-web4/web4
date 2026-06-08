@@ -10,7 +10,7 @@
 #   2. Initialize the chapter (one-off):
 #        docker compose run --rm hub init "Your Chapter Name" \
 #          --sovereign-lct /chapter/sovereign.json \
-#          --chapter-dir /chapter/data
+#          --hub-dir /chapter/data
 #
 #   3. Start the daemon:
 #        docker compose up -d hub

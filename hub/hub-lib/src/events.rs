@@ -5,7 +5,7 @@
 //!
 //! These are the *domain* events a chapter records — distinct from
 //! `web4_core::ledger::LedgerEvent` which is about LCT anchoring (mint /
-//! status-change). The hub's ChapterLedger records the chapter's social
+//! status-change). The hub's HubLedger records the chapter's social
 //! and governance actions on top of (and alongside) any LCT anchoring
 //! that web4-core handles.
 //!
@@ -24,10 +24,10 @@ use web4_core::role::SocietyRole;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum ChapterEvent {
+pub enum HubEvent {
     /// First entry in any chapter ledger. Established at chapter init.
     Genesis {
-        chapter_name: String,
+        hub_name: String,
         charter_hash: String,
         founding_sovereign_lct_id: Uuid,
         created_at: DateTime<Utc>,
@@ -81,7 +81,7 @@ pub enum ChapterEvent {
     },
 
     /// The chapter law was amended (V2-8). The new law's YAML bytes are
-    /// stored separately via [`crate::store::ChapterStore::write_law`];
+    /// stored separately via [`crate::store::HubStore::write_law`];
     /// this event records the amendment in the ledger for audit. The
     /// `new_law_sha256` is the canonical hash of the YAML content,
     /// enabling cross-verification: any party can walk the ledger,
@@ -98,7 +98,7 @@ pub enum ChapterEvent {
     },
 }
 
-impl ChapterEvent {
+impl HubEvent {
     /// Short human-readable kind name — matches the serde tag.
     pub fn kind(&self) -> &'static str {
         match self {
@@ -120,8 +120,8 @@ mod tests {
 
     #[test]
     fn kind_strings_match_serde_tags() {
-        let g = ChapterEvent::Genesis {
-            chapter_name: "X".into(),
+        let g = HubEvent::Genesis {
+            hub_name: "X".into(),
             charter_hash: "sha256:0".into(),
             founding_sovereign_lct_id: Uuid::nil(),
             created_at: Utc::now(),
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn role_assigned_uses_upstream_role_enum() {
-        let e = ChapterEvent::RoleAssigned {
+        let e = HubEvent::RoleAssigned {
             role: SocietyRole::Treasurer,
             role_lct_id: Uuid::new_v4(),
             assigned_to: Uuid::new_v4(),

@@ -2,7 +2,7 @@
 
 **Status:** V2-2 shipped (file + sqlite). Postgres is V2-15.
 
-The hub stores chapter state — charter, society, ledger — behind a `ChapterStore` trait. Two backends ship today; more are planned. Operators choose at `hub init` time, and `hub migrate` moves an existing chapter between backends without re-signing anything.
+The hub stores chapter state — charter, society, ledger — behind a `HubStore` trait. Two backends ship today; more are planned. Operators choose at `hub init` time, and `hub migrate` moves an existing chapter between backends without re-signing anything.
 
 ---
 
@@ -23,7 +23,7 @@ This is constitutional. See `V2-V3-ARCHITECTURE.md` §Load-bearing commitment #8
 ├── config.toml          # operator config — outside the storage abstraction
 ├── charter.json         # charter (immutable post-genesis)
 ├── society.json         # society state
-└── ledger.jsonl         # one signed ChapterEvent per line, hash-chained
+└── ledger.jsonl         # one signed HubEvent per line, hash-chained
 ```
 
 Best for:
@@ -74,7 +74,7 @@ Trade-offs:
 
 ### `postgres` (V2-15, planned)
 
-For multi-chapter / multi-tenant deployments. Schema-per-chapter (default), one Postgres deployment hosting thousands of chapters. Implements the same `ChapterStore` trait.
+For multi-chapter / multi-tenant deployments. Schema-per-chapter (default), one Postgres deployment hosting thousands of chapters. Implements the same `HubStore` trait.
 
 ### `s3-cold` (later)
 
@@ -152,7 +152,7 @@ Operator discretion. Some patterns:
 
 ## What's outside the storage abstraction
 
-- **`config.toml`** — operator-owned config (chapter name, MCP port, Sovereign LCT pointer). File-based by design, not part of `ChapterStore`.
+- **`config.toml`** — operator-owned config (chapter name, MCP port, Sovereign LCT pointer). File-based by design, not part of `HubStore`.
 - **Sovereign identity file** — MVP convention; deprecates with V2-7 (Hestia-as-Sovereign). Per commitment #8, secrets belong in the vault, not in files the hub reads.
 - **Anything in vault scope** — by definition not in chapter storage.
 
@@ -160,10 +160,10 @@ Operator discretion. Some patterns:
 
 ## Extending: adding a new backend
 
-Implement the `ChapterStore` trait:
+Implement the `HubStore` trait:
 
 ```rust
-pub trait ChapterStore: Send {
+pub trait HubStore: Send {
     fn backend_kind(&self) -> BackendKind;
     fn read_charter(&self) -> Result<Option<Charter>>;
     fn write_charter(&mut self, charter: &Charter) -> Result<()>;
@@ -185,4 +185,4 @@ Don't add secret-handling operations to the trait. Don't add anything that requi
 
 - `V2-V3-ARCHITECTURE.md` §Load-bearing commitment #8 (secrets posture)
 - `hub-lib/src/store.rs` (trait + backends)
-- `hub-lib/src/ledger.rs` (uses `ChapterStore` for persistence; owns chain integrity)
+- `hub-lib/src/ledger.rs` (uses `HubStore` for persistence; owns chain integrity)

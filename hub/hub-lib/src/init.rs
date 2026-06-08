@@ -21,10 +21,10 @@ use web4_core::society::Society;
 use web4_core::role::SocietyRole;
 use uuid::Uuid;
 
-use crate::chapter::{ChapterConfig, ChapterPaths};
+use crate::hub::{HubConfig, HubPaths};
 use crate::charter::Charter;
 use crate::identity::IdentityFile;
-use crate::ledger::{build_lookup, ChapterLedger};
+use crate::ledger::{build_lookup, HubLedger};
 use crate::store::{open_chapter_store, open_chapter_store_with, BackendKind};
 
 /// Roles the founder fills at genesis per V2-1 architecture.
@@ -82,24 +82,24 @@ pub enum InitResult {
     /// Newly initialized — fresh chapter ready to use.
     Initialized {
         society_lct_id: Uuid,
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
         role_lcts: Vec<(SocietyRole, Uuid)>,
     },
     /// Chapter dir already contained a society. State reported, nothing written.
     AlreadyInitialized {
         society_lct_id: Uuid,
-        chapter_dir: PathBuf,
-        chapter_name: String,
+        hub_dir: PathBuf,
+        hub_name: String,
     },
 }
 
 /// Parameters for chapter initialization.
 pub struct InitArgs {
     /// Human-readable chapter name (e.g. "Lisbon Chapter").
-    pub chapter_name: String,
+    pub hub_name: String,
 
     /// Where the chapter will live on disk.
-    pub chapter_dir: PathBuf,
+    pub hub_dir: PathBuf,
 
     /// Path to the Sovereign identity file (see IdentityFile).
     /// For Local-mode init only — Hestia-mode uses [`init_chapter_with_signer`]
@@ -115,8 +115,8 @@ pub struct InitArgs {
 /// hub holds NO IdentityFile in Hestia mode — it knows only the
 /// Sovereign's LCT id + public key + callback URL.
 pub struct HestiaInitArgs {
-    pub chapter_name: String,
-    pub chapter_dir: PathBuf,
+    pub hub_name: String,
+    pub hub_dir: PathBuf,
     /// The Sovereign's LCT id (what Hestia signs for).
     pub sovereign_lct_id: Uuid,
     /// The Sovereign's public key (hex-encoded 32 bytes).
@@ -128,27 +128,27 @@ pub struct HestiaInitArgs {
 
 /// Run the init flow.
 pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
-    let paths = ChapterPaths::new(&args.chapter_dir);
+    let paths = HubPaths::new(&args.hub_dir);
 
     // 1. Idempotency check — through the store, not the filesystem directly.
     // open_chapter_store auto-detects existing backend (sqlite if chapter.db
     // present, else file).
-    if args.chapter_dir.exists() {
-        let probe_store = open_chapter_store(&args.chapter_dir)
+    if args.hub_dir.exists() {
+        let probe_store = open_chapter_store(&args.hub_dir)
             .context("opening chapter store for idempotency probe")?;
         if let Some(existing) = probe_store.read_society()
             .context("probing for existing society")? {
             return Ok(InitResult::AlreadyInitialized {
                 society_lct_id: existing.lct_id,
-                chapter_dir: args.chapter_dir.clone(),
-                chapter_name: existing.name,
+                hub_dir: args.hub_dir.clone(),
+                hub_name: existing.name,
             });
         }
         drop(probe_store);
     }
 
-    std::fs::create_dir_all(&args.chapter_dir)
-        .with_context(|| format!("creating chapter dir {}", args.chapter_dir.display()))?;
+    std::fs::create_dir_all(&args.hub_dir)
+        .with_context(|| format!("creating chapter dir {}", args.hub_dir.display()))?;
 
     // 2. Load Sovereign identity. NOTE per architecture commitment #8:
     // identity-file-as-secret-store is the MVP bootstrap pattern; secrets
@@ -168,12 +168,12 @@ pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
 
     // Open the real store for the requested backend (default: file).
     let backend = args.storage.unwrap_or(BackendKind::File);
-    let mut store = open_chapter_store_with(&args.chapter_dir, backend)
+    let mut store = open_chapter_store_with(&args.hub_dir, backend)
         .with_context(|| format!("opening chapter store with backend {:?}", backend))?;
     tracing::info!(backend = backend.as_str(), "chapter storage backend selected");
 
     // 3. Compose + hash founding charter; write through store.
-    let charter = Charter::found(args.chapter_name.clone(), sovereign_lct_id);
+    let charter = Charter::found(args.hub_name.clone(), sovereign_lct_id);
     let charter_hash = charter.hash().context("hashing charter")?;
     store.write_charter(&charter).context("writing charter via store")?;
 
@@ -186,7 +186,7 @@ pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
     // proper "fill which roles at bootstrap" API. Tracked at
     // `web4/hub/docs/V2-V3-ARCHITECTURE.md` §Track U.
     let (mut society, all_role_lcts) = Society::bootstrap(
-        args.chapter_name.clone(),
+        args.hub_name.clone(),
         charter_hash,
         sovereign_lct_id,
     );
@@ -205,28 +205,28 @@ pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
             "canonicalizing Sovereign LCT path {}",
             args.sovereign_lct_path.display()
         ))?;
-    let config = ChapterConfig::new(args.chapter_name.clone(), sovereign_abs);
+    let config = HubConfig::new(args.hub_name.clone(), sovereign_abs);
     config.save(paths.config())
         .with_context(|| format!("writing config to {}", paths.config().display()))?;
 
     // 7. Initialize the chapter ledger via store + write Genesis entry.
     // Genesis is signed by the Sovereign; subsequent events get signed by
     // their respective actors.
-    let mut ledger = ChapterLedger::open(store)
+    let mut ledger = HubLedger::open(store)
         .context("opening chapter ledger via store")?;
     let sovereign_keypair = sovereign.keypair()
         .context("reconstructing Sovereign keypair for Genesis signing")?;
     ledger.write_genesis(
         sovereign_lct_id,
         &sovereign_keypair,
-        args.chapter_name.clone(),
+        args.hub_name.clone(),
         society.charter_hash.clone(),
     ).context("writing Genesis entry to chapter ledger")?;
 
     tracing::info!(
         society_lct_id = %society_lct_id,
-        chapter_name = %args.chapter_name,
-        chapter_dir = %args.chapter_dir.display(),
+        hub_name = %args.hub_name,
+        hub_dir = %args.hub_dir.display(),
         roles_wired = role_lcts.len(),
         ledger_entries = ledger.len(),
         "chapter society bootstrapped"
@@ -234,15 +234,15 @@ pub fn init_chapter(args: InitArgs) -> Result<InitResult> {
 
     Ok(InitResult::Initialized {
         society_lct_id,
-        chapter_dir: args.chapter_dir,
+        hub_dir: args.hub_dir,
         role_lcts,
     })
 }
 
 /// Load an already-initialized chapter's society state. Routes through
 /// the storage backend abstraction, so works against any backend.
-pub fn load_society(chapter_dir: impl AsRef<Path>) -> Result<Society> {
-    let store = open_chapter_store(chapter_dir.as_ref())
+pub fn load_society(hub_dir: impl AsRef<Path>) -> Result<Society> {
+    let store = open_chapter_store(hub_dir.as_ref())
         .context("opening chapter store")?;
     store.read_society()
         .context("reading society via store")?
@@ -258,29 +258,29 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
     use crate::signer::{HestiaCallbackSigner, RemoteSigner, SignIntent};
     use web4_core::crypto::SignatureBytes;
 
-    let paths = ChapterPaths::new(&args.chapter_dir);
+    let paths = HubPaths::new(&args.hub_dir);
 
     // 1. Idempotency check.
-    if args.chapter_dir.exists() {
-        let probe_store = open_chapter_store(&args.chapter_dir)
+    if args.hub_dir.exists() {
+        let probe_store = open_chapter_store(&args.hub_dir)
             .context("opening chapter store for idempotency probe")?;
         if let Some(existing) = probe_store.read_society()
             .context("probing for existing society")? {
             return Ok(InitResult::AlreadyInitialized {
                 society_lct_id: existing.lct_id,
-                chapter_dir: args.chapter_dir.clone(),
-                chapter_name: existing.name,
+                hub_dir: args.hub_dir.clone(),
+                hub_name: existing.name,
             });
         }
         drop(probe_store);
     }
 
-    std::fs::create_dir_all(&args.chapter_dir)
-        .with_context(|| format!("creating chapter dir {}", args.chapter_dir.display()))?;
+    std::fs::create_dir_all(&args.hub_dir)
+        .with_context(|| format!("creating chapter dir {}", args.hub_dir.display()))?;
 
     // 2. Synthesize the Sovereign's Lct from the supplied pubkey
     // (no IdentityFile in Hestia mode).
-    let sovereign_lct = crate::chapter::hestia_sovereign_lct(
+    let sovereign_lct = crate::hub::hestia_sovereign_lct(
         args.sovereign_lct_id, &args.sovereign_pubkey_hex,
     ).context("synthesizing Sovereign Lct from Hestia init args")?;
     tracing::info!(
@@ -291,17 +291,17 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
 
     // 3. Open store.
     let backend = args.storage.unwrap_or(BackendKind::File);
-    let mut store = open_chapter_store_with(&args.chapter_dir, backend)
+    let mut store = open_chapter_store_with(&args.hub_dir, backend)
         .with_context(|| format!("opening chapter store with backend {:?}", backend))?;
 
     // 4. Charter.
-    let charter = Charter::found(args.chapter_name.clone(), args.sovereign_lct_id);
+    let charter = Charter::found(args.hub_name.clone(), args.sovereign_lct_id);
     let charter_hash = charter.hash().context("hashing charter")?;
     store.write_charter(&charter).context("writing charter via store")?;
 
     // 5. Bootstrap society + V2-1 unfill.
     let (mut society, all_role_lcts) = Society::bootstrap(
-        args.chapter_name.clone(),
+        args.hub_name.clone(),
         charter_hash,
         args.sovereign_lct_id,
     );
@@ -311,8 +311,8 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
     store.write_society(&society).context("writing society via store")?;
 
     // 6. Persist Hestia-mode config.
-    let config = ChapterConfig::new_hestia(
-        args.chapter_name.clone(),
+    let config = HubConfig::new_hestia(
+        args.hub_name.clone(),
         args.hestia_callback_url.clone(),
         args.sovereign_lct_id,
         args.sovereign_pubkey_hex.clone(),
@@ -321,11 +321,11 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
         .with_context(|| format!("writing config to {}", paths.config().display()))?;
 
     // 7. Open ledger + build unsigned Genesis.
-    let mut ledger = ChapterLedger::open(store)
+    let mut ledger = HubLedger::open(store)
         .context("opening chapter ledger via store")?;
     let (unsigned, _ts) = ledger.build_genesis(
         args.sovereign_lct_id,
-        args.chapter_name.clone(),
+        args.hub_name.clone(),
         society_charter_hash,
     ).context("building unsigned Genesis entry")?;
 
@@ -335,8 +335,8 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
         .context("constructing HestiaCallbackSigner")?;
     let intent = SignIntent {
         request_id: Uuid::new_v4(),
-        chapter_id: society_lct_id,
-        chapter_name: args.chapter_name.clone(),
+        hub_id: society_lct_id,
+        hub_name: args.hub_name.clone(),
         actor_lct_id: args.sovereign_lct_id,
         ledger_index: unsigned.entry.index,
         event_kind: unsigned.entry.event.kind().to_string(),
@@ -360,8 +360,8 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
 
     tracing::info!(
         society_lct_id = %society_lct_id,
-        chapter_name = %args.chapter_name,
-        chapter_dir = %args.chapter_dir.display(),
+        hub_name = %args.hub_name,
+        hub_dir = %args.hub_dir.display(),
         roles_wired = role_lcts.len(),
         ledger_entries = ledger.len(),
         "Hestia-mode chapter society bootstrapped"
@@ -369,7 +369,7 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
 
     Ok(InitResult::Initialized {
         society_lct_id,
-        chapter_dir: args.chapter_dir,
+        hub_dir: args.hub_dir,
         role_lcts,
     })
 }
@@ -377,8 +377,8 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
 /// Result of a ledger verification pass.
 #[derive(Debug)]
 pub struct VerifyResult {
-    pub chapter_dir: PathBuf,
-    pub chapter_name: String,
+    pub hub_dir: PathBuf,
+    pub hub_name: String,
     pub entries: usize,
     pub head_hash: String,
 }
@@ -387,37 +387,37 @@ pub struct VerifyResult {
 /// the lookup is the Sovereign (loaded from config.toml's sovereign.lct_path).
 /// Later sprints will extend the lookup to include member LCTs (extracted
 /// from MemberAdded events).
-pub fn verify_chapter(chapter_dir: impl AsRef<Path>) -> Result<VerifyResult> {
-    let chapter_dir = chapter_dir.as_ref();
-    let paths = ChapterPaths::new(chapter_dir);
+pub fn verify_chapter(hub_dir: impl AsRef<Path>) -> Result<VerifyResult> {
+    let hub_dir = hub_dir.as_ref();
+    let paths = HubPaths::new(hub_dir);
 
-    let config = ChapterConfig::load(paths.config())
+    let config = HubConfig::load(paths.config())
         .with_context(|| format!("loading config at {}", paths.config().display()))?;
 
     // Resolve the Sovereign LCT for envelope/ledger verification.
     // Local mode: load the IdentityFile (which carries the Lct).
     // Hestia mode: synthesize an Lct from the config's stored pubkey.
     let sovereign_lct = match config.sovereign.mode()? {
-        crate::chapter::SovereignMode::Local { lct_path } => {
+        crate::hub::SovereignMode::Local { lct_path } => {
             let sov_path = if lct_path.is_absolute() {
                 lct_path
             } else {
-                chapter_dir.join(&lct_path)
+                hub_dir.join(&lct_path)
             };
             let identity = IdentityFile::load(&sov_path)
                 .with_context(|| format!("loading Sovereign identity from {}", sov_path.display()))?;
             identity.lct
         }
-        crate::chapter::SovereignMode::Hestia { lct_id, pubkey_hex, .. } => {
-            crate::chapter::hestia_sovereign_lct(lct_id, &pubkey_hex)
+        crate::hub::SovereignMode::Hestia { lct_id, pubkey_hex, .. } => {
+            crate::hub::hestia_sovereign_lct(lct_id, &pubkey_hex)
                 .context("synthesizing Sovereign Lct from Hestia-mode config")?
         }
     };
 
-    let society = load_society(chapter_dir).context("loading society")?;
-    let store = open_chapter_store(chapter_dir)
+    let society = load_society(hub_dir).context("loading society")?;
+    let store = open_chapter_store(hub_dir)
         .context("opening chapter store for verify")?;
-    let ledger = ChapterLedger::open(store)
+    let ledger = HubLedger::open(store)
         .context("opening ledger via store")?;
     // Build LCT lookup. MVP: just the Sovereign. Extension point: as the
     // ledger replays MemberAdded events, we'd need to register their LCTs
@@ -430,8 +430,8 @@ pub fn verify_chapter(chapter_dir: impl AsRef<Path>) -> Result<VerifyResult> {
         .context("ledger chain verification failed")?;
 
     Ok(VerifyResult {
-        chapter_dir: chapter_dir.to_path_buf(),
-        chapter_name: society.name,
+        hub_dir: hub_dir.to_path_buf(),
+        hub_name: society.name,
         entries: ledger.len(),
         head_hash: ledger.head_hash().to_string(),
     })
@@ -457,11 +457,11 @@ mod tests {
         // start unfilled and are assigned later per chapter law.
         let tmp = tempdir().unwrap();
         let sovereign_path = fresh_sovereign(tmp.path());
-        let chapter_dir = tmp.path().join("lisbon");
+        let hub_dir = tmp.path().join("lisbon");
 
         let result = init_chapter(InitArgs {
-            chapter_name: "Lisbon Chapter".into(),
-            chapter_dir: chapter_dir.clone(),
+            hub_name: "Lisbon Chapter".into(),
+            hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
         }).unwrap();
@@ -484,7 +484,7 @@ mod tests {
         assert!(role_set.contains("Citizen"));
 
         // Verify the society state on disk reflects this too
-        let society = load_society(&chapter_dir).unwrap();
+        let society = load_society(&hub_dir).unwrap();
         assert_eq!(society.roles.len(), 2,
             "society.json should hold 2 role assignments at genesis (V2-1)");
         assert!(society.roles.contains_key("sovereign"));
@@ -500,16 +500,16 @@ mod tests {
     fn founder_lct_holds_both_sovereign_and_citizen() {
         let tmp = tempdir().unwrap();
         let sovereign_path = fresh_sovereign(tmp.path());
-        let chapter_dir = tmp.path().join("lisbon");
+        let hub_dir = tmp.path().join("lisbon");
 
         init_chapter(InitArgs {
-            chapter_name: "Lisbon".into(),
-            chapter_dir: chapter_dir.clone(),
+            hub_name: "Lisbon".into(),
+            hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
         }).unwrap();
 
-        let society = load_society(&chapter_dir).unwrap();
+        let society = load_society(&hub_dir).unwrap();
         let sovereign = society.roles.get("sovereign").unwrap();
         let citizen = society.roles.get("citizen").unwrap();
         assert_eq!(sovereign.filling_entity_lct_id, citizen.filling_entity_lct_id,
@@ -521,24 +521,24 @@ mod tests {
     fn init_creates_expected_files() {
         let tmp = tempdir().unwrap();
         let sovereign_path = fresh_sovereign(tmp.path());
-        let chapter_dir = tmp.path().join("lisbon");
+        let hub_dir = tmp.path().join("lisbon");
 
         init_chapter(InitArgs {
-            chapter_name: "Lisbon".into(),
-            chapter_dir: chapter_dir.clone(),
+            hub_name: "Lisbon".into(),
+            hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
         }).unwrap();
 
-        let paths = ChapterPaths::new(&chapter_dir);
+        let paths = HubPaths::new(&hub_dir);
         assert!(paths.config().exists(), "config.toml missing");
         assert!(paths.charter().exists(), "charter.json missing");
         assert!(paths.society().exists(), "society.json missing");
         assert!(paths.ledger().exists(), "ledger.jsonl missing");
 
         // Sprint 2: ledger now starts with Genesis entry (not empty)
-        let store = open_chapter_store(&chapter_dir).unwrap();
-        let ledger = crate::ledger::ChapterLedger::open(store).unwrap();
+        let store = open_chapter_store(&hub_dir).unwrap();
+        let ledger = crate::ledger::HubLedger::open(store).unwrap();
         assert_eq!(ledger.len(), 1, "expected single Genesis entry after init");
     }
 
@@ -546,18 +546,18 @@ mod tests {
     fn init_writes_signed_genesis_entry_verifiable_end_to_end() {
         let tmp = tempdir().unwrap();
         let sovereign_path = fresh_sovereign(tmp.path());
-        let chapter_dir = tmp.path().join("lisbon");
+        let hub_dir = tmp.path().join("lisbon");
 
         init_chapter(InitArgs {
-            chapter_name: "Lisbon".into(),
-            chapter_dir: chapter_dir.clone(),
+            hub_name: "Lisbon".into(),
+            hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
         }).unwrap();
 
         // verify_chapter does end-to-end: config → identity → society → ledger
-        let result = verify_chapter(&chapter_dir).unwrap();
-        assert_eq!(result.chapter_name, "Lisbon");
+        let result = verify_chapter(&hub_dir).unwrap();
+        assert_eq!(result.hub_name, "Lisbon");
         assert_eq!(result.entries, 1, "Genesis is the only entry post-init");
         assert!(!result.head_hash.is_empty());
     }
@@ -566,12 +566,12 @@ mod tests {
     fn init_is_idempotent() {
         let tmp = tempdir().unwrap();
         let sovereign_path = fresh_sovereign(tmp.path());
-        let chapter_dir = tmp.path().join("lisbon");
+        let hub_dir = tmp.path().join("lisbon");
 
         // First init
         let first = init_chapter(InitArgs {
-            chapter_name: "Lisbon".into(),
-            chapter_dir: chapter_dir.clone(),
+            hub_name: "Lisbon".into(),
+            hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path.clone(),
             storage: None,
         }).unwrap();
@@ -581,29 +581,29 @@ mod tests {
         };
 
         // Capture original file contents
-        let charter_before = std::fs::read_to_string(chapter_dir.join("charter.json")).unwrap();
-        let society_before = std::fs::read_to_string(chapter_dir.join("society.json")).unwrap();
+        let charter_before = std::fs::read_to_string(hub_dir.join("charter.json")).unwrap();
+        let society_before = std::fs::read_to_string(hub_dir.join("society.json")).unwrap();
 
         // Second init on same dir
         let second = init_chapter(InitArgs {
-            chapter_name: "Different Name (should be ignored)".into(),
-            chapter_dir: chapter_dir.clone(),
+            hub_name: "Different Name (should be ignored)".into(),
+            hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
         }).unwrap();
 
         match second {
-            InitResult::AlreadyInitialized { society_lct_id, chapter_name, .. } => {
+            InitResult::AlreadyInitialized { society_lct_id, hub_name, .. } => {
                 assert_eq!(society_lct_id, first_id, "must report the existing society LCT");
-                assert_eq!(chapter_name, "Lisbon",
+                assert_eq!(hub_name, "Lisbon",
                     "must report the existing chapter name, not the new one passed in");
             }
             other => panic!("expected AlreadyInitialized, got {:?}", other),
         }
 
         // Verify files were NOT rewritten
-        let charter_after = std::fs::read_to_string(chapter_dir.join("charter.json")).unwrap();
-        let society_after = std::fs::read_to_string(chapter_dir.join("society.json")).unwrap();
+        let charter_after = std::fs::read_to_string(hub_dir.join("charter.json")).unwrap();
+        let society_after = std::fs::read_to_string(hub_dir.join("society.json")).unwrap();
         assert_eq!(charter_before, charter_after, "charter must not be overwritten");
         assert_eq!(society_before, society_after, "society must not be overwritten");
     }
@@ -612,19 +612,19 @@ mod tests {
     fn charter_hash_round_trips_through_society() {
         let tmp = tempdir().unwrap();
         let sovereign_path = fresh_sovereign(tmp.path());
-        let chapter_dir = tmp.path().join("lisbon");
+        let hub_dir = tmp.path().join("lisbon");
 
         init_chapter(InitArgs {
-            chapter_name: "Lisbon".into(),
-            chapter_dir: chapter_dir.clone(),
+            hub_name: "Lisbon".into(),
+            hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
         }).unwrap();
 
         // Re-read charter, hash it, compare against society.charter_hash
-        let paths = ChapterPaths::new(&chapter_dir);
+        let paths = HubPaths::new(&hub_dir);
         let charter = Charter::load(paths.charter()).unwrap();
-        let society = load_society(&chapter_dir).unwrap();
+        let society = load_society(&hub_dir).unwrap();
 
         assert_eq!(charter.hash().unwrap(), society.charter_hash,
             "society.charter_hash must equal hash of the on-disk charter");
@@ -637,11 +637,11 @@ mod tests {
         // it confirms the identity file format survives the round-trip.
         let tmp = tempdir().unwrap();
         let sovereign_path = fresh_sovereign(tmp.path());
-        let chapter_dir = tmp.path().join("lisbon");
+        let hub_dir = tmp.path().join("lisbon");
 
         init_chapter(InitArgs {
-            chapter_name: "Lisbon".into(),
-            chapter_dir,
+            hub_name: "Lisbon".into(),
+            hub_dir,
             sovereign_lct_path: sovereign_path.clone(),
             storage: None,
         }).unwrap();

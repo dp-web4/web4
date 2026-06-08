@@ -13,9 +13,9 @@
 //! ## V2-7 Step 2 scope (this module)
 //!
 //! - `POST /v1/auth/challenge`  — mint a single-use nonce
-//! - `POST /v1/chapters/{chapter_id}/events` — accept a SignedEnvelope and
+//! - `POST /v1/hubs/{hub_id}/events` — accept a SignedEnvelope and
 //!   route its payload (limited action set) to the ledger
-//! - `GET  /v1/chapters/{chapter_id}/state` — public state (no auth in
+//! - `GET  /v1/hubs/{hub_id}/state` — public state (no auth in
 //!   this slice; need-to-know filtering arrives with V2-8 law interpreter)
 //!
 //! Limitations honest about today:
@@ -41,34 +41,34 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use hub_lib::chapter::{ChapterPaths, SovereignMode};
+use hub_lib::hub::{HubPaths, SovereignMode};
 use hub_lib::envelope::{verify_envelope, Challenge, MapResolver, NonceStore, SignedEnvelope, VerifyError};
-use hub_lib::events::ChapterEvent;
+use hub_lib::events::HubEvent;
 use hub_lib::identity::IdentityFile;
 use hub_lib::init::load_society;
 use hub_lib::law::{Decision, Law, R6Request};
-use hub_lib::ledger::ChapterLedger;
+use hub_lib::ledger::HubLedger;
 use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, RemoteSigner, SignIntent};
-use hub_lib::state::ChapterState;
+use hub_lib::state::HubState;
 
 #[derive(Clone)]
 pub struct RestState {
-    pub paths: ChapterPaths,
-    pub chapter_id: Uuid,
-    pub chapter_name: String,
+    pub paths: HubPaths,
+    pub hub_id: Uuid,
+    pub hub_name: String,
     pub sovereign_lct_id: Uuid,
     /// The signer abstraction. LocalKeypairSigner for MVP-compat chapters
     /// (keypair in process); HestiaCallbackSigner for Hestia-mode
     /// chapters (hub holds NO keys; signs via Hestia HTTP callback).
     pub signer: Arc<dyn RemoteSigner>,
-    pub ledger: Arc<Mutex<ChapterLedger>>,
+    pub ledger: Arc<Mutex<HubLedger>>,
     pub nonces: Arc<NonceStore>,
     pub resolver: Arc<MapResolver>,
     /// Chapter law, loaded at open() time. None = no law set (all
     /// envelope-authenticated acts allowed). When present, the PolicyEntity
     /// gate runs before each act is committed to the ledger.
     ///
-    /// Wrapped in RwLock so set-law (or `POST /v1/chapters/{id}/law`)
+    /// Wrapped in RwLock so set-law (or `POST /v1/hubs/{id}/law`)
     /// can hot-reload without restarting hub serve.
     pub law: Arc<tokio::sync::RwLock<Option<Law>>>,
 }
@@ -77,14 +77,14 @@ impl RestState {
     /// Open with the caller-supplied shared law slot. Used by `hub serve`
     /// so REST + MCP evaluate against the same snapshot + share reload.
     pub fn open_with_law(
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
         law: Arc<tokio::sync::RwLock<Option<Law>>>,
     ) -> Result<Self> {
-        let paths = ChapterPaths::new(chapter_dir.clone());
-        let config = hub_lib::chapter::ChapterConfig::load(paths.config())?;
-        let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
-        let ledger = ChapterLedger::open(store)?;
-        let society = load_society(&chapter_dir)?;
+        let paths = HubPaths::new(hub_dir.clone());
+        let config = hub_lib::hub::HubConfig::load(paths.config())?;
+        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
+        let ledger = HubLedger::open(store)?;
+        let society = load_society(&hub_dir)?;
 
         // Build the right Sovereign LCT + signer for the chapter's mode.
         let (sovereign_lct, signer): (_, Arc<dyn RemoteSigner>) = match config.sovereign.mode()? {
@@ -95,7 +95,7 @@ impl RestState {
                 (sovereign.lct, signer as Arc<dyn RemoteSigner>)
             }
             SovereignMode::Hestia { callback_url, lct_id, pubkey_hex } => {
-                let lct = hub_lib::chapter::hestia_sovereign_lct(lct_id, &pubkey_hex)?;
+                let lct = hub_lib::hub::hestia_sovereign_lct(lct_id, &pubkey_hex)?;
                 let signer = Arc::new(HestiaCallbackSigner::new(lct_id, callback_url)?);
                 (lct, signer as Arc<dyn RemoteSigner>)
             }
@@ -108,8 +108,8 @@ impl RestState {
 
         Ok(Self {
             paths,
-            chapter_id: society.lct_id,
-            chapter_name: society.name.clone(),
+            hub_id: society.lct_id,
+            hub_name: society.name.clone(),
             sovereign_lct_id: sovereign_lct.id,
             signer,
             ledger: Arc::new(Mutex::new(ledger)),
@@ -122,14 +122,14 @@ impl RestState {
     /// Backward-compat: load the chapter's law from storage into a
     /// fresh slot. Standalone callers that don't need REST/MCP shared
     /// reload can use this.
-    pub fn open(chapter_dir: PathBuf) -> Result<Self> {
-        let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
+    pub fn open(hub_dir: PathBuf) -> Result<Self> {
+        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
         let law: Option<Law> = match store.read_law()? {
             Some(yaml) => Some(Law::parse_and_validate(&yaml)
                 .map_err(|e| anyhow::anyhow!("loading chapter law: {}", e))?),
             None => None,
         };
-        Self::open_with_law(chapter_dir, Arc::new(tokio::sync::RwLock::new(law)))
+        Self::open_with_law(hub_dir, Arc::new(tokio::sync::RwLock::new(law)))
     }
 
     /// Re-read the chapter law from storage and swap it into the
@@ -157,8 +157,14 @@ impl RestState {
 pub fn router(state: RestState) -> Router {
     Router::new()
         .route("/v1/auth/challenge", post(issue_challenge))
-        .route("/v1/chapters/:chapter_id/events", post(submit_event))
-        .route("/v1/chapters/:chapter_id/state", get(read_state))
+        // Canonical hub-named routes.
+        .route("/v1/hubs/:hub_id/events", post(submit_event))
+        .route("/v1/hubs/:hub_id/state", get(read_state))
+        // Back-compat: Legion's Hestia H2/H3 client (hestia@253c611)
+        // targets /v1/chapters/{id}/* — register the same handlers
+        // under that path until Hestia rolls forward to /v1/hubs/.
+        .route("/v1/chapters/:hub_id/events", post(submit_event))
+        .route("/v1/chapters/:hub_id/state", get(read_state))
         .route("/v1/admin/reload-law", post(reload_law))
         .with_state(state)
 }
@@ -223,10 +229,10 @@ async fn issue_challenge(
     Ok(Json(challenge))
 }
 
-// ---------- POST /v1/chapters/{chapter_id}/events ----------
+// ---------- POST /v1/hubs/{hub_id}/events ----------
 
 /// The action types V2-7 Step 2 routes from a verified envelope.
-/// Mirrors a subset of ChapterEvent; extends as more flows land.
+/// Mirrors a subset of HubEvent; extends as more flows land.
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 enum EnvelopeAction {
@@ -251,13 +257,13 @@ struct EventAccepted {
 
 async fn submit_event(
     State(s): State<RestState>,
-    Path(chapter_id): Path<Uuid>,
+    Path(hub_id): Path<Uuid>,
     Json(envelope): Json<SignedEnvelope>,
 ) -> Result<Json<EventAccepted>, ApiError> {
-    if chapter_id != s.chapter_id {
+    if hub_id != s.hub_id {
         return Err(ApiError::not_found(format!(
             "chapter id {} does not match this hub's chapter {}",
-            chapter_id, s.chapter_id
+            hub_id, s.hub_id
         )));
     }
 
@@ -280,12 +286,12 @@ async fn submit_event(
         .map_err(|e| ApiError::bad_request(format!("payload not a known action: {}", e)))?;
 
     let event = match action {
-        EnvelopeAction::AddMember { member_lct_id, name } => ChapterEvent::MemberAdded {
+        EnvelopeAction::AddMember { member_lct_id, name } => HubEvent::MemberAdded {
             member_lct_id,
             added_by: envelope.signer_lct_id,
             member_name: name,
         },
-        EnvelopeAction::DeclareSkill { member_lct_id, skill } => ChapterEvent::MemberSkillDeclared {
+        EnvelopeAction::DeclareSkill { member_lct_id, skill } => HubEvent::MemberSkillDeclared {
             member_lct_id,
             skill,
             declared_by: envelope.signer_lct_id,
@@ -340,8 +346,8 @@ async fn submit_event(
             .map_err(ApiError::internal)?;
         let intent = SignIntent {
             request_id: Uuid::new_v4(),
-            chapter_id: s.chapter_id,
-            chapter_name: s.chapter_name.clone(),
+            hub_id: s.hub_id,
+            hub_name: s.hub_name.clone(),
             actor_lct_id: s.sovereign_lct_id,
             ledger_index: unsigned.entry.index,
             event_kind: event_kind_str.clone(),
@@ -385,12 +391,12 @@ async fn submit_event(
     }))
 }
 
-// ---------- GET /v1/chapters/{chapter_id}/state ----------
+// ---------- GET /v1/hubs/{hub_id}/state ----------
 
 #[derive(Serialize)]
 struct PublicState {
-    chapter_id: Uuid,
-    chapter_name: String,
+    hub_id: Uuid,
+    hub_name: String,
     member_count: usize,
     ledger_entries: u64,
     head_hash: String,
@@ -409,16 +415,16 @@ struct RoleSnapshot {
 
 async fn read_state(
     State(s): State<RestState>,
-    Path(chapter_id): Path<Uuid>,
+    Path(hub_id): Path<Uuid>,
 ) -> Result<Json<PublicState>, ApiError> {
-    if chapter_id != s.chapter_id {
+    if hub_id != s.hub_id {
         return Err(ApiError::not_found(format!(
             "chapter id {} does not match this hub's chapter {}",
-            chapter_id, s.chapter_id
+            hub_id, s.hub_id
         )));
     }
     let ledger = s.ledger.lock().await;
-    let state = ChapterState::project(&ledger);
+    let state = HubState::project(&ledger);
     let society = load_society(s.paths.root.clone())
         .map_err(ApiError::internal)?;
     let filled_roles: Vec<RoleSnapshot> = society.roles.iter()
@@ -432,8 +438,8 @@ async fn read_state(
     let ledger_entries = ledger.len() as u64;
     let head_hash = ledger.head_hash().to_string();
     Ok(Json(PublicState {
-        chapter_id: s.chapter_id,
-        chapter_name: state.chapter_name,
+        hub_id: s.hub_id,
+        hub_name: state.hub_name,
         member_count,
         ledger_entries,
         head_hash,
@@ -458,13 +464,13 @@ async fn reload_law(
 
 // ---------- PolicyEntity gate helper (V2-8 §4) ----------
 
-/// Build an R6Request from a SignedEnvelope + the resolved ChapterEvent.
+/// Build an R6Request from a SignedEnvelope + the resolved HubEvent.
 /// V2-8 §4 first cut: role is hardcoded to "sovereign" since
 /// envelope-authenticated submissions today require the Sovereign
 /// signer (V2-7 §2 restriction; member-signing arrives with V2-12).
 /// `resource` is empty for V2-8 — future sprints add ATP tracking,
 /// witness counts, etc. via additional context.
-fn build_r6_request(_envelope: &SignedEnvelope, event: &ChapterEvent) -> anyhow::Result<R6Request> {
+fn build_r6_request(_envelope: &SignedEnvelope, event: &HubEvent) -> anyhow::Result<R6Request> {
     let payload = serde_yaml::to_value(event)
         .map_err(|e| anyhow::anyhow!("serializing event for R6: {}", e))?;
     Ok(R6Request {

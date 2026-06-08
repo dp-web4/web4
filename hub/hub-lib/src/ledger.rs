@@ -23,7 +23,7 @@
 //! - `timestamp`
 //! - `prev_hash` — sha256 of the previous entry's `entry_hash`; 64 zeros for Genesis
 //! - `actor_lct_id` — who signed this entry
-//! - `event` — typed ChapterEvent
+//! - `event` — typed HubEvent
 //! - `signature` — actor's Ed25519 signature over `signing_payload(entry)`
 //! - `entry_hash` — sha256 over the full canonical entry (including signature)
 //!
@@ -39,8 +39,8 @@ use uuid::Uuid;
 use web4_core::crypto::{sha256_hex, KeyPair, SignatureBytes};
 use web4_core::lct::Lct;
 
-use crate::events::ChapterEvent;
-use crate::store::ChapterStore;
+use crate::events::HubEvent;
+use crate::store::HubStore;
 
 /// Sentinel prev-hash for the Genesis entry: 64 hex zeros.
 pub const GENESIS_PREV_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -51,7 +51,7 @@ pub struct LedgerEntry {
     pub timestamp: DateTime<Utc>,
     pub prev_hash: String,
     pub actor_lct_id: Uuid,
-    pub event: ChapterEvent,
+    pub event: HubEvent,
     /// Hex-encoded Ed25519 signature over `signing_payload`.
     pub signature: String,
     /// sha256 hex of the canonical entry (computed with `entry_hash` field cleared).
@@ -79,7 +79,7 @@ fn compute_entry_hash(entry: &LedgerEntry) -> Result<String> {
 
 /// A ledger entry that has been assigned its index + prev_hash but not
 /// yet signed. The caller (or a remote signer) signs `signing_bytes`
-/// and passes the resulting signature to [`ChapterLedger::append_signed`].
+/// and passes the resulting signature to [`HubLedger::append_signed`].
 ///
 /// Holding this struct outside the ledger does NOT append an act to
 /// the ledger; it's a draft. If a parallel append lands between
@@ -96,17 +96,17 @@ pub struct UnsignedEntry {
 /// Append-only chapter event ledger.
 ///
 /// Owns hash-chain integrity + signing logic. Delegates byte persistence
-/// to a [`ChapterStore`] — so the ledger works identically against file,
+/// to a [`HubStore`] — so the ledger works identically against file,
 /// SQLite, or future backends.
-pub struct ChapterLedger {
-    store: Box<dyn ChapterStore>,
+pub struct HubLedger {
+    store: Box<dyn HubStore>,
     entries: Vec<LedgerEntry>,
     head_hash: String,
 }
 
-impl std::fmt::Debug for ChapterLedger {
+impl std::fmt::Debug for HubLedger {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ChapterLedger")
+        f.debug_struct("HubLedger")
             .field("backend_kind", &self.store.backend_kind())
             .field("entries", &self.entries.len())
             .field("head_hash", &self.head_hash)
@@ -114,11 +114,11 @@ impl std::fmt::Debug for ChapterLedger {
     }
 }
 
-impl ChapterLedger {
+impl HubLedger {
     /// Open a ledger backed by the given store. Loads any existing entries
     /// into memory + restores head_hash. Does NOT write a Genesis entry —
     /// that's the caller's responsibility via [`Self::write_genesis`].
-    pub fn open(store: Box<dyn ChapterStore>) -> Result<Self> {
+    pub fn open(store: Box<dyn HubStore>) -> Result<Self> {
         let entries = store.ledger_load_all()
             .context("loading ledger entries from store")?;
         let head_hash = entries
@@ -137,8 +137,8 @@ impl ChapterLedger {
     /// Borrow the underlying store. Useful for callers that need to
     /// read/write related artifacts (charter, society) through the same
     /// backend.
-    pub fn store(&self) -> &dyn ChapterStore { self.store.as_ref() }
-    pub fn store_mut(&mut self) -> &mut dyn ChapterStore { self.store.as_mut() }
+    pub fn store(&self) -> &dyn HubStore { self.store.as_ref() }
+    pub fn store_mut(&mut self) -> &mut dyn HubStore { self.store.as_mut() }
 
     /// Write the Genesis entry. Errors if the ledger is not empty.
     /// Convenience wrapper for callers holding a local keypair.
@@ -146,10 +146,10 @@ impl ChapterLedger {
         &mut self,
         sovereign_lct_id: Uuid,
         sovereign_keypair: &KeyPair,
-        chapter_name: String,
+        hub_name: String,
         charter_hash: String,
     ) -> Result<&LedgerEntry> {
-        let (unsigned, _) = self.build_genesis(sovereign_lct_id, chapter_name, charter_hash)?;
+        let (unsigned, _) = self.build_genesis(sovereign_lct_id, hub_name, charter_hash)?;
         let sig = sovereign_keypair.sign(&unsigned.signing_bytes);
         self.append_signed(unsigned, SignatureBytes::from_bytes(sig.bytes))
     }
@@ -160,15 +160,15 @@ impl ChapterLedger {
     pub fn build_genesis(
         &self,
         sovereign_lct_id: Uuid,
-        chapter_name: String,
+        hub_name: String,
         charter_hash: String,
     ) -> Result<(UnsignedEntry, DateTime<Utc>)> {
         if !self.entries.is_empty() {
             return Err(anyhow!("ledger already has entries; Genesis would be illegal"));
         }
         let now = Utc::now();
-        let event = ChapterEvent::Genesis {
-            chapter_name,
+        let event = HubEvent::Genesis {
+            hub_name,
             charter_hash,
             founding_sovereign_lct_id: sovereign_lct_id,
             created_at: now,
@@ -186,7 +186,7 @@ impl ChapterLedger {
         &mut self,
         actor_lct_id: Uuid,
         actor_keypair: &KeyPair,
-        event: ChapterEvent,
+        event: HubEvent,
     ) -> Result<&LedgerEntry> {
         if self.entries.is_empty() {
             return Err(anyhow!("ledger has no Genesis entry; call write_genesis first"));
@@ -205,7 +205,7 @@ impl ChapterLedger {
     pub fn build_entry(
         &self,
         actor_lct_id: Uuid,
-        event: ChapterEvent,
+        event: HubEvent,
         timestamp: DateTime<Utc>,
     ) -> Result<UnsignedEntry> {
         // Genesis is its own path (write_genesis). All other entries
@@ -319,7 +319,7 @@ pub fn build_lookup(lcts: impl IntoIterator<Item = Lct>) -> HashMap<Uuid, Lct> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chapter::ChapterPaths;
+    use crate::hub::HubPaths;
     use crate::identity::IdentityFile;
     use crate::store::FileBackend;
     use tempfile::tempdir;
@@ -329,24 +329,24 @@ mod tests {
         IdentityFile::generate(EntityType::Human)
     }
 
-    fn fresh_store(tmp: &tempfile::TempDir) -> (Box<dyn ChapterStore>, std::path::PathBuf) {
-        let chapter_dir = tmp.path().join("chap");
-        std::fs::create_dir_all(&chapter_dir).unwrap();
-        let paths = ChapterPaths::new(chapter_dir.clone());
+    fn fresh_store(tmp: &tempfile::TempDir) -> (Box<dyn HubStore>, std::path::PathBuf) {
+        let hub_dir = tmp.path().join("chap");
+        std::fs::create_dir_all(&hub_dir).unwrap();
+        let paths = HubPaths::new(hub_dir.clone());
         let ledger_path = paths.ledger();
         (Box::new(FileBackend::new(paths)), ledger_path)
     }
 
-    fn reopen_file_backend(tmp: &tempfile::TempDir) -> Box<dyn ChapterStore> {
-        let chapter_dir = tmp.path().join("chap");
-        Box::new(FileBackend::new(ChapterPaths::new(chapter_dir)))
+    fn reopen_file_backend(tmp: &tempfile::TempDir) -> Box<dyn HubStore> {
+        let hub_dir = tmp.path().join("chap");
+        Box::new(FileBackend::new(HubPaths::new(hub_dir)))
     }
 
     #[test]
     fn open_creates_empty_file() {
         let tmp = tempdir().unwrap();
         let (store, _) = fresh_store(&tmp);
-        let ledger = ChapterLedger::open(store).unwrap();
+        let ledger = HubLedger::open(store).unwrap();
         assert!(ledger.is_empty());
         assert_eq!(ledger.head_hash(), GENESIS_PREV_HASH);
     }
@@ -358,7 +358,7 @@ mod tests {
         let keypair = sovereign.keypair().unwrap();
 
         let (store, _) = fresh_store(&tmp);
-        let mut ledger = ChapterLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).unwrap();
         ledger.write_genesis(
             sovereign.lct.id,
             &keypair,
@@ -370,7 +370,7 @@ mod tests {
         ledger.append(
             sovereign.lct.id,
             &keypair,
-            ChapterEvent::MemberAdded {
+            HubEvent::MemberAdded {
                 member_lct_id: member_id,
                 added_by: sovereign.lct.id,
                 member_name: Some("Alice".into()),
@@ -391,7 +391,7 @@ mod tests {
 
         {
             let (store, _) = fresh_store(&tmp);
-            let mut ledger = ChapterLedger::open(store).unwrap();
+            let mut ledger = HubLedger::open(store).unwrap();
             ledger.write_genesis(
                 sovereign.lct.id, &keypair,
                 "X".into(), "sha256:0".into(),
@@ -399,7 +399,7 @@ mod tests {
             for _ in 0..3 {
                 ledger.append(
                     sovereign.lct.id, &keypair,
-                    ChapterEvent::MemberAdded {
+                    HubEvent::MemberAdded {
                         member_lct_id: Uuid::new_v4(),
                         added_by: sovereign.lct.id,
                         member_name: None,
@@ -409,7 +409,7 @@ mod tests {
         }
 
         // Re-open a fresh store pointing at the same dir and verify.
-        let reopened = ChapterLedger::open(reopen_file_backend(&tmp)).unwrap();
+        let reopened = HubLedger::open(reopen_file_backend(&tmp)).unwrap();
         assert_eq!(reopened.len(), 4);
         let lookup_map = build_lookup([sovereign.lct.clone()]);
         reopened.verify_chain(|id| lookup_map.get(&id).cloned()).unwrap();
@@ -422,14 +422,14 @@ mod tests {
         let keypair = sovereign.keypair().unwrap();
 
         let (store, ledger_path) = fresh_store(&tmp);
-        let mut ledger = ChapterLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).unwrap();
         ledger.write_genesis(
             sovereign.lct.id, &keypair,
             "X".into(), "sha256:0".into(),
         ).unwrap();
         ledger.append(
             sovereign.lct.id, &keypair,
-            ChapterEvent::MemberAdded {
+            HubEvent::MemberAdded {
                 member_lct_id: Uuid::new_v4(),
                 added_by: sovereign.lct.id,
                 member_name: Some("Original".into()),
@@ -447,7 +447,7 @@ mod tests {
         std::fs::write(&ledger_path, new_content).unwrap();
 
         // Re-open: hash recompute should now mismatch
-        let reopened = ChapterLedger::open(reopen_file_backend(&tmp)).unwrap();
+        let reopened = HubLedger::open(reopen_file_backend(&tmp)).unwrap();
         let lookup_map = build_lookup([sovereign.lct.clone()]);
         let result = reopened.verify_chain(|id| lookup_map.get(&id).cloned());
         assert!(result.is_err(), "tampered entry must fail verification");
@@ -463,7 +463,7 @@ mod tests {
         let keypair = sovereign.keypair().unwrap();
 
         let (store, _) = fresh_store(&tmp);
-        let mut ledger = ChapterLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).unwrap();
         ledger.write_genesis(
             sovereign.lct.id, &keypair,
             "X".into(), "sha256:0".into(),
@@ -487,7 +487,7 @@ mod tests {
         let kp = sovereign.keypair().unwrap();
 
         let (store, _) = fresh_store(&tmp);
-        let mut ledger = ChapterLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).unwrap();
 
         // Genesis via the split path
         let (unsigned_genesis, _ts) = ledger.build_genesis(
@@ -504,7 +504,7 @@ mod tests {
         // Member added via the split path
         let unsigned_member = ledger.build_entry(
             sovereign.lct.id,
-            ChapterEvent::MemberAdded {
+            HubEvent::MemberAdded {
                 member_lct_id: Uuid::new_v4(),
                 added_by: sovereign.lct.id,
                 member_name: Some("Alice".into()),
@@ -531,7 +531,7 @@ mod tests {
         let kp = sovereign.keypair().unwrap();
 
         let (store, _) = fresh_store(&tmp);
-        let mut ledger = ChapterLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).unwrap();
         ledger.write_genesis(
             sovereign.lct.id, &kp,
             "X".into(), "0".repeat(64),
@@ -540,7 +540,7 @@ mod tests {
         // Build entry A (gets index=1, prev_hash=genesis_hash)
         let unsigned_a = ledger.build_entry(
             sovereign.lct.id,
-            ChapterEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: None },
+            HubEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: None },
             Utc::now(),
         ).unwrap();
 
@@ -548,7 +548,7 @@ mod tests {
         // but commits before A and becomes the actual index=1)
         ledger.append(
             sovereign.lct.id, &kp,
-            ChapterEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: Some("B".into()) },
+            HubEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: Some("B".into()) },
         ).unwrap();
 
         // Now A tries to commit; should fail because the ledger advanced
@@ -567,10 +567,10 @@ mod tests {
         let keypair = sovereign.keypair().unwrap();
 
         let (store, _) = fresh_store(&tmp);
-        let mut ledger = ChapterLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).unwrap();
         let result = ledger.append(
             sovereign.lct.id, &keypair,
-            ChapterEvent::MemberAdded {
+            HubEvent::MemberAdded {
                 member_lct_id: Uuid::new_v4(),
                 added_by: sovereign.lct.id,
                 member_name: None,

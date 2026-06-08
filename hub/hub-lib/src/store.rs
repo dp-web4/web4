@@ -46,12 +46,12 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
-use crate::chapter::ChapterPaths;
+use crate::hub::HubPaths;
 use crate::charter::Charter;
 use crate::ledger::LedgerEntry;
 use web4_core::society::Society;
 
-/// What kind of backend a [`ChapterStore`] is. Useful for diagnostics +
+/// What kind of backend a [`HubStore`] is. Useful for diagnostics +
 /// migration tools that need to choose paths based on backend identity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BackendKind {
@@ -73,11 +73,11 @@ impl BackendKind {
 
 /// The chapter persistence surface.
 ///
-/// Implementations own the bytes; callers (ChapterLedger, init_chapter,
-/// ChapterSession) own invariants. This trait does **no** crypto or chain
+/// Implementations own the bytes; callers (HubLedger, init_chapter,
+/// HubSession) own invariants. This trait does **no** crypto or chain
 /// validation — that lives in the ledger module. It does **no** secret
 /// handling — that lives in the vault (Hestia).
-pub trait ChapterStore: Send {
+pub trait HubStore: Send {
     fn backend_kind(&self) -> BackendKind;
 
     // ----- Charter (immutable post-genesis) -----
@@ -106,7 +106,7 @@ pub trait ChapterStore: Send {
 
     /// Append one already-validated entry to the ledger. The entry's
     /// signature + entry_hash + prev_hash + index are computed by the
-    /// caller (ChapterLedger); the store just persists.
+    /// caller (HubLedger); the store just persists.
     fn ledger_append(&mut self, entry: &LedgerEntry) -> Result<()>;
 
     /// True iff the ledger has zero entries. Used by callers to detect
@@ -125,7 +125,7 @@ pub trait ChapterStore: Send {
     }
 
     /// Write/overwrite the current chapter law. Callers should also
-    /// append a [`crate::events::ChapterEvent::LawAmended`] event to
+    /// append a [`crate::events::HubEvent::LawAmended`] event to
     /// the ledger so the amendment is part of the audit trail.
     fn write_law(&mut self, _yaml: &str) -> Result<()> {
         anyhow::bail!("this backend does not yet support law storage")
@@ -135,17 +135,17 @@ pub trait ChapterStore: Send {
 /// Default SQLite filename inside a chapter dir.
 pub const SQLITE_DB_FILENAME: &str = "chapter.db";
 
-/// Open a `ChapterStore` for the given chapter dir. Backend selection:
+/// Open a `HubStore` for the given chapter dir. Backend selection:
 ///
 /// 1. If `<chapter-dir>/chapter.db` exists → SqliteBackend.
 /// 2. Else if `<chapter-dir>/society.json` (or any MVP file) exists → FileBackend.
 /// 3. Else (fresh chapter) → FileBackend default (MVP-compatible).
 ///
 /// To force a specific backend at create time, use [`open_chapter_store_with`].
-pub fn open_chapter_store(chapter_dir: impl AsRef<Path>) -> Result<Box<dyn ChapterStore>> {
-    let chapter_dir = chapter_dir.as_ref();
-    let paths = ChapterPaths::new(chapter_dir.to_path_buf());
-    let db_path = chapter_dir.join(SQLITE_DB_FILENAME);
+pub fn open_chapter_store(hub_dir: impl AsRef<Path>) -> Result<Box<dyn HubStore>> {
+    let hub_dir = hub_dir.as_ref();
+    let paths = HubPaths::new(hub_dir.to_path_buf());
+    let db_path = hub_dir.join(SQLITE_DB_FILENAME);
 
     if db_path.exists() {
         Ok(Box::new(SqliteBackend::open(&db_path)?))
@@ -154,20 +154,20 @@ pub fn open_chapter_store(chapter_dir: impl AsRef<Path>) -> Result<Box<dyn Chapt
     }
 }
 
-/// Open a `ChapterStore` for the given chapter dir, forcing the backend
+/// Open a `HubStore` for the given chapter dir, forcing the backend
 /// kind. Used by `hub init --storage <kind>` and the migration tool.
 pub fn open_chapter_store_with(
-    chapter_dir: impl AsRef<Path>,
+    hub_dir: impl AsRef<Path>,
     kind: BackendKind,
-) -> Result<Box<dyn ChapterStore>> {
-    let chapter_dir = chapter_dir.as_ref();
-    let paths = ChapterPaths::new(chapter_dir.to_path_buf());
+) -> Result<Box<dyn HubStore>> {
+    let hub_dir = hub_dir.as_ref();
+    let paths = HubPaths::new(hub_dir.to_path_buf());
     match kind {
         BackendKind::File => Ok(Box::new(FileBackend::new(paths))),
         BackendKind::Sqlite => {
-            std::fs::create_dir_all(chapter_dir)
-                .with_context(|| format!("creating chapter dir {}", chapter_dir.display()))?;
-            let db_path = chapter_dir.join(SQLITE_DB_FILENAME);
+            std::fs::create_dir_all(hub_dir)
+                .with_context(|| format!("creating chapter dir {}", hub_dir.display()))?;
+            let db_path = hub_dir.join(SQLITE_DB_FILENAME);
             Ok(Box::new(SqliteBackend::open(&db_path)?))
         }
     }
@@ -191,7 +191,7 @@ impl std::str::FromStr for BackendKind {
 // FileBackend
 // ============================================================================
 
-/// File-backed [`ChapterStore`] — wraps the MVP's JSON/JSONL files.
+/// File-backed [`HubStore`] — wraps the MVP's JSON/JSONL files.
 ///
 /// Layout (unchanged from MVP):
 /// - `charter.json` — Charter
@@ -199,15 +199,15 @@ impl std::str::FromStr for BackendKind {
 /// - `ledger.jsonl` — one LedgerEntry per line
 #[derive(Debug)]
 pub struct FileBackend {
-    paths: ChapterPaths,
+    paths: HubPaths,
 }
 
 impl FileBackend {
-    pub fn new(paths: ChapterPaths) -> Self {
+    pub fn new(paths: HubPaths) -> Self {
         Self { paths }
     }
 
-    pub fn paths(&self) -> &ChapterPaths {
+    pub fn paths(&self) -> &HubPaths {
         &self.paths
     }
 
@@ -224,7 +224,7 @@ impl FileBackend {
     }
 
     pub fn law_path(&self) -> PathBuf {
-        self.paths.root.join("chapter-law.yaml")
+        self.paths.root.join("hub-law.yaml")
     }
 
     fn ensure_parent(path: &Path) -> Result<()> {
@@ -238,7 +238,7 @@ impl FileBackend {
     }
 }
 
-impl ChapterStore for FileBackend {
+impl HubStore for FileBackend {
     fn backend_kind(&self) -> BackendKind {
         BackendKind::File
     }
@@ -321,12 +321,22 @@ impl ChapterStore for FileBackend {
 
     fn read_law(&self) -> Result<Option<String>> {
         let path = self.law_path();
-        if !path.exists() {
-            return Ok(None);
+        if path.exists() {
+            return std::fs::read_to_string(&path)
+                .map(Some)
+                .with_context(|| format!("reading law from {}", path.display()));
         }
-        std::fs::read_to_string(&path)
-            .map(Some)
-            .with_context(|| format!("reading law from {}", path.display()))
+        // Back-compat: hub dirs created before the chapter→hub rename
+        // wrote `chapter-law.yaml`. If the new name isn't present but
+        // the old one is, read the old one. (write_law always writes
+        // the new name; next set-law migrates the file.)
+        let legacy = self.paths.root.join("chapter-law.yaml");
+        if legacy.exists() {
+            return std::fs::read_to_string(&legacy)
+                .map(Some)
+                .with_context(|| format!("reading legacy chapter-law from {}", legacy.display()));
+        }
+        Ok(None)
     }
 
     fn write_law(&mut self, yaml: &str) -> Result<()> {
@@ -341,7 +351,7 @@ impl ChapterStore for FileBackend {
 // SqliteBackend
 // ============================================================================
 
-/// SQLite-backed [`ChapterStore`] — one `chapter.db` file per chapter.
+/// SQLite-backed [`HubStore`] — one `chapter.db` file per chapter.
 ///
 /// ## Schema
 ///
@@ -361,7 +371,7 @@ impl ChapterStore for FileBackend {
 /// Append-only discipline: ledger entries are inserted with their `index`
 /// as PRIMARY KEY; collisions error. Charter is written once via UPSERT
 /// (overwrite would only happen if a caller violated the write-once
-/// discipline at the ChapterLedger / init layer, which is the source of
+/// discipline at the HubLedger / init layer, which is the source of
 /// truth for that invariant).
 ///
 /// ## Why one DB per chapter (not one shared DB)
@@ -464,7 +474,7 @@ pub struct MigrationResult {
 /// Migrate a chapter from its current backend to `target_backend`.
 ///
 /// Algorithm:
-/// 1. Auto-detect source backend at `chapter_dir`.
+/// 1. Auto-detect source backend at `hub_dir`.
 /// 2. If source == target, no-op (returns OK with zero-copied counters).
 /// 3. Open target backend (forced kind via [`open_chapter_store_with`]).
 ///    For sqlite, this creates `chapter.db`.
@@ -483,16 +493,16 @@ pub struct MigrationResult {
 /// anything else outside the chapter storage abstraction. Those stay
 /// where they were.
 pub fn migrate_chapter(
-    chapter_dir: impl AsRef<Path>,
+    hub_dir: impl AsRef<Path>,
     target_backend: BackendKind,
 ) -> Result<MigrationResult> {
-    let chapter_dir = chapter_dir.as_ref();
-    if !chapter_dir.exists() {
-        anyhow::bail!("chapter dir {} does not exist", chapter_dir.display());
+    let hub_dir = hub_dir.as_ref();
+    if !hub_dir.exists() {
+        anyhow::bail!("chapter dir {} does not exist", hub_dir.display());
     }
 
     // 1. Auto-detect source.
-    let source = open_chapter_store(chapter_dir)
+    let source = open_chapter_store(hub_dir)
         .context("opening source store for migration")?;
     let source_kind = source.backend_kind();
 
@@ -517,7 +527,7 @@ pub fn migrate_chapter(
     drop(source);
 
     // 3. Open target.
-    let mut target = open_chapter_store_with(chapter_dir, target_backend)
+    let mut target = open_chapter_store_with(hub_dir, target_backend)
         .with_context(|| format!("opening target store ({:?})", target_backend))?;
 
     // 4-6. Copy state.
@@ -540,7 +550,7 @@ pub fn migrate_chapter(
     drop(target);
 
     // 7. Preserve source artifacts.
-    let paths = ChapterPaths::new(chapter_dir.to_path_buf());
+    let paths = HubPaths::new(hub_dir.to_path_buf());
     let mut preserved = Vec::new();
     match source_kind {
         BackendKind::File => {
@@ -557,18 +567,18 @@ pub fn migrate_chapter(
             }
         }
         BackendKind::Sqlite => {
-            let db = chapter_dir.join(SQLITE_DB_FILENAME);
+            let db = hub_dir.join(SQLITE_DB_FILENAME);
             if db.exists() {
-                let backup = chapter_dir.join(format!("{}.pre-migration", SQLITE_DB_FILENAME));
+                let backup = hub_dir.join(format!("{}.pre-migration", SQLITE_DB_FILENAME));
                 std::fs::rename(&db, &backup)
                     .with_context(|| format!("renaming {} to backup", db.display()))?;
                 preserved.push(backup);
             }
             // SQLite WAL/SHM files if present (after journal_mode=WAL)
             for sidecar in &["chapter.db-wal", "chapter.db-shm"] {
-                let p = chapter_dir.join(sidecar);
+                let p = hub_dir.join(sidecar);
                 if p.exists() {
-                    let backup = chapter_dir.join(format!("{}.pre-migration", sidecar));
+                    let backup = hub_dir.join(format!("{}.pre-migration", sidecar));
                     std::fs::rename(&p, &backup)
                         .with_context(|| format!("renaming {} to backup", p.display()))?;
                     preserved.push(backup);
@@ -587,7 +597,7 @@ pub fn migrate_chapter(
     })
 }
 
-impl ChapterStore for SqliteBackend {
+impl HubStore for SqliteBackend {
     fn backend_kind(&self) -> BackendKind {
         BackendKind::Sqlite
     }
@@ -680,17 +690,17 @@ mod tests {
 
     fn fresh_file_backend() -> (tempfile::TempDir, FileBackend) {
         let tmp = tempdir().unwrap();
-        let chapter_dir = tmp.path().join("test-chapter");
-        std::fs::create_dir_all(&chapter_dir).unwrap();
-        let backend = FileBackend::new(ChapterPaths::new(chapter_dir));
+        let hub_dir = tmp.path().join("test-chapter");
+        std::fs::create_dir_all(&hub_dir).unwrap();
+        let backend = FileBackend::new(HubPaths::new(hub_dir));
         (tmp, backend)
     }
 
     fn fresh_sqlite_backend() -> (tempfile::TempDir, SqliteBackend) {
         let tmp = tempdir().unwrap();
-        let chapter_dir = tmp.path().join("test-chapter");
-        std::fs::create_dir_all(&chapter_dir).unwrap();
-        let backend = SqliteBackend::open(chapter_dir.join(SQLITE_DB_FILENAME)).unwrap();
+        let hub_dir = tmp.path().join("test-chapter");
+        std::fs::create_dir_all(&hub_dir).unwrap();
+        let backend = SqliteBackend::open(hub_dir.join(SQLITE_DB_FILENAME)).unwrap();
         (tmp, backend)
     }
 
@@ -731,7 +741,7 @@ mod tests {
         let charter = Charter::found("Test".into(), founder);
         b.write_charter(&charter).unwrap();
         let loaded = b.read_charter().unwrap().expect("charter present");
-        assert_eq!(loaded.chapter_name, charter.chapter_name);
+        assert_eq!(loaded.hub_name, charter.hub_name);
         assert_eq!(loaded.founding_sovereign_lct_id, founder);
     }
 
@@ -742,7 +752,7 @@ mod tests {
         let charter = Charter::found("Test".into(), founder);
         b.write_charter(&charter).unwrap();
         let loaded = b.read_charter().unwrap().expect("charter present");
-        assert_eq!(loaded.chapter_name, charter.chapter_name);
+        assert_eq!(loaded.hub_name, charter.hub_name);
         assert_eq!(loaded.founding_sovereign_lct_id, founder);
     }
 
@@ -771,22 +781,22 @@ mod tests {
     #[test]
     fn sqlite_ledger_persists_across_reopen() {
         let tmp = tempdir().unwrap();
-        let chapter_dir = tmp.path().join("test-chapter");
-        std::fs::create_dir_all(&chapter_dir).unwrap();
-        let db_path = chapter_dir.join(SQLITE_DB_FILENAME);
+        let hub_dir = tmp.path().join("test-chapter");
+        std::fs::create_dir_all(&hub_dir).unwrap();
+        let db_path = hub_dir.join(SQLITE_DB_FILENAME);
 
         // Synthesize a couple of fake ledger entries (just to exercise the
-        // store; chain integrity is the ChapterLedger's responsibility).
+        // store; chain integrity is the HubLedger's responsibility).
         use chrono::Utc;
-        use crate::events::ChapterEvent;
+        use crate::events::HubEvent;
         let founder = Uuid::new_v4();
         let e0 = LedgerEntry {
             index: 0,
             timestamp: Utc::now(),
             prev_hash: "0".repeat(64),
             actor_lct_id: founder,
-            event: ChapterEvent::Genesis {
-                chapter_name: "X".into(),
+            event: HubEvent::Genesis {
+                hub_name: "X".into(),
                 charter_hash: "h".into(),
                 founding_sovereign_lct_id: founder,
                 created_at: Utc::now(),
@@ -812,15 +822,15 @@ mod tests {
     fn sqlite_duplicate_index_errors() {
         let (_tmp, mut b) = fresh_sqlite_backend();
         use chrono::Utc;
-        use crate::events::ChapterEvent;
+        use crate::events::HubEvent;
         let founder = Uuid::new_v4();
         let make = |index: u64| LedgerEntry {
             index,
             timestamp: Utc::now(),
             prev_hash: "0".repeat(64),
             actor_lct_id: founder,
-            event: ChapterEvent::Genesis {
-                chapter_name: "X".into(),
+            event: HubEvent::Genesis {
+                hub_name: "X".into(),
                 charter_hash: "h".into(),
                 founding_sovereign_lct_id: founder,
                 created_at: Utc::now(),
@@ -836,32 +846,32 @@ mod tests {
     #[test]
     fn open_chapter_store_selects_sqlite_when_db_present() {
         let tmp = tempdir().unwrap();
-        let chapter_dir = tmp.path().join("test-chapter");
-        std::fs::create_dir_all(&chapter_dir).unwrap();
+        let hub_dir = tmp.path().join("test-chapter");
+        std::fs::create_dir_all(&hub_dir).unwrap();
         // Create an empty sqlite db
-        let _ = SqliteBackend::open(chapter_dir.join(SQLITE_DB_FILENAME)).unwrap();
+        let _ = SqliteBackend::open(hub_dir.join(SQLITE_DB_FILENAME)).unwrap();
         // open_chapter_store should now pick sqlite
-        let store = open_chapter_store(&chapter_dir).unwrap();
+        let store = open_chapter_store(&hub_dir).unwrap();
         assert_eq!(store.backend_kind(), BackendKind::Sqlite);
     }
 
     #[test]
     fn open_chapter_store_defaults_to_file_when_empty_dir() {
         let tmp = tempdir().unwrap();
-        let chapter_dir = tmp.path().join("test-chapter");
-        std::fs::create_dir_all(&chapter_dir).unwrap();
-        let store = open_chapter_store(&chapter_dir).unwrap();
+        let hub_dir = tmp.path().join("test-chapter");
+        std::fs::create_dir_all(&hub_dir).unwrap();
+        let store = open_chapter_store(&hub_dir).unwrap();
         assert_eq!(store.backend_kind(), BackendKind::File);
     }
 
     #[test]
     fn migrate_file_to_sqlite_round_trips_state() {
         use chrono::Utc;
-        use crate::events::ChapterEvent;
+        use crate::events::HubEvent;
 
         let tmp = tempdir().unwrap();
-        let chapter_dir = tmp.path().join("chap");
-        std::fs::create_dir_all(&chapter_dir).unwrap();
+        let hub_dir = tmp.path().join("chap");
+        std::fs::create_dir_all(&hub_dir).unwrap();
 
         // Build a file-backed chapter with charter + society + 3 ledger entries
         let founder = Uuid::new_v4();
@@ -872,8 +882,8 @@ mod tests {
             timestamp: Utc::now(),
             prev_hash: if i == 0 { "0".repeat(64) } else { format!("h{}", i - 1) },
             actor_lct_id: founder,
-            event: ChapterEvent::Genesis {
-                chapter_name: "Migrate Test".into(),
+            event: HubEvent::Genesis {
+                hub_name: "Migrate Test".into(),
                 charter_hash: "h".into(),
                 founding_sovereign_lct_id: founder,
                 created_at: Utc::now(),
@@ -883,7 +893,7 @@ mod tests {
         }).collect();
 
         {
-            let mut src = FileBackend::new(ChapterPaths::new(chapter_dir.clone()));
+            let mut src = FileBackend::new(HubPaths::new(hub_dir.clone()));
             src.write_charter(&charter).unwrap();
             src.write_society(&society).unwrap();
             for e in &entries {
@@ -892,7 +902,7 @@ mod tests {
         }
 
         // Migrate file → sqlite
-        let result = migrate_chapter(&chapter_dir, BackendKind::Sqlite).unwrap();
+        let result = migrate_chapter(&hub_dir, BackendKind::Sqlite).unwrap();
         assert_eq!(result.source_backend, BackendKind::File);
         assert_eq!(result.target_backend, BackendKind::Sqlite);
         assert!(result.charter_copied);
@@ -902,12 +912,12 @@ mod tests {
             "source artifacts should be renamed for rollback");
 
         // Auto-detect should now resolve sqlite
-        let after = open_chapter_store(&chapter_dir).unwrap();
+        let after = open_chapter_store(&hub_dir).unwrap();
         assert_eq!(after.backend_kind(), BackendKind::Sqlite);
 
         // Charter + society + ledger byte-identical
         let after_charter = after.read_charter().unwrap().expect("charter");
-        assert_eq!(after_charter.chapter_name, charter.chapter_name);
+        assert_eq!(after_charter.hub_name, charter.hub_name);
         let after_society = after.read_society().unwrap().expect("society");
         assert_eq!(after_society.lct_id, society.lct_id);
         let after_ledger = after.ledger_load_all().unwrap();
@@ -922,10 +932,10 @@ mod tests {
     #[test]
     fn migrate_same_backend_is_noop() {
         let tmp = tempdir().unwrap();
-        let chapter_dir = tmp.path().join("chap");
-        std::fs::create_dir_all(&chapter_dir).unwrap();
+        let hub_dir = tmp.path().join("chap");
+        std::fs::create_dir_all(&hub_dir).unwrap();
         // Empty dir → file-backed default
-        let result = migrate_chapter(&chapter_dir, BackendKind::File).unwrap();
+        let result = migrate_chapter(&hub_dir, BackendKind::File).unwrap();
         assert_eq!(result.source_backend, result.target_backend);
         assert_eq!(result.ledger_entries_copied, 0);
         assert!(!result.charter_copied);

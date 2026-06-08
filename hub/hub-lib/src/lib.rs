@@ -22,7 +22,7 @@
 //! `web4/CLAUDE.md` "MRH-Specific Policy" for the development-phase
 //! drift prevention.
 
-pub mod chapter;
+pub mod hub;
 pub mod charter;
 pub mod envelope;
 pub mod events;

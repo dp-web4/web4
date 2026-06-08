@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Metalinxx Inc.
 
-//! ChapterSession — the operator-facing API for a chapter.
+//! HubSession — the operator-facing API for a chapter.
 //!
 //! Opens a chapter (config + Sovereign identity + ledger) and exposes ops:
 //! add_member, remove_member, assign_role, record_event, declare_skill,
@@ -18,43 +18,43 @@ use web4_core::crypto::KeyPair;
 use web4_core::role::SocietyRole;
 use web4_core::society::Society;
 
-use crate::chapter::{ChapterConfig, ChapterPaths};
-use crate::events::ChapterEvent;
+use crate::hub::{HubConfig, HubPaths};
+use crate::events::HubEvent;
 use crate::identity::IdentityFile;
 use crate::init::load_society;
-use crate::ledger::{ChapterLedger, LedgerEntry};
-use crate::state::{ChapterState, Member};
+use crate::ledger::{HubLedger, LedgerEntry};
+use crate::state::{HubState, Member};
 use crate::store::open_chapter_store;
 
 /// One open chapter, ready for ops. Drop to close.
-pub struct ChapterSession {
-    pub paths: ChapterPaths,
-    pub config: ChapterConfig,
+pub struct HubSession {
+    pub paths: HubPaths,
+    pub config: HubConfig,
     pub sovereign_lct_id: Uuid,
     pub sovereign_keypair: KeyPair,
-    pub ledger: ChapterLedger,
+    pub ledger: HubLedger,
 }
 
-impl ChapterSession {
-    pub fn open(chapter_dir: impl AsRef<Path>) -> Result<Self> {
-        let chapter_dir = chapter_dir.as_ref();
-        let paths = ChapterPaths::new(chapter_dir.to_path_buf());
-        let config = ChapterConfig::load(paths.config())
+impl HubSession {
+    pub fn open(hub_dir: impl AsRef<Path>) -> Result<Self> {
+        let hub_dir = hub_dir.as_ref();
+        let paths = HubPaths::new(hub_dir.to_path_buf());
+        let config = HubConfig::load(paths.config())
             .with_context(|| format!("loading config at {}", paths.config().display()))?;
 
-        // ChapterSession is the synchronous CLI surface (add-member CLI,
+        // HubSession is the synchronous CLI surface (add-member CLI,
         // record-event CLI, etc.). It needs the Sovereign keypair in-process
         // to sign ledger entries synchronously. That's a Local-mode-only
         // capability. Hestia-mode chapters must drive acts through the
-        // async REST API (`POST /v1/chapters/{id}/events`) where the signer
+        // async REST API (`POST /v1/hubs/{id}/events`) where the signer
         // abstraction handles the Hestia callback roundtrip.
         let lct_path = match config.sovereign.mode()? {
-            crate::chapter::SovereignMode::Local { lct_path } => lct_path,
-            crate::chapter::SovereignMode::Hestia { .. } => {
+            crate::hub::SovereignMode::Local { lct_path } => lct_path,
+            crate::hub::SovereignMode::Hestia { .. } => {
                 anyhow::bail!(
                     "this chapter is Hestia-mode; synchronous CLI acts \
                      are not supported. Use the REST API at \
-                     POST /v1/chapters/{{chapter_id}}/events with a SignedEnvelope \
+                     POST /v1/hubs/{{hub_id}}/events with a SignedEnvelope \
                      instead. For read-only queries, use the equivalent GET endpoints."
                 );
             }
@@ -64,9 +64,9 @@ impl ChapterSession {
                 "loading Sovereign identity from {}", lct_path.display()
             ))?;
         let keypair = sovereign.keypair()?;
-        let store = open_chapter_store(chapter_dir)
+        let store = open_chapter_store(hub_dir)
             .context("opening chapter store for session")?;
-        let ledger = ChapterLedger::open(store)
+        let ledger = HubLedger::open(store)
             .context("opening ledger via chapter store")?;
         Ok(Self {
             paths,
@@ -77,12 +77,12 @@ impl ChapterSession {
         })
     }
 
-    pub fn chapter_dir(&self) -> &Path { &self.paths.root }
+    pub fn hub_dir(&self) -> &Path { &self.paths.root }
 
     // ---------- acts ----------
 
     pub fn add_member(&mut self, member_lct_id: Uuid, name: Option<String>) -> Result<&LedgerEntry> {
-        let event = ChapterEvent::MemberAdded {
+        let event = HubEvent::MemberAdded {
             member_lct_id,
             added_by: self.sovereign_lct_id,
             member_name: name,
@@ -91,7 +91,7 @@ impl ChapterSession {
     }
 
     pub fn remove_member(&mut self, member_lct_id: Uuid, reason: Option<String>) -> Result<&LedgerEntry> {
-        let event = ChapterEvent::MemberRemoved {
+        let event = HubEvent::MemberRemoved {
             member_lct_id,
             removed_by: self.sovereign_lct_id,
             reason,
@@ -100,7 +100,7 @@ impl ChapterSession {
     }
 
     pub fn assign_role(&mut self, role: SocietyRole, role_lct_id: Uuid, member_lct_id: Uuid) -> Result<&LedgerEntry> {
-        let event = ChapterEvent::RoleAssigned {
+        let event = HubEvent::RoleAssigned {
             role,
             role_lct_id,
             assigned_to: member_lct_id,
@@ -116,7 +116,7 @@ impl ChapterSession {
         attended_by: Vec<Uuid>,
         held_at: Option<DateTime<Utc>>,
     ) -> Result<&LedgerEntry> {
-        let event = ChapterEvent::EventRecorded {
+        let event = HubEvent::EventRecorded {
             event_kind,
             title,
             attended_by,
@@ -127,7 +127,7 @@ impl ChapterSession {
     }
 
     /// Amend the chapter's law. Writes the new YAML to the store and
-    /// appends a [`crate::events::ChapterEvent::LawAmended`] event to
+    /// appends a [`crate::events::HubEvent::LawAmended`] event to
     /// the ledger so the amendment is part of the audit trail.
     ///
     /// `yaml` MUST already be validated via
@@ -145,7 +145,7 @@ impl ChapterSession {
         self.ledger.store_mut()
             .write_law(yaml)
             .context("writing law to chapter store")?;
-        let event = ChapterEvent::LawAmended {
+        let event = HubEvent::LawAmended {
             new_law_sha256: sha,
             amended_by: self.sovereign_lct_id,
             version,
@@ -160,7 +160,7 @@ impl ChapterSession {
     }
 
     pub fn declare_skill(&mut self, member_lct_id: Uuid, skill: String) -> Result<&LedgerEntry> {
-        let event = ChapterEvent::MemberSkillDeclared {
+        let event = HubEvent::MemberSkillDeclared {
             member_lct_id,
             skill,
             declared_by: self.sovereign_lct_id,
@@ -170,8 +170,8 @@ impl ChapterSession {
 
     // ---------- queries ----------
 
-    pub fn state(&self) -> ChapterState {
-        ChapterState::project(&self.ledger)
+    pub fn state(&self) -> HubState {
+        HubState::project(&self.ledger)
     }
 
     pub fn list_members(&self) -> Vec<Member> {
@@ -183,7 +183,7 @@ impl ChapterSession {
     }
 
     pub fn society(&self) -> Result<Society> {
-        load_society(self.chapter_dir())
+        load_society(self.hub_dir())
     }
 
     /// Base-mandatory roles per Web4 spec that are NOT currently filled in
@@ -206,7 +206,7 @@ impl ChapterSession {
 
     // ---------- internal ----------
 
-    fn append(&mut self, event: ChapterEvent) -> Result<&LedgerEntry> {
+    fn append(&mut self, event: HubEvent) -> Result<&LedgerEntry> {
         self.ledger.append(self.sovereign_lct_id, &self.sovereign_keypair, event)
     }
 }
@@ -214,21 +214,21 @@ impl ChapterSession {
 /// Status snapshot for CLI / API consumption.
 #[derive(Debug)]
 pub struct ChapterStatus {
-    pub chapter_dir: PathBuf,
-    pub chapter_name: String,
+    pub hub_dir: PathBuf,
+    pub hub_name: String,
     pub member_count: usize,
     pub ledger_entries: u64,
     pub head_hash: String,
     pub mcp_port: u16,
 }
 
-impl ChapterSession {
+impl HubSession {
     pub fn status(&self) -> ChapterStatus {
         let state = self.state();
         let member_count = state.member_count();
         ChapterStatus {
-            chapter_dir: self.chapter_dir().to_path_buf(),
-            chapter_name: state.chapter_name,
+            hub_dir: self.hub_dir().to_path_buf(),
+            hub_name: state.hub_name,
             member_count,
             ledger_entries: self.ledger.len() as u64,
             head_hash: self.ledger.head_hash().to_string(),
@@ -248,22 +248,22 @@ mod tests {
         let tmp = tempdir().unwrap();
         let sovereign_path = tmp.path().join("sovereign.json");
         IdentityFile::generate(EntityType::Human).save(&sovereign_path).unwrap();
-        let chapter_dir = tmp.path().join("test-chapter");
+        let hub_dir = tmp.path().join("test-chapter");
         init_chapter(InitArgs {
-            chapter_name: "Test Chapter".into(),
-            chapter_dir: chapter_dir.clone(),
+            hub_name: "Test Chapter".into(),
+            hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
         }).unwrap();
-        (tmp, chapter_dir)
+        (tmp, hub_dir)
     }
 
     #[test]
     fn open_and_status_after_init() {
         let (_tmp, dir) = fresh_chapter();
-        let session = ChapterSession::open(&dir).unwrap();
+        let session = HubSession::open(&dir).unwrap();
         let st = session.status();
-        assert_eq!(st.chapter_name, "Test Chapter");
+        assert_eq!(st.hub_name, "Test Chapter");
         assert_eq!(st.ledger_entries, 1); // Genesis
         assert_eq!(st.member_count, 1);   // Sovereign
     }
@@ -271,7 +271,7 @@ mod tests {
     #[test]
     fn end_to_end_session_ops() {
         let (_tmp, dir) = fresh_chapter();
-        let mut session = ChapterSession::open(&dir).unwrap();
+        let mut session = HubSession::open(&dir).unwrap();
 
         let alice = Uuid::new_v4();
         let bob = Uuid::new_v4();
@@ -302,11 +302,11 @@ mod tests {
     fn session_writes_persist_across_reopen() {
         let (_tmp, dir) = fresh_chapter();
         {
-            let mut session = ChapterSession::open(&dir).unwrap();
+            let mut session = HubSession::open(&dir).unwrap();
             session.add_member(Uuid::new_v4(), Some("Alice".into())).unwrap();
             session.add_member(Uuid::new_v4(), Some("Bob".into())).unwrap();
         }
-        let session = ChapterSession::open(&dir).unwrap();
+        let session = HubSession::open(&dir).unwrap();
         let st = session.status();
         assert_eq!(st.member_count, 3);
         assert_eq!(st.ledger_entries, 3);

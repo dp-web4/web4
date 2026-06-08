@@ -39,26 +39,26 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 use web4_core::role::SocietyRole;
 
-use hub_lib::chapter::{ChapterPaths, SovereignMode};
-use hub_lib::events::ChapterEvent;
+use hub_lib::hub::{HubPaths, SovereignMode};
+use hub_lib::events::HubEvent;
 use hub_lib::identity::IdentityFile;
 use hub_lib::init::load_society;
 use hub_lib::law::{Decision, Law, R6Request};
-use hub_lib::ledger::ChapterLedger;
+use hub_lib::ledger::HubLedger;
 use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, RemoteSigner, SignIntent};
-use hub_lib::state::ChapterState;
+use hub_lib::state::HubState;
 
 #[derive(Clone)]
 pub struct McpState {
-    pub paths: ChapterPaths,
-    pub chapter_id: Uuid,
-    pub chapter_name: String,
+    pub paths: HubPaths,
+    pub hub_id: Uuid,
+    pub hub_name: String,
     pub sovereign_lct_id: Uuid,
     /// Signer abstraction — LocalKeypairSigner for MVP-compat chapters,
     /// HestiaCallbackSigner for Hestia-mode. MCP handlers route ledger
     /// signing through this trait, same shape as REST.
     pub signer: Arc<dyn RemoteSigner>,
-    pub ledger: Arc<Mutex<ChapterLedger>>,
+    pub ledger: Arc<Mutex<HubLedger>>,
     /// Chapter law snapshot (loaded at open). PolicyEntity gate runs
     /// before each act-recording tool commits to the ledger.
     ///
@@ -70,24 +70,24 @@ pub struct McpState {
 
 impl McpState {
     /// Backward-compat: load law from the chapter store into a fresh slot.
-    pub fn open(chapter_dir: PathBuf) -> Result<Self> {
-        let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
+    pub fn open(hub_dir: PathBuf) -> Result<Self> {
+        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
         let law: Option<Law> = match store.read_law()? {
             Some(yaml) => Some(Law::parse_and_validate(&yaml)?),
             None => None,
         };
-        Self::open_with_law(chapter_dir, Arc::new(tokio::sync::RwLock::new(law)))
+        Self::open_with_law(hub_dir, Arc::new(tokio::sync::RwLock::new(law)))
     }
 
     /// Open with a caller-supplied shared law slot. `hub serve` uses
     /// this so REST + MCP evaluate against the same law + share reload.
     pub fn open_with_law(
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
         law: Arc<tokio::sync::RwLock<Option<Law>>>,
     ) -> Result<Self> {
-        let paths = ChapterPaths::new(chapter_dir.clone());
-        let config = hub_lib::chapter::ChapterConfig::load(paths.config())?;
-        let society = load_society(&chapter_dir)?;
+        let paths = HubPaths::new(hub_dir.clone());
+        let config = hub_lib::hub::HubConfig::load(paths.config())?;
+        let society = load_society(&hub_dir)?;
         let (sovereign_lct_id, signer): (Uuid, Arc<dyn RemoteSigner>) = match config.sovereign.mode()? {
             SovereignMode::Local { lct_path } => {
                 let sovereign = IdentityFile::load(&lct_path)?;
@@ -100,12 +100,12 @@ impl McpState {
                 (lct_id, signer)
             }
         };
-        let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
-        let ledger = ChapterLedger::open(store)?;
+        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
+        let ledger = HubLedger::open(store)?;
         Ok(Self {
             paths,
-            chapter_id: society.lct_id,
-            chapter_name: society.name,
+            hub_id: society.lct_id,
+            hub_name: society.name,
             sovereign_lct_id,
             signer,
             ledger: Arc::new(Mutex::new(ledger)),
@@ -184,7 +184,7 @@ async fn list_tools() -> Json<Vec<ToolDescriptor>> {
 
 #[derive(Serialize)]
 struct QueryChapterResponse {
-    chapter_name: String,
+    hub_name: String,
     founding_sovereign_lct_id: Option<Uuid>,
     charter_hash: Option<String>,
     member_count: usize,
@@ -195,14 +195,14 @@ struct QueryChapterResponse {
 
 async fn query_chapter(State(s): State<McpState>) -> Result<Json<QueryChapterResponse>, ApiError> {
     let ledger = s.ledger.lock().await;
-    let state = ChapterState::project(&ledger);
+    let state = HubState::project(&ledger);
     let society = load_society(s.paths.root.clone())?;
     let role_fill: HashMap<String, Uuid> = society.roles.iter()
         .map(|(k, v)| (k.clone(), v.filling_entity_lct_id))
         .collect();
     let member_count = state.member_count();
     Ok(Json(QueryChapterResponse {
-        chapter_name: state.chapter_name,
+        hub_name: state.hub_name,
         founding_sovereign_lct_id: state.founding_sovereign_lct_id,
         charter_hash: state.charter_hash,
         member_count,
@@ -221,7 +221,7 @@ struct ListMembersResponse {
 
 async fn list_members(State(s): State<McpState>) -> Result<Json<ListMembersResponse>, ApiError> {
     let ledger = s.ledger.lock().await;
-    let state = ChapterState::project(&ledger);
+    let state = HubState::project(&ledger);
     Ok(Json(ListMembersResponse {
         members: state.members.values().cloned().collect(),
     }))
@@ -243,7 +243,7 @@ async fn find_skill(
     Query(q): Query<FindSkillQuery>,
 ) -> Result<Json<FindSkillResponse>, ApiError> {
     let ledger = s.ledger.lock().await;
-    let state = ChapterState::project(&ledger);
+    let state = HubState::project(&ledger);
     let matches = state.find_skill(&q.q).into_iter().cloned().collect();
     Ok(Json(FindSkillResponse { query: q.q, matches }))
 }
@@ -268,7 +268,7 @@ async fn add_member(
     State(s): State<McpState>,
     Json(req): Json<AddMemberRequest>,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
-    let event = ChapterEvent::MemberAdded {
+    let event = HubEvent::MemberAdded {
         member_lct_id: req.member_lct_id,
         added_by: s.sovereign_lct_id,
         member_name: req.name,
@@ -289,7 +289,7 @@ async fn assign_role(
     State(s): State<McpState>,
     Json(req): Json<AssignRoleRequest>,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
-    let event = ChapterEvent::RoleAssigned {
+    let event = HubEvent::RoleAssigned {
         role: req.role,
         role_lct_id: req.role_lct_id,
         assigned_to: req.member_lct_id,
@@ -314,7 +314,7 @@ async fn record_event(
     State(s): State<McpState>,
     Json(req): Json<RecordEventRequest>,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
-    let event = ChapterEvent::EventRecorded {
+    let event = HubEvent::EventRecorded {
         event_kind: req.event_kind,
         title: req.title,
         attended_by: req.attended_by,
@@ -336,7 +336,7 @@ async fn declare_skill(
     State(s): State<McpState>,
     Json(req): Json<DeclareSkillRequest>,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
-    let event = ChapterEvent::MemberSkillDeclared {
+    let event = HubEvent::MemberSkillDeclared {
         member_lct_id: req.member_lct_id,
         skill: req.skill,
         declared_by: s.sovereign_lct_id,
@@ -348,7 +348,7 @@ async fn declare_skill(
 
 async fn append_with_sovereign(
     s: &McpState,
-    event: ChapterEvent,
+    event: HubEvent,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
     use chrono::Utc;
     use uuid::Uuid;
@@ -388,7 +388,7 @@ async fn append_with_sovereign(
 
     // Build the unsigned entry under the lock, release for the (possibly
     // remote) sign, then re-acquire to commit. Same shape as REST.
-    // ChapterLedger::append_signed detects stale state if a parallel
+    // HubLedger::append_signed detects stale state if a parallel
     // append landed in between (Step 3a stale-detection contract).
     let event_kind_str = event.kind().to_string();
     let event_value = serde_json::to_value(&event)
@@ -398,8 +398,8 @@ async fn append_with_sovereign(
         let unsigned = ledger.build_entry(s.sovereign_lct_id, event, Utc::now())?;
         let intent = SignIntent {
             request_id: Uuid::new_v4(),
-            chapter_id: s.chapter_id,
-            chapter_name: s.chapter_name.clone(),
+            hub_id: s.hub_id,
+            hub_name: s.hub_name.clone(),
             actor_lct_id: s.sovereign_lct_id,
             ledger_index: unsigned.entry.index,
             event_kind: event_kind_str.clone(),

@@ -60,7 +60,7 @@ echo ""
 echo "── 3. Initialize chapter inside container ──────────────────"
 $COMPOSE run --rm hub init "Docker Demo Chapter" \
     --sovereign-lct /chapter/sovereign.json \
-    --chapter-dir /chapter/data
+    --hub-dir /chapter/data
 
 echo ""
 echo "── 4. Bring up the daemon ──────────────────────────────────"

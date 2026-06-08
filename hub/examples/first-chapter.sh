@@ -60,7 +60,7 @@ echo ""
 
 # ── Step 3: Init chapter ──
 echo "── 3. Initialize chapter society ────────────────────────────"
-"$HUB" init "Demo Chapter" --sovereign-lct "$DEMO_ROOT/sovereign.json" --chapter-dir "$DEMO_ROOT/demo-chapter"
+"$HUB" init "Demo Chapter" --sovereign-lct "$DEMO_ROOT/sovereign.json" --hub-dir "$DEMO_ROOT/demo-chapter"
 echo ""
 
 # ── Step 4: Add members + skills ──

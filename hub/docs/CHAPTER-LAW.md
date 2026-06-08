@@ -9,7 +9,7 @@ The chapter's **charter** is the constitutional document the Sovereign signs at 
 ```json
 {
   "schema_version": "0.1",
-  "chapter_name": "Your Chapter Name",
+  "hub_name": "Your Chapter Name",
   "founded_at": "2026-06-07T17:36:21.939166474Z",
   "founding_sovereign_lct_id": "...",
   "preamble": "This is the founding charter of...",

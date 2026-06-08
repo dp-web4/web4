@@ -16,10 +16,10 @@ use clap::{Parser, Subcommand};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-use hub_lib::chapter::ChapterConfig;
+use hub_lib::hub::HubConfig;
 use hub_lib::identity::IdentityFile;
 use hub_lib::init::{init_chapter, verify_chapter, InitArgs, InitResult};
-use hub_lib::session::ChapterSession;
+use hub_lib::session::HubSession;
 use uuid::Uuid;
 use web4_core::lct::EntityType;
 use web4_core::role::SocietyRole;
@@ -69,9 +69,11 @@ enum Command {
         #[arg(long)]
         sovereign_pubkey: Option<String>,
 
-        /// Directory to create the chapter in. Defaults to ./<name-slug>.
-        #[arg(long)]
-        chapter_dir: Option<PathBuf>,
+        /// Directory to create the hub in. Defaults to ./<name-slug>.
+        /// (Accepts deprecated alias --chapter-dir for back-compat with
+        /// scripts pre-dating the chapter→hub rename.)
+        #[arg(long, alias = "chapter-dir")]
+        hub_dir: Option<PathBuf>,
 
         /// Storage backend for chapter state. Defaults to `file` (MVP-
         /// compatible JSON/JSONL). `sqlite` uses a single chapter.db file
@@ -121,7 +123,7 @@ enum Command {
     /// indices are sequential. Errors loudly if any entry is tampered.
     VerifyLedger {
         /// Path to the chapter directory.
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
     },
 
     /// Migrate a chapter's storage backend (e.g. file → sqlite).
@@ -133,7 +135,7 @@ enum Command {
     /// migrated chapter before returning success.
     Migrate {
         /// Path to the chapter directory.
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
 
         /// Target backend: `file` or `sqlite`.
         #[arg(long)]
@@ -146,7 +148,7 @@ enum Command {
     /// envelopes are V2).
     Serve {
         /// Chapter directory.
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
 
         /// Override the port from config.toml.
         #[arg(long)]
@@ -159,12 +161,12 @@ enum Command {
 
     /// Print chapter status (name, members, ledger length, head hash, port).
     Status {
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
     },
 
     /// Add a member to the chapter.
     AddMember {
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
         /// Member's LCT id (uuid).
         member_lct_id: Uuid,
         /// Optional display name.
@@ -174,7 +176,7 @@ enum Command {
 
     /// Remove a member from the chapter.
     RemoveMember {
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
         member_lct_id: Uuid,
         #[arg(long)]
         reason: Option<String>,
@@ -182,7 +184,7 @@ enum Command {
 
     /// Assign a role to a member.
     AssignRole {
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
         /// One of: sovereign | law_oracle | policy_entity | treasurer
         /// | administrator | archivist | citizen | witness | auditor.
         role: String,
@@ -194,7 +196,7 @@ enum Command {
 
     /// Record a chapter event (demo night, workshop, etc.).
     RecordEvent {
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
         /// Short event kind (e.g. "demo_night", "workshop").
         event_kind: String,
         /// Event title.
@@ -206,7 +208,7 @@ enum Command {
 
     /// Declare a skill for a member.
     DeclareSkill {
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
         member_lct_id: Uuid,
         skill: String,
     },
@@ -216,7 +218,7 @@ enum Command {
     /// to the chapter store, and appends a LawAmended event to the
     /// ledger for audit.
     SetLaw {
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
         /// Path to a YAML file matching the chapter-law schema (see
         /// web4-standard/core-spec/chapter-law-schema.md).
         yaml: PathBuf,
@@ -227,15 +229,15 @@ enum Command {
 
     /// Print the current chapter law YAML (or report none is set).
     GetLaw {
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
     },
 
     /// Write the starter chapter-law template to a file the operator
     /// can review + edit, then apply via `hub set-law`. Doesn't touch
     /// any chapter directly.
     InitLaw {
-        /// Where to write the starter YAML (e.g. ./chapter-law.yaml).
-        #[arg(default_value = "./chapter-law.yaml")]
+        /// Where to write the starter YAML (e.g. ./hub-law.yaml).
+        #[arg(default_value = "./hub-law.yaml")]
         output: PathBuf,
         /// Overwrite if the file already exists.
         #[arg(long)]
@@ -252,14 +254,14 @@ enum Command {
 #[derive(Subcommand, Debug)]
 enum QueryCommand {
     /// List all current chapter members.
-    Members { chapter_dir: PathBuf },
+    Members { hub_dir: PathBuf },
     /// Find members by skill (case-insensitive substring).
     Skill {
-        chapter_dir: PathBuf,
+        hub_dir: PathBuf,
         query: String,
     },
     /// Print chapter identity + role-fill snapshot.
-    Chapter { chapter_dir: PathBuf },
+    Chapter { hub_dir: PathBuf },
 }
 
 /// Subset of web4_core::EntityType exposed via CLI. (clap can't derive
@@ -308,10 +310,10 @@ async fn main() -> Result<()> {
         }
         Some(Command::Init {
             name, sovereign_lct, sovereign_hestia, sovereign_lct_id, sovereign_pubkey,
-            chapter_dir, storage,
+            hub_dir, storage,
         }) => {
             run_init(name, sovereign_lct, sovereign_hestia, sovereign_lct_id,
-                     sovereign_pubkey, chapter_dir, storage).await
+                     sovereign_pubkey, hub_dir, storage).await
         }
         Some(Command::GenLct { output, entity_type }) => {
             run_gen_lct(output, entity_type.into())
@@ -319,35 +321,35 @@ async fn main() -> Result<()> {
         Some(Command::EnvelopeSign { identity, nonce, payload }) => {
             run_envelope_sign(identity, nonce, payload)
         }
-        Some(Command::VerifyLedger { chapter_dir }) => {
-            run_verify_ledger(chapter_dir)
+        Some(Command::VerifyLedger { hub_dir }) => {
+            run_verify_ledger(hub_dir)
         }
-        Some(Command::Migrate { chapter_dir, to }) => {
-            run_migrate(chapter_dir, to)
+        Some(Command::Migrate { hub_dir, to }) => {
+            run_migrate(hub_dir, to)
         }
-        Some(Command::Serve { chapter_dir, port, bind }) => {
-            run_serve(chapter_dir, port, bind).await
+        Some(Command::Serve { hub_dir, port, bind }) => {
+            run_serve(hub_dir, port, bind).await
         }
-        Some(Command::Status { chapter_dir }) => run_status(chapter_dir),
-        Some(Command::AddMember { chapter_dir, member_lct_id, name }) => {
-            run_add_member(chapter_dir, member_lct_id, name)
+        Some(Command::Status { hub_dir }) => run_status(hub_dir),
+        Some(Command::AddMember { hub_dir, member_lct_id, name }) => {
+            run_add_member(hub_dir, member_lct_id, name)
         }
-        Some(Command::RemoveMember { chapter_dir, member_lct_id, reason }) => {
-            run_remove_member(chapter_dir, member_lct_id, reason)
+        Some(Command::RemoveMember { hub_dir, member_lct_id, reason }) => {
+            run_remove_member(hub_dir, member_lct_id, reason)
         }
-        Some(Command::AssignRole { chapter_dir, role, role_lct_id, member_lct_id }) => {
-            run_assign_role(chapter_dir, role, role_lct_id, member_lct_id)
+        Some(Command::AssignRole { hub_dir, role, role_lct_id, member_lct_id }) => {
+            run_assign_role(hub_dir, role, role_lct_id, member_lct_id)
         }
-        Some(Command::RecordEvent { chapter_dir, event_kind, title, attended_by }) => {
-            run_record_event(chapter_dir, event_kind, title, attended_by)
+        Some(Command::RecordEvent { hub_dir, event_kind, title, attended_by }) => {
+            run_record_event(hub_dir, event_kind, title, attended_by)
         }
-        Some(Command::DeclareSkill { chapter_dir, member_lct_id, skill }) => {
-            run_declare_skill(chapter_dir, member_lct_id, skill)
+        Some(Command::DeclareSkill { hub_dir, member_lct_id, skill }) => {
+            run_declare_skill(hub_dir, member_lct_id, skill)
         }
-        Some(Command::SetLaw { chapter_dir, yaml, diff_summary }) => {
-            run_set_law(chapter_dir, yaml, diff_summary)
+        Some(Command::SetLaw { hub_dir, yaml, diff_summary }) => {
+            run_set_law(hub_dir, yaml, diff_summary)
         }
-        Some(Command::GetLaw { chapter_dir }) => run_get_law(chapter_dir),
+        Some(Command::GetLaw { hub_dir }) => run_get_law(hub_dir),
         Some(Command::InitLaw { output, force }) => run_init_law(output, force),
         Some(Command::Query { subcommand }) => run_query(subcommand),
     }
@@ -375,12 +377,12 @@ fn parse_role(s: &str) -> Result<SocietyRole> {
     })
 }
 
-fn run_status(chapter_dir: PathBuf) -> Result<()> {
-    let session = ChapterSession::open(&chapter_dir)?;
+fn run_status(hub_dir: PathBuf) -> Result<()> {
+    let session = HubSession::open(&hub_dir)?;
     let st = session.status();
     println!("Chapter status:");
-    println!("  Chapter dir:     {}", st.chapter_dir.display());
-    println!("  Chapter name:    {}", st.chapter_name);
+    println!("  Chapter dir:     {}", st.hub_dir.display());
+    println!("  Chapter name:    {}", st.hub_name);
     println!("  Members:         {}", st.member_count);
     println!("  Ledger entries:  {}", st.ledger_entries);
     println!("  Head hash:       {}", st.head_hash);
@@ -388,8 +390,8 @@ fn run_status(chapter_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn run_add_member(chapter_dir: PathBuf, member_lct_id: Uuid, name: Option<String>) -> Result<()> {
-    let mut session = ChapterSession::open(&chapter_dir)?;
+fn run_add_member(hub_dir: PathBuf, member_lct_id: Uuid, name: Option<String>) -> Result<()> {
+    let mut session = HubSession::open(&hub_dir)?;
     let entry = session.add_member(member_lct_id, name.clone())?;
     println!("Member added.");
     println!("  Member LCT:   {}", member_lct_id);
@@ -399,8 +401,8 @@ fn run_add_member(chapter_dir: PathBuf, member_lct_id: Uuid, name: Option<String
     Ok(())
 }
 
-fn run_remove_member(chapter_dir: PathBuf, member_lct_id: Uuid, reason: Option<String>) -> Result<()> {
-    let mut session = ChapterSession::open(&chapter_dir)?;
+fn run_remove_member(hub_dir: PathBuf, member_lct_id: Uuid, reason: Option<String>) -> Result<()> {
+    let mut session = HubSession::open(&hub_dir)?;
     let entry = session.remove_member(member_lct_id, reason)?;
     println!("Member removed.");
     println!("  Member LCT:   {}", member_lct_id);
@@ -410,13 +412,13 @@ fn run_remove_member(chapter_dir: PathBuf, member_lct_id: Uuid, reason: Option<S
 }
 
 fn run_assign_role(
-    chapter_dir: PathBuf,
+    hub_dir: PathBuf,
     role: String,
     role_lct_id: Uuid,
     member_lct_id: Uuid,
 ) -> Result<()> {
     let parsed = parse_role(&role)?;
-    let mut session = ChapterSession::open(&chapter_dir)?;
+    let mut session = HubSession::open(&hub_dir)?;
     let entry = session.assign_role(parsed.clone(), role_lct_id, member_lct_id)?;
     println!("Role assigned.");
     println!("  Role:         {:?}", parsed);
@@ -428,12 +430,12 @@ fn run_assign_role(
 }
 
 fn run_record_event(
-    chapter_dir: PathBuf,
+    hub_dir: PathBuf,
     event_kind: String,
     title: String,
     attended_by: Vec<Uuid>,
 ) -> Result<()> {
-    let mut session = ChapterSession::open(&chapter_dir)?;
+    let mut session = HubSession::open(&hub_dir)?;
     let entry = session.record_event(event_kind.clone(), title.clone(), attended_by.clone(), None)?;
     println!("Event recorded.");
     println!("  Kind:         {}", event_kind);
@@ -444,7 +446,7 @@ fn run_record_event(
     Ok(())
 }
 
-fn run_set_law(chapter_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<String>) -> Result<()> {
+fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<String>) -> Result<()> {
     let yaml = std::fs::read_to_string(&yaml_path)
         .with_context(|| format!("reading law YAML from {}", yaml_path.display()))?;
     // Parse + validate at the operator boundary so errors land clearly.
@@ -452,11 +454,11 @@ fn run_set_law(chapter_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<St
         .context("parsing/validating law YAML")?;
     let version = law.version.clone();
 
-    let mut session = ChapterSession::open(&chapter_dir)?;
+    let mut session = HubSession::open(&hub_dir)?;
     let entry = session.set_law(&yaml, version.clone(), diff_summary.clone())?;
 
     println!("Law set.");
-    println!("  Chapter dir:  {}", chapter_dir.display());
+    println!("  Chapter dir:  {}", hub_dir.display());
     println!("  Version:      {}", version);
     println!("  Norms:        {}", law.norms.len());
     println!("  Procedures:   {}", law.procedures.len());
@@ -468,8 +470,8 @@ fn run_set_law(chapter_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<St
     Ok(())
 }
 
-fn run_get_law(chapter_dir: PathBuf) -> Result<()> {
-    let session = ChapterSession::open(&chapter_dir)?;
+fn run_get_law(hub_dir: PathBuf) -> Result<()> {
+    let session = HubSession::open(&hub_dir)?;
     match session.get_law()? {
         Some(yaml) => print!("{}", yaml),
         None => println!("No chapter law set."),
@@ -512,8 +514,8 @@ fn run_init_law(output: PathBuf, force: bool) -> Result<()> {
     Ok(())
 }
 
-fn run_declare_skill(chapter_dir: PathBuf, member_lct_id: Uuid, skill: String) -> Result<()> {
-    let mut session = ChapterSession::open(&chapter_dir)?;
+fn run_declare_skill(hub_dir: PathBuf, member_lct_id: Uuid, skill: String) -> Result<()> {
+    let mut session = HubSession::open(&hub_dir)?;
     let entry = session.declare_skill(member_lct_id, skill.clone())?;
     println!("Skill declared.");
     println!("  Member LCT:   {}", member_lct_id);
@@ -525,8 +527,8 @@ fn run_declare_skill(chapter_dir: PathBuf, member_lct_id: Uuid, skill: String) -
 
 fn run_query(sub: QueryCommand) -> Result<()> {
     match sub {
-        QueryCommand::Members { chapter_dir } => {
-            let session = ChapterSession::open(&chapter_dir)?;
+        QueryCommand::Members { hub_dir } => {
+            let session = HubSession::open(&hub_dir)?;
             let members = session.list_members();
             println!("Members ({}):", members.len());
             for m in members {
@@ -542,8 +544,8 @@ fn run_query(sub: QueryCommand) -> Result<()> {
             }
             Ok(())
         }
-        QueryCommand::Skill { chapter_dir, query } => {
-            let session = ChapterSession::open(&chapter_dir)?;
+        QueryCommand::Skill { hub_dir, query } => {
+            let session = HubSession::open(&hub_dir)?;
             let matches = session.find_skill(&query);
             println!("Skill search '{}' — {} match(es):", query, matches.len());
             for m in matches {
@@ -554,8 +556,8 @@ fn run_query(sub: QueryCommand) -> Result<()> {
             }
             Ok(())
         }
-        QueryCommand::Chapter { chapter_dir } => {
-            let session = ChapterSession::open(&chapter_dir)?;
+        QueryCommand::Chapter { hub_dir } => {
+            let session = HubSession::open(&hub_dir)?;
             let society = session.society()?;
             let state = session.state();
             let unfilled = session.unfilled_base_roles()?;
@@ -585,8 +587,8 @@ fn run_query(sub: QueryCommand) -> Result<()> {
     }
 }
 
-async fn run_serve(chapter_dir: PathBuf, port_override: Option<u16>, bind: String) -> Result<()> {
-    let config = ChapterConfig::load(hub_lib::chapter::ChapterPaths::new(&chapter_dir).config())?;
+async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -> Result<()> {
+    let config = HubConfig::load(hub_lib::hub::HubPaths::new(&hub_dir).config())?;
     let port = port_override.unwrap_or(config.daemon.mcp_port);
     let addr: SocketAddr = format!("{}:{}", bind, port).parse()?;
 
@@ -596,24 +598,24 @@ async fn run_serve(chapter_dir: PathBuf, port_override: Option<u16>, bind: Strin
     // the same in-memory snapshot, and so the REST reload-law endpoint
     // refreshes both surfaces in one call.
     let initial_law = {
-        let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
+        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
         match store.read_law()? {
             Some(yaml) => Some(hub_lib::law::Law::parse_and_validate(&yaml)?),
             None => None,
         }
     };
     let shared_law = std::sync::Arc::new(tokio::sync::RwLock::new(initial_law));
-    let mcp_state = McpState::open_with_law(chapter_dir.clone(), shared_law.clone())?;
-    let rest_state = RestState::open_with_law(chapter_dir.clone(), shared_law)?;
+    let mcp_state = McpState::open_with_law(hub_dir.clone(), shared_law.clone())?;
+    let rest_state = RestState::open_with_law(hub_dir.clone(), shared_law)?;
     let app = mcp_router(mcp_state).merge(rest_router(rest_state));
 
     tracing::info!(
-        chapter = %config.chapter.name,
-        chapter_dir = %chapter_dir.display(),
+        hub = %config.hub.name,
+        hub_dir = %hub_dir.display(),
         bind = %addr,
         "HTTP server starting"
     );
-    println!("hub serve — {} listening on http://{}", config.chapter.name, addr);
+    println!("hub serve — {} listening on http://{}", config.hub.name, addr);
     println!("  MCP tools:    http://{}/tools", addr);
     println!("  REST v1:      http://{}/v1/", addr);
     println!("  Stop:         Ctrl-C");
@@ -632,22 +634,22 @@ async fn shutdown_signal() {
     tracing::info!("ctrl-c received — shutting down");
 }
 
-fn run_verify_ledger(chapter_dir: PathBuf) -> Result<()> {
-    let result = verify_chapter(&chapter_dir)?;
+fn run_verify_ledger(hub_dir: PathBuf) -> Result<()> {
+    let result = verify_chapter(&hub_dir)?;
     println!("Ledger verified.");
-    println!("  Chapter dir:    {}", result.chapter_dir.display());
-    println!("  Chapter name:   {}", result.chapter_name);
+    println!("  Chapter dir:    {}", result.hub_dir.display());
+    println!("  Chapter name:   {}", result.hub_name);
     println!("  Entries:        {}", result.entries);
     println!("  Head hash:      {}", result.head_hash);
     Ok(())
 }
 
-fn run_migrate(chapter_dir: PathBuf, to: String) -> Result<()> {
+fn run_migrate(hub_dir: PathBuf, to: String) -> Result<()> {
     use std::str::FromStr;
     let target = hub_lib::store::BackendKind::from_str(&to)
         .context("parsing --to")?;
-    println!("Migrating {} → {}", chapter_dir.display(), target.as_str());
-    let result = hub_lib::store::migrate_chapter(&chapter_dir, target)
+    println!("Migrating {} → {}", hub_dir.display(), target.as_str());
+    let result = hub_lib::store::migrate_chapter(&hub_dir, target)
         .context("migrating chapter")?;
     if result.source_backend == result.target_backend {
         println!("Source backend is already {}; nothing to do.", target.as_str());
@@ -664,7 +666,7 @@ fn run_migrate(chapter_dir: PathBuf, to: String) -> Result<()> {
     }
     println!();
     println!("Verifying migrated chapter end-to-end ...");
-    let verify = verify_chapter(&chapter_dir)
+    let verify = verify_chapter(&hub_dir)
         .context("post-migration ledger verification failed")?;
     println!("Ledger verified on {} backend.", target.as_str());
     println!("  Entries:        {}", verify.entries);
@@ -678,11 +680,11 @@ async fn run_init(
     sovereign_hestia: Option<String>,
     sovereign_lct_id: Option<Uuid>,
     sovereign_pubkey: Option<String>,
-    chapter_dir: Option<PathBuf>,
+    hub_dir: Option<PathBuf>,
     storage: String,
 ) -> Result<()> {
     use std::str::FromStr;
-    let chapter_dir = chapter_dir.unwrap_or_else(|| PathBuf::from(slugify(&name)));
+    let hub_dir = hub_dir.unwrap_or_else(|| PathBuf::from(slugify(&name)));
     let backend = hub_lib::store::BackendKind::from_str(&storage)
         .context("parsing --storage")?;
 
@@ -690,8 +692,8 @@ async fn run_init(
         (Some(path), None) => {
             // Local mode
             init_chapter(InitArgs {
-                chapter_name: name,
-                chapter_dir,
+                hub_name: name,
+                hub_dir,
                 sovereign_lct_path: path,
                 storage: Some(backend),
             })?
@@ -702,8 +704,8 @@ async fn run_init(
             let pubkey_hex = sovereign_pubkey.expect("clap requires_all");
             println!("hub init: Hestia mode — Genesis will be signed by {}", callback_url);
             hub_lib::init::init_chapter_hestia(hub_lib::init::HestiaInitArgs {
-                chapter_name: name,
-                chapter_dir,
+                hub_name: name,
+                hub_dir,
                 sovereign_lct_id: lct_id,
                 sovereign_pubkey_hex: pubkey_hex,
                 hestia_callback_url: callback_url,
@@ -720,9 +722,9 @@ async fn run_init(
     };
 
     match result {
-        InitResult::Initialized { society_lct_id, chapter_dir, role_lcts } => {
+        InitResult::Initialized { society_lct_id, hub_dir, role_lcts } => {
             println!("Chapter initialized.");
-            println!("  Chapter dir:     {}", chapter_dir.display());
+            println!("  Chapter dir:     {}", hub_dir.display());
             println!("  Society LCT id:  {}", society_lct_id);
             println!("  Roles wired:     {}", role_lcts.len());
             for (role, role_lct_id) in &role_lcts {
@@ -734,10 +736,10 @@ async fn run_init(
                      "<same-name>");
             println!("      to verify idempotency.");
         }
-        InitResult::AlreadyInitialized { society_lct_id, chapter_dir, chapter_name } => {
+        InitResult::AlreadyInitialized { society_lct_id, hub_dir, hub_name } => {
             println!("Chapter already initialized — no changes made.");
-            println!("  Chapter dir:     {}", chapter_dir.display());
-            println!("  Chapter name:    {}", chapter_name);
+            println!("  Chapter dir:     {}", hub_dir.display());
+            println!("  Chapter name:    {}", hub_name);
             println!("  Society LCT id:  {}", society_lct_id);
         }
     }

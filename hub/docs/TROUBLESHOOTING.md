@@ -42,7 +42,7 @@ hub init "Chapter Name" --sovereign-lct ./sovereign.json
 This is the idempotency report, not an error. The chapter dir already contains a `society.json`. Either:
 
 - You're rerunning `hub init` and seeing the friendly no-op message — that's the intended behavior, exit code 0
-- Or you want a different chapter in a new dir — pass `--chapter-dir ./new-chapter-dir`
+- Or you want a different chapter in a new dir — pass `--hub-dir ./new-chapter-dir`
 
 The hub refuses to overwrite an existing chapter to prevent accidental data loss. If you genuinely want to reset, delete the chapter directory manually and re-init.
 
