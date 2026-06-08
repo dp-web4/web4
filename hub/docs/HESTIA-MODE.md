@@ -14,7 +14,7 @@ The MVP convention — operator's IdentityFile sitting on disk, hub loads it at 
 - Ledger entries: identical schema. The signature in each entry is now Hestia-produced rather than hub-produced; the chain verifies the same way.
 - REST API surface: identical endpoints, identical wire shapes.
 - MCP tool surface: **disabled** in Hestia mode (MCP still loads keypair directly; signer integration arrives in V2-7 Step 4).
-- Sync CLI mutations (`hub add-member`, etc.): refuse with a clear error pointing operators to REST.
+- Sync CLI acts (`hub add-member`, etc.): refuse with a clear error pointing operators to REST.
 
 ## What's different
 
@@ -25,7 +25,7 @@ The MVP convention — operator's IdentityFile sitting on disk, hub loads it at 
 | Genesis signing | Hub signs in-process | Hub posts to Hestia callback (TODO: ergonomic init CLI) |
 | REST event signing | Hub signs in-process | Hub posts to Hestia callback per event |
 | MCP server | Enabled | Disabled (sub the REST API) |
-| Sync CLI mutations | Enabled | Disabled (use REST API) |
+| Sync CLI acts | Enabled | Disabled (use REST API) |
 | verify-ledger | Loads IdentityFile | Uses pubkey from config |
 
 ## Configuration
@@ -127,7 +127,7 @@ After init, the hub process at no point sees the private key. The chain still ve
 ## What's still ahead (V2-7 §4)
 
 - **MCP signer integration**: MCP tools currently refuse to open Hestia-mode chapters with a clear error pointing to REST. Once MCP routes through the signer abstraction (same shape as REST does today), MCP tools work on Hestia chapters too.
-- **Sync CLI mutations on Hestia chapters**: design TBD — sync CLI on async-signing wants either an async-CLI variant or block_on'd internal client.
+- **Sync CLI acts on Hestia chapters**: design TBD — sync CLI on async-signing wants either an async-CLI variant or block_on'd internal client.
 
 ## See also
 

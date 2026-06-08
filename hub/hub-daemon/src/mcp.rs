@@ -19,7 +19,7 @@
 //! - POST /tools/declare_skill   → {member_lct_id, skill} — records MemberSkillDeclared
 //!
 //! Authentication: MVP runs locally on a port the chapter operator
-//! controls. Mutating endpoints sign ledger entries with the Sovereign
+//! controls. Act-recording endpoints sign ledger entries with the Sovereign
 //! keypair loaded from config.toml. Per-client signed envelopes are V2.
 
 use anyhow::Result;

@@ -81,9 +81,10 @@ fn compute_entry_hash(entry: &LedgerEntry) -> Result<String> {
 /// yet signed. The caller (or a remote signer) signs `signing_bytes`
 /// and passes the resulting signature to [`ChapterLedger::append_signed`].
 ///
-/// Holding this struct outside the ledger does NOT mutate the ledger;
-/// it's a draft. If a parallel append lands between build_entry and
-/// append_signed, the commit will error rather than corrupt the chain.
+/// Holding this struct outside the ledger does NOT append an act to
+/// the ledger; it's a draft. If a parallel append lands between
+/// build_entry and append_signed, the commit will error rather than
+/// corrupt the chain.
 #[derive(Debug)]
 pub struct UnsignedEntry {
     pub entry: LedgerEntry,
@@ -196,8 +197,8 @@ impl ChapterLedger {
     }
 
     /// Build an unsigned entry: assigns index + prev_hash + actor + event,
-    /// returns the exact signing bytes the actor must sign. Does NOT mutate
-    /// the ledger — caller commits via [`Self::append_signed`].
+    /// returns the exact signing bytes the actor must sign. Does NOT
+    /// append the act to the ledger — caller commits via [`Self::append_signed`].
     ///
     /// Enables async signing: caller hands `signing_bytes` to a remote
     /// signer (vault, HSM, Hestia), awaits the signature, then commits.

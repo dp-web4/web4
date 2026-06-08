@@ -5,7 +5,7 @@
 //!
 //! Sprint 1+2+3 surface: `hub init` + `hub gen-lct` + `hub verify-ledger`
 //! + `hub serve` (MCP HTTP server). Subsequent sprints add CLI parity for
-//! mutating commands (sprint 4), Docker entrypoint (sprint 5), and docs/
+//! act-recording commands (sprint 4), Docker entrypoint (sprint 5), and docs/
 //! polish (sprint 6).
 
 mod mcp;

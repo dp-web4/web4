@@ -100,7 +100,7 @@ These are deliberately deferred. Each is real but not MVP.
 ### FR4 — MCP server
 - Listens on configurable port (default 8770; rationale: 8760 is sage-daemon, 8770 leaves room)
 - Tools: `list_members`, `find_skill <query>`, `record_event <event>`, `query_chapter`, `add_member <member-spec>`, `assign_role <role> <member>`
-- Each tool that mutates state requires LCT-signed envelope per Web4 MCP cross-society binding spec
+- Each tool that records an act requires LCT-signed envelope per Web4 MCP cross-society binding spec
 - Read-only tools (list, find, query) are unauthenticated by default; configurable to require auth
 
 ### FR5 — Admin CLI
@@ -133,7 +133,7 @@ The MVP is shippable when **all** of these hold:
 1. A clean machine can deploy a working chapter hub in under 30 minutes from `docker compose up`.
 2. Chapter organizer can: instantiate a chapter, add members, assign roles, record events, query members by skill — all via CLI.
 3. All consequential actions land in the ledger as LCT-signed entries.
-4. MCP server responds to all FR4 tools; each mutating tool requires signed envelope.
+4. MCP server responds to all FR4 tools; each act-recording tool requires signed envelope.
 5. Ledger is verifiable end-to-end using `web4-core`'s existing verifier (no hub-specific verifier).
 6. Documentation walks a chapter organizer through "first day" — instantiate, configure, add 5 members, record 2 events, query.
 7. Test suite covers: society instantiation, role assignment, event recording, ledger verification, MCP tool round-trips.

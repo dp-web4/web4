@@ -7,6 +7,22 @@
 
 ---
 
+## Vocabulary note: acts (not mutations)
+
+Hub operations split into **reads** and **acts** — not reads and "mutations." The ledger is append-only; nothing in it ever mutates. Each act is a signed event being witnessed into the chapter's history. Acts append; the derived state (members, role assignments) re-projects from the new ledger tail.
+
+| Surface | Reads | Acts |
+|---|---|---|
+| CLI | `query`, `status`, `verify-ledger` | `add-member`, `remove-member`, `assign-role`, `record-event`, `declare-skill` |
+| REST | `GET /v1/chapters/{id}/state` | `POST /v1/chapters/{id}/events` |
+| MCP | `query_chapter`, `list_members`, `find_skill` | `add_member`, `assign_role`, `record_event`, `declare_skill` |
+
+Acts in Hestia mode require an async HTTP roundtrip to the vault — that's what makes "sync CLI acts on Hestia chapters" an open design question, while sync CLI reads remain trivial.
+
+The word "mutation" carries baggage (GraphQL convention, FP anti-pattern connotation) and is technically wrong for an append-only system. "Act" is Web4-native — presence accumulates as witnessed acts.
+
+---
+
 ## What this is
 
 The MVP (sprints 0-6) shipped a single-binary chapter-hub that one operator can run end-to-end. This document scopes what V2-V3 turn that into: **open-source community infrastructure that can host millions of members across thousands of chapters, with most operations delegated to AI agents bound by signed chapter law, and humans escalated only for key decisions.**

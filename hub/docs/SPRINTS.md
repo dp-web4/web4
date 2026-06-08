@@ -82,7 +82,7 @@ The whole sprint plan is one stack of seven sprints (Sprint 0 through Sprint 6).
 
 ## Sprint 3 — MCP server
 
-**Goal:** MCP server exposes the core tool set; mutating calls require LCT-signed envelopes per Web4 cross-society binding spec.
+**Goal:** MCP server exposes the core tool set; act-recording calls require LCT-signed envelopes per Web4 cross-society binding spec.
 
 **Deliverables:**
 - `hub-daemon::mcp` module — MCP server bound to configurable port (default 8770)
@@ -93,12 +93,12 @@ The whole sprint plan is one stack of seven sprints (Sprint 0 through Sprint 6).
   - `record_event(event_spec)` — writes to ledger; requires LCT-signed envelope
   - `add_member(member_spec)` — adds to ledger; requires LCT-signed envelope from a role-holder authorized to add members per chapter law
   - `assign_role(role, member)` — assigns role; requires consent step (assignee LCT signs acceptance) + Sovereign or Administrator authorization
-- Auth model: read-only tools unauthenticated by default; mutating tools require signed envelope; configurable per chapter
+- Auth model: read-only tools unauthenticated by default; act-recording tools require signed envelope; configurable per chapter
 
 **Tests:**
 - Each tool round-trip via MCP client
-- Mutating tool without signed envelope → rejected
-- Mutating tool with valid envelope → state changes land in ledger
+- Act-recording tool without signed envelope → rejected
+- Act-recording tool with valid envelope → the act lands in the ledger
 
 **Exit criteria:**
 - `hub serve` brings up the MCP server

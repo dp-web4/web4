@@ -90,7 +90,7 @@ pub trait ChapterStore: Send {
     /// refuse overwrites for safety.
     fn write_charter(&mut self, charter: &Charter) -> Result<()>;
 
-    // ----- Society state (mutates as roles/members change) -----
+    // ----- Society state (evolves as acts append) -----
 
     /// Read the society if present.
     fn read_society(&self) -> Result<Option<Society>>;

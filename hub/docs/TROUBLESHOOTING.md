@@ -83,7 +83,7 @@ The request payload doesn't match the expected schema. Check the `Content-Type: 
 
 The ledger file was tampered with after the entry was originally written. The chain's tamper-evidence is doing its job. Investigate:
 
-- Did someone hand-edit `<chapter-dir>/ledger.jsonl`? (Should never happen in normal use — all mutations go through CLI / MCP.)
+- Did someone hand-edit `<chapter-dir>/ledger.jsonl`? (Should never happen in normal use — all acts go through CLI / MCP.)
 - Was the file corrupted by a crash mid-write? Unlikely with the `OpenOptions::append` pattern but possible on power loss.
 
 Recovery: restore from a backup of `ledger.jsonl`. If no backup, the entries from the bad index forward are unrecoverable (the chain is broken). Future versions may add periodic ACT mainnet anchoring (V2) which would let you re-anchor a clean prefix.
