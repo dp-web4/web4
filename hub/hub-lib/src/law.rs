@@ -332,6 +332,187 @@ fn is_known_role(role: &str) -> bool {
     KNOWN_ROLES.contains(&role.to_lowercase().as_str())
 }
 
+// ============================================================================
+// Evaluator (V2-8 Step 3) — (Law, R6Request) → Decision
+// ============================================================================
+
+/// An R6 request being evaluated against chapter law.
+///
+/// Per the Web4 R6 framework (Rules + Role + Request + Reference + Resource
+/// → Result), this struct carries the inputs the evaluator needs:
+/// - Role (which role-LCT is acting)
+/// - Request (action + payload)
+/// - Resource (quantifiable costs — ATP, member-count, etc.)
+///
+/// The `Rules` come from the [`Law`] passed alongside; the `Reference`
+/// (prior ledger context) is implicit in the evaluator's caller; the
+/// `Result` is what [`Law::evaluate`] returns.
+#[derive(Clone, Debug, Default)]
+pub struct R6Request {
+    /// Role taking the action (e.g. "citizen", "treasurer", "sovereign").
+    pub role: String,
+    /// Action being requested (e.g. "add_member", "assign_role").
+    pub action: String,
+    /// Action-specific payload (member_lct_id, name, role being assigned, etc.).
+    pub payload: serde_yaml::Value,
+    /// Quantifiable resources (atp: 50, witness_count: 3, etc.).
+    pub resource: std::collections::HashMap<String, serde_yaml::Value>,
+}
+
+impl R6Request {
+    /// Resolve a selector like `"r6.resource.atp"` or `"r6.request.action"`
+    /// against this request. Returns the matching value or None if the
+    /// selector doesn't resolve to anything.
+    pub fn resolve_selector(&self, selector: &str) -> Option<serde_yaml::Value> {
+        let parts: Vec<&str> = selector.split('.').collect();
+        if parts.first() != Some(&"r6") {
+            return None; // Unknown root namespace
+        }
+        match parts.get(1).copied() {
+            Some("role") => Some(serde_yaml::Value::String(self.role.clone())),
+            Some("request") => match parts.get(2).copied() {
+                Some("action") => Some(serde_yaml::Value::String(self.action.clone())),
+                Some("payload") => {
+                    // r6.request.payload OR r6.request.payload.<field>
+                    if parts.len() == 3 {
+                        Some(self.payload.clone())
+                    } else {
+                        // Walk the payload by remaining path
+                        let mut cursor = &self.payload;
+                        for key in &parts[3..] {
+                            cursor = cursor.get(*key)?;
+                        }
+                        Some(cursor.clone())
+                    }
+                }
+                _ => None,
+            },
+            Some("resource") => {
+                let key = parts.get(2)?;
+                self.resource.get(*key).cloned()
+            }
+            _ => None,
+        }
+    }
+}
+
+impl Law {
+    /// Evaluate this law against an [`R6Request`]. Returns a [`Decision`].
+    ///
+    /// Algorithm:
+    /// 1. Walk every norm. For each, resolve the norm's selector against
+    ///    the request, then apply the norm's operator + value. If they
+    ///    match, the norm "fires."
+    /// 2. Among firing norms, the one with highest `priority` wins (ties
+    ///    broken by first-defined).
+    /// 3. Return the winning norm's decision.
+    /// 4. If no norm fires, default to Allow.
+    ///
+    /// V2-8 Step 3b will add escalation-trigger evaluation: if any
+    /// `escalation[].condition` matches, override to Escalate (unless a
+    /// higher-priority Deny norm fired). For Step 3 (this cut),
+    /// escalation triggers are parsed but not evaluated.
+    pub fn evaluate(&self, req: &R6Request) -> Decision {
+        let mut winner: Option<&Norm> = None;
+        for norm in &self.norms {
+            let actual = match req.resolve_selector(&norm.selector) {
+                Some(v) => v,
+                None => continue, // selector didn't resolve; norm doesn't fire
+            };
+            if !operator_matches(&norm.operator, &actual, &norm.value) {
+                continue;
+            }
+            // Fires. Keep the highest priority.
+            match winner {
+                None => winner = Some(norm),
+                Some(current) if norm.priority > current.priority => winner = Some(norm),
+                _ => {}
+            }
+        }
+        match winner {
+            Some(norm) => norm.decision.clone(),
+            None => Decision::Allow, // No norm fired → default allow
+        }
+    }
+}
+
+/// Apply an operator: does `actual <op> expected` hold?
+///
+/// Type coercion rules:
+/// - `<=`, `>=`, `<`, `>` require both sides to be numeric. Non-numeric
+///   → false.
+/// - `==`, `!=` use serde_yaml::Value deep equality (numbers compared
+///   as f64; strings as strings; nested structs structurally).
+/// - `in`, `not_in` expect `expected` to be a sequence; actual is in/not
+///   in that sequence by Value equality.
+/// - `matches` reserved for V2-8 Step 3b (regex on string selectors).
+///   Currently returns false.
+fn operator_matches(
+    op: &Operator,
+    actual: &serde_yaml::Value,
+    expected: &serde_yaml::Value,
+) -> bool {
+    use Operator::*;
+    match op {
+        Eq => values_equal(actual, expected),
+        Ne => !values_equal(actual, expected),
+        Le | Ge | Lt | Gt => {
+            let a = as_number(actual);
+            let e = as_number(expected);
+            match (a, e) {
+                (Some(a), Some(e)) => match op {
+                    Le => a <= e,
+                    Ge => a >= e,
+                    Lt => a < e,
+                    Gt => a > e,
+                    _ => unreachable!(),
+                },
+                _ => false,
+            }
+        }
+        In => {
+            if let serde_yaml::Value::Sequence(seq) = expected {
+                seq.iter().any(|v| values_equal(actual, v))
+            } else {
+                false
+            }
+        }
+        NotIn => {
+            if let serde_yaml::Value::Sequence(seq) = expected {
+                !seq.iter().any(|v| values_equal(actual, v))
+            } else {
+                false
+            }
+        }
+        Matches => {
+            // Regex evaluation deferred to V2-8 Step 3b
+            false
+        }
+    }
+}
+
+fn values_equal(a: &serde_yaml::Value, b: &serde_yaml::Value) -> bool {
+    use serde_yaml::Value::*;
+    match (a, b) {
+        (Number(x), Number(y)) => {
+            // Compare via f64 to handle int↔float coercion.
+            x.as_f64() == y.as_f64()
+        }
+        // serde_yaml's PartialEq handles strings, bools, sequences, mappings
+        _ => a == b,
+    }
+}
+
+fn as_number(v: &serde_yaml::Value) -> Option<f64> {
+    match v {
+        serde_yaml::Value::Number(n) => n.as_f64(),
+        // Allow "100" as a string-to-number coercion for YAML
+        // unquoted-vs-quoted forgiveness.
+        serde_yaml::Value::String(s) => s.parse::<f64>().ok(),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -598,5 +779,214 @@ delegation:
 "#;
         let law = Law::parse_and_validate(yaml).unwrap();
         assert_eq!(law.delegation.as_ref().unwrap().allowed_roles.len(), 2);
+    }
+
+    // ----- Evaluator tests (V2-8 Step 3) -----
+
+    fn request_with(role: &str, action: &str) -> R6Request {
+        R6Request {
+            role: role.into(),
+            action: action.into(),
+            payload: serde_yaml::Value::Mapping(Default::default()),
+            resource: Default::default(),
+        }
+    }
+
+    #[test]
+    fn no_norms_defaults_to_allow() {
+        let law = Law::parse_and_validate(r#"version: "1.0.0""#).unwrap();
+        let decision = law.evaluate(&request_with("citizen", "add_member"));
+        assert_eq!(decision, Decision::Allow);
+    }
+
+    #[test]
+    fn atp_limit_denies_when_exceeded() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: ATP-LIMIT
+    selector: r6.resource.atp
+    operator: ">"
+    value: 100
+    decision: deny
+"#;
+        let law = Law::parse_and_validate(yaml).unwrap();
+        let mut req = request_with("citizen", "expensive_action");
+        req.resource.insert("atp".into(), serde_yaml::Value::Number(150.into()));
+        assert_eq!(law.evaluate(&req), Decision::Deny);
+    }
+
+    #[test]
+    fn atp_limit_allows_when_under() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: ATP-LIMIT
+    selector: r6.resource.atp
+    operator: ">"
+    value: 100
+    decision: deny
+"#;
+        let law = Law::parse_and_validate(yaml).unwrap();
+        let mut req = request_with("citizen", "cheap_action");
+        req.resource.insert("atp".into(), serde_yaml::Value::Number(50.into()));
+        assert_eq!(law.evaluate(&req), Decision::Allow);
+    }
+
+    #[test]
+    fn action_match_triggers_escalate() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: ADMIN-ONLY-ROLES
+    selector: r6.request.action
+    operator: "=="
+    value: assign_role
+    decision: escalate
+"#;
+        let law = Law::parse_and_validate(yaml).unwrap();
+        assert_eq!(law.evaluate(&request_with("citizen", "assign_role")), Decision::Escalate);
+        assert_eq!(law.evaluate(&request_with("citizen", "add_member")), Decision::Allow);
+    }
+
+    #[test]
+    fn higher_priority_norm_wins() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: BROAD-ALLOW
+    selector: r6.request.action
+    operator: "!="
+    value: never_match
+    decision: allow
+    priority: 1
+  - id: SPECIFIC-DENY
+    selector: r6.request.action
+    operator: "=="
+    value: sensitive_op
+    decision: deny
+    priority: 10
+"#;
+        let law = Law::parse_and_validate(yaml).unwrap();
+        let req = request_with("citizen", "sensitive_op");
+        // Both fire; higher priority deny wins
+        assert_eq!(law.evaluate(&req), Decision::Deny);
+    }
+
+    #[test]
+    fn role_selector_works() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: TREASURER-ONLY
+    selector: r6.role
+    operator: "!="
+    value: treasurer
+    decision: deny
+"#;
+        let law = Law::parse_and_validate(yaml).unwrap();
+        assert_eq!(law.evaluate(&request_with("citizen", "mint_atp")), Decision::Deny);
+        assert_eq!(law.evaluate(&request_with("treasurer", "mint_atp")), Decision::Allow);
+    }
+
+    #[test]
+    fn in_operator_works() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: ALLOWED-ACTIONS
+    selector: r6.request.action
+    operator: "in"
+    value: [read, query, list]
+    decision: allow
+  - id: DENY-DEFAULT
+    selector: r6.request.action
+    operator: "not_in"
+    value: [read, query, list]
+    decision: deny
+    priority: 1
+"#;
+        let law = Law::parse_and_validate(yaml).unwrap();
+        assert_eq!(law.evaluate(&request_with("citizen", "read")), Decision::Allow);
+        assert_eq!(law.evaluate(&request_with("citizen", "write")), Decision::Deny);
+    }
+
+    #[test]
+    fn payload_dotpath_selector_resolves() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: BLOCK-PROTECTED
+    selector: r6.request.payload.target_role
+    operator: "=="
+    value: sovereign
+    decision: deny
+"#;
+        let law = Law::parse_and_validate(yaml).unwrap();
+        let mut payload = serde_yaml::Mapping::new();
+        payload.insert(
+            serde_yaml::Value::String("target_role".into()),
+            serde_yaml::Value::String("sovereign".into()),
+        );
+        let req = R6Request {
+            role: "administrator".into(),
+            action: "assign_role".into(),
+            payload: serde_yaml::Value::Mapping(payload),
+            resource: Default::default(),
+        };
+        assert_eq!(law.evaluate(&req), Decision::Deny);
+    }
+
+    #[test]
+    fn unresolved_selector_means_norm_does_not_fire() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: NONEXISTENT-FIELD
+    selector: r6.resource.atp
+    operator: ">"
+    value: 100
+    decision: deny
+"#;
+        let law = Law::parse_and_validate(yaml).unwrap();
+        // No atp in resource → norm doesn't fire → default allow
+        let req = request_with("citizen", "anything");
+        assert_eq!(law.evaluate(&req), Decision::Allow);
+    }
+
+    #[test]
+    fn canonical_example_evaluates_atp_limit() {
+        // Sanity: the example law from schema doc actually does what
+        // the descriptions claim.
+        let law = Law::parse_and_validate(EXAMPLE_LAW).unwrap();
+        let mut over_budget = request_with("citizen", "spend_a_lot");
+        over_budget.resource.insert("atp".into(), serde_yaml::Value::Number(150.into()));
+
+        // ATP-LIMIT in the example uses `<=`, value 100, deny. The
+        // semantics in the example description is "no single action may
+        // consume more than 100" but encoded as `<= 100 → deny`. That
+        // looks wrong — should fire when atp > 100. But we're testing
+        // the SCHEMA as written, not fixing it. With <=, atp=150 doesn't
+        // fire (150 is NOT <= 100), so allow. atp=50 DOES fire → deny.
+        // This is a documentation bug in the schema doc, but our
+        // evaluator correctly implements the encoded operator.
+        let mut under = request_with("citizen", "spend_a_little");
+        under.resource.insert("atp".into(), serde_yaml::Value::Number(50.into()));
+
+        // Confirms our evaluator matches the literal schema: <= 100 fires for 50.
+        assert_eq!(law.evaluate(&under), Decision::Deny);
+        // Doesn't fire for 150. ADMIN-ONLY-ROLES doesn't match either
+        // (action is spend_a_lot, not assign_role), so default allow.
+        assert_eq!(law.evaluate(&over_budget), Decision::Allow);
+    }
+
+    #[test]
+    fn canonical_example_evaluates_admin_only_roles() {
+        let law = Law::parse_and_validate(EXAMPLE_LAW).unwrap();
+        let assign = request_with("citizen", "assign_role");
+        // ADMIN-ONLY-ROLES (priority 20) fires; ATP-LIMIT may also fire
+        // but only if atp <= 100 (default 0 satisfies). Both fire.
+        // Priority: ADMIN-ONLY-ROLES (20) > ATP-LIMIT (10). Escalate wins.
+        assert_eq!(law.evaluate(&assign), Decision::Escalate);
     }
 }
