@@ -374,6 +374,7 @@ mod tests {
                 member_lct_id: member_id,
                 added_by: sovereign.lct.id,
                 member_name: Some("Alice".into()),
+                member_pubkey_hex: None,
             },
         ).unwrap();
 
@@ -403,6 +404,7 @@ mod tests {
                         member_lct_id: Uuid::new_v4(),
                         added_by: sovereign.lct.id,
                         member_name: None,
+                        member_pubkey_hex: None,
                     },
                 ).unwrap();
             }
@@ -433,6 +435,7 @@ mod tests {
                 member_lct_id: Uuid::new_v4(),
                 added_by: sovereign.lct.id,
                 member_name: Some("Original".into()),
+                member_pubkey_hex: None,
             },
         ).unwrap();
         drop(ledger);
@@ -508,6 +511,7 @@ mod tests {
                 member_lct_id: Uuid::new_v4(),
                 added_by: sovereign.lct.id,
                 member_name: Some("Alice".into()),
+                member_pubkey_hex: None,
             },
             Utc::now(),
         ).unwrap();
@@ -540,7 +544,7 @@ mod tests {
         // Build entry A (gets index=1, prev_hash=genesis_hash)
         let unsigned_a = ledger.build_entry(
             sovereign.lct.id,
-            HubEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: None },
+            HubEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: None, member_pubkey_hex: None },
             Utc::now(),
         ).unwrap();
 
@@ -548,7 +552,7 @@ mod tests {
         // but commits before A and becomes the actual index=1)
         ledger.append(
             sovereign.lct.id, &kp,
-            HubEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: Some("B".into()) },
+            HubEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: Some("B".into()), member_pubkey_hex: None },
         ).unwrap();
 
         // Now A tries to commit; should fail because the ledger advanced
@@ -574,6 +578,7 @@ mod tests {
                 member_lct_id: Uuid::new_v4(),
                 added_by: sovereign.lct.id,
                 member_name: None,
+                member_pubkey_hex: None,
             },
         );
         assert!(result.is_err());

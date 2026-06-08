@@ -33,11 +33,19 @@ pub enum HubEvent {
         created_at: DateTime<Utc>,
     },
 
-    /// A member's LCT was registered as a chapter Citizen.
+    /// A member's LCT was registered as a hub Citizen.
     MemberAdded {
         member_lct_id: Uuid,
         added_by: Uuid,
         member_name: Option<String>,
+        /// Member's public key, hex-encoded 32 bytes (V2-12 addition).
+        /// Allows the hub to verify future envelopes signed by this
+        /// member without an external registry. Optional for back-compat
+        /// with chapters that added members via Sovereign-only CLI flow
+        /// before V2-12 — those members can't sign envelopes until
+        /// re-added with a pubkey.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        member_pubkey_hex: Option<String>,
     },
 
     /// A member's Citizen status was revoked.

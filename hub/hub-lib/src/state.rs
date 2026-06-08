@@ -30,6 +30,14 @@ pub struct HubState {
     /// Skill index: skill (lowercase) → set of member LCT ids who declared it.
     pub skill_index: BTreeMap<String, BTreeSet<Uuid>>,
 
+    /// Member LCT id → hex-encoded public key (V2-12). Populated from
+    /// MemberAdded events that carry a pubkey. Used to seed the envelope
+    /// resolver at hub serve startup so member-signed envelopes verify
+    /// without an external registry. Members added pre-V2-12 (no pubkey
+    /// in their MemberAdded event) are absent here and can't sign
+    /// envelopes until re-added with a pubkey.
+    pub member_pubkeys: BTreeMap<Uuid, String>,
+
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
 }
@@ -66,12 +74,15 @@ impl HubState {
                         skills: BTreeSet::new(),
                     });
             }
-            HubEvent::MemberAdded { member_lct_id, member_name, .. } => {
+            HubEvent::MemberAdded { member_lct_id, member_name, member_pubkey_hex, .. } => {
                 self.members.entry(*member_lct_id).or_insert_with(|| Member {
                     lct_id: *member_lct_id,
                     name: member_name.clone(),
                     skills: BTreeSet::new(),
                 });
+                if let Some(pk) = member_pubkey_hex {
+                    self.member_pubkeys.insert(*member_lct_id, pk.clone());
+                }
             }
             HubEvent::MemberRemoved { member_lct_id, .. } => {
                 if let Some(removed) = self.members.remove(member_lct_id) {
@@ -201,6 +212,7 @@ mod tests {
                 member_lct_id: alice,
                 added_by: sov.lct.id,
                 member_name: Some("Alice".into()),
+                member_pubkey_hex: None,
             }),
             (sov.lct.id, &kp, HubEvent::MemberSkillDeclared {
                 member_lct_id: alice,
@@ -233,8 +245,8 @@ mod tests {
                 founding_sovereign_lct_id: sov.lct.id,
                 created_at: Utc::now(),
             }),
-            (sov.lct.id, &kp, HubEvent::MemberAdded { member_lct_id: alice, added_by: sov.lct.id, member_name: Some("Alice".into()) }),
-            (sov.lct.id, &kp, HubEvent::MemberAdded { member_lct_id: bob, added_by: sov.lct.id, member_name: Some("Bob".into()) }),
+            (sov.lct.id, &kp, HubEvent::MemberAdded { member_lct_id: alice, added_by: sov.lct.id, member_name: Some("Alice".into()), member_pubkey_hex: None }),
+            (sov.lct.id, &kp, HubEvent::MemberAdded { member_lct_id: bob, added_by: sov.lct.id, member_name: Some("Bob".into()), member_pubkey_hex: None }),
             (sov.lct.id, &kp, HubEvent::MemberSkillDeclared { member_lct_id: alice, skill: "Medical Imaging RAG".into(), declared_by: sov.lct.id }),
             (sov.lct.id, &kp, HubEvent::MemberSkillDeclared { member_lct_id: bob, skill: "Distributed Systems".into(), declared_by: sov.lct.id }),
         ]);

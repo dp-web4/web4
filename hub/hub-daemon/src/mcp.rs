@@ -272,6 +272,7 @@ async fn add_member(
         member_lct_id: req.member_lct_id,
         added_by: s.sovereign_lct_id,
         member_name: req.name,
+        member_pubkey_hex: None,
     };
     append_with_sovereign(&s, event).await
 }

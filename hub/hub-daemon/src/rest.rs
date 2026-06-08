@@ -63,7 +63,10 @@ pub struct RestState {
     pub signer: Arc<dyn RemoteSigner>,
     pub ledger: Arc<Mutex<HubLedger>>,
     pub nonces: Arc<NonceStore>,
-    pub resolver: Arc<MapResolver>,
+    /// Public-key resolver for envelope signature verification.
+    /// Wrapped in RwLock so the V2-12 join endpoint can extend it
+    /// at runtime as new members are admitted.
+    pub resolver: Arc<tokio::sync::RwLock<MapResolver>>,
     /// Chapter law, loaded at open() time. None = no law set (all
     /// envelope-authenticated acts allowed). When present, the PolicyEntity
     /// gate runs before each act is committed to the ledger.
@@ -101,10 +104,23 @@ impl RestState {
             }
         };
 
-        // V2-7 Step 2 resolver: just the Sovereign LCT. Members can't
-        // sign envelopes yet (their pubkeys arrive with V2-12 join).
+        // Resolver seeded with the Sovereign LCT + every member's pubkey
+        // from prior MemberAdded events (V2-12). HubState::project walks
+        // the ledger and accumulates member_pubkeys; we reconstruct an Lct
+        // per member so future envelopes from them verify against the
+        // public key recorded at admission time.
         let mut resolver = MapResolver::new();
         resolver.insert(sovereign_lct.clone());
+        let projected = HubState::project(&ledger);
+        for (member_lct_id, pubkey_hex) in &projected.member_pubkeys {
+            match hub_lib::hub::hestia_sovereign_lct(*member_lct_id, pubkey_hex) {
+                Ok(lct) => resolver.insert(lct),
+                Err(e) => tracing::warn!(
+                    "skipping member {} pubkey reconstruction: {}",
+                    member_lct_id, e
+                ),
+            }
+        }
 
         Ok(Self {
             paths,
@@ -114,7 +130,7 @@ impl RestState {
             signer,
             ledger: Arc::new(Mutex::new(ledger)),
             nonces: Arc::new(NonceStore::new()),
-            resolver: Arc::new(resolver),
+            resolver: Arc::new(tokio::sync::RwLock::new(resolver)),
             law,
         })
     }
@@ -162,6 +178,7 @@ pub fn router(state: RestState) -> Router {
         // aliases dropped 2026-06-08).
         .route("/v1/hubs/:hub_id/events", post(submit_event))
         .route("/v1/hubs/:hub_id/state", get(read_state))
+        .route("/v1/hubs/:hub_id/members/join", post(submit_join))
         .route("/v1/admin/reload-law", post(reload_law))
         .with_state(state)
 }
@@ -266,7 +283,9 @@ async fn submit_event(
 
     // 1. Authority check: envelope verifies (signer known, nonce valid,
     // payload not tampered).
-    let _redeemed = verify_envelope(&envelope, &s.nonces, s.resolver.as_ref(), Utc::now())?;
+    let resolver_guard = s.resolver.read().await;
+    let _redeemed = verify_envelope(&envelope, &s.nonces, &*resolver_guard, Utc::now())?;
+    drop(resolver_guard);
 
     // 2. V2-7 Step 2 authorization: only Sovereign can submit signed
     // envelopes. Member-signing arrives with V2-12. PolicyEntity gating
@@ -287,6 +306,7 @@ async fn submit_event(
             member_lct_id,
             added_by: envelope.signer_lct_id,
             member_name: name,
+            member_pubkey_hex: None,
         },
         EnvelopeAction::DeclareSkill { member_lct_id, skill } => HubEvent::MemberSkillDeclared {
             member_lct_id,
@@ -457,6 +477,168 @@ async fn reload_law(
 ) -> Result<Json<ReloadLawResponse>, ApiError> {
     let version = s.reload_law().await.map_err(ApiError::internal)?;
     Ok(Json(ReloadLawResponse { reloaded: true, version }))
+}
+
+// ---------- POST /v1/hubs/{hub_id}/members/join (V2-12) ----------
+
+/// Payload shape inside the SignedEnvelope for a join request. The
+/// member signs this with their own keypair; the hub bootstraps
+/// signature verification from the supplied `member_pubkey_hex`
+/// (since the resolver doesn't yet know this LCT).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct JoinPayload {
+    /// MUST be "member_join_request" so a misrouted envelope can't
+    /// accidentally trigger a join.
+    action: String,
+    /// The applicant's LCT id. MUST equal envelope.signer_lct_id.
+    member_lct_id: Uuid,
+    /// Applicant's public key (hex-encoded 32 bytes) — pinned by this
+    /// MemberAdded event for future signature verification.
+    member_pubkey_hex: String,
+    #[serde(default)]
+    name: Option<String>,
+}
+
+#[derive(Serialize)]
+struct JoinAccepted {
+    member_lct_id: Uuid,
+    entry_index: u64,
+    entry_hash: String,
+    welcome: String,
+}
+
+async fn submit_join(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<JoinAccepted>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+
+    // 1. Parse the join payload from the envelope.
+    let payload: JoinPayload = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("join payload not parseable: {}", e)))?;
+    if payload.action != "member_join_request" {
+        return Err(ApiError::bad_request(format!(
+            "join endpoint requires action='member_join_request', got '{}'",
+            payload.action
+        )));
+    }
+    if payload.member_lct_id != envelope.signer_lct_id {
+        return Err(ApiError::bad_request(format!(
+            "envelope.signer_lct_id ({}) must match payload.member_lct_id ({})",
+            envelope.signer_lct_id, payload.member_lct_id,
+        )));
+    }
+
+    // 2. Bootstrap signature verification against the payload-supplied
+    // pubkey. Adhoc one-shot resolver containing just the applicant —
+    // we can't go through s.resolver because the applicant isn't there
+    // yet (that's the whole point of join). The pubkey is self-vouched
+    // for this single act; downstream verification trusts the same key
+    // because admission pinned it into the ledger.
+    let applicant_lct = hub_lib::hub::hestia_sovereign_lct(
+        payload.member_lct_id, &payload.member_pubkey_hex,
+    ).map_err(|e| ApiError::bad_request(format!("invalid member_pubkey_hex: {}", e)))?;
+    let mut adhoc = MapResolver::new();
+    adhoc.insert(applicant_lct.clone());
+    let _redeemed = verify_envelope(&envelope, &s.nonces, &adhoc, Utc::now())?;
+
+    // 3. PolicyEntity gate — admission policy from chapter law.
+    // R6Request shape: role="applicant" (not yet a member), action is
+    // the join itself, payload carries the request fields.
+    let event = HubEvent::MemberAdded {
+        member_lct_id: payload.member_lct_id,
+        added_by: s.sovereign_lct_id,
+        member_name: payload.name.clone(),
+        member_pubkey_hex: Some(payload.member_pubkey_hex.clone()),
+    };
+    let event_kind_str = event.kind().to_string();
+    let event_value_yaml = serde_yaml::to_value(&event)
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {}", e)))?;
+
+    let law_guard = s.law.read().await;
+    if let Some(law) = law_guard.as_ref() {
+        let req = R6Request {
+            role: "applicant".to_string(),
+            action: "member_join_request".to_string(),
+            payload: event_value_yaml.clone(),
+            resource: Default::default(),
+        };
+        let outcome = law.evaluate_outcome(&req);
+        match outcome.decision {
+            Decision::Allow => { /* proceed */ }
+            Decision::Deny => {
+                return Err(ApiError {
+                    status: StatusCode::FORBIDDEN,
+                    message: format!(
+                        "membership denied by chapter law (norm: {})",
+                        outcome.winning_norm.as_deref().unwrap_or("?")
+                    ),
+                });
+            }
+            Decision::Escalate => {
+                return Err(ApiError {
+                    status: StatusCode::ACCEPTED,
+                    message: format!(
+                        "membership requires escalation to {} ({}); admin review queue is V2-16",
+                        outcome.escalate_to.as_deref().unwrap_or("sovereign"),
+                        outcome.winning_norm.as_deref().unwrap_or("escalation trigger"),
+                    ),
+                });
+            }
+        }
+    }
+    drop(law_guard);
+
+    // 4. Build unsigned MemberAdded entry, ask Sovereign signer to sign it,
+    // commit. Same shape as submit_event's signing path.
+    let (unsigned, intent) = {
+        let ledger = s.ledger.lock().await;
+        let unsigned = ledger.build_entry(s.sovereign_lct_id, event, Utc::now())
+            .map_err(ApiError::internal)?;
+        let intent = SignIntent {
+            request_id: Uuid::new_v4(),
+            hub_id: s.hub_id,
+            hub_name: s.hub_name.clone(),
+            actor_lct_id: s.sovereign_lct_id,
+            ledger_index: unsigned.entry.index,
+            event_kind: event_kind_str.clone(),
+            event: serde_json::to_value(&unsigned.entry.event)
+                .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for intent: {}", e)))?,
+        };
+        (unsigned, intent)
+    };
+
+    let signing_bytes = unsigned.signing_bytes.clone();
+    let signature = s.signer
+        .sign(s.sovereign_lct_id, &signing_bytes, &intent)
+        .await
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("Sovereign signer denied/failed: {}", e)))?;
+
+    let entry_index;
+    let entry_hash;
+    {
+        let mut ledger = s.ledger.lock().await;
+        let entry = ledger.append_signed(unsigned, signature)
+            .map_err(ApiError::internal)?;
+        entry_index = entry.index;
+        entry_hash = entry.entry_hash.clone();
+    }
+
+    // 5. Add the new member's pubkey to the live resolver so future
+    // member-signed envelopes from them verify without a serve restart.
+    s.resolver.write().await.insert(applicant_lct);
+
+    Ok(Json(JoinAccepted {
+        member_lct_id: payload.member_lct_id,
+        entry_index,
+        entry_hash,
+        welcome: format!("welcome to {}", s.hub_name),
+    }))
 }
 
 // ---------- PolicyEntity gate helper (V2-8 §4) ----------

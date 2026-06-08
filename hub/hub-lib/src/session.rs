@@ -86,6 +86,7 @@ impl HubSession {
             member_lct_id,
             added_by: self.sovereign_lct_id,
             member_name: name,
+            member_pubkey_hex: None,
         };
         self.append(event)
     }
