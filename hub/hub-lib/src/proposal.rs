@@ -148,8 +148,8 @@ mod tests {
         CouncilProposal::new(event, Uuid::new_v4(), Utc::now())
     }
 
-    #[test]
-    fn unique_signers_dedupes() {
+    #[tokio::test]
+    async fn unique_signers_dedupes() {
         let mut p = mk_proposal();
         let a = Uuid::new_v4();
         let b = Uuid::new_v4();
@@ -160,8 +160,8 @@ mod tests {
         assert_eq!(p.unique_signers().len(), 2);
     }
 
-    #[test]
-    fn meets_threshold_counts_only_current_holders() {
+    #[tokio::test]
+    async fn meets_threshold_counts_only_current_holders() {
         let mut p = mk_proposal();
         let a = Uuid::new_v4();
         let b = Uuid::new_v4();
@@ -175,8 +175,8 @@ mod tests {
         assert!(!p.meets_threshold(3, &holders));
     }
 
-    #[test]
-    fn status_round_trips_through_serde() {
+    #[tokio::test]
+    async fn status_round_trips_through_serde() {
         let s = ProposalStatus::Committed { entry_index: 42, committed_at: Utc::now() };
         let json = serde_json::to_string(&s).unwrap();
         assert!(json.contains("\"kind\":\"committed\""));

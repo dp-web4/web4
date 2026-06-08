@@ -133,8 +133,8 @@ impl HubLedger {
     /// Open a ledger backed by the given store. Loads any existing entries
     /// into memory + restores head_hash. Does NOT write a Genesis entry —
     /// that's the caller's responsibility via [`Self::write_genesis`].
-    pub fn open(store: Box<dyn HubStore>) -> Result<Self> {
-        let entries = store.ledger_load_all()
+    pub async fn open(store: Box<dyn HubStore>) -> Result<Self> {
+        let entries = store.ledger_load_all().await
             .context("loading ledger entries from store")?;
         let head_hash = entries
             .last()
@@ -157,7 +157,7 @@ impl HubLedger {
 
     /// Write the Genesis entry. Errors if the ledger is not empty.
     /// Convenience wrapper for callers holding a local keypair.
-    pub fn write_genesis(
+    pub async fn write_genesis(
         &mut self,
         sovereign_lct_id: Uuid,
         sovereign_keypair: &KeyPair,
@@ -166,7 +166,7 @@ impl HubLedger {
     ) -> Result<&LedgerEntry> {
         let (unsigned, _) = self.build_genesis(sovereign_lct_id, hub_name, charter_hash)?;
         let sig = sovereign_keypair.sign(&unsigned.signing_bytes);
-        self.append_signed(unsigned, SignatureBytes::from_bytes(sig.bytes))
+        self.append_signed(unsigned, SignatureBytes::from_bytes(sig.bytes)).await
     }
 
     /// Build the unsigned Genesis entry. Errors if the ledger is not empty.
@@ -197,7 +197,7 @@ impl HubLedger {
     /// for callers that hold the actor's keypair in-process (MVP path).
     /// For Hestia-mode (the actor's keypair is in a remote vault), use the
     /// split API directly.
-    pub fn append(
+    pub async fn append(
         &mut self,
         actor_lct_id: Uuid,
         actor_keypair: &KeyPair,
@@ -208,7 +208,7 @@ impl HubLedger {
         }
         let unsigned = self.build_entry(actor_lct_id, event, Utc::now())?;
         let sig = actor_keypair.sign(&unsigned.signing_bytes);
-        self.append_signed(unsigned, SignatureBytes::from_bytes(sig.bytes))
+        self.append_signed(unsigned, SignatureBytes::from_bytes(sig.bytes)).await
     }
 
     /// Build an unsigned entry: assigns index + prev_hash + actor + event,
@@ -257,7 +257,7 @@ impl HubLedger {
     /// entry_hash + persists to the store + advances head_hash.
     /// Caller is responsible for producing a valid signature over
     /// `unsigned.signing_bytes`.
-    pub fn append_signed(
+    pub async fn append_signed(
         &mut self,
         mut unsigned: UnsignedEntry,
         signature: SignatureBytes,
@@ -283,7 +283,7 @@ impl HubLedger {
         unsigned.entry.signature = hex::encode(signature.bytes);
         unsigned.entry.entry_hash = compute_entry_hash(&unsigned.entry)?;
 
-        self.store.ledger_append(&unsigned.entry)
+        self.store.ledger_append(&unsigned.entry).await
             .context("persisting ledger entry via store")?;
 
         self.head_hash = unsigned.entry.entry_hash.clone();
@@ -372,29 +372,29 @@ mod tests {
         Box::new(FileBackend::new(HubPaths::new(hub_dir)))
     }
 
-    #[test]
-    fn open_creates_empty_file() {
+    #[tokio::test]
+    async fn open_creates_empty_file() {
         let tmp = tempdir().unwrap();
         let (store, _) = fresh_store(&tmp);
-        let ledger = HubLedger::open(store).unwrap();
+        let ledger = HubLedger::open(store).await.unwrap();
         assert!(ledger.is_empty());
         assert_eq!(ledger.head_hash(), GENESIS_PREV_HASH);
     }
 
-    #[test]
-    fn genesis_then_one_event_signs_and_verifies() {
+    #[tokio::test]
+    async fn genesis_then_one_event_signs_and_verifies() {
         let tmp = tempdir().unwrap();
         let sovereign = fresh_sovereign();
         let keypair = sovereign.keypair().unwrap();
 
         let (store, _) = fresh_store(&tmp);
-        let mut ledger = HubLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).await.unwrap();
         ledger.write_genesis(
             sovereign.lct.id,
             &keypair,
             "Test Chapter".into(),
             "sha256:cafebabe".into(),
-        ).unwrap();
+        ).await.unwrap();
 
         let member_id = Uuid::new_v4();
         ledger.append(
@@ -406,7 +406,7 @@ mod tests {
                 member_name: Some("Alice".into()),
                 member_pubkey_hex: None,
             },
-        ).unwrap();
+        ).await.unwrap();
 
         assert_eq!(ledger.len(), 2);
 
@@ -414,19 +414,19 @@ mod tests {
         ledger.verify_chain(|id| lookup_map.get(&id).cloned()).unwrap();
     }
 
-    #[test]
-    fn reopen_replays_chain_integrity() {
+    #[tokio::test]
+    async fn reopen_replays_chain_integrity() {
         let tmp = tempdir().unwrap();
         let sovereign = fresh_sovereign();
         let keypair = sovereign.keypair().unwrap();
 
         {
             let (store, _) = fresh_store(&tmp);
-            let mut ledger = HubLedger::open(store).unwrap();
+            let mut ledger = HubLedger::open(store).await.unwrap();
             ledger.write_genesis(
                 sovereign.lct.id, &keypair,
                 "X".into(), "sha256:0".into(),
-            ).unwrap();
+            ).await.unwrap();
             for _ in 0..3 {
                 ledger.append(
                     sovereign.lct.id, &keypair,
@@ -436,29 +436,29 @@ mod tests {
                         member_name: None,
                         member_pubkey_hex: None,
                     },
-                ).unwrap();
+                ).await.unwrap();
             }
         }
 
         // Re-open a fresh store pointing at the same dir and verify.
-        let reopened = HubLedger::open(reopen_file_backend(&tmp)).unwrap();
+        let reopened = HubLedger::open(reopen_file_backend(&tmp)).await.unwrap();
         assert_eq!(reopened.len(), 4);
         let lookup_map = build_lookup([sovereign.lct.clone()]);
         reopened.verify_chain(|id| lookup_map.get(&id).cloned()).unwrap();
     }
 
-    #[test]
-    fn tampered_event_fails_verification() {
+    #[tokio::test]
+    async fn tampered_event_fails_verification() {
         let tmp = tempdir().unwrap();
         let sovereign = fresh_sovereign();
         let keypair = sovereign.keypair().unwrap();
 
         let (store, ledger_path) = fresh_store(&tmp);
-        let mut ledger = HubLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).await.unwrap();
         ledger.write_genesis(
             sovereign.lct.id, &keypair,
             "X".into(), "sha256:0".into(),
-        ).unwrap();
+        ).await.unwrap();
         ledger.append(
             sovereign.lct.id, &keypair,
             HubEvent::MemberAdded {
@@ -467,7 +467,7 @@ mod tests {
                 member_name: Some("Original".into()),
                 member_pubkey_hex: None,
             },
-        ).unwrap();
+        ).await.unwrap();
         drop(ledger);
 
         // Tamper directly at the file-backed layer: this test is
@@ -480,7 +480,7 @@ mod tests {
         std::fs::write(&ledger_path, new_content).unwrap();
 
         // Re-open: hash recompute should now mismatch
-        let reopened = HubLedger::open(reopen_file_backend(&tmp)).unwrap();
+        let reopened = HubLedger::open(reopen_file_backend(&tmp)).await.unwrap();
         let lookup_map = build_lookup([sovereign.lct.clone()]);
         let result = reopened.verify_chain(|id| lookup_map.get(&id).cloned());
         assert!(result.is_err(), "tampered entry must fail verification");
@@ -489,28 +489,28 @@ mod tests {
             "expected hash/signature failure, got: {}", err);
     }
 
-    #[test]
-    fn genesis_after_existing_entries_errors() {
+    #[tokio::test]
+    async fn genesis_after_existing_entries_errors() {
         let tmp = tempdir().unwrap();
         let sovereign = fresh_sovereign();
         let keypair = sovereign.keypair().unwrap();
 
         let (store, _) = fresh_store(&tmp);
-        let mut ledger = HubLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).await.unwrap();
         ledger.write_genesis(
             sovereign.lct.id, &keypair,
             "X".into(), "sha256:0".into(),
-        ).unwrap();
+        ).await.unwrap();
 
         let result = ledger.write_genesis(
             sovereign.lct.id, &keypair,
             "Y".into(), "sha256:1".into(),
-        );
+        ).await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn split_api_simulates_remote_signing() {
+    #[tokio::test]
+    async fn split_api_simulates_remote_signing() {
         // The split build_entry / append_signed API enables Hestia-mode
         // where the actor's keypair lives in a remote vault. Simulate it
         // here: we hold the keypair locally, but pretend we're a "remote
@@ -520,7 +520,7 @@ mod tests {
         let kp = sovereign.keypair().unwrap();
 
         let (store, _) = fresh_store(&tmp);
-        let mut ledger = HubLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).await.unwrap();
 
         // Genesis via the split path
         let (unsigned_genesis, _ts) = ledger.build_genesis(
@@ -532,7 +532,7 @@ mod tests {
         let bytes_to_sign = unsigned_genesis.signing_bytes.clone();
         let sig_obj = kp.sign(&bytes_to_sign);
         let sig = SignatureBytes::from_bytes(sig_obj.bytes);
-        ledger.append_signed(unsigned_genesis, sig).unwrap();
+        ledger.append_signed(unsigned_genesis, sig).await.unwrap();
 
         // Member added via the split path
         let unsigned_member = ledger.build_entry(
@@ -547,7 +547,7 @@ mod tests {
         ).unwrap();
         let bytes_to_sign = unsigned_member.signing_bytes.clone();
         let sig = SignatureBytes::from_bytes(kp.sign(&bytes_to_sign).bytes);
-        ledger.append_signed(unsigned_member, sig).unwrap();
+        ledger.append_signed(unsigned_member, sig).await.unwrap();
 
         assert_eq!(ledger.len(), 2);
 
@@ -556,8 +556,8 @@ mod tests {
         ledger.verify_chain(|id| lookup_map.get(&id).cloned()).unwrap();
     }
 
-    #[test]
-    fn append_signed_rejects_stale_unsigned_entry() {
+    #[tokio::test]
+    async fn append_signed_rejects_stale_unsigned_entry() {
         // If a parallel append landed between build_entry and append_signed,
         // the commit must fail rather than corrupt the chain.
         let tmp = tempdir().unwrap();
@@ -565,11 +565,11 @@ mod tests {
         let kp = sovereign.keypair().unwrap();
 
         let (store, _) = fresh_store(&tmp);
-        let mut ledger = HubLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).await.unwrap();
         ledger.write_genesis(
             sovereign.lct.id, &kp,
             "X".into(), "0".repeat(64),
-        ).unwrap();
+        ).await.unwrap();
 
         // Build entry A (gets index=1, prev_hash=genesis_hash)
         let unsigned_a = ledger.build_entry(
@@ -583,25 +583,25 @@ mod tests {
         ledger.append(
             sovereign.lct.id, &kp,
             HubEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: Some("B".into()), member_pubkey_hex: None },
-        ).unwrap();
+        ).await.unwrap();
 
         // Now A tries to commit; should fail because the ledger advanced
         let sig = SignatureBytes::from_bytes(kp.sign(&unsigned_a.signing_bytes).bytes);
-        let result = ledger.append_signed(unsigned_a, sig);
+        let result = ledger.append_signed(unsigned_a, sig).await;
         assert!(result.is_err(), "stale unsigned must be rejected, not silently overwrite");
         let err = format!("{:?}", result.unwrap_err());
         assert!(err.contains("ledger advanced") || err.contains("head changed"),
             "expected stale-detection error, got: {}", err);
     }
 
-    #[test]
-    fn append_before_genesis_errors() {
+    #[tokio::test]
+    async fn append_before_genesis_errors() {
         let tmp = tempdir().unwrap();
         let sovereign = fresh_sovereign();
         let keypair = sovereign.keypair().unwrap();
 
         let (store, _) = fresh_store(&tmp);
-        let mut ledger = HubLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).await.unwrap();
         let result = ledger.append(
             sovereign.lct.id, &keypair,
             HubEvent::MemberAdded {
@@ -610,7 +610,7 @@ mod tests {
                 member_name: None,
                 member_pubkey_hex: None,
             },
-        );
+        ).await;
         assert!(result.is_err());
     }
 
@@ -625,17 +625,17 @@ mod tests {
     /// 3. Construct a hand-written JSON string with NO proposal_ref
     ///    key, deserialize, confirm it parses + has None.
     /// 4. Verify the chain (signature still validates).
-    #[test]
-    fn proposal_ref_is_back_compat_via_serde_default() {
+    #[tokio::test]
+    async fn proposal_ref_is_back_compat_via_serde_default() {
         let tmp = tempdir().unwrap();
         let sovereign = fresh_sovereign();
         let keypair = sovereign.keypair().unwrap();
         let (store, _) = fresh_store(&tmp);
-        let mut ledger = HubLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).await.unwrap();
         ledger.write_genesis(
             sovereign.lct.id, &keypair,
             "Test".into(), "sha256:0".into(),
-        ).unwrap();
+        ).await.unwrap();
         // Append a normal entry (proposal_ref = None by default).
         let entry = ledger.append(
             sovereign.lct.id, &keypair,
@@ -645,7 +645,7 @@ mod tests {
                 member_name: Some("Alice".into()),
                 member_pubkey_hex: None,
             },
-        ).unwrap().clone();
+        ).await.unwrap().clone();
 
         // 1. Serialized form should NOT contain `proposal_ref` (skip_if None)
         let json = serde_json::to_string(&entry).unwrap();
@@ -672,17 +672,17 @@ mod tests {
     /// V2-9 Phase 2: an entry committed WITH a proposal_ref serializes
     /// + verifies correctly. The field is part of signing_payload so
     /// the signature covers it (forgery resistance).
-    #[test]
-    fn proposal_ref_when_set_is_signed_and_verifies() {
+    #[tokio::test]
+    async fn proposal_ref_when_set_is_signed_and_verifies() {
         let tmp = tempdir().unwrap();
         let sovereign = fresh_sovereign();
         let keypair = sovereign.keypair().unwrap();
         let (store, _) = fresh_store(&tmp);
-        let mut ledger = HubLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).await.unwrap();
         ledger.write_genesis(
             sovereign.lct.id, &keypair,
             "Test".into(), "sha256:0".into(),
-        ).unwrap();
+        ).await.unwrap();
         let proposal_id = Uuid::new_v4();
         let event = HubEvent::MemberAdded {
             member_lct_id: Uuid::new_v4(),
@@ -695,7 +695,7 @@ mod tests {
             sovereign.lct.id, event, Utc::now(), Some(proposal_id),
         ).unwrap();
         let sig = keypair.sign(&unsigned.signing_bytes);
-        let entry = ledger.append_signed(unsigned, SignatureBytes::from_bytes(sig.bytes))
+        let entry = ledger.append_signed(unsigned, SignatureBytes::from_bytes(sig.bytes)).await
             .unwrap()
             .clone();
         assert_eq!(entry.proposal_ref, Some(proposal_id));

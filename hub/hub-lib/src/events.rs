@@ -167,8 +167,8 @@ impl HubEvent {
 mod tests {
     use super::*;
 
-    #[test]
-    fn kind_strings_match_serde_tags() {
+    #[tokio::test]
+    async fn kind_strings_match_serde_tags() {
         let g = HubEvent::Genesis {
             hub_name: "X".into(),
             charter_hash: "sha256:0".into(),
@@ -181,8 +181,8 @@ mod tests {
         assert!(json.contains("\"kind\":\"genesis\""));
     }
 
-    #[test]
-    fn role_assigned_uses_upstream_role_enum() {
+    #[tokio::test]
+    async fn role_assigned_uses_upstream_role_enum() {
         let e = HubEvent::RoleAssigned {
             role: SocietyRole::Treasurer,
             role_lct_id: Uuid::new_v4(),

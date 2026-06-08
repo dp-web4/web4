@@ -244,8 +244,8 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    #[test]
-    fn config_round_trips() {
+    #[tokio::test]
+    async fn config_round_trips() {
         let dir = tempdir().unwrap();
         let cfg_path = dir.path().join("config.toml");
         let cfg = HubConfig::new(
@@ -259,8 +259,8 @@ mod tests {
         assert_eq!(loaded.sovereign.lct_path, Some(PathBuf::from("../sovereign.json")));
     }
 
-    #[test]
-    fn paths_resolve_off_root() {
+    #[tokio::test]
+    async fn paths_resolve_off_root() {
         let p = HubPaths::new("/tmp/chapter");
         assert_eq!(p.config(), PathBuf::from("/tmp/chapter/config.toml"));
         assert_eq!(p.charter(), PathBuf::from("/tmp/chapter/charter.json"));
@@ -268,8 +268,8 @@ mod tests {
         assert_eq!(p.ledger(), PathBuf::from("/tmp/chapter/ledger.jsonl"));
     }
 
-    #[test]
-    fn is_initialized_reflects_society_file() {
+    #[tokio::test]
+    async fn is_initialized_reflects_society_file() {
         let dir = tempdir().unwrap();
         let paths = HubPaths::new(dir.path());
         assert!(!paths.is_initialized());

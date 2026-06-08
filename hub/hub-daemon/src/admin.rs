@@ -131,7 +131,7 @@ async fn overview(State(s): State<RestState>) -> Result<Html<String>, AdminError
     let last_20: Vec<_> = entries.iter().rev().take(20).cloned().collect();
     drop(ledger);
 
-    let society = load_society(&s.paths.root)?;
+    let society = load_society(&s.paths.root).await?;
     let law_guard = s.law.read().await;
     let (law_version, norms, procedures) = match &*law_guard {
         Some(l) => (l.version.clone(), l.norms.len(), l.procedures.len()),
@@ -209,7 +209,7 @@ async fn members(State(s): State<RestState>) -> Result<Html<String>, AdminError>
 }
 
 async fn roles(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
-    let society = load_society(&s.paths.root)?;
+    let society = load_society(&s.paths.root).await?;
     let ledger = s.ledger.lock().await;
     let projected = HubState::project(&*ledger);
     drop(ledger);
@@ -344,14 +344,10 @@ async fn council(State(s): State<RestState>) -> Result<Html<String>, AdminError>
     let projected = HubState::project(&*ledger);
     drop(ledger);
     let proposals = {
-        let hub_dir = s.paths.root.clone();
-        tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<hub_lib::proposal::CouncilProposal>> {
-            let store = hub_lib::store::open_chapter_store(&hub_dir)?;
-            store.list_proposals()
-        })
-        .await
-        .map_err(|e| AdminError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .map_err(|e| AdminError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        let store = hub_lib::store::open_chapter_store(&s.paths.root)
+            .map_err(|e| AdminError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        store.list_proposals().await
+            .map_err(|e| AdminError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     };
 
     let mut body = String::from("<h2>Sovereign Council proposals</h2><dl class=\"grid\">");
@@ -408,7 +404,7 @@ async fn council(State(s): State<RestState>) -> Result<Html<String>, AdminError>
 async fn law(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
     use hub_lib::store::open_chapter_store;
     let store = open_chapter_store(&s.paths.root)?;
-    let yaml = store.read_law()?;
+    let yaml = store.read_law().await?;
 
     let mut body = String::from("<h2>Chapter law</h2>");
     match yaml {

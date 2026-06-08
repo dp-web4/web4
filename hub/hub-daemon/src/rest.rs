@@ -79,15 +79,15 @@ pub struct RestState {
 impl RestState {
     /// Open with the caller-supplied shared law slot. Used by `hub serve`
     /// so REST + MCP evaluate against the same snapshot + share reload.
-    pub fn open_with_law(
+    pub async fn open_with_law(
         hub_dir: PathBuf,
         law: Arc<tokio::sync::RwLock<Option<Law>>>,
     ) -> Result<Self> {
         let paths = HubPaths::new(hub_dir.clone());
         let config = hub_lib::hub::HubConfig::load(paths.config())?;
         let store = hub_lib::store::open_chapter_store(&hub_dir)?;
-        let ledger = HubLedger::open(store)?;
-        let society = load_society(&hub_dir)?;
+        let ledger = HubLedger::open(store).await?;
+        let society = load_society(&hub_dir).await?;
 
         // Build the right Sovereign LCT + signer for the chapter's mode.
         let (sovereign_lct, signer): (_, Arc<dyn RemoteSigner>) = match config.sovereign.mode()? {
@@ -154,14 +154,14 @@ impl RestState {
     /// Backward-compat: load the chapter's law from storage into a
     /// fresh slot. Standalone callers that don't need REST/MCP shared
     /// reload can use this.
-    pub fn open(hub_dir: PathBuf) -> Result<Self> {
+    pub async fn open(hub_dir: PathBuf) -> Result<Self> {
         let store = hub_lib::store::open_chapter_store(&hub_dir)?;
-        let law: Option<Law> = match store.read_law()? {
+        let law: Option<Law> = match store.read_law().await? {
             Some(yaml) => Some(Law::parse_and_validate(&yaml)
                 .map_err(|e| anyhow::anyhow!("loading chapter law: {}", e))?),
             None => None,
         };
-        Self::open_with_law(hub_dir, Arc::new(tokio::sync::RwLock::new(law)))
+        Self::open_with_law(hub_dir, Arc::new(tokio::sync::RwLock::new(law))).await
     }
 
     /// Re-read the chapter law from storage and swap it into the
@@ -173,7 +173,7 @@ impl RestState {
         use anyhow::Context;
         let store = hub_lib::store::open_chapter_store(&self.paths.root)
             .context("opening store for law reload")?;
-        let new_law: Option<Law> = match store.read_law()? {
+        let new_law: Option<Law> = match store.read_law().await? {
             Some(ref yaml) => Some(Law::parse_and_validate(yaml)
                 .map_err(|e| anyhow::anyhow!("law on disk failed to parse/validate: {}", e))?),
             None => None,
@@ -436,7 +436,7 @@ async fn submit_event(
 
     // 6. Commit the signed entry.
     let mut ledger = s.ledger.lock().await;
-    let entry = ledger.append_signed(unsigned, signature)
+    let entry = ledger.append_signed(unsigned, signature).await
         .map_err(ApiError::internal)?;
 
     Ok(Json(EventAccepted {
@@ -481,7 +481,7 @@ async fn read_state(
     }
     let ledger = s.ledger.lock().await;
     let state = HubState::project(&ledger);
-    let society = load_society(s.paths.root.clone())
+    let society = load_society(s.paths.root.clone()).await
         .map_err(ApiError::internal)?;
     let filled_roles: Vec<RoleSnapshot> = society.roles.iter()
         .map(|(name, ra)| RoleSnapshot {
@@ -662,7 +662,7 @@ async fn submit_join(
     let entry_hash;
     {
         let mut ledger = s.ledger.lock().await;
-        let entry = ledger.append_signed(unsigned, signature)
+        let entry = ledger.append_signed(unsigned, signature).await
             .map_err(ApiError::internal)?;
         entry_index = entry.index;
         entry_hash = entry.entry_hash.clone();
@@ -943,40 +943,32 @@ async fn get_proposal(
     Ok(Json(proposal))
 }
 
-// ---------- council helpers (store I/O on the blocking pool) ----------
+// ---------- council helpers ----------
+//
+// Direct async calls now that HubStore is async-trait. No spawn_blocking
+// needed — file/sqlite store methods complete synchronously inside their
+// async fn bodies; future network backends (DynamoDB, Postgres) do real
+// awaits here.
 
 async fn persist_proposal(s: &RestState, proposal: &CouncilProposal) -> Result<(), ApiError> {
-    let hub_dir = s.paths.root.clone();
-    let proposal = proposal.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let mut store = hub_lib::store::open_chapter_store(&hub_dir)?;
-        store.write_proposal(&proposal)
-    })
-    .await
-    .map_err(|e| ApiError::internal(anyhow::anyhow!("spawn_blocking join: {}", e)))?
-    .map_err(ApiError::internal)
+    let mut store = hub_lib::store::open_chapter_store(&s.paths.root)
+        .map_err(ApiError::internal)?;
+    store.write_proposal(proposal).await
+        .map_err(ApiError::internal)
 }
 
 async fn read_proposal(s: &RestState, id: Uuid) -> Result<Option<CouncilProposal>, ApiError> {
-    let hub_dir = s.paths.root.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<Option<CouncilProposal>> {
-        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
-        store.read_proposal(id)
-    })
-    .await
-    .map_err(|e| ApiError::internal(anyhow::anyhow!("spawn_blocking join: {}", e)))?
-    .map_err(ApiError::internal)
+    let store = hub_lib::store::open_chapter_store(&s.paths.root)
+        .map_err(ApiError::internal)?;
+    store.read_proposal(id).await
+        .map_err(ApiError::internal)
 }
 
 async fn read_all_proposals(s: &RestState) -> Result<Vec<CouncilProposal>, ApiError> {
-    let hub_dir = s.paths.root.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<CouncilProposal>> {
-        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
-        store.list_proposals()
-    })
-    .await
-    .map_err(|e| ApiError::internal(anyhow::anyhow!("spawn_blocking join: {}", e)))?
-    .map_err(ApiError::internal)
+    let store = hub_lib::store::open_chapter_store(&s.paths.root)
+        .map_err(ApiError::internal)?;
+    store.list_proposals().await
+        .map_err(ApiError::internal)
 }
 
 async fn cleanup_expired_proposals(s: &RestState, now: chrono::DateTime<Utc>) {
@@ -1045,7 +1037,7 @@ async fn commit_proposed_event(
         })?;
     let mut ledger = s.ledger.lock().await;
     let (entry_index, needs_resolver_refresh) = {
-        let entry = ledger.append_signed(unsigned, signature)
+        let entry = ledger.append_signed(unsigned, signature).await
             .map_err(ApiError::internal)?;
         let needs = matches!(
             &entry.event,

@@ -70,24 +70,24 @@ pub struct McpState {
 
 impl McpState {
     /// Backward-compat: load law from the chapter store into a fresh slot.
-    pub fn open(hub_dir: PathBuf) -> Result<Self> {
+    pub async fn open(hub_dir: PathBuf) -> Result<Self> {
         let store = hub_lib::store::open_chapter_store(&hub_dir)?;
-        let law: Option<Law> = match store.read_law()? {
+        let law: Option<Law> = match store.read_law().await? {
             Some(yaml) => Some(Law::parse_and_validate(&yaml)?),
             None => None,
         };
-        Self::open_with_law(hub_dir, Arc::new(tokio::sync::RwLock::new(law)))
+        Self::open_with_law(hub_dir, Arc::new(tokio::sync::RwLock::new(law))).await
     }
 
     /// Open with a caller-supplied shared law slot. `hub serve` uses
     /// this so REST + MCP evaluate against the same law + share reload.
-    pub fn open_with_law(
+    pub async fn open_with_law(
         hub_dir: PathBuf,
         law: Arc<tokio::sync::RwLock<Option<Law>>>,
     ) -> Result<Self> {
         let paths = HubPaths::new(hub_dir.clone());
         let config = hub_lib::hub::HubConfig::load(paths.config())?;
-        let society = load_society(&hub_dir)?;
+        let society = load_society(&hub_dir).await?;
         let (sovereign_lct_id, signer): (Uuid, Arc<dyn RemoteSigner>) = match config.sovereign.mode()? {
             SovereignMode::Local { lct_path } => {
                 let sovereign = IdentityFile::load(&lct_path)?;
@@ -101,7 +101,7 @@ impl McpState {
             }
         };
         let store = hub_lib::store::open_chapter_store(&hub_dir)?;
-        let ledger = HubLedger::open(store)?;
+        let ledger = HubLedger::open(store).await?;
         Ok(Self {
             paths,
             hub_id: society.lct_id,
@@ -196,7 +196,7 @@ struct QueryChapterResponse {
 async fn query_chapter(State(s): State<McpState>) -> Result<Json<QueryChapterResponse>, ApiError> {
     let ledger = s.ledger.lock().await;
     let state = HubState::project(&ledger);
-    let society = load_society(s.paths.root.clone())?;
+    let society = load_society(s.paths.root.clone()).await?;
     let role_fill: HashMap<String, Uuid> = society.roles.iter()
         .map(|(k, v)| (k.clone(), v.filling_entity_lct_id))
         .collect();
@@ -416,7 +416,7 @@ async fn append_with_sovereign(
         .map_err(|e| ApiError::internal(anyhow::anyhow!("Sovereign signer: {}", e)))?;
 
     let mut ledger = s.ledger.lock().await;
-    let entry = ledger.append_signed(unsigned, signature)?;
+    let entry = ledger.append_signed(unsigned, signature).await?;
     Ok(Json(EventRecordedResponse {
         entry_index: entry.index,
         entry_hash: entry.entry_hash.clone(),

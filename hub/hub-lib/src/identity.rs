@@ -85,8 +85,8 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    #[test]
-    fn round_trip_save_load_sign_verify() {
+    #[tokio::test]
+    async fn round_trip_save_load_sign_verify() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("sovereign.json");
 
@@ -108,8 +108,8 @@ mod tests {
             .expect("signature must verify against the original LCT");
     }
 
-    #[test]
-    fn generates_with_correct_entity_type() {
+    #[tokio::test]
+    async fn generates_with_correct_entity_type() {
         let identity = IdentityFile::generate(EntityType::Human);
         assert_eq!(identity.lct.entity_type, EntityType::Human);
 

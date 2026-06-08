@@ -367,8 +367,8 @@ mod tests {
         Utc::now()
     }
 
-    #[test]
-    fn happy_path_signed_envelope_verifies() {
+    #[tokio::test]
+    async fn happy_path_signed_envelope_verifies() {
         let signer = fresh_identity();
         let kp = signer.keypair().unwrap();
         let mut resolver = MapResolver::new();
@@ -390,8 +390,8 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn wrong_keypair_fails() {
+    #[tokio::test]
+    async fn wrong_keypair_fails() {
         let signer = fresh_identity();
         let attacker = fresh_identity();
         let bad_kp = attacker.keypair().unwrap();
@@ -410,8 +410,8 @@ mod tests {
             "wrong-key signature must fail, got: {:?}", result);
     }
 
-    #[test]
-    fn unknown_signer_fails() {
+    #[tokio::test]
+    async fn unknown_signer_fails() {
         let signer = fresh_identity();
         let kp = signer.keypair().unwrap();
         // resolver has no entries
@@ -425,8 +425,8 @@ mod tests {
         assert!(matches!(result, Err(VerifyError::UnknownSigner(_))));
     }
 
-    #[test]
-    fn unknown_nonce_fails() {
+    #[tokio::test]
+    async fn unknown_nonce_fails() {
         let signer = fresh_identity();
         let kp = signer.keypair().unwrap();
         let mut resolver = MapResolver::new();
@@ -446,8 +446,8 @@ mod tests {
         assert!(matches!(result, Err(VerifyError::UnknownNonce(_))));
     }
 
-    #[test]
-    fn nonce_for_different_lct_fails() {
+    #[tokio::test]
+    async fn nonce_for_different_lct_fails() {
         let signer = fresh_identity();
         let other = fresh_identity();
         let kp = signer.keypair().unwrap();
@@ -464,8 +464,8 @@ mod tests {
         assert!(matches!(result, Err(VerifyError::NonceLctMismatch(_))));
     }
 
-    #[test]
-    fn expired_nonce_fails() {
+    #[tokio::test]
+    async fn expired_nonce_fails() {
         let signer = fresh_identity();
         let kp = signer.keypair().unwrap();
         let mut resolver = MapResolver::new();
@@ -481,8 +481,8 @@ mod tests {
         assert!(matches!(result, Err(VerifyError::ExpiredNonce(_))));
     }
 
-    #[test]
-    fn replay_attack_fails() {
+    #[tokio::test]
+    async fn replay_attack_fails() {
         // The nonce is single-use: redeeming once consumes it.
         let signer = fresh_identity();
         let kp = signer.keypair().unwrap();
@@ -500,8 +500,8 @@ mod tests {
         assert!(matches!(replay, Err(VerifyError::UnknownNonce(_))));
     }
 
-    #[test]
-    fn tampered_payload_fails() {
+    #[tokio::test]
+    async fn tampered_payload_fails() {
         let signer = fresh_identity();
         let kp = signer.keypair().unwrap();
         let mut resolver = MapResolver::new();
@@ -519,8 +519,8 @@ mod tests {
         assert!(matches!(result, Err(VerifyError::BadSignature(_))));
     }
 
-    #[test]
-    fn canonical_signing_is_key_order_independent() {
+    #[tokio::test]
+    async fn canonical_signing_is_key_order_independent() {
         // Two payloads with the same keys in different orders must
         // produce identical signing bytes.
         let p1 = json!({"a": 1, "b": 2, "c": 3});
@@ -530,8 +530,8 @@ mod tests {
         assert_eq!(bytes1, bytes2);
     }
 
-    #[test]
-    fn interop_with_hestia_signing_algorithm() {
+    #[tokio::test]
+    async fn interop_with_hestia_signing_algorithm() {
         // Lock-in test: our signing bytes MUST equal Hestia's algorithm
         // `nonce.as_bytes() ++ payload.to_string().as_bytes()`.
         // This test must keep passing or interop with Hestia breaks.
@@ -548,8 +548,8 @@ mod tests {
             "hub signing bytes must match hestia's algorithm exactly");
     }
 
-    #[test]
-    fn deserialize_hestia_wire_envelope() {
+    #[tokio::test]
+    async fn deserialize_hestia_wire_envelope() {
         // Lock-in test: a JSON envelope produced by Hestia (per their
         // SignedEnvelope shape in hestia@253c611 core/src/hub.rs) MUST
         // deserialize into ours.
@@ -564,8 +564,8 @@ mod tests {
         assert_eq!(env.signature.len(), 128);
     }
 
-    #[test]
-    fn prune_expired_drops_old_entries() {
+    #[tokio::test]
+    async fn prune_expired_drops_old_entries() {
         let nonces = NonceStore::with_ttl(1);
         let now = now_fixed();
         let lct = Uuid::new_v4();

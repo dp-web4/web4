@@ -118,8 +118,8 @@ mod tests {
     use super::*;
     use uuid::Uuid;
 
-    #[test]
-    fn founding_charter_has_expected_shape() {
+    #[tokio::test]
+    async fn founding_charter_has_expected_shape() {
         let sovereign = Uuid::new_v4();
         let charter = Charter::found("Lisbon Chapter".into(), sovereign);
 
@@ -132,8 +132,8 @@ mod tests {
         assert!(charter.preamble.contains("Web4 society"));
     }
 
-    #[test]
-    fn hash_is_stable_and_prefixed() {
+    #[tokio::test]
+    async fn hash_is_stable_and_prefixed() {
         let sovereign = Uuid::new_v4();
         let charter = Charter::found("Test".into(), sovereign);
         let h1 = charter.hash().unwrap();
@@ -143,8 +143,8 @@ mod tests {
         assert_eq!(h1.len(), "sha256:".len() + 64, "sha256 hex is 64 chars");
     }
 
-    #[test]
-    fn hash_changes_when_content_changes() {
+    #[tokio::test]
+    async fn hash_changes_when_content_changes() {
         let sovereign = Uuid::new_v4();
         let mut charter = Charter::found("Test".into(), sovereign);
         let h1 = charter.hash().unwrap();

@@ -77,42 +77,49 @@ impl BackendKind {
 /// HubSession) own invariants. This trait does **no** crypto or chain
 /// validation — that lives in the ledger module. It does **no** secret
 /// handling — that lives in the vault (Hestia).
-pub trait HubStore: Send {
+/// All methods are async so the trait composes naturally with
+/// network-backed backends (DynamoDB, Postgres) that do real I/O.
+/// In-process backends (file, sqlite) implement async fn bodies
+/// that complete synchronously — no spawn_blocking needed, no
+/// `.await` actually suspends. The async_trait macro gives us
+/// object safety so `Box<dyn HubStore>` still works.
+#[async_trait::async_trait]
+pub trait HubStore: Send + Sync {
     fn backend_kind(&self) -> BackendKind;
 
     // ----- Charter (immutable post-genesis) -----
 
     /// Read the charter if present.
-    fn read_charter(&self) -> Result<Option<Charter>>;
+    async fn read_charter(&self) -> Result<Option<Charter>>;
 
     /// Write the charter. Callers should call this exactly once (during
     /// init); a charter is immutable post-genesis. Implementations may
     /// refuse overwrites for safety.
-    fn write_charter(&mut self, charter: &Charter) -> Result<()>;
+    async fn write_charter(&mut self, charter: &Charter) -> Result<()>;
 
     // ----- Society state (evolves as acts append) -----
 
     /// Read the society if present.
-    fn read_society(&self) -> Result<Option<Society>>;
+    async fn read_society(&self) -> Result<Option<Society>>;
 
     /// Write/overwrite the society state.
-    fn write_society(&mut self, society: &Society) -> Result<()>;
+    async fn write_society(&mut self, society: &Society) -> Result<()>;
 
     // ----- Ledger (append-only, hash-chained) -----
 
     /// Load all ledger entries in order. Implementations may stream or
     /// fully load; current callers expect a Vec.
-    fn ledger_load_all(&self) -> Result<Vec<LedgerEntry>>;
+    async fn ledger_load_all(&self) -> Result<Vec<LedgerEntry>>;
 
     /// Append one already-validated entry to the ledger. The entry's
     /// signature + entry_hash + prev_hash + index are computed by the
     /// caller (HubLedger); the store just persists.
-    fn ledger_append(&mut self, entry: &LedgerEntry) -> Result<()>;
+    async fn ledger_append(&mut self, entry: &LedgerEntry) -> Result<()>;
 
     /// True iff the ledger has zero entries. Used by callers to detect
     /// "fresh chapter, needs Genesis" without round-tripping the full list.
-    fn ledger_is_empty(&self) -> Result<bool> {
-        Ok(self.ledger_load_all()?.is_empty())
+    async fn ledger_is_empty(&self) -> Result<bool> {
+        Ok(self.ledger_load_all().await?.is_empty())
     }
 
     // ----- Law (V2-8: signed YAML, amended via LawAmended events) -----
@@ -120,14 +127,14 @@ pub trait HubStore: Send {
     /// Read the current chapter law YAML, or None if no law has been
     /// set yet. Returns the raw bytes (not the parsed [`crate::law::Law`])
     /// so the store layer stays parser-agnostic.
-    fn read_law(&self) -> Result<Option<String>> {
+    async fn read_law(&self) -> Result<Option<String>> {
         Ok(None) // Default: backends not yet supporting law return None
     }
 
     /// Write/overwrite the current chapter law. Callers should also
     /// append a [`crate::events::HubEvent::LawAmended`] event to
     /// the ledger so the amendment is part of the audit trail.
-    fn write_law(&mut self, _yaml: &str) -> Result<()> {
+    async fn write_law(&mut self, _yaml: &str) -> Result<()> {
         anyhow::bail!("this backend does not yet support law storage")
     }
 
@@ -139,24 +146,24 @@ pub trait HubStore: Send {
     /// acts. Implementations that don't support council proposals
     /// reject calls so the operator gets a clear error rather than a
     /// silent no-op.
-    fn write_proposal(&mut self, _proposal: &crate::proposal::CouncilProposal) -> Result<()> {
+    async fn write_proposal(&mut self, _proposal: &crate::proposal::CouncilProposal) -> Result<()> {
         anyhow::bail!("this backend does not yet support council proposals")
     }
 
     /// Read a single proposal by id.
-    fn read_proposal(&self, _id: uuid::Uuid) -> Result<Option<crate::proposal::CouncilProposal>> {
+    async fn read_proposal(&self, _id: uuid::Uuid) -> Result<Option<crate::proposal::CouncilProposal>> {
         anyhow::bail!("this backend does not yet support council proposals")
     }
 
     /// List all currently-stored proposals (open, committed,
     /// rejected, expired). Caller filters by status if needed.
-    fn list_proposals(&self) -> Result<Vec<crate::proposal::CouncilProposal>> {
+    async fn list_proposals(&self) -> Result<Vec<crate::proposal::CouncilProposal>> {
         anyhow::bail!("this backend does not yet support council proposals")
     }
 
     /// Remove a proposal. Used by the cleanup pass that drops
     /// expired proposals on the next propose/sign call. Idempotent.
-    fn delete_proposal(&mut self, _id: uuid::Uuid) -> Result<()> {
+    async fn delete_proposal(&mut self, _id: uuid::Uuid) -> Result<()> {
         anyhow::bail!("this backend does not yet support council proposals")
     }
 }
@@ -267,12 +274,13 @@ impl FileBackend {
     }
 }
 
+#[async_trait::async_trait]
 impl HubStore for FileBackend {
     fn backend_kind(&self) -> BackendKind {
         BackendKind::File
     }
 
-    fn read_charter(&self) -> Result<Option<Charter>> {
+    async fn read_charter(&self) -> Result<Option<Charter>> {
         let path = self.charter_path();
         if !path.exists() {
             return Ok(None);
@@ -282,7 +290,7 @@ impl HubStore for FileBackend {
         Ok(Some(charter))
     }
 
-    fn write_charter(&mut self, charter: &Charter) -> Result<()> {
+    async fn write_charter(&mut self, charter: &Charter) -> Result<()> {
         let path = self.charter_path();
         Self::ensure_parent(&path)?;
         charter.save(&path)
@@ -290,7 +298,7 @@ impl HubStore for FileBackend {
         Ok(())
     }
 
-    fn read_society(&self) -> Result<Option<Society>> {
+    async fn read_society(&self) -> Result<Option<Society>> {
         let path = self.society_path();
         if !path.exists() {
             return Ok(None);
@@ -302,7 +310,7 @@ impl HubStore for FileBackend {
         Ok(Some(society))
     }
 
-    fn write_society(&mut self, society: &Society) -> Result<()> {
+    async fn write_society(&mut self, society: &Society) -> Result<()> {
         let path = self.society_path();
         Self::ensure_parent(&path)?;
         let json = serde_json::to_string_pretty(society)
@@ -312,7 +320,7 @@ impl HubStore for FileBackend {
         Ok(())
     }
 
-    fn ledger_load_all(&self) -> Result<Vec<LedgerEntry>> {
+    async fn ledger_load_all(&self) -> Result<Vec<LedgerEntry>> {
         let path = self.ledger_path();
         if !path.exists() {
             return Ok(Vec::new());
@@ -332,7 +340,7 @@ impl HubStore for FileBackend {
         Ok(entries)
     }
 
-    fn ledger_append(&mut self, entry: &LedgerEntry) -> Result<()> {
+    async fn ledger_append(&mut self, entry: &LedgerEntry) -> Result<()> {
         use std::fs::OpenOptions;
         use std::io::Write;
         let path = self.ledger_path();
@@ -348,7 +356,7 @@ impl HubStore for FileBackend {
         Ok(())
     }
 
-    fn read_law(&self) -> Result<Option<String>> {
+    async fn read_law(&self) -> Result<Option<String>> {
         let path = self.law_path();
         if path.exists() {
             return std::fs::read_to_string(&path)
@@ -368,7 +376,7 @@ impl HubStore for FileBackend {
         Ok(None)
     }
 
-    fn write_law(&mut self, yaml: &str) -> Result<()> {
+    async fn write_law(&mut self, yaml: &str) -> Result<()> {
         let path = self.law_path();
         Self::ensure_parent(&path)?;
         std::fs::write(&path, yaml)
@@ -377,7 +385,7 @@ impl HubStore for FileBackend {
 
     // ----- V2-9 Phase 2: council proposals -----
 
-    fn write_proposal(&mut self, proposal: &crate::proposal::CouncilProposal) -> Result<()> {
+    async fn write_proposal(&mut self, proposal: &crate::proposal::CouncilProposal) -> Result<()> {
         let dir = self.paths.root.join("proposals");
         std::fs::create_dir_all(&dir)
             .with_context(|| format!("creating proposals dir {}", dir.display()))?;
@@ -394,7 +402,7 @@ impl HubStore for FileBackend {
         Ok(())
     }
 
-    fn read_proposal(&self, id: uuid::Uuid) -> Result<Option<crate::proposal::CouncilProposal>> {
+    async fn read_proposal(&self, id: uuid::Uuid) -> Result<Option<crate::proposal::CouncilProposal>> {
         let path = self.paths.root.join("proposals").join(format!("{}.json", id));
         if !path.exists() {
             return Ok(None);
@@ -406,7 +414,7 @@ impl HubStore for FileBackend {
         Ok(Some(proposal))
     }
 
-    fn list_proposals(&self) -> Result<Vec<crate::proposal::CouncilProposal>> {
+    async fn list_proposals(&self) -> Result<Vec<crate::proposal::CouncilProposal>> {
         let dir = self.paths.root.join("proposals");
         if !dir.exists() {
             return Ok(Vec::new());
@@ -433,7 +441,7 @@ impl HubStore for FileBackend {
         Ok(out)
     }
 
-    fn delete_proposal(&mut self, id: uuid::Uuid) -> Result<()> {
+    async fn delete_proposal(&mut self, id: uuid::Uuid) -> Result<()> {
         let path = self.paths.root.join("proposals").join(format!("{}.json", id));
         if path.exists() {
             std::fs::remove_file(&path)
@@ -477,7 +485,12 @@ impl HubStore for FileBackend {
 /// isolation. SQLite-per-chapter keeps the per-chapter blast radius small
 /// and migration (file ↔ sqlite ↔ postgres) shape-symmetric.
 pub struct SqliteBackend {
-    conn: rusqlite::Connection,
+    /// Wrapped in `std::sync::Mutex` so `SqliteBackend: Sync` (rusqlite's
+    /// `Connection` is `Send` but not `Sync`). The async trait's default
+    /// future Send bound transitively requires self: Sync for `&self`
+    /// methods. The mutex is uncontended in practice (one daemon per
+    /// chapter), so the lock cost is a brief acquire per call.
+    conn: std::sync::Mutex<rusqlite::Connection>,
     /// Stored for debug + future migration tooling.
     db_path: PathBuf,
 }
@@ -518,7 +531,7 @@ impl SqliteBackend {
                  entry_json TEXT NOT NULL
              );",
         ).context("initializing sqlite schema")?;
-        Ok(Self { conn, db_path })
+        Ok(Self { conn: std::sync::Mutex::new(conn), db_path })
     }
 
     pub fn db_path(&self) -> &Path {
@@ -526,7 +539,8 @@ impl SqliteBackend {
     }
 
     fn read_meta(&self, key: &str) -> Result<Option<String>> {
-        let mut stmt = self.conn
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn
             .prepare("SELECT value FROM metadata WHERE key = ?1")
             .context("preparing metadata SELECT")?;
         let mut rows = stmt
@@ -539,7 +553,8 @@ impl SqliteBackend {
     }
 
     fn write_meta(&self, key: &str, value: &str) -> Result<()> {
-        self.conn
+        let conn = self.conn.lock().unwrap();
+        conn
             .execute(
                 "INSERT INTO metadata (key, value) VALUES (?1, ?2)
                  ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -588,7 +603,7 @@ pub struct MigrationResult {
 /// Note: this function does NOT touch identity files, config.toml, or
 /// anything else outside the chapter storage abstraction. Those stay
 /// where they were.
-pub fn migrate_chapter(
+pub async fn migrate_chapter(
     hub_dir: impl AsRef<Path>,
     target_backend: BackendKind,
 ) -> Result<MigrationResult> {
@@ -614,9 +629,9 @@ pub fn migrate_chapter(
     }
 
     // 2. Read source state.
-    let charter = source.read_charter().context("reading source charter")?;
-    let society = source.read_society().context("reading source society")?;
-    let ledger_entries = source.ledger_load_all().context("reading source ledger")?;
+    let charter = source.read_charter().await.context("reading source charter")?;
+    let society = source.read_society().await.context("reading source society")?;
+    let ledger_entries = source.ledger_load_all().await.context("reading source ledger")?;
 
     // Drop source handle BEFORE creating target — particularly important
     // for sqlite, where a stale connection could conflict on WAL files.
@@ -629,17 +644,17 @@ pub fn migrate_chapter(
     // 4-6. Copy state.
     let mut charter_copied = false;
     if let Some(c) = charter {
-        target.write_charter(&c).context("writing charter to target")?;
+        target.write_charter(&c).await.context("writing charter to target")?;
         charter_copied = true;
     }
     let mut society_copied = false;
     if let Some(s) = society {
-        target.write_society(&s).context("writing society to target")?;
+        target.write_society(&s).await.context("writing society to target")?;
         society_copied = true;
     }
     let entries_copied = ledger_entries.len();
     for entry in &ledger_entries {
-        target.ledger_append(entry)
+        target.ledger_append(entry).await
             .with_context(|| format!("appending ledger entry idx={} to target", entry.index))?;
     }
     // Drop target so any flushes complete before we rename source files
@@ -693,12 +708,13 @@ pub fn migrate_chapter(
     })
 }
 
+#[async_trait::async_trait]
 impl HubStore for SqliteBackend {
     fn backend_kind(&self) -> BackendKind {
         BackendKind::Sqlite
     }
 
-    fn read_charter(&self) -> Result<Option<Charter>> {
+    async fn read_charter(&self) -> Result<Option<Charter>> {
         match self.read_meta("charter")? {
             None => Ok(None),
             Some(json) => {
@@ -709,12 +725,12 @@ impl HubStore for SqliteBackend {
         }
     }
 
-    fn write_charter(&mut self, charter: &Charter) -> Result<()> {
+    async fn write_charter(&mut self, charter: &Charter) -> Result<()> {
         let json = serde_json::to_string(charter).context("serializing charter")?;
         self.write_meta("charter", &json)
     }
 
-    fn read_society(&self) -> Result<Option<Society>> {
+    async fn read_society(&self) -> Result<Option<Society>> {
         match self.read_meta("society")? {
             None => Ok(None),
             Some(json) => {
@@ -725,13 +741,14 @@ impl HubStore for SqliteBackend {
         }
     }
 
-    fn write_society(&mut self, society: &Society) -> Result<()> {
+    async fn write_society(&mut self, society: &Society) -> Result<()> {
         let json = serde_json::to_string(society).context("serializing society")?;
         self.write_meta("society", &json)
     }
 
-    fn ledger_load_all(&self) -> Result<Vec<LedgerEntry>> {
-        let mut stmt = self.conn
+    async fn ledger_load_all(&self) -> Result<Vec<LedgerEntry>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn
             .prepare("SELECT entry_json FROM ledger_entries ORDER BY idx ASC")
             .context("preparing ledger SELECT")?;
         let rows = stmt
@@ -747,9 +764,10 @@ impl HubStore for SqliteBackend {
         Ok(entries)
     }
 
-    fn ledger_append(&mut self, entry: &LedgerEntry) -> Result<()> {
+    async fn ledger_append(&mut self, entry: &LedgerEntry) -> Result<()> {
         let json = serde_json::to_string(entry).context("serializing ledger entry")?;
-        self.conn
+        let conn = self.conn.lock().unwrap();
+        conn
             .execute(
                 "INSERT INTO ledger_entries (idx, entry_json) VALUES (?1, ?2)",
                 rusqlite::params![entry.index as i64, json],
@@ -758,8 +776,9 @@ impl HubStore for SqliteBackend {
         Ok(())
     }
 
-    fn ledger_is_empty(&self) -> Result<bool> {
-        let count: i64 = self.conn
+    async fn ledger_is_empty(&self) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM ledger_entries",
                 [],
@@ -769,11 +788,11 @@ impl HubStore for SqliteBackend {
         Ok(count == 0)
     }
 
-    fn read_law(&self) -> Result<Option<String>> {
+    async fn read_law(&self) -> Result<Option<String>> {
         self.read_meta("law")
     }
 
-    fn write_law(&mut self, yaml: &str) -> Result<()> {
+    async fn write_law(&mut self, yaml: &str) -> Result<()> {
         self.write_meta("law", yaml)
     }
 }
@@ -800,82 +819,82 @@ mod tests {
         (tmp, backend)
     }
 
-    #[test]
-    fn file_backend_kind_is_file() {
+    #[tokio::test]
+    async fn file_backend_kind_is_file() {
         let (_tmp, b) = fresh_file_backend();
         assert_eq!(b.backend_kind(), BackendKind::File);
     }
 
-    #[test]
-    fn sqlite_backend_kind_is_sqlite() {
+    #[tokio::test]
+    async fn sqlite_backend_kind_is_sqlite() {
         let (_tmp, b) = fresh_sqlite_backend();
         assert_eq!(b.backend_kind(), BackendKind::Sqlite);
     }
 
-    #[test]
-    fn file_read_returns_none_when_empty() {
+    #[tokio::test]
+    async fn file_read_returns_none_when_empty() {
         let (_tmp, b) = fresh_file_backend();
-        assert!(b.read_charter().unwrap().is_none());
-        assert!(b.read_society().unwrap().is_none());
-        assert!(b.ledger_load_all().unwrap().is_empty());
-        assert!(b.ledger_is_empty().unwrap());
+        assert!(b.read_charter().await.unwrap().is_none());
+        assert!(b.read_society().await.unwrap().is_none());
+        assert!(b.ledger_load_all().await.unwrap().is_empty());
+        assert!(b.ledger_is_empty().await.unwrap());
     }
 
-    #[test]
-    fn sqlite_read_returns_none_when_empty() {
+    #[tokio::test]
+    async fn sqlite_read_returns_none_when_empty() {
         let (_tmp, b) = fresh_sqlite_backend();
-        assert!(b.read_charter().unwrap().is_none());
-        assert!(b.read_society().unwrap().is_none());
-        assert!(b.ledger_load_all().unwrap().is_empty());
-        assert!(b.ledger_is_empty().unwrap());
+        assert!(b.read_charter().await.unwrap().is_none());
+        assert!(b.read_society().await.unwrap().is_none());
+        assert!(b.ledger_load_all().await.unwrap().is_empty());
+        assert!(b.ledger_is_empty().await.unwrap());
     }
 
-    #[test]
-    fn file_charter_round_trips() {
+    #[tokio::test]
+    async fn file_charter_round_trips() {
         let (_tmp, mut b) = fresh_file_backend();
         let founder = Uuid::new_v4();
         let charter = Charter::found("Test".into(), founder);
-        b.write_charter(&charter).unwrap();
-        let loaded = b.read_charter().unwrap().expect("charter present");
+        b.write_charter(&charter).await.unwrap();
+        let loaded = b.read_charter().await.unwrap().expect("charter present");
         assert_eq!(loaded.hub_name, charter.hub_name);
         assert_eq!(loaded.founding_sovereign_lct_id, founder);
     }
 
-    #[test]
-    fn sqlite_charter_round_trips() {
+    #[tokio::test]
+    async fn sqlite_charter_round_trips() {
         let (_tmp, mut b) = fresh_sqlite_backend();
         let founder = Uuid::new_v4();
         let charter = Charter::found("Test".into(), founder);
-        b.write_charter(&charter).unwrap();
-        let loaded = b.read_charter().unwrap().expect("charter present");
+        b.write_charter(&charter).await.unwrap();
+        let loaded = b.read_charter().await.unwrap().expect("charter present");
         assert_eq!(loaded.hub_name, charter.hub_name);
         assert_eq!(loaded.founding_sovereign_lct_id, founder);
     }
 
-    #[test]
-    fn file_society_round_trips() {
+    #[tokio::test]
+    async fn file_society_round_trips() {
         let (_tmp, mut b) = fresh_file_backend();
         let founder = Uuid::new_v4();
         let (society, _) = Society::bootstrap("Test".into(), "0".repeat(64), founder);
-        b.write_society(&society).unwrap();
-        let loaded = b.read_society().unwrap().expect("society present");
+        b.write_society(&society).await.unwrap();
+        let loaded = b.read_society().await.unwrap().expect("society present");
         assert_eq!(loaded.name, society.name);
         assert_eq!(loaded.founder_lct_id, founder);
     }
 
-    #[test]
-    fn sqlite_society_round_trips() {
+    #[tokio::test]
+    async fn sqlite_society_round_trips() {
         let (_tmp, mut b) = fresh_sqlite_backend();
         let founder = Uuid::new_v4();
         let (society, _) = Society::bootstrap("Test".into(), "0".repeat(64), founder);
-        b.write_society(&society).unwrap();
-        let loaded = b.read_society().unwrap().expect("society present");
+        b.write_society(&society).await.unwrap();
+        let loaded = b.read_society().await.unwrap().expect("society present");
         assert_eq!(loaded.name, society.name);
         assert_eq!(loaded.founder_lct_id, founder);
     }
 
-    #[test]
-    fn sqlite_ledger_persists_across_reopen() {
+    #[tokio::test]
+    async fn sqlite_ledger_persists_across_reopen() {
         let tmp = tempdir().unwrap();
         let hub_dir = tmp.path().join("test-chapter");
         std::fs::create_dir_all(&hub_dir).unwrap();
@@ -904,19 +923,19 @@ mod tests {
 
         {
             let mut b = SqliteBackend::open(&db_path).unwrap();
-            b.ledger_append(&e0).unwrap();
-            assert!(!b.ledger_is_empty().unwrap());
+            b.ledger_append(&e0).await.unwrap();
+            assert!(!b.ledger_is_empty().await.unwrap());
         }
 
         let b2 = SqliteBackend::open(&db_path).unwrap();
-        let loaded = b2.ledger_load_all().unwrap();
+        let loaded = b2.ledger_load_all().await.unwrap();
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].index, 0);
         assert_eq!(loaded[0].actor_lct_id, founder);
     }
 
-    #[test]
-    fn sqlite_duplicate_index_errors() {
+    #[tokio::test]
+    async fn sqlite_duplicate_index_errors() {
         let (_tmp, mut b) = fresh_sqlite_backend();
         use chrono::Utc;
         use crate::events::HubEvent;
@@ -936,13 +955,13 @@ mod tests {
             entry_hash: "".into(),
             proposal_ref: None,
         };
-        b.ledger_append(&make(0)).unwrap();
+        b.ledger_append(&make(0)).await.unwrap();
         // Duplicate index: PRIMARY KEY constraint should reject
-        assert!(b.ledger_append(&make(0)).is_err());
+        assert!(b.ledger_append(&make(0)).await.is_err());
     }
 
-    #[test]
-    fn open_chapter_store_selects_sqlite_when_db_present() {
+    #[tokio::test]
+    async fn open_chapter_store_selects_sqlite_when_db_present() {
         let tmp = tempdir().unwrap();
         let hub_dir = tmp.path().join("test-chapter");
         std::fs::create_dir_all(&hub_dir).unwrap();
@@ -953,8 +972,8 @@ mod tests {
         assert_eq!(store.backend_kind(), BackendKind::Sqlite);
     }
 
-    #[test]
-    fn open_chapter_store_defaults_to_file_when_empty_dir() {
+    #[tokio::test]
+    async fn open_chapter_store_defaults_to_file_when_empty_dir() {
         let tmp = tempdir().unwrap();
         let hub_dir = tmp.path().join("test-chapter");
         std::fs::create_dir_all(&hub_dir).unwrap();
@@ -962,8 +981,8 @@ mod tests {
         assert_eq!(store.backend_kind(), BackendKind::File);
     }
 
-    #[test]
-    fn migrate_file_to_sqlite_round_trips_state() {
+    #[tokio::test]
+    async fn migrate_file_to_sqlite_round_trips_state() {
         use chrono::Utc;
         use crate::events::HubEvent;
 
@@ -993,15 +1012,15 @@ mod tests {
 
         {
             let mut src = FileBackend::new(HubPaths::new(hub_dir.clone()));
-            src.write_charter(&charter).unwrap();
-            src.write_society(&society).unwrap();
+            src.write_charter(&charter).await.unwrap();
+            src.write_society(&society).await.unwrap();
             for e in &entries {
-                src.ledger_append(e).unwrap();
+                src.ledger_append(e).await.unwrap();
             }
         }
 
         // Migrate file → sqlite
-        let result = migrate_chapter(&hub_dir, BackendKind::Sqlite).unwrap();
+        let result = migrate_chapter(&hub_dir, BackendKind::Sqlite).await.unwrap();
         assert_eq!(result.source_backend, BackendKind::File);
         assert_eq!(result.target_backend, BackendKind::Sqlite);
         assert!(result.charter_copied);
@@ -1015,11 +1034,11 @@ mod tests {
         assert_eq!(after.backend_kind(), BackendKind::Sqlite);
 
         // Charter + society + ledger byte-identical
-        let after_charter = after.read_charter().unwrap().expect("charter");
+        let after_charter = after.read_charter().await.unwrap().expect("charter");
         assert_eq!(after_charter.hub_name, charter.hub_name);
-        let after_society = after.read_society().unwrap().expect("society");
+        let after_society = after.read_society().await.unwrap().expect("society");
         assert_eq!(after_society.lct_id, society.lct_id);
-        let after_ledger = after.ledger_load_all().unwrap();
+        let after_ledger = after.ledger_load_all().await.unwrap();
         assert_eq!(after_ledger.len(), 3);
         for (i, e) in after_ledger.iter().enumerate() {
             assert_eq!(e.index, i as u64);
@@ -1028,13 +1047,13 @@ mod tests {
         }
     }
 
-    #[test]
-    fn migrate_same_backend_is_noop() {
+    #[tokio::test]
+    async fn migrate_same_backend_is_noop() {
         let tmp = tempdir().unwrap();
         let hub_dir = tmp.path().join("chap");
         std::fs::create_dir_all(&hub_dir).unwrap();
         // Empty dir → file-backed default
-        let result = migrate_chapter(&hub_dir, BackendKind::File).unwrap();
+        let result = migrate_chapter(&hub_dir, BackendKind::File).await.unwrap();
         assert_eq!(result.source_backend, result.target_backend);
         assert_eq!(result.ledger_entries_copied, 0);
         assert!(!result.charter_copied);
@@ -1042,36 +1061,36 @@ mod tests {
         assert!(result.preserved_artifacts.is_empty());
     }
 
-    #[test]
-    fn file_law_round_trips() {
+    #[tokio::test]
+    async fn file_law_round_trips() {
         let (_tmp, mut b) = fresh_file_backend();
-        assert!(b.read_law().unwrap().is_none());
-        b.write_law("version: \"1.0.0\"\n").unwrap();
-        let back = b.read_law().unwrap().unwrap();
+        assert!(b.read_law().await.unwrap().is_none());
+        b.write_law("version: \"1.0.0\"\n").await.unwrap();
+        let back = b.read_law().await.unwrap().unwrap();
         assert_eq!(back, "version: \"1.0.0\"\n");
     }
 
-    #[test]
-    fn sqlite_law_round_trips() {
+    #[tokio::test]
+    async fn sqlite_law_round_trips() {
         let (_tmp, mut b) = fresh_sqlite_backend();
-        assert!(b.read_law().unwrap().is_none());
-        b.write_law("version: \"1.0.0\"\nnorms: []\n").unwrap();
-        let back = b.read_law().unwrap().unwrap();
+        assert!(b.read_law().await.unwrap().is_none());
+        b.write_law("version: \"1.0.0\"\nnorms: []\n").await.unwrap();
+        let back = b.read_law().await.unwrap().unwrap();
         assert!(back.contains("1.0.0"));
     }
 
-    #[test]
-    fn file_law_overwrites_on_amendment() {
+    #[tokio::test]
+    async fn file_law_overwrites_on_amendment() {
         let (_tmp, mut b) = fresh_file_backend();
-        b.write_law("version: \"1.0.0\"\n").unwrap();
-        b.write_law("version: \"1.1.0\"\n").unwrap();
-        let back = b.read_law().unwrap().unwrap();
+        b.write_law("version: \"1.0.0\"\n").await.unwrap();
+        b.write_law("version: \"1.1.0\"\n").await.unwrap();
+        let back = b.read_law().await.unwrap().unwrap();
         assert!(back.contains("1.1.0"));
         assert!(!back.contains("1.0.0"));
     }
 
-    #[test]
-    fn backend_kind_from_str_parses_both() {
+    #[tokio::test]
+    async fn backend_kind_from_str_parses_both() {
         use std::str::FromStr;
         assert_eq!(BackendKind::from_str("file").unwrap(), BackendKind::File);
         assert_eq!(BackendKind::from_str("sqlite").unwrap(), BackendKind::Sqlite);

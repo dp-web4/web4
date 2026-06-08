@@ -36,23 +36,23 @@ pub struct HubSession {
 }
 
 impl HubSession {
-    pub fn open(hub_dir: impl AsRef<Path>) -> Result<Self> {
+    pub async fn open(hub_dir: impl AsRef<Path>) -> Result<Self> {
         let hub_dir = hub_dir.as_ref();
         let paths = HubPaths::new(hub_dir.to_path_buf());
         let config = HubConfig::load(paths.config())
             .with_context(|| format!("loading config at {}", paths.config().display()))?;
 
-        // HubSession is the synchronous CLI surface (add-member CLI,
+        // HubSession is the operator-facing CLI surface (add-member CLI,
         // record-event CLI, etc.). It needs the Sovereign keypair in-process
-        // to sign ledger entries synchronously. That's a Local-mode-only
+        // to sign ledger entries from the CLI. That's a Local-mode-only
         // capability. Hestia-mode chapters must drive acts through the
-        // async REST API (`POST /v1/hubs/{id}/events`) where the signer
+        // REST API (`POST /v1/hubs/{id}/events`) where the signer
         // abstraction handles the Hestia callback roundtrip.
         let lct_path = match config.sovereign.mode()? {
             crate::hub::SovereignMode::Local { lct_path } => lct_path,
             crate::hub::SovereignMode::Hestia { .. } => {
                 anyhow::bail!(
-                    "this chapter is Hestia-mode; synchronous CLI acts \
+                    "this chapter is Hestia-mode; CLI acts \
                      are not supported. Use the REST API at \
                      POST /v1/hubs/{{hub_id}}/events with a SignedEnvelope \
                      instead. For read-only queries, use the equivalent GET endpoints."
@@ -66,7 +66,7 @@ impl HubSession {
         let keypair = sovereign.keypair()?;
         let store = open_chapter_store(hub_dir)
             .context("opening chapter store for session")?;
-        let ledger = HubLedger::open(store)
+        let ledger = HubLedger::open(store).await
             .context("opening ledger via chapter store")?;
         Ok(Self {
             paths,
@@ -81,36 +81,36 @@ impl HubSession {
 
     // ---------- acts ----------
 
-    pub fn add_member(&mut self, member_lct_id: Uuid, name: Option<String>) -> Result<&LedgerEntry> {
+    pub async fn add_member(&mut self, member_lct_id: Uuid, name: Option<String>) -> Result<&LedgerEntry> {
         let event = HubEvent::MemberAdded {
             member_lct_id,
             added_by: self.sovereign_lct_id,
             member_name: name,
             member_pubkey_hex: None,
         };
-        self.append(event)
+        self.append(event).await
     }
 
-    pub fn remove_member(&mut self, member_lct_id: Uuid, reason: Option<String>) -> Result<&LedgerEntry> {
+    pub async fn remove_member(&mut self, member_lct_id: Uuid, reason: Option<String>) -> Result<&LedgerEntry> {
         let event = HubEvent::MemberRemoved {
             member_lct_id,
             removed_by: self.sovereign_lct_id,
             reason,
         };
-        self.append(event)
+        self.append(event).await
     }
 
-    pub fn assign_role(&mut self, role: SocietyRole, role_lct_id: Uuid, member_lct_id: Uuid) -> Result<&LedgerEntry> {
+    pub async fn assign_role(&mut self, role: SocietyRole, role_lct_id: Uuid, member_lct_id: Uuid) -> Result<&LedgerEntry> {
         let event = HubEvent::RoleAssigned {
             role,
             role_lct_id,
             assigned_to: member_lct_id,
             assigned_by: self.sovereign_lct_id,
         };
-        self.append(event)
+        self.append(event).await
     }
 
-    pub fn record_event(
+    pub async fn record_event(
         &mut self,
         event_kind: String,
         title: String,
@@ -124,19 +124,10 @@ impl HubSession {
             recorded_by: self.sovereign_lct_id,
             held_at: held_at.unwrap_or_else(Utc::now),
         };
-        self.append(event)
+        self.append(event).await
     }
 
-    /// Amend the chapter's law. Writes the new YAML to the store and
-    /// appends a [`crate::events::HubEvent::LawAmended`] event to
-    /// the ledger so the amendment is part of the audit trail.
-    ///
-    /// `yaml` MUST already be validated via
-    /// [`crate::law::Law::parse_and_validate`] before calling — this
-    /// method does not re-validate. (Caller validates so the error
-    /// from a bad YAML lands at the operator boundary, not deep in a
-    /// ledger op.)
-    pub fn set_law(
+    pub async fn set_law(
         &mut self,
         yaml: &str,
         version: String,
@@ -144,7 +135,7 @@ impl HubSession {
     ) -> Result<&LedgerEntry> {
         let sha = crate::law::Law::sha256_hex_of(yaml);
         self.ledger.store_mut()
-            .write_law(yaml)
+            .write_law(yaml).await
             .context("writing law to chapter store")?;
         let event = HubEvent::LawAmended {
             new_law_sha256: sha,
@@ -152,28 +143,23 @@ impl HubSession {
             version,
             diff_summary,
         };
-        self.append(event)
+        self.append(event).await
     }
 
-    /// Read the current chapter law YAML, or None if no law is set.
-    pub fn get_law(&self) -> Result<Option<String>> {
-        self.ledger.store().read_law()
+    pub async fn get_law(&self) -> Result<Option<String>> {
+        self.ledger.store().read_law().await
     }
 
-    pub fn declare_skill(&mut self, member_lct_id: Uuid, skill: String) -> Result<&LedgerEntry> {
+    pub async fn declare_skill(&mut self, member_lct_id: Uuid, skill: String) -> Result<&LedgerEntry> {
         let event = HubEvent::MemberSkillDeclared {
             member_lct_id,
             skill,
             declared_by: self.sovereign_lct_id,
         };
-        self.append(event)
+        self.append(event).await
     }
 
-    /// V2-9 Phase 1: admit a new Sovereign Council holder. The holder
-    /// can sign chapter acts as a co-Sovereign starting immediately.
-    /// `pubkey_hex` is pinned into the ledger so future envelopes
-    /// from this holder verify without an external registry.
-    pub fn add_council_member(
+    pub async fn add_council_member(
         &mut self,
         member_lct_id: Uuid,
         pubkey_hex: String,
@@ -185,13 +171,10 @@ impl HubSession {
             added_by: self.sovereign_lct_id,
             member_name: name,
         };
-        self.append(event)
+        self.append(event).await
     }
 
-    /// V2-9 Phase 1: remove a Sovereign Council holder. `kind` lets
-    /// callers distinguish voluntary resignation, ejection, or election
-    /// replacement for audit consumers.
-    pub fn remove_council_member(
+    pub async fn remove_council_member(
         &mut self,
         member_lct_id: Uuid,
         kind: web4_core::role::RoleEventKind,
@@ -203,19 +186,15 @@ impl HubSession {
             removal_kind: kind,
             reason,
         };
-        self.append(event)
+        self.append(event).await
     }
 
-    /// V2-9 Phase 1: set the council's M-of-N threshold. N is derived
-    /// from current holder count + 1 (the founding Sovereign) at apply
-    /// time. Recorded but not yet enforced — Phase 2 ships the
-    /// proposal/aggregation flow that gates submit_event on threshold.
-    pub fn set_council_threshold(&mut self, new_m: u32) -> Result<&LedgerEntry> {
+    pub async fn set_council_threshold(&mut self, new_m: u32) -> Result<&LedgerEntry> {
         let event = HubEvent::CouncilThresholdChanged {
             new_m,
             initiated_by: self.sovereign_lct_id,
         };
-        self.append(event)
+        self.append(event).await
     }
 
     // ---------- queries ----------
@@ -232,15 +211,12 @@ impl HubSession {
         self.state().find_skill(query).into_iter().cloned().collect()
     }
 
-    pub fn society(&self) -> Result<Society> {
-        load_society(self.hub_dir())
+    pub async fn society(&self) -> Result<Society> {
+        load_society(self.hub_dir()).await
     }
 
-    /// Base-mandatory roles per Web4 spec that are NOT currently filled in
-    /// the society state. Useful for status reporting and "what does the
-    /// chapter still need to assign?" guidance.
-    pub fn unfilled_base_roles(&self) -> Result<Vec<SocietyRole>> {
-        let society = self.society()?;
+    pub async fn unfilled_base_roles(&self) -> Result<Vec<SocietyRole>> {
+        let society = self.society().await?;
         let mut unfilled = Vec::new();
         for role in SocietyRole::base_mandatory() {
             let key = match serde_json::to_value(&role).ok().and_then(|v| v.as_str().map(|s| s.to_string())) {
@@ -256,8 +232,8 @@ impl HubSession {
 
     // ---------- internal ----------
 
-    fn append(&mut self, event: HubEvent) -> Result<&LedgerEntry> {
-        self.ledger.append(self.sovereign_lct_id, &self.sovereign_keypair, event)
+    async fn append(&mut self, event: HubEvent) -> Result<&LedgerEntry> {
+        self.ledger.append(self.sovereign_lct_id, &self.sovereign_keypair, event).await
     }
 }
 
@@ -294,7 +270,7 @@ mod tests {
     use tempfile::tempdir;
     use web4_core::lct::EntityType;
 
-    fn fresh_chapter() -> (tempfile::TempDir, PathBuf) {
+    async fn fresh_chapter() -> (tempfile::TempDir, PathBuf) {
         let tmp = tempdir().unwrap();
         let sovereign_path = tmp.path().join("sovereign.json");
         IdentityFile::generate(EntityType::Human).save(&sovereign_path).unwrap();
@@ -304,32 +280,32 @@ mod tests {
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
-        }).unwrap();
+        }).await.unwrap();
         (tmp, hub_dir)
     }
 
-    #[test]
-    fn open_and_status_after_init() {
-        let (_tmp, dir) = fresh_chapter();
-        let session = HubSession::open(&dir).unwrap();
+    #[tokio::test]
+    async fn open_and_status_after_init() {
+        let (_tmp, dir) = fresh_chapter().await;
+        let session = HubSession::open(&dir).await.unwrap();
         let st = session.status();
         assert_eq!(st.hub_name, "Test Chapter");
         assert_eq!(st.ledger_entries, 1); // Genesis
         assert_eq!(st.member_count, 1);   // Sovereign
     }
 
-    #[test]
-    fn end_to_end_session_ops() {
-        let (_tmp, dir) = fresh_chapter();
-        let mut session = HubSession::open(&dir).unwrap();
+    #[tokio::test]
+    async fn end_to_end_session_ops() {
+        let (_tmp, dir) = fresh_chapter().await;
+        let mut session = HubSession::open(&dir).await.unwrap();
 
         let alice = Uuid::new_v4();
         let bob = Uuid::new_v4();
 
-        session.add_member(alice, Some("Alice".into())).unwrap();
-        session.add_member(bob, Some("Bob".into())).unwrap();
-        session.declare_skill(alice, "Medical Imaging RAG".into()).unwrap();
-        session.declare_skill(bob, "Distributed Systems".into()).unwrap();
+        session.add_member(alice, Some("Alice".into())).await.unwrap();
+        session.add_member(bob, Some("Bob".into())).await.unwrap();
+        session.declare_skill(alice, "Medical Imaging RAG".into()).await.unwrap();
+        session.declare_skill(bob, "Distributed Systems".into()).await.unwrap();
 
         let st = session.status();
         assert_eq!(st.member_count, 3); // Sovereign + Alice + Bob
@@ -340,7 +316,7 @@ mod tests {
         assert_eq!(matches[0].lct_id, alice);
 
         // Remove Alice; her skill should drop from the index
-        session.remove_member(alice, Some("test removal".into())).unwrap();
+        session.remove_member(alice, Some("test removal".into())).await.unwrap();
         let matches = session.find_skill("imaging");
         assert!(matches.is_empty(), "skill index should drop with member");
 
@@ -348,15 +324,15 @@ mod tests {
         assert_eq!(st.member_count, 2); // Sovereign + Bob
     }
 
-    #[test]
-    fn session_writes_persist_across_reopen() {
-        let (_tmp, dir) = fresh_chapter();
+    #[tokio::test]
+    async fn session_writes_persist_across_reopen() {
+        let (_tmp, dir) = fresh_chapter().await;
         {
-            let mut session = HubSession::open(&dir).unwrap();
-            session.add_member(Uuid::new_v4(), Some("Alice".into())).unwrap();
-            session.add_member(Uuid::new_v4(), Some("Bob".into())).unwrap();
+            let mut session = HubSession::open(&dir).await.unwrap();
+            session.add_member(Uuid::new_v4(), Some("Alice".into())).await.unwrap();
+            session.add_member(Uuid::new_v4(), Some("Bob".into())).await.unwrap();
         }
-        let session = HubSession::open(&dir).unwrap();
+        let session = HubSession::open(&dir).await.unwrap();
         let st = session.status();
         assert_eq!(st.member_count, 3);
         assert_eq!(st.ledger_entries, 3);

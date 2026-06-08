@@ -388,47 +388,47 @@ async fn main() -> Result<()> {
                      sovereign_pubkey, hub_dir, storage).await
         }
         Some(Command::GenLct { output, entity_type }) => {
-            run_gen_lct(output, entity_type.into())
+            run_gen_lct(output, entity_type.into()).await
         }
         Some(Command::EnvelopeSign { identity, nonce, payload }) => {
-            run_envelope_sign(identity, nonce, payload)
+            run_envelope_sign(identity, nonce, payload).await
         }
         Some(Command::VerifyLedger { hub_dir }) => {
-            run_verify_ledger(hub_dir)
+            run_verify_ledger(hub_dir).await
         }
         Some(Command::Migrate { hub_dir, to }) => {
-            run_migrate(hub_dir, to)
+            run_migrate(hub_dir, to).await
         }
         Some(Command::Serve { hub_dir, port, bind }) => {
             run_serve(hub_dir, port, bind).await
         }
-        Some(Command::Status { hub_dir }) => run_status(hub_dir),
+        Some(Command::Status { hub_dir }) => run_status(hub_dir).await,
         Some(Command::AddMember { hub_dir, member_lct_id, name }) => {
-            run_add_member(hub_dir, member_lct_id, name)
+            run_add_member(hub_dir, member_lct_id, name).await
         }
         Some(Command::RemoveMember { hub_dir, member_lct_id, reason }) => {
-            run_remove_member(hub_dir, member_lct_id, reason)
+            run_remove_member(hub_dir, member_lct_id, reason).await
         }
         Some(Command::AssignRole { hub_dir, role, role_lct_id, member_lct_id }) => {
-            run_assign_role(hub_dir, role, role_lct_id, member_lct_id)
+            run_assign_role(hub_dir, role, role_lct_id, member_lct_id).await
         }
         Some(Command::RecordEvent { hub_dir, event_kind, title, attended_by }) => {
-            run_record_event(hub_dir, event_kind, title, attended_by)
+            run_record_event(hub_dir, event_kind, title, attended_by).await
         }
         Some(Command::DeclareSkill { hub_dir, member_lct_id, skill }) => {
-            run_declare_skill(hub_dir, member_lct_id, skill)
+            run_declare_skill(hub_dir, member_lct_id, skill).await
         }
         Some(Command::SetLaw { hub_dir, yaml, diff_summary }) => {
-            run_set_law(hub_dir, yaml, diff_summary)
+            run_set_law(hub_dir, yaml, diff_summary).await
         }
-        Some(Command::GetLaw { hub_dir }) => run_get_law(hub_dir),
-        Some(Command::InitLaw { output, force }) => run_init_law(output, force),
-        Some(Command::Council { subcommand }) => run_council(subcommand),
-        Some(Command::Query { subcommand }) => run_query(subcommand),
+        Some(Command::GetLaw { hub_dir }) => run_get_law(hub_dir).await,
+        Some(Command::InitLaw { output, force }) => run_init_law(output, force).await,
+        Some(Command::Council { subcommand }) => run_council(subcommand).await,
+        Some(Command::Query { subcommand }) => run_query(subcommand).await,
     }
 }
 
-fn run_council(sub: CouncilCommand) -> Result<()> {
+async fn run_council(sub: CouncilCommand) -> Result<()> {
     match sub {
         CouncilCommand::Add { hub_dir, member_lct_id, pubkey, name } => {
             // Validate pubkey hex shape early so the operator gets a clear
@@ -438,8 +438,8 @@ fn run_council(sub: CouncilCommand) -> Result<()> {
             if decoded.len() != 32 {
                 anyhow::bail!("--pubkey must be 32 bytes (got {})", decoded.len());
             }
-            let mut session = HubSession::open(&hub_dir)?;
-            let entry = session.add_council_member(member_lct_id, pubkey, name.clone())?;
+            let mut session = HubSession::open(&hub_dir).await?;
+            let entry = session.add_council_member(member_lct_id, pubkey, name.clone()).await?;
             println!("Council member added.");
             println!("  Member LCT:   {}", member_lct_id);
             if let Some(n) = name { println!("  Name:         {}", n); }
@@ -451,8 +451,8 @@ fn run_council(sub: CouncilCommand) -> Result<()> {
             Ok(())
         }
         CouncilCommand::Remove { hub_dir, member_lct_id, kind, reason } => {
-            let mut session = HubSession::open(&hub_dir)?;
-            let entry = session.remove_council_member(member_lct_id, kind.into(), reason)?;
+            let mut session = HubSession::open(&hub_dir).await?;
+            let entry = session.remove_council_member(member_lct_id, kind.into(), reason).await?;
             println!("Council member removed.");
             println!("  Member LCT:   {}", member_lct_id);
             println!("  Entry index:  {}", entry.index);
@@ -460,9 +460,9 @@ fn run_council(sub: CouncilCommand) -> Result<()> {
             Ok(())
         }
         CouncilCommand::SetThreshold { hub_dir, m } => {
-            let mut session = HubSession::open(&hub_dir)?;
+            let mut session = HubSession::open(&hub_dir).await?;
             let (entry_index, entry_hash) = {
-                let entry = session.set_council_threshold(m)?;
+                let entry = session.set_council_threshold(m).await?;
                 (entry.index, entry.entry_hash.clone())
             };
             let state = session.state();
@@ -481,9 +481,9 @@ fn run_council(sub: CouncilCommand) -> Result<()> {
             Ok(())
         }
         CouncilCommand::Show { hub_dir } => {
-            let session = HubSession::open(&hub_dir)?;
+            let session = HubSession::open(&hub_dir).await?;
             let state = session.state();
-            let society = session.society()?;
+            let society = session.society().await?;
             println!("Sovereign Council:");
             println!("  Founding Sovereign: {}", society.founder_lct_id);
             println!("  Council holders: {}", state.council_holders.len());
@@ -524,8 +524,8 @@ fn parse_role(s: &str) -> Result<SocietyRole> {
     })
 }
 
-fn run_status(hub_dir: PathBuf) -> Result<()> {
-    let session = HubSession::open(&hub_dir)?;
+async fn run_status(hub_dir: PathBuf) -> Result<()> {
+    let session = HubSession::open(&hub_dir).await?;
     let st = session.status();
     println!("Chapter status:");
     println!("  Chapter dir:     {}", st.hub_dir.display());
@@ -537,9 +537,9 @@ fn run_status(hub_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn run_add_member(hub_dir: PathBuf, member_lct_id: Uuid, name: Option<String>) -> Result<()> {
-    let mut session = HubSession::open(&hub_dir)?;
-    let entry = session.add_member(member_lct_id, name.clone())?;
+async fn run_add_member(hub_dir: PathBuf, member_lct_id: Uuid, name: Option<String>) -> Result<()> {
+    let mut session = HubSession::open(&hub_dir).await?;
+    let entry = session.add_member(member_lct_id, name.clone()).await?;
     println!("Member added.");
     println!("  Member LCT:   {}", member_lct_id);
     if let Some(n) = name { println!("  Name:         {}", n); }
@@ -548,9 +548,9 @@ fn run_add_member(hub_dir: PathBuf, member_lct_id: Uuid, name: Option<String>) -
     Ok(())
 }
 
-fn run_remove_member(hub_dir: PathBuf, member_lct_id: Uuid, reason: Option<String>) -> Result<()> {
-    let mut session = HubSession::open(&hub_dir)?;
-    let entry = session.remove_member(member_lct_id, reason)?;
+async fn run_remove_member(hub_dir: PathBuf, member_lct_id: Uuid, reason: Option<String>) -> Result<()> {
+    let mut session = HubSession::open(&hub_dir).await?;
+    let entry = session.remove_member(member_lct_id, reason).await?;
     println!("Member removed.");
     println!("  Member LCT:   {}", member_lct_id);
     println!("  Entry index:  {}", entry.index);
@@ -558,15 +558,15 @@ fn run_remove_member(hub_dir: PathBuf, member_lct_id: Uuid, reason: Option<Strin
     Ok(())
 }
 
-fn run_assign_role(
+async fn run_assign_role(
     hub_dir: PathBuf,
     role: String,
     role_lct_id: Uuid,
     member_lct_id: Uuid,
 ) -> Result<()> {
     let parsed = parse_role(&role)?;
-    let mut session = HubSession::open(&hub_dir)?;
-    let entry = session.assign_role(parsed.clone(), role_lct_id, member_lct_id)?;
+    let mut session = HubSession::open(&hub_dir).await?;
+    let entry = session.assign_role(parsed.clone(), role_lct_id, member_lct_id).await?;
     println!("Role assigned.");
     println!("  Role:         {:?}", parsed);
     println!("  Role LCT:     {}", role_lct_id);
@@ -576,14 +576,14 @@ fn run_assign_role(
     Ok(())
 }
 
-fn run_record_event(
+async fn run_record_event(
     hub_dir: PathBuf,
     event_kind: String,
     title: String,
     attended_by: Vec<Uuid>,
 ) -> Result<()> {
-    let mut session = HubSession::open(&hub_dir)?;
-    let entry = session.record_event(event_kind.clone(), title.clone(), attended_by.clone(), None)?;
+    let mut session = HubSession::open(&hub_dir).await?;
+    let entry = session.record_event(event_kind.clone(), title.clone(), attended_by.clone(), None).await?;
     println!("Event recorded.");
     println!("  Kind:         {}", event_kind);
     println!("  Title:        {}", title);
@@ -593,7 +593,7 @@ fn run_record_event(
     Ok(())
 }
 
-fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<String>) -> Result<()> {
+async fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<String>) -> Result<()> {
     let yaml = std::fs::read_to_string(&yaml_path)
         .with_context(|| format!("reading law YAML from {}", yaml_path.display()))?;
     // Parse + validate at the operator boundary so errors land clearly.
@@ -601,8 +601,8 @@ fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<String
         .context("parsing/validating law YAML")?;
     let version = law.version.clone();
 
-    let mut session = HubSession::open(&hub_dir)?;
-    let entry = session.set_law(&yaml, version.clone(), diff_summary.clone())?;
+    let mut session = HubSession::open(&hub_dir).await?;
+    let entry = session.set_law(&yaml, version.clone(), diff_summary.clone()).await?;
 
     println!("Law set.");
     println!("  Chapter dir:  {}", hub_dir.display());
@@ -617,9 +617,9 @@ fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<String
     Ok(())
 }
 
-fn run_get_law(hub_dir: PathBuf) -> Result<()> {
-    let session = HubSession::open(&hub_dir)?;
-    match session.get_law()? {
+async fn run_get_law(hub_dir: PathBuf) -> Result<()> {
+    let session = HubSession::open(&hub_dir).await?;
+    match session.get_law().await? {
         Some(yaml) => print!("{}", yaml),
         None => println!("No chapter law set."),
     }
@@ -630,7 +630,7 @@ fn run_get_law(hub_dir: PathBuf) -> Result<()> {
 /// binary ships with it. Source: `web4/hub/examples/starter-law.yaml`.
 const STARTER_LAW_YAML: &str = include_str!("../../examples/starter-law.yaml");
 
-fn run_init_law(output: PathBuf, force: bool) -> Result<()> {
+async fn run_init_law(output: PathBuf, force: bool) -> Result<()> {
     if output.exists() && !force {
         anyhow::bail!(
             "{} already exists. Pass --force to overwrite, or pick a different --output path.",
@@ -661,9 +661,9 @@ fn run_init_law(output: PathBuf, force: bool) -> Result<()> {
     Ok(())
 }
 
-fn run_declare_skill(hub_dir: PathBuf, member_lct_id: Uuid, skill: String) -> Result<()> {
-    let mut session = HubSession::open(&hub_dir)?;
-    let entry = session.declare_skill(member_lct_id, skill.clone())?;
+async fn run_declare_skill(hub_dir: PathBuf, member_lct_id: Uuid, skill: String) -> Result<()> {
+    let mut session = HubSession::open(&hub_dir).await?;
+    let entry = session.declare_skill(member_lct_id, skill.clone()).await?;
     println!("Skill declared.");
     println!("  Member LCT:   {}", member_lct_id);
     println!("  Skill:        {}", skill);
@@ -672,10 +672,10 @@ fn run_declare_skill(hub_dir: PathBuf, member_lct_id: Uuid, skill: String) -> Re
     Ok(())
 }
 
-fn run_query(sub: QueryCommand) -> Result<()> {
+async fn run_query(sub: QueryCommand) -> Result<()> {
     match sub {
         QueryCommand::Members { hub_dir } => {
-            let session = HubSession::open(&hub_dir)?;
+            let session = HubSession::open(&hub_dir).await?;
             let members = session.list_members();
             println!("Members ({}):", members.len());
             for m in members {
@@ -692,7 +692,7 @@ fn run_query(sub: QueryCommand) -> Result<()> {
             Ok(())
         }
         QueryCommand::Skill { hub_dir, query } => {
-            let session = HubSession::open(&hub_dir)?;
+            let session = HubSession::open(&hub_dir).await?;
             let matches = session.find_skill(&query);
             println!("Skill search '{}' — {} match(es):", query, matches.len());
             for m in matches {
@@ -704,10 +704,10 @@ fn run_query(sub: QueryCommand) -> Result<()> {
             Ok(())
         }
         QueryCommand::Chapter { hub_dir } => {
-            let session = HubSession::open(&hub_dir)?;
-            let society = session.society()?;
+            let session = HubSession::open(&hub_dir).await?;
+            let society = session.society().await?;
             let state = session.state();
-            let unfilled = session.unfilled_base_roles()?;
+            let unfilled = session.unfilled_base_roles().await?;
             println!("Chapter:");
             println!("  Name:        {}", society.name);
             println!("  Society LCT: {}", society.lct_id);
@@ -746,14 +746,14 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
     // refreshes both surfaces in one call.
     let initial_law = {
         let store = hub_lib::store::open_chapter_store(&hub_dir)?;
-        match store.read_law()? {
+        match store.read_law().await? {
             Some(yaml) => Some(hub_lib::law::Law::parse_and_validate(&yaml)?),
             None => None,
         }
     };
     let shared_law = std::sync::Arc::new(tokio::sync::RwLock::new(initial_law));
-    let mcp_state = McpState::open_with_law(hub_dir.clone(), shared_law.clone())?;
-    let rest_state = RestState::open_with_law(hub_dir.clone(), shared_law)?;
+    let mcp_state = McpState::open_with_law(hub_dir.clone(), shared_law.clone()).await?;
+    let rest_state = RestState::open_with_law(hub_dir.clone(), shared_law).await?;
     // Admin UI reuses RestState (read-only; shares ledger + law snapshot).
     let admin_state = rest_state.clone();
     let app = mcp_router(mcp_state)
@@ -786,8 +786,8 @@ async fn shutdown_signal() {
     tracing::info!("ctrl-c received — shutting down");
 }
 
-fn run_verify_ledger(hub_dir: PathBuf) -> Result<()> {
-    let result = verify_chapter(&hub_dir)?;
+async fn run_verify_ledger(hub_dir: PathBuf) -> Result<()> {
+    let result = verify_chapter(&hub_dir).await?;
     println!("Ledger verified.");
     println!("  Chapter dir:    {}", result.hub_dir.display());
     println!("  Chapter name:   {}", result.hub_name);
@@ -796,12 +796,12 @@ fn run_verify_ledger(hub_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn run_migrate(hub_dir: PathBuf, to: String) -> Result<()> {
+async fn run_migrate(hub_dir: PathBuf, to: String) -> Result<()> {
     use std::str::FromStr;
     let target = hub_lib::store::BackendKind::from_str(&to)
         .context("parsing --to")?;
     println!("Migrating {} → {}", hub_dir.display(), target.as_str());
-    let result = hub_lib::store::migrate_chapter(&hub_dir, target)
+    let result = hub_lib::store::migrate_chapter(&hub_dir, target).await
         .context("migrating chapter")?;
     if result.source_backend == result.target_backend {
         println!("Source backend is already {}; nothing to do.", target.as_str());
@@ -818,7 +818,7 @@ fn run_migrate(hub_dir: PathBuf, to: String) -> Result<()> {
     }
     println!();
     println!("Verifying migrated chapter end-to-end ...");
-    let verify = verify_chapter(&hub_dir)
+    let verify = verify_chapter(&hub_dir).await
         .context("post-migration ledger verification failed")?;
     println!("Ledger verified on {} backend.", target.as_str());
     println!("  Entries:        {}", verify.entries);
@@ -848,7 +848,7 @@ async fn run_init(
                 hub_dir,
                 sovereign_lct_path: path,
                 storage: Some(backend),
-            })?
+            }).await?
         }
         (None, Some(callback_url)) => {
             // Hestia mode — clap's `requires_all` guarantees lct_id + pubkey are present
@@ -899,7 +899,7 @@ async fn run_init(
     Ok(())
 }
 
-fn run_gen_lct(output: PathBuf, entity_type: EntityType) -> Result<()> {
+async fn run_gen_lct(output: PathBuf, entity_type: EntityType) -> Result<()> {
     let identity = IdentityFile::generate(entity_type);
     identity.save(&output)?;
     println!("Identity generated.");
@@ -911,7 +911,7 @@ fn run_gen_lct(output: PathBuf, entity_type: EntityType) -> Result<()> {
     Ok(())
 }
 
-fn run_envelope_sign(identity_path: PathBuf, nonce: String, payload_json: String) -> Result<()> {
+async fn run_envelope_sign(identity_path: PathBuf, nonce: String, payload_json: String) -> Result<()> {
     use chrono::Utc;
     use hub_lib::envelope::{build_envelope, Challenge};
 

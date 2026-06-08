@@ -810,8 +810,8 @@ atp_issuance:
   description: "Treasurer mints up to 1000 ATP per cycle"
 "#;
 
-    #[test]
-    fn canonical_example_parses_and_validates() {
+    #[tokio::test]
+    async fn canonical_example_parses_and_validates() {
         let law = Law::parse_and_validate(EXAMPLE_LAW)
             .expect("canonical example from schema doc must parse + validate");
         assert_eq!(law.version, "1.0.0");
@@ -823,8 +823,8 @@ atp_issuance:
         assert!(law.atp_issuance.is_some());
     }
 
-    #[test]
-    fn round_trip_yaml() {
+    #[tokio::test]
+    async fn round_trip_yaml() {
         let original = Law::from_yaml(EXAMPLE_LAW).unwrap();
         let yaml = original.to_yaml().unwrap();
         let reparsed = Law::from_yaml(&yaml).unwrap();
@@ -833,8 +833,8 @@ atp_issuance:
         assert_eq!(reparsed.procedures.len(), original.procedures.len());
     }
 
-    #[test]
-    fn empty_version_rejected() {
+    #[tokio::test]
+    async fn empty_version_rejected() {
         let yaml = r#"
 version: ""
 "#;
@@ -844,8 +844,8 @@ version: ""
         assert!(err.contains("version"));
     }
 
-    #[test]
-    fn bad_semver_rejected() {
+    #[tokio::test]
+    async fn bad_semver_rejected() {
         let yaml = r#"
 version: "not-a-semver"
 "#;
@@ -855,8 +855,8 @@ version: "not-a-semver"
         assert!(err.contains("semver"));
     }
 
-    #[test]
-    fn duplicate_norm_id_rejected() {
+    #[tokio::test]
+    async fn duplicate_norm_id_rejected() {
         let yaml = r#"
 version: "1.0.0"
 norms:
@@ -877,8 +877,8 @@ norms:
         assert!(err.contains("duplicate norm id"));
     }
 
-    #[test]
-    fn unknown_role_in_delegation_rejected() {
+    #[tokio::test]
+    async fn unknown_role_in_delegation_rejected() {
         let yaml = r#"
 version: "1.0.0"
 delegation:
@@ -892,8 +892,8 @@ delegation:
         assert!(err.contains("unknown role 'bogus_role'"));
     }
 
-    #[test]
-    fn negative_max_depth_rejected() {
+    #[tokio::test]
+    async fn negative_max_depth_rejected() {
         let yaml = r#"
 version: "1.0.0"
 delegation:
@@ -903,8 +903,8 @@ delegation:
         assert!(result.is_err());
     }
 
-    #[test]
-    fn unknown_role_in_escalation_rejected() {
+    #[tokio::test]
+    async fn unknown_role_in_escalation_rejected() {
         let yaml = r#"
 version: "1.0.0"
 escalation:
@@ -915,8 +915,8 @@ escalation:
         assert!(result.is_err());
     }
 
-    #[test]
-    fn unknown_role_in_atp_issuance_rejected() {
+    #[tokio::test]
+    async fn unknown_role_in_atp_issuance_rejected() {
         let yaml = r#"
 version: "1.0.0"
 atp_issuance:
@@ -927,8 +927,8 @@ atp_issuance:
         assert!(result.is_err());
     }
 
-    #[test]
-    fn min_trust_out_of_range_rejected() {
+    #[tokio::test]
+    async fn min_trust_out_of_range_rejected() {
         let yaml = r#"
 version: "1.0.0"
 admission:
@@ -940,8 +940,8 @@ admission:
         assert!(err.contains("min_trust_score"));
     }
 
-    #[test]
-    fn bad_operator_rejected_during_parse() {
+    #[tokio::test]
+    async fn bad_operator_rejected_during_parse() {
         // Operator is an enum; serde rejects unknown variants at parse time.
         let yaml = r#"
 version: "1.0.0"
@@ -956,8 +956,8 @@ norms:
         assert!(result.is_err());
     }
 
-    #[test]
-    fn bad_decision_rejected_during_parse() {
+    #[tokio::test]
+    async fn bad_decision_rejected_during_parse() {
         let yaml = r#"
 version: "1.0.0"
 norms:
@@ -971,8 +971,8 @@ norms:
         assert!(result.is_err());
     }
 
-    #[test]
-    fn minimal_law_validates() {
+    #[tokio::test]
+    async fn minimal_law_validates() {
         let yaml = r#"
 version: "0.1.0"
 "#;
@@ -981,8 +981,8 @@ version: "0.1.0"
         assert!(law.delegation.is_none());
     }
 
-    #[test]
-    fn duplicate_procedure_id_rejected() {
+    #[tokio::test]
+    async fn duplicate_procedure_id_rejected() {
         let yaml = r#"
 version: "1.0.0"
 procedures:
@@ -997,8 +997,8 @@ procedures:
         assert!(err.contains("duplicate procedure id"));
     }
 
-    #[test]
-    fn role_names_are_case_insensitive() {
+    #[tokio::test]
+    async fn role_names_are_case_insensitive() {
         let yaml = r#"
 version: "1.0.0"
 delegation:
@@ -1022,15 +1022,15 @@ delegation:
         }
     }
 
-    #[test]
-    fn no_norms_defaults_to_allow() {
+    #[tokio::test]
+    async fn no_norms_defaults_to_allow() {
         let law = Law::parse_and_validate(r#"version: "1.0.0""#).unwrap();
         let decision = law.evaluate(&request_with("citizen", "add_member"));
         assert_eq!(decision, Decision::Allow);
     }
 
-    #[test]
-    fn atp_limit_denies_when_exceeded() {
+    #[tokio::test]
+    async fn atp_limit_denies_when_exceeded() {
         let yaml = r#"
 version: "1.0.0"
 norms:
@@ -1046,8 +1046,8 @@ norms:
         assert_eq!(law.evaluate(&req), Decision::Deny);
     }
 
-    #[test]
-    fn atp_limit_allows_when_under() {
+    #[tokio::test]
+    async fn atp_limit_allows_when_under() {
         let yaml = r#"
 version: "1.0.0"
 norms:
@@ -1063,8 +1063,8 @@ norms:
         assert_eq!(law.evaluate(&req), Decision::Allow);
     }
 
-    #[test]
-    fn action_match_triggers_escalate() {
+    #[tokio::test]
+    async fn action_match_triggers_escalate() {
         let yaml = r#"
 version: "1.0.0"
 norms:
@@ -1079,8 +1079,8 @@ norms:
         assert_eq!(law.evaluate(&request_with("citizen", "add_member")), Decision::Allow);
     }
 
-    #[test]
-    fn higher_priority_norm_wins() {
+    #[tokio::test]
+    async fn higher_priority_norm_wins() {
         let yaml = r#"
 version: "1.0.0"
 norms:
@@ -1103,8 +1103,8 @@ norms:
         assert_eq!(law.evaluate(&req), Decision::Deny);
     }
 
-    #[test]
-    fn role_selector_works() {
+    #[tokio::test]
+    async fn role_selector_works() {
         let yaml = r#"
 version: "1.0.0"
 norms:
@@ -1119,8 +1119,8 @@ norms:
         assert_eq!(law.evaluate(&request_with("treasurer", "mint_atp")), Decision::Allow);
     }
 
-    #[test]
-    fn in_operator_works() {
+    #[tokio::test]
+    async fn in_operator_works() {
         let yaml = r#"
 version: "1.0.0"
 norms:
@@ -1141,8 +1141,8 @@ norms:
         assert_eq!(law.evaluate(&request_with("citizen", "write")), Decision::Deny);
     }
 
-    #[test]
-    fn payload_dotpath_selector_resolves() {
+    #[tokio::test]
+    async fn payload_dotpath_selector_resolves() {
         let yaml = r#"
 version: "1.0.0"
 norms:
@@ -1167,8 +1167,8 @@ norms:
         assert_eq!(law.evaluate(&req), Decision::Deny);
     }
 
-    #[test]
-    fn unresolved_selector_means_norm_does_not_fire() {
+    #[tokio::test]
+    async fn unresolved_selector_means_norm_does_not_fire() {
         let yaml = r#"
 version: "1.0.0"
 norms:
@@ -1184,8 +1184,8 @@ norms:
         assert_eq!(law.evaluate(&req), Decision::Allow);
     }
 
-    #[test]
-    fn canonical_example_evaluates_atp_limit() {
+    #[tokio::test]
+    async fn canonical_example_evaluates_atp_limit() {
         // Sanity: the example law from schema doc actually does what
         // the descriptions claim.
         let law = Law::parse_and_validate(EXAMPLE_LAW).unwrap();
@@ -1214,36 +1214,36 @@ norms:
 
     // ----- Condition parser tests (V2-8 Step 3b) -----
 
-    #[test]
-    fn condition_parses_numeric_gt() {
+    #[tokio::test]
+    async fn condition_parses_numeric_gt() {
         let c = Condition::parse("r6.resource.atp > 50").unwrap();
         assert_eq!(c.selector, "r6.resource.atp");
         assert_eq!(c.operator, Operator::Gt);
         assert_eq!(c.value, serde_yaml::Value::Number(50.into()));
     }
 
-    #[test]
-    fn condition_parses_quoted_string_eq() {
+    #[tokio::test]
+    async fn condition_parses_quoted_string_eq() {
         let c = Condition::parse("r6.request.action == 'amend_charter'").unwrap();
         assert_eq!(c.selector, "r6.request.action");
         assert_eq!(c.operator, Operator::Eq);
         assert_eq!(c.value, serde_yaml::Value::String("amend_charter".into()));
     }
 
-    #[test]
-    fn condition_parses_double_quoted_string() {
+    #[tokio::test]
+    async fn condition_parses_double_quoted_string() {
         let c = Condition::parse("r6.role == \"sovereign\"").unwrap();
         assert_eq!(c.value, serde_yaml::Value::String("sovereign".into()));
     }
 
-    #[test]
-    fn condition_parses_bare_word() {
+    #[tokio::test]
+    async fn condition_parses_bare_word() {
         let c = Condition::parse("r6.request.action == add_member").unwrap();
         assert_eq!(c.value, serde_yaml::Value::String("add_member".into()));
     }
 
-    #[test]
-    fn condition_parses_list_for_in() {
+    #[tokio::test]
+    async fn condition_parses_list_for_in() {
         let c = Condition::parse("r6.role in [administrator, archivist]").unwrap();
         assert_eq!(c.operator, Operator::In);
         match c.value {
@@ -1252,28 +1252,28 @@ norms:
         }
     }
 
-    #[test]
-    fn condition_parses_le_and_ge() {
+    #[tokio::test]
+    async fn condition_parses_le_and_ge() {
         assert_eq!(Condition::parse("r6.x <= 5").unwrap().operator, Operator::Le);
         assert_eq!(Condition::parse("r6.x >= 5").unwrap().operator, Operator::Ge);
     }
 
-    #[test]
-    fn condition_rejects_non_r6_selector() {
+    #[tokio::test]
+    async fn condition_rejects_non_r6_selector() {
         let result = Condition::parse("user.role == sovereign");
         assert!(result.is_err());
         let err = format!("{:?}", result.unwrap_err());
         assert!(err.contains("must start with 'r6.'"));
     }
 
-    #[test]
-    fn condition_rejects_missing_operator() {
+    #[tokio::test]
+    async fn condition_rejects_missing_operator() {
         let result = Condition::parse("r6.role sovereign");
         assert!(result.is_err());
     }
 
-    #[test]
-    fn condition_matches_request() {
+    #[tokio::test]
+    async fn condition_matches_request() {
         let c = Condition::parse("r6.resource.atp > 50").unwrap();
         let mut req = request_with("citizen", "anything");
         req.resource.insert("atp".into(), serde_yaml::Value::Number(75.into()));
@@ -1284,8 +1284,8 @@ norms:
 
     // ----- Full evaluator with escalation -----
 
-    #[test]
-    fn escalation_fires_when_norms_silent() {
+    #[tokio::test]
+    async fn escalation_fires_when_norms_silent() {
         let yaml = r#"
 version: "1.0.0"
 escalation:
@@ -1301,8 +1301,8 @@ escalation:
         assert_eq!(outcome.escalation_index, Some(0));
     }
 
-    #[test]
-    fn deny_norm_overrides_escalation_trigger() {
+    #[tokio::test]
+    async fn deny_norm_overrides_escalation_trigger() {
         let yaml = r#"
 version: "1.0.0"
 norms:
@@ -1322,8 +1322,8 @@ escalation:
         assert_eq!(outcome.winning_norm, Some("HARD-DENY".to_string()));
     }
 
-    #[test]
-    fn norm_escalate_defaults_to_sovereign() {
+    #[tokio::test]
+    async fn norm_escalate_defaults_to_sovereign() {
         let yaml = r#"
 version: "1.0.0"
 norms:
@@ -1339,8 +1339,8 @@ norms:
         assert_eq!(outcome.escalate_to, Some("sovereign".to_string()));
     }
 
-    #[test]
-    fn escalation_with_quoted_string_value() {
+    #[tokio::test]
+    async fn escalation_with_quoted_string_value() {
         let yaml = r#"
 version: "1.0.0"
 escalation:
@@ -1372,35 +1372,35 @@ escalation:
         "../../../../shared-context/interop-fixtures/chapter-law/invalid-missing-norm-id.yaml"
     );
 
-    #[test]
-    fn interop_minimal_parses_and_validates() {
+    #[tokio::test]
+    async fn interop_minimal_parses_and_validates() {
         Law::parse_and_validate(FIXTURE_MINIMAL)
             .expect("interop minimal fixture must parse + validate");
     }
 
-    #[test]
-    fn interop_full_featured_parses_and_validates() {
+    #[tokio::test]
+    async fn interop_full_featured_parses_and_validates() {
         let law = Law::parse_and_validate(FIXTURE_FULL)
             .expect("interop full-featured fixture must parse + validate");
         assert!(!law.norms.is_empty(), "full-featured should have norms");
     }
 
-    #[test]
-    fn interop_invalid_bad_operator_rejected() {
+    #[tokio::test]
+    async fn interop_invalid_bad_operator_rejected() {
         let result = Law::parse_and_validate(FIXTURE_INVALID_BAD_OPERATOR);
         assert!(result.is_err(),
             "fixture with operator 'LIKE' must be rejected by validator");
     }
 
-    #[test]
-    fn interop_invalid_missing_norm_id_rejected() {
+    #[tokio::test]
+    async fn interop_invalid_missing_norm_id_rejected() {
         let result = Law::parse_and_validate(FIXTURE_INVALID_MISSING_NORM_ID);
         assert!(result.is_err(),
             "fixture with norm missing id must be rejected by validator");
     }
 
-    #[test]
-    fn canonical_example_evaluates_admin_only_roles() {
+    #[tokio::test]
+    async fn canonical_example_evaluates_admin_only_roles() {
         let law = Law::parse_and_validate(EXAMPLE_LAW).unwrap();
         let assign = request_with("citizen", "assign_role");
         // ADMIN-ONLY-ROLES (priority 20) fires; ATP-LIMIT may also fire

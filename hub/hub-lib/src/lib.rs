@@ -43,8 +43,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 mod tests {
     use super::*;
 
-    #[test]
-    fn version_is_set() {
+    #[tokio::test]
+    async fn version_is_set() {
         assert!(!VERSION.is_empty());
         assert!(VERSION.starts_with("0."));
     }

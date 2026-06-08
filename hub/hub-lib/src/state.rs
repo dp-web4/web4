@@ -200,7 +200,7 @@ mod tests {
     use tempfile::tempdir;
     use web4_core::lct::EntityType;
 
-    fn make_ledger_with(events: Vec<(Uuid, &web4_core::crypto::KeyPair, HubEvent)>)
+    async fn make_ledger_with(events: Vec<(Uuid, &web4_core::crypto::KeyPair, HubEvent)>)
         -> (tempfile::TempDir, HubLedger)
     {
         let tmp = tempdir().unwrap();
@@ -208,7 +208,7 @@ mod tests {
         std::fs::create_dir_all(&chap).unwrap();
         let store: Box<dyn crate::store::HubStore> =
             Box::new(FileBackend::new(HubPaths::new(chap)));
-        let mut ledger = HubLedger::open(store).unwrap();
+        let mut ledger = HubLedger::open(store).await.unwrap();
         for (actor, kp, event) in events {
             // First event must be Genesis; for tests we treat all as plain entries
             // but use write_genesis for the first.
@@ -218,19 +218,19 @@ mod tests {
                         *founding_sovereign_lct_id, kp,
                         hub_name.clone(),
                         charter_hash.clone(),
-                    ).unwrap();
+                    ).await.unwrap();
                     continue;
                 } else {
                     panic!("first event in test fixture must be Genesis");
                 }
             }
-            ledger.append(actor, kp, event).unwrap();
+            ledger.append(actor, kp, event).await.unwrap();
         }
         (tmp, ledger)
     }
 
-    #[test]
-    fn project_genesis_seeds_sovereign_as_member() {
+    #[tokio::test]
+    async fn project_genesis_seeds_sovereign_as_member() {
         let sov = IdentityFile::generate(EntityType::Human);
         let kp = sov.keypair().unwrap();
         let (_tmp, ledger) = make_ledger_with(vec![
@@ -240,14 +240,14 @@ mod tests {
                 founding_sovereign_lct_id: sov.lct.id,
                 created_at: Utc::now(),
             }),
-        ]);
+        ]).await;
         let state = HubState::project(&ledger);
         assert_eq!(state.member_count(), 1);
         assert!(state.members.contains_key(&sov.lct.id));
     }
 
-    #[test]
-    fn member_added_and_removed_round_trip() {
+    #[tokio::test]
+    async fn member_added_and_removed_round_trip() {
         let sov = IdentityFile::generate(EntityType::Human);
         let kp = sov.keypair().unwrap();
         let alice = Uuid::new_v4();
@@ -274,7 +274,7 @@ mod tests {
                 removed_by: sov.lct.id,
                 reason: Some("left chapter".into()),
             }),
-        ]);
+        ]).await;
         let state = HubState::project(&ledger);
         assert_eq!(state.member_count(), 1); // just Sovereign
         assert!(!state.members.contains_key(&alice));
@@ -282,8 +282,8 @@ mod tests {
         assert!(state.find_skill("rust").is_empty());
     }
 
-    #[test]
-    fn find_skill_is_case_insensitive_substring() {
+    #[tokio::test]
+    async fn find_skill_is_case_insensitive_substring() {
         let sov = IdentityFile::generate(EntityType::Human);
         let kp = sov.keypair().unwrap();
         let alice = Uuid::new_v4();
@@ -299,7 +299,7 @@ mod tests {
             (sov.lct.id, &kp, HubEvent::MemberAdded { member_lct_id: bob, added_by: sov.lct.id, member_name: Some("Bob".into()), member_pubkey_hex: None }),
             (sov.lct.id, &kp, HubEvent::MemberSkillDeclared { member_lct_id: alice, skill: "Medical Imaging RAG".into(), declared_by: sov.lct.id }),
             (sov.lct.id, &kp, HubEvent::MemberSkillDeclared { member_lct_id: bob, skill: "Distributed Systems".into(), declared_by: sov.lct.id }),
-        ]);
+        ]).await;
         let state = HubState::project(&ledger);
         let matches = state.find_skill("RAG");
         assert_eq!(matches.len(), 1);

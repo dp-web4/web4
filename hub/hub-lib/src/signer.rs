@@ -478,8 +478,8 @@ mod tests {
         assert!(matches!(result, Err(SignError::Internal(_))));
     }
 
-    #[test]
-    fn sign_response_serde_round_trips() {
+    #[tokio::test]
+    async fn sign_response_serde_round_trips() {
         let approved = SignResponse::Approved {
             request_id: Uuid::new_v4(),
             signature: "ab".repeat(64),
