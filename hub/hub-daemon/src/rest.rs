@@ -67,22 +67,22 @@ pub struct RestState {
     /// Chapter law, loaded at open() time. None = no law set (all
     /// envelope-authenticated acts allowed). When present, the PolicyEntity
     /// gate runs before each act is committed to the ledger.
-    pub law: Arc<Option<Law>>,
+    ///
+    /// Wrapped in RwLock so set-law (or `POST /v1/chapters/{id}/law`)
+    /// can hot-reload without restarting hub serve.
+    pub law: Arc<tokio::sync::RwLock<Option<Law>>>,
 }
 
 impl RestState {
-    pub fn open(chapter_dir: PathBuf) -> Result<Self> {
+    /// Open with the caller-supplied shared law slot. Used by `hub serve`
+    /// so REST + MCP evaluate against the same snapshot + share reload.
+    pub fn open_with_law(
+        chapter_dir: PathBuf,
+        law: Arc<tokio::sync::RwLock<Option<Law>>>,
+    ) -> Result<Self> {
         let paths = ChapterPaths::new(chapter_dir.clone());
         let config = hub_lib::chapter::ChapterConfig::load(paths.config())?;
         let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
-        // Load chapter law if set (V2-8 §4). Parsed once at startup; act
-        // handlers evaluate against this snapshot. Hot-reload on amendment
-        // is a future sprint — for now, restart hub serve after set-law.
-        let law: Option<Law> = match store.read_law()? {
-            Some(yaml) => Some(Law::parse_and_validate(&yaml)
-                .map_err(|e| anyhow::anyhow!("loading chapter law on serve: {}", e))?),
-            None => None,
-        };
         let ledger = ChapterLedger::open(store)?;
         let society = load_society(&chapter_dir)?;
 
@@ -115,8 +115,42 @@ impl RestState {
             ledger: Arc::new(Mutex::new(ledger)),
             nonces: Arc::new(NonceStore::new()),
             resolver: Arc::new(resolver),
-            law: Arc::new(law),
+            law,
         })
+    }
+
+    /// Backward-compat: load the chapter's law from storage into a
+    /// fresh slot. Standalone callers that don't need REST/MCP shared
+    /// reload can use this.
+    pub fn open(chapter_dir: PathBuf) -> Result<Self> {
+        let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
+        let law: Option<Law> = match store.read_law()? {
+            Some(yaml) => Some(Law::parse_and_validate(&yaml)
+                .map_err(|e| anyhow::anyhow!("loading chapter law: {}", e))?),
+            None => None,
+        };
+        Self::open_with_law(chapter_dir, Arc::new(tokio::sync::RwLock::new(law)))
+    }
+
+    /// Re-read the chapter law from storage and swap it into the
+    /// in-memory snapshot. Returns Ok with the version (or "none" if
+    /// no law set). Used by the `/v1/admin/reload-law` endpoint so
+    /// operators can `hub set-law` then `curl reload-law` without
+    /// restarting hub serve.
+    pub async fn reload_law(&self) -> anyhow::Result<String> {
+        use anyhow::Context;
+        let store = hub_lib::store::open_chapter_store(&self.paths.root)
+            .context("opening store for law reload")?;
+        let new_law: Option<Law> = match store.read_law()? {
+            Some(ref yaml) => Some(Law::parse_and_validate(yaml)
+                .map_err(|e| anyhow::anyhow!("law on disk failed to parse/validate: {}", e))?),
+            None => None,
+        };
+        let version = new_law.as_ref()
+            .map(|l| l.version.clone())
+            .unwrap_or_else(|| "none".to_string());
+        *self.law.write().await = new_law;
+        Ok(version)
     }
 }
 
@@ -125,6 +159,7 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/auth/challenge", post(issue_challenge))
         .route("/v1/chapters/:chapter_id/events", post(submit_event))
         .route("/v1/chapters/:chapter_id/state", get(read_state))
+        .route("/v1/admin/reload-law", post(reload_law))
         .with_state(state)
 }
 
@@ -260,7 +295,8 @@ async fn submit_event(
     // 3.5 PolicyEntity gate (V2-8 §4): if a chapter law is loaded,
     // evaluate the act against it. Deny → 403; Escalate → 202 with the
     // escalate_to role; Allow → proceed.
-    if let Some(law) = s.law.as_ref() {
+    let law_guard = s.law.read().await;
+    if let Some(law) = law_guard.as_ref() {
         let req = build_r6_request(&envelope, &event)
             .map_err(ApiError::internal)?;
         let outcome = law.evaluate_outcome(&req);
@@ -287,6 +323,7 @@ async fn submit_event(
             }
         }
     }
+    drop(law_guard);
 
     // 4. Build the unsigned entry. We need the ledger lock briefly to
     // assign index + prev_hash, then we release it during the (possibly
@@ -402,6 +439,21 @@ async fn read_state(
         head_hash,
         filled_roles,
     }))
+}
+
+// ---------- POST /v1/admin/reload-law ----------
+
+#[derive(Serialize)]
+struct ReloadLawResponse {
+    reloaded: bool,
+    version: String,
+}
+
+async fn reload_law(
+    State(s): State<RestState>,
+) -> Result<Json<ReloadLawResponse>, ApiError> {
+    let version = s.reload_law().await.map_err(ApiError::internal)?;
+    Ok(Json(ReloadLawResponse { reloaded: true, version }))
 }
 
 // ---------- PolicyEntity gate helper (V2-8 §4) ----------

@@ -61,11 +61,30 @@ pub struct McpState {
     pub ledger: Arc<Mutex<ChapterLedger>>,
     /// Chapter law snapshot (loaded at open). PolicyEntity gate runs
     /// before each act-recording tool commits to the ledger.
-    pub law: Arc<Option<Law>>,
+    ///
+    /// RwLock for hot-reload via the REST `/v1/admin/reload-law` endpoint;
+    /// any subsequent MCP tool-call picks up the swapped-in law on its
+    /// next .read() lock.
+    pub law: Arc<tokio::sync::RwLock<Option<Law>>>,
 }
 
 impl McpState {
+    /// Backward-compat: load law from the chapter store into a fresh slot.
     pub fn open(chapter_dir: PathBuf) -> Result<Self> {
+        let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
+        let law: Option<Law> = match store.read_law()? {
+            Some(yaml) => Some(Law::parse_and_validate(&yaml)?),
+            None => None,
+        };
+        Self::open_with_law(chapter_dir, Arc::new(tokio::sync::RwLock::new(law)))
+    }
+
+    /// Open with a caller-supplied shared law slot. `hub serve` uses
+    /// this so REST + MCP evaluate against the same law + share reload.
+    pub fn open_with_law(
+        chapter_dir: PathBuf,
+        law: Arc<tokio::sync::RwLock<Option<Law>>>,
+    ) -> Result<Self> {
         let paths = ChapterPaths::new(chapter_dir.clone());
         let config = hub_lib::chapter::ChapterConfig::load(paths.config())?;
         let society = load_society(&chapter_dir)?;
@@ -82,10 +101,6 @@ impl McpState {
             }
         };
         let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
-        let law: Option<Law> = match store.read_law()? {
-            Some(yaml) => Some(Law::parse_and_validate(&yaml)?),
-            None => None,
-        };
         let ledger = ChapterLedger::open(store)?;
         Ok(Self {
             paths,
@@ -94,7 +109,7 @@ impl McpState {
             sovereign_lct_id,
             signer,
             ledger: Arc::new(Mutex::new(ledger)),
-            law: Arc::new(law),
+            law,
         })
     }
 }
@@ -114,17 +129,34 @@ pub fn router(state: McpState) -> Router {
 
 // ---------- error wrapper ----------
 
-struct ApiError(anyhow::Error);
+/// Status-aware MCP error. Constructors set the right HTTP code so
+/// PolicyEntity gating (deny → 403, escalate → 202) mirrors REST.
+struct ApiError {
+    status: StatusCode,
+    message: String,
+}
+
+impl ApiError {
+    fn internal(e: anyhow::Error) -> Self {
+        Self { status: StatusCode::INTERNAL_SERVER_ERROR, message: format!("{:#}", e) }
+    }
+    fn forbidden(msg: impl Into<String>) -> Self {
+        Self { status: StatusCode::FORBIDDEN, message: msg.into() }
+    }
+    fn accepted_escalation(msg: impl Into<String>) -> Self {
+        Self { status: StatusCode::ACCEPTED, message: msg.into() }
+    }
+}
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
-        let body = serde_json::json!({"error": format!("{:#}", self.0)});
-        (StatusCode::INTERNAL_SERVER_ERROR, Json(body)).into_response()
+        let body = serde_json::json!({"error": self.message});
+        (self.status, Json(body)).into_response()
     }
 }
 
 impl<E: Into<anyhow::Error>> From<E> for ApiError {
-    fn from(e: E) -> Self { ApiError(e.into()) }
+    fn from(e: E) -> Self { ApiError::internal(e.into()) }
 }
 
 // ---------- GET /tools ----------
@@ -326,25 +358,26 @@ async fn append_with_sovereign(
     // as REST. For MCP we encode deny + escalate as ApiError (which becomes
     // a 500 with the error body for now — V2-16 admin UI is where escalation
     // queueing actually lands).
-    if let Some(law) = s.law.as_ref() {
+    let law_guard = s.law.read().await;
+    if let Some(law) = law_guard.as_ref() {
         let req = R6Request {
             role: "sovereign".to_string(),
             action: event.kind().to_string(),
             payload: serde_yaml::to_value(&event)
-                .map_err(|e| ApiError(anyhow::anyhow!("serializing event for R6: {}", e)))?,
+                .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {}", e)))?,
             resource: Default::default(),
         };
         let outcome = law.evaluate_outcome(&req);
         match outcome.decision {
             Decision::Allow => { /* proceed */ }
             Decision::Deny => {
-                return Err(ApiError(anyhow::anyhow!(
+                return Err(ApiError::forbidden(format!(
                     "act denied by chapter law (norm: {})",
                     outcome.winning_norm.as_deref().unwrap_or("?")
                 )));
             }
             Decision::Escalate => {
-                return Err(ApiError(anyhow::anyhow!(
+                return Err(ApiError::accepted_escalation(format!(
                     "act requires escalation to {} ({}); admin review queue is V2-16",
                     outcome.escalate_to.as_deref().unwrap_or("sovereign"),
                     outcome.winning_norm.as_deref().unwrap_or("escalation trigger"),
@@ -359,7 +392,7 @@ async fn append_with_sovereign(
     // append landed in between (Step 3a stale-detection contract).
     let event_kind_str = event.kind().to_string();
     let event_value = serde_json::to_value(&event)
-        .map_err(|e| ApiError(anyhow::anyhow!("serializing event: {}", e)))?;
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
     let (unsigned, intent) = {
         let ledger = s.ledger.lock().await;
         let unsigned = ledger.build_entry(s.sovereign_lct_id, event, Utc::now())?;
@@ -379,7 +412,7 @@ async fn append_with_sovereign(
     let signature = s.signer
         .sign(s.sovereign_lct_id, &signing_bytes, &intent)
         .await
-        .map_err(|e| ApiError(anyhow::anyhow!("Sovereign signer: {}", e)))?;
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("Sovereign signer: {}", e)))?;
 
     let mut ledger = s.ledger.lock().await;
     let entry = ledger.append_signed(unsigned, signature)?;

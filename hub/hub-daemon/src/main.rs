@@ -544,8 +544,19 @@ async fn run_serve(chapter_dir: PathBuf, port_override: Option<u16>, bind: Strin
 
     // Both MCP and REST route through the signer abstraction (V2-7 §4
     // for MCP); both work for Local + Hestia mode chapters.
-    let mcp_state = McpState::open(chapter_dir.clone())?;
-    let rest_state = RestState::open(chapter_dir.clone())?;
+    // Construct a shared Law slot so both MCP + REST evaluate against
+    // the same in-memory snapshot, and so the REST reload-law endpoint
+    // refreshes both surfaces in one call.
+    let initial_law = {
+        let store = hub_lib::store::open_chapter_store(&chapter_dir)?;
+        match store.read_law()? {
+            Some(yaml) => Some(hub_lib::law::Law::parse_and_validate(&yaml)?),
+            None => None,
+        }
+    };
+    let shared_law = std::sync::Arc::new(tokio::sync::RwLock::new(initial_law));
+    let mcp_state = McpState::open_with_law(chapter_dir.clone(), shared_law.clone())?;
+    let rest_state = RestState::open_with_law(chapter_dir.clone(), shared_law)?;
     let app = mcp_router(mcp_state).merge(rest_router(rest_state));
 
     tracing::info!(
