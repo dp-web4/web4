@@ -142,6 +142,76 @@ pub enum HubEvent {
         new_m: u32,
         initiated_by: Uuid,
     },
+
+    /// PAIRED-CHANNELS Sprint B: an LCT-holder requested a pair with
+    /// another LCT-holder. The pair is `Pending` until the counterparty
+    /// signs a `PairingConfirmed`. Initiator's envelope at submit time
+    /// is the request signature; counterparty has not yet agreed.
+    ///
+    /// `purpose` is free-text; chapter law can pattern-match against
+    /// it (e.g., allow `delegation_*` purposes only for council holders).
+    /// `expires_at` is optional — None means "no auto-expiry, must be
+    /// revoked explicitly."
+    ///
+    /// Per architecture commitment #2: signed envelope at the REST
+    /// boundary. Per commitment #8: the underlying ECDH-derived shared
+    /// secret is computed at endpoints, never crosses the hub.
+    PairingRequested {
+        pair_id: Uuid,
+        initiator_lct_id: Uuid,
+        counterparty_lct_id: Uuid,
+        purpose: String,
+        proposed_at: DateTime<Utc>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expires_at: Option<DateTime<Utc>>,
+    },
+
+    /// PAIRED-CHANNELS Sprint B: counterparty confirmed the pair.
+    /// Transitions `Pending` → `Active`. Subsequent message posts
+    /// to the pair are valid until `PairingRevoked` or `expires_at`.
+    ///
+    /// `confirmed_by` MUST be the counterparty named in the
+    /// corresponding `PairingRequested` — the REST handler enforces
+    /// this. Hub-side projection rejects mismatched confirmations
+    /// (apply() silently no-ops; verify-ledger surfaces nothing
+    /// because all entries are syntactically valid).
+    PairingConfirmed {
+        pair_id: Uuid,
+        confirmed_by: Uuid,
+    },
+
+    /// PAIRED-CHANNELS Sprint B: pair revoked. Either party may
+    /// voluntarily revoke; chapter law may force-revoke; key rotation
+    /// invalidates the derived shared secret and requires re-pairing.
+    /// `revocation_kind` is the audit-relevant signal (voluntary
+    /// vs. forced says something different to V3 trust accrual).
+    PairingRevoked {
+        pair_id: Uuid,
+        revoked_by: Uuid,
+        revocation_kind: PairRevocationKind,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+    },
+}
+
+/// Why a pair ended. Captures audit-relevant intent so V3 trust
+/// accrual can distinguish "we finished our work cleanly" from
+/// "the chapter intervened" from "the key got rotated."
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PairRevocationKind {
+    /// Either party chose to end the pair under normal circumstances.
+    /// Trust-neutral or trust-positive (purpose-complete).
+    Voluntary,
+    /// The pair's `expires_at` was reached. Auto-cleanup; trust-neutral.
+    Expired,
+    /// Chapter law force-revoked (norm fired with `decision: deny` for
+    /// continued pair existence, or escalation outcome). Trust signal:
+    /// pair was deemed inappropriate by the society.
+    ChapterLaw,
+    /// One party's LCT key rotated; derived shared secrets are no
+    /// longer valid. Trust-neutral; re-pair to continue.
+    KeyRotation,
 }
 
 impl HubEvent {
@@ -159,6 +229,9 @@ impl HubEvent {
             Self::CouncilMemberAdded { .. } => "council_member_added",
             Self::CouncilMemberRemoved { .. } => "council_member_removed",
             Self::CouncilThresholdChanged { .. } => "council_threshold_changed",
+            Self::PairingRequested { .. } => "pairing_requested",
+            Self::PairingConfirmed { .. } => "pairing_confirmed",
+            Self::PairingRevoked { .. } => "pairing_revoked",
         }
     }
 }

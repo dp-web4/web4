@@ -197,6 +197,58 @@ impl HubSession {
         self.append(event).await
     }
 
+    /// PAIRED-CHANNELS Sprint B: operator-facing helper for creating a
+    /// pair request from the CLI. Hestia-mode hubs / REST flows will
+    /// construct PairingRequested events directly from signed envelopes;
+    /// this is the CLI-convenience shortcut where the Sovereign is the
+    /// initiator. Returns the freshly-minted pair_id.
+    pub async fn request_pair(
+        &mut self,
+        counterparty_lct_id: Uuid,
+        purpose: String,
+        expires_at: Option<DateTime<Utc>>,
+    ) -> Result<(Uuid, &LedgerEntry)> {
+        let pair_id = Uuid::new_v4();
+        let event = HubEvent::PairingRequested {
+            pair_id,
+            initiator_lct_id: self.sovereign_lct_id,
+            counterparty_lct_id,
+            purpose,
+            proposed_at: Utc::now(),
+            expires_at,
+        };
+        let entry = self.append(event).await?;
+        Ok((pair_id, entry))
+    }
+
+    /// PAIRED-CHANNELS Sprint B: confirm a pair. In CLI mode the
+    /// Sovereign confirms (typically used for testing or when the
+    /// counterparty is local). Real counterparty-signed confirmations
+    /// come through the REST flow with the counterparty's envelope.
+    pub async fn confirm_pair(&mut self, pair_id: Uuid) -> Result<&LedgerEntry> {
+        let event = HubEvent::PairingConfirmed {
+            pair_id,
+            confirmed_by: self.sovereign_lct_id,
+        };
+        self.append(event).await
+    }
+
+    /// PAIRED-CHANNELS Sprint B: revoke a pair.
+    pub async fn revoke_pair(
+        &mut self,
+        pair_id: Uuid,
+        revocation_kind: crate::events::PairRevocationKind,
+        reason: Option<String>,
+    ) -> Result<&LedgerEntry> {
+        let event = HubEvent::PairingRevoked {
+            pair_id,
+            revoked_by: self.sovereign_lct_id,
+            revocation_kind,
+            reason,
+        };
+        self.append(event).await
+    }
+
     // ---------- queries ----------
 
     pub fn state(&self) -> HubState {

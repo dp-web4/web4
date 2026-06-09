@@ -525,6 +525,30 @@ fn event_summary(event: &HubEvent) -> String {
         HubEvent::CouncilThresholdChanged { new_m, .. } => {
             format!("Council threshold M={} requested", new_m)
         }
+        HubEvent::PairingRequested { pair_id, initiator_lct_id, counterparty_lct_id, purpose, .. } => {
+            format!(
+                "Pair requested {} ↔ {} <span class=\"muted\">[{}, \"{}\"]</span>",
+                short(initiator_lct_id),
+                short(counterparty_lct_id),
+                short(pair_id),
+                html_escape(purpose),
+            )
+        }
+        HubEvent::PairingConfirmed { pair_id, confirmed_by } => {
+            format!(
+                "Pair confirmed by {} <span class=\"muted\">[{}]</span>",
+                short(confirmed_by),
+                short(pair_id),
+            )
+        }
+        HubEvent::PairingRevoked { pair_id, revoked_by, revocation_kind, .. } => {
+            format!(
+                "Pair revoked by {} ({:?}) <span class=\"muted\">[{}]</span>",
+                short(revoked_by),
+                revocation_kind,
+                short(pair_id),
+            )
+        }
     }
 }
 
