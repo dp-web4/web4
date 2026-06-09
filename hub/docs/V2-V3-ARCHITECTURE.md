@@ -319,6 +319,7 @@ Once this outer landscape is committed, we partition. Next focused sub-conversat
 - **Sprint V2-5/V2-6**: web4-core PRs. Upstream work; bigger reach (any web4 user benefits). Independent.
 - **Track H bootstrap**: Hestia vault + member CLI. Lives in the other repo; can run in parallel by another session/track.
 - **Law schema design**: deeper conversation on RDF predicates + YAML ergonomics. Gates V2-6+V2-8.
+- **LCT paired channels** (see [`PAIRED-CHANNELS.md`](PAIRED-CHANNELS.md)) — hub-mediated, E2E-encrypted, ledger-witnessed pairs as the operational manifestation of pairing-as-relationship-substrate. Activates the trust-medium claim of the Web4 equation. Sprint A is an ECDH primitive in web4-core; later sprints land hub-side lifecycle, messaging, FS, V3 accrual.
 
 We pick one. Iterate. Set MRH for the next sub-conversation when that one closes.
 
