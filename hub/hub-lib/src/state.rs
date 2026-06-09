@@ -99,6 +99,16 @@ pub struct PairState {
     /// Used as a trust-accrual signal in Sprint G. Sprint B leaves it at 0.
     #[serde(default)]
     pub message_count: u64,
+    /// PAIRED-CHANNELS Sprint F: initiator's per-session ephemeral
+    /// X25519 public key (hex), surfaced from PairingRequested. The
+    /// counterparty reads this from the pair detail + uses it (with
+    /// their own ephemeral secret) to derive the v2 session key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initiator_ephemeral_pub_hex: Option<String>,
+    /// PAIRED-CHANNELS Sprint F: counterparty's per-session ephemeral
+    /// X25519 public key (hex), surfaced from PairingConfirmed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub counterparty_ephemeral_pub_hex: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -247,6 +257,7 @@ impl HubState {
             HubEvent::PairingRequested {
                 pair_id, initiator_lct_id, counterparty_lct_id,
                 purpose, proposed_at, expires_at,
+                initiator_ephemeral_pub_hex,
             } => {
                 // Idempotent: if a pair with this id already exists
                 // (replay scenario), keep the original — the ledger's
@@ -264,9 +275,11 @@ impl HubState {
                     revocation_kind: None,
                     revocation_reason: None,
                     message_count: 0,
+                    initiator_ephemeral_pub_hex: initiator_ephemeral_pub_hex.clone(),
+                    counterparty_ephemeral_pub_hex: None,
                 });
             }
-            HubEvent::PairingConfirmed { pair_id, confirmed_by } => {
+            HubEvent::PairingConfirmed { pair_id, confirmed_by, counterparty_ephemeral_pub_hex } => {
                 // Confirmation is only valid from the counterparty
                 // (REST layer enforces this; here we defensively
                 // re-check so a hand-crafted ledger entry can't
@@ -277,6 +290,11 @@ impl HubState {
                     {
                         p.status = PairStatus::Active;
                         p.confirmed_at = Some(ts);
+                        // Sprint F: record counterparty's ephemeral if supplied.
+                        if counterparty_ephemeral_pub_hex.is_some() {
+                            p.counterparty_ephemeral_pub_hex =
+                                counterparty_ephemeral_pub_hex.clone();
+                        }
                     }
                     // Else: confirmation from non-counterparty, or
                     // already-active/revoked — silent no-op. The
@@ -485,10 +503,12 @@ mod tests {
                 purpose: "code review collab".into(),
                 proposed_at: t0,
                 expires_at: None,
+            initiator_ephemeral_pub_hex: None,
             }),
             (bob, &kp, HubEvent::PairingConfirmed {
                 pair_id,
                 confirmed_by: bob,
+            counterparty_ephemeral_pub_hex: None,
             }),
         ]).await;
 
@@ -532,11 +552,13 @@ mod tests {
                 purpose: "p".into(),
                 proposed_at: t0,
                 expires_at: None,
+            initiator_ephemeral_pub_hex: None,
             }),
             // Mallory (not the counterparty) confirms — must be rejected.
             (mallory, &kp, HubEvent::PairingConfirmed {
                 pair_id,
                 confirmed_by: mallory,
+            counterparty_ephemeral_pub_hex: None,
             }),
         ]).await;
 
@@ -572,6 +594,7 @@ mod tests {
                 purpose: "p".into(),
                 proposed_at: t0,
                 expires_at: None,
+            initiator_ephemeral_pub_hex: None,
             }),
             (alice, &kp, HubEvent::PairingRevoked {
                 pair_id,
@@ -611,6 +634,7 @@ mod tests {
             (alice, &kp, HubEvent::PairingRequested {
                 pair_id, initiator_lct_id: alice, counterparty_lct_id: bob,
                 purpose: "p".into(), proposed_at: t0, expires_at: None,
+            initiator_ephemeral_pub_hex: None,
             }),
             (alice, &kp, HubEvent::PairingRevoked {
                 pair_id, revoked_by: alice,
@@ -652,12 +676,14 @@ mod tests {
             (alice, &kp, HubEvent::PairingRequested {
                 pair_id: p1, initiator_lct_id: alice, counterparty_lct_id: bob,
                 purpose: "p1".into(), proposed_at: t0, expires_at: None,
+            initiator_ephemeral_pub_hex: None,
             }),
-            (bob, &kp, HubEvent::PairingConfirmed { pair_id: p1, confirmed_by: bob }),
+            (bob, &kp, HubEvent::PairingConfirmed { pair_id: p1, confirmed_by: bob, counterparty_ephemeral_pub_hex: None }),
             // alice-carol: still pending
             (alice, &kp, HubEvent::PairingRequested {
                 pair_id: p2, initiator_lct_id: alice, counterparty_lct_id: carol,
                 purpose: "p2".into(), proposed_at: t0, expires_at: None,
+            initiator_ephemeral_pub_hex: None,
             }),
         ]).await;
 
@@ -692,8 +718,9 @@ mod tests {
                 pair_id, initiator_lct_id: alice, counterparty_lct_id: bob,
                 purpose: "p".into(), proposed_at: t0,
                 expires_at: Some(expires),
+            initiator_ephemeral_pub_hex: None,
             }),
-            (bob, &kp, HubEvent::PairingConfirmed { pair_id, confirmed_by: bob }),
+            (bob, &kp, HubEvent::PairingConfirmed { pair_id, confirmed_by: bob, counterparty_ephemeral_pub_hex: None }),
         ]).await;
 
         let state = HubState::project(&ledger);
@@ -714,13 +741,14 @@ mod tests {
         let req = HubEvent::PairingRequested {
             pair_id, initiator_lct_id: alice, counterparty_lct_id: bob,
             purpose: "x".into(), proposed_at: t0, expires_at: None,
+        initiator_ephemeral_pub_hex: None,
         };
         let req_json = serde_json::to_string(&req).unwrap();
         assert!(req_json.contains("\"kind\":\"pairing_requested\""));
         let back: HubEvent = serde_json::from_str(&req_json).unwrap();
         assert_eq!(back.kind(), "pairing_requested");
 
-        let conf = HubEvent::PairingConfirmed { pair_id, confirmed_by: bob };
+        let conf = HubEvent::PairingConfirmed { pair_id, confirmed_by: bob, counterparty_ephemeral_pub_hex: None };
         let conf_json = serde_json::to_string(&conf).unwrap();
         assert!(conf_json.contains("\"kind\":\"pairing_confirmed\""));
 

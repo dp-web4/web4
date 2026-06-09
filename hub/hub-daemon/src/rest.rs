@@ -1200,12 +1200,22 @@ struct PairRequestPayload {
     purpose: String,
     #[serde(default)]
     expires_at: Option<chrono::DateTime<Utc>>,
+    /// PAIRED-CHANNELS Sprint F: initiator's per-session X25519
+    /// ephemeral public key (hex). If supplied AND the counterparty
+    /// supplies theirs in pair_confirm, this pair's messages get
+    /// forward secrecy.
+    #[serde(default)]
+    initiator_ephemeral_pub_hex: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct PairConfirmPayload {
     action: String, // "pair_confirm"
     pair_id: Uuid,
+    /// PAIRED-CHANNELS Sprint F: counterparty's per-session X25519
+    /// ephemeral public key (hex). Optional for back-compat.
+    #[serde(default)]
+    counterparty_ephemeral_pub_hex: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -1246,6 +1256,13 @@ struct PairSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     expires_at: Option<chrono::DateTime<Utc>>,
     message_count: u64,
+    /// PAIRED-CHANNELS Sprint F: ephemeral public keys. Recipient
+    /// reads counterparty_ephemeral_pub_hex from initiator's side
+    /// and vice versa; both are needed to derive the v2 session key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    initiator_ephemeral_pub_hex: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    counterparty_ephemeral_pub_hex: Option<String>,
 }
 
 impl PairSummary {
@@ -1262,6 +1279,8 @@ impl PairSummary {
             revoked_at: p.revoked_at,
             expires_at: p.expires_at,
             message_count: p.message_count,
+            initiator_ephemeral_pub_hex: p.initiator_ephemeral_pub_hex.clone(),
+            counterparty_ephemeral_pub_hex: p.counterparty_ephemeral_pub_hex.clone(),
         }
     }
 }
@@ -1350,6 +1369,7 @@ async fn submit_pair_request(
         purpose: payload.purpose,
         proposed_at: Utc::now(),
         expires_at: payload.expires_at,
+        initiator_ephemeral_pub_hex: payload.initiator_ephemeral_pub_hex,
     };
 
     // PolicyEntity gate (V2-8 §4): chapter law can pattern-match
@@ -1422,7 +1442,11 @@ async fn submit_pair_confirm(
         )));
     }
 
-    let event = HubEvent::PairingConfirmed { pair_id, confirmed_by: envelope.signer_lct_id };
+    let event = HubEvent::PairingConfirmed {
+        pair_id,
+        confirmed_by: envelope.signer_lct_id,
+        counterparty_ephemeral_pub_hex: payload.counterparty_ephemeral_pub_hex,
+    };
     let (entry_index, entry_hash) = commit_pair_event(&s, event).await?;
     Ok(Json(PairAccepted {
         pair_id,

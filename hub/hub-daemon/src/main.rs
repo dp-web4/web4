@@ -117,10 +117,17 @@ enum Command {
         payload: String,
     },
 
-    /// PAIRED-CHANNELS Sprint E: encrypt a pair-message body at the
+    /// PAIRED-CHANNELS Sprint E/F: encrypt a pair-message body at the
     /// endpoint side. Uses the LCT identity file + peer's LCT pubkey
     /// + pair_id to derive the ECDH session key, then ChaCha20-Poly1305
     /// AEAD-encrypts the plaintext. Output: base64 of (nonce ‖ ct).
+    ///
+    /// **Forward secrecy (Sprint F):** if BOTH `--my-ephemeral-secret`
+    /// and `--peer-ephemeral-pub` are supplied, the FS-mixing path is
+    /// used (session key derived from static_ECDH || ephemeral_ECDH).
+    /// Compromise of LCT keys after the fact does NOT decrypt past
+    /// sessions that used FS. Without these flags, falls back to the
+    /// Sprint E static-key-only derivation.
     PairEncrypt {
         /// Path to the sender's IdentityFile.
         #[arg(long)]
@@ -134,11 +141,21 @@ enum Command {
         /// Plaintext body.
         #[arg(long)]
         plaintext: String,
+        /// Sprint F: sender's per-session X25519 ephemeral SECRET (hex).
+        /// Pair with --peer-ephemeral-pub.
+        #[arg(long)]
+        my_ephemeral_secret: Option<String>,
+        /// Sprint F: peer's per-session X25519 ephemeral PUBLIC (hex).
+        /// Read from pair detail's counterparty_ephemeral_pub_hex (if
+        /// you are initiator) or initiator_ephemeral_pub_hex (if you
+        /// are counterparty).
+        #[arg(long)]
+        peer_ephemeral_pub: Option<String>,
     },
 
-    /// PAIRED-CHANNELS Sprint E: decrypt a pair-message body. Symmetric
-    /// to `pair-encrypt`. Errors if the AEAD tag doesn't verify (wrong
-    /// key, tampered ciphertext, wrong pair_id).
+    /// PAIRED-CHANNELS Sprint E/F: decrypt a pair-message body.
+    /// Symmetric inverse of `pair-encrypt`. Errors if AEAD fails
+    /// (wrong key, tampered, wrong pair_id, wrong ephemeral).
     PairDecrypt {
         #[arg(long)]
         identity: PathBuf,
@@ -149,7 +166,19 @@ enum Command {
         /// Base64-encoded sealed blob (output of pair-encrypt).
         #[arg(long)]
         ciphertext_b64: String,
+        /// Sprint F: my per-session ephemeral SECRET (hex).
+        #[arg(long)]
+        my_ephemeral_secret: Option<String>,
+        /// Sprint F: peer's per-session ephemeral PUBLIC (hex).
+        #[arg(long)]
+        peer_ephemeral_pub: Option<String>,
     },
+
+    /// PAIRED-CHANNELS Sprint F: generate a fresh X25519 ephemeral
+    /// keypair for a pair session. Output: JSON with `public_hex`
+    /// (publish in pair_request / pair_confirm) and `secret_hex`
+    /// (KEEP LOCAL — wipe when the pair ends to honor FS).
+    PairGenerateEphemeral,
 
     /// Verify the integrity of a chapter's ledger end-to-end.
     ///
@@ -427,11 +456,22 @@ async fn main() -> Result<()> {
         Some(Command::EnvelopeSign { identity, nonce, payload }) => {
             run_envelope_sign(identity, nonce, payload).await
         }
-        Some(Command::PairEncrypt { identity, peer_pubkey, pair_id, plaintext }) => {
-            run_pair_encrypt(identity, peer_pubkey, pair_id, plaintext).await
+        Some(Command::PairEncrypt {
+            identity, peer_pubkey, pair_id, plaintext,
+            my_ephemeral_secret, peer_ephemeral_pub,
+        }) => {
+            run_pair_encrypt(identity, peer_pubkey, pair_id, plaintext,
+                my_ephemeral_secret, peer_ephemeral_pub).await
         }
-        Some(Command::PairDecrypt { identity, peer_pubkey, pair_id, ciphertext_b64 }) => {
-            run_pair_decrypt(identity, peer_pubkey, pair_id, ciphertext_b64).await
+        Some(Command::PairDecrypt {
+            identity, peer_pubkey, pair_id, ciphertext_b64,
+            my_ephemeral_secret, peer_ephemeral_pub,
+        }) => {
+            run_pair_decrypt(identity, peer_pubkey, pair_id, ciphertext_b64,
+                my_ephemeral_secret, peer_ephemeral_pub).await
+        }
+        Some(Command::PairGenerateEphemeral) => {
+            run_pair_generate_ephemeral().await
         }
         Some(Command::VerifyLedger { hub_dir }) => {
             run_verify_ledger(hub_dir).await
@@ -991,18 +1031,19 @@ async fn run_envelope_sign(identity_path: PathBuf, nonce: String, payload_json: 
     Ok(())
 }
 
-/// PAIRED-CHANNELS Sprint E: encrypt a pair-message body at the
-/// endpoint side. Output is base64(nonce ‖ ciphertext) on stdout —
-/// the caller pastes that into the `body` field of a `pair_message`
-/// envelope and posts to the hub.
+/// PAIRED-CHANNELS Sprint E/F: encrypt a pair-message body.
+/// Without ephemeral flags → Sprint E (static-key ECDH only).
+/// With BOTH ephemeral flags → Sprint F (FS-mixed derivation).
 async fn run_pair_encrypt(
     identity_path: PathBuf,
     peer_pubkey_hex: String,
     pair_id: Uuid,
     plaintext: String,
+    my_ephemeral_secret: Option<String>,
+    peer_ephemeral_pub: Option<String>,
 ) -> Result<()> {
     use web4_core::crypto::PublicKey;
-    use web4_core::pair_channel::seal;
+    use web4_core::pair_channel::{seal, seal_fs, EphemeralKeyPair, ephemeral_public_from_hex};
 
     let identity = IdentityFile::load(&identity_path)
         .with_context(|| format!("loading identity from {}", identity_path.display()))?;
@@ -1015,23 +1056,41 @@ async fn run_pair_encrypt(
     let peer_pub = PublicKey::from_bytes(&peer_arr)
         .context("parsing peer pubkey")?;
 
-    let sealed = seal(&kp, &peer_pub, pair_id, plaintext.as_bytes())
-        .context("seal failed")?;
+    let sealed = match (my_ephemeral_secret, peer_ephemeral_pub) {
+        (Some(my_eph_sec), Some(peer_eph_pub_hex)) => {
+            // FS path
+            let my_eph = EphemeralKeyPair::from_secret_hex(&my_eph_sec)
+                .context("parsing --my-ephemeral-secret")?;
+            let peer_eph_pub = ephemeral_public_from_hex(&peer_eph_pub_hex)
+                .context("parsing --peer-ephemeral-pub")?;
+            seal_fs(&kp, &my_eph, &peer_pub, &peer_eph_pub, pair_id, plaintext.as_bytes())
+                .context("seal_fs failed")?
+        }
+        (None, None) => {
+            // Sprint E static-only fallback
+            seal(&kp, &peer_pub, pair_id, plaintext.as_bytes())
+                .context("seal failed")?
+        }
+        _ => anyhow::bail!(
+            "forward-secrecy requires BOTH --my-ephemeral-secret AND --peer-ephemeral-pub \
+             (or neither, for the Sprint E static-key fallback)"
+        ),
+    };
     println!("{}", sealed.to_base64());
     Ok(())
 }
 
-/// PAIRED-CHANNELS Sprint E: symmetric inverse of pair-encrypt.
-/// Errors cleanly if the AEAD tag fails (wrong key, tampered
-/// ciphertext, wrong pair_id, wrong peer pubkey).
+/// PAIRED-CHANNELS Sprint E/F: symmetric inverse of pair-encrypt.
 async fn run_pair_decrypt(
     identity_path: PathBuf,
     peer_pubkey_hex: String,
     pair_id: Uuid,
     ciphertext_b64: String,
+    my_ephemeral_secret: Option<String>,
+    peer_ephemeral_pub: Option<String>,
 ) -> Result<()> {
     use web4_core::crypto::PublicKey;
-    use web4_core::pair_channel::{open, Sealed};
+    use web4_core::pair_channel::{open, open_fs, Sealed, EphemeralKeyPair, ephemeral_public_from_hex};
 
     let identity = IdentityFile::load(&identity_path)
         .with_context(|| format!("loading identity from {}", identity_path.display()))?;
@@ -1046,11 +1105,41 @@ async fn run_pair_decrypt(
 
     let sealed = Sealed::from_base64(&ciphertext_b64)
         .context("parsing --ciphertext-b64")?;
-    let plaintext = open(&kp, &peer_pub, pair_id, &sealed)
-        .context("open failed (wrong key, wrong pair_id, or tampered ciphertext)")?;
-    // Stdout — operator pipes wherever. Plaintext may contain newlines,
-    // print as-is.
+
+    let plaintext = match (my_ephemeral_secret, peer_ephemeral_pub) {
+        (Some(my_eph_sec), Some(peer_eph_pub_hex)) => {
+            let my_eph = EphemeralKeyPair::from_secret_hex(&my_eph_sec)
+                .context("parsing --my-ephemeral-secret")?;
+            let peer_eph_pub = ephemeral_public_from_hex(&peer_eph_pub_hex)
+                .context("parsing --peer-ephemeral-pub")?;
+            open_fs(&kp, &my_eph, &peer_pub, &peer_eph_pub, pair_id, &sealed)
+                .context("open_fs failed")?
+        }
+        (None, None) => {
+            open(&kp, &peer_pub, pair_id, &sealed)
+                .context("open failed (wrong key, wrong pair_id, or tampered ciphertext)")?
+        }
+        _ => anyhow::bail!(
+            "forward-secrecy requires BOTH --my-ephemeral-secret AND --peer-ephemeral-pub \
+             (or neither, for the Sprint E static-key fallback)"
+        ),
+    };
     print!("{}", String::from_utf8_lossy(&plaintext));
+    Ok(())
+}
+
+/// PAIRED-CHANNELS Sprint F: generate a fresh ephemeral X25519
+/// keypair. Output JSON: {public_hex, secret_hex}. Caller persists
+/// the secret locally (wipe when pair ends to honor FS) and
+/// publishes the public in pair_request / pair_confirm.
+async fn run_pair_generate_ephemeral() -> Result<()> {
+    use web4_core::pair_channel::EphemeralKeyPair;
+    let eph = EphemeralKeyPair::generate();
+    let out = serde_json::json!({
+        "public_hex": eph.public_hex(),
+        "secret_hex": eph.secret_hex(),
+    });
+    println!("{}", serde_json::to_string_pretty(&out)?);
     Ok(())
 }
 

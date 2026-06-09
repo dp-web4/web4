@@ -164,6 +164,13 @@ pub enum HubEvent {
         proposed_at: DateTime<Utc>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         expires_at: Option<DateTime<Utc>>,
+        /// PAIRED-CHANNELS Sprint F: initiator's per-session X25519
+        /// ephemeral public key (hex), for forward-secrecy session-key
+        /// derivation. Optional for back-compat: pairs created before
+        /// Sprint F (or by clients that don't opt in) leave this None
+        /// and fall back to the Sprint E static-key-only derivation.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        initiator_ephemeral_pub_hex: Option<String>,
     },
 
     /// PAIRED-CHANNELS Sprint B: counterparty confirmed the pair.
@@ -178,6 +185,12 @@ pub enum HubEvent {
     PairingConfirmed {
         pair_id: Uuid,
         confirmed_by: Uuid,
+        /// PAIRED-CHANNELS Sprint F: counterparty's per-session
+        /// X25519 ephemeral public key (hex). Pairs with both
+        /// ephemerals get forward secrecy; pairs missing either
+        /// fall back to v1 static-only derivation.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        counterparty_ephemeral_pub_hex: Option<String>,
     },
 
     /// PAIRED-CHANNELS Sprint B: pair revoked. Either party may

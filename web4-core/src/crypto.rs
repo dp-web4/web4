@@ -187,6 +187,14 @@ impl SharedSecret {
     pub fn into_bytes(self) -> [u8; 32] {
         self.0
     }
+
+    /// Crate-internal constructor for callers that compute the
+    /// shared bytes through a non-LCT path (e.g., ephemeral X25519
+    /// ECDH in [`crate::pair_channel::seal_fs`]). External callers
+    /// still must go through [`crate::crypto::KeyPair::ecdh_with_peer`].
+    pub(crate) fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
 }
 
 impl std::fmt::Debug for SharedSecret {

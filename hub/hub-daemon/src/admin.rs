@@ -609,11 +609,15 @@ fn event_summary(event: &HubEvent) -> String {
                 html_escape(purpose),
             )
         }
-        HubEvent::PairingConfirmed { pair_id, confirmed_by } => {
+        HubEvent::PairingConfirmed { pair_id, confirmed_by, counterparty_ephemeral_pub_hex } => {
+            let fs_pill = if counterparty_ephemeral_pub_hex.is_some() {
+                " <span class=\"pill\">FS</span>"
+            } else { "" };
             format!(
-                "Pair confirmed by {} <span class=\"muted\">[{}]</span>",
+                "Pair confirmed by {} <span class=\"muted\">[{}]</span>{}",
                 short(confirmed_by),
                 short(pair_id),
+                fs_pill,
             )
         }
         HubEvent::PairingRevoked { pair_id, revoked_by, revocation_kind, .. } => {

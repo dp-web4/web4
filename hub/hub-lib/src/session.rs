@@ -216,6 +216,7 @@ impl HubSession {
             purpose,
             proposed_at: Utc::now(),
             expires_at,
+        initiator_ephemeral_pub_hex: None,
         };
         let entry = self.append(event).await?;
         Ok((pair_id, entry))
@@ -229,6 +230,7 @@ impl HubSession {
         let event = HubEvent::PairingConfirmed {
             pair_id,
             confirmed_by: self.sovereign_lct_id,
+        counterparty_ephemeral_pub_hex: None,
         };
         self.append(event).await
     }
