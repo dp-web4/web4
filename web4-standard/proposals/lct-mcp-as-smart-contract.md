@@ -1,7 +1,7 @@
 # LCT MCP Server as Smart Contract
 
 **Status**: Draft Proposal
-**Version**: 0.1
+**Version**: 0.2
 **Date**: 2026-06-09
 **Authors**: dp (Metalinxx) + Nomad-Claude
 
@@ -122,7 +122,7 @@ Society:        "Web4 Fleet"
 Society LCT:    28a9ef88-4c51-4b87-976d-77f51234c56d
 Sovereign LCT:  c8886562-b71c-4dd2-94ca-2fd771f89333
 Members:        7 fleet machines + Sovereign
-Storage:        SQLite (chapter.db) — hash-chained signed ledger
+Storage:        SQLite (hub.db) — hash-chained signed ledger
 ```
 
 This is an active LCT. It has identity (charter hash), members (RDF triples), an MRH (the 7 fleet machines and Sovereign), and policy (the Society Authority Law / SAL roles).
@@ -136,15 +136,16 @@ Implementation: web4/hub/target/release/hub
 ```
 
 Exposed tools — **read-only**:
-- `query_chapter` — society identity + role-fill + ledger head
+- `query_hub` — society identity + role-fill + ledger head
 - `list_members` — current member roster
 - `find_skill` — substring search by member skill
 
 Exposed tools — **state-mutating** (each signs a ledger event):
 - `add_member` — append a new member
-- `assign_role` — assign a role to a member
+- `assign_role` — assign a role to a member (`MemberRoleAssigned` event + persisted role-fill state — see §6.3)
 - `declare_skill` — declare a skill for a member
-- `record_event` — record a chapter event
+- `update_member_profile` — set a member's free-text profile (`MemberProfileUpdated`, added 2026-06-09 PR #294)
+- `record_event` — record an arbitrary hub event
 
 ### 4.3 A real transaction
 
@@ -244,6 +245,8 @@ Proposed:
 - **Restrictive changes**: LCT revision required (new `interface_manifest`, previous one preserved in lineage).
 - **Internal changes**: behavior witnessed in V3, no LCT revision.
 
+**Adjacent observation — ledger event vs. queryable state must both update.** Web4 PR #292 (`be3f8e6`, 2026-06-09) fixed a real bug in the HUB: `assign_role` was recording a `MemberRoleAssigned` event in the ledger but not persisting the role-fill in the queryable state. So `/tools/query_hub` returned the *pre-assignment* role-fill even though the ledger said otherwise. The fix is evidence that "ledger event alone is not the contract" — for any state-mutating tool, the standard MUST require **both** a signed ledger event AND a corresponding queryable-state update. The contract is the conjunction. A spec edit here is to state this conjunction explicitly so future implementations can't drift the way the HUB briefly did.
+
 ### 6.4 R6 composition
 
 **Are MCP tool calls R6 actions?**
@@ -258,16 +261,30 @@ The R6 framework (Rules / Role / Request / Reference / Resource / Result) appear
 
 Proposed: **yes** — MCP tool calls are R6 actions. R6 is the wire format for inter-LCT contract calls. The mapping should be made explicit so existing R6 infrastructure (R6_TENSOR_GUIDE, the R6 SDK in `web4-standard/implementation/sdk/web4/r6.py`) composes with MCP without reinvention.
 
-### 6.5 Hub witnessing semantics
+### 6.5 Hub witnessing + the authz/confidentiality model
 
-**When a hub witnesses an MCP call, what's recorded?**
+**This question got bigger than envelope-storage between v0.1 and v0.2.** HUB-Claude posted the authz/confidentiality model for hub MCP/REST on 2026-06-09 (`shared-context/forum/hub-to-legion-authz-confidentiality-model-2026-06-09.md`). It's the *interaction model* my v0.1 §6.5 was reaching for, and it's bigger than just what gets stored.
 
-Options:
-- **(a) Event only** — kind, metadata, outcome (current HUB code).
-- **(b) Full envelope** — request + response, signed and stored.
-- **(c) Hash-of-envelope** — privacy-preserving; the hub stores a hash, the parties retain payloads.
+**The model, summarized:**
 
-Proposed: **(c) by default**, with **(b) for high-trust applications** (the Hardbound territory). Option (a) is the current MVP and is undercommitted — it loses information needed for V3 attestation. Hash-of-envelope preserves auditability without forcing the hub to retain potentially-sensitive payloads.
+> Every hub response — read and act — flows through one pipeline:
+> `(channel-authenticated caller + assurance) → tier → PolicyEntity(law) → MRH + trust scoping → response re-encrypted over the channel`.
+
+- **Tiers**: no-LCT (public, plaintext) / external LCT (citizenship request) / citizen (gated by trust + MRH) / role (role-inherited trust + MRH) / constellation (multi-LCT MFA-equivalent, higher assurance unlocks more).
+- **Confidentiality**: citizen-tier-and-above never in clear; travels only over an E2E PAIRED-CHANNEL (X25519 ECDH + ChaCha20-Poly1305 + forward secrecy) between requestor's LCT and hub's LCT.
+- **The channel IS the identity** — ECDH handshake is LCT-bound, no bearer tokens. *"Who's asking" = "whose channel is this."*
+- **TLS at the Tailscale proxy is defense-in-depth only** — not the trust layer.
+
+**This is the operational answer to §6.5 — and more.** It's an entire smart-contract interaction model: how a contract call is authenticated, authorized, scoped, executed, and returned. The standard should adopt it (or its successor) as canonical for hub-mediated contract calls.
+
+**What remains for this proposal:** the *witnessing residue* — what specifically commits to the ledger after the call has been authenticated, authorized, scoped, executed, and the response re-encrypted to the caller. Options narrow to:
+- **(a)** Event kind + metadata (caller LCT, tool name, timestamp, outcome) — current HUB code, lossy for V3 attestation.
+- **(b)** Hash of (request, response) — preserves auditability without retaining payloads. Cooperates with confidentiality model (parties keep payloads; hub keeps the commit).
+- **(c)** Full envelope (request + response, signed and stored) — for high-trust applications where the hub *must* be able to replay the call (Hardbound territory).
+
+Proposed (v0.2): **(b) by default**, with **(c) as an opt-in tier** declared on the LCT (high-trust applications). **(a) is the MVP** and is undercommitted; the spec should require at minimum (b) before declaring a hub trustworthy for V3 attestation purposes.
+
+**Cross-reference**: web4/hub/docs/V2-V3-ARCHITECTURE.md §8 (verified authority + need-to-know; ZKP preferred) is the canonical home for the authz/confidentiality model. This proposal should cite that doc, not re-specify it. The standard edit that follows from §6.5 is a *pointer* from `mcp-protocol.md` (or the new "Smart Contracts in Web4" doc) to V2-V3-ARCHITECTURE.md as the canonical interaction model for hub-mediated contract calls.
 
 ## 7. Next Steps
 
@@ -289,4 +306,34 @@ The HUB society is the running proof. The substrate works. The standard should s
 
 ---
 
-*Draft Proposal v0.1 — open for review. Open architectural questions §6 to be settled before operational specs are updated.*
+## Changelog
+
+### v0.2 — 2026-06-09
+
+- **§4.2** — updated tool list to current HUB surface (`query_chapter` → `query_hub`,
+  added `update_member_profile` from PR #294 `MemberProfileUpdated`, called out the
+  `assign_role` role-fill persistence). `chapter.db` → `hub.db` (PR #293 finished the
+  chapter→hub rename).
+- **§6.3** — added adjacent observation crediting PR #292 (`be3f8e6`) as evidence that
+  the standard must require both a signed ledger event AND a corresponding queryable-state
+  update for state-mutating tools. The contract is the conjunction.
+- **§6.5** — substantially rewritten. v0.1's proposed answer (hash-of-envelope by default)
+  was undercommitted relative to HUB-Claude's authz/confidentiality model
+  (`shared-context/forum/hub-to-legion-authz-confidentiality-model-2026-06-09.md`,
+  `web4/hub/docs/V2-V3-ARCHITECTURE.md §8`). v0.2 adopts that model as the operational
+  answer and narrows §6.5 to the *witnessing residue* — what specifically commits to the
+  ledger after the channel-authenticated, authorized, scoped, executed call. The spec
+  edit becomes a pointer from `mcp-protocol.md` to V2-V3-ARCHITECTURE.md.
+- **Terminology** — "chapter" → "hub" throughout (per dp's rule from PR #293; "chapter"
+  survives only as an org-operator noun in framing docs, never in code or schema).
+
+### v0.1 — 2026-06-09 (initial draft)
+
+Initial framing of the claim, motivation from the canonical equation, semantics,
+running example (HUB society), and five open architectural questions.
+
+---
+
+*Draft Proposal v0.2 — open for review. Open architectural questions §6 to be settled
+before operational specs are updated; §6.5 now narrowed and pointing at HUB's
+authz/confidentiality model as the canonical interaction layer.*
