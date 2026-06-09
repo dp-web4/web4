@@ -246,14 +246,13 @@ enum Command {
         reason: Option<String>,
     },
 
-    /// Assign a role to a member.
+    /// Assign a role to a member. The role LCT is society-managed (created
+    /// on first fill, reused on rotation) — no role-lct-id argument needed.
     AssignRole {
         hub_dir: PathBuf,
         /// One of: sovereign | law_oracle | policy_entity | treasurer
         /// | administrator | archivist | citizen | witness | auditor.
         role: String,
-        /// The role LCT id (taken from `hub init` output or `hub status`).
-        role_lct_id: Uuid,
         /// The member LCT id.
         member_lct_id: Uuid,
     },
@@ -489,8 +488,8 @@ async fn main() -> Result<()> {
         Some(Command::RemoveMember { hub_dir, member_lct_id, reason }) => {
             run_remove_member(hub_dir, member_lct_id, reason).await
         }
-        Some(Command::AssignRole { hub_dir, role, role_lct_id, member_lct_id }) => {
-            run_assign_role(hub_dir, role, role_lct_id, member_lct_id).await
+        Some(Command::AssignRole { hub_dir, role, member_lct_id }) => {
+            run_assign_role(hub_dir, role, member_lct_id).await
         }
         Some(Command::RecordEvent { hub_dir, event_kind, title, attended_by }) => {
             run_record_event(hub_dir, event_kind, title, attended_by).await
@@ -641,15 +640,13 @@ async fn run_remove_member(hub_dir: PathBuf, member_lct_id: Uuid, reason: Option
 async fn run_assign_role(
     hub_dir: PathBuf,
     role: String,
-    role_lct_id: Uuid,
     member_lct_id: Uuid,
 ) -> Result<()> {
     let parsed = parse_role(&role)?;
     let mut session = HubSession::open(&hub_dir).await?;
-    let entry = session.assign_role(parsed.clone(), role_lct_id, member_lct_id).await?;
+    let entry = session.assign_role(parsed.clone(), member_lct_id).await?;
     println!("Role assigned.");
     println!("  Role:         {:?}", parsed);
-    println!("  Role LCT:     {}", role_lct_id);
     println!("  Member LCT:   {}", member_lct_id);
     println!("  Entry index:  {}", entry.index);
     println!("  Entry hash:   {}", entry.entry_hash);
@@ -807,7 +804,7 @@ async fn run_query(sub: QueryCommand) -> Result<()> {
                 for role in &unfilled {
                     println!("    {:?}", role);
                 }
-                println!("    (assign via `hub assign-role <chapter-dir> <role> <role-lct-id> <member-lct-id>` per chapter law)");
+                println!("    (assign via `hub assign-role <chapter-dir> <role> <member-lct-id>` per chapter law)");
             }
             Ok(())
         }

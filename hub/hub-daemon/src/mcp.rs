@@ -276,7 +276,11 @@ async fn add_member(
 #[derive(Deserialize)]
 struct AssignRoleRequest {
     role: SocietyRole,
-    role_lct_id: Uuid,
+    /// Ignored if supplied — the role LCT is society-managed. Accepted for
+    /// back-compat with pre-fix clients that sent it.
+    #[serde(default)]
+    #[allow(dead_code)]
+    role_lct_id: Option<Uuid>,
     member_lct_id: Uuid,
 }
 
@@ -284,9 +288,22 @@ async fn assign_role(
     State(s): State<McpState>,
     Json(req): Json<AssignRoleRequest>,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
+    // Update the persisted society role-fill (web4-core enforces authority and
+    // owns the role LCT), then witness the act in the ledger with that LCT.
+    // Without the society update the assignment never showed as filled.
+    let mut store = hub_lib::store::open_chapter_store(&s.paths.root)
+        .map_err(ApiError::internal)?;
+    let mut society = store.read_society().await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| ApiError::internal(anyhow::anyhow!("society state missing")))?;
+    let role_lct_id = society
+        .assign_role(req.role.clone(), req.member_lct_id, s.sovereign_lct_id)
+        .map_err(|e| ApiError::forbidden(format!("role assignment rejected: {e}")))?;
+    store.write_society(&society).await.map_err(ApiError::internal)?;
+
     let event = HubEvent::RoleAssigned {
         role: req.role,
-        role_lct_id: req.role_lct_id,
+        role_lct_id,
         assigned_to: req.member_lct_id,
         assigned_by: s.sovereign_lct_id,
     };

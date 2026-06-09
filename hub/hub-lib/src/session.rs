@@ -100,7 +100,25 @@ impl HubSession {
         self.append(event).await
     }
 
-    pub async fn assign_role(&mut self, role: SocietyRole, role_lct_id: Uuid, member_lct_id: Uuid) -> Result<&LedgerEntry> {
+    /// Assign `role` to `member_lct_id`. Updates the persisted society
+    /// role-fill (web4-core enforces Sovereign/Administrator authority and
+    /// owns the role LCT — created on first fill, reused on rotation) AND
+    /// witnesses the act in the ledger. The role LCT id is society-managed,
+    /// not caller-supplied: previously the act was only appended to the
+    /// ledger and never folded into the society, so assigned roles never
+    /// showed as filled in query_chapter / MCP / the admin dashboard.
+    pub async fn assign_role(&mut self, role: SocietyRole, member_lct_id: Uuid) -> Result<&LedgerEntry> {
+        let mut store = open_chapter_store(&self.paths.root)
+            .context("opening chapter store to update role-fill")?;
+        let mut society = store.read_society().await
+            .context("reading society state")?
+            .ok_or_else(|| anyhow::anyhow!("society state missing for chapter"))?;
+        let role_lct_id = society
+            .assign_role(role.clone(), member_lct_id, self.sovereign_lct_id)
+            .map_err(|e| anyhow::anyhow!("role assignment rejected: {e}"))?;
+        store.write_society(&society).await
+            .context("persisting updated role-fill")?;
+
         let event = HubEvent::RoleAssigned {
             role,
             role_lct_id,
@@ -376,6 +394,30 @@ mod tests {
 
         let st = session.status();
         assert_eq!(st.member_count, 2); // Sovereign + Bob
+    }
+
+    #[tokio::test]
+    async fn assign_role_fills_role_in_society() {
+        // Regression: assign_role used to only append a RoleAssigned ledger
+        // event without updating the persisted society, so the role never
+        // showed as filled in query_chapter / MCP / admin. It must now fold
+        // into the society role-fill.
+        let (_tmp, dir) = fresh_chapter().await;
+        let alice = Uuid::new_v4();
+        {
+            let mut session = HubSession::open(&dir).await.unwrap();
+            session.add_member(alice, Some("Alice".into())).await.unwrap();
+            session.assign_role(SocietyRole::Administrator, alice).await.unwrap();
+        }
+        // Re-read society from the store (what query_chapter / admin read).
+        let society = load_society(&dir).await.unwrap();
+        let admin = society
+            .get_role(&SocietyRole::Administrator)
+            .expect("Administrator role should be filled after assign_role");
+        assert_eq!(
+            admin.filling_entity_lct_id, alice,
+            "Administrator should be filled by the assigned member"
+        );
     }
 
     #[tokio::test]
