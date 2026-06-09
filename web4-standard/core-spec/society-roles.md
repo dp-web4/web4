@@ -1,7 +1,7 @@
 # Society Roles Specification
 
 **Status**: Core Specification v0.1.0 (DRAFT)
-**Date**: 2026-05-13
+**Date**: 2026-06-08
 **Category**: Society Structure
 **Extends**: `SOCIETY_SPECIFICATION.md` (single-society structural requirements)
 **Companion to**: `entity-types.md` (taxonomy of entities that can fill roles), `inter-society-protocol.md` (inter-society interactions)
@@ -48,7 +48,7 @@ Roles a society MAY define when its needs warrant, but that are not required for
 
 ## 2. Base-Mandatory Roles
 
-Every Web4-compliant society MUST have these seven roles filled. A single entity MAY fill multiple roles in a small society (e.g., a solo founder fills Sovereign + Treasurer + Administrator + Archivist + Citizen simultaneously). The roles must exist; how many entities fill them is per-society scale.
+Every Web4-compliant society MUST have these seven roles filled. A single entity MAY fill multiple roles in a small society (e.g., a solo founder fills all seven — Sovereign + Law Oracle + Policy-Entity + Treasurer + Administrator + Archivist + Citizen — simultaneously). The roles must exist; how many entities fill them is per-society scale.
 
 ### 2.1 Sovereign
 
@@ -178,7 +178,7 @@ Every Web4-compliant society MUST have these seven roles filled. A single entity
 **Example filling entities**: Human, AI, Organization, Society (when one society is citizen of another in fractal nesting), any Agentic or Delegative entity
 
 **Notes**:
-- Citizenship is universal across Web4 entities; the citizen-role mechanics are detailed in `entity-types.md` §3.1
+- Citizenship is universal across Web4 entities; the citizen-role principle and structure are detailed in `entity-types.md` §3.1, and the pairing mechanics (prerequisite check, permanence, termination) in §3.4
 - Every entity in a Web4 society holds Citizen as its base role; additional roles are paired on top
 
 ## 3. Context-Mandatory Roles
@@ -322,7 +322,7 @@ For Web4 specifically, this enables:
 
 | Society scale | Role-filling pattern |
 |---|---|
-| Solo founder | One entity (human) fills 6+ of 7 base-mandatory roles |
+| Solo founder | One entity (human) fills all 7 base-mandatory roles (Policy-Entity decisions may be AI-assisted) |
 | Small team (~5-20 members) | Each role typically one entity; some entities wear multiple hats |
 | Medium organization (~50-500) | Each role is one team / sub-organization |
 | Large enterprise (~1000+) | Each role is a sub-society; the society itself is a federation of role-societies |
@@ -367,8 +367,8 @@ T3 trust scores for the society as a whole (in inter-society contexts) are deriv
 |---|---|
 | `SOCIETY_SPECIFICATION.md` | Specifies structural requirements (Law Oracle, Ledger, Treasury, Society LCT); this spec specifies the roles that operate on those structures |
 | `entity-types.md` | Lists entity types with example roles each can fill; this spec lists roles with example entities each can be filled by (the symmetric dual) |
-| `inter-society-protocol.md` | Inter-society interactions reference the Diplomat role (§2.2 federation genesis). This spec's §6.2 defines semantic viability criteria that constrain role composition. ATP measurement witnessing (§4.6) involves the Witness role at the resource attestation layer. Bidirectional dependency. |
-| `mcp-protocol.md` | MCP actions consume the role taxonomy directly: Policy-Entity signs action decisions (§7.3), Witness co-signs high-consequence actions (§7.5), Archivist persists audit bundles (§7.3), Treasurer negotiates exchange rates (§7.7). |
+| `inter-society-protocol.md` | Inter-society interactions reference the Diplomat role (`inter-society-protocol.md` §2.2 federation genesis). That spec's §6.2 defines semantic viability criteria that constrain role composition. ATP measurement witnessing (`inter-society-protocol.md` §4.6) involves the Witness role at the resource attestation layer. Bidirectional dependency. |
+| `mcp-protocol.md` | MCP actions consume the role taxonomy directly: Policy-Entity signs action decisions (§7.3), Witness co-signs high-consequence actions (§7.3; selection governed by §7.5), Archivist persists audit bundles (§7.3), Treasurer negotiates exchange rates (§7.7, WIP v0.1.0-draft). |
 | `web4-society-authority-law.md` | The SAL spec defines Citizen, Authority, Law Oracle, Witness, and Auditor from the Society–Authority–Law perspective with detailed normative requirements (birth certificates, delegation chains, ledger interfaces, audit transcripts). This spec provides the role taxonomy; SAL provides the operational protocol for a subset of those roles. |
 | `r6-framework.md` | R6 actions are dispatched through Administrator, evaluated by Policy-Entity, witnessed by Witness, recorded by Archivist |
 | `r7-framework.md` | R7 actions add Reputation back-propagation through the same role chain |
