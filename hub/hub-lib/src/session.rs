@@ -24,7 +24,7 @@ use crate::identity::IdentityFile;
 use crate::init::load_society;
 use crate::ledger::{HubLedger, LedgerEntry};
 use crate::state::{HubState, Member};
-use crate::store::open_chapter_store;
+use crate::store::open_hub_store;
 
 /// One open chapter, ready for ops. Drop to close.
 pub struct HubSession {
@@ -64,10 +64,10 @@ impl HubSession {
                 "loading Sovereign identity from {}", lct_path.display()
             ))?;
         let keypair = sovereign.keypair()?;
-        let store = open_chapter_store(hub_dir)
-            .context("opening chapter store for session")?;
+        let store = open_hub_store(hub_dir)
+            .context("opening hub store for session")?;
         let ledger = HubLedger::open(store).await
-            .context("opening ledger via chapter store")?;
+            .context("opening ledger via hub store")?;
         Ok(Self {
             paths,
             config,
@@ -108,11 +108,11 @@ impl HubSession {
     /// ledger and never folded into the society, so assigned roles never
     /// showed as filled in query_chapter / MCP / the admin dashboard.
     pub async fn assign_role(&mut self, role: SocietyRole, member_lct_id: Uuid) -> Result<&LedgerEntry> {
-        let mut store = open_chapter_store(&self.paths.root)
-            .context("opening chapter store to update role-fill")?;
+        let mut store = open_hub_store(&self.paths.root)
+            .context("opening hub store to update role-fill")?;
         let mut society = store.read_society().await
             .context("reading society state")?
-            .ok_or_else(|| anyhow::anyhow!("society state missing for chapter"))?;
+            .ok_or_else(|| anyhow::anyhow!("society state missing for hub"))?;
         let role_lct_id = society
             .assign_role(role.clone(), member_lct_id, self.sovereign_lct_id)
             .map_err(|e| anyhow::anyhow!("role assignment rejected: {e}"))?;
@@ -154,7 +154,7 @@ impl HubSession {
         let sha = crate::law::Law::sha256_hex_of(yaml);
         self.ledger.store_mut()
             .write_law(yaml).await
-            .context("writing law to chapter store")?;
+            .context("writing law to hub store")?;
         let event = HubEvent::LawAmended {
             new_law_sha256: sha,
             amended_by: self.sovereign_lct_id,
@@ -311,7 +311,7 @@ impl HubSession {
 
 /// Status snapshot for CLI / API consumption.
 #[derive(Debug)]
-pub struct ChapterStatus {
+pub struct HubStatus {
     pub hub_dir: PathBuf,
     pub hub_name: String,
     pub member_count: usize,
@@ -321,10 +321,10 @@ pub struct ChapterStatus {
 }
 
 impl HubSession {
-    pub fn status(&self) -> ChapterStatus {
+    pub fn status(&self) -> HubStatus {
         let state = self.state();
         let member_count = state.member_count();
-        ChapterStatus {
+        HubStatus {
             hub_dir: self.hub_dir().to_path_buf(),
             hub_name: state.hub_name,
             member_count,
@@ -338,16 +338,16 @@ impl HubSession {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::init::{init_chapter, InitArgs};
+    use crate::init::{init_hub, InitArgs};
     use tempfile::tempdir;
     use web4_core::lct::EntityType;
 
-    async fn fresh_chapter() -> (tempfile::TempDir, PathBuf) {
+    async fn fresh_hub() -> (tempfile::TempDir, PathBuf) {
         let tmp = tempdir().unwrap();
         let sovereign_path = tmp.path().join("sovereign.json");
         IdentityFile::generate(EntityType::Human).save(&sovereign_path).unwrap();
         let hub_dir = tmp.path().join("test-chapter");
-        init_chapter(InitArgs {
+        init_hub(InitArgs {
             hub_name: "Test Chapter".into(),
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
@@ -358,7 +358,7 @@ mod tests {
 
     #[tokio::test]
     async fn open_and_status_after_init() {
-        let (_tmp, dir) = fresh_chapter().await;
+        let (_tmp, dir) = fresh_hub().await;
         let session = HubSession::open(&dir).await.unwrap();
         let st = session.status();
         assert_eq!(st.hub_name, "Test Chapter");
@@ -368,7 +368,7 @@ mod tests {
 
     #[tokio::test]
     async fn end_to_end_session_ops() {
-        let (_tmp, dir) = fresh_chapter().await;
+        let (_tmp, dir) = fresh_hub().await;
         let mut session = HubSession::open(&dir).await.unwrap();
 
         let alice = Uuid::new_v4();
@@ -402,7 +402,7 @@ mod tests {
         // event without updating the persisted society, so the role never
         // showed as filled in query_chapter / MCP / admin. It must now fold
         // into the society role-fill.
-        let (_tmp, dir) = fresh_chapter().await;
+        let (_tmp, dir) = fresh_hub().await;
         let alice = Uuid::new_v4();
         {
             let mut session = HubSession::open(&dir).await.unwrap();
@@ -422,7 +422,7 @@ mod tests {
 
     #[tokio::test]
     async fn session_writes_persist_across_reopen() {
-        let (_tmp, dir) = fresh_chapter().await;
+        let (_tmp, dir) = fresh_hub().await;
         {
             let mut session = HubSession::open(&dir).await.unwrap();
             session.add_member(Uuid::new_v4(), Some("Alice".into())).await.unwrap();

@@ -19,7 +19,7 @@ use std::path::PathBuf;
 
 use hub_lib::hub::HubConfig;
 use hub_lib::identity::IdentityFile;
-use hub_lib::init::{init_chapter, verify_chapter, InitArgs, InitResult};
+use hub_lib::init::{init_hub, verify_hub, InitArgs, InitResult};
 use hub_lib::session::HubSession;
 use uuid::Uuid;
 use web4_core::lct::EntityType;
@@ -38,7 +38,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Initialize a new chapter society in the given directory.
+    /// Initialize a new hub society in the given directory.
     ///
     /// Two modes:
     /// - **Local mode** (MVP-compatible): pass `--sovereign-lct PATH` to a
@@ -48,7 +48,7 @@ enum Command {
     ///   The hub holds NO keypair; Genesis is signed by Hestia via the
     ///   callback URL.
     Init {
-        /// Human-readable chapter name (e.g. "Lisbon Chapter").
+        /// Human-readable hub name (e.g. "Lisbon Chapter").
         name: String,
 
         /// **Local mode**: path to the Sovereign IdentityFile (LCT + keypair).
@@ -186,7 +186,7 @@ enum Command {
     /// entry's hash matches recomputation, prev-hash chain is unbroken,
     /// indices are sequential. Errors loudly if any entry is tampered.
     VerifyLedger {
-        /// Path to the chapter directory.
+        /// Path to the hub directory.
         hub_dir: PathBuf,
     },
 
@@ -198,7 +198,7 @@ enum Command {
     /// suffixes so they remain recoverable. Runs verify-ledger on the
     /// migrated chapter before returning success.
     Migrate {
-        /// Path to the chapter directory.
+        /// Path to the hub directory.
         hub_dir: PathBuf,
 
         /// Target backend: `file` or `sqlite`.
@@ -257,7 +257,7 @@ enum Command {
         member_lct_id: Uuid,
     },
 
-    /// Record a chapter event (demo night, workshop, etc.).
+    /// Record a hub event (demo night, workshop, etc.).
     RecordEvent {
         hub_dir: PathBuf,
         /// Short event kind (e.g. "demo_night", "workshop").
@@ -278,7 +278,7 @@ enum Command {
 
     /// Set (or amend) the chapter's law from a YAML file (V2-8).
     /// Validates the YAML against the chapter-law schema, writes it
-    /// to the chapter store, and appends a LawAmended event to the
+    /// to the hub store, and appends a LawAmended event to the
     /// ledger for audit.
     SetLaw {
         hub_dir: PathBuf,
@@ -297,7 +297,7 @@ enum Command {
 
     /// Write the starter chapter-law template to a file the operator
     /// can review + edit, then apply via `hub set-law`. Doesn't touch
-    /// any chapter directly.
+    /// any hub directly.
     InitLaw {
         /// Where to write the starter YAML (e.g. ./hub-law.yaml).
         #[arg(default_value = "./hub-law.yaml")]
@@ -822,7 +822,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
     // the same in-memory snapshot, and so the REST reload-law endpoint
     // refreshes both surfaces in one call.
     let initial_law = {
-        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
+        let store = hub_lib::store::open_hub_store(&hub_dir)?;
         match store.read_law().await? {
             Some(yaml) => Some(hub_lib::law::Law::parse_and_validate(&yaml)?),
             None => None,
@@ -834,7 +834,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
     // (previously each surface loaded its own ledger at startup and only
     // reconverged on restart).
     let shared_ledger = {
-        let store = hub_lib::store::open_chapter_store(&hub_dir)?;
+        let store = hub_lib::store::open_hub_store(&hub_dir)?;
         std::sync::Arc::new(tokio::sync::Mutex::new(
             hub_lib::ledger::HubLedger::open(store).await?,
         ))
@@ -877,7 +877,7 @@ async fn shutdown_signal() {
 }
 
 async fn run_verify_ledger(hub_dir: PathBuf) -> Result<()> {
-    let result = verify_chapter(&hub_dir).await?;
+    let result = verify_hub(&hub_dir).await?;
     println!("Ledger verified.");
     println!("  Chapter dir:    {}", result.hub_dir.display());
     println!("  Chapter name:   {}", result.hub_name);
@@ -891,7 +891,7 @@ async fn run_migrate(hub_dir: PathBuf, to: String) -> Result<()> {
     let target = hub_lib::store::BackendKind::from_str(&to)
         .context("parsing --to")?;
     println!("Migrating {} → {}", hub_dir.display(), target.as_str());
-    let result = hub_lib::store::migrate_chapter(&hub_dir, target).await
+    let result = hub_lib::store::migrate_hub(&hub_dir, target).await
         .context("migrating chapter")?;
     if result.source_backend == result.target_backend {
         println!("Source backend is already {}; nothing to do.", target.as_str());
@@ -908,7 +908,7 @@ async fn run_migrate(hub_dir: PathBuf, to: String) -> Result<()> {
     }
     println!();
     println!("Verifying migrated chapter end-to-end ...");
-    let verify = verify_chapter(&hub_dir).await
+    let verify = verify_hub(&hub_dir).await
         .context("post-migration ledger verification failed")?;
     println!("Ledger verified on {} backend.", target.as_str());
     println!("  Entries:        {}", verify.entries);
@@ -933,7 +933,7 @@ async fn run_init(
     let result = match (sovereign_lct, sovereign_hestia) {
         (Some(path), None) => {
             // Local mode
-            init_chapter(InitArgs {
+            init_hub(InitArgs {
                 hub_name: name,
                 hub_dir,
                 sovereign_lct_path: path,
@@ -945,7 +945,7 @@ async fn run_init(
             let lct_id = sovereign_lct_id.expect("clap requires_all");
             let pubkey_hex = sovereign_pubkey.expect("clap requires_all");
             println!("hub init: Hestia mode — Genesis will be signed by {}", callback_url);
-            hub_lib::init::init_chapter_hestia(hub_lib::init::HestiaInitArgs {
+            hub_lib::init::init_hub_hestia(hub_lib::init::HestiaInitArgs {
                 hub_name: name,
                 hub_dir,
                 sovereign_lct_id: lct_id,
@@ -974,7 +974,7 @@ async fn run_init(
             }
             println!();
             println!("Next: in sprint 2 this is where you'd start recording events.");
-            println!("      For now, inspect the chapter dir or run `hub init {} ...` again",
+            println!("      For now, inspect the hub dir or run `hub init {} ...` again",
                      "<same-name>");
             println!("      to verify idempotency.");
         }
@@ -1161,7 +1161,7 @@ mod tests {
     fn slugify_handles_common_cases() {
         assert_eq!(slugify("Lisbon Chapter"), "lisbon-chapter");
         assert_eq!(slugify("NYC Chapter #1"), "nyc-chapter-1");
-        // Unicode letters survive via char::is_alphanumeric — fine for chapter dirs.
+        // Unicode letters survive via char::is_alphanumeric — fine for hub dirs.
         assert_eq!(slugify("São Paulo"), "são-paulo");
         assert_eq!(slugify("東京"), "東京");
         assert_eq!(slugify("   spaces   "), "spaces");

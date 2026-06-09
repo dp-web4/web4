@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Metalinxx Inc.
 
-//! `hub init` logic — bootstrap a chapter society.
+//! `hub init` logic — bootstrap a hub society.
 //!
 //! Flow:
-//! 1. Validate chapter dir doesn't already contain a society (idempotent).
+//! 1. Validate hub dir doesn't already contain a society (idempotent).
 //! 2. Load the Sovereign identity (LCT + keypair) from the path given.
 //! 3. Compose a founding charter (Charter::found), hash it.
 //! 4. Bootstrap a web4_core::Society — wires all 7 base-mandatory roles with
@@ -25,7 +25,7 @@ use crate::hub::{HubConfig, HubPaths};
 use crate::charter::Charter;
 use crate::identity::IdentityFile;
 use crate::ledger::{build_lookup, HubLedger};
-use crate::store::{open_chapter_store, open_chapter_store_with, BackendKind};
+use crate::store::{open_hub_store, open_hub_store_with, BackendKind};
 
 /// Roles the founder fills at genesis per V2-1 architecture.
 ///
@@ -79,7 +79,7 @@ fn role_key_for(role: &SocietyRole) -> String {
 /// Outcome of an `init` call.
 #[derive(Debug)]
 pub enum InitResult {
-    /// Newly initialized — fresh chapter ready to use.
+    /// Newly initialized — fresh hub ready to use.
     Initialized {
         society_lct_id: Uuid,
         hub_dir: PathBuf,
@@ -95,14 +95,14 @@ pub enum InitResult {
 
 /// Parameters for chapter initialization.
 pub struct InitArgs {
-    /// Human-readable chapter name (e.g. "Lisbon Chapter").
+    /// Human-readable hub name (e.g. "Lisbon Chapter").
     pub hub_name: String,
 
     /// Where the chapter will live on disk.
     pub hub_dir: PathBuf,
 
     /// Path to the Sovereign identity file (see IdentityFile).
-    /// For Local-mode init only — Hestia-mode uses [`init_chapter_with_signer`]
+    /// For Local-mode init only — Hestia-mode uses [`init_hub_with_signer`]
     /// and doesn't need a local IdentityFile.
     pub sovereign_lct_path: PathBuf,
 
@@ -127,15 +127,15 @@ pub struct HestiaInitArgs {
 }
 
 /// Run the init flow.
-pub async fn init_chapter(args: InitArgs) -> Result<InitResult> {
+pub async fn init_hub(args: InitArgs) -> Result<InitResult> {
     let paths = HubPaths::new(&args.hub_dir);
 
     // 1. Idempotency check — through the store, not the filesystem directly.
-    // open_chapter_store auto-detects existing backend (sqlite if chapter.db
+    // open_hub_store auto-detects existing backend (sqlite if chapter.db
     // present, else file).
     if args.hub_dir.exists() {
-        let probe_store = open_chapter_store(&args.hub_dir)
-            .context("opening chapter store for idempotency probe")?;
+        let probe_store = open_hub_store(&args.hub_dir)
+            .context("opening hub store for idempotency probe")?;
         if let Some(existing) = probe_store.read_society().await
             .context("probing for existing society")? {
             return Ok(InitResult::AlreadyInitialized {
@@ -148,7 +148,7 @@ pub async fn init_chapter(args: InitArgs) -> Result<InitResult> {
     }
 
     std::fs::create_dir_all(&args.hub_dir)
-        .with_context(|| format!("creating chapter dir {}", args.hub_dir.display()))?;
+        .with_context(|| format!("creating hub dir {}", args.hub_dir.display()))?;
 
     // 2. Load Sovereign identity. NOTE per architecture commitment #8:
     // identity-file-as-secret-store is the MVP bootstrap pattern; secrets
@@ -168,8 +168,8 @@ pub async fn init_chapter(args: InitArgs) -> Result<InitResult> {
 
     // Open the real store for the requested backend (default: file).
     let backend = args.storage.unwrap_or(BackendKind::File);
-    let mut store = open_chapter_store_with(&args.hub_dir, backend)
-        .with_context(|| format!("opening chapter store with backend {:?}", backend))?;
+    let mut store = open_hub_store_with(&args.hub_dir, backend)
+        .with_context(|| format!("opening hub store with backend {:?}", backend))?;
     tracing::info!(backend = backend.as_str(), "chapter storage backend selected");
 
     // 3. Compose + hash founding charter; write through store.
@@ -209,11 +209,11 @@ pub async fn init_chapter(args: InitArgs) -> Result<InitResult> {
     config.save(paths.config())
         .with_context(|| format!("writing config to {}", paths.config().display()))?;
 
-    // 7. Initialize the chapter ledger via store + write Genesis entry.
+    // 7. Initialize the hub ledger via store + write Genesis entry.
     // Genesis is signed by the Sovereign; subsequent events get signed by
     // their respective actors.
     let mut ledger = HubLedger::open(store).await
-        .context("opening chapter ledger via store")?;
+        .context("opening hub ledger via store")?;
     let sovereign_keypair = sovereign.keypair()
         .context("reconstructing Sovereign keypair for Genesis signing")?;
     ledger.write_genesis(
@@ -221,7 +221,7 @@ pub async fn init_chapter(args: InitArgs) -> Result<InitResult> {
         &sovereign_keypair,
         args.hub_name.clone(),
         society.charter_hash.clone(),
-    ).await.context("writing Genesis entry to chapter ledger")?;
+    ).await.context("writing Genesis entry to hub ledger")?;
 
     tracing::info!(
         society_lct_id = %society_lct_id,
@@ -229,7 +229,7 @@ pub async fn init_chapter(args: InitArgs) -> Result<InitResult> {
         hub_dir = %args.hub_dir.display(),
         roles_wired = role_lcts.len(),
         ledger_entries = ledger.len(),
-        "chapter society bootstrapped"
+        "hub society bootstrapped"
     );
 
     Ok(InitResult::Initialized {
@@ -242,11 +242,11 @@ pub async fn init_chapter(args: InitArgs) -> Result<InitResult> {
 /// Load an already-initialized chapter's society state. Routes through
 /// the storage backend abstraction, so works against any backend.
 pub async fn load_society(hub_dir: impl AsRef<Path>) -> Result<Society> {
-    let store = open_chapter_store(hub_dir.as_ref())
-        .context("opening chapter store")?;
+    let store = open_hub_store(hub_dir.as_ref())
+        .context("opening hub store")?;
     store.read_society().await
         .context("reading society via store")?
-        .ok_or_else(|| anyhow::anyhow!("no society found in chapter store"))
+        .ok_or_else(|| anyhow::anyhow!("no society found in hub store"))
 }
 
 /// Run the Hestia-mode init flow. The hub holds NO Sovereign keypair;
@@ -254,7 +254,7 @@ pub async fn load_society(hub_dir: impl AsRef<Path>) -> Result<Society> {
 ///
 /// Per architecture commitment #8: secrets live in Hestia's vault.
 /// This entry point is the canonical Hestia-mode bootstrap.
-pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
+pub async fn init_hub_hestia(args: HestiaInitArgs) -> Result<InitResult> {
     use crate::signer::{HestiaCallbackSigner, RemoteSigner, SignIntent};
     use web4_core::crypto::SignatureBytes;
 
@@ -262,8 +262,8 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
 
     // 1. Idempotency check.
     if args.hub_dir.exists() {
-        let probe_store = open_chapter_store(&args.hub_dir)
-            .context("opening chapter store for idempotency probe")?;
+        let probe_store = open_hub_store(&args.hub_dir)
+            .context("opening hub store for idempotency probe")?;
         if let Some(existing) = probe_store.read_society().await
             .context("probing for existing society")? {
             return Ok(InitResult::AlreadyInitialized {
@@ -276,7 +276,7 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
     }
 
     std::fs::create_dir_all(&args.hub_dir)
-        .with_context(|| format!("creating chapter dir {}", args.hub_dir.display()))?;
+        .with_context(|| format!("creating hub dir {}", args.hub_dir.display()))?;
 
     // 2. Synthesize the Sovereign's Lct from the supplied pubkey
     // (no IdentityFile in Hestia mode).
@@ -291,8 +291,8 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
 
     // 3. Open store.
     let backend = args.storage.unwrap_or(BackendKind::File);
-    let mut store = open_chapter_store_with(&args.hub_dir, backend)
-        .with_context(|| format!("opening chapter store with backend {:?}", backend))?;
+    let mut store = open_hub_store_with(&args.hub_dir, backend)
+        .with_context(|| format!("opening hub store with backend {:?}", backend))?;
 
     // 4. Charter.
     let charter = Charter::found(args.hub_name.clone(), args.sovereign_lct_id);
@@ -322,7 +322,7 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
 
     // 7. Open ledger + build unsigned Genesis.
     let mut ledger = HubLedger::open(store).await
-        .context("opening chapter ledger via store")?;
+        .context("opening hub ledger via store")?;
     let (unsigned, _ts) = ledger.build_genesis(
         args.sovereign_lct_id,
         args.hub_name.clone(),
@@ -364,7 +364,7 @@ pub async fn init_chapter_hestia(args: HestiaInitArgs) -> Result<InitResult> {
         hub_dir = %args.hub_dir.display(),
         roles_wired = role_lcts.len(),
         ledger_entries = ledger.len(),
-        "Hestia-mode chapter society bootstrapped"
+        "Hestia-mode hub society bootstrapped"
     );
 
     Ok(InitResult::Initialized {
@@ -383,11 +383,11 @@ pub struct VerifyResult {
     pub head_hash: String,
 }
 
-/// Verify the entire chapter ledger end-to-end. For MVP, the only LCT in
+/// Verify the entire hub ledger end-to-end. For MVP, the only LCT in
 /// the lookup is the Sovereign (loaded from config.toml's sovereign.lct_path).
 /// Later sprints will extend the lookup to include member LCTs (extracted
 /// from MemberAdded events).
-pub async fn verify_chapter(hub_dir: impl AsRef<Path>) -> Result<VerifyResult> {
+pub async fn verify_hub(hub_dir: impl AsRef<Path>) -> Result<VerifyResult> {
     let hub_dir = hub_dir.as_ref();
     let paths = HubPaths::new(hub_dir);
 
@@ -415,8 +415,8 @@ pub async fn verify_chapter(hub_dir: impl AsRef<Path>) -> Result<VerifyResult> {
     };
 
     let society = load_society(hub_dir).await.context("loading society")?;
-    let store = open_chapter_store(hub_dir)
-        .context("opening chapter store for verify")?;
+    let store = open_hub_store(hub_dir)
+        .context("opening hub store for verify")?;
     let ledger = HubLedger::open(store).await
         .context("opening ledger via store")?;
     // Build LCT lookup. MVP: just the Sovereign. Extension point: as the
@@ -459,7 +459,7 @@ mod tests {
         let sovereign_path = fresh_sovereign(tmp.path());
         let hub_dir = tmp.path().join("lisbon");
 
-        let result = init_chapter(InitArgs {
+        let result = init_hub(InitArgs {
             hub_name: "Lisbon Chapter".into(),
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
@@ -502,7 +502,7 @@ mod tests {
         let sovereign_path = fresh_sovereign(tmp.path());
         let hub_dir = tmp.path().join("lisbon");
 
-        init_chapter(InitArgs {
+        init_hub(InitArgs {
             hub_name: "Lisbon".into(),
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
@@ -523,7 +523,7 @@ mod tests {
         let sovereign_path = fresh_sovereign(tmp.path());
         let hub_dir = tmp.path().join("lisbon");
 
-        init_chapter(InitArgs {
+        init_hub(InitArgs {
             hub_name: "Lisbon".into(),
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
@@ -537,7 +537,7 @@ mod tests {
         assert!(paths.ledger().exists(), "ledger.jsonl missing");
 
         // Sprint 2: ledger now starts with Genesis entry (not empty)
-        let store = open_chapter_store(&hub_dir).unwrap();
+        let store = open_hub_store(&hub_dir).unwrap();
         let ledger = crate::ledger::HubLedger::open(store).await.unwrap();
         assert_eq!(ledger.len(), 1, "expected single Genesis entry after init");
     }
@@ -548,15 +548,15 @@ mod tests {
         let sovereign_path = fresh_sovereign(tmp.path());
         let hub_dir = tmp.path().join("lisbon");
 
-        init_chapter(InitArgs {
+        init_hub(InitArgs {
             hub_name: "Lisbon".into(),
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
         }).await.unwrap();
 
-        // verify_chapter does end-to-end: config → identity → society → ledger
-        let result = verify_chapter(&hub_dir).await.unwrap();
+        // verify_hub does end-to-end: config → identity → society → ledger
+        let result = verify_hub(&hub_dir).await.unwrap();
         assert_eq!(result.hub_name, "Lisbon");
         assert_eq!(result.entries, 1, "Genesis is the only entry post-init");
         assert!(!result.head_hash.is_empty());
@@ -569,7 +569,7 @@ mod tests {
         let hub_dir = tmp.path().join("lisbon");
 
         // First init
-        let first = init_chapter(InitArgs {
+        let first = init_hub(InitArgs {
             hub_name: "Lisbon".into(),
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path.clone(),
@@ -585,7 +585,7 @@ mod tests {
         let society_before = std::fs::read_to_string(hub_dir.join("society.json")).unwrap();
 
         // Second init on same dir
-        let second = init_chapter(InitArgs {
+        let second = init_hub(InitArgs {
             hub_name: "Different Name (should be ignored)".into(),
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
@@ -614,7 +614,7 @@ mod tests {
         let sovereign_path = fresh_sovereign(tmp.path());
         let hub_dir = tmp.path().join("lisbon");
 
-        init_chapter(InitArgs {
+        init_hub(InitArgs {
             hub_name: "Lisbon".into(),
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
@@ -639,7 +639,7 @@ mod tests {
         let sovereign_path = fresh_sovereign(tmp.path());
         let hub_dir = tmp.path().join("lisbon");
 
-        init_chapter(InitArgs {
+        init_hub(InitArgs {
             hub_name: "Lisbon".into(),
             hub_dir,
             sovereign_lct_path: sovereign_path.clone(),

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Metalinxx Inc.
 
-//! Chapter charter — the constitutional document of a chapter society.
+//! Chapter charter — the constitutional document of a hub society.
 //!
 //! Sprint 1: minimal charter with chapter name, founding date, Sovereign LCT
 //! reference, a free-text preamble, and an empty rules list. The charter
@@ -21,13 +21,13 @@ use web4_core::crypto::sha256_hex;
 /// Schema version of the on-disk charter file. Bump on breaking changes.
 pub const CHARTER_SCHEMA_VERSION: &str = "0.1";
 
-/// A chapter charter — minimal MVP shape.
+/// A hub charter — minimal MVP shape.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Charter {
     /// Schema version. Bump when fields change incompatibly.
     pub schema_version: String,
 
-    /// Human-readable chapter name (e.g. "Lisbon Chapter").
+    /// Human-readable hub name (e.g. "Lisbon Chapter").
     pub hub_name: String,
 
     /// When the charter was founded.
@@ -107,7 +107,7 @@ fn default_preamble(hub_name: &str) -> String {
          federation-capable, and accountable to its members through \
          witnessed action. Members hold portable identity (LCT) and \
          accrue reputation (T3/V3) by attested contribution. The \
-         chapter operates by chapter law, signed by the Sovereign and \
+         chapter operates by hub law, signed by the Sovereign and \
          amendable through the witnessed process the law itself defines.",
         name = hub_name
     )

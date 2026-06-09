@@ -195,12 +195,12 @@ impl Law {
     /// Parse a YAML law document. Returns the typed Law on success.
     /// Run `Law::validate()` separately for structural checks.
     pub fn from_yaml(s: &str) -> Result<Self> {
-        serde_yaml::from_str(s).context("parsing chapter law YAML")
+        serde_yaml::from_str(s).context("parsing hub law YAML")
     }
 
     /// Serialize back to YAML for storage / display.
     pub fn to_yaml(&self) -> Result<String> {
-        serde_yaml::to_string(self).context("serializing chapter law to YAML")
+        serde_yaml::to_string(self).context("serializing hub law to YAML")
     }
 
     /// Validate per `chapter-law-schema.md` §2 rules 1-10. Errors loudly

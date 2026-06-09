@@ -643,7 +643,7 @@ mod tests {
             }),
             (alice, &kp, HubEvent::PairingRevoked {
                 pair_id, revoked_by: alice,
-                revocation_kind: PairRevocationKind::ChapterLaw,
+                revocation_kind: PairRevocationKind::HubLaw,
                 reason: Some("second — should be ignored".into()),
             }),
         ]).await;
@@ -754,13 +754,25 @@ mod tests {
 
         let rev = HubEvent::PairingRevoked {
             pair_id, revoked_by: alice,
-            revocation_kind: PairRevocationKind::ChapterLaw,
+            revocation_kind: PairRevocationKind::HubLaw,
             reason: None,
         };
         let rev_json = serde_json::to_string(&rev).unwrap();
         assert!(rev_json.contains("\"kind\":\"pairing_revoked\""));
-        assert!(rev_json.contains("\"revocation_kind\":\"chapter_law\""));
+        // Canonical form after the chapter→hub rename.
+        assert!(rev_json.contains("\"revocation_kind\":\"hub_law\""));
         // No reason -> field skipped
         assert!(!rev_json.contains("\"reason\""));
+
+        // Back-compat: pre-rename ledgers serialized this as "chapter_law";
+        // the serde alias must still deserialize them.
+        let legacy = rev_json.replace("\"hub_law\"", "\"chapter_law\"");
+        let back: HubEvent = serde_json::from_str(&legacy).unwrap();
+        match back {
+            HubEvent::PairingRevoked { revocation_kind, .. } => {
+                assert_eq!(revocation_kind, PairRevocationKind::HubLaw);
+            }
+            _ => panic!("expected PairingRevoked"),
+        }
     }
 }

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Metalinxx Inc.
 
-//! Chapter event types.
+//! Hub event types.
 //!
 //! These are the *domain* events a chapter records — distinct from
 //! `web4_core::ledger::LedgerEvent` which is about LCT anchoring (mint /
-//! status-change). The hub's HubLedger records the chapter's social
+//! status-change). The hub's HubLedger records the hub's social
 //! and governance actions on top of (and alongside) any LCT anchoring
 //! that web4-core handles.
 //!
@@ -25,7 +25,7 @@ use web4_core::role::SocietyRole;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum HubEvent {
-    /// First entry in any chapter ledger. Established at chapter init.
+    /// First entry in any hub ledger. Established at chapter init.
     Genesis {
         hub_name: String,
         charter_hash: String,
@@ -72,7 +72,7 @@ pub enum HubEvent {
         held_at: DateTime<Utc>,
     },
 
-    /// The chapter charter was amended. `new_charter_hash` is the post-amendment
+    /// The hub charter was amended. `new_charter_hash` is the post-amendment
     /// hash. Must be signed by the Sovereign.
     CharterAmended {
         new_charter_hash: String,
@@ -239,10 +239,11 @@ pub enum PairRevocationKind {
     Voluntary,
     /// The pair's `expires_at` was reached. Auto-cleanup; trust-neutral.
     Expired,
-    /// Chapter law force-revoked (norm fired with `decision: deny` for
+    /// Hub law force-revoked (norm fired with `decision: deny` for
     /// continued pair existence, or escalation outcome). Trust signal:
     /// pair was deemed inappropriate by the society.
-    ChapterLaw,
+    #[serde(alias = "chapter_law")]
+    HubLaw,
     /// One party's LCT key rotated; derived shared secrets are no
     /// longer valid. Trust-neutral; re-pair to continue.
     KeyRotation,
