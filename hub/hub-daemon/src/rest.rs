@@ -181,6 +181,11 @@ impl RestState {
 
 pub fn router(state: RestState) -> Router {
     Router::new()
+        // Discovery endpoint that Hestia's `hestia hub connect` calls.
+        // Matches the HubInfo shape declared in `hestia/core/src/hub.rs`
+        // (hub_lct_id, api_versions, endpoints, hubs). Unauthenticated
+        // by design — discovery is a public read.
+        .route("/.well-known/web4-hub.json", get(well_known_hub_info))
         .route("/v1/auth/challenge", post(issue_challenge))
         // Hub-named routes (canonical; chapter→hub rename mirrored on
         // Hestia side at hestia@c3932a8 — back-compat /v1/chapters/*
@@ -238,6 +243,61 @@ impl From<VerifyError> for ApiError {
             VerifyError::Internal(err) => ApiError::internal(err),
         }
     }
+}
+
+// ---------- GET /.well-known/web4-hub.json (discovery) ----------
+
+/// Shape matches `hestia::hub::HubInfo` exactly so `hestia hub connect`
+/// can deserialize without translation. Public read; no auth.
+#[derive(Serialize)]
+struct WellKnownHubInfo {
+    /// The hub's society LCT id (what `hestia hub connect` keys on).
+    hub_lct_id: Uuid,
+    /// API versions this hub serves. v1 today; future versions get
+    /// added when the wire shape evolves under semver discipline.
+    api_versions: Vec<&'static str>,
+    /// Endpoint hints for clients. `rest` is the v1 base; `mcp` is the
+    /// tool-call base. Both are relative to the hub's reachable URL
+    /// (the client already knows it — they fetched this from there).
+    endpoints: WellKnownEndpoints,
+    /// Hubs this server hosts. Single-hub deployments return one entry;
+    /// future multi-hub hosting returns multiple.
+    hubs: Vec<WellKnownHubSummary>,
+}
+
+#[derive(Serialize)]
+struct WellKnownEndpoints {
+    rest: &'static str,
+    mcp: &'static str,
+}
+
+#[derive(Serialize)]
+struct WellKnownHubSummary {
+    id: Uuid,
+    name: String,
+    public: bool,
+}
+
+async fn well_known_hub_info(
+    State(s): State<RestState>,
+) -> Json<WellKnownHubInfo> {
+    Json(WellKnownHubInfo {
+        hub_lct_id: s.hub_id,
+        api_versions: vec!["v1"],
+        endpoints: WellKnownEndpoints {
+            rest: "/v1",
+            mcp: "/tools",
+        },
+        hubs: vec![WellKnownHubSummary {
+            id: s.hub_id,
+            name: s.hub_name.clone(),
+            // For now every hub the daemon serves is publicly
+            // discoverable — if you reached the well-known you reach
+            // the hub. Private hub semantics (ACLs at the discovery
+            // layer) land if/when the operational model requires.
+            public: true,
+        }],
+    })
 }
 
 // ---------- POST /v1/auth/challenge ----------
