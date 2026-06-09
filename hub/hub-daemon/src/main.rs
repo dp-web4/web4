@@ -276,6 +276,17 @@ enum Command {
         skill: String,
     },
 
+    /// Update a member's profile fields (for semantic discovery). Pass one or
+    /// more `key=value` pairs, e.g. `skills="..." interests="..."`. An empty
+    /// value clears that field.
+    SetProfile {
+        hub_dir: PathBuf,
+        member_lct_id: Uuid,
+        /// `key=value` pairs (repeatable).
+        #[arg(value_name = "KEY=VALUE", required = true)]
+        fields: Vec<String>,
+    },
+
     /// Set (or amend) the chapter's law from a YAML file (V2-8).
     /// Validates the YAML against the chapter-law schema, writes it
     /// to the hub store, and appends a LawAmended event to the
@@ -496,6 +507,9 @@ async fn main() -> Result<()> {
         }
         Some(Command::DeclareSkill { hub_dir, member_lct_id, skill }) => {
             run_declare_skill(hub_dir, member_lct_id, skill).await
+        }
+        Some(Command::SetProfile { hub_dir, member_lct_id, fields }) => {
+            run_set_profile(hub_dir, member_lct_id, fields).await
         }
         Some(Command::SetLaw { hub_dir, yaml, diff_summary }) => {
             run_set_law(hub_dir, yaml, diff_summary).await
@@ -744,6 +758,25 @@ async fn run_declare_skill(hub_dir: PathBuf, member_lct_id: Uuid, skill: String)
     println!("Skill declared.");
     println!("  Member LCT:   {}", member_lct_id);
     println!("  Skill:        {}", skill);
+    println!("  Entry index:  {}", entry.index);
+    println!("  Entry hash:   {}", entry.entry_hash);
+    Ok(())
+}
+
+async fn run_set_profile(hub_dir: PathBuf, member_lct_id: Uuid, fields: Vec<String>) -> Result<()> {
+    let mut map = std::collections::BTreeMap::new();
+    for pair in &fields {
+        let (k, v) = pair.split_once('=').ok_or_else(|| {
+            anyhow::anyhow!("field {:?} must be key=value", pair)
+        })?;
+        map.insert(k.trim().to_string(), v.to_string());
+    }
+    let keys: Vec<String> = map.keys().cloned().collect();
+    let mut session = HubSession::open(&hub_dir).await?;
+    let entry = session.update_profile(member_lct_id, map).await?;
+    println!("Profile updated.");
+    println!("  Member LCT:   {}", member_lct_id);
+    println!("  Fields:       {}", keys.join(", "));
     println!("  Entry index:  {}", entry.index);
     println!("  Entry hash:   {}", entry.entry_hash);
     Ok(())

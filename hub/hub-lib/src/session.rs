@@ -177,6 +177,22 @@ impl HubSession {
         self.append(event).await
     }
 
+    /// Update a member's free-text profile fields (skills, interests, +
+    /// expandable keys) — the inputs to semantic member discovery. Fields
+    /// merge into the existing profile; an empty value clears that field.
+    pub async fn update_profile(
+        &mut self,
+        member_lct_id: Uuid,
+        fields: std::collections::BTreeMap<String, String>,
+    ) -> Result<&LedgerEntry> {
+        let event = HubEvent::MemberProfileUpdated {
+            member_lct_id,
+            fields,
+            updated_by: self.sovereign_lct_id,
+        };
+        self.append(event).await
+    }
+
     pub async fn add_council_member(
         &mut self,
         member_lct_id: Uuid,
@@ -418,6 +434,29 @@ mod tests {
             admin.filling_entity_lct_id, alice,
             "Administrator should be filled by the assigned member"
         );
+    }
+
+    #[tokio::test]
+    async fn update_profile_merges_into_member_profile() {
+        let (_tmp, dir) = fresh_hub().await;
+        let alice = Uuid::new_v4();
+        {
+            let mut session = HubSession::open(&dir).await.unwrap();
+            session.add_member(alice, Some("Alice".into())).await.unwrap();
+            let mut f = std::collections::BTreeMap::new();
+            f.insert("skills".to_string(), "diffusion fine-tuning, eval harness design".to_string());
+            f.insert("interests".to_string(), "mechanistic interpretability".to_string());
+            session.update_profile(alice, f).await.unwrap();
+            // Second update merges + clears: change interests, drop skills.
+            let mut f2 = std::collections::BTreeMap::new();
+            f2.insert("interests".to_string(), "lowering inference cost".to_string());
+            f2.insert("skills".to_string(), String::new()); // empty clears
+            session.update_profile(alice, f2).await.unwrap();
+        }
+        let st = HubState::project(&HubSession::open(&dir).await.unwrap().ledger);
+        let m = st.members.get(&alice).expect("alice present");
+        assert_eq!(m.profile.get("interests").map(String::as_str), Some("lowering inference cost"));
+        assert!(!m.profile.contains_key("skills"), "empty value should clear the field");
     }
 
     #[tokio::test]
