@@ -42,7 +42,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use hub_lib::hub::{HubPaths, SovereignMode};
-use hub_lib::envelope::{verify_envelope, Challenge, MapResolver, NonceStore, SignedEnvelope, VerifyError};
+use hub_lib::envelope::{verify_envelope, Challenge, MapResolver, NonceStore, PublicKeyResolver, SignedEnvelope, VerifyError};
 use hub_lib::events::HubEvent;
 use hub_lib::identity::IdentityFile;
 use hub_lib::init::load_society;
@@ -192,6 +192,10 @@ pub fn router(state: RestState) -> Router {
         // aliases dropped 2026-06-08).
         .route("/v1/hubs/:hub_id/events", post(submit_event))
         .route("/v1/hubs/:hub_id/state", get(read_state))
+        // Member↔hub E2E channel: citizen-tier reads/acts travel sealed,
+        // never in the clear. The sealed request authenticates the caller
+        // (AEAD open) AND decrypts in one step; the response is sealed back.
+        .route("/v1/hubs/:hub_id/channel", post(channel_request))
         .route("/v1/hubs/:hub_id/members/join", post(submit_join))
         // V2-9 Phase 2: Sovereign Council proposal + aggregation flow.
         .route("/v1/hubs/:hub_id/council/propose", post(submit_proposal))
@@ -264,6 +268,11 @@ impl From<VerifyError> for ApiError {
 struct WellKnownHubInfo {
     /// The hub's society LCT id (what `hestia hub connect` keys on).
     hub_lct_id: Uuid,
+    /// The hub's LCT public key (hex) — the ECDH peer a member uses to open
+    /// an E2E member↔hub channel. `None` if the signer can't expose it
+    /// (e.g. Hestia mode). Public, integrity-protecting only (not a secret).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hub_pubkey_hex: Option<String>,
     /// API versions this hub serves. v1 today; future versions get
     /// added when the wire shape evolves under semver discipline.
     api_versions: Vec<&'static str>,
@@ -294,6 +303,7 @@ async fn well_known_hub_info(
 ) -> Json<WellKnownHubInfo> {
     Json(WellKnownHubInfo {
         hub_lct_id: s.hub_id,
+        hub_pubkey_hex: s.signer.public_key().map(|pk| pk.to_hex()),
         api_versions: vec!["v1"],
         endpoints: WellKnownEndpoints {
             rest: "/v1",
@@ -623,6 +633,122 @@ async fn read_state(
         head_hash,
         filled_roles,
     }))
+}
+
+// ---------- POST /v1/hubs/{id}/channel (E2E member↔hub channel) ----------
+//
+// Citizen-tier reads/acts never travel in the clear. The member seals a
+// request to the hub's LCT (X25519 ECDH from identity keys → ChaCha20-Poly1305,
+// `web4_core::pair_channel`); the hub opens it (a successful AEAD open both
+// AUTHENTICATES the caller — only the holder of their private key could have
+// sealed it — and decrypts), runs the authz pipeline, and seals the response
+// back. v1 serves citizen-tier reads; PolicyEntity-on-reads + MRH/trust/
+// constellation scoping layer onto `dispatch_channel`.
+
+#[derive(Deserialize)]
+struct ChannelRequest {
+    caller_lct_id: Uuid,
+    pair_id: Uuid,
+    /// base64(nonce ‖ ciphertext) sealed to the hub's LCT pubkey.
+    sealed: String,
+}
+
+#[derive(Serialize)]
+struct ChannelResponse {
+    sealed: String,
+}
+
+/// The decrypted inner request: a tool name + free-form args, mirroring the
+/// MCP read surface.
+#[derive(Deserialize)]
+struct ChannelInner {
+    tool: String,
+    #[serde(default)]
+    args: serde_json::Value,
+}
+
+async fn channel_request(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    Json(req): Json<ChannelRequest>,
+) -> Result<Json<ChannelResponse>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!("unknown hub {hub_id}")));
+    }
+
+    // Resolve the caller's pinned LCT pubkey. Unknown LCT → can't open a
+    // channel (members get pinned at join; non-members request citizenship
+    // first). This is the no-LCT/external gate at the channel boundary.
+    let caller_pubkey = {
+        let resolver = s.resolver.read().await;
+        resolver.lookup(req.caller_lct_id).map(|lct| lct.public_key)
+    }
+    .ok_or_else(|| ApiError::unauthorized(
+        "caller LCT is not known to this hub — request citizenship first".to_string(),
+    ))?;
+
+    // Open = authenticate (AEAD proves key possession) + decrypt, in one step.
+    let plaintext = s.signer
+        .channel_open(&caller_pubkey, req.pair_id, &req.sealed)
+        .map_err(|_| ApiError::unauthorized(
+            "channel authentication/decryption failed".to_string(),
+        ))?;
+    let inner: ChannelInner = serde_json::from_slice(&plaintext)
+        .map_err(|e| ApiError::bad_request(format!("malformed channel request: {e}")))?;
+
+    // Authz + dispatch on the decrypted request.
+    let response = dispatch_channel(&s, req.caller_lct_id, inner).await?;
+
+    // Seal the response back over the same channel.
+    let body = serde_json::to_vec(&response)
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing response: {e}")))?;
+    let sealed = s.signer
+        .channel_seal(&caller_pubkey, req.pair_id, &body)
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("sealing response: {e}")))?;
+
+    Ok(Json(ChannelResponse { sealed }))
+}
+
+/// Tier resolution + read dispatch for a decrypted channel request.
+/// v1: only **citizen-tier** (member or Sovereign) may read over the channel,
+/// and only read tools are served. Acts and finer law/MRH/trust gating layer
+/// on here.
+async fn dispatch_channel(
+    s: &RestState,
+    caller_lct_id: Uuid,
+    inner: ChannelInner,
+) -> Result<serde_json::Value, ApiError> {
+    let state = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger)
+    };
+
+    let is_citizen = state.members.contains_key(&caller_lct_id)
+        || caller_lct_id == s.sovereign_lct_id;
+    if !is_citizen {
+        return Err(ApiError::unauthorized(
+            "citizen tier required for hub queries".to_string(),
+        ));
+    }
+
+    match inner.tool.as_str() {
+        "query_hub" => Ok(serde_json::json!({
+            "hub_name": state.hub_name,
+            "member_count": state.member_count(),
+            "last_ledger_index": state.last_index,
+        })),
+        "list_members" => Ok(serde_json::json!({
+            "members": state.members.values().collect::<Vec<_>>(),
+        })),
+        "find_skill" => {
+            let q = inner.args.get("q").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+            let hits: Vec<&hub_lib::state::Member> = state.members.values()
+                .filter(|m| m.skills.iter().any(|sk| sk.contains(&q)))
+                .collect();
+            Ok(serde_json::json!({ "members": hits }))
+        }
+        other => Err(ApiError::bad_request(format!("unknown or non-channel tool: {other}"))),
+    }
 }
 
 // ---------- POST /v1/admin/reload-law ----------

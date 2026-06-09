@@ -36,7 +36,8 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use web4_core::crypto::{KeyPair, SignatureBytes};
+use web4_core::crypto::{KeyPair, PublicKey, SignatureBytes};
+use web4_core::pair_channel::{self, Sealed};
 
 /// Description of what's about to be signed. Vault implementations
 /// (Hestia) use this to apply authority + need-to-know policy AND to
@@ -138,6 +139,25 @@ pub trait RemoteSigner: Send + Sync {
 
     /// What kind of signer this is, for diagnostics + audit.
     fn signer_kind(&self) -> SignerKind;
+
+    /// The hub's own LCT public key, if this signer can expose it. Used in
+    /// discovery so a member can derive the ECDH peer key for a channel.
+    /// `None` when the key isn't locally available (e.g. Hestia mode until
+    /// vault-side channel ops land).
+    fn public_key(&self) -> Option<PublicKey>;
+
+    /// Seal `plaintext` to `peer` over the member↔hub channel, using the
+    /// hub's private key for X25519 ECDH (same `web4_core::pair_channel`
+    /// primitive members use). Returns base64. Hub-side confidentiality:
+    /// citizen-tier responses go out only sealed.
+    fn channel_seal(&self, peer: &PublicKey, pair_id: Uuid, plaintext: &[u8])
+        -> std::result::Result<String, SignError>;
+
+    /// Open a member's sealed request. A successful open authenticates the
+    /// caller (only the holder of `peer`'s private key could have sealed it
+    /// to the hub) AND decrypts in one step.
+    fn channel_open(&self, peer: &PublicKey, pair_id: Uuid, sealed_b64: &str)
+        -> std::result::Result<Vec<u8>, SignError>;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -194,6 +214,25 @@ impl RemoteSigner for LocalKeypairSigner {
 
     fn signer_kind(&self) -> SignerKind {
         SignerKind::LocalKeypair
+    }
+
+    fn public_key(&self) -> Option<PublicKey> {
+        Some(self.keypair.verifying_key())
+    }
+
+    fn channel_seal(&self, peer: &PublicKey, pair_id: Uuid, plaintext: &[u8])
+        -> std::result::Result<String, SignError> {
+        let sealed = pair_channel::seal(&self.keypair, peer, pair_id, plaintext)
+            .map_err(|e| SignError::Internal(anyhow!("channel seal: {e}")))?;
+        Ok(sealed.to_base64())
+    }
+
+    fn channel_open(&self, peer: &PublicKey, pair_id: Uuid, sealed_b64: &str)
+        -> std::result::Result<Vec<u8>, SignError> {
+        let sealed = Sealed::from_base64(sealed_b64)
+            .map_err(|e| SignError::Internal(anyhow!("decode sealed: {e}")))?;
+        pair_channel::open(&self.keypair, peer, pair_id, &sealed)
+            .map_err(|e| SignError::Internal(anyhow!("channel open: {e}")))
     }
 }
 
@@ -304,6 +343,26 @@ impl RemoteSigner for HestiaCallbackSigner {
     fn signer_kind(&self) -> SignerKind {
         SignerKind::HestiaCallback
     }
+
+    fn public_key(&self) -> Option<PublicKey> {
+        // Hestia-mode channel sealing (vault-side ECDH) is future work; the
+        // hub doesn't hold the key locally, so it can't expose it here yet.
+        None
+    }
+
+    fn channel_seal(&self, _peer: &PublicKey, _pair_id: Uuid, _plaintext: &[u8])
+        -> std::result::Result<String, SignError> {
+        Err(SignError::Internal(anyhow!(
+            "member↔hub channel sealing is not yet supported in Hestia mode (vault-side ECDH pending)"
+        )))
+    }
+
+    fn channel_open(&self, _peer: &PublicKey, _pair_id: Uuid, _sealed_b64: &str)
+        -> std::result::Result<Vec<u8>, SignError> {
+        Err(SignError::Internal(anyhow!(
+            "member↔hub channel opening is not yet supported in Hestia mode (vault-side ECDH pending)"
+        )))
+    }
 }
 
 #[cfg(test)]
@@ -317,6 +376,46 @@ mod tests {
         let id = IdentityFile::generate(EntityType::Human);
         let kp = id.keypair().unwrap();
         (id, kp)
+    }
+
+    #[test]
+    fn local_signer_channel_round_trips_with_a_member() {
+        // The hub's LocalKeypairSigner and a member each hold an LCT keypair.
+        // A member seals a request to the hub's pubkey; the hub opens it (and
+        // is thereby authenticated to have come from that member's key), then
+        // seals a response the member opens. This is the hub side of the
+        // member↔hub channel (mirror of Hestia's HubChannel test).
+        let hub_id = IdentityFile::generate(EntityType::AiEmbodied);
+        let hub_kp = hub_id.keypair().unwrap();
+        let hub_signer = LocalKeypairSigner::new(hub_id.lct.id, hub_kp);
+        let hub_pub = hub_signer.public_key().expect("local signer exposes pubkey");
+
+        let (_member_id, member_kp) = fresh_actor();
+        let pair_id = Uuid::new_v4();
+
+        // Member → hub.
+        let request = serde_json::to_vec(&json!({"tool": "list_members"})).unwrap();
+        let sealed = web4_core::pair_channel::seal(&member_kp, &hub_pub, pair_id, &request).unwrap();
+        let opened = hub_signer
+            .channel_open(&member_kp.verifying_key(), pair_id, &sealed.to_base64())
+            .unwrap();
+        assert_eq!(opened, request);
+
+        // Hub → member.
+        let resp_b64 = hub_signer
+            .channel_seal(&member_kp.verifying_key(), pair_id, b"{\"members\":[]}")
+            .unwrap();
+        let resp = web4_core::pair_channel::open(
+            &member_kp, &hub_pub, pair_id,
+            &web4_core::pair_channel::Sealed::from_base64(&resp_b64).unwrap(),
+        ).unwrap();
+        assert_eq!(resp, b"{\"members\":[]}");
+
+        // Wrong peer (a third party) cannot open the member's sealed request.
+        let (_other_id, other_kp) = fresh_actor();
+        assert!(hub_signer
+            .channel_open(&other_kp.verifying_key(), pair_id, &sealed.to_base64())
+            .is_err());
     }
 
     fn intent(actor_id: Uuid) -> SignIntent {
