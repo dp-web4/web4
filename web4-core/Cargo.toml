@@ -12,6 +12,14 @@ categories = ["cryptography", "authentication"]
 [dependencies]
 # Cryptography
 ed25519-dalek = { version = "2.1", features = ["serde", "rand_core"] }
+# X25519 ECDH for LCT paired-channel key agreement
+# (see web4/hub/docs/PAIRED-CHANNELS.md Sprint A).
+# Companion crate to ed25519-dalek; both build on curve25519-dalek.
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+# Direct access for Ed25519 -> X25519 public-key conversion
+# (CompressedEdwardsY::decompress -> EdwardsPoint::to_montgomery).
+# digest 0.10 lets us use sha2::Sha512 in the hash-to-scalar path.
+curve25519-dalek = { version = "4", features = ["digest"] }
 sha2 = "0.10"
 rand = "0.8"
 
