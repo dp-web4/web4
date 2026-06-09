@@ -20,6 +20,11 @@ x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 # (CompressedEdwardsY::decompress -> EdwardsPoint::to_montgomery).
 # digest 0.10 lets us use sha2::Sha512 in the hash-to-scalar path.
 curve25519-dalek = { version = "4", features = ["digest"] }
+# PAIRED-CHANNELS Sprint E — HKDF for session-key derivation +
+# ChaCha20-Poly1305 AEAD for pair-message payload encryption.
+hkdf = "0.12"
+chacha20poly1305 = "0.10"
+base64 = "0.22"
 sha2 = "0.10"
 rand = "0.8"
 

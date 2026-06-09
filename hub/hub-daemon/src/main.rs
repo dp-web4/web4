@@ -117,6 +117,40 @@ enum Command {
         payload: String,
     },
 
+    /// PAIRED-CHANNELS Sprint E: encrypt a pair-message body at the
+    /// endpoint side. Uses the LCT identity file + peer's LCT pubkey
+    /// + pair_id to derive the ECDH session key, then ChaCha20-Poly1305
+    /// AEAD-encrypts the plaintext. Output: base64 of (nonce ‖ ct).
+    PairEncrypt {
+        /// Path to the sender's IdentityFile.
+        #[arg(long)]
+        identity: PathBuf,
+        /// Peer's LCT public key (hex). Get from their identity file.
+        #[arg(long)]
+        peer_pubkey: String,
+        /// Pair id this message is for (mixed into session-key HKDF).
+        #[arg(long)]
+        pair_id: Uuid,
+        /// Plaintext body.
+        #[arg(long)]
+        plaintext: String,
+    },
+
+    /// PAIRED-CHANNELS Sprint E: decrypt a pair-message body. Symmetric
+    /// to `pair-encrypt`. Errors if the AEAD tag doesn't verify (wrong
+    /// key, tampered ciphertext, wrong pair_id).
+    PairDecrypt {
+        #[arg(long)]
+        identity: PathBuf,
+        #[arg(long)]
+        peer_pubkey: String,
+        #[arg(long)]
+        pair_id: Uuid,
+        /// Base64-encoded sealed blob (output of pair-encrypt).
+        #[arg(long)]
+        ciphertext_b64: String,
+    },
+
     /// Verify the integrity of a chapter's ledger end-to-end.
     ///
     /// Checks: every entry's signature against the actor LCT, every
@@ -392,6 +426,12 @@ async fn main() -> Result<()> {
         }
         Some(Command::EnvelopeSign { identity, nonce, payload }) => {
             run_envelope_sign(identity, nonce, payload).await
+        }
+        Some(Command::PairEncrypt { identity, peer_pubkey, pair_id, plaintext }) => {
+            run_pair_encrypt(identity, peer_pubkey, pair_id, plaintext).await
+        }
+        Some(Command::PairDecrypt { identity, peer_pubkey, pair_id, ciphertext_b64 }) => {
+            run_pair_decrypt(identity, peer_pubkey, pair_id, ciphertext_b64).await
         }
         Some(Command::VerifyLedger { hub_dir }) => {
             run_verify_ledger(hub_dir).await
@@ -948,6 +988,69 @@ async fn run_envelope_sign(identity_path: PathBuf, nonce: String, payload_json: 
     let envelope = build_envelope(identity.lct.id, &kp, &stub_challenge, payload)?;
     let json = serde_json::to_string_pretty(&envelope).context("serializing envelope")?;
     println!("{}", json);
+    Ok(())
+}
+
+/// PAIRED-CHANNELS Sprint E: encrypt a pair-message body at the
+/// endpoint side. Output is base64(nonce ‖ ciphertext) on stdout —
+/// the caller pastes that into the `body` field of a `pair_message`
+/// envelope and posts to the hub.
+async fn run_pair_encrypt(
+    identity_path: PathBuf,
+    peer_pubkey_hex: String,
+    pair_id: Uuid,
+    plaintext: String,
+) -> Result<()> {
+    use web4_core::crypto::PublicKey;
+    use web4_core::pair_channel::seal;
+
+    let identity = IdentityFile::load(&identity_path)
+        .with_context(|| format!("loading identity from {}", identity_path.display()))?;
+    let kp = identity.keypair().context("reconstructing keypair")?;
+
+    let peer_bytes = hex::decode(&peer_pubkey_hex)
+        .context("decoding --peer-pubkey as hex")?;
+    let peer_arr: [u8; 32] = peer_bytes.as_slice().try_into()
+        .map_err(|_| anyhow::anyhow!("--peer-pubkey must be 32 bytes (got {})", peer_bytes.len()))?;
+    let peer_pub = PublicKey::from_bytes(&peer_arr)
+        .context("parsing peer pubkey")?;
+
+    let sealed = seal(&kp, &peer_pub, pair_id, plaintext.as_bytes())
+        .context("seal failed")?;
+    println!("{}", sealed.to_base64());
+    Ok(())
+}
+
+/// PAIRED-CHANNELS Sprint E: symmetric inverse of pair-encrypt.
+/// Errors cleanly if the AEAD tag fails (wrong key, tampered
+/// ciphertext, wrong pair_id, wrong peer pubkey).
+async fn run_pair_decrypt(
+    identity_path: PathBuf,
+    peer_pubkey_hex: String,
+    pair_id: Uuid,
+    ciphertext_b64: String,
+) -> Result<()> {
+    use web4_core::crypto::PublicKey;
+    use web4_core::pair_channel::{open, Sealed};
+
+    let identity = IdentityFile::load(&identity_path)
+        .with_context(|| format!("loading identity from {}", identity_path.display()))?;
+    let kp = identity.keypair().context("reconstructing keypair")?;
+
+    let peer_bytes = hex::decode(&peer_pubkey_hex)
+        .context("decoding --peer-pubkey as hex")?;
+    let peer_arr: [u8; 32] = peer_bytes.as_slice().try_into()
+        .map_err(|_| anyhow::anyhow!("--peer-pubkey must be 32 bytes (got {})", peer_bytes.len()))?;
+    let peer_pub = PublicKey::from_bytes(&peer_arr)
+        .context("parsing peer pubkey")?;
+
+    let sealed = Sealed::from_base64(&ciphertext_b64)
+        .context("parsing --ciphertext-b64")?;
+    let plaintext = open(&kp, &peer_pub, pair_id, &sealed)
+        .context("open failed (wrong key, wrong pair_id, or tampered ciphertext)")?;
+    // Stdout — operator pipes wherever. Plaintext may contain newlines,
+    // print as-is.
+    print!("{}", String::from_utf8_lossy(&plaintext));
     Ok(())
 }
 

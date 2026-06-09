@@ -61,6 +61,7 @@ pub mod delegation;
 pub mod error;
 pub mod lct;
 pub mod ledger;
+pub mod pair_channel;
 pub mod r6;
 pub mod role;
 pub mod society;
