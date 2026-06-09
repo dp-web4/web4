@@ -155,6 +155,10 @@ pub struct Member {
     pub lct_id: Uuid,
     pub name: Option<String>,
     pub skills: BTreeSet<String>,
+    /// Free-text profile fields (skills, interests, + expandable keys) for
+    /// semantic member discovery. Populated by MemberProfileUpdated events.
+    #[serde(default)]
+    pub profile: BTreeMap<String, String>,
 }
 
 impl HubState {
@@ -180,6 +184,7 @@ impl HubState {
                         lct_id: *founding_sovereign_lct_id,
                         name: Some("Sovereign".into()),
                         skills: BTreeSet::new(),
+                        profile: std::collections::BTreeMap::new(),
                     });
             }
             HubEvent::MemberAdded { member_lct_id, member_name, member_pubkey_hex, .. } => {
@@ -187,6 +192,7 @@ impl HubState {
                     lct_id: *member_lct_id,
                     name: member_name.clone(),
                     skills: BTreeSet::new(),
+                    profile: std::collections::BTreeMap::new(),
                 });
                 if let Some(pk) = member_pubkey_hex {
                     self.member_pubkeys.insert(*member_lct_id, pk.clone());
@@ -214,6 +220,17 @@ impl HubState {
                 // If member doesn't exist, silently ignore — event predates
                 // their MemberAdded. (Real impl would error or queue.)
             }
+            HubEvent::MemberProfileUpdated { member_lct_id, fields, .. } => {
+                if let Some(member) = self.members.get_mut(member_lct_id) {
+                    for (k, v) in fields {
+                        if v.is_empty() {
+                            member.profile.remove(k);
+                        } else {
+                            member.profile.insert(k.clone(), v.clone());
+                        }
+                    }
+                }
+            }
             HubEvent::RoleAssigned { .. }
             | HubEvent::EventRecorded { .. }
             | HubEvent::CharterAmended { .. }
@@ -232,6 +249,7 @@ impl HubState {
                     lct_id: *member_lct_id,
                     name: member_name.clone(),
                     skills: BTreeSet::new(),
+                    profile: std::collections::BTreeMap::new(),
                 });
                 // Rebalance N component of threshold if set.
                 if let Some((m, _)) = self.council_threshold {

@@ -88,6 +88,18 @@ pub enum HubEvent {
         declared_by: Uuid,
     },
 
+    /// A member updated their profile — free-text fields (e.g. `skills`,
+    /// `interests`, and arbitrary expandable keys) used for semantic member
+    /// discovery (`find_members`). Self-attested, same authorization as
+    /// MemberSkillDeclared (signer == subject). `fields` are merged into the
+    /// member's profile; an empty value clears that field. Plain-language by
+    /// design — not schematized.
+    MemberProfileUpdated {
+        member_lct_id: Uuid,
+        fields: std::collections::BTreeMap<String, String>,
+        updated_by: Uuid,
+    },
+
     /// The chapter law was amended (V2-8). The new law's YAML bytes are
     /// stored separately via [`crate::store::HubStore::write_law`];
     /// this event records the amendment in the ledger for audit. The
@@ -260,6 +272,7 @@ impl HubEvent {
             Self::EventRecorded { .. } => "event_recorded",
             Self::CharterAmended { .. } => "charter_amended",
             Self::MemberSkillDeclared { .. } => "member_skill_declared",
+            Self::MemberProfileUpdated { .. } => "member_profile_updated",
             Self::LawAmended { .. } => "law_amended",
             Self::CouncilMemberAdded { .. } => "council_member_added",
             Self::CouncilMemberRemoved { .. } => "council_member_removed",

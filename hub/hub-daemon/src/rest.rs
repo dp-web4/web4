@@ -344,6 +344,10 @@ enum EnvelopeAction {
         member_lct_id: Uuid,
         skill: String,
     },
+    UpdateProfile {
+        member_lct_id: Uuid,
+        fields: std::collections::BTreeMap<String, String>,
+    },
 }
 
 #[derive(Serialize)]
@@ -452,6 +456,22 @@ async fn submit_event(
                 member_lct_id,
                 skill,
                 declared_by: envelope.signer_lct_id,
+            }
+        }
+        EnvelopeAction::UpdateProfile { member_lct_id, fields } => {
+            // Same self-only rule as DeclareSkill: members update only their
+            // own profile (signer == subject); Sovereign may update any
+            // member's (operator convenience / seeding).
+            if !signer_is_sovereign && envelope.signer_lct_id != member_lct_id {
+                return Err(ApiError::unauthorized(format!(
+                    "members may only update their own profile (signer {} != subject {})",
+                    envelope.signer_lct_id, member_lct_id,
+                )));
+            }
+            HubEvent::MemberProfileUpdated {
+                member_lct_id,
+                fields,
+                updated_by: envelope.signer_lct_id,
             }
         }
     };
