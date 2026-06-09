@@ -164,7 +164,7 @@ impl RestState {
     /// restarting hub serve.
     pub async fn reload_law(&self) -> anyhow::Result<String> {
         use anyhow::Context;
-        let store = hub_lib::store::open_chapter_store(&self.paths.root)
+        let store = hub_lib::store::open_hub_store(&self.paths.root)
             .context("opening store for law reload")?;
         let new_law: Option<Law> = match store.read_law().await? {
             Some(ref yaml) => Some(Law::parse_and_validate(yaml)
@@ -470,7 +470,7 @@ async fn submit_event(
                 return Err(ApiError {
                     status: StatusCode::FORBIDDEN,
                     message: format!(
-                        "act denied by chapter law (norm: {})",
+                        "act denied by hub law (norm: {})",
                         outcome.winning_norm.as_deref().unwrap_or("?")
                     ),
                 });
@@ -716,7 +716,7 @@ async fn submit_join(
                 return Err(ApiError {
                     status: StatusCode::FORBIDDEN,
                     message: format!(
-                        "membership denied by chapter law (norm: {})",
+                        "membership denied by hub law (norm: {})",
                         outcome.winning_norm.as_deref().unwrap_or("?")
                     ),
                 });
@@ -1065,21 +1065,21 @@ async fn get_proposal(
 // awaits here.
 
 async fn persist_proposal(s: &RestState, proposal: &CouncilProposal) -> Result<(), ApiError> {
-    let mut store = hub_lib::store::open_chapter_store(&s.paths.root)
+    let mut store = hub_lib::store::open_hub_store(&s.paths.root)
         .map_err(ApiError::internal)?;
     store.write_proposal(proposal).await
         .map_err(ApiError::internal)
 }
 
 async fn read_proposal(s: &RestState, id: Uuid) -> Result<Option<CouncilProposal>, ApiError> {
-    let store = hub_lib::store::open_chapter_store(&s.paths.root)
+    let store = hub_lib::store::open_hub_store(&s.paths.root)
         .map_err(ApiError::internal)?;
     store.read_proposal(id).await
         .map_err(ApiError::internal)
 }
 
 async fn read_all_proposals(s: &RestState) -> Result<Vec<CouncilProposal>, ApiError> {
-    let store = hub_lib::store::open_chapter_store(&s.paths.root)
+    let store = hub_lib::store::open_hub_store(&s.paths.root)
         .map_err(ApiError::internal)?;
     store.list_proposals().await
         .map_err(ApiError::internal)
@@ -1384,7 +1384,7 @@ async fn submit_pair_request(
             Decision::Deny => {
                 return Err(ApiError {
                     status: StatusCode::FORBIDDEN,
-                    message: "pair_request denied by chapter law".into(),
+                    message: "pair_request denied by hub law".into(),
                 });
             }
             Decision::Escalate => {
@@ -1653,7 +1653,7 @@ async fn post_pair_message(
         ephemeral_pub_hex: None,
     };
     {
-        let mut store = hub_lib::store::open_chapter_store(&s.paths.root)
+        let mut store = hub_lib::store::open_hub_store(&s.paths.root)
             .map_err(ApiError::internal)?;
         store.append_pair_message(&msg).await
             .map_err(ApiError::internal)?;
@@ -1712,7 +1712,7 @@ async fn get_pair_messages(
             return Err(ApiError::not_found(format!("pair {} not found", pair_id)));
         }
     }
-    let store = hub_lib::store::open_chapter_store(&s.paths.root)
+    let store = hub_lib::store::open_hub_store(&s.paths.root)
         .map_err(ApiError::internal)?;
     let messages = store.list_pair_messages(pair_id, q.since).await
         .map_err(ApiError::internal)?;

@@ -108,7 +108,7 @@ pub struct UnsignedEntry {
     pub signing_bytes: Vec<u8>,
 }
 
-/// Append-only chapter event ledger.
+/// Append-only hub event ledger.
 ///
 /// Owns hash-chain integrity + signing logic. Delegates byte persistence
 /// to a [`HubStore`] — so the ledger works identically against file,

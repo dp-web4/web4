@@ -10,7 +10,7 @@
 //!
 //! Tools:
 //! - GET  /tools                 → list available tools + descriptions
-//! - GET  /tools/query_chapter   → chapter identity + role-fill snapshot + recent events
+//! - GET  /tools/query_hub      → hub identity + role-fill snapshot + recent events
 //! - GET  /tools/list_members    → all current members (projected from ledger)
 //! - GET  /tools/find_skill      → ?q=...  case-insensitive skill search
 //! - POST /tools/add_member      → {member_lct_id, name?} — records MemberAdded
@@ -111,7 +111,9 @@ impl McpState {
 pub fn router(state: McpState) -> Router {
     Router::new()
         .route("/tools", get(list_tools))
-        .route("/tools/query_chapter", get(query_chapter))
+        .route("/tools/query_hub", get(query_hub))
+        // Back-compat alias for pre-rename clients (was query_chapter).
+        .route("/tools/query_chapter", get(query_hub))
         .route("/tools/list_members", get(list_members))
         .route("/tools/find_skill", get(find_skill))
         .route("/tools/add_member", post(add_member))
@@ -164,20 +166,20 @@ struct ToolDescriptor {
 
 async fn list_tools() -> Json<Vec<ToolDescriptor>> {
     Json(vec![
-        ToolDescriptor { name: "query_chapter",  method: "GET",  description: "Chapter identity + role-fill + recent events" },
-        ToolDescriptor { name: "list_members",   method: "GET",  description: "Current chapter members" },
+        ToolDescriptor { name: "query_hub",       method: "GET",  description: "Hub identity + role-fill + recent events" },
+        ToolDescriptor { name: "list_members",   method: "GET",  description: "Current hub members" },
         ToolDescriptor { name: "find_skill",     method: "GET",  description: "Find members by skill (substring, case-insensitive). ?q=..." },
         ToolDescriptor { name: "add_member",     method: "POST", description: "Add a new member" },
         ToolDescriptor { name: "assign_role",    method: "POST", description: "Assign a role to a member" },
-        ToolDescriptor { name: "record_event",   method: "POST", description: "Record a chapter event (demo night, workshop, etc.)" },
+        ToolDescriptor { name: "record_event",   method: "POST", description: "Record a hub event (demo night, workshop, etc.)" },
         ToolDescriptor { name: "declare_skill",  method: "POST", description: "Declare a skill for a member" },
     ])
 }
 
-// ---------- GET /tools/query_chapter ----------
+// ---------- GET /tools/query_hub (alias: /tools/query_chapter) ----------
 
 #[derive(Serialize)]
-struct QueryChapterResponse {
+struct QueryHubResponse {
     hub_name: String,
     founding_sovereign_lct_id: Option<Uuid>,
     charter_hash: Option<String>,
@@ -187,7 +189,7 @@ struct QueryChapterResponse {
     head_hash: String,
 }
 
-async fn query_chapter(State(s): State<McpState>) -> Result<Json<QueryChapterResponse>, ApiError> {
+async fn query_hub(State(s): State<McpState>) -> Result<Json<QueryHubResponse>, ApiError> {
     let ledger = s.ledger.lock().await;
     let state = HubState::project(&ledger);
     let society = load_society(s.paths.root.clone()).await?;
@@ -195,7 +197,7 @@ async fn query_chapter(State(s): State<McpState>) -> Result<Json<QueryChapterRes
         .map(|(k, v)| (k.clone(), v.filling_entity_lct_id))
         .collect();
     let member_count = state.member_count();
-    Ok(Json(QueryChapterResponse {
+    Ok(Json(QueryHubResponse {
         hub_name: state.hub_name,
         founding_sovereign_lct_id: state.founding_sovereign_lct_id,
         charter_hash: state.charter_hash,
@@ -291,7 +293,7 @@ async fn assign_role(
     // Update the persisted society role-fill (web4-core enforces authority and
     // owns the role LCT), then witness the act in the ledger with that LCT.
     // Without the society update the assignment never showed as filled.
-    let mut store = hub_lib::store::open_chapter_store(&s.paths.root)
+    let mut store = hub_lib::store::open_hub_store(&s.paths.root)
         .map_err(ApiError::internal)?;
     let mut society = store.read_society().await
         .map_err(ApiError::internal)?
@@ -384,7 +386,7 @@ async fn append_with_sovereign(
             Decision::Allow => { /* proceed */ }
             Decision::Deny => {
                 return Err(ApiError::forbidden(format!(
-                    "act denied by chapter law (norm: {})",
+                    "act denied by hub law (norm: {})",
                     outcome.winning_norm.as_deref().unwrap_or("?")
                 )));
             }

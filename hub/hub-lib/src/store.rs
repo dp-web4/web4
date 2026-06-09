@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Metalinxx Inc.
 
-//! Chapter storage backend abstraction (V2-2).
+//! Hub storage backend abstraction (V2-2).
 //!
 //! ## Why this exists
 //!
@@ -12,9 +12,9 @@
 //! for old ledger pages. Different chapters, same hub code path, different
 //! backend bytes.
 //!
-//! The abstraction here is intentionally narrow: chapter charter, chapter
-//! society state, and the chapter event ledger. That is the entire surface
-//! of chapter-owned persistent state. Everything else is either:
+//! The abstraction here is intentionally narrow: hub charter, chapter
+//! society state, and the hub event ledger. That is the entire surface
+//! of hub-owned persistent state. Everything else is either:
 //!
 //! - **Operator-owned config** (`config.toml`) — stays file-based, not part of this trait
 //! - **Secret material** (private keys, vault contents) — per architecture
@@ -24,7 +24,7 @@
 //!
 //! ## Posture (per architecture commitment #8)
 //!
-//! Chapter storage is **secrets-free by design**. Everything in this trait
+//! Hub storage is **secrets-free by design**. Everything in this trait
 //! is signed (for integrity) but not encrypted (for confidentiality of the
 //! data itself). Confidentiality, where needed, comes from the vault's
 //! authority+need-to-know gate at the access boundary — not from sealing
@@ -76,7 +76,7 @@ impl BackendKind {
 
 /// The chapter persistence surface.
 ///
-/// Implementations own the bytes; callers (HubLedger, init_chapter,
+/// Implementations own the bytes; callers (HubLedger, init_hub,
 /// HubSession) own invariants. This trait does **no** crypto or chain
 /// validation — that lives in the ledger module. It does **no** secret
 /// handling — that lives in the vault (Hestia).
@@ -120,7 +120,7 @@ pub trait HubStore: Send + Sync {
     async fn ledger_append(&mut self, entry: &LedgerEntry) -> Result<()>;
 
     /// True iff the ledger has zero entries. Used by callers to detect
-    /// "fresh chapter, needs Genesis" without round-tripping the full list.
+    /// "fresh hub, needs Genesis" without round-tripping the full list.
     async fn ledger_is_empty(&self) -> Result<bool> {
         Ok(self.ledger_load_all().await?.is_empty())
     }
@@ -197,31 +197,41 @@ pub trait HubStore: Send + Sync {
     }
 }
 
-/// Default SQLite filename inside a chapter dir.
-pub const SQLITE_DB_FILENAME: &str = "chapter.db";
+/// Default SQLite filename inside a hub dir.
+pub const SQLITE_DB_FILENAME: &str = "hub.db";
 
-/// Open a `HubStore` for the given chapter dir. Backend selection:
+/// Pre-rename SQLite filename. Hub dirs created before the chapter→hub
+/// rename have `chapter.db`; we keep reading them in place (no forced
+/// migration) so existing deployments don't break.
+pub const SQLITE_DB_FILENAME_LEGACY: &str = "chapter.db";
+
+/// Open a `HubStore` for the given hub dir. Backend selection:
 ///
-/// 1. If `<chapter-dir>/chapter.db` exists → SqliteBackend.
-/// 2. Else if `<chapter-dir>/society.json` (or any MVP file) exists → FileBackend.
-/// 3. Else (fresh chapter) → FileBackend default (MVP-compatible).
+/// 1. If `<hub-dir>/hub.db` exists → SqliteBackend.
+/// 2. Else if `<hub-dir>/chapter.db` exists (pre-rename) → SqliteBackend on it.
+/// 3. Else if `<hub-dir>/society.json` (or any MVP file) exists → FileBackend.
+/// 4. Else (fresh hub) → FileBackend default (MVP-compatible).
 ///
-/// To force a specific backend at create time, use [`open_chapter_store_with`].
-pub fn open_chapter_store(hub_dir: impl AsRef<Path>) -> Result<Box<dyn HubStore>> {
+/// To force a specific backend at create time, use [`open_hub_store_with`].
+pub fn open_hub_store(hub_dir: impl AsRef<Path>) -> Result<Box<dyn HubStore>> {
     let hub_dir = hub_dir.as_ref();
     let paths = HubPaths::new(hub_dir.to_path_buf());
     let db_path = hub_dir.join(SQLITE_DB_FILENAME);
+    let legacy_db_path = hub_dir.join(SQLITE_DB_FILENAME_LEGACY);
 
     if db_path.exists() {
         Ok(Box::new(SqliteBackend::open(&db_path)?))
+    } else if legacy_db_path.exists() {
+        // Pre-rename hub dir — open the legacy chapter.db in place.
+        Ok(Box::new(SqliteBackend::open(&legacy_db_path)?))
     } else {
         Ok(Box::new(FileBackend::new(paths)))
     }
 }
 
-/// Open a `HubStore` for the given chapter dir, forcing the backend
+/// Open a `HubStore` for the given hub dir, forcing the backend
 /// kind. Used by `hub init --storage <kind>` and the migration tool.
-pub fn open_chapter_store_with(
+pub fn open_hub_store_with(
     hub_dir: impl AsRef<Path>,
     kind: BackendKind,
 ) -> Result<Box<dyn HubStore>> {
@@ -231,7 +241,7 @@ pub fn open_chapter_store_with(
         BackendKind::File => Ok(Box::new(FileBackend::new(paths))),
         BackendKind::Sqlite => {
             std::fs::create_dir_all(hub_dir)
-                .with_context(|| format!("creating chapter dir {}", hub_dir.display()))?;
+                .with_context(|| format!("creating hub dir {}", hub_dir.display()))?;
             let db_path = hub_dir.join(SQLITE_DB_FILENAME);
             Ok(Box::new(SqliteBackend::open(&db_path)?))
         }
@@ -667,7 +677,7 @@ impl SqliteBackend {
 // Migration tool
 // ============================================================================
 
-/// Outcome of [`migrate_chapter`]. Caller decides how to surface this.
+/// Outcome of [`migrate_hub`]. Caller decides how to surface this.
 #[derive(Debug)]
 pub struct MigrationResult {
     pub source_backend: BackendKind,
@@ -675,7 +685,7 @@ pub struct MigrationResult {
     pub charter_copied: bool,
     pub society_copied: bool,
     pub ledger_entries_copied: usize,
-    /// Renamed pre-migration artifacts (paths relative to chapter dir),
+    /// Renamed pre-migration artifacts (paths relative to hub dir),
     /// preserved so operators can roll back if needed.
     pub preserved_artifacts: Vec<PathBuf>,
 }
@@ -685,7 +695,7 @@ pub struct MigrationResult {
 /// Algorithm:
 /// 1. Auto-detect source backend at `hub_dir`.
 /// 2. If source == target, no-op (returns OK with zero-copied counters).
-/// 3. Open target backend (forced kind via [`open_chapter_store_with`]).
+/// 3. Open target backend (forced kind via [`open_hub_store_with`]).
 ///    For sqlite, this creates `chapter.db`.
 /// 4. Copy charter (if present) → target.
 /// 5. Copy society (if present) → target.
@@ -695,23 +705,23 @@ pub struct MigrationResult {
 ///    interfere with future auto-detection but remain recoverable.
 ///
 /// The caller (typically `hub migrate` CLI) should run a verify-ledger
-/// pass against the chapter dir after this returns to confirm chain
+/// pass against the hub dir after this returns to confirm chain
 /// integrity is intact on the target backend.
 ///
 /// Note: this function does NOT touch identity files, config.toml, or
 /// anything else outside the chapter storage abstraction. Those stay
 /// where they were.
-pub async fn migrate_chapter(
+pub async fn migrate_hub(
     hub_dir: impl AsRef<Path>,
     target_backend: BackendKind,
 ) -> Result<MigrationResult> {
     let hub_dir = hub_dir.as_ref();
     if !hub_dir.exists() {
-        anyhow::bail!("chapter dir {} does not exist", hub_dir.display());
+        anyhow::bail!("hub dir {} does not exist", hub_dir.display());
     }
 
     // 1. Auto-detect source.
-    let source = open_chapter_store(hub_dir)
+    let source = open_hub_store(hub_dir)
         .context("opening source store for migration")?;
     let source_kind = source.backend_kind();
 
@@ -736,7 +746,7 @@ pub async fn migrate_chapter(
     drop(source);
 
     // 3. Open target.
-    let mut target = open_chapter_store_with(hub_dir, target_backend)
+    let mut target = open_hub_store_with(hub_dir, target_backend)
         .with_context(|| format!("opening target store ({:?})", target_backend))?;
 
     // 4-6. Copy state.
@@ -784,7 +794,10 @@ pub async fn migrate_chapter(
                 preserved.push(backup);
             }
             // SQLite WAL/SHM files if present (after journal_mode=WAL)
-            for sidecar in &["chapter.db-wal", "chapter.db-shm"] {
+            for sidecar in &[
+                format!("{SQLITE_DB_FILENAME}-wal"),
+                format!("{SQLITE_DB_FILENAME}-shm"),
+            ] {
                 let p = hub_dir.join(sidecar);
                 if p.exists() {
                     let backup = hub_dir.join(format!("{}.pre-migration", sidecar));
@@ -1067,23 +1080,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn open_chapter_store_selects_sqlite_when_db_present() {
+    async fn open_hub_store_selects_sqlite_when_db_present() {
         let tmp = tempdir().unwrap();
         let hub_dir = tmp.path().join("test-chapter");
         std::fs::create_dir_all(&hub_dir).unwrap();
         // Create an empty sqlite db
         let _ = SqliteBackend::open(hub_dir.join(SQLITE_DB_FILENAME)).unwrap();
-        // open_chapter_store should now pick sqlite
-        let store = open_chapter_store(&hub_dir).unwrap();
+        // open_hub_store should now pick sqlite
+        let store = open_hub_store(&hub_dir).unwrap();
         assert_eq!(store.backend_kind(), BackendKind::Sqlite);
     }
 
     #[tokio::test]
-    async fn open_chapter_store_defaults_to_file_when_empty_dir() {
+    async fn open_hub_store_reads_legacy_chapter_db_in_place() {
+        // Pre-rename hub dirs have chapter.db (not hub.db). open_hub_store
+        // must still detect + open them as sqlite — no forced migration.
+        let tmp = tempdir().unwrap();
+        let hub_dir = tmp.path().join("legacy-hub");
+        std::fs::create_dir_all(&hub_dir).unwrap();
+        let _ = SqliteBackend::open(hub_dir.join(SQLITE_DB_FILENAME_LEGACY)).unwrap();
+        assert!(!hub_dir.join(SQLITE_DB_FILENAME).exists(), "no hub.db, only legacy chapter.db");
+        let store = open_hub_store(&hub_dir).unwrap();
+        assert_eq!(store.backend_kind(), BackendKind::Sqlite);
+    }
+
+    #[tokio::test]
+    async fn open_hub_store_defaults_to_file_when_empty_dir() {
         let tmp = tempdir().unwrap();
         let hub_dir = tmp.path().join("test-chapter");
         std::fs::create_dir_all(&hub_dir).unwrap();
-        let store = open_chapter_store(&hub_dir).unwrap();
+        let store = open_hub_store(&hub_dir).unwrap();
         assert_eq!(store.backend_kind(), BackendKind::File);
     }
 
@@ -1126,7 +1152,7 @@ mod tests {
         }
 
         // Migrate file → sqlite
-        let result = migrate_chapter(&hub_dir, BackendKind::Sqlite).await.unwrap();
+        let result = migrate_hub(&hub_dir, BackendKind::Sqlite).await.unwrap();
         assert_eq!(result.source_backend, BackendKind::File);
         assert_eq!(result.target_backend, BackendKind::Sqlite);
         assert!(result.charter_copied);
@@ -1136,7 +1162,7 @@ mod tests {
             "source artifacts should be renamed for rollback");
 
         // Auto-detect should now resolve sqlite
-        let after = open_chapter_store(&hub_dir).unwrap();
+        let after = open_hub_store(&hub_dir).unwrap();
         assert_eq!(after.backend_kind(), BackendKind::Sqlite);
 
         // Charter + society + ledger byte-identical
@@ -1159,7 +1185,7 @@ mod tests {
         let hub_dir = tmp.path().join("chap");
         std::fs::create_dir_all(&hub_dir).unwrap();
         // Empty dir → file-backed default
-        let result = migrate_chapter(&hub_dir, BackendKind::File).await.unwrap();
+        let result = migrate_hub(&hub_dir, BackendKind::File).await.unwrap();
         assert_eq!(result.source_backend, result.target_backend);
         assert_eq!(result.ledger_entries_copied, 0);
         assert!(!result.charter_copied);

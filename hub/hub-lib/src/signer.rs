@@ -51,7 +51,7 @@ pub struct SignIntent {
     pub request_id: Uuid,
     /// Which chapter the entry belongs to.
     pub hub_id: Uuid,
-    /// Human-readable chapter name (for vault policy / UX prompts).
+    /// Human-readable hub name (for vault policy / UX prompts).
     pub hub_name: String,
     /// Which actor (role-filler) the signature is being attributed to.
     pub actor_lct_id: Uuid,

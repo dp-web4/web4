@@ -6,7 +6,7 @@
 //! Modules (sprints 1-2 landed):
 //! - [`identity`] — on-disk LCT + KeyPair persistence (sprint 1)
 //! - [`charter`] — chapter founding charter (compose, hash, persist) (sprint 1)
-//! - [`chapter`] — chapter directory layout + config.toml (sprint 1)
+//! - [`chapter`] — hub directory layout + config.toml (sprint 1)
 //! - [`events`] — typed chapter event enum (sprint 2)
 //! - [`ledger`] — append-only signed event log w/ hash-chain integrity (sprint 2)
 //! - [`init`] — `hub init` flow: bootstrap society + write Genesis entry (sprint 1+2)

@@ -13,10 +13,10 @@
 //! └── ledger.jsonl         # witnessed event log (sprint 2 populates)
 //! ```
 //!
-//! The Sovereign LCT lives OUTSIDE the chapter dir — the operator points
+//! The Sovereign LCT lives OUTSIDE the hub dir — the operator points
 //! at it via `[sovereign].lct_path` in config.toml. This separation
 //! protects the private key material from being checked into version
-//! control alongside the chapter dir.
+//! control alongside the hub dir.
 
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -217,7 +217,7 @@ impl HubConfig {
     }
 }
 
-/// File-path helper bound to a chapter directory.
+/// File-path helper bound to a hub directory.
 #[derive(Clone, Debug)]
 pub struct HubPaths {
     pub root: PathBuf,
@@ -233,7 +233,7 @@ impl HubPaths {
     pub fn society(&self) -> PathBuf { self.root.join("society.json") }
     pub fn ledger(&self) -> PathBuf { self.root.join("ledger.jsonl") }
 
-    /// True if the chapter dir contains a society — i.e. has been initialized.
+    /// True if the hub dir contains a society — i.e. has been initialized.
     pub fn is_initialized(&self) -> bool {
         self.society().exists()
     }
