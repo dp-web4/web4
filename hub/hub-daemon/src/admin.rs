@@ -67,6 +67,7 @@ fn layout(hub_name: &str, title: &str, body: &str) -> Html<String> {
       <a href="/admin/ledger">Ledger</a>
       <a href="/admin/law">Law</a>
       <a href="/admin/council">Council</a>
+      <a href="/admin/pairs">Pairs</a>
     </nav>"#;
     Html(format!(
         "<!doctype html><html><head><meta charset=\"utf-8\">\
@@ -95,6 +96,7 @@ pub fn router(state: RestState) -> Router {
         .route("/admin/ledger/:index", get(ledger_detail))
         .route("/admin/law", get(law))
         .route("/admin/council", get(council))
+        .route("/admin/pairs", get(pairs))
         .with_state(state)
 }
 
@@ -399,6 +401,79 @@ async fn council(State(s): State<RestState>) -> Result<Html<String>, AdminError>
     }
 
     Ok(layout(&s.hub_name, "Council", &body))
+}
+
+async fn pairs(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
+    use hub_lib::state::PairStatus;
+    let ledger = s.ledger.lock().await;
+    let projected = HubState::project(&*ledger);
+    drop(ledger);
+
+    let now = chrono::Utc::now();
+    let mut body = String::from("<h2>LCT paired channels</h2>");
+    body.push_str(&format!(
+        "<dl class=\"grid\"><dt>Total pairs on ledger</dt><dd>{}</dd>\
+         <dt>Active right now</dt><dd>{}</dd>\
+         <dt>Pending</dt><dd>{}</dd>\
+         <dt>Revoked or expired</dt><dd>{}</dd></dl>",
+        projected.pairs.len(),
+        projected.pairs.values().filter(|p| p.effective_status(now) == "active").count(),
+        projected.pairs.values().filter(|p| p.effective_status(now) == "pending").count(),
+        projected.pairs.values()
+            .filter(|p| matches!(p.effective_status(now), "revoked" | "expired"))
+            .count(),
+    ));
+
+    if projected.pairs.is_empty() {
+        body.push_str("<p class=\"muted\">No pairs on record. \
+            POST a pair_request envelope to /v1/hubs/{id}/pairs/request.</p>");
+    } else {
+        body.push_str(
+            "<table><thead><tr>\
+             <th>Pair</th><th>Initiator → Counterparty</th><th>Purpose</th>\
+             <th>Status</th><th>Proposed</th><th>Confirmed</th><th>Msgs</th>\
+             </tr></thead><tbody>"
+        );
+        // Newest-first
+        let mut pairs: Vec<_> = projected.pairs.values().collect();
+        pairs.sort_by(|a, b| b.proposed_at.cmp(&a.proposed_at));
+        for p in pairs {
+            let eff = p.effective_status(now);
+            let pill_class = match eff {
+                "active" => "pill",
+                "pending" => "pill",
+                _ => "pill pill-warn",
+            };
+            let revoke_detail = match &p.revocation_kind {
+                Some(k) => format!(" ({:?})", k),
+                None => String::new(),
+            };
+            body.push_str(&format!(
+                "<tr><td>{}</td><td>{} → {}</td><td>{}</td>\
+                 <td><span class=\"{}\">{}{}</span></td>\
+                 <td>{}</td><td>{}</td><td>{}</td></tr>",
+                short(&p.id),
+                short(&p.initiator),
+                short(&p.counterparty),
+                html_escape(&p.purpose),
+                pill_class,
+                eff,
+                html_escape(&revoke_detail),
+                p.proposed_at.format("%Y-%m-%d %H:%M:%S UTC"),
+                p.confirmed_at.map(|t| t.format("%H:%M:%S UTC").to_string())
+                    .unwrap_or_else(|| "—".into()),
+                p.message_count,
+            ));
+        }
+        body.push_str("</tbody></table>");
+        body.push_str(
+            "<p class=\"muted\" style=\"margin-top:1rem\">\
+             Sprint D will increment the Msgs column as relayed messages flow. \
+             Today the column tracks 0 for all pairs.</p>"
+        );
+    }
+
+    Ok(layout(&s.hub_name, "Pairs", &body))
 }
 
 async fn law(State(s): State<RestState>) -> Result<Html<String>, AdminError> {

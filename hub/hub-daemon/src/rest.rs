@@ -198,6 +198,14 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/council/sign", post(sign_proposal))
         .route("/v1/hubs/:hub_id/council/proposals", get(list_proposals))
         .route("/v1/hubs/:hub_id/council/proposals/:proposal_id", get(get_proposal))
+        // PAIRED-CHANNELS Sprint C: LCT pair lifecycle endpoints.
+        // Request / confirm / revoke are signed-envelope acts; list /
+        // detail are public reads (chapter law gates later).
+        .route("/v1/hubs/:hub_id/pairs/request", post(submit_pair_request))
+        .route("/v1/hubs/:hub_id/pairs/:pair_id/confirm", post(submit_pair_confirm))
+        .route("/v1/hubs/:hub_id/pairs/:pair_id/revoke", post(submit_pair_revoke))
+        .route("/v1/hubs/:hub_id/pairs", get(list_pairs))
+        .route("/v1/hubs/:hub_id/pairs/:pair_id", get(get_pair))
         .route("/v1/admin/reload-law", post(reload_law))
         .with_state(state)
 }
@@ -1163,4 +1171,402 @@ async fn commit_proposed_event(
         }
     }
     Ok(entry_index)
+}
+
+// ============================================================================
+// PAIRED-CHANNELS Sprint C — pair lifecycle endpoints
+// ============================================================================
+//
+// Three POST endpoints (request / confirm / revoke) and two GETs
+// (list / detail). Reads are public-by-default; chapter law gates
+// later. Writes are signed envelopes — same machinery as /v1/hubs/.../events.
+//
+// The hub never sees the ECDH shared secret — that's derived at the
+// endpoints from their LCT keys (Sprint A). The hub only witnesses
+// the lifecycle and (eventually, Sprint D) relays opaque ciphertext.
+
+use hub_lib::state::{PairState, PairStatus};
+use hub_lib::events::PairRevocationKind;
+
+#[derive(Deserialize)]
+struct PairRequestPayload {
+    /// Discriminator inside the envelope payload (same shape as
+    /// other action types). Required to be "pair_request".
+    action: String,
+    counterparty_lct_id: Uuid,
+    purpose: String,
+    #[serde(default)]
+    expires_at: Option<chrono::DateTime<Utc>>,
+}
+
+#[derive(Deserialize)]
+struct PairConfirmPayload {
+    action: String, // "pair_confirm"
+    pair_id: Uuid,
+}
+
+#[derive(Deserialize)]
+struct PairRevokePayload {
+    action: String, // "pair_revoke"
+    pair_id: Uuid,
+    #[serde(default = "default_revocation_kind")]
+    revocation_kind: PairRevocationKind,
+    #[serde(default)]
+    reason: Option<String>,
+}
+
+fn default_revocation_kind() -> PairRevocationKind {
+    PairRevocationKind::Voluntary
+}
+
+#[derive(Serialize)]
+struct PairAccepted {
+    pair_id: Uuid,
+    entry_index: u64,
+    entry_hash: String,
+    status: PairStatus,
+}
+
+#[derive(Serialize)]
+struct PairSummary {
+    id: Uuid,
+    initiator: Uuid,
+    counterparty: Uuid,
+    purpose: String,
+    status: PairStatus,
+    effective_status: &'static str,
+    proposed_at: chrono::DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    confirmed_at: Option<chrono::DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    revoked_at: Option<chrono::DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expires_at: Option<chrono::DateTime<Utc>>,
+    message_count: u64,
+}
+
+impl PairSummary {
+    fn from_pair(p: &PairState, now: chrono::DateTime<Utc>) -> Self {
+        Self {
+            id: p.id,
+            initiator: p.initiator,
+            counterparty: p.counterparty,
+            purpose: p.purpose.clone(),
+            status: p.status,
+            effective_status: p.effective_status(now),
+            proposed_at: p.proposed_at,
+            confirmed_at: p.confirmed_at,
+            revoked_at: p.revoked_at,
+            expires_at: p.expires_at,
+            message_count: p.message_count,
+        }
+    }
+}
+
+/// Shared preamble for the three POST handlers: verify envelope,
+/// reject if signer isn't a current member or the founding Sovereign,
+/// reject if council mode active (consistency with /events behavior).
+/// Returns the projected HubState (caller often needs it next).
+async fn pair_endpoint_preamble(
+    s: &RestState,
+    envelope: &SignedEnvelope,
+) -> Result<hub_lib::state::HubState, ApiError> {
+    let resolver_guard = s.resolver.read().await;
+    let _redeemed = verify_envelope(envelope, &s.nonces, &*resolver_guard, Utc::now())?;
+    drop(resolver_guard);
+
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::state::HubState::project(&*ledger)
+    };
+
+    let is_sov = envelope.signer_lct_id == s.sovereign_lct_id;
+    let is_member = projected.members.contains_key(&envelope.signer_lct_id);
+    if !is_sov && !is_member {
+        return Err(ApiError::unauthorized(format!(
+            "signer {} is neither the founding Sovereign nor a current member",
+            envelope.signer_lct_id
+        )));
+    }
+
+    // Same council gate as /events for consistency. In council mode,
+    // pair acts go through the propose/sign flow like everything else.
+    if matches!(projected.council_threshold, Some((m, _)) if m >= 2) {
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: "council mode active (threshold >= 2-of-N): submit pair acts via \
+                      POST /v1/hubs/{hub_id}/council/propose + /sign".into(),
+        });
+    }
+
+    Ok(projected)
+}
+
+async fn submit_pair_request(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<PairAccepted>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let projected = pair_endpoint_preamble(&s, &envelope).await?;
+
+    let payload: PairRequestPayload = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("payload not a pair_request: {}", e)))?;
+    if payload.action != "pair_request" {
+        return Err(ApiError::bad_request(format!(
+            "expected action=pair_request, got {}", payload.action
+        )));
+    }
+
+    // Counterparty must be a current member (or the Sovereign) — we
+    // can't pair with someone we don't know how to deliver to.
+    let cp_known = payload.counterparty_lct_id == s.sovereign_lct_id
+        || projected.members.contains_key(&payload.counterparty_lct_id);
+    if !cp_known {
+        return Err(ApiError::bad_request(format!(
+            "counterparty {} is not a current member; only known LCTs can be paired with",
+            payload.counterparty_lct_id
+        )));
+    }
+    // Self-pairs are pointless.
+    if payload.counterparty_lct_id == envelope.signer_lct_id {
+        return Err(ApiError::bad_request(
+            String::from("self-pair (initiator == counterparty) is not allowed")
+        ));
+    }
+
+    let pair_id = Uuid::new_v4();
+    let event = HubEvent::PairingRequested {
+        pair_id,
+        initiator_lct_id: envelope.signer_lct_id,
+        counterparty_lct_id: payload.counterparty_lct_id,
+        purpose: payload.purpose,
+        proposed_at: Utc::now(),
+        expires_at: payload.expires_at,
+    };
+
+    // PolicyEntity gate (V2-8 §4): chapter law can pattern-match
+    // `r6.request.action == "pairing_requested"` and gate by purpose,
+    // counterparty role, initiator role, etc.
+    let law_guard = s.law.read().await;
+    if let Some(law) = law_guard.as_ref() {
+        let req = build_r6_request(&envelope, &event, s.sovereign_lct_id)
+            .map_err(ApiError::internal)?;
+        match law.evaluate_outcome(&req).decision {
+            Decision::Allow => {}
+            Decision::Deny => {
+                return Err(ApiError {
+                    status: StatusCode::FORBIDDEN,
+                    message: "pair_request denied by chapter law".into(),
+                });
+            }
+            Decision::Escalate => {
+                return Err(ApiError {
+                    status: StatusCode::ACCEPTED,
+                    message: "pair_request escalated to council; use propose/sign".into(),
+                });
+            }
+        }
+    }
+    drop(law_guard);
+
+    let (entry_index, entry_hash) = commit_pair_event(&s, event).await?;
+    Ok(Json(PairAccepted {
+        pair_id,
+        entry_index,
+        entry_hash,
+        status: PairStatus::Pending,
+    }))
+}
+
+async fn submit_pair_confirm(
+    State(s): State<RestState>,
+    Path((hub_id, pair_id)): Path<(Uuid, Uuid)>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<PairAccepted>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let projected = pair_endpoint_preamble(&s, &envelope).await?;
+
+    let payload: PairConfirmPayload = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("payload not a pair_confirm: {}", e)))?;
+    if payload.action != "pair_confirm" || payload.pair_id != pair_id {
+        return Err(ApiError::bad_request(
+            String::from("pair_id in path must match payload + action must be pair_confirm")
+        ));
+    }
+
+    let pair = projected.pairs.get(&pair_id)
+        .ok_or_else(|| ApiError::not_found(format!("pair {} not found", pair_id)))?;
+    if pair.status != PairStatus::Pending {
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: format!("pair {} is {:?}, not Pending; cannot confirm", pair_id, pair.status),
+        });
+    }
+    // Only the counterparty can confirm.
+    if envelope.signer_lct_id != pair.counterparty {
+        return Err(ApiError::unauthorized(format!(
+            "only the counterparty ({}) may confirm pair {}; got {}",
+            pair.counterparty, pair_id, envelope.signer_lct_id
+        )));
+    }
+
+    let event = HubEvent::PairingConfirmed { pair_id, confirmed_by: envelope.signer_lct_id };
+    let (entry_index, entry_hash) = commit_pair_event(&s, event).await?;
+    Ok(Json(PairAccepted {
+        pair_id,
+        entry_index,
+        entry_hash,
+        status: PairStatus::Active,
+    }))
+}
+
+async fn submit_pair_revoke(
+    State(s): State<RestState>,
+    Path((hub_id, pair_id)): Path<(Uuid, Uuid)>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<PairAccepted>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let projected = pair_endpoint_preamble(&s, &envelope).await?;
+
+    let payload: PairRevokePayload = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("payload not a pair_revoke: {}", e)))?;
+    if payload.action != "pair_revoke" || payload.pair_id != pair_id {
+        return Err(ApiError::bad_request(
+            String::from("pair_id in path must match payload + action must be pair_revoke")
+        ));
+    }
+
+    let pair = projected.pairs.get(&pair_id)
+        .ok_or_else(|| ApiError::not_found(format!("pair {} not found", pair_id)))?;
+    if pair.status == PairStatus::Revoked {
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: format!("pair {} already revoked", pair_id),
+        });
+    }
+    // Either party (or the founding Sovereign, as operator override)
+    // can revoke. Chapter law could further restrict; today no law
+    // norms target pairing_revoked yet.
+    let is_party = envelope.signer_lct_id == pair.initiator
+        || envelope.signer_lct_id == pair.counterparty;
+    let is_sov = envelope.signer_lct_id == s.sovereign_lct_id;
+    if !is_party && !is_sov {
+        return Err(ApiError::unauthorized(format!(
+            "signer {} is neither a party to pair {} nor the founding Sovereign",
+            envelope.signer_lct_id, pair_id
+        )));
+    }
+
+    let event = HubEvent::PairingRevoked {
+        pair_id,
+        revoked_by: envelope.signer_lct_id,
+        revocation_kind: payload.revocation_kind,
+        reason: payload.reason,
+    };
+    let (entry_index, entry_hash) = commit_pair_event(&s, event).await?;
+    Ok(Json(PairAccepted {
+        pair_id,
+        entry_index,
+        entry_hash,
+        status: PairStatus::Revoked,
+    }))
+}
+
+async fn list_pairs(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    axum::extract::Query(q): axum::extract::Query<ListPairsQuery>,
+) -> Result<Json<Vec<PairSummary>>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::state::HubState::project(&*ledger)
+    };
+    let now = Utc::now();
+    let mut pairs: Vec<_> = projected.pairs.values()
+        .filter(|p| match q.r#for {
+            Some(lct) => p.includes(lct),
+            None => true,
+        })
+        .map(|p| PairSummary::from_pair(p, now))
+        .collect();
+    // Newest-first by proposed_at for stable, useful ordering.
+    pairs.sort_by(|a, b| b.proposed_at.cmp(&a.proposed_at));
+    Ok(Json(pairs))
+}
+
+#[derive(Deserialize)]
+struct ListPairsQuery {
+    #[serde(default)]
+    r#for: Option<Uuid>,
+}
+
+async fn get_pair(
+    State(s): State<RestState>,
+    Path((hub_id, pair_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<PairSummary>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::state::HubState::project(&*ledger)
+    };
+    let pair = projected.pairs.get(&pair_id)
+        .ok_or_else(|| ApiError::not_found(format!("pair {} not found", pair_id)))?;
+    Ok(Json(PairSummary::from_pair(pair, Utc::now())))
+}
+
+/// Commit a pair lifecycle event via the hub's signer (founding
+/// Sovereign as executor). Same shape as `commit_proposed_event` —
+/// hub signs the ledger entry; the pair's authorization is in the
+/// envelope (verified above) + the event's fields (initiator_lct_id,
+/// confirmed_by, revoked_by). Auditors correlate.
+async fn commit_pair_event(s: &RestState, event: HubEvent) -> Result<(u64, String), ApiError> {
+    let event_kind_str = event.kind().to_string();
+    let event_value = serde_json::to_value(&event)
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
+    let (unsigned, intent) = {
+        let ledger = s.ledger.lock().await;
+        let unsigned = ledger.build_entry(s.sovereign_lct_id, event.clone(), Utc::now())
+            .map_err(ApiError::internal)?;
+        let intent = SignIntent {
+            request_id: Uuid::new_v4(),
+            hub_id: s.hub_id,
+            hub_name: s.hub_name.clone(),
+            actor_lct_id: s.sovereign_lct_id,
+            ledger_index: unsigned.entry.index,
+            event_kind: event_kind_str,
+            event: event_value,
+        };
+        (unsigned, intent)
+    };
+    let signing_bytes = unsigned.signing_bytes.clone();
+    let signature = s.signer
+        .sign(s.sovereign_lct_id, &signing_bytes, &intent)
+        .await
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("Sovereign signer denied/failed: {}", e)))?;
+    let mut ledger = s.ledger.lock().await;
+    let entry = ledger.append_signed(unsigned, signature).await
+        .map_err(ApiError::internal)?;
+    Ok((entry.index, entry.entry_hash.clone()))
 }
