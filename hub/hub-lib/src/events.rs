@@ -192,6 +192,27 @@ pub enum HubEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
     },
+
+    /// PAIRED-CHANNELS Sprint D: a message was relayed on a pair.
+    /// The actual payload bytes live in a per-pair sidecar log
+    /// (`HubStore::append_pair_message`); this ledger event records
+    /// the metadata + a payload hash so auditors can verify the
+    /// sidecar hasn't been tampered with. Payload-by-reference, not
+    /// payload-by-value: keeps the ledger compact for high-traffic
+    /// pairs while preserving the witness property.
+    ///
+    /// `seq` is monotonic per pair, assigned by the hub at append
+    /// time; `from` is the message author (envelope signer, must be
+    /// a current pair participant). At Sprint D the sidecar payload
+    /// is plaintext string; at Sprint E it becomes opaque ciphertext.
+    /// `payload_hash` is sha256(payload bytes) — works for both.
+    PairMessagePosted {
+        pair_id: Uuid,
+        seq: u64,
+        from: Uuid,
+        posted_at: DateTime<Utc>,
+        payload_hash: String,
+    },
 }
 
 /// Why a pair ended. Captures audit-relevant intent so V3 trust
@@ -232,6 +253,7 @@ impl HubEvent {
             Self::PairingRequested { .. } => "pairing_requested",
             Self::PairingConfirmed { .. } => "pairing_confirmed",
             Self::PairingRevoked { .. } => "pairing_revoked",
+            Self::PairMessagePosted { .. } => "pair_message_posted",
         }
     }
 }

@@ -169,6 +169,32 @@ pub trait HubStore: Send + Sync {
     async fn delete_proposal(&mut self, _id: uuid::Uuid) -> Result<()> {
         anyhow::bail!("this backend does not yet support council proposals")
     }
+
+    // ----- Pair messages (PAIRED-CHANNELS Sprint D) -----
+
+    /// Append a pair message to the per-pair sidecar log. Caller (REST
+    /// handler) supplies the seq — it's already known because the
+    /// pair's `message_count` projection tells the hub what the next
+    /// seq is. Implementations MUST persist atomically; concurrent
+    /// appenders at the same seq is a chain-integrity bug.
+    async fn append_pair_message(
+        &mut self,
+        _msg: &crate::pair_message::PairMessage,
+    ) -> Result<()> {
+        anyhow::bail!("this backend does not yet support pair messages")
+    }
+
+    /// Read all messages for a pair, optionally filtered to seq >
+    /// `since_seq`. Polling clients use this to fetch what they
+    /// haven't seen. Returned messages MUST be in ascending seq
+    /// order. Empty Vec if no messages or no pair.
+    async fn list_pair_messages(
+        &self,
+        _pair_id: uuid::Uuid,
+        _since_seq: Option<u64>,
+    ) -> Result<Vec<crate::pair_message::PairMessage>> {
+        anyhow::bail!("this backend does not yet support pair messages")
+    }
 }
 
 /// Default SQLite filename inside a chapter dir.
@@ -465,6 +491,61 @@ impl HubStore for FileBackend {
                 .with_context(|| format!("removing proposal {}", path.display()))?;
         }
         Ok(())
+    }
+
+    // ----- PAIRED-CHANNELS Sprint D: pair message sidecar -----
+
+    async fn append_pair_message(
+        &mut self,
+        msg: &crate::pair_message::PairMessage,
+    ) -> Result<()> {
+        use std::fs::OpenOptions;
+        use std::io::Write;
+        let dir = self.paths.root.join("pair-messages");
+        std::fs::create_dir_all(&dir)
+            .with_context(|| format!("creating pair-messages dir {}", dir.display()))?;
+        // One JSONL file per pair — append-only matches the ledger
+        // shape and keeps writes O(1) regardless of message_count.
+        let path = dir.join(format!("{}.jsonl", msg.pair_id));
+        let line = serde_json::to_string(msg).context("serializing pair message")?;
+        let mut f = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(&path)
+            .with_context(|| format!("opening {} for append", path.display()))?;
+        writeln!(f, "{}", line)
+            .with_context(|| format!("writing to {}", path.display()))?;
+        Ok(())
+    }
+
+    async fn list_pair_messages(
+        &self,
+        pair_id: uuid::Uuid,
+        since_seq: Option<u64>,
+    ) -> Result<Vec<crate::pair_message::PairMessage>> {
+        let path = self.paths.root.join("pair-messages").join(format!("{}.jsonl", pair_id));
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+        let content = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        let mut out = Vec::new();
+        for (i, line) in content.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() { continue; }
+            let msg: crate::pair_message::PairMessage = serde_json::from_str(trimmed)
+                .with_context(|| format!("parsing pair message at line {} of {}",
+                    i + 1, path.display()))?;
+            // Filter on the read path; cheap, log is per-pair so small.
+            if let Some(s) = since_seq {
+                if msg.seq <= s { continue; }
+            }
+            out.push(msg);
+        }
+        // File is append-order = seq-order by construction, but be
+        // defensive about a hand-edited file.
+        out.sort_by_key(|m| m.seq);
+        Ok(out)
     }
 }
 

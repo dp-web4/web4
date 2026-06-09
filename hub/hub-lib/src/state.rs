@@ -300,6 +300,15 @@ impl HubState {
                     }
                 }
             }
+            HubEvent::PairMessagePosted { pair_id, .. } => {
+                // Sprint D: bump per-pair message_count. The actual
+                // payload lives in the sidecar (HubStore::append_pair_message);
+                // projection just counts that a message happened. This
+                // is what feeds V3 trust accrual in Sprint G.
+                if let Some(p) = self.pairs.get_mut(pair_id) {
+                    p.message_count = p.message_count.saturating_add(1);
+                }
+            }
         }
     }
 

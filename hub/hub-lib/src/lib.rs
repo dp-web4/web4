@@ -30,6 +30,7 @@ pub mod identity;
 pub mod init;
 pub mod law;
 pub mod ledger;
+pub mod pair_message;
 pub mod proposal;
 pub mod session;
 

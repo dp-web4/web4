@@ -624,6 +624,14 @@ fn event_summary(event: &HubEvent) -> String {
                 short(pair_id),
             )
         }
+        HubEvent::PairMessagePosted { pair_id, seq, from, .. } => {
+            format!(
+                "Pair msg seq={} from {} <span class=\"muted\">[{}]</span>",
+                seq,
+                short(from),
+                short(pair_id),
+            )
+        }
     }
 }
 

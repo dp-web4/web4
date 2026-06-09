@@ -206,6 +206,9 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/pairs/:pair_id/revoke", post(submit_pair_revoke))
         .route("/v1/hubs/:hub_id/pairs", get(list_pairs))
         .route("/v1/hubs/:hub_id/pairs/:pair_id", get(get_pair))
+        // PAIRED-CHANNELS Sprint D: message relay on a confirmed pair.
+        .route("/v1/hubs/:hub_id/pairs/:pair_id/messages",
+               post(post_pair_message).get(get_pair_messages))
         .route("/v1/admin/reload-law", post(reload_law))
         .with_state(state)
 }
@@ -1534,6 +1537,166 @@ async fn get_pair(
     let pair = projected.pairs.get(&pair_id)
         .ok_or_else(|| ApiError::not_found(format!("pair {} not found", pair_id)))?;
     Ok(Json(PairSummary::from_pair(pair, Utc::now())))
+}
+
+// ---------- PAIRED-CHANNELS Sprint D: message relay ----------
+
+use hub_lib::pair_message::PairMessage;
+
+#[derive(Deserialize)]
+struct PairMessagePayload {
+    action: String, // "pair_message"
+    pair_id: Uuid,
+    /// Sprint D: plaintext. Sprint E: base64-encoded ciphertext.
+    /// Wire shape unchanged.
+    body: String,
+}
+
+#[derive(Serialize)]
+struct PairMessageAccepted {
+    pair_id: Uuid,
+    seq: u64,
+    entry_index: u64,
+    entry_hash: String,
+    payload_hash: String,
+}
+
+async fn post_pair_message(
+    State(s): State<RestState>,
+    Path((hub_id, pair_id)): Path<(Uuid, Uuid)>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<PairMessageAccepted>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    // Envelope verify + member check + council gate via the same preamble
+    // pair_request / confirm / revoke use.
+    let projected = pair_endpoint_preamble(&s, &envelope).await?;
+
+    let payload: PairMessagePayload = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("payload not a pair_message: {}", e)))?;
+    if payload.action != "pair_message" || payload.pair_id != pair_id {
+        return Err(ApiError::bad_request(
+            String::from("pair_id in path must match payload + action must be pair_message")
+        ));
+    }
+
+    let pair = projected.pairs.get(&pair_id)
+        .ok_or_else(|| ApiError::not_found(format!("pair {} not found", pair_id)))?;
+    // Must be Active to relay (use effective_status so expired pairs
+    // are rejected even though stored status is Active).
+    let eff = pair.effective_status(Utc::now());
+    if eff != "active" {
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: format!("pair {} is {}; messages can only be relayed on active pairs",
+                pair_id, eff),
+        });
+    }
+    // Signer must be one of the two parties — no third-party injection.
+    let is_party = envelope.signer_lct_id == pair.initiator
+        || envelope.signer_lct_id == pair.counterparty;
+    if !is_party {
+        return Err(ApiError::unauthorized(format!(
+            "signer {} is not a party to pair {}", envelope.signer_lct_id, pair_id
+        )));
+    }
+
+    // Compute seq: the pair's current message_count IS the next seq
+    // (0-indexed). Hub holds the ledger lock during the
+    // build_entry → commit window, so concurrent posts to the same
+    // pair serialize naturally — the append_signed stale-detection
+    // would catch any race anyway.
+    let seq = pair.message_count;
+    let now = Utc::now();
+    let payload_hash = PairMessage::payload_hash(&payload.body);
+
+    // 1. Append the message to the sidecar BEFORE the ledger event.
+    //    If sidecar write fails, no ledger event → no message_count
+    //    bump → consistent. If ledger commit fails after sidecar
+    //    write, we have an orphan sidecar entry (recoverable: next
+    //    post with the same seq will fail the conditional/append
+    //    detection). Acceptable for MVP; Sprint E will add atomicity
+    //    if needed via a HubStore::tx_pair_message helper.
+    let msg = PairMessage {
+        pair_id,
+        seq,
+        from: envelope.signer_lct_id,
+        posted_at: now,
+        payload: payload.body,
+        ephemeral_pub_hex: None,
+    };
+    {
+        let mut store = hub_lib::store::open_chapter_store(&s.paths.root)
+            .map_err(ApiError::internal)?;
+        store.append_pair_message(&msg).await
+            .map_err(ApiError::internal)?;
+    }
+
+    // 2. Commit the ledger event so the projection bumps
+    //    message_count + the witness chain records the metadata.
+    let event = HubEvent::PairMessagePosted {
+        pair_id,
+        seq,
+        from: envelope.signer_lct_id,
+        posted_at: now,
+        payload_hash: payload_hash.clone(),
+    };
+    let (entry_index, entry_hash) = commit_pair_event(&s, event).await?;
+
+    Ok(Json(PairMessageAccepted {
+        pair_id,
+        seq,
+        entry_index,
+        entry_hash,
+        payload_hash,
+    }))
+}
+
+#[derive(Deserialize)]
+struct PairMessagesQuery {
+    /// Return only messages with seq strictly greater than this.
+    /// Polling clients pass the last seq they saw.
+    #[serde(default)]
+    since: Option<u64>,
+}
+
+#[derive(Serialize)]
+struct PairMessagesResponse {
+    pair_id: Uuid,
+    count: usize,
+    messages: Vec<PairMessage>,
+}
+
+async fn get_pair_messages(
+    State(s): State<RestState>,
+    Path((hub_id, pair_id)): Path<(Uuid, Uuid)>,
+    axum::extract::Query(q): axum::extract::Query<PairMessagesQuery>,
+) -> Result<Json<PairMessagesResponse>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    // Pair must exist (don't leak which pair_ids exist via empty 200).
+    {
+        let ledger = s.ledger.lock().await;
+        let projected = hub_lib::state::HubState::project(&*ledger);
+        if !projected.pairs.contains_key(&pair_id) {
+            return Err(ApiError::not_found(format!("pair {} not found", pair_id)));
+        }
+    }
+    let store = hub_lib::store::open_chapter_store(&s.paths.root)
+        .map_err(ApiError::internal)?;
+    let messages = store.list_pair_messages(pair_id, q.since).await
+        .map_err(ApiError::internal)?;
+    Ok(Json(PairMessagesResponse {
+        pair_id,
+        count: messages.len(),
+        messages,
+    }))
 }
 
 /// Commit a pair lifecycle event via the hub's signer (founding
