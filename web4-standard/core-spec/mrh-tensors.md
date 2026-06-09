@@ -13,7 +13,7 @@ The MRH has evolved from simple relationship lists to full RDF graphs, enabling:
 
 ## Core Concept: Context Through Relationships
 
-The MRH is fundamentally different from traditional trust models. Rather than calculating trust scores or maintaining global reputation, each entity's MRH is simply the list of other entities it has relationships with. This creates emergent context - an entity's relevance and trustworthiness emerge from WHO it interacts with, not from abstract metrics.
+The MRH is fundamentally different from traditional trust models. Rather than reducing trust to a single global, context-free reputation number, each entity's MRH is grounded in the graph of other entities it relates to. This creates emergent context - an entity's relevance and trustworthiness emerge from WHO it interacts with, contextualized by computed role-specific trust scores rather than a detached global metric.
 
 ### Key Principles
 
@@ -61,12 +61,14 @@ class MRHNode:
 class MRHEdge:
     source: str              # Source LCT ID
     target: str              # Target LCT ID
-    relation: str            # Semantic relationship type
-    weight: float            # Edge trust weight (0.0–1.0)
-    timestamp: datetime      # When relationship established
+    relation: RelationType   # Semantic relationship type (12-member enum; str coerced)
+    weight: float            # Edge trust weight, clamped to [0.0, 1.0]
+    timestamp: str           # When relationship established (ISO 8601)
     metadata: Dict           # Edge-specific metadata
     # Note: hop distance is computed dynamically via BFS traversal,
-    # not stored on each edge (see §3.3 horizon traversal).
+    # not stored on each edge (see §3.3 horizon traversal). The SDK
+    # clamps weight into [0.0, 1.0] and coerces a str relation into
+    # RelationType on construction.
 ```
 
 ## 2. Semantic Relationships in RDF
@@ -76,6 +78,10 @@ class MRHEdge:
 The Web4 ontology defines semantic relationship types:
 
 ```turtle
+# (web4: / lct: prefixes declared in §1.1; rdfs: declared here as it is
+#  used only in this block)
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
 # Binding relationships (permanent)
 web4:boundTo rdfs:subPropertyOf web4:hasRelationship ;
     rdfs:comment "Permanent hardware or identity binding" .
@@ -137,11 +143,18 @@ Context flows through the MRH via relationship chains:
 The "Markov" in MRH means that beyond a certain graph traversal depth, relationships become irrelevant:
 
 ```sparql
-# SPARQL query to find entities within horizon
+# SPARQL query to find entities within horizon.
+# Note: this matches the super-property web4:hasRelationship, so it requires
+# an RDFS sub-property entailment regime (boundTo/pairedWith/witnessedBy are
+# declared rdfs:subPropertyOf hasRelationship in §2.1). On a plain,
+# non-inferencing store, substitute a property path:
+#   (web4:boundTo|web4:pairedWith|web4:witnessedBy)
 PREFIX web4: <https://web4.io/ontology#>
 
 SELECT ?entity ?distance WHERE {
-    # Find all entities within 3 hops
+    # Find all entities within 3 hops. The depth bound is structural —
+    # each UNION branch hardcodes its hop count via BIND — so no FILTER is
+    # needed to enforce it.
     {
         <lct:origin> web4:hasRelationship ?entity .
         BIND(1 AS ?distance)
@@ -155,7 +168,6 @@ SELECT ?entity ?distance WHERE {
         ?hop2 web4:hasRelationship ?entity .
         BIND(3 AS ?distance)
     }
-    FILTER(?distance <= 3)  # Horizon depth
 }
 ```
 
@@ -186,7 +198,12 @@ Trust emerges from graph patterns and propagates through edges:
 # Trust propagation algorithms (conceptual structure).
 # The SDK implements these as stateless module-level functions
 # (propagate_multiplicative, propagate_probabilistic, propagate_maximal)
-# with identical mathematical semantics.
+# with identical mathematical semantics. Two API differences from the
+# pseudocode below: (1) the SDK's propagate_probabilistic/propagate_maximal
+# consume pre-computed path-trust scalars (List[float]) rather than raw
+# List[MRHEdge] paths, and (2) they drop the decay_factor parameter — decay
+# is applied earlier, during multiplicative path scoring. Only
+# propagate_multiplicative carries decay_factor.
 class TrustPropagation:
     def multiplicative(self, path: List[MRHEdge], decay_factor: float = 0.7) -> float:
         """Trust decays multiplicatively along path"""
@@ -196,8 +213,11 @@ class TrustPropagation:
         return trust
 
     def probabilistic(self, paths: List[List[MRHEdge]], decay_factor: float = 0.7) -> float:
-        """Combine multiple paths probabilistically"""
-        combined = 1.0
+        """Combine multiple paths probabilistically: 1 - ∏(1 - path_trust)"""
+        # Noisy-OR accumulator: identity element is 0.0, not 1.0.
+        # (Initializing at 1.0 makes (1 - combined) == 0, pinning the
+        #  result at 1.0 for every non-empty path set.)
+        combined = 0.0
         for path in paths:
             path_trust = self.multiplicative(path, decay_factor)
             combined = 1 - ((1 - combined) * (1 - path_trust))
@@ -249,9 +269,12 @@ _:trust2 a web4:T3Tensor ;
     web4:temperament 0.30 .  # Inconsistent mechanical work
 ```
 
-### 5.3 Role-Contextual Value Tensor (V3)
+### 5.3 Role-Contextual Trust Tensor (T3) in Code
 
-Value creation is measured within role contexts:
+Trust is queried and computed within role contexts. The example below
+demonstrates the T3 (trust) half; the V3 (value) half follows the same
+role-contextual pattern and is specified in
+[`t3-v3-tensors.md`](t3-v3-tensors.md):
 
 ```python
 class RoleContextualT3V3:
@@ -259,11 +282,12 @@ class RoleContextualT3V3:
         self.entity_id = entity_id
         self.role = role
         self.t3 = None  # Trust tensor for this role
-        self.v3 = None  # Value tensor for this role
+        self.v3 = None  # Value tensor for this role (see t3-v3-tensors.md; not demonstrated here)
     
     def get_trust_in_role(self, graph: RDFGraph) -> T3Tensor:
         """Get T3 tensor for entity in specific role"""
         query = f"""
+        PREFIX web4: <https://web4.io/ontology#>
         SELECT ?talent ?training ?temperament WHERE {{
             ?tensor web4:entity <{self.entity_id}> ;
                     web4:role <{self.role}> ;
@@ -323,14 +347,20 @@ SELECT ?entity ?trustScore WHERE {
     FILTER(?trustScore > 0.8)
 }
 ORDER BY DESC(?trustScore)
+```
 
-# Find best role match for interaction
+```sparql
+# Rank entity-role pairings by trust for a given interaction type.
+# (Grouping by both ?entity and ?role keeps one row per pairing; for the
+#  single best role per entity, group by ?entity alone with a sub-select.)
+PREFIX web4: <https://web4.io/ontology#>
+
 SELECT ?entity ?role (MAX(?trust) AS ?maxTrust) WHERE {
     ?pairing web4:interactionType "medical-procedure" ;
              web4:subject ?entity ;
              web4:subjectRole ?role ;
              web4:t3Score ?trust .
-} 
+}
 GROUP BY ?entity ?role
 ORDER BY DESC(?maxTrust)
 ```
@@ -341,19 +371,29 @@ Common SPARQL patterns for MRH queries:
 
 ```sparql
 # Find trust paths between entities
+PREFIX web4: <https://web4.io/ontology#>
+
 SELECT ?path ?trust WHERE {
     <lct:alice> (web4:hasRelationship+) <lct:bob> .
     # Calculate trust along path
 }
+```
 
+```sparql
 # Identify high-trust clusters
+PREFIX web4: <https://web4.io/ontology#>
+
 SELECT ?cluster (AVG(?trust) as ?avg_trust) WHERE {
     ?member web4:memberOf ?cluster .
     ?member web4:trustScore ?trust .
 } GROUP BY ?cluster
 HAVING (?avg_trust > 0.8)
+```
 
+```sparql
 # Find witness consensus
+PREFIX web4: <https://web4.io/ontology#>
+
 SELECT ?entity (COUNT(?witness) as ?witness_count) WHERE {
     ?entity web4:witnessedBy ?witness .
     ?witness web4:witnessRole web4:timeWitness .
