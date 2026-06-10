@@ -709,10 +709,49 @@ async fn channel_request(
     Ok(Json(ChannelResponse { sealed }))
 }
 
+/// Per-tier default cap on how many member records one read may return. The
+/// MRH bound at the result layer: a citizen can't bulk-enumerate the whole
+/// membership; the Sovereign is unbounded. v1 default — chapter law / config
+/// will own this value, and a higher trust score or a verified constellation
+/// (MFA) will raise it once those subsystems land.
+const CITIZEN_READ_LIMIT: usize = 50;
+
+/// Read scope: who is asking + how much they may see. v1 enforces result
+/// bounding by tier. `assurance` (single LCT vs verified constellation) and a
+/// trust floor are the hooks the constellation / T3-V3 layers attach to — not
+/// yet enforced (those subsystems don't exist yet), but threaded here so they
+/// slot in without re-touching the read handlers.
+struct ReadScope {
+    #[allow(dead_code)] // surfaced for the future trust/constellation layers
+    role: &'static str,
+    /// None = unbounded (Sovereign); Some(n) = at most n records.
+    max_results: Option<usize>,
+}
+
+impl ReadScope {
+    fn for_role(role: &'static str) -> Self {
+        let max_results = match role {
+            "sovereign" => None,
+            _ => Some(CITIZEN_READ_LIMIT),
+        };
+        ReadScope { role, max_results }
+    }
+
+    /// Effective record count: honor the caller's requested `limit` but never
+    /// exceed the tier cap.
+    fn effective_limit(&self, requested: Option<usize>) -> Option<usize> {
+        match (self.max_results, requested) {
+            (None, r) => r,
+            (Some(cap), Some(r)) => Some(r.min(cap)),
+            (Some(cap), None) => Some(cap),
+        }
+    }
+}
+
 /// Tier resolution + read dispatch for a decrypted channel request.
 /// v1: only **citizen-tier** (member or Sovereign) may read over the channel,
-/// and only read tools are served. Acts and finer law/MRH/trust gating layer
-/// on here.
+/// and only read tools are served. Acts and finer trust/constellation gating
+/// layer on here.
 async fn dispatch_channel(
     s: &RestState,
     caller_lct_id: Uuid,
@@ -739,21 +778,45 @@ async fn dispatch_channel(
     // this read (default-open when no law / no matching norm).
     gate_read(s, role, inner.tool.as_str()).await?;
 
+    // Scoping: bound how much this tier may see (MRH at the result layer).
+    let scope = ReadScope::for_role(role);
+    let requested = inner.args.get("limit").and_then(|v| v.as_u64()).map(|n| n as usize);
+    let limit = scope.effective_limit(requested);
+
     match inner.tool.as_str() {
         "query_hub" => Ok(serde_json::json!({
             "hub_name": state.hub_name,
             "member_count": state.member_count(),
             "last_ledger_index": state.last_index,
         })),
-        "list_members" => Ok(serde_json::json!({
-            "members": state.members.values().collect::<Vec<_>>(),
-        })),
+        "list_members" => {
+            let all: Vec<&hub_lib::state::Member> = state.members.values().collect();
+            let total = all.len();
+            let shown: Vec<&hub_lib::state::Member> = match limit {
+                Some(n) => all.into_iter().take(n).collect(),
+                None => all,
+            };
+            Ok(serde_json::json!({
+                "members": shown,
+                "total": total,
+                "truncated": total > limit.unwrap_or(total),
+            }))
+        }
         "find_skill" => {
             let q = inner.args.get("q").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
-            let hits: Vec<&hub_lib::state::Member> = state.members.values()
+            let matches: Vec<&hub_lib::state::Member> = state.members.values()
                 .filter(|m| m.skills.iter().any(|sk| sk.contains(&q)))
                 .collect();
-            Ok(serde_json::json!({ "members": hits }))
+            let total = matches.len();
+            let shown: Vec<&hub_lib::state::Member> = match limit {
+                Some(n) => matches.into_iter().take(n).collect(),
+                None => matches,
+            };
+            Ok(serde_json::json!({
+                "members": shown,
+                "total": total,
+                "truncated": total > limit.unwrap_or(total),
+            }))
         }
         other => Err(ApiError::bad_request(format!("unknown or non-channel tool: {other}"))),
     }
@@ -2009,5 +2072,19 @@ norms:
 "#;
         let law = Law::parse_and_validate(yaml).expect("valid law");
         assert_eq!(read_decision(Some(&law), "citizen", "query_hub").decision, Decision::Escalate);
+    }
+
+    #[test]
+    fn scope_bounds_citizens_and_not_the_sovereign() {
+        let citizen = ReadScope::for_role("citizen");
+        let sovereign = ReadScope::for_role("sovereign");
+        // Citizen is capped; Sovereign is unbounded.
+        assert_eq!(citizen.effective_limit(None), Some(CITIZEN_READ_LIMIT));
+        assert_eq!(sovereign.effective_limit(None), None);
+        // A citizen's requested limit is honored only up to the cap.
+        assert_eq!(citizen.effective_limit(Some(5)), Some(5));
+        assert_eq!(citizen.effective_limit(Some(10_000)), Some(CITIZEN_READ_LIMIT));
+        // The Sovereign's requested limit is honored as-is.
+        assert_eq!(sovereign.effective_limit(Some(5)), Some(5));
     }
 }
