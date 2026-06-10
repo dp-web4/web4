@@ -43,7 +43,6 @@ This separation makes trust mechanics **observable, attributable, and verifiable
 
     "v3_delta": {
       "veracity": {"change": +0.01, "from": 0.80, "to": 0.81},
-      "validity": {"change": 0.0, "from": 1.0, "to": 1.0},
       "valuation": {"change": +0.005, "from": 0.75, "to": 0.755}
     },
 
@@ -161,15 +160,20 @@ The **T3 tensor** captures **capability and character** across three dimensions:
 
 ## 3. Value Tensor (V3) Dimensions
 
-The **V3 tensor** captures **output quality and trustworthiness**:
+The **V3 tensor** captures **value creation** across three verification dimensions.
 
-### 3.1 Veracity
-**Definition**: Truthfulness and honesty of claims and statements.
+> **Canonical source**: V3 dimension semantics (names, measures, ranges) are
+> defined canonically in [`t3-v3-tensors.md §3`](./t3-v3-tensors.md). This section
+> describes how those dimensions move under reputation computation; where the two
+> are read together, the canonical definitions govern.
+
+### 3.1 Veracity (Objective Accuracy)
+**Definition**: Objective accuracy — truthfulness, accuracy, and reproducibility of claims, established by external validation and witness attestation against domain-specific verification standards.
 
 **Increases When**:
 - Statements proven accurate by evidence
+- Results are independently reproducible
 - Honest disclosure of limitations
-- Transparent communication
 - Correcting own mistakes proactively
 
 **Decreases When**:
@@ -180,57 +184,55 @@ The **V3 tensor** captures **output quality and trustworthiness**:
 
 **Typical Range**: 0.0 (known liar) to 1.0 (proven truthful)
 
-### 3.2 Validity
-**Definition**: Logical soundness and methodological correctness.
+### 3.2 Validity (Confirmed Transfer)
+**Definition**: Confirmed transfer — actual value delivery and receipt. Updated binary per transaction (`1.0` if value was transferred, else `0.0`) and averaged over time across completion of the value-transfer cycle. (Canonical: `t3-v3-tensors.md §3.1`, §3.3 `Validity = 1.0 if value_transferred else 0.0`.)
 
 **Increases When**:
-- Arguments are logically sound
-- Methods are scientifically rigorous
-- Evidence properly supports conclusions
-- Reasoning is transparent and reproducible
+- Promised value is actually delivered and received
+- The value-transfer cycle completes (ATP/ADP settled)
+- Recipients confirm receipt of the delivered value
 
 **Decreases When**:
-- Logical fallacies in arguments
-- Methodological flaws in work
-- Conclusions not supported by evidence
-- Opaque or irreproducible processes
+- Value is not delivered despite the action completing
+- The transfer cycle is left incomplete or fails to settle
+- Delivery is claimed but receipt is never confirmed
 
-**Typical Range**: 0.0 (invalid reasoning) to 1.0 (formally valid)
+**Typical Range**: 0.0 (no value transferred) to 1.0 (value confirmed delivered)
 
-### 3.3 Valuation
-**Definition**: Usefulness and benefit provided to others.
+### 3.3 Valuation (Subjective Worth)
+**Definition**: Subjective worth — the value perceived by recipients. Recipient-specific and use-case dependent; each transaction adds to the valuation history.
 
 **Increases When**:
-- Output solves real problems
+- Output solves real problems for recipients
 - Work provides measurable benefit
 - Contributions are appreciated by users
 - Long-term positive impact
 
 **Decreases When**:
-- Output is not useful
+- Output is not useful to recipients
 - Work creates more problems than it solves
 - Negative externalities
 - Waste of resources
 
-**Typical Range**: 0.0 (harmful) to 1.0 (extremely valuable)
+**Typical Range**: 0.0 (harmful) upward; commonly normalized toward 1.0 (extremely valuable). The canonical upper bound is an **open question** — `t3-v3-tensors.md §3.1` notes Valuation may exceed 1.0 (subjective worth) pending an operator decision; do not assume a hard [0,1] clamp here.
 
 ### V3 Interpretation
 
 **High V3 Across All Dimensions** (e.g., 0.95, 0.95, 0.9):
-- Truthful and honest
-- Logically sound work
+- Truthful and accurate
+- Value reliably delivered and received
 - Highly valuable contributions
 - **Result**: High-quality, trustworthy output
 
 **Mixed V3** (e.g., 0.9 veracity, 0.5 validity, 0.8 valuation):
-- Honest intentions
-- Methodological weaknesses
+- Honest and accurate claims
+- Inconsistent value delivery
 - Useful despite flaws
-- **Result**: Valuable but needs rigor
+- **Result**: Valuable but needs reliable delivery
 
 **Low V3** (e.g., 0.4, 0.3, 0.2):
 - Questionable truthfulness
-- Invalid reasoning
+- Value frequently undelivered
 - Little value provided
 - **Result**: Low-quality, untrustworthy output
 
@@ -249,12 +251,12 @@ Reputation changes are **rule-triggered**, not arbitrary. Law Oracles define rep
     "quality_threshold": 0.95
   },
   "reputation_impact": {
-    "t3_changes": {
+    "t3_impacts": {
       "training": {
         "base_delta": 0.01,
         "modifiers": [
           {"condition": "deadline_met", "multiplier": 1.5},
-          {"condition": "exceed_quality", "multiplier": 1.2}
+          {"condition": "high_accuracy", "multiplier": 1.2}
         ]
       },
       "temperament": {
@@ -264,11 +266,11 @@ Reputation changes are **rule-triggered**, not arbitrary. Law Oracles define rep
         ]
       }
     },
-    "v3_changes": {
+    "v3_impacts": {
       "veracity": {
         "base_delta": 0.02,
         "modifiers": [
-          {"condition": "high_confidence", "multiplier": 1.1}
+          {"condition": "high_accuracy", "multiplier": 1.1}
         ]
       }
     }
@@ -294,7 +296,7 @@ Triggered when actions fail or produce errors.
 **Example**: Model training fails due to parameter errors
 - `training`: -0.005 (demonstrated knowledge gap)
 - `temperament`: -0.01 (wasted resources)
-- `validity`: -0.01 (flawed methodology)
+- `validity`: -0.01 (no value delivered — transfer cycle did not complete)
 
 #### Exceptional Performance Rules
 Triggered when performance significantly exceeds expectations.
@@ -310,7 +312,7 @@ Triggered when unethical behavior is detected.
 **Example**: Attempted to manipulate data or mislead stakeholders
 - `temperament`: -0.10 (severe character issue)
 - `veracity`: -0.20 (dishonesty)
-- `validity`: -0.15 (methodological fraud)
+- `validity`: -0.15 (fraudulent transfer — purported value not genuinely delivered)
 
 **Note**: Ethical violations have **severe** reputation penalties.
 
@@ -337,52 +339,42 @@ def compute_reputation_delta(action, result, rules):
         # No rules triggered = no reputation change
         return empty_reputation_delta()
 
-    # 2. Compute contributing factors
-    factors = []
-    for rule in triggered_rules:
-        rule_factors = analyze_factors(action, result, rule)
-        factors.extend(rule_factors)
+    # 2. Compute contributing factors (rule-independent signals from the
+    #    action outcome — computed once, as in the SDK)
+    factors = analyze_factors(action, result)
 
-    # 3. Normalize factor weights
-    total_weight = sum(f.weight for f in factors)
-    for factor in factors:
-        factor.normalized_weight = factor.weight / total_weight
-
-    # 4. Compute T3 deltas
+    # 3. Compute T3 deltas
     t3_changes = {}
     for dimension in ['talent', 'training', 'temperament']:
-        delta = compute_dimension_delta(
-            dimension,
-            triggered_rules,
-            factors,
-            action,
-            result
-        )
-        if delta != 0:
+        delta = compute_dimension_delta('t3', dimension, triggered_rules, factors)
+        from_value = action.role.t3InRole[dimension]
+        # Clamp the new value to [0,1] and recompute the effective change,
+        # so a delta that would push the dimension past its range is truncated
+        # and the recorded `change` reflects the truncation (SDK parity).
+        to_value = max(0.0, min(1.0, from_value + delta))
+        change = to_value - from_value
+        if change != 0:
             t3_changes[dimension] = {
-                'change': delta,
-                'from': action.role.t3InRole[dimension],
-                'to': action.role.t3InRole[dimension] + delta
+                'change': change,
+                'from': from_value,
+                'to': to_value
             }
 
-    # 5. Compute V3 deltas
+    # 4. Compute V3 deltas
     v3_changes = {}
     for dimension in ['veracity', 'validity', 'valuation']:
-        delta = compute_dimension_delta(
-            dimension,
-            triggered_rules,
-            factors,
-            action,
-            result
-        )
-        if delta != 0:
+        delta = compute_dimension_delta('v3', dimension, triggered_rules, factors)
+        from_value = action.role.v3InRole[dimension]
+        to_value = max(0.0, min(1.0, from_value + delta))
+        change = to_value - from_value
+        if change != 0:
             v3_changes[dimension] = {
-                'change': delta,
-                'from': action.role.v3InRole[dimension],
-                'to': action.role.v3InRole[dimension] + delta
+                'change': change,
+                'from': from_value,
+                'to': to_value
             }
 
-    # 6. Assemble reputation delta
+    # 5. Assemble reputation delta
     reputation.subject_lct = action.role.actor
     reputation.role_lct = action.role.role_lct          # role-contextualization key (Required)
     reputation.action_type = action.request.action
@@ -400,17 +392,24 @@ def compute_reputation_delta(action, result, rules):
     return reputation
 
 
-def compute_dimension_delta(dimension, rules, factors, action, result):
+def compute_dimension_delta(tensor, dimension, rules, factors):
     """
-    Compute delta for a single T3 or V3 dimension.
+    Compute delta for a single dimension of a tensor.
+
+    `tensor` is 't3' or 'v3' — it selects which per-tensor impacts map to
+    read. Rules nest impacts under `t3_impacts` / `v3_impacts` (see §4 Rule
+    Structure), matching the SDK (`reputation.py` reads `rule.t3_impacts` for
+    T3 dims, `rule.v3_impacts` for V3 dims) and the conformance vectors.
     """
     total_delta = 0.0
+    impacts_attr = 't3_impacts' if tensor == 't3' else 'v3_impacts'
 
     for rule in rules:
-        if dimension not in rule.reputation_impact:
+        impacts = getattr(rule, impacts_attr)
+        if dimension not in impacts:
             continue
 
-        impact = rule.reputation_impact[dimension]
+        impact = impacts[dimension]
         base_delta = impact.base_delta
 
         # Apply modifiers based on contributing factors
@@ -425,24 +424,27 @@ def compute_dimension_delta(dimension, rules, factors, action, result):
     return max(-1.0, min(1.0, total_delta))
 
 
-def analyze_factors(action, result, rule):
+def analyze_factors(action, result):
     """
     Analyze which factors contributed to this reputation change.
+
+    Factors are rule-independent signals extracted from the action outcome
+    (quality, timing, resource efficiency) — computed once per action and
+    matched against each triggered rule's modifier conditions in
+    `compute_dimension_delta`. Mirrors the SDK `analyze_factors(action)`.
     """
     factors = []
 
-    # Quality-based factors
-    if 'quality_threshold' in rule.trigger_conditions:
-        actual_quality = extract_quality(result)
-        threshold = rule.trigger_conditions.quality_threshold
-
-        if actual_quality > threshold:
-            exceed_ratio = (actual_quality - threshold) / threshold
-            factors.append({
-                'factor': 'exceed_quality',
-                'weight': exceed_ratio,
-                'value': actual_quality
-            })
+    # Quality-based factor: a single `high_accuracy` signal when output
+    # quality clears the neutral midpoint (SDK parity — `reputation.py`
+    # `analyze_factors` keys on quality/accuracy > 0.5, weight 0.4).
+    quality = result.output.get('quality', result.output.get('accuracy'))
+    if quality is not None and quality > 0.5:
+        factors.append({
+            'factor': 'high_accuracy',
+            'weight': 0.4,
+            'value': quality
+        })
 
     # Time-based factors
     if 'deadline' in action.request.constraints:
@@ -476,16 +478,6 @@ def analyze_factors(action, result, rule):
             'value': efficiency
         })
 
-    # Accuracy factors (domain-specific)
-    if 'accuracy' in result.output:
-        accuracy = result.output.accuracy
-        if accuracy > 0.95:
-            factors.append({
-                'factor': 'high_accuracy',
-                'weight': 0.4,
-                'value': accuracy
-            })
-
     return factors
 ```
 
@@ -496,25 +488,25 @@ def analyze_factors(action, result, rule):
 
 **Triggered Rule**: `successful_analysis_completion` (the rule defined in §4)
 
-**Contributing Factors**:
+**Contributing Factors** (exactly as `analyze_factors` emits them — 97% accuracy clears the 0.5 quality midpoint, the deadline is met, and completion is >1h early):
 ```json
 [
-  {"factor": "exceed_quality", "weight": 0.5, "normalized_weight": 0.50},
-  {"factor": "deadline_met", "weight": 0.3, "normalized_weight": 0.30},
-  {"factor": "early_completion", "weight": 0.2, "normalized_weight": 0.20}
+  {"factor": "high_accuracy", "weight": 0.4},
+  {"factor": "deadline_met", "weight": 0.3},
+  {"factor": "early_completion", "weight": 0.2}
 ]
 ```
 
 **T3 Deltas** (per §4's `successful_analysis_completion` modifier→dimension mapping):
-- `training`: base +0.01 × deadline_met (1.5) × exceed_quality (1.2) = **+0.018**
+- `training`: base +0.01 × deadline_met (1.5) × high_accuracy (1.2) = **+0.018**
 - `temperament`: base +0.005 × early_completion (1.3) = **+0.0065**
 
 **V3 Deltas**:
-- `veracity`: base +0.02, high_confidence modifier not triggered = **+0.02**
+- `veracity`: base +0.02 × high_accuracy (1.1) = **+0.022**
 
 **Net Changes**:
 - Trust: +0.018 + 0.0065 = **+0.0245**
-- Value: **+0.02**
+- Value: **+0.022**
 
 ## 6. Witnessing Reputation Changes
 
@@ -629,7 +621,7 @@ def compute_current_reputation(entity_lct, role_lct, dimension, time_horizon_day
     weight_sum = 0.0
 
     for delta in deltas:
-        age_days = (now() - delta.timestamp).days
+        age_days = (now() - delta.timestamp).total_seconds() / 86400.0  # fractional days (SDK parity)
         recency_weight = math.exp(-age_days / 30.0)  # exp decay, 30-day time constant (1/e; ≈20.8-day half-life)
 
         weighted_sum += delta.change * recency_weight
@@ -670,11 +662,17 @@ training_as_surgeon = compute_current_reputation(alice, role_surgeon, "training"
 Reputation naturally decays without activity:
 
 ```python
-def apply_reputation_decay(entity_lct, dimension, last_action_timestamp):
+def apply_reputation_decay(entity_lct, role_lct, last_action_timestamp):
     """
     Apply natural decay to reputation based on inactivity.
+
+    CRITICAL: Decay is role-contextualized, like every other reputation
+    operation in this spec (§1, §7 `compute_current_reputation`). It is keyed
+    by the (entity_lct, role_lct) pairing — an entity active in role A but idle
+    in role B decays only in role B. The SDK (`reputation.py`
+    `inactivity_decay(entity_lct, role_lct)`) keys decay state the same way.
     """
-    days_inactive = (now() - last_action_timestamp).days
+    days_inactive = (now() - last_action_timestamp).total_seconds() / 86400.0
 
     if days_inactive < 30:
         return 0.0  # No decay within 30 days
@@ -717,13 +715,13 @@ Reputation cannot be easily gamed through fake identities because:
 ### Gaming Prevention
 Rules must be designed to prevent gaming:
 - **No self-attestation**: Witnesses must be independent
-- **Diminishing returns**: Repeated identical actions yield less reputation
+- **Diminishing returns**: Repeated identical actions yield less reputation. The mechanism is defined canonically in [`t3-v3-tensors.md §7.1`](./t3-v3-tensors.md) (`max(0.8^(n−1), 0.1)`; test vector t3v3-007); the per-action delta path in §5 does not itself apply it.
 - **Quality thresholds**: Minimum standards must be met
 - **Multi-dimensional**: Can't maximize one dimension while ignoring others
 
 ### Privacy
 Reputation is public by design in Web4:
-- All reputation changes on-chain
+- All reputation changes recorded in the society ledger
 - Witnessed and auditable
 - Transparent trust mechanics
 
@@ -756,7 +754,7 @@ Web4's reputation computation:
 - **Multi-factor**: Contributing factors with explicit weights
 - **Witnessed**: Independent validation of changes
 - **Aggregated**: Time-weighted accumulation over history
-- **Observable**: All changes on-chain and auditable
+- **Observable**: All changes recorded in the society ledger and auditable
 
 **R7 makes trust-building the explicit product of every Web4 transaction.**
 
