@@ -31,6 +31,31 @@ If Web4 succeeds at this, the consequences ripple:
 
 This document is the PRD for making paired channels a real, working primitive on the hub.
 
+### 0.1 Update — channels as smart-contract transport (2026-06-09)
+
+After v0.3 of the LCT-MCP-as-smart-contract proposal landed
+([`web4-standard/proposals/lct-mcp-as-smart-contract.md`](../../web4-standard/proposals/lct-mcp-as-smart-contract.md)),
+the load-bearing role of paired channels grew: they are not only inter-entity
+comms, they are the **transport substrate for hub-mediated smart-contract calls**.
+HUB's authz/confidentiality model
+([`hub-to-legion-authz-confidentiality-model-2026-06-09.md`](https://github.com/dp-web4/shared-context/blob/main/forum/hub-to-legion-authz-confidentiality-model-2026-06-09.md),
+canonical home [`V2-V3-ARCHITECTURE.md` §8](V2-V3-ARCHITECTURE.md)) makes the channel
+itself the identity — *"who's asking" = "whose channel is this."* Every
+state-mutating tool call on the hub MCP server must flow over a paired channel
+for citizen-tier-and-above access.
+
+This doesn't replace the framing in §0; it sharpens it. The relationship-trust
+framing is still right (channels reify *who* is talking to *whom*). The new
+weight: channels are *also* the wire format over which contract calls flow.
+"Trust accrues by relating" becomes more concrete — a *relation* IS a sequence
+of contract calls between two LCTs, witnessed at the hub. Each tool call over
+the channel is an R6 action (per the proposal §6.4); the channel IS the wire
+format for inter-LCT contract calls.
+
+The operational landing point for this reframe is **Sprint J** (§6) — multiplex
+the hub's existing tool endpoints over paired channels so the authz model is
+implemented, not just documented.
+
 ---
 
 ## 1. What this PRD does and doesn't cover
@@ -54,7 +79,10 @@ Each term in `Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP` gets activated by pa
 
 ### MCP — I/O membrane
 
-The hub already exposes MCP endpoints. A paired channel is a new MCP-callable surface: `pair_send`, `pair_recv`, `pair_list`. Agents reach paired channels through the same tool-call shape as everything else; the channel is just another addressable surface.
+The hub already exposes MCP endpoints. Two ways paired channels engage MCP:
+
+1. **New MCP-callable surface for channel ops** — `pair_request`, `pair_send`, `pair_recv`, `pair_list`. The channel mechanism itself is a Web4 primitive reached through the same tool-call shape as everything else.
+2. **Channels are the transport for hub-mediated MCP tool calls** (post-2026-06-09 reframe; see §0.1 + Sprint J). Citizen-tier-and-above tool calls on the hub MCP server travel over a paired channel between caller-LCT and hub-LCT. The channel is the I/O membrane through which the contract surface operates. *"The channel IS the identity."*
 
 ### RDF — ontological backbone
 
@@ -276,27 +304,69 @@ Each sprint is sized for one focused work session. Sprints land in the order lis
 - Smoke: simulate key compromise; verify prior session ciphertexts remain unreadable
 - **Output:** forward secrecy without Signal-double-ratchet complexity (defer ratchet to a later sprint if/when needed)
 
+### Sprint J — Channel-multiplex the hub MCP/REST tool endpoints
+
+**Status:** gating for the contract-call reframe (§0.1). Should land before G/H/I make full sense.
+
+**Motivation:** HUB's authz/confidentiality model (`hub-to-legion-authz-confidentiality-model-2026-06-09.md`, canonical home [`V2-V3-ARCHITECTURE.md` §8](V2-V3-ARCHITECTURE.md)) requires citizen-tier-and-above tool calls to travel over paired channels — *the channel IS the identity*. The current tool endpoints (POST `/tools/declare_skill`, etc.) take HTTP+TLS POST requests and authenticate by request payload, which is the bearer-token-style framing the model explicitly rejects.
+
+**Goal:** route state-mutating and citizen-tier-and-above tool calls through established paired channels. The pair channel between the requestor's LCT and the hub's LCT becomes the wire over which the tool request travels, with the response re-encrypted over the same channel.
+
+**Deliverables:**
+- Tool dispatch reads the request from the channel ciphertext (AEAD open), evaluates per PolicyEntity + Law Oracle, writes the response back to the same channel re-encrypted.
+- Tier resolution from channel binding: the channel's counterparty LCT determines tier (no-LCT / external / citizen / role / constellation) per HUB's authz model.
+- Witnessing residue per smart-contract proposal §6.5: hash of (request, response) committed to the ledger as the V3 attestation signal.
+- Existing `open_channel` + `HubChannel` (member-↔-hub channel, hestia integration) is the V1 transport — reuse, don't re-design.
+- HTTP plaintext POST endpoints remain available for no-LCT-tier (public, plaintext) only; citizen-tier-and-above are refused with `capability_violation` witnessed.
+
+**Tests:**
+- Smoke: open channel as citizen, call `declare_skill` over the channel, verify ledger event + queryable state both update + response received over channel.
+- Negative: citizen-tier HTTP POST without channel context is refused with `capability_violation` witnessed.
+- Negative: response is NOT served over plaintext HTTP even if the request arrived over a valid channel (response stays on the channel).
+- Conjunction: for every state-mutating tool, a smoke harness asserts ledger event AND queryable state update both happen (per proposal §6.3 adjacent observation; credits PR #292).
+
+**Output:** §6.5 authz model is operational, not just documented. Hub satisfies "the channel IS the identity" in code.
+
+**Depends on:** smart-contract proposal §6.5 settled (it is, in v0.3 — pointer-from-spec to V2-V3-ARCHITECTURE.md §8 is the corresponding spec edit).
+
+---
+
 ### Sprint G — V3 trust accrual hooks
 
-- On `PairingConfirmed` + per-message ledger events, emit signals into the trust-update pipeline (web4-trust-core hooks)
-- Per-pair message_count, lifetime, revocation-kind feed into V3.validity updates
-- Read-only surface in admin UI showing trust deltas attributable to pair activity
-- **Output:** trust accrual loop is closed for paired-channel activity
+**Status:** reframed by smart-contract proposal §6.4. Gated on Sprint J + proposal §6.4 mapping settling.
 
-### Sprint H — ATP discharge per message
+**Reframe:** V3 doesn't accrue from "raw channel messages" — it accrues from **contract calls flowing over the channel**. Each call is an R6 action (per proposal §6.4); the witnessing residue (hash of request/response from Sprint J) is the input signal to the trust pipeline.
 
-- Each message post discharges ATP per the chapter's pair-cost rule
-- Hub enforces ATP budget at message-post time
-- Per-pair ATP-per-message rate set in PairState at confirm time, modifiable via revoke+rerequest
-- **Output:** paired channels carry an economic signal; spam is naturally costly
+- On `PairingConfirmed` + per-call ledger events (kind: tool name, signal: witnessing residue from Sprint J), emit signals into the trust-update pipeline (web4-trust-core hooks).
+- Per-pair contract-call count, lifetime, refusal-kind, capability-violation count feed into V3.validity updates.
+- Per-tool weights (some tools confer more trust than others — `declare_skill` vs `record_event`) declared in chapter law.
+- Read-only surface in admin UI showing trust deltas attributable to contract activity over the pair channel.
+- **Output:** trust accrual loop is closed for contract activity over paired channels.
 
-### Sprint I — Push delivery via webhook (optional)
+### Sprint H — ATP discharge per contract call
 
-- Counterparty registers a webhook URL at pair-confirm time
-- Hub POSTs new messages to the webhook in addition to making them pollable
-- Endpoint clients (Hestia, AI agent daemons) get near-real-time notification
-- Polling stays as the fallback
-- **Output:** real-time delivery for clients that can host a webhook endpoint
+**Status:** reframed by smart-contract proposal §6.4. Gated on Sprint J + proposal §6.3 (mutability) + §6.4 (R6 composition) settling.
+
+**Reframe:** ATP discharges per **contract call** (R6 action), not per raw byte/message. Per-tool ATP cost is declared in chapter law; the call is the discrete metering unit.
+
+- Each tool call over a channel discharges ATP per the chapter's per-tool cost rule.
+- Hub enforces ATP budget at call dispatch time (before tool execution begins).
+- Per-tool ATP cost declared in chapter law; per-pair multipliers (trust-discounted rates) possible.
+- Refused calls discharge a smaller "rejected-call" cost (so probing isn't free, but execution isn't required to charge).
+- **Output:** paired-channel contract calls carry an economic signal; spam is naturally costly; high-trust pairs may receive discounted rates.
+
+### Sprint I — Contract-call notification (formerly: webhook push)
+
+**Status:** reframed by smart-contract proposal §6.1.2 (witness/notification semantics). Likely to defer until receiver-LCT framing clarifies.
+
+**Reframe:** "Webhook push" was a transport-level idea. Under §6.1.2, a notification receiver is itself a queryable LCT exposing an MCP-callable surface (`notify`-style tool). The framing question moves from "hub POSTs to a URL" to "hub invokes a tool on the receiver's MCP server, over a (potentially newly-established) channel back."
+
+- Receiver LCT exposes a `notify` (or equivalent) tool in its `interface_manifest` (per proposal §5.1).
+- Hub calls the receiver's `notify` tool over a paired channel from hub-LCT → receiver-LCT, with the contract-call notification as payload.
+- Polling stays as the fallback for receivers that don't expose a `notify` interface.
+- **Output:** real-time notification for receivers that publish a `notify` interface; the bidirectional channel-as-contract-transport pattern composes.
+
+**Open**: whether Sprint I in this form is worth doing pre-federation, or whether it should defer until cross-hub channel federation lands. May be subsumed.
 
 ### Out of scope for this PRD (later phases)
 
@@ -320,7 +390,7 @@ The MVP (Sprints A through F) is done when:
 6. Chapter law can express per-pair policy (rate, TTL, who-may-pair-with-whom).
 7. A smoke script exercises the full flow: request → confirm → encrypted message exchange → revoke → cannot send post-revoke.
 
-Sprints G + H + I are the "make it load-bearing for V3 trust accrual + ATP + real-time delivery" follow-on phase. Out-of-scope items are explicitly deferred.
+Sprint J is the operational landing point for the smart-contract proposal's authz/confidentiality model — the next concrete commit candidate, post-MVP. Sprints G + H + I are the "make it load-bearing for V3 trust accrual + ATP + real-time delivery" follow-on phase, reframed by the smart-contract proposal and gated on Sprint J + the proposal's §6.3/§6.4 settling. Out-of-scope items are explicitly deferred.
 
 ---
 
@@ -338,16 +408,21 @@ Sprints G + H + I are the "make it load-bearing for V3 trust accrual + ATP + rea
 
 ## 9. Implementation order + first concrete commit
 
-**First commit (Sprint A):** X25519 module in web4-core. Self-contained, no dependencies on hub-lib. Tests pass standalone.
+**MVP (Sprints A-F):** shipped 2026-06-08.
 
-This is the smallest unit that makes anything else possible. Until ECDH works in web4-core, none of the hub work can build a real pair.
+**Next concrete commit candidate (Sprint J):** channel-multiplex the hub tool endpoints. The smallest version is probably: route `declare_skill` over an existing `HubChannel` end-to-end, verify the smoke test, and refuse plaintext POST at citizen-tier with `capability_violation` witnessed. Once that one tool works end-to-end on the channel, the others follow the same pattern.
+
+Sprint J's smoke harness should also include the conjunction check from §6.3 of the smart-contract proposal — for every state-mutating tool, assert ledger event AND queryable state both update (PR #292's lesson made permanent).
+
+**Then:** G/H/I in order, gated on proposal §6 settling.
 
 ---
 
 ## See also
 
-- [`V2-V3-ARCHITECTURE.md`](V2-V3-ARCHITECTURE.md) §"Load-bearing architectural commitments"
+- [`V2-V3-ARCHITECTURE.md`](V2-V3-ARCHITECTURE.md) §"Load-bearing architectural commitments" + §8 (canonical home for HUB's authz/confidentiality model — the interaction model Sprint J implements)
 - [`PRD.md`](PRD.md) §"Solution shape" — hub overall
 - [`STORAGE.md`](STORAGE.md) — backend the pair message log will live in
 - [`BACKEND-OPTIONS.md`](BACKEND-OPTIONS.md) — note for DynamoDB: pair messages add a new SK prefix (`PAIR#<pair_id>#MSG#<seq>`)
-- `web4-core/src/crypto/` — where Sprint A lands
+- `web4-core/src/crypto/` — where Sprint A landed
+- [`web4-standard/proposals/lct-mcp-as-smart-contract.md`](../../web4-standard/proposals/lct-mcp-as-smart-contract.md) — the proposal that reframed §0.1 + Sprints G/H/I + surfaced Sprint J
