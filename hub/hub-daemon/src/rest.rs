@@ -46,7 +46,7 @@ use hub_lib::envelope::{verify_envelope, Challenge, MapResolver, NonceStore, Pub
 use hub_lib::events::HubEvent;
 use hub_lib::identity::IdentityFile;
 use hub_lib::init::load_society;
-use hub_lib::law::{Decision, Law, R6Request};
+use hub_lib::law::{Decision, DecisionOutcome, Law, R6Request};
 use hub_lib::ledger::HubLedger;
 use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, RemoteSigner, SignIntent};
 use hub_lib::state::HubState;
@@ -723,13 +723,21 @@ async fn dispatch_channel(
         HubState::project(&ledger)
     };
 
-    let is_citizen = state.members.contains_key(&caller_lct_id)
-        || caller_lct_id == s.sovereign_lct_id;
-    if !is_citizen {
+    // Tier resolution (v1: Sovereign or citizen=member; specific role-tier
+    // refinement layers on later). Below citizen is rejected outright.
+    let role = if caller_lct_id == s.sovereign_lct_id {
+        "sovereign"
+    } else if state.members.contains_key(&caller_lct_id) {
+        "citizen"
+    } else {
         return Err(ApiError::unauthorized(
             "citizen tier required for hub queries".to_string(),
         ));
-    }
+    };
+
+    // PolicyEntity-on-reads: chapter law decides whether this tier may run
+    // this read (default-open when no law / no matching norm).
+    gate_read(s, role, inner.tool.as_str()).await?;
 
     match inner.tool.as_str() {
         "query_hub" => Ok(serde_json::json!({
@@ -939,6 +947,54 @@ async fn submit_join(
 /// citizens to declare_skill but deny them from add_member (which
 /// is already enforced upstream in submit_event's per-action check;
 /// the law can add policy on top of code-level authorization).
+/// PolicyEntity-on-reads (the read half of the §8 "PolicyEntity gates queries
+/// the same way it gates writes" commitment). Evaluate a read of `tool` by a
+/// caller in `role` against chapter law. No law → Allow (open-by-default, the
+/// pre-gate behavior). Reads are namespaced `read:<tool>` in the action so
+/// read norms don't collide with act (event-kind) norms. Pure + testable;
+/// `gate_read` wires it to the live law slot + HTTP status codes.
+fn read_decision(law: Option<&Law>, role: &str, tool: &str) -> DecisionOutcome {
+    let Some(law) = law else {
+        return DecisionOutcome {
+            decision: Decision::Allow,
+            winning_norm: None,
+            escalation_index: None,
+            escalate_to: None,
+        };
+    };
+    let req = R6Request {
+        role: role.to_string(),
+        action: format!("read:{tool}"),
+        payload: Default::default(),
+        resource: Default::default(),
+    };
+    law.evaluate_outcome(&req)
+}
+
+/// Gate a channel read against chapter law. Allow → proceed; Deny → 403;
+/// Escalate → 202 (the read is held pending the escalation target's review).
+async fn gate_read(s: &RestState, role: &str, tool: &str) -> Result<(), ApiError> {
+    let law_guard = s.law.read().await;
+    let outcome = read_decision(law_guard.as_ref(), role, tool);
+    match outcome.decision {
+        Decision::Allow => Ok(()),
+        Decision::Deny => Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: format!(
+                "read '{tool}' denied by hub law (norm: {})",
+                outcome.winning_norm.as_deref().unwrap_or("?")
+            ),
+        }),
+        Decision::Escalate => Err(ApiError {
+            status: StatusCode::ACCEPTED,
+            message: format!(
+                "read '{tool}' escalated to {} by hub law",
+                outcome.escalate_to.as_deref().unwrap_or("sovereign")
+            ),
+        }),
+    }
+}
+
 fn build_r6_request(
     envelope: &SignedEnvelope,
     event: &HubEvent,
@@ -1902,4 +1958,56 @@ async fn commit_pair_event(s: &RestState, event: HubEvent) -> Result<(u64, Strin
     let entry = ledger.append_signed(unsigned, signature).await
         .map_err(ApiError::internal)?;
     Ok((entry.index, entry.entry_hash.clone()))
+}
+
+#[cfg(test)]
+mod read_gate_tests {
+    use super::*;
+    use hub_lib::law::Law;
+
+    #[test]
+    fn read_defaults_open_without_law() {
+        // No chapter law → reads are open (pre-gate behavior preserved).
+        assert_eq!(read_decision(None, "citizen", "list_members").decision, Decision::Allow);
+        assert_eq!(read_decision(None, "sovereign", "find_skill").decision, Decision::Allow);
+    }
+
+    #[test]
+    fn read_honors_a_deny_norm_and_leaves_others_open() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: NO-MEMBER-DUMP
+    selector: r6.request.action
+    operator: "=="
+    value: "read:list_members"
+    decision: deny
+    priority: 10
+    description: "Members are not bulk-listable over the channel"
+"#;
+        let law = Law::parse_and_validate(yaml).expect("valid law");
+        // The denied read is denied for a citizen...
+        let denied = read_decision(Some(&law), "citizen", "list_members");
+        assert_eq!(denied.decision, Decision::Deny);
+        assert_eq!(denied.winning_norm.as_deref(), Some("NO-MEMBER-DUMP"));
+        // ...while an unlisted read stays open (default-allow).
+        assert_eq!(read_decision(Some(&law), "citizen", "find_skill").decision, Decision::Allow);
+    }
+
+    #[test]
+    fn read_can_escalate() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: SENSITIVE-QUERY
+    selector: r6.request.action
+    operator: "=="
+    value: "read:query_hub"
+    decision: escalate
+    priority: 5
+    description: "Hub-identity queries need Sovereign sign-off"
+"#;
+        let law = Law::parse_and_validate(yaml).expect("valid law");
+        assert_eq!(read_decision(Some(&law), "citizen", "query_hub").decision, Decision::Escalate);
+    }
 }
