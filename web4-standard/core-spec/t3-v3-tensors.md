@@ -19,6 +19,11 @@ The T3 Tensor measures an entity's trustworthiness through three capability dime
 
 ### 2.1 Dimensions
 
+All three T3 dimensions are bounded to `[0.0, 1.0]`. Updates that would carry a
+dimension outside this interval are **clamped** to the nearest boundary (see the
+protocol-invariant range row in [§10.2](#102-protocol-invariant-parameters), test
+vectors t3v3-005/t3v3-006).
+
 #### Talent (Role-Specific Capability)
 - **Range**: 0.0 to 1.0
 - **Measures**: Natural aptitude for specific role, creativity within domain
@@ -77,6 +82,12 @@ The T3 Tensor measures an entity's trustworthiness through three capability dime
 }
 ```
 
+> **Note:** The ` ```json ` blocks in this document (§2.2, §3.2, §5.1) are
+> illustrative application-level serializations, not JSON-LD bound to
+> [`t3v3.jsonld`](../ontology/t3v3.jsonld). The canonical RDF shape is the Turtle
+> in §2.4/§5.2; these JSON structures show how an implementation might lay out the
+> same data.
+
 ### 2.3 T3 Evolution Mechanics
 
 #### Performance-Based Updates
@@ -128,6 +139,9 @@ T3 dimensions are **root nodes in an open-ended RDF sub-graph**, not fixed scala
 ```turtle
 @prefix web4: <https://web4.io/ontology#> .
 @prefix analytics: <https://web4.io/ontology/analytics#> .
+@prefix lct: <https://web4.io/lct/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 # Domain-specific sub-dimensions of Talent
 analytics:StatisticalModeling a web4:Dimension ;
@@ -260,6 +274,12 @@ For each completed R6 action:
 
 Aggregate scores use weighted averages based on recency and significance.
 
+The **composite V3 score** combines the three dimensions with the protocol-invariant
+weights `valuation=0.3, veracity=0.35, validity=0.35` (the authoritative values are
+those in the [§10.2](#102-protocol-invariant-parameters) table; test vector t3v3-002).
+This mirrors the T3 composite weights applied in the [§9.2](#92-mrh-graph-integration)
+SPARQL.
+
 ## 4. Tensor Interactions
 
 ### 4.1 T3 → V3 Influence
@@ -308,7 +328,18 @@ Roles specify required T3 thresholds, and entities are matched based on role-spe
 
 ### 5.2 RDF Role-Tensor Binding
 
+> **Vocabulary note:** `web4:hasRole` is defined in
+> [`web4-core-ontology.ttl`](../ontology/web4-core-ontology.ttl), not in the two
+> ontology files named in this document's header
+> ([`t3v3-ontology.ttl`](../ontology/t3v3-ontology.ttl) /
+> [`t3v3.jsonld`](../ontology/t3v3.jsonld)). A processor resolving these triples
+> must load the core ontology as well.
+
 ```turtle
+@prefix web4: <https://web4.io/ontology#> .
+@prefix lct: <https://web4.io/lct/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
 # T3 tensors are bound to entity-role pairs
 lct:alice web4:hasRole web4:Surgeon .
 lct:alice web4:hasRole web4:Researcher .
@@ -378,15 +409,19 @@ def calculate_atp_price(entity_id, role, task_type):
 - Decay calculations SHOULD run daily
 
 ### 6.3 Role-Based Segregation
-- No global trust scores - only role-specific tensors
-- Each role maintains separate T3/V3 tensors
-- New roles start with minimal trust, not inherited
-- Cross-role trust transfer requires explicit bridging
+- Implementations MUST NOT compute global (role-agnostic) trust scores — only role-specific tensors
+- Each role MUST maintain separate T3/V3 tensors
+- New roles MUST start with minimal trust, not inherited from other roles
+- Cross-role trust transfer MUST require explicit bridging
 
 ## 7. Privacy and Gaming Prevention
 
 ### 7.1 Anti-Gaming Measures
-- Exponential decay on repeated similar actions
+- Exponential decay on repeated similar actions. For the `n`-th repetition of a
+  similar action the diminishing-returns factor is
+  `factor = max(base_factor^(n−1), floor)` with `base_factor=0.8` and `floor=0.1`
+  (the authoritative values are those in the [§10.2](#102-protocol-invariant-parameters)
+  table; test vector t3v3-007).
 - Witness diversity requirements
 - Temporal distribution analysis
 - Cross-validation with peer entities
@@ -414,13 +449,14 @@ For composite entities:
 
 Example:
 ```python
-def compute_team_trust(team_members, required_role):
+# Mirrors the SDK helper web4.trust.compute_team_t3(...)
+def compute_team_t3(team_members, required_role):
     role_qualified = [m for m in team_members 
                       if has_role(m, required_role)]
     
     if not role_qualified:
-        return NO_TRUST  # Team lacks required role
-    
+        return None  # No member holds the required role
+
     # Average only among those with the role
     role_tensors = [get_t3_for_role(m, required_role) 
                     for m in role_qualified]
@@ -501,7 +537,7 @@ SELECT ?dim ?scoreA ?scoreB WHERE {
 
 This section classifies all trust, value, and energy parameters by governance
 tier: who decides the value, and what latitude implementers have. It
-synthesizes normative decisions from §2.3, §3.3, and §6 of this document,
+synthesizes normative decisions from §2.3 and §3.3 of this document,
 [`atp-adp-cycle.md`](atp-adp-cycle.md) §6.3/§7, and
 [`multi-device-lct-binding.md`](multi-device-lct-binding.md) §4.4.
 
@@ -510,7 +546,7 @@ synthesizes normative decisions from §2.3, §3.3, and §6 of this document,
 | Tier | RFC 2119 keyword | Meaning |
 |------|-----------------|---------|
 | **Protocol-invariant** | MUST / MUST NOT | Fixed by the specification. Implementations MUST use exactly these values. Cross-language test vectors enforce them. |
-| **Society-configurable** | MAY | Societies set these via published economic or governance laws. The protocol provides defaults but does not mandate them. |
+| **Society-configurable** | MAY / SHOULD | Societies set these via published economic or governance laws. The protocol provides defaults but does not mandate them; some carry SHOULD recommendations for adoption or transparency (e.g. §10.3 demurrage). |
 | **Simulation-only** | N/A | Not protocol parameters. Appear in explainers, demos, or simulations. MUST NOT be cited as canonical values. |
 
 ### 10.2 Protocol-Invariant Parameters
@@ -534,11 +570,17 @@ constitute the complete normative definition.
 | T3 dimension update factors | talent=1.0, training=0.8, temperament=0.6 | §2.3 | t3v3-003 |
 | Talent no-decay | Talent MUST NOT decay through inactivity | §2.3 | t3v3-012 |
 | T3 value range | [0.0, 1.0] — clamped at boundaries | §2.1 | t3v3-005, t3v3-006 |
+| V3 Veracity / Validity range | [0.0, 1.0] — clamped at boundaries | §3.1 | t3v3-002, t3v3-014 |
 | Diminishing returns formula | `base_factor^(n−1)`, base=0.8, floor=0.1 | §7.1 | t3v3-007 |
 | 6D-to-3D bridge formula | primary×0.6 + secondary×(0.4/3) | — | t3v3-008 |
 | V3 calculation | valuation=(earned/expected)×satisfaction; veracity=(verified/total)×confidence; validity=1.0 if transferred else 0.0 | §3.3 | t3v3-014 |
 | Operational health formula | t3_composite×0.4 + v3_composite×0.3 + energy_ratio×0.3 (note: test vector t3v3-010 labels this "coherence" — this is **not** identity coherence C×S×Phi×R from the whitepaper; it measures operational health) | — | t3v3-010 |
-| ATP conservation | total supply = ATP + ADP (invariant) | [`atp-adp-cycle.md`](atp-adp-cycle.md) §6.3 + §7.1 | — |
+| ATP conservation | total supply = ATP + ADP (invariant) | [`atp-adp-cycle.md`](atp-adp-cycle.md) §2.4 + §6.3 | — |
+
+> **V3 Valuation range** is deliberately omitted from the table above: its
+> classification is the unresolved 3-way divergence flagged in the §3.1 open
+> question (C13/M4), pending an operator decision. Only Veracity and Validity
+> are protocol-invariant at [0.0, 1.0].
 
 ### 10.3 Society-Configurable Parameters
 
