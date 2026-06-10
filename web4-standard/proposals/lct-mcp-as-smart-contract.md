@@ -1,7 +1,7 @@
 # LCT MCP Server as Smart Contract
 
 **Status**: Draft Proposal
-**Version**: 0.2
+**Version**: 0.3
 **Date**: 2026-06-09
 **Authors**: dp (Metalinxx) + Nomad-Claude
 
@@ -176,19 +176,29 @@ This is a smart contract running. No on-chain code, no consensus mechanism. The 
 
 ### 5.1 In the LCT spec
 
-Add an `interface_manifest` field — optional for passive LCTs (documents, completed certificates), required (or strongly recommended) for active LCTs:
+Add an `interface_manifest` field — **optional but declarative** per §6.1's three-way split. The presence or absence (and read/write character of declared tools) determines the LCT's contract category:
 
 ```json
 "interface_manifest": {
   "@type": "web4:MCPServer",
   "endpoint": "https://example.com/mcp",
   "tool_manifest_hash": "sha256:...",
+  "tools": [
+    {"name": "...", "kind": "read"},
+    {"name": "...", "kind": "mutate"}
+  ],
   "signature": "cose:Sig_structure",
   "declared_at": "2026-06-09T..."
 }
 ```
 
-The signature binds the manifest to the LCT's binding key, making the contract cryptographically attested.
+- **Present with at least one `mutate` tool** → LCT is *state-bearing*; full smart-contract semantics apply.
+- **Present with `read`-only tools** → LCT is *queryable*; the contract IS the schema.
+- **Absent** → LCT is *purely data*; validity established by a separate witness LCT (§6.1.2).
+
+The `signature` binds the manifest to the LCT's binding key, making the contract cryptographically attested.
+
+**Role LCTs** declare a polymorphic shape — the manifest declares the routing policy (who the current holders are, how calls dispatch) rather than the concrete tool implementations directly. The shape of that declaration is taken up in §6.2.
 
 ### 5.2 In the MCP-protocol spec
 
@@ -212,13 +222,45 @@ Sharpen the L35 mention: smart contracts in web4 are not "external rules" enforc
 
 ## 6. Open Questions (to settle before operational specs are touched)
 
-### 6.1 Universality
+### 6.1 Universality — resolved v0.3
 
-**Does every LCT have an MCP server, or only active LCTs?**
+**Question**: Does every LCT have an MCP server, or only some?
 
-Proposed: only *active* LCTs. Passive LCTs (birth certificates, completed documents, expired licenses, lineage records) have no MCP because they do not act — they are observed, not invoked. The `interface_manifest` field is therefore optional in the schema, required by convention for any LCT that declares itself active.
+**Settled: a three-way split, with phase transitions first-class.**
 
-Test case: a society LCT (active) has an MCP server. A citizen's birth certificate (passive) does not — but the *citizen's* LCT (active) does.
+The v0.1/v0.2 binary "active vs passive" missed two important cases surfaced under pressure-testing: (1) LCTs whose MCP server has *only* read-only tools (sensors, oracles, registries) — callable, with a contract, but no state mutation; and (2) LCTs that *transition* between categories over their lifetime (a task LCT is state-bearing while open, becomes purely-data when complete).
+
+The resolution:
+
+| Category | MCP server | Smart-contract semantics | Examples |
+|---|---|---|---|
+| **State-bearing** | declared, with state-mutating tools | full — the proposal's core claim applies | Society, **role** (see §6.1.1), agent, open-task, device, **witness** (see §6.1.2) |
+| **Queryable** | declared, read-only tools only | degenerate — the contract IS the schema of what can be queried | Sensor, oracle, registry endpoint |
+| **Purely data** | no `interface_manifest` | none — validity established by a *separate witness LCT* attesting the hash | Hash-pointer metadata, birth certificate, completed document, lineage record |
+
+The `interface_manifest` field becomes **optional but declarative**. Its presence or absence (and if present, the read/write character of its tools) declares the LCT's contract category. Same field, three uses. No more "required for active / forbidden for passive."
+
+**Phase transitions are first-class.** An LCT can move down the table over its lifetime — state-bearing → queryable → purely-data as it retires (e.g., an open task becomes a completed-task record). Promotions up the table are possible but rare (a previously-static document becomes part of an active dispute). The `interface_manifest` is revocable / replaceable per §6.3, and lineage preserves the trajectory so a future query can answer *"what was the contract surface of this LCT when call X was made?"*
+
+Two patterns surface from the taxonomy as load-bearing enough to deserve their own subsections:
+
+#### 6.1.1 Roles are state-bearing contracts (routing + accountability façades)
+
+A role LCT — Citizen, Witness, Treasurer, Customer Service, On-Call Engineer — is **not** a passive capability scope. The role's MCP server is the *stable contract surface* clients interact with. Behind it:
+
+- The role **routes** incoming calls to current holder(s). Routing may be fan-out (multiple holders, load-balanced or quorum), fractal (holders may themselves hold sub-roles), and time-varying (holders rotate over time).
+- The role's **V3 (reputation) accrues to the role**, separate from any individual holder's V3. When Bob is replaced by Alice, the role's reputation continues; Alice inherits the responsibility-to-fulfill but not the trust-balance accrued from past behavior.
+- **Accountability stays with the role** even when execution is delegated. The corporate analog: you sue the corporate entity, not the employee; the entity has continuous accountability even as employees come and go. Web4 makes that pattern cryptographic at every scale — corporations, roles, tasks, fractal agent compositions. **Contract surfaces persist across holder churn.**
+
+This is why role-LCT contracts are *not* a degenerate case but central to how the standard's contract semantics compose. It also implies a polymorphic shape for the role's `interface_manifest` — it declares the routing policy (who the current holders are, how calls dispatch) rather than the concrete tool implementations directly. This shape is taken up in §6.2 (cryptographic binding) and §6.4 (R6 composition — role-routing is the cleanest worked R6-within-R6 example).
+
+#### 6.1.2 Witnesses are state-bearing in a particular way (attestation contracts)
+
+A witness LCT's contract is **attestation**: it accepts registrations (`register`: original → hash-signed-by-witness), generates and stores hash commits, and answers verification queries (`verify`: hash → ack/nack). The hub MCP servers in the running example are witnesses among other things — hub-as-society does law and roles; hub-as-witness does event signing and ledger commits. Calling witnesses out as a named state-bearing kind clarifies why hubs appear everywhere in the architecture: they are *the* attestation primitive of the network.
+
+The witness pattern sharpens "purely data" in row 3 above. A data LCT needs **no MCP server of its own** — its validity is established by being witnessed by a separate witness LCT. Lightweight metadata-block LCTs pointing at hash-attested content are the typical shape. The data LCT is the *artifact*; the witness LCT is the *contract*. Together: `(data, witness) — query: hash → ack/nack`.
+
+This split matters for system design: it means we don't need to bolt MCP servers onto every photo, document, or media item the network ever references. The data stays cheap; trust comes from the witness graph at hubs.
 
 ### 6.2 Cryptographic binding
 
@@ -308,6 +350,35 @@ The HUB society is the running proof. The substrate works. The standard should s
 
 ## Changelog
 
+### v0.3 — 2026-06-09
+
+§6.1 (Universality) settled. Replaces the v0.1/v0.2 binary "active vs passive"
+with a three-way split (state-bearing / queryable / purely-data) that holds up
+under pressure-testing. Phase transitions made first-class — an LCT can move
+between categories over its lifetime, with lineage preserving the trajectory.
+
+Two patterns surfaced as load-bearing enough to deserve their own subsections:
+
+- **§6.1.1 Roles are state-bearing contracts** — routing + accountability
+  façades. The role's MCP server is the stable contract surface; behind it,
+  routing dispatches to current holder(s), possibly fractal. V3 accrues to the
+  role (not to individual holders); accountability persists across holder
+  churn. The corporate analog: *"sue the corporate entity, not the employee."*
+  Implies a polymorphic `interface_manifest` shape (declares routing policy,
+  not concrete tools) — taken up in §6.2.
+
+- **§6.1.2 Witnesses are state-bearing in a particular way** — attestation
+  contracts. The witness MCP exposes `register` and `verify`. Hubs are
+  witnesses among other things. Sharpens "purely data" — data LCTs need no
+  MCP server of their own; the witness LCT is the contract, the data LCT is
+  the artifact.
+
+§5.1 updated to reflect the new manifest semantics: the field is optional but
+*declarative* — its presence or absence (and the read/write character of
+declared tools) determines the LCT's contract category. Same field, three uses.
+
+dp redirect 2026-06-09 on roles + on the data/witness factoring.
+
 ### v0.2 — 2026-06-09
 
 - **§4.2** — updated tool list to current HUB surface (`query_chapter` → `query_hub`,
@@ -334,6 +405,8 @@ running example (HUB society), and five open architectural questions.
 
 ---
 
-*Draft Proposal v0.2 — open for review. Open architectural questions §6 to be settled
-before operational specs are updated; §6.5 now narrowed and pointing at HUB's
-authz/confidentiality model as the canonical interaction layer.*
+*Draft Proposal v0.3 — open for review. §6.1 (universality) is settled; §6.5
+narrowed and pointing at HUB's authz/confidentiality model; §6.2 (cryptographic
+binding), §6.3 (mutability), §6.4 (R6 composition) remain open. §6.2 next —
+the role pattern from §6.1.1 raises the polymorphic-manifest question that
+this section needs to resolve.*
