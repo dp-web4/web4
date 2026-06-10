@@ -841,8 +841,73 @@ async fn dispatch_channel(
                 "truncated": total > limit.unwrap_or(total),
             }))
         }
+        "find_members" => {
+            // Semantic member discovery. The hub is the front door (gating +
+            // tier scoping happen here); membot is the engine (the sidecar does
+            // the embedding + 3-signal search). top_k is bounded by the tier cap.
+            let query = inner.args.get("query").and_then(|v| v.as_str()).unwrap_or("");
+            if query.trim().is_empty() {
+                return Err(ApiError::bad_request("find_members requires a 'query'".to_string()));
+            }
+            let requested = inner.args.get("top_k").and_then(|v| v.as_u64()).map(|n| n as usize);
+            let effective = scope.effective_limit(requested.or(Some(12))).unwrap_or(12);
+            let temperature = inner.args.get("temperature").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let hits = membox_find_members(query, effective, temperature).await?;
+            Ok(serde_json::json!({
+                "results": hits,
+                "total": hits.len(),
+                "temperature": temperature,
+            }))
+        }
+        // Reserved registration slot for membot's Walk-as-MCP (ships ~2026-06-12):
+        // when it lands it's a register-and-gate, not a reimplement. Same role
+        // gating + tier scoping as find_members applies (gate_read already ran).
+        "walk_members" => Err(ApiError {
+            status: StatusCode::NOT_IMPLEMENTED,
+            message: "walk_members is reserved for membot's Walk-as-MCP (not yet shipped)".to_string(),
+        }),
         other => Err(ApiError::bad_request(format!("unknown or non-channel tool: {other}"))),
     }
+}
+
+/// Call the local membox sidecar (the discovery engine) for semantic member
+/// search. The hub composes membot as a localhost dependency; this never faces
+/// the network. A sidecar that's down → 503 with a clear message (discovery
+/// degraded, the rest of the hub is fine).
+async fn membox_find_members(
+    query: &str,
+    top_k: usize,
+    temperature: f64,
+) -> Result<Vec<serde_json::Value>, ApiError> {
+    let base = std::env::var("WEB4_MEMBOX_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:8771".to_string());
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{}/find_members", base.trim_end_matches('/')))
+        .json(&serde_json::json!({ "query": query, "top_k": top_k, "temperature": temperature }))
+        .send()
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            message: format!("member-discovery engine unreachable: {e}"),
+        })?;
+    if !resp.status().is_success() {
+        let code = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(ApiError {
+            status: StatusCode::BAD_GATEWAY,
+            message: format!("discovery engine returned {code}: {body}"),
+        });
+    }
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("parsing discovery response: {e}")))?;
+    Ok(body
+        .get("results")
+        .and_then(|r| r.as_array())
+        .cloned()
+        .unwrap_or_default())
 }
 
 /// External→citizen bootstrap over the channel. An authenticated external LCT
@@ -2326,5 +2391,63 @@ norms:
             .err()
             .expect("join should be escalated, not admitted");
         assert_eq!(err.status, StatusCode::ACCEPTED, "escalate → 202");
+    }
+
+    #[tokio::test]
+    async fn find_members_over_channel_then_degrades_when_engine_down() {
+        use axum::{routing::post, Router};
+
+        // Stand up a mock discovery engine (the membox sidecar's contract).
+        let app = Router::new().route(
+            "/find_members",
+            post(|| async {
+                axum::Json(serde_json::json!({
+                    "results": [{ "member_lct": "657b6bc9", "name": "Ada", "score": 0.87 }],
+                    "total": 1
+                }))
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap(); });
+        std::env::set_var("WEB4_MEMBOX_URL", format!("http://{addr}"));
+
+        let (_tmp, state) = fresh_rest_state(None).await; // open admission
+        let hub_pub = state.signer.public_key().unwrap();
+        let applicant = KeyPair::generate();
+        let applicant_lct = Uuid::new_v4();
+
+        // Admit so the caller is a citizen (find_members is citizen-gated).
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&applicant, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Caller" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: applicant_lct, pair_id: pid, sealed,
+            caller_pubkey_hex: Some(applicant.verifying_key().to_hex()),
+        })).await.expect("admitted");
+
+        // find_members over the channel → hub gates+scopes, calls the engine,
+        // seals the ranked LCTs back.
+        let pid2 = Uuid::new_v4();
+        let sealed2 = seal_req(&applicant, &hub_pub, pid2, "find_members",
+            serde_json::json!({ "query": "diffusion eval harness" }));
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: applicant_lct, pair_id: pid2, sealed: sealed2, caller_pubkey_hex: None,
+        })).await.expect("find_members ok");
+        let out = open_resp(&applicant, &hub_pub, pid2, &resp.0.sealed);
+        assert_eq!(out["results"][0]["member_lct"], serde_json::json!("657b6bc9"));
+        assert_eq!(out["total"], serde_json::json!(1));
+
+        // Engine down → graceful 503, hub itself unaffected.
+        std::env::set_var("WEB4_MEMBOX_URL", "http://127.0.0.1:1");
+        let pid3 = Uuid::new_v4();
+        let sealed3 = seal_req(&applicant, &hub_pub, pid3, "find_members",
+            serde_json::json!({ "query": "anything" }));
+        let err = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: applicant_lct, pair_id: pid3, sealed: sealed3, caller_pubkey_hex: None,
+        })).await.err().expect("engine-down should error");
+        assert_eq!(err.status, StatusCode::SERVICE_UNAVAILABLE);
+
+        std::env::remove_var("WEB4_MEMBOX_URL");
     }
 }
