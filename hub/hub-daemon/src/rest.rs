@@ -651,6 +651,13 @@ struct ChannelRequest {
     pair_id: Uuid,
     /// base64(nonce ‖ ciphertext) sealed to the hub's LCT pubkey.
     sealed: String,
+    /// For an **external** caller (not yet a member, so no pinned pubkey): the
+    /// self-vouched pubkey to ECDH against. The hub uses it to open the
+    /// channel (a successful open proves key possession) but only honors the
+    /// `request_citizenship` action — the external→citizen bootstrap, encrypted.
+    /// Members ignore this (their pinned pubkey is authoritative).
+    #[serde(default)]
+    caller_pubkey_hex: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -676,16 +683,24 @@ async fn channel_request(
         return Err(ApiError::not_found(format!("unknown hub {hub_id}")));
     }
 
-    // Resolve the caller's pinned LCT pubkey. Unknown LCT → can't open a
-    // channel (members get pinned at join; non-members request citizenship
-    // first). This is the no-LCT/external gate at the channel boundary.
+    // Resolve the caller's pubkey: a member's is pinned (authoritative); an
+    // external caller (not yet a member) self-vouches one in caller_pubkey_hex,
+    // which only unlocks the request_citizenship action below. A successful
+    // channel_open authenticates either way (only the key holder could seal).
     let caller_pubkey = {
         let resolver = s.resolver.read().await;
-        resolver.lookup(req.caller_lct_id).map(|lct| lct.public_key)
-    }
-    .ok_or_else(|| ApiError::unauthorized(
-        "caller LCT is not known to this hub — request citizenship first".to_string(),
-    ))?;
+        match resolver.lookup(req.caller_lct_id).map(|lct| lct.public_key) {
+            Some(pinned) => pinned,
+            None => match req.caller_pubkey_hex.as_deref() {
+                Some(hex) => hub_lib::hub::hestia_sovereign_lct(req.caller_lct_id, hex)
+                    .map_err(|e| ApiError::bad_request(format!("invalid caller_pubkey_hex: {e}")))?
+                    .public_key,
+                None => return Err(ApiError::unauthorized(
+                    "caller LCT not known to this hub — include caller_pubkey_hex to request citizenship".to_string(),
+                )),
+            },
+        }
+    };
 
     // Open = authenticate (AEAD proves key possession) + decrypt, in one step.
     let plaintext = s.signer
@@ -697,7 +712,7 @@ async fn channel_request(
         .map_err(|e| ApiError::bad_request(format!("malformed channel request: {e}")))?;
 
     // Authz + dispatch on the decrypted request.
-    let response = dispatch_channel(&s, req.caller_lct_id, inner).await?;
+    let response = dispatch_channel(&s, req.caller_lct_id, req.caller_pubkey_hex.clone(), inner).await?;
 
     // Seal the response back over the same channel.
     let body = serde_json::to_vec(&response)
@@ -748,13 +763,14 @@ impl ReadScope {
     }
 }
 
-/// Tier resolution + read dispatch for a decrypted channel request.
-/// v1: only **citizen-tier** (member or Sovereign) may read over the channel,
-/// and only read tools are served. Acts and finer trust/constellation gating
-/// layer on here.
+/// Tier resolution + dispatch for a decrypted channel request.
+/// Tiers: Sovereign / citizen (member) → reads; **external** (authenticated
+/// LCT, not yet a member) → only `request_citizenship`. Finer role/trust/
+/// constellation gating layers on here.
 async fn dispatch_channel(
     s: &RestState,
     caller_lct_id: Uuid,
+    caller_pubkey_hex: Option<String>,
     inner: ChannelInner,
 ) -> Result<serde_json::Value, ApiError> {
     let state = {
@@ -762,16 +778,22 @@ async fn dispatch_channel(
         HubState::project(&ledger)
     };
 
-    // Tier resolution (v1: Sovereign or citizen=member; specific role-tier
-    // refinement layers on later). Below citizen is rejected outright.
+    // Tier resolution.
     let role = if caller_lct_id == s.sovereign_lct_id {
         "sovereign"
     } else if state.members.contains_key(&caller_lct_id) {
         "citizen"
     } else {
-        return Err(ApiError::unauthorized(
-            "citizen tier required for hub queries".to_string(),
-        ));
+        // External tier: an authenticated LCT that isn't a member. The only
+        // thing it may do is request citizenship (the encrypted external→citizen
+        // bootstrap). Everything else is refused.
+        if inner.tool == "request_citizenship" {
+            return request_citizenship(s, caller_lct_id, caller_pubkey_hex, &inner.args).await;
+        }
+        return Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: "external LCTs may only request citizenship".to_string(),
+        });
     };
 
     // PolicyEntity-on-reads: chapter law decides whether this tier may run
@@ -820,6 +842,76 @@ async fn dispatch_channel(
         }
         other => Err(ApiError::bad_request(format!("unknown or non-channel tool: {other}"))),
     }
+}
+
+/// External→citizen bootstrap over the channel. An authenticated external LCT
+/// (proven by the successful channel_open) asks to become a member. Mirrors the
+/// plaintext `/members/join` admission, but encrypted: PolicyEntity gates as
+/// `role="applicant"`; on accept the Sovereign signs a MemberAdded pinning the
+/// applicant's pubkey, and we add them to the resolver so their *next* channel
+/// is as a citizen (no caller_pubkey_hex needed).
+async fn request_citizenship(
+    s: &RestState,
+    caller_lct_id: Uuid,
+    caller_pubkey_hex: Option<String>,
+    args: &serde_json::Value,
+) -> Result<serde_json::Value, ApiError> {
+    let pubkey_hex = caller_pubkey_hex.ok_or_else(|| ApiError::bad_request(
+        "request_citizenship requires the channel to carry caller_pubkey_hex".to_string(),
+    ))?;
+    // Reject if already a member (idempotency / no double-admit).
+    {
+        let ledger = s.ledger.lock().await;
+        if HubState::project(&ledger).members.contains_key(&caller_lct_id) {
+            return Ok(serde_json::json!({ "admitted": true, "already_member": true }));
+        }
+    }
+    let name = args.get("name").and_then(|v| v.as_str()).map(String::from);
+    let event = HubEvent::MemberAdded {
+        member_lct_id: caller_lct_id,
+        added_by: s.sovereign_lct_id,
+        member_name: name,
+        member_pubkey_hex: Some(pubkey_hex.clone()),
+    };
+
+    // PolicyEntity gate — admission policy from chapter law, role="applicant".
+    {
+        let law_guard = s.law.read().await;
+        if let Some(law) = law_guard.as_ref() {
+            let payload = serde_yaml::to_value(&event)
+                .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {e}")))?;
+            let req = R6Request {
+                role: "applicant".to_string(),
+                action: "member_join_request".to_string(),
+                payload,
+                resource: Default::default(),
+            };
+            match law.evaluate_outcome(&req).decision {
+                Decision::Allow => {}
+                Decision::Deny => return Err(ApiError {
+                    status: StatusCode::FORBIDDEN,
+                    message: "citizenship denied by hub law".to_string(),
+                }),
+                Decision::Escalate => return Err(ApiError {
+                    status: StatusCode::ACCEPTED,
+                    message: "citizenship requires escalation (admin review)".to_string(),
+                }),
+            }
+        }
+    }
+
+    // Sovereign-signs + commits the admission, then pins the new member's
+    // pubkey so future channels authenticate them as a citizen.
+    let (index, _hash) = commit_pair_event(s, event).await?;
+    if let Ok(lct) = hub_lib::hub::hestia_sovereign_lct(caller_lct_id, &pubkey_hex) {
+        s.resolver.write().await.insert(lct);
+    }
+
+    Ok(serde_json::json!({
+        "admitted": true,
+        "member_lct_id": caller_lct_id,
+        "entry_index": index,
+    }))
 }
 
 // ---------- POST /v1/admin/reload-law ----------
