@@ -107,6 +107,11 @@ impl HubSession {
     /// not caller-supplied: previously the act was only appended to the
     /// ledger and never folded into the society, so assigned roles never
     /// showed as filled in query_chapter / MCP / the admin dashboard.
+    /// **Conjunction tool** (lct-mcp-as-smart-contract proposal §6.3): mutates
+    /// separately-persisted state (`society` file) AND appends a ledger event.
+    /// Both side effects must be observable after the call. Tested by
+    /// `assign_role_fills_role_in_society`. PR #292 fixed the inverse bug
+    /// (event-only, state forgotten).
     pub async fn assign_role(&mut self, role: SocietyRole, member_lct_id: Uuid) -> Result<&LedgerEntry> {
         let mut store = open_hub_store(&self.paths.root)
             .context("opening hub store to update role-fill")?;
@@ -145,6 +150,12 @@ impl HubSession {
         self.append(event).await
     }
 
+    /// **Conjunction tool** (lct-mcp-as-smart-contract proposal §6.3): mutates
+    /// separately-persisted state (law text in the store) AND appends a ledger
+    /// event. Both side effects must be observable after the call. Tested by
+    /// `set_law_writes_both_ledger_and_law_store`. The proposal makes this
+    /// conjunction a spec-level rule for state-mutating tools — neither half
+    /// of the pair is "the contract" alone.
     pub async fn set_law(
         &mut self,
         yaml: &str,
@@ -412,6 +423,20 @@ mod tests {
         assert_eq!(st.member_count, 2); // Sovereign + Bob
     }
 
+    // --- Conjunction-invariant tests (lct-mcp-as-smart-contract proposal §6.3) ---
+    //
+    // Some state-mutating tools touch BOTH the ledger AND separately-persisted
+    // state. For those — flagged as "Conjunction tools" in their rustdoc — the
+    // standard requires that both side effects happen as a unit: a ledger event
+    // alone is not the contract; a state mutation without the corresponding
+    // event is invisible to auditors. PR #292 (be3f8e6) fixed exactly this
+    // class of bug on `assign_role`. These tests are the regression net.
+    //
+    // Current Conjunction tools: `assign_role`, `set_law`. When a new tool
+    // joins the category (mutates separately-persisted state alongside its
+    // ledger append), add the `Conjunction tool` rustdoc marker AND a parallel
+    // `<tool>_writes_both_ledger_and_<state>` test here.
+
     #[tokio::test]
     async fn assign_role_fills_role_in_society() {
         // Regression: assign_role used to only append a RoleAssigned ledger
@@ -433,6 +458,48 @@ mod tests {
         assert_eq!(
             admin.filling_entity_lct_id, alice,
             "Administrator should be filled by the assigned member"
+        );
+    }
+
+    #[tokio::test]
+    async fn set_law_writes_both_ledger_and_law_store() {
+        // Conjunction test (proposal §6.3): set_law is a Category-2 tool — it
+        // writes the law text into the store AND appends a LawAmended event.
+        // A symmetric regression to the assign_role bug PR #292 fixed would
+        // be: amend the law, get a ledger event, but get_law still returns
+        // the old text (or None). This test pins both halves.
+        let (_tmp, dir) = fresh_hub().await;
+        let new_law = "version: 1.0.0\nrules: []\n";
+        let entries_after_amend;
+        {
+            let mut session = HubSession::open(&dir).await.unwrap();
+            let entries_before = session.status().ledger_entries;
+            session
+                .set_law(new_law, "1.0.0".into(), Some("smoke amend".into()))
+                .await
+                .unwrap();
+            entries_after_amend = session.status().ledger_entries;
+            assert_eq!(
+                entries_after_amend,
+                entries_before + 1,
+                "set_law must append exactly one ledger entry (the LawAmended event)"
+            );
+        }
+        // Re-open to confirm BOTH halves persist independently of in-memory state.
+        let session = HubSession::open(&dir).await.unwrap();
+        let stored = session
+            .get_law()
+            .await
+            .unwrap()
+            .expect("law store must hold the amended text after set_law");
+        assert_eq!(
+            stored, new_law,
+            "law store must reflect the amended text (the queryable half of the conjunction)"
+        );
+        assert_eq!(
+            session.status().ledger_entries,
+            entries_after_amend,
+            "ledger half of the conjunction must persist across reopen"
         );
     }
 
