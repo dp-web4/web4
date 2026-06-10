@@ -32,3 +32,6 @@ serde_yaml = "0.9"
 [[example]]
 name = "mock-hestia"
 path = "examples/mock_hestia.rs"
+
+[dev-dependencies]
+tempfile = "3"

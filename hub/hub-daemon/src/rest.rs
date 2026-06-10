@@ -219,6 +219,7 @@ pub fn router(state: RestState) -> Router {
 
 // ---------- error wrapper ----------
 
+#[derive(Debug)]
 struct ApiError {
     status: StatusCode,
     message: String,
@@ -2178,5 +2179,152 @@ norms:
         assert_eq!(citizen.effective_limit(Some(10_000)), Some(CITIZEN_READ_LIMIT));
         // The Sovereign's requested limit is honored as-is.
         assert_eq!(sovereign.effective_limit(Some(5)), Some(5));
+    }
+}
+
+/// End-to-end channel harness: a real RestState over a throwaway chapter, with
+/// requests sealed by an external applicant via the same pair_channel primitive
+/// the member side (hestia) uses. Exercises the full path — channel_open (authn)
+/// → tier resolution → PolicyEntity → dispatch → seal response — that the unit
+/// tests can't reach. The first RestState integration harness in this crate.
+#[cfg(test)]
+mod channel_e2e_tests {
+    use super::*;
+    use axum::extract::{Json, Path, State};
+    use hub_lib::identity::IdentityFile;
+    use hub_lib::init::{init_hub, InitArgs};
+    use hub_lib::ledger::HubLedger;
+    use hub_lib::store::open_hub_store;
+    use tokio::sync::RwLock;
+    use web4_core::crypto::{KeyPair, PublicKey};
+    use web4_core::lct::EntityType;
+    use web4_core::pair_channel::{self, Sealed};
+
+    /// A throwaway Local-mode chapter + a RestState over it, optional law loaded.
+    async fn fresh_rest_state(law_yaml: Option<&str>) -> (tempfile::TempDir, RestState) {
+        let tmp = tempfile::tempdir().unwrap();
+        let sov = tmp.path().join("sovereign.json");
+        IdentityFile::generate(EntityType::Human).save(&sov).unwrap();
+        let hub_dir = tmp.path().join("chapter");
+        init_hub(InitArgs {
+            hub_name: "E2E Test Hub".into(),
+            hub_dir: hub_dir.clone(),
+            sovereign_lct_path: sov,
+            storage: None,
+        })
+        .await
+        .unwrap();
+        let law = Arc::new(RwLock::new(
+            law_yaml.map(|y| Law::parse_and_validate(y).unwrap()),
+        ));
+        let store = open_hub_store(&hub_dir).unwrap();
+        let ledger = Arc::new(Mutex::new(HubLedger::open(store).await.unwrap()));
+        let state = RestState::open_with_law_and_ledger(hub_dir, law, ledger)
+            .await
+            .unwrap();
+        (tmp, state)
+    }
+
+    fn seal_req(
+        applicant: &KeyPair,
+        hub_pub: &PublicKey,
+        pair_id: Uuid,
+        tool: &str,
+        args: serde_json::Value,
+    ) -> String {
+        let inner = serde_json::json!({ "tool": tool, "args": args });
+        let pt = serde_json::to_vec(&inner).unwrap();
+        pair_channel::seal(applicant, hub_pub, pair_id, &pt)
+            .unwrap()
+            .to_base64()
+    }
+
+    fn open_resp(
+        applicant: &KeyPair,
+        hub_pub: &PublicKey,
+        pair_id: Uuid,
+        sealed_b64: &str,
+    ) -> serde_json::Value {
+        let sealed = Sealed::from_base64(sealed_b64).unwrap();
+        let pt = pair_channel::open(applicant, hub_pub, pair_id, &sealed).unwrap();
+        serde_json::from_slice(&pt).unwrap()
+    }
+
+    #[tokio::test]
+    async fn external_bootstrap_then_citizen_read_over_channel() {
+        let (_tmp, state) = fresh_rest_state(None).await; // open admission
+        let hub_pub = state.signer.public_key().expect("local signer exposes a pubkey");
+        let applicant = KeyPair::generate();
+        let applicant_lct = Uuid::new_v4();
+        let applicant_hex = applicant.verifying_key().to_hex();
+
+        // 1. External tier → request_citizenship over a sealed channel, carrying
+        //    a self-vouched pubkey. AEAD open authenticates; admission pins it.
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&applicant, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "E2E Applicant" }));
+        let req = ChannelRequest {
+            caller_lct_id: applicant_lct,
+            pair_id: pid,
+            sealed,
+            caller_pubkey_hex: Some(applicant_hex),
+        };
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(req))
+            .await
+            .expect("admission should succeed");
+        let out = open_resp(&applicant, &hub_pub, pid, &resp.0.sealed);
+        assert_eq!(out["admitted"], serde_json::json!(true));
+
+        // 2. Now a citizen: a sealed list_members read returns the membership,
+        //    and the channel needs NO caller_pubkey_hex (the pubkey is pinned).
+        let pid2 = Uuid::new_v4();
+        let sealed2 = seal_req(&applicant, &hub_pub, pid2, "list_members", serde_json::json!({}));
+        let req2 = ChannelRequest {
+            caller_lct_id: applicant_lct,
+            pair_id: pid2,
+            sealed: sealed2,
+            caller_pubkey_hex: None,
+        };
+        let resp2 = channel_request(State(state.clone()), Path(state.hub_id), Json(req2))
+            .await
+            .expect("citizen read should succeed");
+        let out2 = open_resp(&applicant, &hub_pub, pid2, &resp2.0.sealed);
+        let members = out2["members"].as_array().expect("members array");
+        assert!(
+            members.iter().any(|m| m["lct_id"] == serde_json::json!(applicant_lct)),
+            "the admitted applicant should appear in list_members"
+        );
+    }
+
+    #[tokio::test]
+    async fn admission_law_escalates_external_join() {
+        // The live admission law: joins escalate to the Sovereign, not auto-admit.
+        const LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(LAW)).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let applicant = KeyPair::generate();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&applicant, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Should Escalate" }));
+        let req = ChannelRequest {
+            caller_lct_id: Uuid::new_v4(),
+            pair_id: pid,
+            sealed,
+            caller_pubkey_hex: Some(applicant.verifying_key().to_hex()),
+        };
+        let err = channel_request(State(state.clone()), Path(state.hub_id), Json(req))
+            .await
+            .err()
+            .expect("join should be escalated, not admitted");
+        assert_eq!(err.status, StatusCode::ACCEPTED, "escalate → 202");
     }
 }
