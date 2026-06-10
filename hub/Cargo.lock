@@ -1325,6 +1325,7 @@ dependencies = [
  "ctrlc",
  "hex",
  "hub-lib",
+ "reqwest",
  "serde",
  "serde_json",
  "serde_yaml",
