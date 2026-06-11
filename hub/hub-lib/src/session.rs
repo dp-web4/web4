@@ -188,6 +188,28 @@ impl HubSession {
         self.append(event).await
     }
 
+    /// Pin (or rotate) an existing member's channel public key — the member
+    /// key-enrollment step for members admitted without `member_pubkey_hex`
+    /// (CLI-bootstrap path). Without a pinned key a member cannot open the
+    /// sealed channel. Validates the hex is a real 32-byte Ed25519 key and
+    /// that the member exists before witnessing the pin.
+    pub async fn set_member_key(&mut self, member_lct_id: Uuid, pubkey_hex: String) -> Result<&LedgerEntry> {
+        // Validate the key parses (reconstructing an Lct exercises the same
+        // path the daemon's resolver uses at startup).
+        crate::hub::hestia_sovereign_lct(member_lct_id, &pubkey_hex)
+            .map_err(|e| anyhow::anyhow!("invalid pubkey hex: {e}"))?;
+        let state = HubState::project(&self.ledger);
+        if !state.members.contains_key(&member_lct_id) {
+            anyhow::bail!("LCT {member_lct_id} is not a member of this hub — add the member first");
+        }
+        let event = HubEvent::MemberKeyPinned {
+            member_lct_id,
+            member_pubkey_hex: pubkey_hex,
+            pinned_by: self.sovereign_lct_id,
+        };
+        self.append(event).await
+    }
+
     /// Update a member's free-text profile fields (skills, interests, +
     /// expandable keys) — the inputs to semantic member discovery. Fields
     /// merge into the existing profile; an empty value clears that field.
@@ -538,5 +560,30 @@ mod tests {
         let st = session.status();
         assert_eq!(st.member_count, 3);
         assert_eq!(st.ledger_entries, 3);
+    }
+
+    #[tokio::test]
+    async fn set_member_key_pins_rotates_and_rejects_bad_input() {
+        use web4_core::crypto::KeyPair;
+        let (_tmp, dir) = fresh_hub().await;
+        let mut session = HubSession::open(&dir).await.unwrap();
+        let alice = Uuid::new_v4();
+        session.add_member(alice, Some("Alice".into())).await.unwrap();
+
+        // Pin: key lands in member_pubkeys (what the daemon resolver seeds from).
+        let k1 = KeyPair::generate().verifying_key().to_hex();
+        session.set_member_key(alice, k1.clone()).await.unwrap();
+        let state = HubState::project(&session.ledger);
+        assert_eq!(state.member_pubkeys.get(&alice), Some(&k1));
+
+        // Rotate: last write wins.
+        let k2 = KeyPair::generate().verifying_key().to_hex();
+        session.set_member_key(alice, k2.clone()).await.unwrap();
+        let state = HubState::project(&session.ledger);
+        assert_eq!(state.member_pubkeys.get(&alice), Some(&k2));
+
+        // Reject: non-member LCT, and garbage hex.
+        assert!(session.set_member_key(Uuid::new_v4(), k2.clone()).await.is_err());
+        assert!(session.set_member_key(alice, "zz".into()).await.is_err());
     }
 }

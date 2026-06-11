@@ -578,6 +578,9 @@ fn event_summary(event: &HubEvent) -> String {
         HubEvent::MemberSkillDeclared { member_lct_id, skill, .. } => {
             format!("Skill \"{}\" by {}", html_escape(skill), short(member_lct_id))
         }
+        HubEvent::MemberKeyPinned { member_lct_id, .. } => {
+            format!("Channel key pinned for {}", short(member_lct_id))
+        }
         HubEvent::MemberProfileUpdated { member_lct_id, fields, .. } => {
             let keys: Vec<&str> = fields.keys().map(|k| k.as_str()).collect();
             format!("Profile update ({}) by {}", html_escape(&keys.join(", ")), short(member_lct_id))

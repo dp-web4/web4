@@ -220,6 +220,14 @@ impl HubState {
                 // If member doesn't exist, silently ignore — event predates
                 // their MemberAdded. (Real impl would error or queue.)
             }
+            HubEvent::MemberKeyPinned { member_lct_id, member_pubkey_hex, .. } => {
+                // Pin (or rotate — last write wins) the member's channel key.
+                // Only for existing members: a pin for an unknown LCT is
+                // ignored, same stance as the skill arm above.
+                if self.members.contains_key(member_lct_id) {
+                    self.member_pubkeys.insert(*member_lct_id, member_pubkey_hex.clone());
+                }
+            }
             HubEvent::MemberProfileUpdated { member_lct_id, fields, .. } => {
                 if let Some(member) = self.members.get_mut(member_lct_id) {
                     for (k, v) in fields {
