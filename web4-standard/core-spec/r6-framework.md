@@ -67,7 +67,7 @@ Each component is essential and together they form a complete, deterministic act
     "v3InRole": {
       "veracity": 0.92,
       "validity": 0.88,
-      "value": 0.85
+      "valuation": 0.85
     }
   }
 }
@@ -206,10 +206,10 @@ Each component is essential and together they form a complete, deterministic act
     },
     "tensorUpdates": {
       "t3": {"training": +0.01},
-      "v3": {"veracity": +0.02, "validity": 1.0}
+      "v3": {"veracity": +0.02, "validity": +0.01}
     },
     "attestations": [
-      {"witness": "lct:web4:...", "signature": "...", "timestamp": "..."}
+      {"lct": "lct:web4:...", "signature": "...", "timestamp": "..."}
     ],
     "ledgerProof": {
       "txHash": "0x...",
@@ -220,6 +220,8 @@ Each component is essential and together they form a complete, deterministic act
 }
 ```
 
+**Note**: The `tensorUpdates` object shown here is the single-party form. Multi-party actions (e.g., agency-delegated actions affecting both agent and client) use the per-entity array form shown in §5.5.
+
 ## 2. R6 Transaction Flow
 
 ### 2.1 Pre-execution Validation
@@ -227,7 +229,7 @@ Each component is essential and together they form a complete, deterministic act
 def validate_r6_action(r6_action):
     # 1. Verify actor has required role
     if not verify_role_pairing(r6_action.role):
-        raise InvalidRole("Actor not paired with specified role")
+        raise RoleUnauthorized("Actor not paired with specified role")
 
     # 2. Check for agency delegation if acting as agent
     if r6_action.request.get('proofOfAgency'):
@@ -242,11 +244,11 @@ def validate_r6_action(r6_action):
 
     # 4. Verify resource availability (including agency caps)
     if not check_resources(r6_action.resource.required):
-        raise InsufficientResources("Cannot fulfill resource requirements")
+        raise ResourceInsufficient("Cannot fulfill resource requirements")
 
     # 5. Validate references
     if not verify_references(r6_action.reference):
-        raise InvalidReference("Referenced precedents/witnesses invalid")
+        raise ReferenceInvalid("Referenced precedents/witnesses invalid")
 
     # 6. Lock resources (escrow)
     escrow_lock = lock_resources(r6_action.resource.escrow)
@@ -356,7 +358,7 @@ The R6 framework integrates tightly with the Society-Authority-Law layer:
 ## 4. R6 Security Properties
 
 ### 4.1 Determinism
-Given the same R6 inputs **and execution outcome**, the settlement (resource accounting, tensor updates, ledger entry) must be identical across all valid implementations. The determinism guarantee applies to the R6 framework's processing, not to the underlying action execution which may depend on external factors (hardware, network state, nondeterministic algorithms).
+Given the same R6 inputs **and execution outcome**, the settlement (resource accounting, tensor updates, ledger entry) must be identical across all valid implementations. The determinism guarantee applies to the R6 framework's settlement processing, not to the underlying action execution — which may depend on external factors (hardware, network state, nondeterministic algorithms) — nor to the measured resource consumption recorded in the Result.
 
 ### 4.2 Non-repudiation
 All R6 actions are signed and recorded on the immutable ledger with witness attestations.
