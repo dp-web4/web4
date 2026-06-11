@@ -1,9 +1,11 @@
 # `did:web4` — the DID interop face of an LCT
 
-**Status**: Design note (sketch). Public / standards-facing. Companion to
-`docs/specs/heterogeneous-identity.md` (the Web4-native identity model) and the
-`get_member_public_key` resolver proposal (`shared-context/forum/
-legion-proposal-member-pubkey-resolver-2026-06-11.md`).
+**Status**: Design note (rationale). **Promoted to the normative spec**
+`web4-standard/core-spec/did-web4-method.md` — that document is authoritative
+for syntax / mapping / resolution; this note keeps the reasoning, trade-offs,
+and open questions. Companion to `docs/specs/heterogeneous-identity.md` (the
+Web4-native identity model) and the `get_member_public_key` resolver proposal
+(`shared-context/forum/legion-proposal-member-pubkey-resolver-2026-06-11.md`).
 
 **Date**: 2026-06-11 • **Author**: Legion (Fable 5, with dp)
 
