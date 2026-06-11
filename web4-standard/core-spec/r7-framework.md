@@ -67,7 +67,7 @@ Each component is essential. Together they form a complete, deterministic action
 {
   "role": {
     "actor": "lct:web4:entity:alice",
-    "roleLCT": "lct:web4:role:analyst_financial_q4:abc123",
+    "roleLCT": "lct:web4:role:analyst_financial_q4_2025:abc123",
     "pairedAt": "2025-09-15T12:00:00Z",
     "t3InRole": {
       "talent": 0.85,
@@ -139,8 +139,7 @@ Each component is essential. Together they form a complete, deterministic action
     ],
     "mrhContext": {
       "depth": 2,
-      "relevantEntities": ["lct:web4:...", "lct:web4:..."],
-      "trustPaths": [...]
+      "relevantEntities": ["lct:web4:...", "lct:web4:..."]
     },
     "interpretations": [
       {"lawOracle": "lct:web4:oracle:...", "ruling": "permitted", "hash": "..."}
@@ -151,6 +150,8 @@ Each component is essential. Together they form a complete, deterministic action
   }
 }
 ```
+
+**Note**: The SDK `Reference` models `precedents`, `mrh_depth`, `relevant_entities`, and `witnesses`. The `interpretations` field (cached Law Oracle rulings) is a deferred extension not yet modeled by the SDK `Reference` shape; implementations should not depend on it until it is added.
 
 ### 1.5 Resource
 **Definition**: The computational, economic, and material resources required.
@@ -189,6 +190,8 @@ Each component is essential. Together they form a complete, deterministic action
 }
 ```
 
+**Note**: The `pricing` block (`atp_per_compute`, `surge_multiplier`) is a deferred extension; the SDK `ResourceRequirements` does not yet model it. Implementations should not depend on `resource.pricing` until it is added to the SDK shape.
+
 ### 1.6 Result
 **Definition**: The recorded outcome of the action execution. The Result is recorded deterministically, but the underlying execution and its measured resource consumption (e.g., `resourceConsumed`) reflect actual runtime and are not required to be bit-identical across implementations (see §4.1).
 
@@ -214,7 +217,7 @@ Each component is essential. Together they form a complete, deterministic action
       "compute": {"cpu_seconds": 285, "memory_peak": "3.8GB"}
     },
     "attestations": [
-      {"witness": "lct:web4:...", "signature": "...", "timestamp": "..."}
+      {"lct": "lct:web4:...", "signature": "...", "timestamp": "..."}
     ],
     "ledgerProof": {
       "txHash": "0x...",
@@ -224,6 +227,8 @@ Each component is essential. Together they form a complete, deterministic action
   }
 }
 ```
+
+**Note**: `ledgerProof` is recorded separately at settlement, not part of the SDK `Result` serialization. The ledger entry (and its `txHash`) is written only later in settlement (§2.4); failed actions (§6 MUST #4) have no `ledgerProof`. It is shown here to illustrate the eventual on-ledger record, not a field emitted with the Result itself.
 
 **Status values** (normative): the Result `status` field MUST be one of the following lifecycle states, aligned with the SDK `ActionStatus` enum:
 
@@ -316,7 +321,7 @@ Each component is essential. Together they form a complete, deterministic action
 def validate_r7_action(r7_action):
     # 1. Verify actor has required role
     if not verify_role_pairing(r7_action.role):
-        raise InvalidRole("Actor not paired with specified role")
+        raise RoleUnauthorized("Actor not paired with specified role")
 
     # 2. Check for agency delegation if acting as agent
     if r7_action.request.get('proofOfAgency'):
@@ -331,11 +336,11 @@ def validate_r7_action(r7_action):
 
     # 4. Verify resource availability (including agency caps)
     if not check_resources(r7_action.resource.required):
-        raise InsufficientResources("Cannot fulfill resource requirements")
+        raise ResourceInsufficient("Cannot fulfill resource requirements")
 
     # 5. Validate references
     if not verify_references(r7_action.reference):
-        raise InvalidReference("Referenced precedents/witnesses invalid")
+        raise ReferenceInvalid("Referenced precedents/witnesses invalid")
 
     # 6. Lock resources (escrow)
     escrow_lock = lock_resources(r7_action.resource.escrow)
@@ -407,7 +412,7 @@ def compute_reputation_delta(r7_action, result):
     """
     # Extract role context from R7 action
     entity_lct = r7_action.role.actor
-    role_lct = r7_action.role.roleLCT
+    role_lct = r7_action.role.role_lct
 
     # Get current T3/V3 on this specific MRH role pairing
     mrh_role_link = get_mrh_role_pairing(entity_lct, role_lct)
@@ -420,11 +425,12 @@ def compute_reputation_delta(r7_action, result):
         role_pairing_in_mrh=mrh_role_link,
         action_type=r7_action.request.action,
         action_target=r7_action.request.target,
-        # Source from the action's own pre-assigned id (the request nonce),
+        # Source from the R7Action's own pre-assigned composite id
+        # (action_id = "r7:<sha256(actor:action:nonce:timestamp)[:16]>"),
         # NOT the ledger txHash: the ledger entry is written only later in
         # settlement (§2.4), and failed actions (§6 MUST #4) have no
         # ledgerProof. The ledger txHash is recorded separately on write.
-        action_id=r7_action.request.nonce
+        action_id=r7_action.action_id
     )
 
     # 1. Determine which rules trigger reputation changes
@@ -502,7 +508,7 @@ def settle_r7_action(r7_action, result):
     # 1. Calculate final resource costs
     final_cost = calculate_costs(
         result.resourceConsumed,
-        r7_action.resource.pricing
+        r7_action.resource.pricing  # deferred extension (§1.5 note); not in SDK ResourceRequirements
     )
 
     # 2. Settle ATP transfers
@@ -525,7 +531,7 @@ def settle_r7_action(r7_action, result):
     # This updates the T3/V3 on the role pairing link in the entity's MRH
     apply_t3_v3_updates_to_role_pairing(
         entity_lct=r7_action.role.actor,
-        role_lct=r7_action.role.roleLCT,
+        role_lct=r7_action.role.role_lct,
         mrh_link=reputation.role_pairing_in_mrh.mrh_link,
         t3_delta=reputation.t3_delta,
         v3_delta=reputation.v3_delta
@@ -540,7 +546,7 @@ def settle_r7_action(r7_action, result):
     # linked to the specific role pairing that executed it
     update_mrh_with_action(
         entity_lct=r7_action.role.actor,
-        role_lct=r7_action.role.roleLCT,
+        role_lct=r7_action.role.role_lct,
         action=r7_action,
         result=result,
         reputation=reputation,
@@ -853,6 +859,8 @@ All reputation changes are explicit, witnessed, and auditable. Trust-building is
 
 ## 7. R7 Error Handling
 
+R7 result-level errors are SDK/framework exceptions (subclasses of `R7Error`), categorically distinct from the RFC-9457 `W4_ERR_*` core-protocol error taxonomy in `errors.md`. The two namespaces do not overlap: the catalog below names *application-layer* action failures, while `errors.md` is the SSOT for *protocol-layer* wire errors.
+
 ### Error Categories
 ```python
 class R7Error(Exception):
@@ -903,6 +911,7 @@ class ReputationComputationError(R7Error):
   },
   "reputation": {
     "subject_lct": "lct:web4:entity:actor",
+    "role_lct": "lct:web4:role:...",
     "action_id": "txn:0x...",
     "rule_triggered": "resource_insufficient_penalty",
     "t3_delta": {
