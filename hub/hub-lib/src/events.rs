@@ -88,6 +88,18 @@ pub enum HubEvent {
         declared_by: Uuid,
     },
 
+    /// Pin (or rotate) a member's channel public key after admission. Fills the
+    /// enrollment gap for members admitted without `member_pubkey_hex` (the
+    /// pre-V2-12 / CLI-bootstrap path): without a pinned key the member cannot
+    /// open the sealed channel at all. Sovereign-authorized; the member
+    /// generates the keypair locally and the public half is pinned here.
+    MemberKeyPinned {
+        member_lct_id: Uuid,
+        /// Hex-encoded 32-byte Ed25519 public key.
+        member_pubkey_hex: String,
+        pinned_by: Uuid,
+    },
+
     /// A member updated their profile — free-text fields (e.g. `skills`,
     /// `interests`, and arbitrary expandable keys) used for semantic member
     /// discovery (`find_members`). Self-attested, same authorization as
@@ -272,6 +284,7 @@ impl HubEvent {
             Self::EventRecorded { .. } => "event_recorded",
             Self::CharterAmended { .. } => "charter_amended",
             Self::MemberSkillDeclared { .. } => "member_skill_declared",
+            Self::MemberKeyPinned { .. } => "member_key_pinned",
             Self::MemberProfileUpdated { .. } => "member_profile_updated",
             Self::LawAmended { .. } => "law_amended",
             Self::CouncilMemberAdded { .. } => "council_member_added",

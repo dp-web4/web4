@@ -306,6 +306,19 @@ enum Command {
         hub_dir: PathBuf,
     },
 
+    /// Pin (or rotate) an existing member's channel public key — the member
+    /// key-enrollment step. Members admitted without a pubkey cannot open the
+    /// sealed channel; the member generates a keypair locally, shares the
+    /// public half, and the Sovereign pins it here. Appends a MemberKeyPinned
+    /// event; restart `hub serve` to re-seed the live resolver.
+    SetMemberKey {
+        hub_dir: PathBuf,
+        /// The member's LCT id.
+        member_lct_id: Uuid,
+        /// Hex-encoded 32-byte Ed25519 public key (the member keeps the secret half).
+        pubkey_hex: String,
+    },
+
     /// Write the starter chapter-law template to a file the operator
     /// can review + edit, then apply via `hub set-law`. Doesn't touch
     /// any hub directly.
@@ -515,6 +528,9 @@ async fn main() -> Result<()> {
             run_set_law(hub_dir, yaml, diff_summary).await
         }
         Some(Command::GetLaw { hub_dir }) => run_get_law(hub_dir).await,
+        Some(Command::SetMemberKey { hub_dir, member_lct_id, pubkey_hex }) => {
+            run_set_member_key(hub_dir, member_lct_id, pubkey_hex).await
+        }
         Some(Command::InitLaw { output, force }) => run_init_law(output, force).await,
         Some(Command::Council { subcommand }) => run_council(subcommand).await,
         Some(Command::Query { subcommand }) => run_query(subcommand).await,
@@ -681,6 +697,18 @@ async fn run_record_event(
     println!("  Attendees:    {}", attended_by.len());
     println!("  Entry index:  {}", entry.index);
     println!("  Entry hash:   {}", entry.entry_hash);
+    Ok(())
+}
+
+async fn run_set_member_key(hub_dir: PathBuf, member_lct_id: Uuid, pubkey_hex: String) -> Result<()> {
+    let mut session = HubSession::open(&hub_dir).await?;
+    let entry = session.set_member_key(member_lct_id, pubkey_hex.clone()).await?;
+    println!("Member key pinned.");
+    println!("  Member LCT:   {member_lct_id}");
+    println!("  Pubkey:       {pubkey_hex}");
+    println!("  Entry index:  {}", entry.index);
+    println!("  Entry hash:   {}", entry.entry_hash);
+    println!("  NOTE: restart `hub serve` so the live resolver re-seeds from the ledger.");
     Ok(())
 }
 
