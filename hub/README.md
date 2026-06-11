@@ -2,6 +2,10 @@
 
 > Minimum-viable Web4 society for a community chapter.
 
+> **Status — reference proof-of-concept.** This crate is the open reference POC.
+> Production and advanced development continue in a separate private repository;
+> features may land here later behind stable plugin interfaces.
+
 A single-binary Rust daemon (~6 MB) that turns a community chapter into a sovereign Web4 society — 7 roles, signed founding charter, append-only witnessed ledger, MCP HTTP server, admin CLI, Docker deployment. First deployment target: a pilot community chapter. Any community willing to operate as a Web4 society can use the same software.
 
 ## Current status
