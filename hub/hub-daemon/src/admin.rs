@@ -581,6 +581,12 @@ fn event_summary(event: &HubEvent) -> String {
         HubEvent::MemberKeyPinned { member_lct_id, .. } => {
             format!("Channel key pinned for {}", short(member_lct_id))
         }
+        HubEvent::IntroRequested { from_lct, to_lct, .. } => {
+            format!("Intro requested {} → {}", short(from_lct), short(to_lct))
+        }
+        HubEvent::IntroResponded { intro_id, accepted, .. } => {
+            format!("Intro {} {}", short(intro_id), if *accepted { "accepted" } else { "declined" })
+        }
         HubEvent::MemberProfileUpdated { member_lct_id, fields, .. } => {
             let keys: Vec<&str> = fields.keys().map(|k| k.as_str()).collect();
             format!("Profile update ({}) by {}", html_escape(&keys.join(", ")), short(member_lct_id))
