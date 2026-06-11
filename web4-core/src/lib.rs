@@ -58,6 +58,7 @@ pub mod atp;
 pub mod coherence;
 pub mod crypto;
 pub mod delegation;
+pub mod did;
 pub mod error;
 pub mod lct;
 pub mod ledger;
@@ -85,6 +86,7 @@ pub use r6::{
     Rules,
 };
 pub use delegation::{DelegatedAuthority, DelegationScope};
+pub use did::{DidDocument, DidDocumentMetadata, ServiceEndpoints, did_web4, parse_did_web4};
 pub use role::{RoleAssignment, RoleEvent, RoleEventKind, SocietyRole};
 pub use society::{MetabolicState, Society};
 pub use t3::{TrustDimension, TrustObservation, TrustRelation, T3, T3_DIMENSIONS};
