@@ -36,3 +36,7 @@ path = "examples/mock_hestia.rs"
 
 [dev-dependencies]
 tempfile = "3"
+
+[[example]]
+name = "channel_client"
+path = "examples/channel_client.rs"
