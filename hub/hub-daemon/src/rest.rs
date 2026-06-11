@@ -866,6 +866,97 @@ async fn dispatch_channel(
             status: StatusCode::NOT_IMPLEMENTED,
             message: "walk_members is reserved for membot's Walk-as-MCP (not yet shipped)".to_string(),
         }),
+        // ---- introductions (the consent half of discovery) ----
+        // Both halves ride the sealed channel, so by construction both parties
+        // hold pinned channel keys by the time an intro is accepted — which is
+        // exactly what makes the mutual-approval payoff (each side getting the
+        // other's pubkey for a direct member↔member pair_channel) possible.
+        "request_intro" => {
+            let to: Uuid = inner.args.get("to").and_then(|v| v.as_str())
+                .and_then(|s| s.parse().ok())
+                .ok_or_else(|| ApiError::bad_request("request_intro requires 'to' (member LCT uuid)".to_string()))?;
+            // purpose is optional free text — and ledger-witnessed; keep it brief.
+            let purpose = inner.args.get("purpose").and_then(|v| v.as_str()).map(String::from);
+            if to == caller_lct_id {
+                return Err(ApiError::bad_request("cannot request an intro to yourself".to_string()));
+            }
+            if !state.members.contains_key(&to) {
+                return Err(ApiError::bad_request(format!("{to} is not a member of this hub")));
+            }
+            let dup = state.intros.values().any(|i| {
+                i.status == hub_lib::state::IntroStatus::Pending
+                    && i.from_lct == caller_lct_id
+                    && i.to_lct == to
+            });
+            if dup {
+                return Err(ApiError::bad_request("an intro to that member is already pending".to_string()));
+            }
+            let intro_id = Uuid::new_v4();
+            let event = HubEvent::IntroRequested {
+                intro_id,
+                from_lct: caller_lct_id,
+                to_lct: to,
+                purpose,
+            };
+            let (index, _hash) = commit_pair_event(s, event).await?;
+            Ok(serde_json::json!({ "intro_id": intro_id, "status": "pending", "entry_index": index }))
+        }
+        "list_intros" => {
+            // Only intros the caller is a party to — never the full table.
+            let mine: Vec<serde_json::Value> = state.intros.values()
+                .filter(|i| i.from_lct == caller_lct_id || i.to_lct == caller_lct_id)
+                .map(|i| {
+                    let mut v = serde_json::json!({
+                        "intro_id": i.id,
+                        "from_lct": i.from_lct,
+                        "to_lct": i.to_lct,
+                        "purpose": i.purpose,
+                        "status": i.status,
+                    });
+                    // The mutual-approval payoff: once accepted, each party
+                    // gets the OTHER party's pinned pubkey — everything a
+                    // direct member↔member pair_channel needs.
+                    if i.status == hub_lib::state::IntroStatus::Accepted {
+                        let peer = if i.from_lct == caller_lct_id { i.to_lct } else { i.from_lct };
+                        v["peer_lct"] = serde_json::json!(peer);
+                        v["peer_pubkey_hex"] = serde_json::json!(state.member_pubkeys.get(&peer));
+                    }
+                    v
+                })
+                .collect();
+            Ok(serde_json::json!({ "intros": mine, "total": mine.len() }))
+        }
+        "respond_intro" => {
+            let intro_id: Uuid = inner.args.get("intro_id").and_then(|v| v.as_str())
+                .and_then(|s| s.parse().ok())
+                .ok_or_else(|| ApiError::bad_request("respond_intro requires 'intro_id'".to_string()))?;
+            let accept = inner.args.get("accept").and_then(|v| v.as_bool())
+                .ok_or_else(|| ApiError::bad_request("respond_intro requires 'accept' (bool)".to_string()))?;
+            let intro = state.intros.get(&intro_id)
+                .ok_or_else(|| ApiError::bad_request(format!("unknown intro {intro_id}")))?;
+            if intro.to_lct != caller_lct_id {
+                return Err(ApiError {
+                    status: StatusCode::FORBIDDEN,
+                    message: "only the intro's target may respond".to_string(),
+                });
+            }
+            if intro.status != hub_lib::state::IntroStatus::Pending {
+                return Err(ApiError::bad_request("intro is already resolved".to_string()));
+            }
+            let from = intro.from_lct;
+            let event = HubEvent::IntroResponded { intro_id, responded_by: caller_lct_id, accepted: accept };
+            let (index, _hash) = commit_pair_event(s, event).await?;
+            let mut out = serde_json::json!({
+                "intro_id": intro_id,
+                "status": if accept { "accepted" } else { "declined" },
+                "entry_index": index,
+            });
+            if accept {
+                out["peer_lct"] = serde_json::json!(from);
+                out["peer_pubkey_hex"] = serde_json::json!(state.member_pubkeys.get(&from));
+            }
+            Ok(out)
+        }
         other => Err(ApiError::bad_request(format!("unknown or non-channel tool: {other}"))),
     }
 }
@@ -2449,5 +2540,77 @@ norms:
         assert_eq!(err.status, StatusCode::SERVICE_UNAVAILABLE);
 
         std::env::remove_var("WEB4_MEMBOX_URL");
+    }
+
+    /// Seal+send one channel call for an admitted member; open the response.
+    async fn member_call(
+        state: &RestState,
+        me: &KeyPair,
+        my_lct: Uuid,
+        tool: &str,
+        args: serde_json::Value,
+    ) -> Result<serde_json::Value, ApiError> {
+        let hub_pub = state.signer.public_key().unwrap();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(me, &hub_pub, pid, tool, args);
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: my_lct, pair_id: pid, sealed, caller_pubkey_hex: None,
+        })).await?;
+        Ok(open_resp(me, &hub_pub, pid, &resp.0.sealed))
+    }
+
+    #[tokio::test]
+    async fn intro_full_loop_mutual_approval_exchanges_pubkeys() {
+        let (_tmp, state) = fresh_rest_state(None).await; // open admission
+        let hub_pub = state.signer.public_key().unwrap();
+
+        // Admit Alice and Bob over the channel (pins their pubkeys).
+        let (alice, alice_lct) = (KeyPair::generate(), Uuid::new_v4());
+        let (bob, bob_lct) = (KeyPair::generate(), Uuid::new_v4());
+        for (kp, lct, name) in [(&alice, alice_lct, "Alice"), (&bob, bob_lct, "Bob")] {
+            let pid = Uuid::new_v4();
+            let sealed = seal_req(kp, &hub_pub, pid, "request_citizenship",
+                serde_json::json!({ "name": name }));
+            channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+                caller_lct_id: lct, pair_id: pid, sealed,
+                caller_pubkey_hex: Some(kp.verifying_key().to_hex()),
+            })).await.expect("admitted");
+        }
+
+        // Alice requests an intro to Bob.
+        let out = member_call(&state, &alice, alice_lct, "request_intro",
+            serde_json::json!({ "to": bob_lct, "purpose": "collab on evals" })).await.unwrap();
+        assert_eq!(out["status"], serde_json::json!("pending"));
+        let intro_id = out["intro_id"].as_str().unwrap().to_string();
+
+        // Duplicate pending request is rejected.
+        let dup = member_call(&state, &alice, alice_lct, "request_intro",
+            serde_json::json!({ "to": bob_lct })).await;
+        assert!(dup.is_err(), "duplicate pending intro must be rejected");
+
+        // Bob sees it pending; Alice can't respond to her own request.
+        let bob_list = member_call(&state, &bob, bob_lct, "list_intros", serde_json::json!({})).await.unwrap();
+        assert_eq!(bob_list["total"], serde_json::json!(1));
+        assert_eq!(bob_list["intros"][0]["status"], serde_json::json!("pending"));
+        let not_target = member_call(&state, &alice, alice_lct, "respond_intro",
+            serde_json::json!({ "intro_id": intro_id, "accept": true })).await;
+        assert!(not_target.is_err(), "only the target may respond");
+
+        // Bob accepts → gets Alice's pinned pubkey in the response.
+        let acc = member_call(&state, &bob, bob_lct, "respond_intro",
+            serde_json::json!({ "intro_id": intro_id, "accept": true })).await.unwrap();
+        assert_eq!(acc["status"], serde_json::json!("accepted"));
+        assert_eq!(acc["peer_pubkey_hex"], serde_json::json!(alice.verifying_key().to_hex()));
+
+        // Alice's list now shows accepted + Bob's pinned pubkey — everything a
+        // direct member↔member pair_channel needs.
+        let alice_list = member_call(&state, &alice, alice_lct, "list_intros", serde_json::json!({})).await.unwrap();
+        assert_eq!(alice_list["intros"][0]["status"], serde_json::json!("accepted"));
+        assert_eq!(alice_list["intros"][0]["peer_pubkey_hex"], serde_json::json!(bob.verifying_key().to_hex()));
+
+        // Already-resolved: a second response is rejected.
+        let again = member_call(&state, &bob, bob_lct, "respond_intro",
+            serde_json::json!({ "intro_id": intro_id, "accept": false })).await;
+        assert!(again.is_err(), "resolved intro can't be re-responded");
     }
 }

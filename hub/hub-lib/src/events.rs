@@ -88,6 +88,27 @@ pub enum HubEvent {
         declared_by: Uuid,
     },
 
+    /// A member asked the hub to introduce them to another member (the
+    /// consent half of member discovery: find_members returns LCTs, an intro
+    /// connects them only if BOTH agree). Travels only over the sealed
+    /// channel. `purpose` is optional free text — note it is ledger-witnessed.
+    IntroRequested {
+        intro_id: Uuid,
+        from_lct: Uuid,
+        to_lct: Uuid,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        purpose: Option<String>,
+    },
+
+    /// The target of an intro accepted or declined it. On acceptance each
+    /// party may retrieve the other's pinned channel pubkey (list_intros) —
+    /// which is everything a member↔member pair_channel needs.
+    IntroResponded {
+        intro_id: Uuid,
+        responded_by: Uuid,
+        accepted: bool,
+    },
+
     /// Pin (or rotate) a member's channel public key after admission. Fills the
     /// enrollment gap for members admitted without `member_pubkey_hex` (the
     /// pre-V2-12 / CLI-bootstrap path): without a pinned key the member cannot
@@ -285,6 +306,8 @@ impl HubEvent {
             Self::CharterAmended { .. } => "charter_amended",
             Self::MemberSkillDeclared { .. } => "member_skill_declared",
             Self::MemberKeyPinned { .. } => "member_key_pinned",
+            Self::IntroRequested { .. } => "intro_requested",
+            Self::IntroResponded { .. } => "intro_responded",
             Self::MemberProfileUpdated { .. } => "member_profile_updated",
             Self::LawAmended { .. } => "law_amended",
             Self::CouncilMemberAdded { .. } => "council_member_added",

@@ -39,6 +39,10 @@ pub struct HubState {
     /// envelopes until re-added with a pubkey.
     pub member_pubkeys: BTreeMap<Uuid, String>,
 
+    /// Member↔member introductions (the consent half of discovery).
+    /// Projected from IntroRequested/IntroResponded.
+    pub intros: BTreeMap<Uuid, Intro>,
+
     /// V2-9 Phase 1: Sovereign Council holders beyond the founding
     /// Sovereign. Empty for single-Sovereign chapters. Each holder
     /// can sign chapter acts as a co-Sovereign; their pubkey is in
@@ -161,6 +165,27 @@ pub struct Member {
     pub profile: BTreeMap<String, String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IntroStatus {
+    Pending,
+    Accepted,
+    Declined,
+}
+
+/// A member↔member introduction. Created by `request_intro` over the sealed
+/// channel; resolved by the target via `respond_intro`. On acceptance, each
+/// party can retrieve the other's pinned pubkey — all a direct member↔member
+/// pair_channel needs.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Intro {
+    pub id: Uuid,
+    pub from_lct: Uuid,
+    pub to_lct: Uuid,
+    pub purpose: Option<String>,
+    pub status: IntroStatus,
+}
+
 impl HubState {
     /// Build the projection from a ledger.
     pub fn project(ledger: &HubLedger) -> Self {
@@ -226,6 +251,24 @@ impl HubState {
                 // ignored, same stance as the skill arm above.
                 if self.members.contains_key(member_lct_id) {
                     self.member_pubkeys.insert(*member_lct_id, member_pubkey_hex.clone());
+                }
+            }
+            HubEvent::IntroRequested { intro_id, from_lct, to_lct, purpose } => {
+                self.intros.entry(*intro_id).or_insert(Intro {
+                    id: *intro_id,
+                    from_lct: *from_lct,
+                    to_lct: *to_lct,
+                    purpose: purpose.clone(),
+                    status: IntroStatus::Pending,
+                });
+            }
+            HubEvent::IntroResponded { intro_id, responded_by, accepted } => {
+                // Only the target may resolve, and only once (first response
+                // wins; dispatch enforces this too — projection is defensive).
+                if let Some(intro) = self.intros.get_mut(intro_id) {
+                    if intro.status == IntroStatus::Pending && *responded_by == intro.to_lct {
+                        intro.status = if *accepted { IntroStatus::Accepted } else { IntroStatus::Declined };
+                    }
                 }
             }
             HubEvent::MemberProfileUpdated { member_lct_id, fields, .. } => {
