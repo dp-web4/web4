@@ -1,7 +1,7 @@
 # Web4 Society Specification
 
 ## Version: 1.0.0
-## Date: 2026-05-30
+## Date: 2026-06-12
 ## Status: Foundational Concept
 
 ---
@@ -31,12 +31,12 @@ For a collective to constitute a Society, it MUST have:
 #### 1.2.2 Ledger
 - **Definition**: Immutable record of society events and state
 - **Minimum Records**:
-  - Citizenship events (join/leave/suspend/reinstate)
-  - Law changes (proposal/ratification/amendment)
-  - Economic events (treasury deposits/allocations/reclaims)
+  - Citizenship events (apply/grant/provisional grant/suspend/reinstate/terminate)
+  - Law changes (proposal/ratification/amendment/repeal)
+  - Economic events (treasury deposits/allocations/reclaims; pool-supply mints/slashes)
   - Metabolic state transitions (per `SOCIETY_METABOLIC_STATES.md`)
-  - Formation events (genesis/bootstrap/operational/incorporation)
-- **Note**: Witnesses participate in every recorded event via the per-entry `witnesses` field; they are participants, not a separate event category. The canonical enumeration of recorded event types and their minimum field-sets is given in §4.2.1.
+  - Formation events (genesis/bootstrap/operational/incorporation/secession/dissolution)
+- **Note**: Witnesses participate in every recorded event via the per-entry `witnesses` field; they are participants, not a separate event category. §4.2.1 gives the canonical enumeration of *society-lifecycle* event types and their minimum field-sets. It is not the ledger's complete storage obligation: `web4-society-authority-law.md` §3.4 additionally requires the society's Immutable Record to store **Birth Certificates**, **role pairings**, **delegations**, **law dataset digests**, **witness attestations**, and **auditor adjustments** as SAL record classes in their own right — the per-entry `witnesses` field does not substitute for SAL §3.4's standalone witness-attestation record class.
 
 #### 1.2.3 Treasury
 - **Definition**: Society-managed ATP/ADP token pool
@@ -49,17 +49,17 @@ For a collective to constitute a Society, it MUST have:
 - **Definition**: The society's own Linked Context Token
 - **Purpose**:
   - Represents society as entity
-  - Enables inter-society relationships
+  - Enables inter-society relationships (the LCT's standards-facing interop projection is a `did:web4` identifier — see `did-web4-method.md`)
   - Holds society-level T3 (trust) and V3 (value) tensors (see `t3-v3-tensors.md` and §5.3)
 
-### 1.2.5 Operational-Minimum Cross-Reference
+#### 1.2.5 Operational-Minimum Cross-Reference
 
-The four-element minimum above is the *conceptual* minimum a society must satisfy. The *operational* minimum — what a deployment MUST instantiate to be admitted into a federation or to interoperate cross-society — is further constrained by two sister specs that refine §1.2 along the role-structural axis:
+The four-element minimum above is the *conceptual* minimum a society must satisfy. The *operational* minimum — what a deployment instantiates to function as a full participant in cross-society interactions — is refined along the role-structural axis by two sister specs:
 
-- **`web4-society-authority-law.md` §3.1** requires an **Authority Role LCT** and a **Quorum Policy** binding that authority to a specified governance mechanism (alongside the Law Oracle and Immutable Record listed in §1.2.1–§1.2.2). The Authority Role + Quorum Policy pair refines §1.2.1's "enforcement mechanism" into a specific role-bearing entity and a verifiable decision rule.
-- **`inter-society-protocol.md` §6.2** (referenced by the SDK's `validate_minimum_viable`) enumerates **seven base-mandatory roles** — Sovereign, Law Oracle, Policy Entity, Treasurer, Administrator, Archivist, and Citizen — that any operational society MUST staff before participating in inter-society transactions. The Treasurer role is the role-bearing counterpart to §1.2.3's Treasury; the Sovereign role is the role-bearing counterpart to §1.2.4's Society LCT.
+- **`web4-society-authority-law.md` §3.1** requires an **Authority Role LCT** and a **Quorum Policy** (alongside the Law Oracle and Immutable Record listed in §1.2.1–§1.2.2). The Authority Role refines §1.2.1's "enforcement mechanism" into a specific role-bearing entity. The Quorum Policy is the table of **witness/attestation requirements per action type** (SAL §3.1), defined by the Law Oracle (SAL §5.4) — it specifies which witnesses must co-sign which classes of ledger entry, not a governance decision rule.
+- **`society-roles.md` §2** enumerates **seven base-mandatory roles** — Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, and Citizen — that every Web4-compliant society MUST have filled (a single entity MAY fill several, down to a solo founder filling all seven). The Treasurer role is the role-bearing counterpart to §1.2.3's Treasury; the Sovereign role is the role-bearing counterpart to §1.2.4's Society LCT.
 
-A society implementer satisfying §1.2.1–§1.2.4 alone has met the conceptual minimum but not the operational minimum. Conformance to the role-structural minimum is checked by `inter-society-protocol.md §6.2` at federation-admission time; SAL §3.1 governs the authority-binding semantics.
+A society implementer satisfying §1.2.1–§1.2.4 alone has met the conceptual minimum but not the operational minimum. Conformance to the operational minimum is **not protocol-enforced**: `inter-society-protocol.md` §6.2 defines *semantic viability* (internal differentiation, witnessing capacity, externally grounded ATP referent) as GUIDANCE, and ISP §6.3 is explicit that the Web4 protocol does not adjudicate whether a society is "real enough" — viability is discovered socially through first-contact outcomes (ISP §3). The SDK's `validate_minimum_viable` is a *voluntary* conformance check covering the role-structural side of those criteria. SAL §3.1 governs the authority-binding semantics.
 
 ### 1.3 Formation Process
 
@@ -79,6 +79,8 @@ A society implementer satisfying §1.2.1–§1.2.4 alone has met the conceptual 
    - Economic activity commences
    - Trust relationships form
 ```
+
+Genesis does not require multiple founders: `inter-society-protocol.md` §2.1 defines the self-bootstrapped (solo-founder) genesis procedure and its SHALL-level requirements — founder LCT, society keypair, published charter, treasury initialization, and society-LCT minting with ≥3 birth witnesses (which MAY be under the founder's control at genesis). The solo founder fills all seven base-mandatory roles (`society-roles.md` §2), constituting a "society-of-one" for bootstrap purposes (ISP §6.3).
 
 ### 1.4 Operational Modes (Metabolic States)
 
@@ -127,22 +129,29 @@ Application → Review → Acceptance → Active Citizenship
                                       Termination
 ```
 
-**Note on `Rejection`**: Rejection is a non-record outcome — no `CitizenshipRecord` is created on the ledger and no status is assigned. The canonical SDK `CitizenshipStatus` enum contains only `APPLIED`, `PROVISIONAL`, `ACTIVE`, `SUSPENDED`, and `TERMINATED` (no `REJECTED` value); a rejected application leaves the ledger unchanged. The other branches in the diagram (`Provisional`, `Suspension`, `Reinstatement`, `Termination`) correspond to recorded status transitions.
+**Note on `Rejection`**: Rejection is a non-record outcome — the rejection itself creates no ledger event and assigns no status. The canonical SDK `CitizenshipStatus` enum contains only `APPLIED`, `PROVISIONAL`, `ACTIVE`, `SUSPENDED`, and `TERMINATED` (no `REJECTED` value); a rejected application's prior `apply` event (§4.2.1) remains the entity's most recent citizenship event, with no further transition recorded. The other branches in the diagram (`Provisional`, `Suspension`, `Reinstatement`, `Termination`) correspond to recorded status transitions per the §4.2.1 action-to-status mapping.
 
 ### 2.4 Citizenship Record Structure
 
+A citizenship grant is recorded as the canonical citizenship event of §4.2.1 (envelope `{type, action, data, witnesses, timestamp}`), with the society's rights/obligations payload carried under `data`:
+
 ```json
 {
-  "event_type": "citizenship_granted",
-  "entity_lct": "lct-agent-alice-12345",
-  "society_lct": "lct-society-web4dev-67890",
-  "timestamp": 1737142857,
-  "witness_lcts": ["lct-1", "lct-2", "lct-3"],
-  "rights": ["vote", "propose", "allocate"],
-  "obligations": ["witness", "contribute"],
-  "status": "active"
+  "type": "citizenship",
+  "action": "grant",
+  "data": {
+    "entity_lct": "...",
+    "society_lct": "...",
+    "rights": ["vote", "propose", "allocate"],
+    "obligations": ["witness", "contribute"],
+    "law_reference": "citizenship_law_v1"
+  },
+  "witnesses": ["...", "...", "..."],
+  "timestamp": "..."
 }
 ```
+
+The entity's *current status* (Applied / Provisional / Active / Suspended / Terminated, per §2.3) is not stored on the event; it is derived state, determined by the most recent citizenship event's `action` (see the action-to-status mapping in §4.2.1). Implementations MAY maintain a separate state-record projection (e.g. the SDK's `CitizenshipRecord`) computed from these events; the ledger event above is the normative record.
 
 ---
 
@@ -251,45 +260,61 @@ Participatory ledgers inherit their validator set from the parent ledger (see §
 
 #### 4.2.1 Minimum Recording Requirements
 
+Every event uses the common envelope `{type, action, data, witnesses, timestamp}` (mirroring the SDK's `LedgerEntry`): `type` and `action` classify the event, event-specific payload fields live under `data`, and `witnesses` + `timestamp` carry the provenance that §4.2.2's amendment machinery depends on. The field-sets shown are minimums; societies MAY extend `data`.
+
 Every ledger MUST record:
 
 1. **Citizenship Events**
    ```json
    {
-     "type": "citizenship_event",
-     "action": "grant|revoke|suspend|reinstate",
-     "entity_lct": "...",
-     "timestamp": "...",
+     "type": "citizenship",
+     "action": "apply|grant|provisional_grant|suspend|reinstate|terminate",
+     "data": {
+       "entity_lct": "...",
+       "law_reference": "citizenship_law_v1"
+     },
      "witnesses": ["..."],
-     "law_reference": "citizenship_law_v1"
+     "timestamp": "..."
    }
    ```
+
+   Action-to-status mapping (statuses per §2.3): `apply` → Applied, `provisional_grant` → Provisional, `grant` and `reinstate` → Active, `suspend` → Suspended, `terminate` → Terminated. (`terminate` replaces the `revoke` action of earlier drafts — Termination is the recorded status it produces.) Rejection produces no event (§2.3 Note).
 
 2. **Law Change Events**
    ```json
    {
      "type": "law_change",
      "action": "propose|ratify|amend|repeal",
-     "law_id": "...",
-     "change_description": "...",
-     "voting_record": {...},
-     "effective_date": "..."
+     "data": {
+       "law_id": "...",
+       "change_description": "...",
+       "voting_record": {...},
+       "effective_date": "..."
+     },
+     "witnesses": ["..."],
+     "timestamp": "..."
    }
    ```
+
+   Law changes are SAL-critical events (`sal.law.update` per `web4-society-authority-law.md` §3.4) and MUST carry witness co-signatures per the society's Quorum Policy (SAL §5.4).
 
 3. **Economic Events**
    ```json
    {
-     "type": "economic_event",
-     "action": "deposit|allocate|reclaim",
-     "amount": "...",
-     "token_type": "ATP",
-     "recipient_lct": "...",
-     "purpose": "..."
+     "type": "economic",
+     "action": "deposit|allocate|reclaim|mint|slash",
+     "data": {
+       "amount": "...",
+       "token_type": "ATP|ADP",
+       "recipient_lct": "...",
+       "purpose": "..."
+     },
+     "witnesses": ["..."],
+     "timestamp": "..."
    }
    ```
 
-   The treasury-level economic vocabulary is **deposit** (tokens flow into the pool), **allocate** (tokens flow from the pool to a citizen), and **reclaim** (tokens flow back to the pool). ATP-cycle state transitions (charge / discharge) operate at the R6/cycle layer per `atp-adp-cycle.md` §2 and are recorded separately on R6 transactions, not as treasury-level economic events.
+   The treasury-flow vocabulary is **deposit** (tokens flow into the pool), **allocate** (tokens flow from the pool to a citizen), and **reclaim** (tokens flow back to the pool). The pool-supply vocabulary is **mint** (new tokens created by the society's monetary authority — minting occurs in the ADP state per `atp-adp-cycle.md` §2.1) and **slash** (supply destroyed per `atp-adp-cycle.md` §2.4); both are witnessed, ledger-recorded events that change total supply rather than move existing tokens. ATP-cycle state transitions operate at the cycle layer per `atp-adp-cycle.md` §2: **discharge** is recorded on the R6 transaction that spends the ATP (§2.3), while **charging** is recorded as a standalone value-creation event (§2.2) — neither is a treasury-level economic event.
 
 4. **Metabolic State Transitions** (per `SOCIETY_METABOLIC_STATES.md`)
    ```json
@@ -305,11 +330,11 @@ Every ledger MUST record:
    }
    ```
 
-5. **Formation Events** (phase transitions and incorporation)
+5. **Formation Events** (phase transitions, incorporation, secession, dissolution)
    ```json
    {
      "type": "formation",
-     "action": "genesis|bootstrap|operational|incorporate_child|incorporated_by",
+     "action": "genesis|bootstrap|operational|incorporate_child|incorporated_by|secede|dissolve",
      "data": {
        "founders": ["..."],
        "name": "..."
@@ -318,6 +343,8 @@ Every ledger MUST record:
      "timestamp": "..."
    }
    ```
+
+   `secede` and `dissolve` record the SHALL-required constituent-secession and federation-dissolution events of `inter-society-protocol.md` §5.1–§5.2 (intent-to-secede and departure on the constituent's and federation's ledgers; ratified dissolution on the federation's ledger).
 
 #### 4.2.2 Amendment Mechanism
 
@@ -341,7 +368,7 @@ All ledgers MUST support law-driven amendments that:
      "amendment_type": "correction|clarification|expansion",
      "new_data": {...},
      "reason": "...",
-     "law_authorization": "amendment_law_v2"
+     "law_reference": "amendment_law_v2"
    }
    ```
 
@@ -349,8 +376,8 @@ All ledgers MUST support law-driven amendments that:
    ```json
    {
      "amendment_context": {
-       "proposed_by": "lct-entity-789",
-       "witnessed_by": ["lct-1", "lct-2"],
+       "proposed_by": "...",
+       "witnesses": ["...", "..."],
        "voting_record": {...},
        "ratified_timestamp": "...",
        "block_height": 12345
@@ -363,12 +390,14 @@ All ledgers MUST support law-driven amendments that:
 The ledger maintains immutability while allowing corrections:
 
 ```
-Block N:   [Original Entry: "Alice owns 100 ATP"]
-Block N+1: [Amendment: "Correction - Alice owns 90 ATP, 10 ATP was calculation error"]
+Block N:   [Original Entry: "Alice's allocation is 100 ATP"]
+Block N+1: [Amendment: "Correction - Alice's allocation is 90 ATP, 10 ATP was calculation error"]
 Block N+2: [Context: "Approved by 3/5 validators per Amendment Law §2.3"]
 
-Query Result: Alice owns 90 ATP (amended at block N+1, original: 100 ATP)
+Query Result: Alice's allocation is 90 ATP (amended at block N+1, original: 100 ATP)
 ```
+
+(The example uses allocation vocabulary deliberately: ATP is society-allocated, not entity-owned — see `atp-adp-cycle.md` on non-accumulation and §4.2.1's allocate/reclaim treasury flows.)
 
 ---
 
@@ -376,8 +405,8 @@ Query Result: Alice owns 90 ATP (amended at block N+1, original: 100 ATP)
 
 ### 5.1 Society Bootstrap
 
-Minimum viable society can be:
-- 2 entities agreeing to form society
+A minimal bootstrap society — the *conceptual* minimum of §1.2, distinct from both the operational minimum of §1.2.5 and ISP §6.2's "minimum viable *semantic* society" — can be:
+- 2 entities agreeing to form society (or 1 solo founder, per the self-bootstrapped genesis path in §1.3)
 - 1 simple law: "all decisions unanimous"
 - Confined ledger between them
 - Zero initial treasury
@@ -417,7 +446,7 @@ Society-level trust tensors (T3) are calculated from:
 ### 6.3 Global Web4 Society
 - **Citizens**: All Web4 societies (fractal)
 - **Laws**: Core Web4 principles only
-- **Ledger**: Participatory (distributed)
+- **Ledger**: Witnessed (distributed — constituent societies act as one another's external witnesses; the apex society has no parent, so the Participatory type of §4.1.3, which delegates validation to a parent ledger, is structurally unavailable)
 - **Economy**: ATP generation rights allocation
 
 ---
@@ -430,14 +459,20 @@ Core inter-society primitives — including the cross-society envelope, reputati
 
 - Treaty mechanisms (formal bilateral or multilateral society-to-society agreements with on-ledger ratification)
 - Resource sharing agreements (cross-society ATP allocation pools or shared treasury sub-partitions)
-- Reputation portability (mechanisms beyond `mcp-protocol.md §7.4`'s reputation envelopes — e.g. trust-tensor migration on citizenship transfer)
+- Reputation portability (mechanisms beyond the signed reputation objects of `mcp-protocol.md` §7.3 and the §7.5 reputation-propagation rules — e.g. trust-tensor migration on citizenship transfer)
 
 ### 7.2 Society Mergers and Splits
-- Forking mechanisms
-- Asset division
-- Citizenship migration
+
+Constituent secession and federation dissolution — including treasury distribution and citizenship-membership updates on exit — are normatively specified in `inter-society-protocol.md` §5 and recorded via §4.2.1's `secede`/`dissolve` formation events. The bullets below enumerate extensions beyond that coverage:
+
+- Forking mechanisms (a society dividing into successor societies, outside the federation secession/dissolution cases)
+- Asset division (formulas beyond ISP §5.2's pro-rata-by-contribution default)
+- Citizenship migration (automatic re-homing of citizens, beyond the LCT membership updates ISP §5 specifies)
 
 ### 7.3 Dispute Resolution
+
+Intra-society dispute resolution is carried by the Mediator role (`society-roles.md` §4.1; context-mandatory for Court/Arbitration societies per its §3), and ISP §5.1 provides for charter-specified mediation during secession notice periods. The bullets below enumerate what remains unspecified:
+
 - Inter-society courts
 - Arbitration protocols
 - Enforcement mechanisms
