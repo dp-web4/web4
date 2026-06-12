@@ -75,10 +75,21 @@ Express a Web4 attestation as an SD-JWT-VC:
 - 4 tests incl. the full VCI→VP round trip. The HTTP endpoints are thin
   wrappers over these functions.
 
-**Remaining (deployment wiring):** the hub (society scale) and hestia (person
-scale) expose the HTTP endpoints over the library:
-- OID4VCI issuance endpoint → wallet pulls a Web4 SD-JWT-VC.
-- OID4VP presentation endpoint → wallet presents; we verify.
+**Hestia (person-scale issuer) HTTP wiring ✅** — `hestia-core` now mounts the
+OID4VCI issuance surface over the library (`core/src/server/http.rs`):
+- `GET /.well-known/openid-credential-issuer` → `CredentialIssuerMetadata`.
+- `POST /vci/nonce` → mints a single-use `c_nonce` (tracked in `ServerState`).
+- `POST /vci/credential` → `verify_holder_proof` against the issued nonce
+  (consumed; replay rejected), then issues a `cnf`-bound `Web4Presence`
+  SD-JWT-VC signed by the daemon's vault identity (`did:web4:<host>:<lct>`),
+  with the constellation's assurance tier as a selectively-disclosable claim.
+Smoke-tested end-to-end (metadata → nonce → proof → credential; replay 400).
+
+**Remaining (deployment wiring):**
+- OID4VP presentation/verifier endpoint → wallet presents; we verify. Scoped to
+  the relying party (the hub, society scale) rather than the person-scale issuer.
+- Hub-side (society scale) OID4VCI issuer, reusing the same `web4-core::oid4vc`
+  library the hestia endpoints wrap.
 This is where a Web4 entity's wallet-held credentials become usable in EUDI
 flows (age verification, membership proof, delegated-authority proof).
 
