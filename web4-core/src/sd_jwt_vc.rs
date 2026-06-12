@@ -77,8 +77,8 @@ pub struct SdJwtVc {
     issuer: String,
     typ: String,
     iat: i64,
-    /// Optional holder key binding (`cnf`) — the holder's public key, multibase.
-    cnf_holder_multikey: Option<String>,
+    /// Optional holder key binding (`cnf`) — the holder's Ed25519 public key.
+    cnf_holder_pubkey: Option<[u8; 32]>,
     plain: Map<String, Value>,
     disclosures: Vec<Disclosure>,
 }
@@ -94,7 +94,7 @@ impl SdJwtVc {
             // value; override with `.typ()` for newer verifiers.
             typ: "vc+sd-jwt".to_string(),
             iat: chrono::Utc::now().timestamp(),
-            cnf_holder_multikey: None,
+            cnf_holder_pubkey: None,
             plain: Map::new(),
             disclosures: Vec::new(),
         }
@@ -109,10 +109,11 @@ impl SdJwtVc {
         self.iat = iat;
         self
     }
-    /// Bind the credential to a holder key (`cnf`) — the holder's Ed25519
-    /// public key as a multibase string. Enables holder Key-Binding at present.
-    pub fn holder_binding(mut self, holder_multikey: impl Into<String>) -> Self {
-        self.cnf_holder_multikey = Some(holder_multikey.into());
+    /// Bind the credential to a holder key (`cnf`). The holder must later sign a
+    /// Key-Binding JWT with the matching private key to present (see `present`).
+    /// Emitted as a standard JWK (`OKP`/`Ed25519`).
+    pub fn holder_binding(mut self, holder_pubkey: &PublicKey) -> Self {
+        self.cnf_holder_pubkey = Some(holder_pubkey.to_bytes());
         self
     }
 
@@ -153,8 +154,10 @@ impl SdJwtVc {
         payload.insert("iat".into(), json!(self.iat));
         payload.insert("_sd_alg".into(), json!("sha-256"));
         payload.insert("_sd".into(), json!(digests));
-        if let Some(h) = &self.cnf_holder_multikey {
-            payload.insert("cnf".into(), json!({ "kid": h }));
+        if let Some(pk) = &self.cnf_holder_pubkey {
+            payload.insert("cnf".into(), json!({
+                "jwk": { "kty": "OKP", "crv": "Ed25519", "x": b64(pk) }
+            }));
         }
 
         let header = json!({ "alg": "EdDSA", "typ": self.typ, "kid": kid });
@@ -249,6 +252,129 @@ pub fn verify_issuer(compact: &str, issuer_pubkey: &PublicKey) -> Result<Verifie
         issuer: obj.get("iss").and_then(|v| v.as_str()).unwrap_or_default().to_string(),
         claims,
     })
+}
+
+// ─────────────────────── presentation (holder Key-Binding) ───────────────────────
+
+/// Present an issued SD-JWT-VC to a verifier: optionally narrow to a subset of
+/// disclosures, then append a holder-signed Key-Binding JWT bound to the
+/// verifier's `nonce` + `aud`. The credential MUST have been issued with a
+/// `cnf` holder binding (`holder_binding`).
+///
+/// `disclose` selects which claim names to reveal; `None` reveals all. The
+/// KB-JWT's `sd_hash` binds to *exactly* the presented disclosures, so a
+/// verifier knows which claims this presentation covers.
+pub fn present(
+    issued_compact: &str,
+    holder_key: &KeyPair,
+    nonce: &str,
+    aud: &str,
+    now: i64,
+    disclose: Option<&[&str]>,
+) -> Result<String, String> {
+    let mut it = issued_compact.split('~');
+    let jws = it.next().ok_or("empty credential")?;
+    let all: Vec<&str> = it.filter(|p| !p.is_empty()).collect();
+
+    // Select disclosures to reveal.
+    let kept: Vec<&str> = match disclose {
+        None => all,
+        Some(names) => all
+            .into_iter()
+            .filter(|enc| {
+                unb64(enc)
+                    .ok()
+                    .and_then(|r| serde_json::from_slice::<Value>(&r).ok())
+                    .and_then(|a| a.as_array().and_then(|a| a.get(1).and_then(|n| n.as_str()).map(String::from)))
+                    .map(|name| names.contains(&name.as_str()))
+                    .unwrap_or(false)
+            })
+            .collect(),
+    };
+
+    // The presentation prefix: JWS ~ kept-disclosures ~ (trailing tilde).
+    let mut prefix = jws.to_string();
+    for d in &kept {
+        prefix.push('~');
+        prefix.push_str(d);
+    }
+    prefix.push('~');
+
+    // sd_hash binds the KB-JWT to this exact presentation.
+    let sd_hash = b64(&Sha256::digest(prefix.as_bytes()));
+    let kb_header = json!({ "alg": "EdDSA", "typ": "kb+jwt" });
+    let kb_payload = json!({ "iat": now, "aud": aud, "nonce": nonce, "sd_hash": sd_hash });
+    let kh = b64(serde_json::to_string(&kb_header).unwrap().as_bytes());
+    let kp_b64 = b64(serde_json::to_string(&kb_payload).unwrap().as_bytes());
+    let kb_signing = format!("{kh}.{kp_b64}");
+    let kb_sig = holder_key.sign(kb_signing.as_bytes());
+    let kb_jwt = format!("{kb_signing}.{}", b64(&kb_sig.bytes));
+
+    Ok(format!("{prefix}{kb_jwt}"))
+}
+
+/// Verify a *presented* SD-JWT-VC: issuer signature + disclosure digests + the
+/// holder Key-Binding JWT (signed by the `cnf` key, bound to `expected_nonce` /
+/// `expected_aud`, fresh, and matching `sd_hash`). Returns the disclosed claims.
+pub fn verify_presentation(
+    compact: &str,
+    issuer_pubkey: &PublicKey,
+    expected_nonce: &str,
+    expected_aud: &str,
+    max_age_secs: i64,
+    now: i64,
+) -> Result<VerifiedCredential, String> {
+    // The KB-JWT is the final '~'-segment (a 3-part JWT). Split it off; the
+    // prefix is everything up to and including the last '~'.
+    let last_tilde = compact.rfind('~').ok_or("no key-binding JWT (missing '~')")?;
+    let prefix = &compact[..=last_tilde];
+    let kb_jwt = &compact[last_tilde + 1..];
+    if kb_jwt.is_empty() {
+        return Err("presentation is missing the Key-Binding JWT".into());
+    }
+
+    // 1. issuer side (sig + disclosures) over the prefix.
+    let cred = verify_issuer(prefix, issuer_pubkey)?;
+
+    // 2. holder key from cnf.jwk in the issuer-signed payload.
+    let payload_b64 = compact.split('~').next().unwrap().split('.').nth(1).ok_or("malformed JWS")?;
+    let payload: Value = serde_json::from_slice(&unb64(payload_b64)?).map_err(|e| e.to_string())?;
+    let x = payload
+        .get("cnf").and_then(|c| c.get("jwk")).and_then(|j| j.get("x")).and_then(|x| x.as_str())
+        .ok_or("credential has no cnf holder key — not presentable with key binding")?;
+    let holder_raw = unb64(x)?;
+    let holder_arr: [u8; 32] = holder_raw.as_slice().try_into().map_err(|_| "bad holder key length")?;
+    let holder_pk = PublicKey::from_bytes(&holder_arr).map_err(|e| e.to_string())?;
+
+    // 3. KB-JWT signature + claims.
+    let kp: Vec<&str> = kb_jwt.split('.').collect();
+    if kp.len() != 3 {
+        return Err("malformed Key-Binding JWT".into());
+    }
+    let kb_signing = format!("{}.{}", kp[0], kp[1]);
+    let kb_sig_raw = unb64(kp[2])?;
+    let kb_sig_arr: [u8; 64] = kb_sig_raw.as_slice().try_into().map_err(|_| "bad KB sig length")?;
+    holder_pk
+        .verify(kb_signing.as_bytes(), &SignatureBytes::from_bytes(kb_sig_arr))
+        .map_err(|_| "Key-Binding JWT signature invalid (holder key mismatch)".to_string())?;
+
+    let kb: Value = serde_json::from_slice(&unb64(kp[1])?).map_err(|e| e.to_string())?;
+    if kb.get("nonce").and_then(|v| v.as_str()) != Some(expected_nonce) {
+        return Err("KB-JWT nonce mismatch (replay?)".into());
+    }
+    if kb.get("aud").and_then(|v| v.as_str()) != Some(expected_aud) {
+        return Err("KB-JWT audience mismatch (credential meant for another verifier)".into());
+    }
+    let iat = kb.get("iat").and_then(|v| v.as_i64()).ok_or("KB-JWT missing iat")?;
+    if now.saturating_sub(iat) > max_age_secs {
+        return Err("KB-JWT expired".into());
+    }
+    let expected_sd_hash = b64(&Sha256::digest(prefix.as_bytes()));
+    if kb.get("sd_hash").and_then(|v| v.as_str()) != Some(expected_sd_hash.as_str()) {
+        return Err("KB-JWT sd_hash does not match the presented disclosures".into());
+    }
+
+    Ok(cred)
 }
 
 // ─────────────── Web4 credential helpers (the pattern, not the policy) ───────────────
@@ -347,16 +473,70 @@ mod tests {
     }
 
     #[test]
-    fn test_holder_binding_in_payload() {
+    fn test_holder_binding_jwk_in_payload() {
         let issuer = KeyPair::generate();
+        let holder = KeyPair::generate();
         let compact = SdJwtVc::new("Web4Presence", "did:iss")
-            .holder_binding("z6MkHolderKey")
+            .holder_binding(&holder.verifying_key())
             .claim("sub", json!("did:holder"))
             .issue(&issuer, "did:iss#key-0");
-        // cnf present in the signed payload
         let payload_b64 = compact.split('~').next().unwrap().split('.').nth(1).unwrap();
         let payload: Value = serde_json::from_slice(&unb64(payload_b64).unwrap()).unwrap();
-        assert_eq!(payload["cnf"]["kid"], json!("z6MkHolderKey"));
+        assert_eq!(payload["cnf"]["jwk"]["kty"], json!("OKP"));
+        assert_eq!(payload["cnf"]["jwk"]["crv"], json!("Ed25519"));
+        assert!(payload["cnf"]["jwk"]["x"].is_string());
+    }
+
+    #[test]
+    fn test_present_and_verify_presentation() {
+        let issuer = KeyPair::generate();
+        let holder = KeyPair::generate();
+        let issued = SdJwtVc::new("Web4Presence", "did:iss")
+            .holder_binding(&holder.verifying_key())
+            .claim("sub", json!("did:holder"))
+            .sd_claim_salted("s1", "assurance_level", json!("multi_device"))
+            .sd_claim_salted("s2", "email", json!("dp@metalinxx.io"))
+            .issue(&issuer, "did:iss#key-0");
+
+        // Holder presents to verifier "did:verifier" with nonce, revealing only
+        // assurance_level.
+        let vp = present(&issued, &holder, "nonce-xyz", "did:verifier", 1_700_000_000,
+            Some(&["assurance_level"])).unwrap();
+
+        let v = verify_presentation(&vp, &issuer.verifying_key(),
+            "nonce-xyz", "did:verifier", 300, 1_700_000_100).unwrap();
+        assert_eq!(v.claims.get("assurance_level").unwrap(), &json!("multi_device"));
+        assert!(!v.claims.contains_key("email")); // withheld at presentation
+        assert!(v.claims.contains_key("sub"));     // always-disclosed
+    }
+
+    #[test]
+    fn test_presentation_nonce_mismatch_rejected() {
+        let issuer = KeyPair::generate();
+        let holder = KeyPair::generate();
+        let issued = SdJwtVc::new("Web4Presence", "did:iss")
+            .holder_binding(&holder.verifying_key())
+            .sd_claim_salted("s1", "x", json!(1))
+            .issue(&issuer, "did:iss#key-0");
+        let vp = present(&issued, &holder, "good-nonce", "did:v", 1000, None).unwrap();
+        // verifier expects a different nonce → reject (replay defense)
+        assert!(verify_presentation(&vp, &issuer.verifying_key(), "bad-nonce", "did:v", 300, 1000).is_err());
+        // wrong audience → reject
+        assert!(verify_presentation(&vp, &issuer.verifying_key(), "good-nonce", "other-v", 300, 1000).is_err());
+    }
+
+    #[test]
+    fn test_presentation_wrong_holder_key_rejected() {
+        let issuer = KeyPair::generate();
+        let holder = KeyPair::generate();
+        let imposter = KeyPair::generate();
+        let issued = SdJwtVc::new("Web4Presence", "did:iss")
+            .holder_binding(&holder.verifying_key())
+            .sd_claim_salted("s1", "x", json!(1))
+            .issue(&issuer, "did:iss#key-0");
+        // imposter (not the cnf key) tries to present → KB-JWT sig won't match cnf
+        let vp = present(&issued, &imposter, "n", "did:v", 1000, None).unwrap();
+        assert!(verify_presentation(&vp, &issuer.verifying_key(), "n", "did:v", 300, 1000).is_err());
     }
 
     #[test]
