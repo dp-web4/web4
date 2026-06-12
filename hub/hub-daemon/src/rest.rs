@@ -74,6 +74,10 @@ pub struct RestState {
     /// Wrapped in RwLock so set-law (or `POST /v1/hubs/{id}/law`)
     /// can hot-reload without restarting hub serve.
     pub law: Arc<tokio::sync::RwLock<Option<Law>>>,
+    /// Per-pair constellation MFA state: outstanding challenge nonces +
+    /// verified assurance-tier bindings (`constellation_challenge` /
+    /// `present_constellation` channel tools).
+    pub constellations: Arc<hub_lib::constellation::ConstellationGate>,
 }
 
 impl RestState {
@@ -154,6 +158,7 @@ impl RestState {
             nonces: Arc::new(NonceStore::new()),
             resolver: Arc::new(tokio::sync::RwLock::new(resolver)),
             law,
+            constellations: Arc::new(hub_lib::constellation::ConstellationGate::new()),
         })
     }
 
@@ -713,7 +718,7 @@ async fn channel_request(
         .map_err(|e| ApiError::bad_request(format!("malformed channel request: {e}")))?;
 
     // Authz + dispatch on the decrypted request.
-    let response = dispatch_channel(&s, req.caller_lct_id, req.caller_pubkey_hex.clone(), inner).await?;
+    let response = dispatch_channel(&s, req.caller_lct_id, req.pair_id, req.caller_pubkey_hex.clone(), inner).await?;
 
     // Seal the response back over the same channel.
     let body = serde_json::to_vec(&response)
@@ -771,6 +776,7 @@ impl ReadScope {
 async fn dispatch_channel(
     s: &RestState,
     caller_lct_id: Uuid,
+    pair_id: Uuid,
     caller_pubkey_hex: Option<String>,
     inner: ChannelInner,
 ) -> Result<serde_json::Value, ApiError> {
@@ -956,6 +962,50 @@ async fn dispatch_channel(
                 out["peer_pubkey_hex"] = serde_json::json!(state.member_pubkeys.get(&from));
             }
             Ok(out)
+        }
+        // ---- constellation attestation (challenge-response MFA, assurance tiers) ----
+        // Wire contract: forum/legion-constellation-attestation-wire-shape-2026-06-11.md.
+        // Member side ships in hestia (core/src/constellation.rs); this is the
+        // verifier half. The derived tier binds to THIS pair_id — it's the
+        // `assurance` hook ReadScope already reserves.
+        "constellation_challenge" => {
+            let nonce = s.constellations.mint_challenge(pair_id);
+            Ok(serde_json::json!({ "nonce": nonce }))
+        }
+        "present_constellation" => {
+            let att: hub_lib::constellation::ConstellationAttestation =
+                serde_json::from_value(inner.args.clone())
+                    .map_err(|e| ApiError::bad_request(format!("malformed attestation: {e}")))?;
+            // The attestation must be bound to the channel identity: its owner
+            // key is checked against the caller's PINNED resolver pubkey. No
+            // pinned key (never enrolled via set-member-key/admission) = reject,
+            // never fall back to a self-carried key.
+            let pinned = {
+                let resolver = s.resolver.read().await;
+                resolver.lookup(caller_lct_id).map(|lct| lct.public_key.to_hex())
+            };
+            let Some(pinned) = pinned else {
+                return Err(ApiError {
+                    status: StatusCode::FORBIDDEN,
+                    message: "no pinned key for this member — enroll a key before presenting a constellation".to_string(),
+                });
+            };
+            use hub_lib::constellation::VerifyError;
+            let binding = s.constellations
+                .present(pair_id, &att, &pinned, chrono::Utc::now())
+                .map_err(|e| match e {
+                    // A foreign owner key on an authenticated channel is an
+                    // authorization failure (memo rule 3: reject, not warn).
+                    VerifyError::ForeignOwnerKey => ApiError {
+                        status: StatusCode::FORBIDDEN,
+                        message: e.to_string(),
+                    },
+                    other => ApiError::bad_request(other.to_string()),
+                })?;
+            Ok(serde_json::json!({
+                "assurance": binding.assurance,
+                "valid_until": binding.valid_until,
+            }))
         }
         other => Err(ApiError::bad_request(format!("unknown or non-channel tool: {other}"))),
     }
@@ -2612,5 +2662,174 @@ norms:
         let again = member_call(&state, &bob, bob_lct, "respond_intro",
             serde_json::json!({ "intro_id": intro_id, "accept": false })).await;
         assert!(again.is_err(), "resolved intro can't be re-responded");
+    }
+
+    use hub_lib::constellation::{
+        signing_payload, AssuranceLevel, ConstellationAttestation, DeviceSignature, DeviceType,
+    };
+
+    /// Build + sign an attestation the way hestia's member side does.
+    fn make_att(
+        owner_kp: &KeyPair,
+        owner_lct: Uuid,
+        cosigners: &[(DeviceType, &KeyPair)],
+        nonce: &str,
+        issued_at: chrono::DateTime<chrono::Utc>,
+    ) -> ConstellationAttestation {
+        let roster: Vec<Uuid> = cosigners.iter().map(|_| Uuid::new_v4()).collect();
+        let payload = signing_payload(owner_lct, &roster, nonce, &issued_at);
+        ConstellationAttestation {
+            owner_lct_id: owner_lct,
+            owner_pubkey_hex: owner_kp.verifying_key().to_hex(),
+            member_lcts: roster.clone(),
+            challenge_nonce: nonce.to_string(),
+            issued_at,
+            claimed_assurance: AssuranceLevel::SingleDevice,
+            owner_signature: owner_kp.sign(&payload).to_hex(),
+            device_signatures: roster
+                .iter()
+                .zip(cosigners)
+                .map(|(lct, (dt, kp))| DeviceSignature {
+                    lct_id: *lct,
+                    device_type: dt.clone(),
+                    pubkey_hex: kp.verifying_key().to_hex(),
+                    signature: kp.sign(&payload).to_hex(),
+                })
+                .collect(),
+        }
+    }
+
+    /// One challenge → present round trip on a fixed pair_id. Both calls ride
+    /// the same sealed channel the other tools use.
+    async fn challenge_and_present(
+        state: &RestState,
+        me: &KeyPair,
+        my_lct: Uuid,
+        pid: Uuid,
+        att_for_nonce: impl FnOnce(String) -> ConstellationAttestation,
+    ) -> Result<serde_json::Value, ApiError> {
+        let hub_pub = state.signer.public_key().unwrap();
+        let sealed = seal_req(me, &hub_pub, pid, "constellation_challenge", serde_json::json!({}));
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: my_lct, pair_id: pid, sealed, caller_pubkey_hex: None,
+        })).await?;
+        let nonce = open_resp(me, &hub_pub, pid, &resp.0.sealed)["nonce"]
+            .as_str().expect("challenge returns a nonce").to_string();
+
+        let att = att_for_nonce(nonce);
+        let sealed = seal_req(me, &hub_pub, pid, "present_constellation",
+            serde_json::to_value(&att).unwrap());
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: my_lct, pair_id: pid, sealed, caller_pubkey_hex: None,
+        })).await?;
+        Ok(open_resp(me, &hub_pub, pid, &resp.0.sealed))
+    }
+
+    /// Review criterion 5: all three tiers derived over the live channel —
+    /// the tier comes from verified co-signs (memo rule 5), and each present
+    /// burns its challenge so each tier needs a fresh challenge.
+    #[tokio::test]
+    async fn constellation_three_tiers_over_channel() {
+        let (_tmp, state) = fresh_rest_state(None).await; // open admission
+        let hub_pub = state.signer.public_key().unwrap();
+        let (me, my_lct) = (KeyPair::generate(), Uuid::new_v4());
+        let pid0 = Uuid::new_v4();
+        let sealed = seal_req(&me, &hub_pub, pid0, "request_citizenship",
+            serde_json::json!({ "name": "Constellation Owner" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: my_lct, pair_id: pid0, sealed,
+            caller_pubkey_hex: Some(me.verifying_key().to_hex()),
+        })).await.expect("admitted");
+
+        let (k1, k2, khw) = (KeyPair::generate(), KeyPair::generate(), KeyPair::generate());
+
+        // No co-signs → single_device.
+        let out = challenge_and_present(&state, &me, my_lct, Uuid::new_v4(), |n|
+            make_att(&me, my_lct, &[], &n, chrono::Utc::now())).await.unwrap();
+        assert_eq!(out["assurance"], serde_json::json!("single_device"));
+        assert!(out["valid_until"].is_string(), "binding carries its validity window");
+
+        // Two device co-signs → multi_device.
+        let out = challenge_and_present(&state, &me, my_lct, Uuid::new_v4(), |n|
+            make_att(&me, my_lct,
+                &[(DeviceType::Desktop, &k1), (DeviceType::Mobile, &k2)], &n, chrono::Utc::now())).await.unwrap();
+        assert_eq!(out["assurance"], serde_json::json!("multi_device"));
+
+        // A hardware co-sign → hardware_backed.
+        let out = challenge_and_present(&state, &me, my_lct, Uuid::new_v4(), |n|
+            make_att(&me, my_lct, &[(DeviceType::Hardware, &khw)], &n, chrono::Utc::now())).await.unwrap();
+        assert_eq!(out["assurance"], serde_json::json!("hardware_backed"));
+    }
+
+    /// Review criteria 1–3: replay (burned nonce), bad nonce, stale issued_at,
+    /// and a foreign owner key (valid channel, someone else's owner key → 403).
+    #[tokio::test]
+    async fn constellation_reject_paths_over_channel() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let (me, my_lct) = (KeyPair::generate(), Uuid::new_v4());
+        let pid0 = Uuid::new_v4();
+        let sealed = seal_req(&me, &hub_pub, pid0, "request_citizenship",
+            serde_json::json!({ "name": "Rejectee" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: my_lct, pair_id: pid0, sealed,
+            caller_pubkey_hex: Some(me.verifying_key().to_hex()),
+        })).await.expect("admitted");
+
+        let present = |pid: Uuid, att: ConstellationAttestation| {
+            let sealed = seal_req(&me, &hub_pub, pid, "present_constellation",
+                serde_json::to_value(&att).unwrap());
+            channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+                caller_lct_id: my_lct, pair_id: pid, sealed, caller_pubkey_hex: None,
+            }))
+        };
+        let challenge = |pid: Uuid| {
+            let sealed = seal_req(&me, &hub_pub, pid, "constellation_challenge", serde_json::json!({}));
+            channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+                caller_lct_id: my_lct, pair_id: pid, sealed, caller_pubkey_hex: None,
+            }))
+        };
+        let nonce_of = |pid: Uuid, resp: &ChannelResponse| -> String {
+            open_resp(&me, &hub_pub, pid, &resp.sealed)["nonce"].as_str().unwrap().to_string()
+        };
+
+        // Present with no outstanding challenge → 400.
+        let pid = Uuid::new_v4();
+        let att = make_att(&me, my_lct, &[], "never-minted", chrono::Utc::now());
+        let err = present(pid, att).await.err().expect("no challenge → reject");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+
+        // Replay: a valid present succeeds once, the same attestation again
+        // finds its nonce burned → 400.
+        let pid = Uuid::new_v4();
+        let resp = challenge(pid).await.unwrap();
+        let att = make_att(&me, my_lct, &[], &nonce_of(pid, &resp.0), chrono::Utc::now());
+        present(pid, att.clone()).await.expect("first present succeeds");
+        let err = present(pid, att).await.err().expect("replay → reject");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+
+        // Wrong nonce → 400 (and the real nonce is burned by the attempt).
+        let pid = Uuid::new_v4();
+        challenge(pid).await.unwrap();
+        let att = make_att(&me, my_lct, &[], "not-the-nonce", chrono::Utc::now());
+        let err = present(pid, att).await.err().expect("bad nonce → reject");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+
+        // Stale issued_at (outside the 5-min window) → 400.
+        let pid = Uuid::new_v4();
+        let resp = challenge(pid).await.unwrap();
+        let att = make_att(&me, my_lct, &[], &nonce_of(pid, &resp.0),
+            chrono::Utc::now() - chrono::Duration::minutes(6));
+        let err = present(pid, att).await.err().expect("stale → reject");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+
+        // Foreign owner key: correctly signed attestation, but by a key that
+        // is NOT this member's pinned key → 403, not a warn-and-accept.
+        let pid = Uuid::new_v4();
+        let resp = challenge(pid).await.unwrap();
+        let foreign = KeyPair::generate();
+        let att = make_att(&foreign, my_lct, &[], &nonce_of(pid, &resp.0), chrono::Utc::now());
+        let err = present(pid, att).await.err().expect("foreign owner key → reject");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
     }
 }

@@ -24,6 +24,7 @@
 
 pub mod hub;
 pub mod charter;
+pub mod constellation;
 pub mod envelope;
 pub mod events;
 pub mod identity;
