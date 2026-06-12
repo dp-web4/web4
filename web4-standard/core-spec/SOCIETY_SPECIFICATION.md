@@ -1,7 +1,7 @@
 # Web4 Society Specification
 
 ## Version: 1.0.0
-## Date: 2026-05-30
+## Date: 2026-06-12
 ## Status: Foundational Concept
 
 ---
@@ -49,7 +49,7 @@ For a collective to constitute a Society, it MUST have:
 - **Definition**: The society's own Linked Context Token
 - **Purpose**:
   - Represents society as entity
-  - Enables inter-society relationships
+  - Enables inter-society relationships (the LCT's standards-facing interop projection is a `did:web4` identifier — see `did-web4-method.md`)
   - Holds society-level T3 (trust) and V3 (value) tensors (see `t3-v3-tensors.md` and §5.3)
 
 #### 1.2.5 Operational-Minimum Cross-Reference
@@ -79,6 +79,8 @@ A society implementer satisfying §1.2.1–§1.2.4 alone has met the conceptual 
    - Economic activity commences
    - Trust relationships form
 ```
+
+Genesis does not require multiple founders: `inter-society-protocol.md` §2.1 defines the self-bootstrapped (solo-founder) genesis procedure and its SHALL-level requirements — founder LCT, society keypair, published charter, treasury initialization, and society-LCT minting with ≥3 birth witnesses (which MAY be under the founder's control at genesis). The solo founder fills all seven base-mandatory roles (`society-roles.md` §2), constituting a "society-of-one" for bootstrap purposes (ISP §6.3).
 
 ### 1.4 Operational Modes (Metabolic States)
 
@@ -388,12 +390,14 @@ All ledgers MUST support law-driven amendments that:
 The ledger maintains immutability while allowing corrections:
 
 ```
-Block N:   [Original Entry: "Alice owns 100 ATP"]
-Block N+1: [Amendment: "Correction - Alice owns 90 ATP, 10 ATP was calculation error"]
+Block N:   [Original Entry: "Alice's allocation is 100 ATP"]
+Block N+1: [Amendment: "Correction - Alice's allocation is 90 ATP, 10 ATP was calculation error"]
 Block N+2: [Context: "Approved by 3/5 validators per Amendment Law §2.3"]
 
-Query Result: Alice owns 90 ATP (amended at block N+1, original: 100 ATP)
+Query Result: Alice's allocation is 90 ATP (amended at block N+1, original: 100 ATP)
 ```
+
+(The example uses allocation vocabulary deliberately: ATP is society-allocated, not entity-owned — see `atp-adp-cycle.md` on non-accumulation and §4.2.1's allocate/reclaim treasury flows.)
 
 ---
 
@@ -401,8 +405,8 @@ Query Result: Alice owns 90 ATP (amended at block N+1, original: 100 ATP)
 
 ### 5.1 Society Bootstrap
 
-Minimum viable society can be:
-- 2 entities agreeing to form society
+A minimal bootstrap society — the *conceptual* minimum of §1.2, distinct from both the operational minimum of §1.2.5 and ISP §6.2's "minimum viable *semantic* society" — can be:
+- 2 entities agreeing to form society (or 1 solo founder, per the self-bootstrapped genesis path in §1.3)
 - 1 simple law: "all decisions unanimous"
 - Confined ledger between them
 - Zero initial treasury
@@ -442,7 +446,7 @@ Society-level trust tensors (T3) are calculated from:
 ### 6.3 Global Web4 Society
 - **Citizens**: All Web4 societies (fractal)
 - **Laws**: Core Web4 principles only
-- **Ledger**: Participatory (distributed)
+- **Ledger**: Witnessed (distributed — constituent societies act as one another's external witnesses; the apex society has no parent, so the Participatory type of §4.1.3, which delegates validation to a parent ledger, is structurally unavailable)
 - **Economy**: ATP generation rights allocation
 
 ---
@@ -455,14 +459,20 @@ Core inter-society primitives — including the cross-society envelope, reputati
 
 - Treaty mechanisms (formal bilateral or multilateral society-to-society agreements with on-ledger ratification)
 - Resource sharing agreements (cross-society ATP allocation pools or shared treasury sub-partitions)
-- Reputation portability (mechanisms beyond `mcp-protocol.md §7.4`'s reputation envelopes — e.g. trust-tensor migration on citizenship transfer)
+- Reputation portability (mechanisms beyond the signed reputation objects of `mcp-protocol.md` §7.3 and the §7.5 reputation-propagation rules — e.g. trust-tensor migration on citizenship transfer)
 
 ### 7.2 Society Mergers and Splits
-- Forking mechanisms
-- Asset division
-- Citizenship migration
+
+Constituent secession and federation dissolution — including treasury distribution and citizenship-membership updates on exit — are normatively specified in `inter-society-protocol.md` §5 and recorded via §4.2.1's `secede`/`dissolve` formation events. The bullets below enumerate extensions beyond that coverage:
+
+- Forking mechanisms (a society dividing into successor societies, outside the federation secession/dissolution cases)
+- Asset division (formulas beyond ISP §5.2's pro-rata-by-contribution default)
+- Citizenship migration (automatic re-homing of citizens, beyond the LCT membership updates ISP §5 specifies)
 
 ### 7.3 Dispute Resolution
+
+Intra-society dispute resolution is carried by the Mediator role (`society-roles.md` §4.1; context-mandatory for Court/Arbitration societies per its §3), and ISP §5.1 provides for charter-specified mediation during secession notice periods. The bullets below enumerate what remains unspecified:
+
 - Inter-society courts
 - Arbitration protocols
 - Enforcement mechanisms
