@@ -52,14 +52,14 @@ For a collective to constitute a Society, it MUST have:
   - Enables inter-society relationships
   - Holds society-level T3 (trust) and V3 (value) tensors (see `t3-v3-tensors.md` and §5.3)
 
-### 1.2.5 Operational-Minimum Cross-Reference
+#### 1.2.5 Operational-Minimum Cross-Reference
 
-The four-element minimum above is the *conceptual* minimum a society must satisfy. The *operational* minimum — what a deployment MUST instantiate to be admitted into a federation or to interoperate cross-society — is further constrained by two sister specs that refine §1.2 along the role-structural axis:
+The four-element minimum above is the *conceptual* minimum a society must satisfy. The *operational* minimum — what a deployment instantiates to function as a full participant in cross-society interactions — is refined along the role-structural axis by two sister specs:
 
-- **`web4-society-authority-law.md` §3.1** requires an **Authority Role LCT** and a **Quorum Policy** binding that authority to a specified governance mechanism (alongside the Law Oracle and Immutable Record listed in §1.2.1–§1.2.2). The Authority Role + Quorum Policy pair refines §1.2.1's "enforcement mechanism" into a specific role-bearing entity and a verifiable decision rule.
-- **`inter-society-protocol.md` §6.2** (referenced by the SDK's `validate_minimum_viable`) enumerates **seven base-mandatory roles** — Sovereign, Law Oracle, Policy Entity, Treasurer, Administrator, Archivist, and Citizen — that any operational society MUST staff before participating in inter-society transactions. The Treasurer role is the role-bearing counterpart to §1.2.3's Treasury; the Sovereign role is the role-bearing counterpart to §1.2.4's Society LCT.
+- **`web4-society-authority-law.md` §3.1** requires an **Authority Role LCT** and a **Quorum Policy** (alongside the Law Oracle and Immutable Record listed in §1.2.1–§1.2.2). The Authority Role refines §1.2.1's "enforcement mechanism" into a specific role-bearing entity. The Quorum Policy is the table of **witness/attestation requirements per action type**, defined by the Law Oracle role (SAL §5.3; quorum policy assignment per SAL §5.4) — it specifies which witnesses must co-sign which classes of ledger entry, not a governance decision rule.
+- **`society-roles.md` §2** enumerates **seven base-mandatory roles** — Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, and Citizen — that every Web4-compliant society MUST have filled (a single entity MAY fill several, down to a solo founder filling all seven). The Treasurer role is the role-bearing counterpart to §1.2.3's Treasury; the Sovereign role is the role-bearing counterpart to §1.2.4's Society LCT.
 
-A society implementer satisfying §1.2.1–§1.2.4 alone has met the conceptual minimum but not the operational minimum. Conformance to the role-structural minimum is checked by `inter-society-protocol.md §6.2` at federation-admission time; SAL §3.1 governs the authority-binding semantics.
+A society implementer satisfying §1.2.1–§1.2.4 alone has met the conceptual minimum but not the operational minimum. Conformance to the operational minimum is **not protocol-enforced**: `inter-society-protocol.md` §6.2 defines *semantic viability* (internal differentiation, witnessing capacity, externally grounded ATP referent) as GUIDANCE, and ISP §6.3 is explicit that the Web4 protocol does not adjudicate whether a society is "real enough" — viability is discovered socially through first-contact outcomes (ISP §3). The SDK's `validate_minimum_viable` is a *voluntary* conformance check covering the role-structural side of those criteria. SAL §3.1 governs the authority-binding semantics.
 
 ### 1.3 Formation Process
 
