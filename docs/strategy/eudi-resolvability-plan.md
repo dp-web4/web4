@@ -63,9 +63,20 @@ Express a Web4 attestation as an SD-JWT-VC:
   what crossing into the VC world costs. The full structure stays fetchable via
   the `Web4Hub` service for parties who want it.
 
-### Phase 2 — OID4VCI / OID4VP endpoints (code; medium-large)
-The hub (society scale) and hestia (person scale) gain issuer/verifier
-endpoints:
+### Phase 2 — OID4VCI / OID4VP (code; medium-large) — protocol core ✅ (`web4-core::oid4vc`)
+**Protocol library DONE** — the reusable, fully-tested core:
+- SD-JWT-VC presentation lifecycle completed: `present()` (holder Key-Binding
+  JWT bound to verifier nonce+aud, selective disclosure at present-time) +
+  `verify_presentation()` (issuer sig + KB-JWT + nonce/aud/freshness/sd_hash).
+- OID4VCI pre-authorized-code flow: issuer metadata, credential offer,
+  `build_holder_proof`/`verify_holder_proof` (holder key-possession → cnf-bind).
+- OID4VP: `PresentationRequest/Response`, `build_presentation` /
+  `verify_presentation_response` (vct + required-claim checks).
+- 4 tests incl. the full VCI→VP round trip. The HTTP endpoints are thin
+  wrappers over these functions.
+
+**Remaining (deployment wiring):** the hub (society scale) and hestia (person
+scale) expose the HTTP endpoints over the library:
 - OID4VCI issuance endpoint → wallet pulls a Web4 SD-JWT-VC.
 - OID4VP presentation endpoint → wallet presents; we verify.
 This is where a Web4 entity's wallet-held credentials become usable in EUDI
