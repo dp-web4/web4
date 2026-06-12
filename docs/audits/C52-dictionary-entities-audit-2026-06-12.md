@@ -71,3 +71,23 @@ Each hunk was re-read in place and its inserted tokens traced to their cross-ref
 **No remediation-introduced defects found in #242.** Contrast with C50 (nine #252-introduced defects): #242 was a small (+28/−13), mechanically-scoped remediation whose inserted text makes almost no cross-referential claims — consistent with the C50 §D size-threshold lesson (+58-line remediations are where cross-referential risk concentrates).
 
 ---
+
+## §C — Carries (record-only; no self-resolution)
+
+### C17 deferrals — current status, all re-verified against today's head
+
+- **C17-M1 (ontology gap) — STILL OPEN.** The six `web4:*` predicates in §6.1 SPARQL (`Dictionary`, `sourceDomain`, `targetDomain`, `trustScore`, `coverage`, `lastUpdated`) remain absent from every file in `web4-standard/ontology/` (re-swept: `chapter-law.ttl`, `t3v3-ontology.ttl`, `web4-core-ontology.ttl` — zero hits). Couples the consolidated ontology-vocabulary DESIGN-Q (carry-C40-D1: per-term extend-ontology vs rewrite-example). Operator-owned.
+- **C17-M4 (error taxonomy) — STILL OPEN.** `W4_ERR_DICT_*` does not exist in `errors.md`; `IncompetentDictionary`/`InsufficientDictionaryTrust` appear nowhere in the SDK. Couples the carry-C30 error-canonicity bundle and is the dictionary-side instance of the C46/C48-agency pattern (spec-raised exception with no catalog home + no SDK class). Operator-owned.
+- **C17-M6 (threshold semantics) — STILL OPEN.** The T3-minimum (0.9) / fidelity floor (0.95) / witness gate (0.95) relationship remains undeclared. Narrow mechanical facets were separated out and evaluated fresh in §B (C52-B2 cluster); the design question itself stays deferred.
+- **C17-H2 role-value — STILL OPEN.** `dictionary-translator` remains a disclaimed placeholder (L418–420). **New coupling since C17**: C50-B25 (SDK dual role taxonomies — federation.py `RoleType(5)` cannot represent 5 of 7 base-mandatory `SocietyRole` values) strengthens the case for resolving role taxonomy as ONE operator decision; the dictionary role-value should ride that decision, not precede it.
+- **C17-INFO3 (mcp-protocol.md:306 stale `roleType`) — STILL PRESENT.** Re-verified today: `"roleType": "web4:Developer"` at `core-spec/mcp-protocol.md:306`, unchanged through the C35 cycle. Remains carried for an MCP-side pass.
+
+### C17-INFO1 status CORRECTION (audit-text error, wrong at birth)
+
+C17-INFO1 asserted: *"SDK … has NO Dictionary dataclass"*, evidenced by `grep -l -i "class.*Dictionary\b"` returning no matches. **The claim was false when written.** `web4-standard/implementation/sdk/web4/dictionary.py` — 779 lines, 13 classes including `DictionaryEntity`, `DictionarySpec`, `TranslationRequest`, `TranslationResult`, `TranslationChain`, exported via `__init__.py` — has existed since at least 2026-03-29 (`7fd83de4`, Sprint 11 era), two months before C17. The grep's `\b` after `Dictionary` cannot match any of the SDK's prefixed class names (`DictionaryEntity` has no word boundary after "Dictionary"), and no class is named bare `Dictionary`.
+
+- **Classification**: audit-instrumentation error in C17 itself — the same wrong-at-birth class as C50-R1 (audit text seeding a false claim), in its harmless INFO-severity variant: nothing propagated into normative spec prose, but the carry ledger has carried a false premise for 16 days, and INFO1's substantive conclusion ("all §9.1 MUSTs are spec-only — no SDK enforcement exists") was never actually established. The real spec↔SDK relationship is audited for the first time in §B (sdk-align lens).
+- **Method lesson (→ §D)**: word-boundary regexes silently exclude prefixed/suffixed identifiers; corpus sweeps that *establish absence* need a looser pattern (or a second sweep without `\b`) before an absence claim enters an audit record.
+
+---
+
