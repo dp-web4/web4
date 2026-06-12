@@ -65,6 +65,7 @@ pub mod ledger;
 pub mod pair_channel;
 pub mod r6;
 pub mod role;
+pub mod sd_jwt_vc;
 pub mod society;
 pub mod t3;
 pub mod v3;
@@ -88,6 +89,7 @@ pub use r6::{
 pub use delegation::{DelegatedAuthority, DelegationScope};
 pub use did::{DidDocument, DidDocumentMetadata, ServiceEndpoints, did_web4, parse_did_web4};
 pub use role::{RoleAssignment, RoleEvent, RoleEventKind, SocietyRole};
+pub use sd_jwt_vc::{SdJwtVc, VerifiedCredential, verify_issuer, web4_presence_credential};
 pub use society::{MetabolicState, Society};
 pub use t3::{TrustDimension, TrustObservation, TrustRelation, T3, T3_DIMENSIONS};
 pub use v3::{TrustValueScore, ValueDimension, ValueObservation, V3, V3_DIMENSIONS};

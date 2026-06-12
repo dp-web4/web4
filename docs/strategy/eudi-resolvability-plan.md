@@ -45,7 +45,14 @@ resolvable as a DID Document by any W3C-DID tool. **No EUDI dependency** — pur
 DID interop, the foundation everything else stands on. *This is the buildable
 piece and the only one with no external gate.*
 
-### Phase 1 — SD-JWT-VC issuance (code; medium)
+### Phase 1 — SD-JWT-VC issuance (code; medium) — ✅ DONE (`web4-core::sd_jwt_vc`)
+Implemented: IETF SD-JWT + SD-JWT-VC issuance — EdDSA JWS signed by an LCT key,
+salted `_sd` digests + detached disclosures, compact serialization, optional
+`cnf` holder binding, and verification (issuer sig + disclosure-digest match +
+selective disclosure). `web4_presence_credential()` shows the Web4 pattern
+(assurance level as a selectively-disclosable claim). 6 tests incl. selective
+disclosure + tamper rejection. Below is the design it realizes:
+
 Express a Web4 attestation as an SD-JWT-VC:
 - Issuer = an LCT (presented as did:web). Subject = an LCT.
 - Claims = a *flattened, lossy* projection of a Web4 statement. E.g. a
