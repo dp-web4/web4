@@ -31,12 +31,12 @@ For a collective to constitute a Society, it MUST have:
 #### 1.2.2 Ledger
 - **Definition**: Immutable record of society events and state
 - **Minimum Records**:
-  - Citizenship events (join/leave/suspend/reinstate)
-  - Law changes (proposal/ratification/amendment)
-  - Economic events (treasury deposits/allocations/reclaims)
+  - Citizenship events (apply/grant/provisional grant/suspend/reinstate/terminate)
+  - Law changes (proposal/ratification/amendment/repeal)
+  - Economic events (treasury deposits/allocations/reclaims; pool-supply mints/slashes)
   - Metabolic state transitions (per `SOCIETY_METABOLIC_STATES.md`)
-  - Formation events (genesis/bootstrap/operational/incorporation)
-- **Note**: Witnesses participate in every recorded event via the per-entry `witnesses` field; they are participants, not a separate event category. The canonical enumeration of recorded event types and their minimum field-sets is given in §4.2.1.
+  - Formation events (genesis/bootstrap/operational/incorporation/secession/dissolution)
+- **Note**: Witnesses participate in every recorded event via the per-entry `witnesses` field; they are participants, not a separate event category. §4.2.1 gives the canonical enumeration of *society-lifecycle* event types and their minimum field-sets. It is not the ledger's complete storage obligation: `web4-society-authority-law.md` §3.4 additionally requires the society's Immutable Record to store **Birth Certificates**, **role pairings**, **delegations**, **law dataset digests**, **witness attestations**, and **auditor adjustments** as SAL record classes in their own right — the per-entry `witnesses` field does not substitute for SAL §3.4's standalone witness-attestation record class.
 
 #### 1.2.3 Treasury
 - **Definition**: Society-managed ATP/ADP token pool
@@ -127,22 +127,29 @@ Application → Review → Acceptance → Active Citizenship
                                       Termination
 ```
 
-**Note on `Rejection`**: Rejection is a non-record outcome — no `CitizenshipRecord` is created on the ledger and no status is assigned. The canonical SDK `CitizenshipStatus` enum contains only `APPLIED`, `PROVISIONAL`, `ACTIVE`, `SUSPENDED`, and `TERMINATED` (no `REJECTED` value); a rejected application leaves the ledger unchanged. The other branches in the diagram (`Provisional`, `Suspension`, `Reinstatement`, `Termination`) correspond to recorded status transitions.
+**Note on `Rejection`**: Rejection is a non-record outcome — the rejection itself creates no ledger event and assigns no status. The canonical SDK `CitizenshipStatus` enum contains only `APPLIED`, `PROVISIONAL`, `ACTIVE`, `SUSPENDED`, and `TERMINATED` (no `REJECTED` value); a rejected application's prior `apply` event (§4.2.1) remains the entity's most recent citizenship event, with no further transition recorded. The other branches in the diagram (`Provisional`, `Suspension`, `Reinstatement`, `Termination`) correspond to recorded status transitions per the §4.2.1 action-to-status mapping.
 
 ### 2.4 Citizenship Record Structure
 
+A citizenship grant is recorded as the canonical citizenship event of §4.2.1 (envelope `{type, action, data, witnesses, timestamp}`), with the society's rights/obligations payload carried under `data`:
+
 ```json
 {
-  "event_type": "citizenship_granted",
-  "entity_lct": "lct-agent-alice-12345",
-  "society_lct": "lct-society-web4dev-67890",
-  "timestamp": 1737142857,
-  "witness_lcts": ["lct-1", "lct-2", "lct-3"],
-  "rights": ["vote", "propose", "allocate"],
-  "obligations": ["witness", "contribute"],
-  "status": "active"
+  "type": "citizenship",
+  "action": "grant",
+  "data": {
+    "entity_lct": "...",
+    "society_lct": "...",
+    "rights": ["vote", "propose", "allocate"],
+    "obligations": ["witness", "contribute"],
+    "law_reference": "citizenship_law_v1"
+  },
+  "witnesses": ["...", "...", "..."],
+  "timestamp": "..."
 }
 ```
+
+The entity's *current status* (Applied / Provisional / Active / Suspended / Terminated, per §2.3) is not stored on the event; it is derived state, determined by the most recent citizenship event's `action` (see the action-to-status mapping in §4.2.1). Implementations MAY maintain a separate state-record projection (e.g. the SDK's `CitizenshipRecord`) computed from these events; the ledger event above is the normative record.
 
 ---
 
@@ -251,45 +258,61 @@ Participatory ledgers inherit their validator set from the parent ledger (see §
 
 #### 4.2.1 Minimum Recording Requirements
 
+Every event uses the common envelope `{type, action, data, witnesses, timestamp}` (mirroring the SDK's `LedgerEntry`): `type` and `action` classify the event, event-specific payload fields live under `data`, and `witnesses` + `timestamp` carry the provenance that §4.2.2's amendment machinery depends on. The field-sets shown are minimums; societies MAY extend `data`.
+
 Every ledger MUST record:
 
 1. **Citizenship Events**
    ```json
    {
-     "type": "citizenship_event",
-     "action": "grant|revoke|suspend|reinstate",
-     "entity_lct": "...",
-     "timestamp": "...",
+     "type": "citizenship",
+     "action": "apply|grant|provisional_grant|suspend|reinstate|terminate",
+     "data": {
+       "entity_lct": "...",
+       "law_reference": "citizenship_law_v1"
+     },
      "witnesses": ["..."],
-     "law_reference": "citizenship_law_v1"
+     "timestamp": "..."
    }
    ```
+
+   Action-to-status mapping (statuses per §2.3): `apply` → Applied, `provisional_grant` → Provisional, `grant` and `reinstate` → Active, `suspend` → Suspended, `terminate` → Terminated. (`terminate` replaces the `revoke` action of earlier drafts — Termination is the recorded status it produces.) Rejection produces no event (§2.3 Note).
 
 2. **Law Change Events**
    ```json
    {
      "type": "law_change",
      "action": "propose|ratify|amend|repeal",
-     "law_id": "...",
-     "change_description": "...",
-     "voting_record": {...},
-     "effective_date": "..."
+     "data": {
+       "law_id": "...",
+       "change_description": "...",
+       "voting_record": {...},
+       "effective_date": "..."
+     },
+     "witnesses": ["..."],
+     "timestamp": "..."
    }
    ```
+
+   Law changes are SAL-critical events (`sal.law.update` per `web4-society-authority-law.md` §3.4) and MUST carry witness co-signatures per the society's Quorum Policy (SAL §5.4).
 
 3. **Economic Events**
    ```json
    {
-     "type": "economic_event",
-     "action": "deposit|allocate|reclaim",
-     "amount": "...",
-     "token_type": "ATP",
-     "recipient_lct": "...",
-     "purpose": "..."
+     "type": "economic",
+     "action": "deposit|allocate|reclaim|mint|slash",
+     "data": {
+       "amount": "...",
+       "token_type": "ATP|ADP",
+       "recipient_lct": "...",
+       "purpose": "..."
+     },
+     "witnesses": ["..."],
+     "timestamp": "..."
    }
    ```
 
-   The treasury-level economic vocabulary is **deposit** (tokens flow into the pool), **allocate** (tokens flow from the pool to a citizen), and **reclaim** (tokens flow back to the pool). ATP-cycle state transitions (charge / discharge) operate at the R6/cycle layer per `atp-adp-cycle.md` §2 and are recorded separately on R6 transactions, not as treasury-level economic events.
+   The treasury-flow vocabulary is **deposit** (tokens flow into the pool), **allocate** (tokens flow from the pool to a citizen), and **reclaim** (tokens flow back to the pool). The pool-supply vocabulary is **mint** (new tokens created by the society's monetary authority — minting occurs in the ADP state per `atp-adp-cycle.md` §2.1) and **slash** (supply destroyed per `atp-adp-cycle.md` §2.4); both are witnessed, ledger-recorded events that change total supply rather than move existing tokens. ATP-cycle state transitions operate at the cycle layer per `atp-adp-cycle.md` §2: **discharge** is recorded on the R6 transaction that spends the ATP (§2.3), while **charging** is recorded as a standalone value-creation event (§2.2) — neither is a treasury-level economic event.
 
 4. **Metabolic State Transitions** (per `SOCIETY_METABOLIC_STATES.md`)
    ```json
@@ -305,11 +328,11 @@ Every ledger MUST record:
    }
    ```
 
-5. **Formation Events** (phase transitions and incorporation)
+5. **Formation Events** (phase transitions, incorporation, secession, dissolution)
    ```json
    {
      "type": "formation",
-     "action": "genesis|bootstrap|operational|incorporate_child|incorporated_by",
+     "action": "genesis|bootstrap|operational|incorporate_child|incorporated_by|secede|dissolve",
      "data": {
        "founders": ["..."],
        "name": "..."
@@ -318,6 +341,8 @@ Every ledger MUST record:
      "timestamp": "..."
    }
    ```
+
+   `secede` and `dissolve` record the SHALL-required constituent-secession and federation-dissolution events of `inter-society-protocol.md` §5.1–§5.2 (intent-to-secede and departure on the constituent's and federation's ledgers; ratified dissolution on the federation's ledger).
 
 #### 4.2.2 Amendment Mechanism
 
@@ -341,7 +366,7 @@ All ledgers MUST support law-driven amendments that:
      "amendment_type": "correction|clarification|expansion",
      "new_data": {...},
      "reason": "...",
-     "law_authorization": "amendment_law_v2"
+     "law_reference": "amendment_law_v2"
    }
    ```
 
@@ -349,8 +374,8 @@ All ledgers MUST support law-driven amendments that:
    ```json
    {
      "amendment_context": {
-       "proposed_by": "lct-entity-789",
-       "witnessed_by": ["lct-1", "lct-2"],
+       "proposed_by": "...",
+       "witnesses": ["...", "..."],
        "voting_record": {...},
        "ratified_timestamp": "...",
        "block_height": 12345
