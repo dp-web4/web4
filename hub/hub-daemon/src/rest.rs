@@ -78,6 +78,10 @@ pub struct RestState {
     /// verified assurance-tier bindings (`constellation_challenge` /
     /// `present_constellation` channel tools).
     pub constellations: Arc<hub_lib::constellation::ConstellationGate>,
+    /// OID4VCI pre-authorized codes: code → (member LCT, minted-at). Minted by
+    /// the `request_credential_offer` channel tool (citizen-gated), redeemed
+    /// once at `POST /v1/oid4vci/credential` within VCI_CODE_TTL_SECS.
+    pub vci_codes: Arc<Mutex<std::collections::HashMap<String, (Uuid, std::time::Instant)>>>,
 }
 
 impl RestState {
@@ -159,6 +163,7 @@ impl RestState {
             resolver: Arc::new(tokio::sync::RwLock::new(resolver)),
             law,
             constellations: Arc::new(hub_lib::constellation::ConstellationGate::new()),
+            vci_codes: Arc::new(Mutex::new(std::collections::HashMap::new())),
         })
     }
 
@@ -191,6 +196,11 @@ pub fn router(state: RestState) -> Router {
         // (hub_lct_id, api_versions, endpoints, hubs). Unauthenticated
         // by design — discovery is a public read.
         .route("/.well-known/web4-hub.json", get(well_known_hub_info))
+        // EUDI Phase 2, society scale: the hub as an OID4VCI issuer of
+        // membership SD-JWT-VCs (web4-core::oid4vc/sd_jwt_vc do the heavy
+        // lifting; these are the thin wrappers the module docs anticipate).
+        .route("/.well-known/openid-credential-issuer", get(vci_issuer_metadata))
+        .route("/v1/oid4vci/credential", post(vci_credential))
         .route("/v1/auth/challenge", post(issue_challenge))
         // Hub-named routes (canonical; chapter→hub rename mirrored on
         // Hestia side at hestia@c3932a8 — back-compat /v1/chapters/*
@@ -325,6 +335,115 @@ async fn well_known_hub_info(
             public: true,
         }],
     })
+}
+
+// ---------- OID4VCI: the hub as a society-scale credential issuer ----------
+
+/// The membership credential type this hub issues.
+const VCI_MEMBERSHIP_VCT: &str = "web4:hub:membership";
+/// Pre-authorized codes are single-use and short-lived.
+const VCI_CODE_TTL_SECS: u64 = 300;
+
+/// The issuer identifier must match what the wallet puts in its holder-proof
+/// `aud`. Wallets call us by URL, so derive it from the request Host (override
+/// with WEB4_HUB_ISSUER_URL for TLS-fronted deployments where Host differs).
+fn vci_issuer_base(headers: &axum::http::HeaderMap) -> String {
+    if let Ok(url) = std::env::var("WEB4_HUB_ISSUER_URL") {
+        return url.trim_end_matches('/').to_string();
+    }
+    let host = headers
+        .get(axum::http::header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("localhost:8770");
+    format!("http://{host}")
+}
+
+/// GET /.well-known/openid-credential-issuer
+async fn vci_issuer_metadata(
+    State(_s): State<RestState>,
+    headers: axum::http::HeaderMap,
+) -> Json<web4_core::oid4vc::CredentialIssuerMetadata> {
+    let issuer = vci_issuer_base(&headers);
+    let mut meta = web4_core::oid4vc::CredentialIssuerMetadata::for_vct(&issuer, VCI_MEMBERSHIP_VCT);
+    // Our credential endpoint is versioned, unlike for_vct's default.
+    meta.credential_endpoint = format!("{issuer}/v1/oid4vci/credential");
+    Json(meta)
+}
+
+#[derive(Deserialize)]
+struct VciCredentialRequest {
+    /// The pre-authorized code from the member's offer (doubles as the
+    /// holder-proof `c_nonce` in this minimal flow).
+    pre_authorized_code: String,
+    credential_configuration_id: String,
+    /// Holder key-possession proof JWT (`typ: openid4vci-proof+jwt`).
+    proof_jwt: String,
+}
+
+/// POST /v1/oid4vci/credential — redeem a pre-authorized code + holder proof
+/// for a membership SD-JWT-VC. Plaintext HTTP by design: this is the standard
+/// wallet-facing flow, secured by the single-use code (minted only over the
+/// sealed channel) + the holder-key proof; the credential reveals nothing the
+/// code's owner didn't already know.
+async fn vci_credential(
+    State(s): State<RestState>,
+    headers: axum::http::HeaderMap,
+    Json(req): Json<VciCredentialRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if req.credential_configuration_id != VCI_MEMBERSHIP_VCT {
+        return Err(ApiError::bad_request(format!(
+            "unknown credential configuration: {}", req.credential_configuration_id
+        )));
+    }
+
+    // Redeem the code: must exist, be fresh, and is consumed on ANY attempt
+    // (same burn-on-attempt stance as constellation challenges).
+    let member_lct = {
+        let mut codes = s.vci_codes.lock().await;
+        match codes.remove(&req.pre_authorized_code) {
+            Some((lct, minted)) if minted.elapsed().as_secs() <= VCI_CODE_TTL_SECS => lct,
+            Some(_) => return Err(ApiError::unauthorized("pre-authorized code expired".to_string())),
+            None => return Err(ApiError::unauthorized("unknown or already-used code".to_string())),
+        }
+    };
+
+    // Verify holder key possession; the proof's c_nonce is the code itself.
+    let issuer = vci_issuer_base(&headers);
+    let now = Utc::now().timestamp();
+    let holder_pk = web4_core::oid4vc::verify_holder_proof(
+        &req.proof_jwt, &issuer, &req.pre_authorized_code, VCI_CODE_TTL_SECS as i64, now,
+    ).map_err(|e| ApiError::unauthorized(format!("holder proof rejected: {e}")))?;
+
+    // Issuance needs the raw key (JWS); Local-mode signers expose it.
+    let issuer_key = s.signer.local_keypair().ok_or_else(|| ApiError {
+        status: StatusCode::NOT_IMPLEMENTED,
+        message: "credential issuance requires a local Sovereign key (Hestia-mode issuance pending an issue_with(signer) variant in web4-core)".to_string(),
+    })?;
+
+    // Assemble the credential from projected hub state. Identity claims are
+    // plain; profile-ish claims are selectively disclosable — the member shows
+    // membership without revealing skills, or vice versa.
+    let member = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger).members.get(&member_lct).cloned()
+    }.ok_or_else(|| ApiError::unauthorized("member no longer on the roster".to_string()))?;
+
+    let mut vc = web4_core::sd_jwt_vc::SdJwtVc::new(VCI_MEMBERSHIP_VCT, &issuer)
+        .iat(now)
+        .holder_binding(&holder_pk)
+        .claim("sub", serde_json::json!(member_lct))
+        .claim("hub_lct", serde_json::json!(s.hub_id))
+        .claim("hub_name", serde_json::json!(s.hub_name));
+    if let Some(name) = &member.name {
+        vc = vc.sd_claim("member_name", serde_json::json!(name));
+    }
+    vc = vc.sd_claim("skills", serde_json::json!(member.skills.iter().collect::<Vec<_>>()));
+
+    let compact = vc.issue(issuer_key, &format!("{issuer}#hub"));
+    Ok(Json(serde_json::json!({
+        "format": "vc+sd-jwt",
+        "credential": compact,
+    })))
 }
 
 // ---------- POST /v1/auth/challenge ----------
@@ -872,6 +991,23 @@ async fn dispatch_channel(
             status: StatusCode::NOT_IMPLEMENTED,
             message: "walk_members is reserved for membot's Walk-as-MCP (not yet shipped)".to_string(),
         }),
+        // EUDI: mint a single-use pre-authorized code so the caller's wallet
+        // can pull a membership SD-JWT-VC at /v1/oid4vci/credential. The code
+        // is born over the sealed channel (citizen-gated), so possession of it
+        // is evidence of an authenticated member request; the wallet adds the
+        // holder-key proof at redemption.
+        "request_credential_offer" => {
+            let code = web4_core::oid4vc::opaque_token(Uuid::new_v4().as_bytes());
+            s.vci_codes.lock().await.insert(code.clone(), (caller_lct_id, std::time::Instant::now()));
+            Ok(serde_json::json!({
+                "credential_issuer_metadata": "/.well-known/openid-credential-issuer",
+                "credential_configuration_ids": [VCI_MEMBERSHIP_VCT],
+                "pre_authorized_code": code,
+                "c_nonce": code, // minimal flow: the code doubles as the proof nonce
+                "expires_in_secs": VCI_CODE_TTL_SECS,
+                "credential_endpoint": "/v1/oid4vci/credential",
+            }))
+        }
         // ---- introductions (the consent half of discovery) ----
         // Both halves ride the sealed channel, so by construction both parties
         // hold pinned channel keys by the time an intro is accepted — which is
@@ -2831,5 +2967,78 @@ norms:
         let att = make_att(&foreign, my_lct, &[], &nonce_of(pid, &resp.0), chrono::Utc::now());
         let err = present(pid, att).await.err().expect("foreign owner key → reject");
         assert_eq!(err.status, StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn member_pulls_a_membership_credential_and_presents_selectively() {
+        use web4_core::oid4vc::build_holder_proof;
+        use web4_core::sd_jwt_vc::{verify_issuer, verify_presentation};
+
+        let (_tmp, state) = fresh_rest_state(None).await; // open admission
+        let hub_pub = state.signer.public_key().unwrap();
+
+        // Admit a member over the sealed channel.
+        let (alice, alice_lct) = (KeyPair::generate(), Uuid::new_v4());
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&alice, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Alice" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: alice_lct, pair_id: pid, sealed,
+            caller_pubkey_hex: Some(alice.verifying_key().to_hex()),
+        })).await.expect("admitted");
+
+        // 1. Offer over the sealed channel (citizen-gated).
+        let offer = member_call(&state, &alice, alice_lct, "request_credential_offer",
+            serde_json::json!({})).await.unwrap();
+        let code = offer["pre_authorized_code"].as_str().unwrap().to_string();
+
+        // 2. Wallet redeems the code with a holder-key proof. The wallet key is
+        //    deliberately distinct from the channel key.
+        let holder = KeyPair::generate();
+        let issuer = "http://localhost:8770"; // the HeaderMap-absent Host fallback
+        let now = Utc::now().timestamp();
+        let proof = build_holder_proof(&holder, issuer, &code, now);
+        let out = vci_credential(
+            State(state.clone()),
+            axum::http::HeaderMap::new(),
+            Json(VciCredentialRequest {
+                pre_authorized_code: code.clone(),
+                credential_configuration_id: VCI_MEMBERSHIP_VCT.to_string(),
+                proof_jwt: proof.clone(),
+            }),
+        ).await.expect("credential issued");
+        let compact = out.0["credential"].as_str().unwrap().to_string();
+
+        // 3. Verifies against the hub's Sovereign key; identity claims present.
+        let issuer_pk = state.signer.public_key().unwrap();
+        let v = verify_issuer(&compact, &issuer_pk).expect("issuer sig verifies");
+        assert_eq!(v.vct, VCI_MEMBERSHIP_VCT);
+        assert_eq!(v.claims["sub"], serde_json::json!(alice_lct));
+        assert_eq!(v.claims["hub_name"], serde_json::json!(state.hub_name));
+        assert_eq!(v.claims["member_name"], serde_json::json!("Alice"));
+
+        // 4. Selective disclosure: present NOTHING beyond the plain claims
+        //    (drop member_name + skills); holder-bound to a verifier nonce.
+        let kb_nonce = "verifier-nonce-1";
+        let presentation = web4_core::sd_jwt_vc::present(
+            &compact, &holder, kb_nonce, "verifier.example", now, Some(&[]),
+        ).expect("presentation builds");
+        let pv = verify_presentation(&presentation, &issuer_pk, kb_nonce, "verifier.example", 300, now)
+            .expect("presentation verifies (holder-bound)");
+        assert_eq!(pv.claims["sub"], serde_json::json!(alice_lct), "membership still proven");
+        assert!(pv.claims.get("member_name").is_none(), "undisclosed claim stays hidden");
+        assert!(pv.claims.get("skills").is_none(), "undisclosed claim stays hidden");
+
+        // 5. The code is single-use.
+        let again = vci_credential(
+            State(state.clone()),
+            axum::http::HeaderMap::new(),
+            Json(VciCredentialRequest {
+                pre_authorized_code: code,
+                credential_configuration_id: VCI_MEMBERSHIP_VCT.to_string(),
+                proof_jwt: proof,
+            }),
+        ).await;
+        assert!(again.is_err(), "pre-authorized code must be single-use");
     }
 }
