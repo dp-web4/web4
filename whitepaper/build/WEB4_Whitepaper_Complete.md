@@ -126,9 +126,7 @@ Substantial portions of this work — including the published `web4-core` / `web
 
 ## An Invitation to Participate
 
-To participate in ongoing development or collaborative application of the WEB4 framework, please contact:
-
-📩 **dp@metalinxx.io**
+To participate in ongoing development or collaborative application of the WEB4 framework, please reach out via the [project repository](https://github.com/dp-web4/web4).
 
 We invite thoughtful critique and aligned contribution. This is not a finished system; it is research-stage work being developed in the open. Engagement at any depth — from running the published packages to challenging specification details — is welcome.
 
@@ -3027,7 +3025,7 @@ WEB4 shares some foundational goals with the Web3 movement, particularly the dri
 **Similarities with Web3:**
 
 *   **Decentralization:** Like Web3, WEB4 advocates for moving away from centralized points of control. LCTs, ATP, and emergent trust networks are inherently decentralized mechanisms.
-*   **Verifiable Credentials/Identity:** The concept of LCTs providing a cryptographic root of witnessed presence and verifiable attributes (via T3/V3 tensors and links) shares conceptual space with Web3 ideas like Decentralized Identifiers (DIDs) and Verifiable Credentials (VCs). Both aim to give entities more control over their witnessed presence and how their attributes are shared and verified.
+*   **Verifiable Credentials/Identity:** The concept of LCTs providing a cryptographic root of witnessed presence and verifiable attributes (via T3/V3 tensors and links) shares conceptual space with Web3 ideas like Decentralized Identifiers (DIDs) and Verifiable Credentials (VCs). Both aim to give entities more control over their witnessed presence and how their attributes are shared and verified. This overlap is now formalized at the protocol level: the `did:web4` DID Method specifies how an LCT presents a W3C DID Core-conformant interop face — identifier syntax, public-key projection, and resolution through a designated hub — so that existing DID/VC and EUDI tooling can resolve Web4 entities. The projection is deliberately lossy and one-way: an LCT can present a DID face, but a DID cannot present an LCT face. Web4's trust and relationship layer (T3/V3 tensors, MRH, witnessing) has no DID Document representation and is reachable only through the hub service endpoint — interoperability without flattening witnessed presence into a static identifier.
 *   **Tokenization and Value Exchange:** WEB4’s ATP system utilizes tokens (ATP/ADP) for value exchange, similar to how cryptocurrencies and other tokens function in Web3. The goal of creating new economic models is common.
 *   **Community Governance:** The idea of governance through resonance and the potential for emergent group ethics in WEB4 has parallels with Web3 concepts like Decentralized Autonomous Organizations (DAOs), which seek to enable community-led governance structures.
 
@@ -3174,7 +3172,7 @@ For accurate calibration:
 3. Try the agent authorization demo: `/demo` (166 passing tests)
 4. Read [STATUS.md](https://github.com/dp-web4/web4/blob/main/STATUS.md) for current implementation state
 5. Read [`docs/specs/`](https://github.com/dp-web4/web4/tree/main/docs/specs) for current specifications
-6. File an issue, open a PR, or engage at [dp@metalinxx.io](mailto:dp@metalinxx.io)
+6. File an issue, open a PR, or engage via the [project repository](https://github.com/dp-web4/web4)
 
 ---
 
@@ -3289,7 +3287,7 @@ It is not a finished system. It is research-stage work, developed in the open. T
 - MetaLINNX Inc.: https://metalinxx.io
 
 ### Contact
-- Dennis Palatov: dp@metalinxx.io
+- Metalinxx Inc.: via the [project repository](https://github.com/dp-web4/web4)
 - Web4 Development: web4@metalinxx.io
 
 ### Contributing
@@ -3795,4 +3793,4 @@ This appendix exists so the reader can calibrate. The architecture in this white
 
 ---
 
-*Generated: 2026-05-19 04:33:07*
+*Generated: 2026-06-12 04:40:13*
