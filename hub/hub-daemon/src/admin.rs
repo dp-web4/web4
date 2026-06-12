@@ -31,31 +31,36 @@ use hub_lib::state::HubState;
 
 use crate::rest::RestState;
 
+// Style family: Metalinxx Web4 Tools palette (charcoal + sage), per
+// 4-gov/source/brand/BRAND.md. Deliberately NO product or company logo —
+// the hub is the standard's reference implementation ("standard, not
+// product"); the society name is the masthead.
 const STYLE: &str = r#"
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-         max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; color: #222; }
-  h1 { font-size: 1.4rem; border-bottom: 2px solid #444; padding-bottom: 0.3rem; }
-  h2 { font-size: 1.1rem; margin-top: 1.5rem; color: #444; }
-  nav { background: #f0f0f0; padding: 0.6rem 0.9rem; border-radius: 4px;
+         max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem;
+         background: #2d2d2d; color: #e8e8e8; }
+  h1 { font-size: 1.4rem; border-bottom: 2px solid #509982; padding-bottom: 0.3rem; }
+  h2 { font-size: 1.1rem; margin-top: 1.5rem; color: #a8aeac; }
+  nav { background: #383838; padding: 0.6rem 0.9rem; border-radius: 4px;
         margin-bottom: 1.2rem; }
-  nav a { margin-right: 1rem; text-decoration: none; color: #0066cc; }
+  nav a { margin-right: 1rem; text-decoration: none; color: #5fb89a; }
   nav a:hover { text-decoration: underline; }
   table { border-collapse: collapse; width: 100%; margin: 0.5rem 0 1rem; }
-  th, td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid #ddd;
+  th, td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid #565656;
            font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85rem; }
-  th { background: #fafafa; font-weight: 600; }
-  .muted { color: #888; font-style: italic; }
+  th { background: #383838; font-weight: 600; }
+  .muted { color: #7b817f; font-style: italic; }
   .pill { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 10px;
-          font-size: 0.75rem; background: #e7eef7; color: #1a3a6b; }
-  .pill-warn { background: #fbe6c2; color: #6b3a1a; }
-  pre { background: #f7f7f7; padding: 0.8rem; border-radius: 4px;
+          font-size: 0.75rem; background: #4d6664; color: #d7deda; }
+  .pill-warn { background: #6b5a3a; color: #f5deb8; }
+  pre { background: #383838; padding: 0.8rem; border-radius: 4px;
         overflow-x: auto; font-size: 0.8rem; }
   .grid { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1rem; }
-  .grid dt { font-weight: 600; color: #555; }
+  .grid dt { font-weight: 600; color: #a8aeac; }
   .grid dd { margin: 0; font-family: ui-monospace, monospace; font-size: 0.9rem; }
-  footer { margin-top: 2rem; padding-top: 0.6rem; border-top: 1px solid #ddd;
-           color: #888; font-size: 0.8rem; }
+  footer { margin-top: 2rem; padding-top: 0.6rem; border-top: 1px solid #565656;
+           color: #7b817f; font-size: 0.8rem; }
 </style>
 "#;
 
