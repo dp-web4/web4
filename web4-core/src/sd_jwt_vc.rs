@@ -141,9 +141,14 @@ impl SdJwtVc {
         self
     }
 
-    /// Issue: build + sign the JWS and emit the compact SD-JWT-VC.
-    /// `kid` is the issuer verification method id (e.g. `<did>#key-0`).
-    pub fn issue(&self, issuer_key: &KeyPair, kid: &str) -> String {
+    /// Build the unsigned signing input (header + payload) and the disclosures,
+    /// for issuance through an *external* signer (HSM, remote vault, the Web4
+    /// hub's `RemoteSigner`) that never exposes a raw [`KeyPair`]. The signer
+    /// EdDSA-signs [`UnsignedSdJwtVc::signing_bytes`]; the resulting signature
+    /// is assembled via [`UnsignedSdJwtVc::into_compact`]. `issue` is the
+    /// in-process convenience over this. `kid` is the issuer verification
+    /// method id (e.g. `<did>#key-0`).
+    pub fn prepare(&self, kid: &str) -> UnsignedSdJwtVc {
         // Digests, sorted so order doesn't leak insertion sequence.
         let mut digests: Vec<String> = self.disclosures.iter().map(|d| d.digest()).collect();
         digests.sort();
@@ -163,15 +168,45 @@ impl SdJwtVc {
         let header = json!({ "alg": "EdDSA", "typ": self.typ, "kid": kid });
         let header_b64 = b64(serde_json::to_string(&header).unwrap().as_bytes());
         let payload_b64 = b64(serde_json::to_string(&Value::Object(payload)).unwrap().as_bytes());
-        let signing_input = format!("{header_b64}.{payload_b64}");
-        let sig = issuer_key.sign(signing_input.as_bytes());
-        let jws = format!("{signing_input}.{}", b64(&sig.bytes));
+        UnsignedSdJwtVc {
+            signing_input: format!("{header_b64}.{payload_b64}"),
+            encoded_disclosures: self.disclosures.iter().map(|d| d.encoded()).collect(),
+        }
+    }
 
+    /// Issue: build + sign the JWS and emit the compact SD-JWT-VC.
+    /// `kid` is the issuer verification method id (e.g. `<did>#key-0`).
+    pub fn issue(&self, issuer_key: &KeyPair, kid: &str) -> String {
+        let unsigned = self.prepare(kid);
+        let sig = issuer_key.sign(unsigned.signing_bytes());
+        unsigned.into_compact(&sig.bytes)
+    }
+}
+
+/// An SD-JWT-VC prepared but not yet signed. Lets an issuer sign through an
+/// external signer (HSM / remote vault / hub `RemoteSigner`) without exposing
+/// a private key. Produced by [`SdJwtVc::prepare`].
+pub struct UnsignedSdJwtVc {
+    /// The exact bytes to EdDSA-sign: `base64url(header).base64url(payload)`.
+    signing_input: String,
+    /// Disclosures (already base64url-encoded) appended after the JWS.
+    encoded_disclosures: Vec<String>,
+}
+
+impl UnsignedSdJwtVc {
+    /// The bytes the external signer must EdDSA-sign.
+    pub fn signing_bytes(&self) -> &[u8] {
+        self.signing_input.as_bytes()
+    }
+
+    /// Assemble the compact SD-JWT-VC from the 64-byte Ed25519 signature the
+    /// external signer returned over [`signing_bytes`](Self::signing_bytes).
+    pub fn into_compact(self, signature: &[u8; 64]) -> String {
         // JWS ~ disclosures ~ (trailing tilde; KB-JWT slot left empty)
-        let mut out = jws;
-        for d in &self.disclosures {
+        let mut out = format!("{}.{}", self.signing_input, b64(signature));
+        for d in &self.encoded_disclosures {
             out.push('~');
-            out.push_str(&d.encoded());
+            out.push_str(d);
         }
         out.push('~');
         out
@@ -395,6 +430,29 @@ pub fn web4_presence_credential(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn external_signer_path_matches_issue() {
+        // prepare()+into_compact() (external-signer path) must produce a
+        // byte-identical credential to issue() (in-process path).
+        let issuer = KeyPair::generate();
+        let kid = "did:web4:hub.example:abc#key-0";
+        let builder = SdJwtVc::new("Web4Membership", "did:web4:hub.example:abc")
+            .iat(1_700_000_000)
+            .claim("sub", json!("did:web4:hub.example:member"))
+            .sd_claim_salted("s1", "role", json!("citizen"));
+
+        let in_process = builder.issue(&issuer, kid);
+
+        // External path: hub holds no KeyPair; signs the prepared bytes.
+        let unsigned = builder.prepare(kid);
+        let sig = issuer.sign(unsigned.signing_bytes());
+        let external = unsigned.into_compact(&sig.bytes);
+
+        assert_eq!(in_process, external);
+        // And it verifies under the issuer key.
+        verify_issuer(&external, &issuer.verifying_key()).expect("external-signed must verify");
+    }
 
     #[test]
     fn test_issue_and_verify_roundtrip() {

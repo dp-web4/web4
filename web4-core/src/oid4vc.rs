@@ -105,6 +105,14 @@ pub fn build_holder_proof(
     format!("{signing}.{}", b64(&sig.bytes))
 }
 
+/// Peek at the (UNVERIFIED) `nonce` an OID4VCI holder proof binds to, so an
+/// issuer can look up which `c_nonce` it minted before calling
+/// [`verify_holder_proof`] (which takes the expected nonce as input). Not
+/// trusted until the proof verifies.
+pub fn proof_nonce(proof_jwt: &str) -> Option<String> {
+    jwt_claim_str(proof_jwt, "nonce")
+}
+
 /// Issuer side: verify a holder proof JWT against the expected `c_nonce` +
 /// `aud`, returning the holder's public key (to `cnf`-bind the credential).
 pub fn verify_holder_proof(
