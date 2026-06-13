@@ -232,6 +232,39 @@ pub fn verify_presentation_response(
     Ok(cred)
 }
 
+/// Peek at the (UNVERIFIED) issuer DID of a presented credential. A verifier
+/// learns the issuer *from* the credential, but needs the issuer's public key
+/// to verify it — chicken/egg. This reads the issuer JWS payload's `iss` claim
+/// so the verifier can resolve that key, then calls
+/// [`verify_presentation_response`]. The returned DID is NOT trusted until the
+/// presentation verifies under the resolved key.
+pub fn unverified_issuer(vp_token: &str) -> Option<String> {
+    // vp_token = <issuer-JWS>~<disclosure>~...~<KB-JWT>; the JWS is the first
+    // tilde-segment, `iss` lives in its JWT payload (segment 2 of the JWS).
+    let jws = vp_token.split('~').next()?;
+    jwt_claim_str(jws, "iss")
+}
+
+/// Peek at the (UNVERIFIED) `nonce` a presentation's Key-Binding JWT binds to,
+/// so a verifier can look up which of its outstanding [`PresentationRequest`]s
+/// this answers. Not trusted until the KB-JWT verifies in
+/// [`verify_presentation_response`].
+pub fn unverified_nonce(vp_token: &str) -> Option<String> {
+    // The KB-JWT is the final non-empty tilde-segment (trailing `~` may leave
+    // an empty tail). Its payload carries `nonce`.
+    let kb = vp_token.rsplit('~').find(|s| !s.is_empty())?;
+    jwt_claim_str(kb, "nonce")
+}
+
+/// Read a string claim from a compact JWT's payload without verifying the
+/// signature. For pre-verification routing/resolution only.
+fn jwt_claim_str(compact_jwt: &str, claim: &str) -> Option<String> {
+    let payload_b64 = compact_jwt.split('.').nth(1)?;
+    let raw = unb64(payload_b64).ok()?;
+    let v: Value = serde_json::from_slice(&raw).ok()?;
+    v.get(claim).and_then(|x| x.as_str()).map(String::from)
+}
+
 /// SHA-256 hex helper (for opaque single-use codes/nonces in a daemon store).
 pub fn opaque_token(seed: &[u8]) -> String {
     hex_lower(&Sha256::digest(seed))
@@ -311,6 +344,23 @@ mod tests {
         let resp = build_presentation(&issued, &holder, &req, 1000).unwrap();
         let r = verify_presentation_response(&resp, &req, &issuer_key.verifying_key(), 300, 1000);
         assert!(r.is_err()); // email not disclosed
+    }
+
+    #[test]
+    fn unverified_peek_issuer_and_nonce() {
+        let issuer_key = KeyPair::generate();
+        let holder = KeyPair::generate();
+        let issued = SdJwtVc::new("Web4Presence", "did:web4:hub.example:abc")
+            .holder_binding(&holder.verifying_key())
+            .sd_claim_salted("s1", "assurance_level", json!("multi_device"))
+            .issue(&issuer_key, "did:web4:hub.example:abc#key-0");
+        let req = PresentationRequest::new("did:verifier", "vp-nonce-xyz", "uri", "Web4Presence")
+            .requiring(&["assurance_level"]);
+        let resp = build_presentation(&issued, &holder, &req, 2000).unwrap();
+
+        // A verifier can route by these BEFORE holding the issuer key.
+        assert_eq!(unverified_issuer(&resp.vp_token).as_deref(), Some("did:web4:hub.example:abc"));
+        assert_eq!(unverified_nonce(&resp.vp_token).as_deref(), Some("vp-nonce-xyz"));
     }
 
     #[test]
