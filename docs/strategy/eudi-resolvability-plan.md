@@ -113,9 +113,11 @@ and relying-party roles split across the two scales over one shared library.
   in the ledger — only a verified member gets a credential, `cnf`-bound to its
   key.
 - The hub holds **no private key** (commitment #8): it signs through its
-  `RemoteSigner` via a new signer-agnostic `web4-core` split
-  (`SdJwtVc::prepare` → `UnsignedSdJwtVc::into_compact`). Works today over the
-  local-keypair path; vault-side (Hestia-mode) issuance signing is future work.
+  `RemoteSigner` via a signer-agnostic `web4-core` split (`SdJwtVc::prepare` →
+  `UnsignedSdJwtVc::into_compact`). Works over **both** signing paths — the
+  local keypair *and* the Hestia callback: the latter sends the prepared bytes +
+  an `oid4vci_credential` intent to the Sovereign's vault, which validates them
+  against the intent (issuer == the actor, vct/sub match) before signing.
 
 **Phase 2 is functionally complete** — both scales issue and the society scale
 verifies, all over one `web4-core::oid4vc` library:
