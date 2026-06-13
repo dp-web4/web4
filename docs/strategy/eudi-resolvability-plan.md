@@ -63,7 +63,7 @@ Express a Web4 attestation as an SD-JWT-VC:
   what crossing into the VC world costs. The full structure stays fetchable via
   the `Web4Hub` service for parties who want it.
 
-### Phase 2 — OID4VCI / OID4VP (code; medium-large) — protocol core ✅ (`web4-core::oid4vc`)
+### Phase 2 — OID4VCI / OID4VP (code; medium-large) — round trip wired ✅ (issuer + verifier)
 **Protocol library DONE** — the reusable, fully-tested core:
 - SD-JWT-VC presentation lifecycle completed: `present()` (holder Key-Binding
   JWT bound to verifier nonce+aud, selective disclosure at present-time) +
@@ -85,11 +85,29 @@ OID4VCI issuance surface over the library (`core/src/server/http.rs`):
   with the constellation's assurance tier as a selectively-disclosable claim.
 Smoke-tested end-to-end (metadata → nonce → proof → credential; replay 400).
 
+**Hub (society-scale relying party) OID4VP verifier ✅** — `hub-daemon` now
+mounts the verifier over the same library:
+- `POST /v1/hubs/:hub_id/vp/request` → mints a single-use presentation request.
+- `POST /v1/hubs/:hub_id/vp/response` → verifies the wallet's presentation. The
+  issuer (`did:web4:<host>:<member-lct>`) is resolved to its pinned pubkey via
+  the hub's **own member roster** (the `MapResolver` used for envelope auth),
+  *not* an external trusted list — that's Phase 3. The member's identity key
+  both authenticates to the hub and signs the credentials it issues, so the hub
+  already holds the verification key.
+- Two `web4-core::oid4vc` peek helpers (`unverified_issuer` / `unverified_nonce`)
+  resolve the chicken/egg: the verifier reads the issuer + nonce off the
+  presentation to pick the key + request before verifying under them.
+- E2E tested: member admission → issue → present → verify; replay rejected;
+  non-member issuer rejected.
+
+The clean fractal: **hestia (person) issues, hub (society) verifies** — issuer
+and relying-party roles split across the two scales over one shared library.
+
 **Remaining (deployment wiring):**
-- OID4VP presentation/verifier endpoint → wallet presents; we verify. Scoped to
-  the relying party (the hub, society scale) rather than the person-scale issuer.
-- Hub-side (society scale) OID4VCI issuer, reusing the same `web4-core::oid4vc`
-  library the hestia endpoints wrap.
+- Hub-side (society scale) OID4VCI *issuer* endpoints, if a hub should issue its
+  own credentials (e.g. membership/role credentials) — reusing the same
+  `web4-core::oid4vc` library the hestia issuer wraps. Optional; the
+  person-scale issuer + society-scale verifier already close the round trip.
 This is where a Web4 entity's wallet-held credentials become usable in EUDI
 flows (age verification, membership proof, delegated-authority proof).
 
