@@ -264,6 +264,15 @@ pub fn unverified_nonce(vp_token: &str) -> Option<String> {
     jwt_claim_str(kb, "nonce")
 }
 
+/// Read a string claim from a compact JWT's payload WITHOUT verifying the
+/// signature. Works on a full `header.payload.sig` JWT *or* a bare
+/// `header.payload` signing input (it only reads the payload segment). For
+/// pre-verification routing, or for an external signer validating that the
+/// bytes it's about to sign match a claimed intent (e.g. iss / vct / sub).
+pub fn jwt_payload_claim(compact_jwt: &str, claim: &str) -> Option<String> {
+    jwt_claim_str(compact_jwt, claim)
+}
+
 /// Read a string claim from a compact JWT's payload without verifying the
 /// signature. For pre-verification routing/resolution only.
 fn jwt_claim_str(compact_jwt: &str, claim: &str) -> Option<String> {
