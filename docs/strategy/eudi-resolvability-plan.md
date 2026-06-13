@@ -103,13 +103,31 @@ mounts the verifier over the same library:
 The clean fractal: **hestia (person) issues, hub (society) verifies** — issuer
 and relying-party roles split across the two scales over one shared library.
 
-**Remaining (deployment wiring):**
-- Hub-side (society scale) OID4VCI *issuer* endpoints, if a hub should issue its
-  own credentials (e.g. membership/role credentials) — reusing the same
-  `web4-core::oid4vc` library the hestia issuer wraps. Optional; the
-  person-scale issuer + society-scale verifier already close the round trip.
+**Hub (society-scale) OID4VCI issuer ✅** — `hub-daemon` also issues
+`Web4Membership` SD-JWT-VCs to its own members:
+- `GET /v1/hubs/:hub_id/.well-known/openid-credential-issuer`, `POST .../nonce`,
+  `POST .../credential` (credential_issuer = `.../v1/hubs/:hub_id`, so the
+  advertised `<issuer>/credential` matches the mounted route).
+- The holder key-possession proof doubles as member auth: the proof key must be
+  a pinned member pubkey (reverse-resolved via the hub's own roster) and current
+  in the ledger — only a verified member gets a credential, `cnf`-bound to its
+  key.
+- The hub holds **no private key** (commitment #8): it signs through its
+  `RemoteSigner` via a new signer-agnostic `web4-core` split
+  (`SdJwtVc::prepare` → `UnsignedSdJwtVc::into_compact`). Works today over the
+  local-keypair path; vault-side (Hestia-mode) issuance signing is future work.
+
+**Phase 2 is functionally complete** — both scales issue and the society scale
+verifies, all over one `web4-core::oid4vc` library:
+
+| Scale | Issuer (OID4VCI) | Verifier (OID4VP) |
+|---|---|---|
+| Person (hestia) | ✅ `Web4Presence` | — (presents) |
+| Society (hub) | ✅ `Web4Membership` | ✅ resolves issuer via member roster |
+
 This is where a Web4 entity's wallet-held credentials become usable in EUDI
-flows (age verification, membership proof, delegated-authority proof).
+flows (age verification, membership proof, delegated-authority proof) — modulo
+Phase 3 (trusted list), which is the only remaining gate and is non-code.
 
 ### Phase 3 — Trusted-list / conformance (governance/legal; the real barrier)
 Getting a Web4 issuer onto a member-state trusted list. Jurisdictional,
