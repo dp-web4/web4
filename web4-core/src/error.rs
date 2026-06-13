@@ -56,6 +56,14 @@ pub enum Web4Error {
     /// Ledger operation failed (mint, lookup, anchor, verify)
     #[error("Ledger error: {0}")]
     Ledger(String),
+
+    /// Vault storage error (corrupt file, wrong magic/version, IO)
+    #[error("Vault error: {0}")]
+    Vault(String),
+
+    /// Decryption failed — wrong passphrase/credential or tampered ciphertext
+    #[error("Decryption failed")]
+    DecryptionFailed,
 }
 
 /// Result type alias for web4-core operations

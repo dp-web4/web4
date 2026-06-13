@@ -70,6 +70,7 @@ pub mod sd_jwt_vc;
 pub mod society;
 pub mod t3;
 pub mod v3;
+pub mod vault;
 
 // Re-export primary types for convenience
 pub use atp::{ATPAccount, TransferResult};
@@ -92,6 +93,7 @@ pub use did::{DidDocument, DidDocumentMetadata, ServiceEndpoints, did_web4, pars
 pub use role::{RoleAssignment, RoleEvent, RoleEventKind, SocietyRole};
 pub use sd_jwt_vc::{SdJwtVc, UnsignedSdJwtVc, VerifiedCredential, verify_issuer, verify_presentation, present, web4_presence_credential};
 pub use society::{MetabolicState, Society};
+pub use vault::{Vault, VaultContents, Document, ItemRef, Protection};
 pub use t3::{TrustDimension, TrustObservation, TrustRelation, T3, T3_DIMENSIONS};
 pub use v3::{TrustValueScore, ValueDimension, ValueObservation, V3, V3_DIMENSIONS};
 
