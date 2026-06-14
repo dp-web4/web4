@@ -88,7 +88,7 @@ Each state maps to biological precedents:
 - Society treasury locked
 - Citizenship preserved but inactive
 - Trust tensors frozen
-- Wake requires external trigger or timeout
+- Wake requires external witness, new-citizen trigger, or 90-day timeout (see §3.1)
 
 **Energy Cost**: 5% of baseline
 **Biological Analog**: Bear hibernation
@@ -179,11 +179,11 @@ Rest → Active: Transaction received
 Rest → Sleep: 6 hours no activity
 
 Sleep → Active: Wake trigger fired
-Sleep → Hibernation: 30 days no activity
+Sleep → Hibernation: 30 days no activity (see §4.1 triggers.hibernation.condition)
 
 Hibernation → Active: External witness, new_citizen trigger, or 90-day timeout (see §4.1 triggers.hibernation.wake_on)
 
-Torpor → Active: Energy producer recharges
+Torpor → Active: Energy producer recharges (see §4.1 triggers.torpor.recovery)
 Torpor → Hibernation: Grace period expired
 
 Estivation → Active: Threat resolved (threat_score < 20, see §4.1 triggers.estivation.clear)
@@ -370,7 +370,7 @@ def calculate_wake_penalty(current_state, planned_duration, actual_duration):
 | State | Vulnerability | Mitigation |
 |-------|--------------|------------|
 | Sleep | Delayed response | Sentinel witnesses |
-| Hibernation | Single point failure | Dead-man switch |
+| Hibernation | Single point failure | Sentinel heartbeat + timeout wake (§2.4, §4.3) |
 | Torpor | Resource exhaustion | Emergency reserves |
 | Molting | Structure changes | Heightened monitoring |
 | Dreaming | Data reorganization | Checkpointing |
@@ -379,7 +379,7 @@ def calculate_wake_penalty(current_state, planned_duration, actual_duration):
 
 Metabolic states must not become attack vectors:
 
-1. **Sleep Deprivation Attack**: Prevent by rate-limiting wake triggers
+1. **Wake-Trigger Flooding** (incl. Sleep Deprivation): Prevent by rate-limiting and/or ATP-bonding all cheap external wake triggers — both sleep wake triggers and the hibernation `new_citizen` wake path (§3.1, §4.1 `triggers.hibernation.wake_on`)
 2. **Hibernation Trap**: Timeout ensures eventual wake
 3. **Torpor Exhaustion**: Protected minimum reserves
 4. **Molt Disruption**: Atomic transitions with rollback
@@ -438,7 +438,7 @@ The suite contains 12 vectors across four categories:
 - **Transition validity** per §3.1 — 4 vectors (valid and invalid transitions, including self-transition rejection)
 - **Metabolic-reliability scoring** per §5.2 — 2 vectors (all-factors-met and no-factors-met)
 
-Cross-language reimplementations MUST produce numerically equal results to the vector expectations for the deterministic cases (energy cost, wake penalty, transition matrix membership). The reliability-score vectors use the §5.2 weights as written. Coverage is currently 6 of 8 states (estivation and molting are not exercised by the current vector set); future vector additions SHOULD close this gap.
+Cross-language reimplementations MUST match the vector expectations for every deterministic case: numerically equal values for the numeric outputs — energy cost (§6.1), wake penalty (§6.2), and metabolic-reliability score (§5.2, applying the weights as written) — and an exact boolean match for transition-matrix membership (§3.1). Coverage is currently 6 of 8 states as *driven* states (estivation and molting are not exercised through energy, wake, or transition by the current vector set, though `molt_success_rate` is an input to the §5.2 reliability vectors); future vector additions SHOULD close this gap.
 
 ---
 
