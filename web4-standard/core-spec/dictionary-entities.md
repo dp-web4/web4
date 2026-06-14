@@ -38,7 +38,7 @@ Every Dictionary has:
 - **LCT**: Unforgeable identity with cryptographic binding
 - **MRH**: Relationship graph with domains and users
 - **T3 Tensor**: Competence in translation (Talent, Training, Temperament)
-- **V3 Tensor**: Quality of translations (Veracity, Validity, Value)
+- **V3 Tensor**: Quality of translations (Valuation, Veracity, Validity)
 - **Witness History**: Record of successful/failed translations
 
 ### 2.2 Dictionary LCT Structure
@@ -199,7 +199,7 @@ Translate between other dictionaries:
 ```python
 def translate_with_dictionary(request, dictionary):
     # 1. Verify dictionary competence
-    if not dictionary.covers_domains(request.source, request.target):
+    if not dictionary.covers_domains(request.source_domain, request.target_domain):
         raise IncompetentDictionary()
     
     # 2. Check trust requirements
@@ -243,7 +243,7 @@ def translate_with_dictionary(request, dictionary):
         confidence=confidence,
         degradation=degradation,
         dictionary_lct=dictionary.lct,
-        witness_required=confidence < 0.95
+        witness_required=confidence < 0.95 or request.trust_requirements.require_witness
     )
 ```
 
@@ -256,7 +256,7 @@ def translate_with_dictionary(request, dictionary):
       "step": 1,
       "from": "medical",
       "to": "legal",
-      "dictionary": "lct:web4:dict:med-legal",
+      "dictionary": "lct:web4:dictionary:medical-legal",
       "confidence": 0.95,
       "degradation": 0.05
     },
@@ -264,7 +264,7 @@ def translate_with_dictionary(request, dictionary):
       "step": 2,
       "from": "legal",
       "to": "insurance",
-      "dictionary": "lct:web4:dict:legal-ins",
+      "dictionary": "lct:web4:dictionary:legal-insurance",
       "confidence": 0.92,
       "degradation": 0.08
     }
@@ -410,11 +410,11 @@ Every translation follows R6:
 {
   "type": "dictionary_translation",
   "rules": {
-    "min_fidelity": 0.9,
+    "minimum_fidelity": 0.9,
     "require_witness": true
   },
   "role": {
-    "entity": "lct:web4:dictionary:med-legal",
+    "actor": "lct:web4:dictionary:medical-legal",
     "roleLCT": "lct:web4:role:dictionary-translator:..."
     // role value is illustrative; canonical SocietyRole resolution
     // deferred (see C17 audit H2 role-value DESIGN-Q)
@@ -509,7 +509,7 @@ translation_chain:
   - step: 2
     from: insurance
     to: legal
-    dictionary: lct:web4:dictionary:insurance-legal
+    dictionary: lct:web4:dictionary:legal-insurance
     output: "Plaintiff sustained head trauma with cognitive impairment in collision"
     confidence: 0.94
     degradation: 0.06
@@ -528,7 +528,7 @@ GPT-4 output → Claude-3 input with context preservation
 translation:
   source_model: "gpt-4"
   source_output: {embeddings: [...], attention_weights: [...]}
-  dictionary: "lct:web4:dict:gpt4-claude3"
+  dictionary: "lct:web4:dictionary:gpt4-claude3"
   target_model: "claude-3"
   target_input: {context: [...], instructions: [...]}
   fidelity: 0.93
@@ -542,7 +542,7 @@ Eastern business concepts → Western frameworks
 ```yaml
 translation:
   source: "建立关系网需要面子和人情"
-  dictionary: "lct:web4:dict:chinese-business"
+  dictionary: "lct:web4:dictionary:chinese-business"
   target: "Building network relationships requires reputation capital and reciprocal obligations"
   cultural_context: "emphasis on long-term reciprocity vs transactional"
   confidence: 0.85
@@ -562,7 +562,7 @@ Dictionaries earn ATP through:
 
 ```python
 class DictionaryStaking:
-    def stake_on_translation(self, amount, confidence_claim):
+    def stake_on_translation(self, amount, confidence_claim, actual_confidence):
         """Stake ATP on translation quality claim"""
         if actual_confidence >= confidence_claim:
             return amount * 1.1  # 10% reward
