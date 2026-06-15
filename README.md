@@ -27,6 +27,8 @@ These three together produce the property: **Web4 is anti-hierarchical by design
 
 **How societies engage each other**: a society's external surface is its MCP server. Other societies invoke its scoped actions (R6/R7) by calling MCP tools with LCT-signed envelopes; querying its state by reading MCP resources; coordinating across federation depth via witness signatures carried in the MCP exchange. The canonical Web4 equation `Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP` has MCP as the **I/O membrane** for exactly this reason — internal structure is `LCT + T3/V3*MRH + ATP/ADP`; the cross-society interface IS MCP. See [`mcp-protocol.md`](web4-standard/core-spec/mcp-protocol.md) §1.1 and §7 for the inter-society binding spec.
 
+**Standards interop (current work)**: an LCT resolves as a `did:web4` DID Document (W3C DID Core) and is expressible as an IETF SD-JWT-VC credential, issued/presented over OpenID4VCI/VP — so a Web4 entity is resolvable and credential-bearing by the EU Digital Identity (EUDI) tooling the EU is legislating into existence, without giving up its native trust layer. Inside the EUDI envelope Web4 is a credential-format + protocol citizen; T3/V3 and witnessing live outside it; the remaining gate is trusted-list membership (governance, not code). See [`docs/strategy/eudi-resolvability-plan.md`](docs/strategy/eudi-resolvability-plan.md) and [`web4-standard/core-spec/did-web4-method.md`](web4-standard/core-spec/did-web4-method.md).
+
 ## Five-minute audit
 
 If you want a fast read on whether this is real, in order:

@@ -1,6 +1,6 @@
 # Web4 Implementation Status
 
-**Last Updated**: May 13, 2026
+**Last Updated**: June 15, 2026
 
 ---
 
@@ -20,6 +20,11 @@ The strongest single proof point: **the same Claude Opus 4.6 you can use today s
 Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4
 
 The strongest single external validation: a 2026-05-13 three-round Kimi 2.6 cross-model review scored architectural coherence 8.5/10 and bootstrap-story 8/10, while sharpening the unit-of-account framing for ATP and surfacing the inter-society protocol gap that the two new specs now address. Verbatim transcript: [`forum/kimi2_6_review.md`](forum/kimi2_6_review.md).
+
+**Recent (June 2026): standards interop + a storage doctrine.**
+
+- **EUDI / W3C-DID interop (code; Phase 0–2 done).** An LCT is now resolvable as a `did:web4` DID Document (W3C DID Core) and expressible as an IETF **SD-JWT-VC** credential, issued/presented over **OpenID4VCI / OpenID4VP** — all in `web4-core` (`did`, `sd_jwt_vc`, `oid4vc`). Person-scale (hestia) and society-scale (hub) issuers, plus a society-scale verifier, complete the round trip. The honest framing: inside the EUDI envelope Web4 is a *credential-format + protocol citizen*; its native trust layer (T3/V3, witnessing) lives outside the envelope, and the remaining gate is **trusted-list membership — governance/legal, not code**. Plan: [`docs/strategy/eudi-resolvability-plan.md`](docs/strategy/eudi-resolvability-plan.md); method spec: [`web4-standard/core-spec/did-web4-method.md`](web4-standard/core-spec/did-web4-method.md).
+- **Vault doctrine (code; in progress).** All settings, identity, and state across the stack move into an encrypted, **recursive, memory-only-unlock** vault (`web4_core::vault`): no plaintext secrets or config at rest, per-item independent locking + liveness gating, and fresh-launch naivety (nothing instance-specific is readable until unlock). Reference substrate is in `web4-core`; rollout is underway across hub/hestia/hardbound.
 
 ---
 
