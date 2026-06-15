@@ -1,6 +1,6 @@
 # Web4 Society–Authority–Law Specification (SAL)
 
-**Status:** Draft • **Last Updated:** 2026-05-31 • **Applies to:** Web4 Core Protocol and Ecosystem
+**Status:** Draft • **Last Updated:** 2026-06-15 • **Applies to:** Web4 Core Protocol and Ecosystem
 
 This document defines the **Society–Authority–Law (SAL)** layer for Web4. It specifies how every entity is *born* into a **fractal graph of authority and law** via a **Citizen** role at LCT genesis, how *authority* is represented and delegated, and how *law* is realized through oracle LCTs that bind enforceable rules to the R6 action grammar.
 
@@ -38,7 +38,7 @@ SAL is normative for identity lifecycle, role prerequisites, provenance, and att
 ### 2.1 Citizen as Genesis Role (Normative)
 When an entity’s LCT is created, implementations **MUST**:
 - Pair the entity with a **Citizen** role **within the issuing society’s context** (immutable birth pairing).
-- Record a **Birth Certificate** object including: issuer society LCT, law-oracle digest, witnesses, timestamp, genesis block reference, and initial rights/responsibilities.
+- Record a **Birth Certificate** object including: issuer society LCT, law-oracle digest, witnesses, timestamp, genesis block reference, and initial rights/obligations.
 - Store the pairing and certificate on the society’s ledger and publish minimal proofs to discovery endpoints.
 
 ### 2.2 Birth Certificate (Canonical JSON-LD)
@@ -52,16 +52,16 @@ When an entity’s LCT is created, implementations **MUST**:
   "lawOracle": "lct:web4:oracle:law:...",
   "lawVersion": "v1.2.0",
   "birthTimestamp": "2025-09-14T12:00:00Z",
-  "witnesses": ["lct:web4:witness1", "lct:web4:witness2"],
+  "witnesses": ["lct:web4:witness:1", "lct:web4:witness:2"],
   "genesisBlock": "block:12345",
-  "rights": ["exist", "interact", "accumulate_reputation"],
+  "rights": ["presence", "interact", "accumulate_reputation"],
   "obligations": ["abide_law", "respect_quorum"]
 }
 ```
 
 ### 2.3 Canonicalization & Signatures
 - JSON messages **MUST** use JCS (RFC 8785) for JOSE/JWS or deterministic CBOR for COSE/EdDSA (MTI), consistent with Security Framework.
-- Birth certificates **MUST** be signed by the society’s binding authority key and **MAY** include witness signatures.
+- Birth certificates **MUST** be signed by the society’s binding authority key and, as the SAL-critical birth event (per §3.4 and §8), **MUST** carry witness co-signatures meeting the society’s quorum policy.
 
 ---
 
@@ -141,7 +141,7 @@ SAL governance actions interact with a society's operational mode as defined in 
 - **Citizenship issuance** (§2.1 Birth Certificate) is sensitive to `accepts_new_citizens` per state — Active SHOULD accept immediately; Rest MAY queue; dormant states SHOULD defer.
 - **Witness quorum requirements** (§3.1) scale down during reduced-operation states; sub-authorities MUST verify that the current state supports the quorum required for their action before issuing.
 
-Implementations MAY treat the metabolic-state check as a precondition of the R6 evaluation pipeline (§6) so that state-incompatible actions are rejected with a clear error before law evaluation runs.
+Implementations MAY treat the metabolic-state check as a precondition of R6 action evaluation (per the R6 action grammar in `r6-framework.md`; see §6 for the SAL↔R6 mapping) so that state-incompatible actions are rejected with a clear error before law evaluation runs.
 
 
 ---
@@ -257,8 +257,10 @@ Implementations **MUST** maintain triples for:
 - `web4:hasLawOracle` (society → law oracle)
 - `web4:pairedWith` (entity ↔ citizenRole)
 - `web4:delegatesTo` (authority → sub‑authority)
+- `web4:publishes` (law oracle → law dataset)
+- `web4:hash` (law dataset → content hash)
+- `web4:scope` (sub‑authority → scope domain)
 
-### 7.2 SPARQL Examples
 ### 7.1.1 Additional Required Triples (Witness/Auditor/Ledger)
 - `web4:hasWitness` (society → witness role)
 - `web4:hasAuditor` (society → auditor role)
@@ -266,22 +268,29 @@ Implementations **MUST** maintain triples for:
 - `web4:adjustedBy` (entity → auditor action)
 - `web4:attestedBy` (event → witness set)
 
+### 7.2 SPARQL Examples
 
 **Find a society’s active law hash:**
 ```sparql
+PREFIX web4: <https://web4.io/ontology#>
+PREFIX lct:  <https://web4.io/lct/>
+
 SELECT ?law ?hash WHERE {
   ?soc web4:hasLawOracle ?lor .
   ?lor web4:publishes ?law .
   ?law web4:hash ?hash .
-  FILTER(?soc = <lct:societyRoot>)
+  FILTER(?soc = lct:societyRoot)
 }
 ```
 
 **Validate an entity’s genesis citizen pairing:**
 ```sparql
+PREFIX web4: <https://web4.io/ontology#>
+PREFIX lct:  <https://web4.io/lct/>
+
 ASK {
-  <lct:entity> web4:pairedWith <lct:roleCitizen> .
-  <lct:entity> web4:memberOf   <lct:societyRoot> .
+  lct:entity web4:pairedWith lct:roleCitizen .
+  lct:entity web4:memberOf   lct:societyRoot .
 }
 ```
 
@@ -306,7 +315,7 @@ ASK {
 | Law hash mismatch | W4_ERR_PROTO_DOWNGRADE | Abort; fetch latest law dataset |
 | Quorum not met | W4_ERR_WITNESS_QUORUM | Retry or escalate per law |
 | Insufficient scope | W4_ERR_AUTHZ_SCOPE | Deny; suggest correct authority path |
-| Expired delegation | W4_ERR_BINDING_REVOKED | Re‑bind under valid authority |
+| Expired delegation | W4_ERR_AUTHZ_EXPIRED | Re‑bind under valid authority |
 
 | Ledger write failed | W4_ERR_LEDGER_WRITE | Retry with backoff; degrade to escrow buffer |
 | Audit evidence insufficient | W4_ERR_AUDIT_EVIDENCE | Reject adjustment; request stronger proofs |
