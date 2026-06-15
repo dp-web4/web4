@@ -8,6 +8,17 @@
 
 A single-binary Rust daemon (~6 MB) that turns a community chapter into a sovereign Web4 society — 7 roles, signed founding charter, append-only witnessed ledger, MCP HTTP server, admin CLI, Docker deployment. First deployment target: a pilot community chapter. Any community willing to operate as a Web4 society can use the same software.
 
+## Witnessed law
+
+The hub does **not** dictate how a society runs — it makes *whatever law the society adopts* auditable, and enforces adherence to it. This is the Web4 posture (see the [root README](../README.md), "Law is witnessed, not dictated") at society scale:
+
+- **Signed, machine-readable law.** A society's rules — admission, role authority, thresholds, what escalates — are a law the PolicyEntity gate evaluates before every consequential act. It is **inspectable by anyone** (`GET /v1/hubs/:id/law`), *including while the hub's vault is locked*: the rules are public even when the hub can't yet act on them.
+- **Changeable only with authority, and witnessed.** Amending the law requires unlock + signing and lands as a `LawAmended` event on the **append-only, hash-chained, witnessed ledger** — alongside every membership, role, skill, and intro act. You cannot quietly change the rules.
+- **Fail-closed secrets.** The Sovereign key is encrypted at rest; the daemon never silently writes a plaintext key (an empty passphrase is allowed but must be *explicit*). A hub whose vault is locked **degrades to a read-only no-LCT surface** rather than running ungoverned.
+- **Governed startup (design posture).** Unlocking a hub is itself meant to be an auditable, governed act — automatable or human-gated per the society's own law, but always recorded. Locked-mode ships today; the witnessed M-of-N / hardware-bound unlock is the roadmap. *Convenience is policy; the audit trail is not.*
+
+We don't mandate the policy. We insist that whatever the policy is, is followed verifiably.
+
 ## Current status
 
 **MVP complete (Sprints 0-6).** Buildable, runnable, documented for chapter organizers. Pilot-ready.
