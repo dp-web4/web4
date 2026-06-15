@@ -48,7 +48,7 @@ use hub_lib::identity::IdentityFile;
 use hub_lib::init::load_society;
 use hub_lib::law::{Decision, DecisionOutcome, Law, R6Request};
 use hub_lib::ledger::HubLedger;
-use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, RemoteSigner, SignIntent};
+use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, LockedSigner, RemoteSigner, SignIntent};
 use hub_lib::state::HubState;
 
 #[derive(Clone)]
@@ -85,6 +85,22 @@ pub struct RestState {
     /// Outstanding OID4VCI `c_nonce`s minted at `/nonce`, consumed at
     /// `/credential` (the hub as society-scale *issuer* of membership creds).
     pub vci_nonces: Arc<Mutex<std::collections::HashSet<String>>>,
+    /// Vault lock state. `true` when the Sovereign identity is encrypted and no
+    /// passphrase was available at startup: the hub runs a degraded **no-LCT
+    /// tier** surface (tier-0 reads only) and refuses everything citizen-tier+
+    /// until unlocked. The signer is a `LockedSigner` (denies all key ops).
+    pub locked: bool,
+}
+
+/// True if the identity at `path` is an encrypted vault (W4VT) **and** no
+/// `HUB_PASSPHRASE` is available — so the hub must start LOCKED. A present-but-
+/// wrong passphrase is deliberately NOT "locked": `load_auto` will hard-error,
+/// surfacing the real problem rather than silently running degraded.
+fn identity_is_locked(path: &std::path::Path) -> bool {
+    if hub_lib::identity::env_passphrase().is_some() {
+        return false;
+    }
+    std::fs::read(path).map(|b| b.starts_with(b"W4VT")).unwrap_or(false)
 }
 
 impl RestState {
@@ -103,32 +119,57 @@ impl RestState {
         let config = hub_lib::hub::HubConfig::load(paths.config())?;
         let society = load_society(&hub_dir).await?;
 
-        // Build the right Sovereign LCT + signer for the chapter's mode.
-        let (sovereign_lct, signer): (_, Arc<dyn RemoteSigner>) = match config.sovereign.mode()? {
-            SovereignMode::Local { lct_path } => {
-                let sovereign = IdentityFile::load_auto(&lct_path)?;
-                let kp = sovereign.keypair()?;
-                let signer = Arc::new(LocalKeypairSigner::new(sovereign.lct.id, kp));
-                (sovereign.lct, signer as Arc<dyn RemoteSigner>)
-            }
-            SovereignMode::Hestia { callback_url, lct_id, pubkey_hex } => {
-                let lct = hub_lib::hub::hestia_sovereign_lct(lct_id, &pubkey_hex)?;
-                let signer = Arc::new(HestiaCallbackSigner::new(lct_id, callback_url)?);
-                (lct, signer as Arc<dyn RemoteSigner>)
-            }
-        };
-
-        // Resolver seeded with the Sovereign LCT + every member's pubkey
-        // from prior MemberAdded events (V2-12). HubState::project walks
-        // the ledger and accumulates member_pubkeys; we reconstruct an Lct
-        // per member so future envelopes from them verify against the
-        // public key recorded at admission time.
-        let mut resolver = MapResolver::new();
-        resolver.insert(sovereign_lct.clone());
+        // Project the ledger once up front — clear sqlite state, readable
+        // without the identity passphrase. Used for resolver seeding AND, in
+        // locked mode, to recover the Sovereign LCT id (the private key is in
+        // the locked vault, but the founding-sovereign id is in Genesis).
         let projected = {
             let l = ledger.lock().await;
             HubState::project(&*l)
         };
+
+        // Build the right Sovereign LCT + signer for the chapter's mode. If the
+        // Local-mode identity is an encrypted vault and no passphrase is
+        // available, start LOCKED: degraded no-LCT-tier surface, no signing.
+        let (sovereign_lct_id, sovereign_lct, signer, locked): (Uuid, Option<_>, Arc<dyn RemoteSigner>, bool) =
+            match config.sovereign.mode()? {
+                SovereignMode::Local { lct_path } if identity_is_locked(&lct_path) => {
+                    let sov_id = projected.founding_sovereign_lct_id.ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Sovereign identity at {} is locked and the ledger has no founding \
+                             sovereign — cannot start even in degraded mode",
+                            lct_path.display()
+                        )
+                    })?;
+                    tracing::warn!(
+                        "Sovereign identity is an encrypted vault with no HUB_PASSPHRASE — \
+                         starting LOCKED (no-LCT-tier surface only; set HUB_PASSPHRASE to unlock)"
+                    );
+                    (sov_id, None, Arc::new(LockedSigner::new(sov_id)) as Arc<dyn RemoteSigner>, true)
+                }
+                SovereignMode::Local { lct_path } => {
+                    let sovereign = IdentityFile::load_auto(&lct_path)?;
+                    let kp = sovereign.keypair()?;
+                    let signer = Arc::new(LocalKeypairSigner::new(sovereign.lct.id, kp));
+                    (sovereign.lct.id, Some(sovereign.lct), signer as Arc<dyn RemoteSigner>, false)
+                }
+                SovereignMode::Hestia { callback_url, lct_id, pubkey_hex } => {
+                    let lct = hub_lib::hub::hestia_sovereign_lct(lct_id, &pubkey_hex)?;
+                    let signer = Arc::new(HestiaCallbackSigner::new(lct_id, callback_url)?);
+                    (lct.id, Some(lct), signer as Arc<dyn RemoteSigner>, false)
+                }
+            };
+
+        // Resolver seeded with the Sovereign LCT (if available) + every member's
+        // pubkey from prior MemberAdded events (V2-12). HubState::project walks
+        // the ledger and accumulates member_pubkeys; we reconstruct an Lct
+        // per member so future envelopes from them verify against the
+        // public key recorded at admission time. (Locked: no Sovereign pubkey to
+        // seed — fine, locked mode does no envelope verification.)
+        let mut resolver = MapResolver::new();
+        if let Some(sl) = &sovereign_lct {
+            resolver.insert(sl.clone());
+        }
         for (member_lct_id, pubkey_hex) in &projected.member_pubkeys {
             match hub_lib::hub::hestia_sovereign_lct(*member_lct_id, pubkey_hex) {
                 Ok(lct) => resolver.insert(lct),
@@ -159,7 +200,7 @@ impl RestState {
             paths,
             hub_id: society.lct_id,
             hub_name: society.name.clone(),
-            sovereign_lct_id: sovereign_lct.id,
+            sovereign_lct_id,
             signer,
             ledger,
             nonces: Arc::new(NonceStore::new()),
@@ -168,6 +209,7 @@ impl RestState {
             constellations: Arc::new(hub_lib::constellation::ConstellationGate::new()),
             vp_requests: Arc::new(Mutex::new(std::collections::HashMap::new())),
             vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            locked,
         })
     }
 
@@ -208,6 +250,8 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/credential", post(vci_credential))
         .route("/v1/hubs/:hub_id/vp/request", post(vp_request))
         .route("/v1/hubs/:hub_id/vp/response", post(vp_response))
+        // tier-0: the hub's law is readable even while the vault is locked
+        .route("/v1/hubs/:hub_id/law", get(read_hub_law))
         .route("/v1/auth/challenge", post(issue_challenge))
         // Hub-named routes (canonical; chapter→hub rename mirrored on
         // Hestia side at hestia@c3932a8 — back-compat /v1/chapters/*
@@ -259,6 +303,16 @@ impl ApiError {
     }
     fn internal(e: anyhow::Error) -> Self {
         Self { status: StatusCode::INTERNAL_SERVER_ERROR, message: format!("{:#}", e) }
+    }
+}
+
+/// The hub's vault is locked: refuse citizen-tier+ work, 503. Tier-0 (no-LCT)
+/// reads (discovery, issuer metadata, law) stay available.
+fn locked_error() -> ApiError {
+    ApiError {
+        status: StatusCode::SERVICE_UNAVAILABLE,
+        message: "hub vault is locked — only tier-0 (non-LCT) reads are served until it is unlocked"
+            .to_string(),
     }
 }
 
@@ -342,6 +396,30 @@ async fn well_known_hub_info(
             public: true,
         }],
     })
+}
+
+// ---------- GET /v1/hubs/:hub_id/law (tier-0: readable while locked) ----------
+
+/// The hub's law, readable in **tier-0** — works even with the vault locked.
+/// "Whatever the law is, it is inspectable without unlock; it cannot be changed
+/// without unlock." (Rollback protection — pinning the served law's hash to the
+/// LawAmended ledger head — is a noted follow-on.)
+async fn read_hub_law(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!("unknown hub {hub_id}")));
+    }
+    let law = s.law.read().await;
+    Ok(Json(match law.as_ref() {
+        Some(l) => serde_json::json!({
+            "version": l.version,
+            "norms": l.norms.len(),
+            "law": serde_json::to_value(l).ok(),
+        }),
+        None => serde_json::json!({ "law": null }),
+    }))
 }
 
 // ---------- OID4VP verifier (EUDI Phase 2, society scale) ----------
@@ -615,6 +693,11 @@ async fn submit_event(
             "chapter id {} does not match this hub's chapter {}",
             hub_id, s.hub_id
         )));
+    }
+    // Acts require the Sovereign signer (to witness them) — unavailable while
+    // the vault is locked.
+    if s.locked {
+        return Err(locked_error());
     }
 
     // 1. Authority check: envelope verifies (signer known, nonce valid,
@@ -918,6 +1001,11 @@ async fn channel_request(
 ) -> Result<Json<ChannelResponse>, ApiError> {
     if hub_id != s.hub_id {
         return Err(ApiError::not_found(format!("unknown hub {hub_id}")));
+    }
+    // The sealed channel is citizen-tier+; a locked vault has no signer to
+    // open/seal it. Refuse cleanly (tier-0 only while locked).
+    if s.locked {
+        return Err(locked_error());
     }
 
     // Resolve the caller's pubkey: a member's is pinned (authoritative); an
@@ -3169,5 +3257,30 @@ norms:
         let pres2 = build_presentation(&s_compact, &stranger, &req2, now).unwrap();
         let refused = vp_response(State(state.clone()), Path(hub_id), Json::<PresentationResponse>(pres2)).await;
         assert!(refused.is_err(), "non-member issuer must be rejected");
+    }
+
+    #[tokio::test]
+    async fn locked_vault_refuses_citizen_tier_but_serves_tier0_law() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.locked = true; // simulate a sealed vault (no signer)
+
+        // Citizen-tier sealed channel → 503 (refused before any crypto).
+        let req = ChannelRequest {
+            caller_lct_id: Uuid::new_v4(),
+            pair_id: Uuid::new_v4(),
+            sealed: "irrelevant".into(),
+            caller_pubkey_hex: None,
+        };
+        let err = channel_request(State(state.clone()), Path(state.hub_id), Json(req))
+            .await
+            .err()
+            .expect("locked hub must refuse the channel");
+        assert_eq!(err.status, StatusCode::SERVICE_UNAVAILABLE);
+
+        // Tier-0 law read still works while locked (law is inspectable without unlock).
+        let law = read_hub_law(State(state.clone()), Path(state.hub_id))
+            .await
+            .expect("law is tier-0 readable while locked");
+        assert!(law.0.get("law").is_some());
     }
 }
