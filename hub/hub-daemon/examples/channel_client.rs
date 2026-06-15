@@ -4,12 +4,19 @@
 //! pinned (`hub set-member-key`). Seals `{tool, args}` to the hub's LCT pubkey,
 //! POSTs, opens the sealed response. Nothing in the clear.
 //!
-//! Usage:
-//!   cargo run --release --example channel_client -- \
-//!     <BASE_URL> <MY_LCT> <KEYPAIR_FILE> <TOOL> [ARGS_JSON]
+//! Output discipline (so it's script-parseable): the sealed-response JSON is the
+//! ONLY thing on **stdout**; all diagnostics go to **stderr**. So `... | jq` just
+//! works — but only if cargo's build chatter stays off stdout. Use `-q` (or run
+//! the prebuilt binary), e.g.:
+//!
+//!   cargo run -q --release --example channel_client -- \
+//!     <BASE_URL> <MY_LCT> <KEYPAIR_FILE> <TOOL> [ARGS_JSON]   | jq
+//!
+//!   # or, no cargo noise at all:
+//!   ./target/release/examples/channel_client <BASE_URL> <MY_LCT> <KEY> <TOOL> [ARGS]
 //!
 //! e.g.
-//!   cargo run --release --example channel_client -- \
+//!   cargo run -q --release --example channel_client -- \
 //!     http://100.65.206.122:8770 83810b44-…-ae5114f747cf ~/.web4/cbp/keypair.bin \
 //!     find_members '{"query":"who knows about evals?","top_k":5}'
 //!
