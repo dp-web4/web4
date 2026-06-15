@@ -158,15 +158,6 @@ pub trait RemoteSigner: Send + Sync {
     /// to the hub) AND decrypts in one step.
     fn channel_open(&self, peer: &PublicKey, pair_id: Uuid, sealed_b64: &str)
         -> std::result::Result<Vec<u8>, SignError>;
-
-    /// The raw local keypair, when this signer holds one in-process. Needed by
-    /// JWS-style issuance (`web4_core::sd_jwt_vc::SdJwtVc::issue` takes a
-    /// `&KeyPair`). `None` for remote/Hestia signers — callers must degrade
-    /// gracefully (issuance → 501) until web4-core grows an
-    /// `issue_with(signer_fn)` variant that can route through a callback.
-    fn local_keypair(&self) -> Option<&KeyPair> {
-        None
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -227,10 +218,6 @@ impl RemoteSigner for LocalKeypairSigner {
 
     fn public_key(&self) -> Option<PublicKey> {
         Some(self.keypair.verifying_key())
-    }
-
-    fn local_keypair(&self) -> Option<&KeyPair> {
-        Some(&self.keypair)
     }
 
     fn channel_seal(&self, peer: &PublicKey, pair_id: Uuid, plaintext: &[u8])
