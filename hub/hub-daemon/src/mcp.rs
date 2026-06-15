@@ -86,7 +86,7 @@ impl McpState {
         let society = load_society(&hub_dir).await?;
         let (sovereign_lct_id, signer): (Uuid, Arc<dyn RemoteSigner>) = match config.sovereign.mode()? {
             SovereignMode::Local { lct_path } => {
-                let sovereign = IdentityFile::load(&lct_path)?;
+                let sovereign = IdentityFile::load_auto(&lct_path)?;
                 let kp = sovereign.keypair()?;
                 let signer = Arc::new(LocalKeypairSigner::new(sovereign.lct.id, kp));
                 (sovereign.lct.id, signer)

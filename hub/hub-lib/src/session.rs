@@ -59,7 +59,7 @@ impl HubSession {
                 );
             }
         };
-        let sovereign = IdentityFile::load(&lct_path)
+        let sovereign = IdentityFile::load_auto(&lct_path)
             .with_context(|| format!(
                 "loading Sovereign identity from {}", lct_path.display()
             ))?;
