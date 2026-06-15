@@ -35,7 +35,7 @@ All implementations MUST use these terms exactly:
 |------|---------|-----------|
 | **LCT** | Linked Context Token | "Lifecycle-Continuous Trust", "Lineage-Context-Task" |
 | **T3** | Trust Tensor (3 root dimensions: Talent/Training/Temperament, fractally extensible via RDF sub-dimensions per `t3v3-ontology.ttl`) | Old 6-flat-dimension schema (`technical_competence`, `social_reliability`, etc.) |
-| **V3** | Value Tensor (3 root dimensions: Valuation/Veracity/Validity, fractally extensible via RDF sub-dimensions per `t3v3-ontology.ttl`) | Old 6-flat-dimension schema (`energy_balance`, `contribution_history`, etc.) |
+| **V3** | Value Tensor (3 root dimensions: Valuation/Veracity/Validity, fractally extensible via RDF sub-dimensions per `t3v3-ontology.ttl`) | Old 6-flat-dimension schema (`contribution_history`, etc.) as a flat top-level V3 — note `energy_balance` remains valid as a sub-dimension of valuation per `t3v3-ontology.ttl` |
 | **MRH** | Markov Relevancy Horizon | "Relevancy Horizon", "Context Horizon" |
 
 ### 1.3 Design Principles
@@ -167,7 +167,7 @@ All implementations MUST use these terms exactly:
 
 **Additional Requirements over Level 1**:
 - `mrh.bound` OR `mrh.paired`: At least one relationship
-- `t3_tensor.dimensions`: All 6 with non-zero values
+- `t3_tensor.dimensions`: All 3 root dimensions non-zero
 - `policy.capabilities`: At least one capability
 
 ```json
@@ -226,8 +226,8 @@ All implementations MUST use these terms exactly:
   "capability_level": 3,
 
   "mrh": {
-    "bound": [...],
-    "paired": [...],
+    "bound": [],
+    "paired": [],
     "witnessing": [
       {
         "lct_id": "lct:web4:oracle:time:global",
@@ -255,7 +255,7 @@ All implementations MUST use these terms exactly:
       "veracity": 0.5,
       "validity": 0.45
     },
-    "composite_score": 0.51,
+    "composite_score": 0.50,
     "computation_witnesses": ["lct:web4:oracle:value:federation"]
   },
 
@@ -281,11 +281,11 @@ All implementations MUST use these terms exactly:
 **Purpose**: Society-issued identities with birth certificates.
 
 **Additional Requirements over Level 3**:
-- `birth_certificate`: Complete with all fields
+- `birth_certificate`: Present with at least `issuing_society` + `citizen_role` (the Level-4 gate per `capability.py`; remaining certificate fields are recommended, not gating)
 - `birth_certificate.birth_witnesses`: Minimum 3
 - `mrh.paired`: Permanent citizen role pairing
-- `lineage`: At least genesis entry
-- `revocation`: Status tracking
+- `lineage`: At least genesis entry (recommended; not enforced as a Level-4 gate)
+- `revocation`: Status tracking (recommended; not enforced as a Level-4 gate)
 
 ```json
 {
@@ -519,7 +519,7 @@ Any entity SHOULD be able to query another LCT's capabilities before establishin
 
   "trust_tier": "medium",
   "composite_t3": 0.59,
-  "composite_v3": 0.51,
+  "composite_v3": 0.50,
 
   "timestamp": "2026-01-03T00:00:00Z",
   "signature": "cose:ES256:..."
@@ -608,10 +608,10 @@ Entities MAY upgrade their capability level by adding required components:
 | Upgrade | Requirements |
 |---------|--------------|
 | 0 → 1 | Add binding with public key, initialize T3/V3 |
-| 1 → 2 | Establish MRH relationship, add policy capability |
+| 1 → 2 | Establish MRH relationship, set non-zero T3 dimensions, add policy capability |
 | 2 → 3 | Add witnessing, get oracle tensors, receive attestation |
 | 3 → 4 | Obtain birth certificate from society |
-| 4 → 5 | Bind to hardware (cannot be done post-hoc) |
+| 4 → 5 | Not an in-place upgrade — re-issue as a new hardware-bound LCT (hardware binding cannot be added post-hoc; see §6.2) |
 
 ### 6.2 Upgrade Constraints
 
@@ -671,7 +671,7 @@ Device (Level 5) wants to pair with Plugin (Level 2)
 
 ### 8.3 Societies MUST
 
-- Issue birth certificates only to entities meeting Level 4 post-issuance requirements (per `LCT-linked-context-token.md` §3.1, the birth certificate is what raises an entity to Level 4)
+- Issue birth certificates only to entities meeting Level 4 post-issuance requirements (issuance mechanics per `LCT-linked-context-token.md` §3.1; the birth certificate's role as the Level-4 gate is defined in §2.6 of this spec)
 - Maintain witness quorum (≥3) for birth certificates
 - Compute T3/V3 via oracles for Level 3+ entities
 - Enforce capability level requirements for membership
