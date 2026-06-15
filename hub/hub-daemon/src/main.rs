@@ -1050,15 +1050,49 @@ async fn run_init(
     Ok(())
 }
 
+/// Resolve the hub vault passphrase, **fail-closed** — there is no
+/// "use plaintext" outcome. Order: `HUB_PASSPHRASE` env (set, INCLUDING empty =
+/// a deliberate NULL passphrase) → interactive TTY prompt (Enter = NULL) → else
+/// error. The vault doctrine: a private key is never written in the clear, and
+/// "no passphrase" must be an explicit choice, never a silent default that could
+/// propagate and erode the trust foundation.
+fn require_passphrase(purpose: &str) -> Result<String> {
+    use std::io::IsTerminal;
+    if let Some(p) = hub_lib::identity::env_passphrase() {
+        return Ok(p); // set — possibly "" (a deliberate NULL choice)
+    }
+    if std::io::stdin().is_terminal() {
+        let p = rpassword::prompt_password(format!(
+            "Hub vault passphrase for {purpose} (press Enter for NO passphrase — \
+             still encrypted, but openable by anyone): "
+        ))
+        .context("reading passphrase")?;
+        return Ok(p);
+    }
+    anyhow::bail!(
+        "HUB_PASSPHRASE is not set and there is no terminal to prompt — refusing to \
+         write a plaintext private key (vault doctrine). Set HUB_PASSPHRASE; an empty \
+         value is allowed but must be explicit (HUB_PASSPHRASE=)."
+    )
+}
+
 async fn run_gen_lct(output: PathBuf, entity_type: EntityType) -> Result<()> {
     let identity = IdentityFile::generate(entity_type);
-    identity.save(&output)?;
-    println!("Identity generated.");
+    // Always encrypted — production never writes a plaintext private key.
+    let pass = require_passphrase("the new identity")?;
+    identity.save_encrypted(&output, &pass)?;
+    println!("Identity generated (encrypted vault).");
     println!("  File:          {}", output.display());
     println!("  LCT id:        {}", identity.lct.id);
     println!("  Entity type:   {:?}", identity.lct.entity_type);
     println!();
-    println!("This file contains private key material. Protect it (chmod 600 recommended).");
+    if pass.is_empty() {
+        println!("WARNING: empty (NULL) passphrase — the vault is encrypted but openable by");
+        println!("         anyone. Re-key with a real HUB_PASSPHRASE when you can.");
+    } else {
+        println!("Encrypted with HUB_PASSPHRASE. Keep that passphrase safe — without it this");
+        println!("identity is unrecoverable.");
+    }
     Ok(())
 }
 
@@ -1066,7 +1100,7 @@ async fn run_envelope_sign(identity_path: PathBuf, nonce: String, payload_json: 
     use chrono::Utc;
     use hub_lib::envelope::{build_envelope, Challenge};
 
-    let identity = IdentityFile::load(&identity_path)
+    let identity = IdentityFile::load_auto(&identity_path)
         .with_context(|| format!("loading identity from {}", identity_path.display()))?;
     let kp = identity.keypair().context("reconstructing keypair")?;
     let payload: serde_json::Value = serde_json::from_str(&payload_json)
@@ -1103,7 +1137,7 @@ async fn run_pair_encrypt(
     use web4_core::crypto::PublicKey;
     use web4_core::pair_channel::{seal, seal_fs, EphemeralKeyPair, ephemeral_public_from_hex};
 
-    let identity = IdentityFile::load(&identity_path)
+    let identity = IdentityFile::load_auto(&identity_path)
         .with_context(|| format!("loading identity from {}", identity_path.display()))?;
     let kp = identity.keypair().context("reconstructing keypair")?;
 
@@ -1150,7 +1184,7 @@ async fn run_pair_decrypt(
     use web4_core::crypto::PublicKey;
     use web4_core::pair_channel::{open, open_fs, Sealed, EphemeralKeyPair, ephemeral_public_from_hex};
 
-    let identity = IdentityFile::load(&identity_path)
+    let identity = IdentityFile::load_auto(&identity_path)
         .with_context(|| format!("loading identity from {}", identity_path.display()))?;
     let kp = identity.keypair().context("reconstructing keypair")?;
 

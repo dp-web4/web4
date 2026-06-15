@@ -154,7 +154,7 @@ pub async fn init_hub(args: InitArgs) -> Result<InitResult> {
     // identity-file-as-secret-store is the MVP bootstrap pattern; secrets
     // belong in Hestia's vault and the file pattern deprecates with
     // V2-7 (Hestia-as-Sovereign). Kept here until that sync point lands.
-    let sovereign = IdentityFile::load(&args.sovereign_lct_path)
+    let sovereign = IdentityFile::load_auto(&args.sovereign_lct_path)
         .with_context(|| format!(
             "loading Sovereign LCT from {}",
             args.sovereign_lct_path.display()
@@ -404,7 +404,7 @@ pub async fn verify_hub(hub_dir: impl AsRef<Path>) -> Result<VerifyResult> {
             } else {
                 hub_dir.join(&lct_path)
             };
-            let identity = IdentityFile::load(&sov_path)
+            let identity = IdentityFile::load_auto(&sov_path)
                 .with_context(|| format!("loading Sovereign identity from {}", sov_path.display()))?;
             identity.lct
         }
