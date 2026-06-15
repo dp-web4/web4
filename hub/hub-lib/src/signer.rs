@@ -167,6 +167,8 @@ pub enum SignerKind {
     LocalKeypair,
     /// Hestia HTTP callback (V2-7 Step 3b.2).
     HestiaCallback,
+    /// Vault locked — no signing capability (degraded no-LCT-tier mode).
+    Locked,
 }
 
 // ============================================================================
@@ -362,6 +364,54 @@ impl RemoteSigner for HestiaCallbackSigner {
         Err(SignError::Internal(anyhow!(
             "member↔hub channel opening is not yet supported in Hestia mode (vault-side ECDH pending)"
         )))
+    }
+}
+
+// ============================================================================
+// LockedSigner — the hub's vault is sealed; no signing capability
+// ============================================================================
+
+/// Installed when the hub starts with its Sovereign identity vault **locked**
+/// (encrypted at rest, no passphrase/unlock available). The hub still runs a
+/// degraded, no-LCT-tier surface (tier-0 reads), but it cannot sign, seal, or
+/// open channels until unlocked — every key op is denied, fail-closed. Holds
+/// only the public Sovereign LCT id (read from the clear ledger) for display.
+pub struct LockedSigner {
+    actor_lct_id: Uuid,
+}
+
+impl LockedSigner {
+    pub fn new(actor_lct_id: Uuid) -> Self {
+        Self { actor_lct_id }
+    }
+    pub fn actor_lct_id(&self) -> Uuid {
+        self.actor_lct_id
+    }
+}
+
+#[async_trait]
+impl RemoteSigner for LockedSigner {
+    async fn sign(
+        &self,
+        _actor_lct_id: Uuid,
+        _signing_bytes: &[u8],
+        _intent: &SignIntent,
+    ) -> std::result::Result<SignatureBytes, SignError> {
+        Err(SignError::Denied("hub vault is locked".to_string()))
+    }
+    fn signer_kind(&self) -> SignerKind {
+        SignerKind::Locked
+    }
+    fn public_key(&self) -> Option<PublicKey> {
+        None // the Sovereign pubkey lives in the locked vault
+    }
+    fn channel_seal(&self, _peer: &PublicKey, _pair_id: Uuid, _plaintext: &[u8])
+        -> std::result::Result<String, SignError> {
+        Err(SignError::Denied("hub vault is locked".to_string()))
+    }
+    fn channel_open(&self, _peer: &PublicKey, _pair_id: Uuid, _sealed_b64: &str)
+        -> std::result::Result<Vec<u8>, SignError> {
+        Err(SignError::Denied("hub vault is locked".to_string()))
     }
 }
 
