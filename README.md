@@ -27,7 +27,7 @@ These three together produce the property: **Web4 is anti-hierarchical by design
 
 **How societies engage each other**: a society's external surface is its MCP server. Other societies invoke its scoped actions (R6/R7) by calling MCP tools with LCT-signed envelopes; querying its state by reading MCP resources; coordinating across federation depth via witness signatures carried in the MCP exchange. The canonical Web4 equation `Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP` has MCP as the **I/O membrane** for exactly this reason — internal structure is `LCT + T3/V3*MRH + ATP/ADP`; the cross-society interface IS MCP. See [`mcp-protocol.md`](web4-standard/core-spec/mcp-protocol.md) §1.1 and §7 for the inter-society binding spec.
 
-**Standards interop (current work)**: an LCT resolves as a `did:web4` DID Document (W3C DID Core) and is expressible as an IETF SD-JWT-VC credential, issued/presented over OpenID4VCI/VP — so a Web4 entity is resolvable and credential-bearing by the EU Digital Identity (EUDI) tooling the EU is legislating into existence, without giving up its native trust layer. Inside the EUDI envelope Web4 is a credential-format + protocol citizen; T3/V3 and witnessing live outside it; the remaining gate is trusted-list membership (governance, not code). See [`docs/strategy/eudi-resolvability-plan.md`](docs/strategy/eudi-resolvability-plan.md) and [`web4-standard/core-spec/did-web4-method.md`](web4-standard/core-spec/did-web4-method.md).
+**Standards interop**: Web4 works *with* the existing identity stack rather than replacing it. An LCT resolves as a `did:web4` DID Document (W3C DID Core) and is expressible as an IETF SD-JWT-VC credential, issued/presented over OpenID4VCI/VP — so a Web4 entity is resolvable and credential-bearing by W3C Verifiable Credentials, OpenID, and the EU Digital Identity Wallet (EUDI/eIDAS) tooling, without giving up its native trust layer (T3/V3, witnessing) — which lives outside the credential envelope. The whitepaper [**Web4 and Standard Credentials**](docs/whitepapers/web4-and-standard-credentials.md) covers how Web4 interoperates with eIDAS/EUDI, W3C VC, and OpenID — and what it adds that they don't have. Implementation: [`docs/strategy/eudi-resolvability-plan.md`](docs/strategy/eudi-resolvability-plan.md) + [`web4-standard/core-spec/did-web4-method.md`](web4-standard/core-spec/did-web4-method.md).
 
 ## Five-minute audit
 
@@ -38,9 +38,10 @@ If you want a fast read on whether this is real, in order:
 3. [**demo/**](demo/) — agent commerce delegation, 166 tests passing.
 4. [**simulations/**](simulations/) — 424 attack vectors / 84 tracks, ~85% detection rate against synthetic adversaries (no red team yet; see STATUS for honest characterization).
 5. [**docs/specs/heterogeneous-identity.md**](docs/specs/heterogeneous-identity.md) — multi-factor identity as a constellation. Answers "what stops a hardware vendor from gating LCT access?" structurally.
-6. [**web4-standard/core-spec/inter-society-protocol.md**](web4-standard/core-spec/inter-society-protocol.md) — society genesis (self-bootstrapped + federation-based), first-contact (3 sovereign options), ATP reification sovereignty, secession.
-7. [**web4-standard/core-spec/society-roles.md**](web4-standard/core-spec/society-roles.md) — 7 base-mandatory roles + context-mandatory (forced by outward role) + optional, with fractal composability and audit implications.
-8. [**forum/kimi2_6_review.md**](forum/kimi2_6_review.md) — independent cross-model review (Kimi 2.6) with three rounds of dialogue. External scrutiny on the work, raw and verbatim.
+6. [**docs/whitepapers/web4-and-standard-credentials.md**](docs/whitepapers/web4-and-standard-credentials.md) — how Web4 interoperates with eIDAS/EUDI, W3C Verifiable Credentials, and OpenID (did:web4, SD-JWT-VC, OID4VCI/VP) — and what it adds that they don't.
+7. [**web4-standard/core-spec/inter-society-protocol.md**](web4-standard/core-spec/inter-society-protocol.md) — society genesis (self-bootstrapped + federation-based), first-contact (3 sovereign options), ATP reification sovereignty, secession.
+8. [**web4-standard/core-spec/society-roles.md**](web4-standard/core-spec/society-roles.md) — 7 base-mandatory roles + context-mandatory (forced by outward role) + optional, with fractal composability and audit implications.
+9. [**forum/kimi2_6_review.md**](forum/kimi2_6_review.md) — independent cross-model review (Kimi 2.6) with three rounds of dialogue. External scrutiny on the work, raw and verbatim.
 
 ---
 
