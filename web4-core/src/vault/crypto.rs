@@ -30,6 +30,12 @@ impl DerivedKey {
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
+
+    /// Wrap a raw 32-byte key (e.g. derived once and cached, or unsealed from
+    /// hardware) so it can be used with [`encrypt`]/[`decrypt`]/[`seal`].
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        DerivedKey(bytes)
+    }
 }
 
 impl Drop for DerivedKey {
@@ -78,6 +84,28 @@ pub fn decrypt(key: &DerivedKey, nonce: &[u8; 12], ciphertext: &[u8]) -> Result<
         .map_err(|_| Web4Error::DecryptionFailed)
 }
 
+/// Self-framing seal: encrypt `plaintext` under `key` with a fresh random nonce,
+/// returning `nonce(12) || ciphertext`. The companion [`open`] reverses it. For
+/// callers that want to encrypt individual blobs (a file, a ledger line) with a
+/// key they already hold, without managing nonces themselves.
+pub fn seal(key: &DerivedKey, plaintext: &[u8]) -> Result<Vec<u8>> {
+    let nonce = generate_nonce();
+    let ct = encrypt(key, &nonce, plaintext)?;
+    let mut out = Vec::with_capacity(12 + ct.len());
+    out.extend_from_slice(&nonce);
+    out.extend_from_slice(&ct);
+    Ok(out)
+}
+
+/// Reverse [`seal`]: split `nonce(12) || ciphertext` and decrypt.
+pub fn open(key: &DerivedKey, blob: &[u8]) -> Result<Vec<u8>> {
+    if blob.len() < 12 {
+        return Err(Web4Error::Vault("sealed blob too short".into()));
+    }
+    let nonce: [u8; 12] = blob[..12].try_into().expect("checked len");
+    decrypt(key, &nonce, &blob[12..])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,6 +123,21 @@ mod tests {
             derive_key("pw", &s1).unwrap().as_bytes(),
             derive_key("pw", &s2).unwrap().as_bytes()
         );
+    }
+
+    #[test]
+    fn seal_open_round_trip_with_raw_key() {
+        let key = DerivedKey::from_bytes([9u8; 32]);
+        let blob = seal(&key, b"ledger entry").unwrap();
+        // nonce(12) framing + ciphertext+tag; not the plaintext.
+        assert!(blob.len() > 12);
+        assert_ne!(&blob[12..], b"ledger entry");
+        assert_eq!(open(&key, &blob).unwrap(), b"ledger entry");
+        // Wrong key fails.
+        assert!(matches!(
+            open(&DerivedKey::from_bytes([1u8; 32]), &blob),
+            Err(Web4Error::DecryptionFailed)
+        ));
     }
 
     #[test]
