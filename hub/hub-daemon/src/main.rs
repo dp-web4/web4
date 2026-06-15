@@ -96,6 +96,16 @@ enum Command {
         entity_type: CliEntityType,
     },
 
+    /// Migrate a plaintext identity file to an encrypted vault in place (the
+    /// vault doctrine). Reads via load_auto (plaintext OR already-encrypted),
+    /// re-writes encrypted under the resolved passphrase (HUB_PASSPHRASE / TTY
+    /// prompt; empty = a deliberate NULL choice). Idempotent — re-sealing an
+    /// already-encrypted file just re-keys it. Back up the file first.
+    SealIdentity {
+        /// Path to the identity file to seal in place.
+        path: PathBuf,
+    },
+
     /// V2-7 helper: build + print a SignedEnvelope for a given payload.
     ///
     /// Reads a keypair from an IdentityFile, signs (signer_lct_id ||
@@ -476,6 +486,7 @@ async fn main() -> Result<()> {
         Some(Command::GenLct { output, entity_type }) => {
             run_gen_lct(output, entity_type.into()).await
         }
+        Some(Command::SealIdentity { path }) => run_seal_identity(path).await,
         Some(Command::EnvelopeSign { identity, nonce, payload }) => {
             run_envelope_sign(identity, nonce, payload).await
         }
@@ -1074,6 +1085,24 @@ fn require_passphrase(purpose: &str) -> Result<String> {
          write a plaintext private key (vault doctrine). Set HUB_PASSPHRASE; an empty \
          value is allowed but must be explicit (HUB_PASSPHRASE=)."
     )
+}
+
+async fn run_seal_identity(path: PathBuf) -> Result<()> {
+    // load_auto reads plaintext (legacy) OR an already-encrypted vault.
+    let identity = IdentityFile::load_auto(&path)
+        .with_context(|| format!("loading identity from {}", path.display()))?;
+    let pass = require_passphrase("this identity")?;
+    identity.save_encrypted(&path, &pass)
+        .with_context(|| format!("sealing identity into {}", path.display()))?;
+    let raw = std::fs::read(&path)?;
+    println!("Identity sealed in place: {}", path.display());
+    println!("  LCT id:    {}", identity.lct.id);
+    println!("  On disk:   {} (encrypted vault)", if raw.starts_with(b"W4VT") { "W4VT" } else { "??" });
+    if pass.is_empty() {
+        println!("  WARNING: empty (NULL) passphrase — encrypted but openable by anyone.");
+    }
+    println!("  The plaintext private key is no longer on disk. Keep the passphrase safe.");
+    Ok(())
 }
 
 async fn run_gen_lct(output: PathBuf, entity_type: EntityType) -> Result<()> {
