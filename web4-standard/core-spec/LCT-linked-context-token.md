@@ -1,7 +1,7 @@
 # Linked Context Token (LCT) - Core Specification
 
 **Status**: Core Specification v1.0.0
-**Date**: May 31, 2026
+**Date**: June 15, 2026
 **Category**: Identity & Context
 
 ## Abstract
@@ -298,7 +298,7 @@ For an LCT to serve as a birth certificate, it MUST:
 3. **Be attested by birth witnesses** in `attestations`:
    - Each witness MUST sign existence attestation
    - Minimum quorum: 3 witnesses
-   - Witnesses MUST be members of issuing society
+   - Witnesses MUST be members of issuing society (enforcement is implementation-defined; the §11.2 reference validator checks quorum and per-witness attestation but does not currently verify society membership)
 
 ### 4.3 Birth Certificate vs. Regular LCT
 
@@ -382,7 +382,7 @@ Every LCT MUST contain a `t3_tensor` with the three canonical root dimensions. E
 - **Training**: Has it learned how? (knowledge/experience)
 - **Temperament**: Will it behave appropriately? (disposition/reliability)
 
-**Canonical weights** (normative): Implementations MUST compute `composite_score` as a weighted sum of the three root dimensions:
+**Canonical weights**: the normative source for these constants is the protocol-invariant parameter table in [`t3-v3-tensors.md` §10.2](t3-v3-tensors.md) (which declares itself "the normative source for all protocol-invariant formulas, weights, and constants"). Implementations MUST compute `composite_score` as the weighted sum of the three root dimensions stated there:
 
 ```
 composite_score = 0.4 · talent + 0.3 · training + 0.3 · temperament
@@ -407,7 +407,7 @@ Every LCT MUST contain a `v3_tensor` with the three canonical root dimensions, f
     "veracity": 0.0-1.0,                  // Truthfulness/accuracy (root aggregate)
     "validity": 0.0-1.0,                  // Soundness of reasoning (root aggregate)
     "sub_dimensions": {},                  // OPTIONAL: domain-specific refinements
-    "composite_score": 0.0-1.0,
+    "composite_score": 0.0+,              // CAN exceed 1.0 when valuation does (see note)
     "last_computed": "ISO 8601",
     "computation_witnesses": ["lct:..."]
   }
@@ -419,7 +419,7 @@ Every LCT MUST contain a `v3_tensor` with the three canonical root dimensions, f
 - **Veracity**: How truthful are claims? (accuracy/reproducibility)
 - **Validity**: How sound is the reasoning? (confirmed value delivery)
 
-**Canonical weights** (normative): Implementations MUST compute `composite_score` as a weighted sum of the three root dimensions:
+**Canonical weights**: as with T3, the normative source for these constants is the protocol-invariant parameter table in [`t3-v3-tensors.md` §10.2](t3-v3-tensors.md). Implementations MUST compute `composite_score` as the weighted sum of the three root dimensions stated there:
 
 ```
 composite_score = 0.3 · valuation + 0.35 · veracity + 0.35 · validity
@@ -474,7 +474,7 @@ Society: Create new LCT
   - Same subject DID
   - Lineage points to parent LCT
 Society: Overlap window (24-48 hours)
-  - Both LCTs valid
+  - Both LCTs valid (new LCT status = "active"; parent stays "active" until retired)
   - Relationships migrate to new LCT
 Society: Retire parent LCT
   - Mark as "superseded"
@@ -505,8 +505,8 @@ Effect:
 LCTs resist forgery because:
 - **Cryptographic binding**: Requires private key signature
 - **Hardware anchors**: Optional TPM/secure element attestation
-- **Witness quorum**: Birth requires multiple independent witnesses
-- **Blockchain anchor**: Genesis block hash creates temporal proof
+- **Witness quorum**: Birth requires a quorum (≥3) of witnesses (witness distinctness / anti-collusion is not asserted by this property alone — birth witnesses are members of the issuing society per §4.2)
+- **Blockchain anchor**: Genesis block hash creates temporal proof (when present; `genesis_block_hash` is RECOMMENDED, not required — see §4.2)
 
 ### 8.2 Context Integrity
 
@@ -521,7 +521,7 @@ LCTs maintain context integrity through:
 LCTs protect privacy through:
 - **Minimal disclosure**: Only expose necessary capabilities
 - **Pseudonymous DIDs**: Subject can be key-based DID
-- **Selective attestation**: Share only relevant witnesses
+- **Selective attestation**: Non-birth attestations may share only relevant witnesses (birth certificates require the full `birth_witnesses` set per §11.2, so selective disclosure does not apply to them)
 - **MRH pruning**: Old relationships can be archived
 
 ## 9. Implementation Requirements
@@ -545,7 +545,7 @@ LCTs protect privacy through:
 ### 9.3 Witnesses MUST
 
 - Sign attestations only for observed events
-- Never attest to future timestamps
+- Never attest to future timestamps (verification is implementation-defined — the protocol mandates no reference clock, skew tolerance, or error path; treat as an advisory honesty constraint on witnesses)
 - Maintain witness reputation (their own T3)
 - Participate in quorum requirements
 - Revoke compromised attestations
@@ -650,10 +650,14 @@ def validate_birth_certificate(lct):
 
     # Witness attestations
     for witness in bc["birth_witnesses"]:
-        assert witness_attested(lct, witness)
+        assert witness_attested(lct, witness)   # implementation-defined
 
     return True
 ```
+
+**Implementation-defined helper** (expected semantics for the call above, mirroring the §11.1 trio):
+
+- `witness_attested(lct, witness)`: MUST verify that the LCT carries an existence attestation from `witness` for this birth — i.e. an entry in `lct["attestations"]` whose witness LCT equals `witness`, whose `type` covers the birth/existence claim, and (at the verifying party's assurance level) whose signature is a valid COSE_Sign1 over the attested claims using that witness's bound public key. A present-only check (entry exists) is the minimum; a COSE-verified check is RECOMMENDED. The collection consulted is the LCT's `attestations` array (§2.3); implementations MAY additionally consult an out-of-band witness registry.
 
 ## 12. Future Extensions
 
@@ -688,6 +692,6 @@ def validate_birth_certificate(lct):
 
 **Version**: 1.0.0
 **Status**: Core Specification
-**Last Updated**: May 31, 2026
+**Last Updated**: June 15, 2026
 
 *"An LCT is not an identity. It is a presence - witnessed, contextualized, and witness-hardened."*
