@@ -271,6 +271,40 @@ pub enum HubEvent {
         posted_at: DateTime<Utc>,
         payload_hash: String,
     },
+
+    /// Tier-2 vault unlock — the ignited hub asked its M-of-N admins (the
+    /// Sovereign Council) to authorize unlocking a protected tier. Issued with
+    /// a fresh challenge; the start of a witnessed quorum decision. "A 3am
+    /// auto-unlock is a visible, declinable record, not a silent file read."
+    VaultUnlockRequested {
+        challenge_id: Uuid,
+        tier: String,
+        /// How many distinct admin approvals this tier requires (the council M).
+        required: u32,
+        requested_at: DateTime<Utc>,
+    },
+
+    /// An admin submitted a signed decision for an outstanding unlock challenge.
+    /// The attestation is verified by the (private) quorum engine; this records
+    /// that a decision was received + from whom, for audit. `decision` is the
+    /// admin's own word ("approve" / "decline"); a decline is a witnessed veto.
+    VaultUnlockAttested {
+        challenge_id: Uuid,
+        admin_lct_id: Uuid,
+        decision: String,
+        attested_at: DateTime<Utc>,
+    },
+
+    /// The quorum resolved: granted iff distinct, fresh, roster-verified
+    /// approvals reached the threshold (declines veto). The audited outcome.
+    VaultUnlockResolved {
+        challenge_id: Uuid,
+        tier: String,
+        granted: bool,
+        approvals: Vec<Uuid>,
+        declines: Vec<Uuid>,
+        resolved_at: DateTime<Utc>,
+    },
 }
 
 /// Why a pair ended. Captures audit-relevant intent so V3 trust
@@ -317,6 +351,9 @@ impl HubEvent {
             Self::PairingConfirmed { .. } => "pairing_confirmed",
             Self::PairingRevoked { .. } => "pairing_revoked",
             Self::PairMessagePosted { .. } => "pair_message_posted",
+            Self::VaultUnlockRequested { .. } => "vault_unlock_requested",
+            Self::VaultUnlockAttested { .. } => "vault_unlock_attested",
+            Self::VaultUnlockResolved { .. } => "vault_unlock_resolved",
         }
     }
 }

@@ -285,7 +285,12 @@ impl HubState {
             HubEvent::RoleAssigned { .. }
             | HubEvent::EventRecorded { .. }
             | HubEvent::CharterAmended { .. }
-            | HubEvent::LawAmended { .. } => {
+            | HubEvent::LawAmended { .. }
+            // Vault-unlock events are audit-only: the witnessed record of a
+            // tier-2 M-of-N decision. They don't change member/role/pair state.
+            | HubEvent::VaultUnlockRequested { .. }
+            | HubEvent::VaultUnlockAttested { .. }
+            | HubEvent::VaultUnlockResolved { .. } => {
                 // Not projected into HubState yet — these affect society.json /
                 // charter.json / hub-law.yaml instead. Future sprints surface
                 // them here too.

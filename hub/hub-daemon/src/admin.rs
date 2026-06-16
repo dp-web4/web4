@@ -655,6 +655,33 @@ fn event_summary(event: &HubEvent) -> String {
                 short(pair_id),
             )
         }
+        HubEvent::VaultUnlockRequested { challenge_id, tier, required, .. } => {
+            format!(
+                "🔒 Tier-2 unlock requested for \"{}\" (need {}) <span class=\"muted\">[{}]</span>",
+                html_escape(tier),
+                required,
+                short(challenge_id),
+            )
+        }
+        HubEvent::VaultUnlockAttested { challenge_id, admin_lct_id, decision, .. } => {
+            format!(
+                "🔑 Admin {} {} unlock <span class=\"muted\">[{}]</span>",
+                short(admin_lct_id),
+                html_escape(decision),
+                short(challenge_id),
+            )
+        }
+        HubEvent::VaultUnlockResolved { challenge_id, tier, granted, approvals, declines, .. } => {
+            format!(
+                "{} Tier-2 unlock of \"{}\" — {}/{}↑ {}↓ <span class=\"muted\">[{}]</span>",
+                if *granted { "🔓" } else { "⛔" },
+                html_escape(tier),
+                approvals.len(),
+                approvals.len(),
+                declines.len(),
+                short(challenge_id),
+            )
+        }
     }
 }
 
