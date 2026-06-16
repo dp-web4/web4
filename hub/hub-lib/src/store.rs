@@ -24,11 +24,17 @@
 //!
 //! ## Posture (per architecture commitment #8)
 //!
-//! Hub storage is **secrets-free by design**. Everything in this trait
-//! is signed (for integrity) but not encrypted (for confidentiality of the
-//! data itself). Confidentiality, where needed, comes from the vault's
-//! authority+need-to-know gate at the access boundary — not from sealing
-//! bytes in storage.
+//! Hub storage holds **no signing keys** — those live only in the identity
+//! vault (commitment #8). But the state it *does* hold (member roster, pinned
+//! member pubkeys, pairings, profiles, the ledger) is confidential, so the
+//! SQLite backend is **encrypted at rest** (SQLCipher) under a key derived from
+//! the same vault passphrase (`HUB_PASSPHRASE`). A sealed hub thus protects not
+//! just its key but everything it knows — closing the gap where `hub.db` sat in
+//! world-readable plaintext next to the encrypted identity. Legacy plaintext
+//! DBs migrate in place on first open with a passphrase; with no passphrase a
+//! plaintext DB still opens (legacy/NULL) but an encrypted one fails closed.
+//! Integrity still comes from the signed hash-chain; access control still comes
+//! from the authority+need-to-know gate. Encryption at rest is the third layer.
 //!
 //! ## Backends
 //!
@@ -219,13 +225,93 @@ pub fn open_hub_store(hub_dir: impl AsRef<Path>) -> Result<Box<dyn HubStore>> {
     let db_path = hub_dir.join(SQLITE_DB_FILENAME);
     let legacy_db_path = hub_dir.join(SQLITE_DB_FILENAME_LEGACY);
 
+    let key = store_key(hub_dir)?;
     if db_path.exists() {
-        Ok(Box::new(SqliteBackend::open(&db_path)?))
+        Ok(Box::new(SqliteBackend::open(&db_path, key)?))
     } else if legacy_db_path.exists() {
         // Pre-rename hub dir — open the legacy chapter.db in place.
-        Ok(Box::new(SqliteBackend::open(&legacy_db_path)?))
+        Ok(Box::new(SqliteBackend::open(&legacy_db_path, key)?))
     } else {
         Ok(Box::new(FileBackend::new(paths)))
+    }
+}
+
+/// True if `path` begins with the plaintext SQLite magic — i.e. not yet
+/// SQLCipher-encrypted (an encrypted header is indistinguishable from random).
+fn is_plaintext_sqlite(path: &Path) -> bool {
+    use std::io::Read;
+    let mut hdr = [0u8; 16];
+    std::fs::File::open(path)
+        .and_then(|mut f| f.read_exact(&mut hdr))
+        .map(|_| &hdr == b"SQLite format 3\0")
+        .unwrap_or(false)
+}
+
+/// Migrate a plaintext `hub.db` to a SQLCipher-encrypted one in place,
+/// preserving every row + the ledger order. Checkpoints the WAL, uses
+/// `sqlcipher_export` to copy the whole schema + data into a freshly-keyed DB,
+/// then atomically replaces the original and clears the stale WAL/SHM sidecars.
+/// `key_hex` is `[0-9a-f]` only, so single-quoting it in the SQL is safe.
+fn migrate_plaintext_to_encrypted(path: &Path, key_hex: &str) -> Result<()> {
+    let tmp = path.with_extension("db.enc-migrating");
+    let _ = std::fs::remove_file(&tmp);
+    {
+        let conn = rusqlite::Connection::open(path)
+            .with_context(|| format!("opening plaintext hub.db for migration: {}", path.display()))?;
+        // Flush any WAL into the main file so the export sees all committed rows.
+        let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+        conn.execute_batch(&format!(
+            "ATTACH DATABASE '{}' AS enc KEY '{}'; \
+             SELECT sqlcipher_export('enc'); \
+             DETACH DATABASE enc;",
+            tmp.display(),
+            key_hex,
+        ))
+        .context("exporting plaintext hub state into an encrypted copy")?;
+    }
+    std::fs::rename(&tmp, path).context("replacing plaintext hub.db with the encrypted copy")?;
+    // The old plaintext WAL/SHM sidecars are stale for the new (encrypted) file.
+    for ext in ["db-wal", "db-shm"] {
+        let _ = std::fs::remove_file(path.with_extension(ext));
+    }
+    Ok(())
+}
+
+/// Derive the at-rest **SQLCipher key** for this hub's state DB from the vault
+/// passphrase (`HUB_PASSPHRASE`), salted per-hub. `None` when no passphrase is
+/// available — then a plaintext DB opens as-is (legacy / fresh), and an
+/// already-encrypted DB fails to open (fail-closed; ignite tier-1 first).
+///
+/// The hub STATE (member roster, pinned member pubkeys, pairings, profiles,
+/// ledger) is thus encrypted at rest under the same secret that guards the
+/// identity — closing the gap where a sealed hub's *key* was protected but
+/// everything it *knows* sat in world-readable plaintext next to it.
+fn store_key(hub_dir: &Path) -> Result<Option<[u8; 32]>> {
+    let Some(passphrase) = crate::identity::env_passphrase() else {
+        return Ok(None);
+    };
+    let salt = load_or_create_store_salt(hub_dir)?;
+    let dk = web4_core::vault::crypto::derive_key(&passphrase, &salt)
+        .map_err(|e| anyhow::anyhow!("deriving hub store key: {e}"))?;
+    Ok(Some(*dk.as_bytes()))
+}
+
+/// Per-hub salt for [`store_key`], stored clear (salts aren't secret) at
+/// `<hub-dir>/.store-salt`. Generated once on first use.
+fn load_or_create_store_salt(hub_dir: &Path) -> Result<[u8; 16]> {
+    let salt_path = hub_dir.join(".store-salt");
+    if salt_path.exists() {
+        let raw = std::fs::read(&salt_path)
+            .with_context(|| format!("reading store salt {}", salt_path.display()))?;
+        raw.as_slice()
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("store salt at {} must be 16 bytes", salt_path.display()))
+    } else {
+        let s = web4_core::vault::crypto::generate_salt();
+        std::fs::create_dir_all(hub_dir).ok();
+        std::fs::write(&salt_path, s)
+            .with_context(|| format!("writing store salt {}", salt_path.display()))?;
+        Ok(s)
     }
 }
 
@@ -243,7 +329,8 @@ pub fn open_hub_store_with(
             std::fs::create_dir_all(hub_dir)
                 .with_context(|| format!("creating hub dir {}", hub_dir.display()))?;
             let db_path = hub_dir.join(SQLITE_DB_FILENAME);
-            Ok(Box::new(SqliteBackend::open(&db_path)?))
+            let key = store_key(hub_dir)?;
+            Ok(Box::new(SqliteBackend::open(&db_path, key)?))
         }
         BackendKind::Dynamodb => {
             // DynamoDB needs out-of-band config (table name, AWS region,
@@ -612,7 +699,13 @@ impl std::fmt::Debug for SqliteBackend {
 }
 
 impl SqliteBackend {
-    pub fn open(db_path: impl AsRef<Path>) -> Result<Self> {
+    /// Open (or create) the hub state DB. When `key` is `Some`, the DB is
+    /// **SQLCipher-encrypted at rest** under that key; a legacy plaintext
+    /// `hub.db` is migrated in place on first open (crash-safe, all rows
+    /// preserved). When `key` is `None`, a plaintext DB opens as-is, and an
+    /// already-encrypted DB **fails to open** (fail-closed — the state needs
+    /// the vault passphrase).
+    pub fn open(db_path: impl AsRef<Path>, key: Option<[u8; 32]>) -> Result<Self> {
         let db_path = db_path.as_ref().to_path_buf();
         if let Some(parent) = db_path.parent() {
             if !parent.as_os_str().is_empty() && !parent.exists() {
@@ -620,14 +713,40 @@ impl SqliteBackend {
                     .with_context(|| format!("creating parent dir {}", parent.display()))?;
             }
         }
+
+        // Whether the DB already existed on disk BEFORE we (possibly) create it
+        // below — captured first, because `Connection::open` creates an empty
+        // file whose 0-byte header would otherwise read as "not plaintext".
+        let preexisting = db_path.exists();
+
+        // One-time at-rest migration: re-encrypt a legacy plaintext hub.db.
+        if let Some(k) = key {
+            if preexisting && is_plaintext_sqlite(&db_path) {
+                migrate_plaintext_to_encrypted(&db_path, &hex::encode(k))
+                    .with_context(|| format!("encrypting plaintext hub state at {}", db_path.display()))?;
+            }
+        }
+
         let conn = rusqlite::Connection::open(&db_path)
             .with_context(|| format!("opening sqlite db at {}", db_path.display()))?;
+        // SQLCipher: key the connection BEFORE any other access.
+        if let Some(k) = key {
+            conn.pragma_update(None, "key", hex::encode(k))
+                .context("applying SQLCipher key to hub state")?;
+        } else if preexisting && !is_plaintext_sqlite(&db_path) {
+            // Encrypted DB but no key available → fail closed, don't corrupt.
+            anyhow::bail!(
+                "hub state at {} is encrypted but no HUB_PASSPHRASE is set — \
+                 set the vault passphrase to open it (the state needs tier-1 ignition)",
+                db_path.display()
+            );
+        }
         // Enforce foreign keys + reasonable durability defaults
         conn.execute_batch(
             "PRAGMA foreign_keys = ON;
              PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;",
-        ).context("setting sqlite pragmas")?;
+        ).context("setting sqlite pragmas (wrong passphrase, or not a hub DB?)")?;
         // Schema
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS metadata (
@@ -934,7 +1053,7 @@ mod tests {
         let tmp = tempdir().unwrap();
         let hub_dir = tmp.path().join("test-chapter");
         std::fs::create_dir_all(&hub_dir).unwrap();
-        let backend = SqliteBackend::open(hub_dir.join(SQLITE_DB_FILENAME)).unwrap();
+        let backend = SqliteBackend::open(hub_dir.join(SQLITE_DB_FILENAME), None).unwrap();
         (tmp, backend)
     }
 
@@ -1041,16 +1160,52 @@ mod tests {
         };
 
         {
-            let mut b = SqliteBackend::open(&db_path).unwrap();
+            let mut b = SqliteBackend::open(&db_path, None).unwrap();
             b.ledger_append(&e0).await.unwrap();
             assert!(!b.ledger_is_empty().await.unwrap());
         }
 
-        let b2 = SqliteBackend::open(&db_path).unwrap();
+        let b2 = SqliteBackend::open(&db_path, None).unwrap();
         let loaded = b2.ledger_load_all().await.unwrap();
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].index, 0);
         assert_eq!(loaded[0].actor_lct_id, founder);
+    }
+
+    #[tokio::test]
+    async fn sqlite_plaintext_migrates_to_encrypted_preserving_rows() {
+        let tmp = tempdir().unwrap();
+        let db_path = tmp.path().join(SQLITE_DB_FILENAME);
+        let founder = Uuid::new_v4();
+        let charter = Charter::found("Sealed".into(), founder);
+
+        // 1. Create a PLAINTEXT db (no key) + write a row.
+        {
+            let mut b = SqliteBackend::open(&db_path, None).unwrap();
+            b.write_charter(&charter).await.unwrap();
+        }
+        assert!(is_plaintext_sqlite(&db_path), "starts as plaintext");
+
+        // 2. Reopen WITH a key → migrates in place, row preserved.
+        let key = [7u8; 32];
+        {
+            let b = SqliteBackend::open(&db_path, Some(key)).unwrap();
+            let loaded = b.read_charter().await.unwrap().expect("charter survived migration");
+            assert_eq!(loaded.founding_sovereign_lct_id, founder);
+        }
+        assert!(!is_plaintext_sqlite(&db_path), "now encrypted at rest");
+
+        // 3. Reopen with the SAME key → still readable.
+        {
+            let b = SqliteBackend::open(&db_path, Some(key)).unwrap();
+            assert!(b.read_charter().await.unwrap().is_some());
+        }
+
+        // 4. Fail-closed: no key on an encrypted db is refused.
+        assert!(SqliteBackend::open(&db_path, None).is_err(), "encrypted db needs a key");
+
+        // 5. Wrong key is refused (SQLCipher rejects at first access).
+        assert!(SqliteBackend::open(&db_path, Some([9u8; 32])).is_err(), "wrong key rejected");
     }
 
     #[tokio::test]
@@ -1085,7 +1240,7 @@ mod tests {
         let hub_dir = tmp.path().join("test-chapter");
         std::fs::create_dir_all(&hub_dir).unwrap();
         // Create an empty sqlite db
-        let _ = SqliteBackend::open(hub_dir.join(SQLITE_DB_FILENAME)).unwrap();
+        let _ = SqliteBackend::open(hub_dir.join(SQLITE_DB_FILENAME), None).unwrap();
         // open_hub_store should now pick sqlite
         let store = open_hub_store(&hub_dir).unwrap();
         assert_eq!(store.backend_kind(), BackendKind::Sqlite);
@@ -1098,7 +1253,7 @@ mod tests {
         let tmp = tempdir().unwrap();
         let hub_dir = tmp.path().join("legacy-hub");
         std::fs::create_dir_all(&hub_dir).unwrap();
-        let _ = SqliteBackend::open(hub_dir.join(SQLITE_DB_FILENAME_LEGACY)).unwrap();
+        let _ = SqliteBackend::open(hub_dir.join(SQLITE_DB_FILENAME_LEGACY), None).unwrap();
         assert!(!hub_dir.join(SQLITE_DB_FILENAME).exists(), "no hub.db, only legacy chapter.db");
         let store = open_hub_store(&hub_dir).unwrap();
         assert_eq!(store.backend_kind(), BackendKind::Sqlite);

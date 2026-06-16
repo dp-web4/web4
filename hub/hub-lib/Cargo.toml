@@ -20,7 +20,7 @@ toml = "0.8"
 hex = "0.4"
 serde_yaml = "0.9"
 semver = "1"
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.31", features = ["bundled-sqlcipher"] }
 rand = "0.8"
 thiserror = "1"
 async-trait = "0.1"
