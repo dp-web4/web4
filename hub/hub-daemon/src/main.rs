@@ -106,6 +106,18 @@ enum Command {
         path: PathBuf,
     },
 
+    /// The **stub-console unlock plugin**: unlock a locked, running hub by
+    /// presenting the tier-1 passphrase. Prompts for the passphrase (or reads
+    /// `HUB_PASSPHRASE`), **uses it once and never stores it**, and POSTs it to
+    /// the hub's local-only `/unlock` slot (127.0.0.1), promoting it locked →
+    /// unlocked in place. Run this on the hub host. Empty (just Enter) = the
+    /// explicit NULL-passphrase choice.
+    Unlock {
+        /// Port the hub is serving on (default 8770).
+        #[arg(long, default_value = "8770")]
+        port: u16,
+    },
+
     /// V2-7 helper: build + print a SignedEnvelope for a given payload.
     ///
     /// Reads a keypair from an IdentityFile, signs (signer_lct_id ||
@@ -487,6 +499,7 @@ async fn main() -> Result<()> {
             run_gen_lct(output, entity_type.into()).await
         }
         Some(Command::SealIdentity { path }) => run_seal_identity(path).await,
+        Some(Command::Unlock { port }) => run_unlock(port).await,
         Some(Command::EnvelopeSign { identity, nonce, payload }) => {
             run_envelope_sign(identity, nonce, payload).await
         }
@@ -935,9 +948,15 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
     println!("  Stop:         Ctrl-C");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    // `into_make_service_with_connect_info` exposes the peer `SocketAddr` to
+    // handlers (the unlock slot uses it to enforce loopback-only). Other
+    // handlers are unaffected.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
 
     println!("hub serve — shut down cleanly");
     Ok(())
@@ -1103,6 +1122,57 @@ async fn run_seal_identity(path: PathBuf) -> Result<()> {
     }
     println!("  The plaintext private key is no longer on disk. Keep the passphrase safe.");
     Ok(())
+}
+
+/// The stub-console unlock plugin: prompt for the passphrase (never store it)
+/// and present it to a locked, running hub's local `/unlock` slot.
+async fn run_unlock(port: u16) -> Result<()> {
+    let base = format!("http://127.0.0.1:{port}");
+    let client = reqwest::Client::new();
+
+    // Resolve the hub's LCT id from tier-0 discovery (served while locked).
+    let info: serde_json::Value = client
+        .get(format!("{base}/.well-known/web4-hub.json"))
+        .send()
+        .await
+        .with_context(|| format!("contacting hub at {base} — is `hub serve` running?"))?
+        .error_for_status()
+        .context("hub discovery endpoint returned an error")?
+        .json()
+        .await
+        .context("parsing hub discovery JSON")?;
+    let hub_id = info
+        .get("hub_lct_id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("discovery JSON had no hub_lct_id"))?
+        .to_string();
+
+    // Prompt for the passphrase here, in OUR UI — use it once, never store it.
+    // (HUB_PASSPHRASE is honored too, including an explicit empty value.)
+    let passphrase = require_passphrase("the running hub")?;
+
+    let resp = client
+        .post(format!("{base}/v1/hubs/{hub_id}/unlock"))
+        .json(&serde_json::json!({ "passphrase": passphrase }))
+        .send()
+        .await
+        .context("submitting unlock to the hub")?;
+    let status = resp.status();
+    let body: serde_json::Value = resp.json().await.unwrap_or_else(|_| serde_json::json!({}));
+
+    if status.is_success() {
+        println!("Hub unlocked ✓  ({})", body.get("status").and_then(|v| v.as_str()).unwrap_or("unlocked"));
+        if let Some(sov) = body.get("sovereign_lct_id").and_then(|v| v.as_str()) {
+            println!("  Sovereign LCT: {sov}");
+        }
+        println!("  The hub is now serving citizen-tier+ requests. The passphrase was not stored.");
+        Ok(())
+    } else {
+        let msg = body.get("error").and_then(|v| v.as_str())
+            .or_else(|| body.get("message").and_then(|v| v.as_str()))
+            .unwrap_or("unlock refused");
+        anyhow::bail!("unlock failed ({status}): {msg}");
+    }
 }
 
 async fn run_gen_lct(output: PathBuf, entity_type: EntityType) -> Result<()> {

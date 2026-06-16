@@ -28,12 +28,13 @@
 
 use anyhow::Result;
 use axum::{
-    extract::{Path, State},
+    extract::{ConnectInfo, Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
     routing::{get, post},
     Router,
 };
+use std::net::SocketAddr;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -48,8 +49,9 @@ use hub_lib::identity::IdentityFile;
 use hub_lib::init::load_society;
 use hub_lib::law::{Decision, DecisionOutcome, Law, R6Request};
 use hub_lib::ledger::HubLedger;
-use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, LockedSigner, RemoteSigner, SignIntent};
+use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, LockedSigner, RemoteSigner, SignIntent, SwappableSigner};
 use hub_lib::state::HubState;
+use hub_lib::unlock_gate::{GateDecision, UnlockGate};
 
 #[derive(Clone)]
 pub struct RestState {
@@ -57,10 +59,13 @@ pub struct RestState {
     pub hub_id: Uuid,
     pub hub_name: String,
     pub sovereign_lct_id: Uuid,
-    /// The signer abstraction. LocalKeypairSigner for MVP-compat chapters
-    /// (keypair in process); HestiaCallbackSigner for Hestia-mode
-    /// chapters (hub holds NO keys; signs via Hestia HTTP callback).
-    pub signer: Arc<dyn RemoteSigner>,
+    /// The signer abstraction, behind a `SwappableSigner` so the hub can be
+    /// promoted **locked → unlocked at runtime** (the unlock slot swaps the
+    /// `LockedSigner` for the real `LocalKeypairSigner` in place — no restart).
+    /// Inner kind: LocalKeypairSigner for MVP-compat chapters (keypair in
+    /// process); HestiaCallbackSigner for Hestia-mode chapters (hub holds NO
+    /// keys; signs via Hestia HTTP callback); LockedSigner while sealed.
+    pub signer: Arc<SwappableSigner>,
     pub ledger: Arc<Mutex<HubLedger>>,
     pub nonces: Arc<NonceStore>,
     /// Public-key resolver for envelope signature verification.
@@ -85,11 +90,21 @@ pub struct RestState {
     /// Outstanding OID4VCI `c_nonce`s minted at `/nonce`, consumed at
     /// `/credential` (the hub as society-scale *issuer* of membership creds).
     pub vci_nonces: Arc<Mutex<std::collections::HashSet<String>>>,
-    /// Vault lock state. `true` when the Sovereign identity is encrypted and no
-    /// passphrase was available at startup: the hub runs a degraded **no-LCT
-    /// tier** surface (tier-0 reads only) and refuses everything citizen-tier+
-    /// until unlocked. The signer is a `LockedSigner` (denies all key ops).
-    pub locked: bool,
+    /// Rate limiter for the unlock slot (`POST /unlock`). The passphrase is
+    /// still required; this caps online guessing (min interval + max
+    /// consecutive failures + lockout), since anyone who can reach the unlock
+    /// UI could still feed it attempts.
+    pub unlock_gate: Arc<UnlockGate>,
+}
+
+impl RestState {
+    /// Whether the vault is sealed. The lock state **is** the kind of the
+    /// currently-installed signer — a `LockedSigner` (set at startup when the
+    /// Sovereign identity is encrypted and no passphrase was available) means
+    /// degraded no-LCT-tier mode; the unlock slot swaps in the real signer.
+    pub fn is_locked(&self) -> bool {
+        matches!(self.signer.signer_kind(), hub_lib::signer::SignerKind::Locked)
+    }
 }
 
 /// True if the identity at `path` is an encrypted vault (W4VT) **and** no
@@ -196,12 +211,13 @@ impl RestState {
             }
         }
 
+        let _ = locked; // lock state now derives from the installed signer kind
         Ok(Self {
             paths,
             hub_id: society.lct_id,
             hub_name: society.name.clone(),
             sovereign_lct_id,
-            signer,
+            signer: Arc::new(SwappableSigner::new(signer)),
             ledger,
             nonces: Arc::new(NonceStore::new()),
             resolver: Arc::new(tokio::sync::RwLock::new(resolver)),
@@ -209,7 +225,7 @@ impl RestState {
             constellations: Arc::new(hub_lib::constellation::ConstellationGate::new()),
             vp_requests: Arc::new(Mutex::new(std::collections::HashMap::new())),
             vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
-            locked,
+            unlock_gate: Arc::new(UnlockGate::default_policy()),
         })
     }
 
@@ -233,6 +249,151 @@ impl RestState {
         *self.law.write().await = new_law;
         Ok(version)
     }
+
+    /// The **unlock slot** (tier-1 ignition via the stub-console / passphrase
+    /// plugin). Rate-limited; opens the encrypted Sovereign identity with
+    /// `passphrase` and, on success, **promotes the hub in place** locked →
+    /// unlocked: the real `LocalKeypairSigner` is swapped into the
+    /// `SwappableSigner` and the Sovereign pubkey is seeded into the resolver,
+    /// with no restart. The passphrase is used here and dropped — never stored.
+    /// `now` is unix-seconds (injected for deterministic rate-limit tests).
+    pub async fn try_unlock(&self, passphrase: &str, now: i64) -> UnlockOutcome {
+        if !self.is_locked() {
+            return UnlockOutcome::NotLocked;
+        }
+        // Cap online guessing first — the passphrase is still required, but
+        // anyone who reaches this slot could feed it attempts.
+        match self.unlock_gate.check(now) {
+            GateDecision::Allow => {}
+            GateDecision::TooSoon { retry_after_secs }
+            | GateDecision::LockedOut { retry_after_secs } => {
+                return UnlockOutcome::RateLimited { retry_after_secs };
+            }
+        }
+        // Re-derive the encrypted identity path from config.
+        let config = match hub_lib::hub::HubConfig::load(self.paths.config()) {
+            Ok(c) => c,
+            Err(e) => return UnlockOutcome::Unsupported(format!("config load failed: {e}")),
+        };
+        let lct_path = match config.sovereign.mode() {
+            Ok(SovereignMode::Local { lct_path }) => lct_path,
+            Ok(_) => {
+                return UnlockOutcome::Unsupported(
+                    "hub is not in local-vault mode; passphrase unlock does not apply".into(),
+                )
+            }
+            Err(e) => return UnlockOutcome::Unsupported(format!("sovereign mode: {e}")),
+        };
+        // Attempt to open the encrypted identity with the passphrase.
+        match IdentityFile::load_encrypted(&lct_path, passphrase) {
+            Ok(identity) => {
+                let kp = match identity.keypair() {
+                    Ok(k) => k,
+                    Err(e) => {
+                        // A successful decrypt but unusable key is not a bad
+                        // guess — don't count it against the rate limit.
+                        return UnlockOutcome::Unsupported(format!(
+                            "identity decrypted but has no usable keypair: {e}"
+                        ));
+                    }
+                };
+                let lct = identity.lct.clone();
+                // Promote: install the real signer in place, then make the
+                // Sovereign pubkey verifiable.
+                self.signer
+                    .swap(Arc::new(LocalKeypairSigner::new(lct.id, kp)));
+                self.resolver.write().await.insert(lct.clone());
+                self.unlock_gate.record_success();
+                tracing::warn!(
+                    sovereign_lct = %lct.id,
+                    "VAULT UNLOCKED via passphrase (stub-console slot) — hub promoted locked → unlocked"
+                );
+                UnlockOutcome::Unlocked { sovereign_lct_id: lct.id }
+            }
+            Err(_) => {
+                self.unlock_gate.record_failure(now);
+                tracing::warn!("vault unlock attempt FAILED (wrong passphrase or corrupt vault)");
+                UnlockOutcome::WrongPassphrase
+            }
+        }
+    }
+}
+
+/// Result of a vault-unlock attempt via the unlock slot.
+pub enum UnlockOutcome {
+    /// Promoted locked → unlocked; the real signer is now installed.
+    Unlocked { sovereign_lct_id: Uuid },
+    /// The hub was already unlocked — nothing to do.
+    NotLocked,
+    /// The passphrase didn't open the vault (counted against the rate limit).
+    WrongPassphrase,
+    /// Refused by the rate limiter — wait `retry_after_secs`.
+    RateLimited { retry_after_secs: i64 },
+    /// This hub can't be unlocked by passphrase (e.g. Hestia-mode, or a
+    /// config/identity problem) — not a bad guess.
+    Unsupported(String),
+}
+
+/// `POST /v1/hubs/:hub_id/unlock` — the **stub-console unlock slot**.
+///
+/// Privileged + **local-only**: a locked hub accepts an unlock attempt only
+/// from a loopback caller (the stub-console plugin runs on the hub host and
+/// connects to `127.0.0.1`). Combined with the rate limiter, this is the honest
+/// answer to "a local process could unlock it": the process still needs the
+/// passphrase, and *we* control how it's obtained (our UI) and that it's used
+/// once and discarded. Remote callers are refused before any attempt is counted.
+async fn unlock(
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    State(s): State<RestState>,
+    Json(req): Json<UnlockRequest>,
+) -> Result<Json<UnlockResponse>, ApiError> {
+    if !peer.ip().is_loopback() {
+        return Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: "unlock is local-only — present the passphrase from the hub host (127.0.0.1)"
+                .to_string(),
+        });
+    }
+    match s.try_unlock(&req.passphrase, Utc::now().timestamp()).await {
+        UnlockOutcome::Unlocked { sovereign_lct_id } => Ok(Json(UnlockResponse {
+            unlocked: true,
+            status: "unlocked".into(),
+            sovereign_lct_id: Some(sovereign_lct_id),
+            retry_after_secs: None,
+        })),
+        UnlockOutcome::NotLocked => Ok(Json(UnlockResponse {
+            unlocked: true,
+            status: "already_unlocked".into(),
+            sovereign_lct_id: Some(s.sovereign_lct_id),
+            retry_after_secs: None,
+        })),
+        UnlockOutcome::WrongPassphrase => Err(ApiError {
+            status: StatusCode::UNAUTHORIZED,
+            message: "unlock failed: wrong passphrase".to_string(),
+        }),
+        UnlockOutcome::RateLimited { retry_after_secs } => Err(ApiError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            message: format!("unlock rate-limited; retry after {retry_after_secs}s"),
+        }),
+        UnlockOutcome::Unsupported(m) => Err(ApiError {
+            status: StatusCode::BAD_REQUEST,
+            message: format!("unlock not applicable: {m}"),
+        }),
+    }
+}
+
+#[derive(Deserialize)]
+struct UnlockRequest {
+    /// The tier-1 ignition passphrase. May be empty (explicit NULL passphrase).
+    passphrase: String,
+}
+
+#[derive(Serialize)]
+struct UnlockResponse {
+    unlocked: bool,
+    status: String,
+    sovereign_lct_id: Option<Uuid>,
+    retry_after_secs: Option<i64>,
 }
 
 pub fn router(state: RestState) -> Router {
@@ -252,6 +413,9 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/vp/response", post(vp_response))
         // tier-0: the hub's law is readable even while the vault is locked
         .route("/v1/hubs/:hub_id/law", get(read_hub_law))
+        // the unlock slot (stub-console / passphrase): local-only + rate-limited.
+        // Promotes a locked hub → unlocked in place (swaps in the real signer).
+        .route("/v1/hubs/:hub_id/unlock", post(unlock))
         .route("/v1/auth/challenge", post(issue_challenge))
         // Hub-named routes (canonical; chapter→hub rename mirrored on
         // Hestia side at hestia@c3932a8 — back-compat /v1/chapters/*
@@ -696,7 +860,7 @@ async fn submit_event(
     }
     // Acts require the Sovereign signer (to witness them) — unavailable while
     // the vault is locked.
-    if s.locked {
+    if s.is_locked() {
         return Err(locked_error());
     }
 
@@ -1004,7 +1168,7 @@ async fn channel_request(
     }
     // The sealed channel is citizen-tier+; a locked vault has no signer to
     // open/seal it. Refuse cleanly (tier-0 only while locked).
-    if s.locked {
+    if s.is_locked() {
         return Err(locked_error());
     }
 
@@ -3261,8 +3425,10 @@ norms:
 
     #[tokio::test]
     async fn locked_vault_refuses_citizen_tier_but_serves_tier0_law() {
-        let (_tmp, mut state) = fresh_rest_state(None).await;
-        state.locked = true; // simulate a sealed vault (no signer)
+        let (_tmp, state) = fresh_rest_state(None).await;
+        // Simulate a sealed vault: swap in a LockedSigner (denies all key ops).
+        state.signer.swap(Arc::new(LockedSigner::new(state.sovereign_lct_id)));
+        assert!(state.is_locked());
 
         // Citizen-tier sealed channel → 503 (refused before any crypto).
         let req = ChannelRequest {
@@ -3282,5 +3448,78 @@ norms:
             .await
             .expect("law is tier-0 readable while locked");
         assert!(law.0.get("law").is_some());
+    }
+
+    /// Seal the hub's Sovereign identity at rest with `pass`, then simulate a
+    /// locked startup. Returns the state for unlock-slot tests.
+    async fn locked_state_sealed_with(pass: &str) -> (tempfile::TempDir, RestState) {
+        let (tmp, state) = fresh_rest_state(None).await;
+        let config = hub_lib::hub::HubConfig::load(state.paths.config()).unwrap();
+        let lct_path = match config.sovereign.mode().unwrap() {
+            SovereignMode::Local { lct_path } => lct_path,
+            _ => panic!("expected local-vault mode"),
+        };
+        IdentityFile::load_auto(&lct_path)
+            .unwrap()
+            .save_encrypted(&lct_path, pass)
+            .unwrap();
+        state.signer.swap(Arc::new(LockedSigner::new(state.sovereign_lct_id)));
+        assert!(state.is_locked());
+        (tmp, state)
+    }
+
+    #[tokio::test]
+    async fn unlock_slot_promotes_locked_hub_with_the_right_passphrase() {
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = locked_state_sealed_with(pass).await;
+        let now = 1_700_000_000;
+
+        // A wrong passphrase is refused and does NOT unlock.
+        assert!(matches!(
+            state.try_unlock("nope", now).await,
+            UnlockOutcome::WrongPassphrase
+        ));
+        assert!(state.is_locked(), "a bad guess must not unlock");
+
+        // The right passphrase (past the min interval) promotes the hub in place.
+        match state.try_unlock(pass, now + 5).await {
+            UnlockOutcome::Unlocked { sovereign_lct_id } => {
+                assert_eq!(sovereign_lct_id, state.sovereign_lct_id)
+            }
+            _ => panic!("the right passphrase must unlock"),
+        }
+        assert!(!state.is_locked(), "right passphrase promotes locked → unlocked");
+        assert!(
+            state.signer.public_key().is_some(),
+            "the swapped-in real signer exposes the Sovereign pubkey"
+        );
+
+        // Idempotent: unlocking an unlocked hub is a no-op.
+        assert!(matches!(
+            state.try_unlock(pass, now + 10).await,
+            UnlockOutcome::NotLocked
+        ));
+    }
+
+    #[tokio::test]
+    async fn unlock_slot_rate_limits_repeated_wrong_guesses() {
+        let pass = "open sesame";
+        let (_tmp, state) = locked_state_sealed_with(pass).await;
+
+        // Five consecutive wrong guesses (each past the 2 s min interval).
+        let mut t = 1_700_000_000;
+        for _ in 0..5 {
+            assert!(matches!(
+                state.try_unlock("wrong", t).await,
+                UnlockOutcome::WrongPassphrase
+            ));
+            t += 3;
+        }
+        // The 6th attempt is locked out — even with the CORRECT passphrase.
+        match state.try_unlock(pass, t).await {
+            UnlockOutcome::RateLimited { retry_after_secs } => assert!(retry_after_secs > 0),
+            _ => panic!("expected a lockout after 5 consecutive failures"),
+        }
+        assert!(state.is_locked(), "lockout holds the vault closed");
     }
 }

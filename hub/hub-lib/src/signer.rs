@@ -36,6 +36,7 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use std::sync::Arc;
 use web4_core::crypto::{KeyPair, PublicKey, SignatureBytes};
 use web4_core::pair_channel::{self, Sealed};
 
@@ -412,6 +413,66 @@ impl RemoteSigner for LockedSigner {
     fn channel_open(&self, _peer: &PublicKey, _pair_id: Uuid, _sealed_b64: &str)
         -> std::result::Result<Vec<u8>, SignError> {
         Err(SignError::Denied("hub vault is locked".to_string()))
+    }
+}
+
+// ============================================================================
+// SwappableSigner — lets the hub promote itself locked → unlocked at runtime
+// ============================================================================
+
+/// A `RemoteSigner` whose backing signer can be **swapped at runtime**, behind
+/// an internal lock. The hub installs one of these as its signer so a locked
+/// hub (backed by a `LockedSigner`) can be **ignited in place** — once an
+/// operator presents the passphrase (the stub-console unlock slot) the real
+/// `LocalKeypairSigner` is swapped in and every subsequent key op succeeds,
+/// with no restart and no change at any call site (`s.signer.sign(..)` is
+/// unchanged; it just delegates to whatever is currently installed).
+///
+/// The swap is the only mutable thing — the lock state of the hub *is* the kind
+/// of the currently-installed inner signer (`signer_kind() == Locked`).
+pub struct SwappableSigner {
+    inner: std::sync::RwLock<Arc<dyn RemoteSigner>>,
+}
+
+impl SwappableSigner {
+    pub fn new(initial: Arc<dyn RemoteSigner>) -> Self {
+        Self { inner: std::sync::RwLock::new(initial) }
+    }
+    /// Promote (or demote) the backing signer. Used by the unlock slot to swap
+    /// a `LockedSigner` for the real `LocalKeypairSigner` once ignited.
+    pub fn swap(&self, new: Arc<dyn RemoteSigner>) {
+        *self.inner.write().expect("swappable signer lock poisoned") = new;
+    }
+    fn current(&self) -> Arc<dyn RemoteSigner> {
+        self.inner.read().expect("swappable signer lock poisoned").clone()
+    }
+}
+
+#[async_trait]
+impl RemoteSigner for SwappableSigner {
+    async fn sign(
+        &self,
+        actor_lct_id: Uuid,
+        signing_bytes: &[u8],
+        intent: &SignIntent,
+    ) -> std::result::Result<SignatureBytes, SignError> {
+        // Snapshot the Arc, then drop the lock before the await point.
+        let cur = self.current();
+        cur.sign(actor_lct_id, signing_bytes, intent).await
+    }
+    fn signer_kind(&self) -> SignerKind {
+        self.current().signer_kind()
+    }
+    fn public_key(&self) -> Option<PublicKey> {
+        self.current().public_key()
+    }
+    fn channel_seal(&self, peer: &PublicKey, pair_id: Uuid, plaintext: &[u8])
+        -> std::result::Result<String, SignError> {
+        self.current().channel_seal(peer, pair_id, plaintext)
+    }
+    fn channel_open(&self, peer: &PublicKey, pair_id: Uuid, sealed_b64: &str)
+        -> std::result::Result<Vec<u8>, SignError> {
+        self.current().channel_open(peer, pair_id, sealed_b64)
     }
 }
 
