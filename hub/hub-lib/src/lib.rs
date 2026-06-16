@@ -40,6 +40,7 @@ pub mod dynamodb_store;
 pub mod signer;
 pub mod state;
 pub mod store;
+pub mod unlock_gate;
 
 /// Crate version, exposed for `hub --version`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -27,6 +27,7 @@ use axum::{
 };
 use hub_lib::events::HubEvent;
 use hub_lib::init::load_society;
+use hub_lib::signer::RemoteSigner; // signer_kind() — signer is now a concrete SwappableSigner
 use hub_lib::state::HubState;
 
 use crate::rest::RestState;
