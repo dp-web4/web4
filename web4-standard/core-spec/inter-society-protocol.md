@@ -1,7 +1,7 @@
 # Inter-Society Protocol Specification
 
 **Status**: Core Specification v0.1.2 (DRAFT)
-**Date**: 2026-06-01
+**Date**: 2026-06-16
 **Category**: Society & Federation
 **Extends**: `SOCIETY_SPECIFICATION.md` (single-society semantics), `atp-adp-cycle.md` (ATP form)
 **Companion to**: `LCT-linked-context-token.md`, `t3-v3-tensors.md`, `mrh-tensors.md`
@@ -39,10 +39,10 @@ This is a normative architectural property:
 
 Higher-order societies exist by accumulated consent of constituents. They can mint, can witness, can mediate, but they cannot compel. A constituent society can always exit (per §5). This is structurally analogous to:
 
-- Eurozone (members chose to join EUR; can theoretically exit, though no member has yet done so — the right exists but is untested)
-- NATO (members commit to collective defense; commitments are mutual, not commanded)
-- UN (members confer specific authorities; sovereignty retained for unconferred matters)
-- International standards bodies (IETF, W3C — participating organizations retain all authority not explicitly delegated to working groups)
+- NATO (members commit to collective defense; commitments are mutual, not commanded; withdrawal mechanism defined in Article 13)
+- UN (members confer specific authorities; sovereignty retained for unconferred matters; withdrawal practiced historically)
+- International standards bodies (IETF, W3C — participating organizations retain all authority not explicitly delegated to working groups; participation is at-will)
+- Eurozone (members chose to join EUR; an exit right is generally held to exist but is untested and has no defined mechanism — the weakest of these analogies on the exit axis, listed last for that reason)
 
 What Web4 is NOT structurally analogous to:
 - DNS (single hierarchical root; ICANN holds final authority)
@@ -72,7 +72,7 @@ A single entity MAY found a society. The process:
    - genesis_block_hash anchored to a ledger of the founder's choice (per §7)
    - Society LCT public key from step 2
    - Charter hash from step 3
-   - Birth witnesses (MAY be ≥3 entities under founder's control; see §6 on minimum viable society)
+   - Birth witnesses — ≥3 required per `LCT-linked-context-token.md`; these MAY be entities under the founder's control (see §6 on minimum viable society)
 6. The society is now sovereign and MAY:
    - Admit citizens per its charter
    - Issue ATP per its reification policy
@@ -105,12 +105,14 @@ Two or more existing sovereign societies MAY agree to form a higher-order societ
        see §4 on Eurozone-style federation)
      * Exit conditions (per §5)
 3. D SHALL mint constituent-society LCTs for A, B, [C, ...] as constituent societies
-4. A, B, [C, ...] SHALL update their own LCTs to record citizenship in D
+4. A, B, [C, ...] MAY update their own LCTs to record citizenship in D
    (this is voluntary at any time; constituents can decline if charter changes)
 5. D's society LCT genesis is anchored:
    - Witnesses are the constituent societies themselves
    - genesis_block_hash anchors to a ledger chosen by D
 ```
+
+**Note on formation events**: D's minting of constituent-society LCTs (step 3) and the constituents' citizenship updates (step 4) are recorded as `incorporate_child` / `incorporated_by` formation events per `SOCIETY_SPECIFICATION.md` §4.2.1 (symmetric to the secession formation events §5.1 records via SAL §3.4).
 
 **Critical property**: D is an *overlay*, not an *owner*. A, B, C retain all sovereignty not explicitly delegated to D. D cannot override A's internal law; it can only mediate matters A and B chose to delegate to D.
 
@@ -144,6 +146,8 @@ The exchange rate MAY be:
 Exchange transactions SHALL be witnessed by both societies and anchored in both ledgers.
 Neither society's sovereignty is impaired.
 ```
+
+> **Note on rate substance**: the *substance* of any rate negotiated under this Option is referent-grounded per `mcp-protocol.md` §7.7.1 (Normative) — rates are grounded in a common referent both societies can independently value, not an abstract floating bilateral rate. The Fixed / Market-derived / Pegged enumeration above governs rate *stability over time*, not the basis of valuation.
 
 #### Option 2: Adoption (one society uses the other's ATP, analogous to dollarization)
 
@@ -230,9 +234,9 @@ This is structurally similar to national currencies: a US dollar and a Japanese 
 
 ### 4.5 "First ATP" Resolution
 
-A common question (raised in 2026-05-13 review feedback): "How does a brand-new society calculate its initial resource inventory? What prevents a society from over-reporting compute capacity to mint excessive ATP?"
+A common question (raised in 2026-05-13 review feedback): "How does a brand-new society calculate its initial resource inventory? What prevents a society from over-reporting compute capacity to issue excessive ATP?"
 
-**Resolution**: There is no protocol-level constraint on a society's initial issuance. A society MAY mint any quantity of its own ATP. The constraint emerges at the first inter-society exchange: another society negotiating an exchange rate will discount over-reported issuance, just as foreign exchange markets discount over-printed national currencies.
+**Resolution**: There is no protocol-level constraint on a society's initial issuance. A society MAY mint any quantity of its own ADP and charge it to ATP under its own policy (minting creates tokens in the discharged ADP state; charging is the ADP→ATP transition — see `atp-adp-cycle.md` §2.1–§2.2). The constraint emerges at the first inter-society exchange: another society negotiating an exchange rate will discount over-reported issuance, just as foreign exchange markets discount over-printed national currencies.
 
 **This is intentional**. A protocol-level constraint on initial issuance would require a universal measurement protocol, which would in turn require a universal authority — directly contradicting the anti-hierarchical-by-design property (§1.3).
 
@@ -245,7 +249,7 @@ This spec establishes the following as RECOMMENDED practice:
 1. **Resource measurement SHOULD be witnessed.** A society's own attestation of its compute capacity, attention budget, or other reified resource SHOULD be co-signed by independent witnesses (other entities within the society at minimum; ideally entities outside the society with no stake in the over-reporting). Self-attestation without witnessing is permitted but limits the credibility of the society's ATP at exchange time.
 2. **Measurement frequency SHOULD match resource volatility.** Hardware capacity might be measured at genesis and on hardware change. Attention budget might be measured per-period (daily, hourly). The society's charter SHOULD specify measurement cadence.
 3. **Dispute resolution mechanism SHOULD be defined.** When society B's witnesses disagree with society A's self-report (e.g., A claims 10,000 compute units, B's witnesses measure 8,000), the spec does NOT specify how the dispute resolves — this is per-pair-relationship policy negotiated at first contact (per §3). But the existence of a dispute resolution mechanism SHOULD be documented in the society's charter.
-4. **Hardware attestation (TPM 2.0, FIDO2, Apple Secure Enclave, etc.) SHOULD be used where available** to anchor resource measurement to verifiable hardware presence. The `AttestationEnvelope` primitive (see `schemas/attestation-envelope.schema.json` and the SDK's `web4/attestation.py`) provides one cross-platform interface; implementations are free to use others, but SHOULD document the chosen mechanism in their charter so cross-platform exchange counterparties can evaluate trust.
+4. **Hardware attestation (TPM 2.0, FIDO2, Apple Secure Enclave, etc.) SHOULD be used where available** to anchor resource measurement to verifiable hardware presence. The `AttestationEnvelope` primitive (see `schemas/attestation-envelope-jsonld.schema.json` and the SDK's `web4/attestation.py`) provides one cross-platform interface; implementations are free to use others, but SHOULD document the chosen mechanism in their charter so cross-platform exchange counterparties can evaluate trust.
 
 Note that none of these are protocol-level enforcement. They are RECOMMENDED practices that affect the credibility of a society's ATP at exchange time. A society that over-reports without witnessing will find its ATP discounted heavily by exchange counterparties — the market for the society's ATP is the audit mechanism, not the protocol.
 
@@ -355,14 +359,14 @@ The choice is per-society policy. The Web4 protocol does not mandate any specifi
 |---|---|
 | `LCT-linked-context-token.md` | This spec uses society LCTs as defined there |
 | `SOCIETY_SPECIFICATION.md` | This spec extends with genesis, first-contact, secession |
-| `web4-society-authority-law.md` (SAL) | Defines the genesis Citizen role and canonical Birth Certificate shape (SAL §2), the fractal Society Topology and `web4:memberOf` edges (SAL §3.1), and the Immutable Record ledger service (SAL §3.4). This spec's §2 genesis and §5 secession lifecycle operate on those SAL-defined structures. |
+| `web4-society-authority-law.md` (SAL) | Defines the genesis Citizen role and canonical Birth Certificate shape (SAL §2), the fractal Society Topology (SAL §3.1) and `web4:memberOf` edges (SAL §3.3, chained per §3.5), and the Immutable Record ledger service (SAL §3.4). This spec's §2 genesis and §5 secession lifecycle operate on those SAL-defined structures. |
 | `atp-adp-cycle.md` | This spec makes explicit the form/substance distinction |
 | `mrh-tensors.md` | Inter-society relationships are MRH edges; this spec defines the protocols that create those edges |
 | `t3-v3-tensors.md` | Society-society trust tensors may be computed; this spec leaves the computation policy society-sovereign |
 | `r6-framework.md` | R6 (Rules+Role+Request+Reference+Resource→Result) is the action grammar for routine, low-consequence inter-society transactions (e.g., read-only resource access) |
 | `r7-framework.md` | R7 (R6 + Reputation back-propagation to T3/V3) is the action grammar for consequential inter-society actions where the outcome should feed inter-society trust evolution. Most inter-society actions are R7 because crossing sovereignty boundaries typically justifies the bookkeeping cost. R6 and R7 are both canonical; the choice is per-action or per-role based on consequence tier. |
-| `mcp-protocol.md` | MCP is the inter-society action protocol per the canonical Web4 equation. This spec defines genesis/first-contact/secession; `mcp-protocol.md` §7.3–§7.6 specifies R6/R7 actions between societies via MCP. §7.7 (WIP) specifies referent-grounded exchange rate negotiation. |
-| `society-roles.md` | Defines roles (including Diplomat) that inter-society interactions require. This spec's §6.2 defines semantic viability criteria that constrain role composition. Bidirectional dependency. |
+| `mcp-protocol.md` | MCP is the inter-society action protocol per the canonical Web4 equation. This spec defines genesis/first-contact/secession; `mcp-protocol.md` §7.3–§7.6 specifies R6/R7 actions between societies via MCP. §7.7 (architecture Normative per §7.7.1/§7.7.4; wire format WIP) specifies referent-grounded exchange rate negotiation. |
+| `society-roles.md` | Defines roles (including the Diplomat) that inter-society interactions require; conversely this spec's §6.2 semantic-viability criteria constrain how those roles must compose. The dependency runs both ways. |
 
 ## 9. Future Work
 
@@ -370,7 +374,7 @@ The following remain open and are explicitly NOT addressed by this draft:
 
 - ~~**Cross-society R6/R7 action protocol**~~ — **RESOLVED — `mcp-protocol.md` §1.1, §7.3–§7.6 (2026-05-14 amendment)**: cross-society R6/R7 actions are realized via MCP per the canonical Web4 equation (`Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP`). See `mcp-protocol.md` §1.1 (MCP as inter-society interface), §7.3 (MCP Actions as R7 Transactions), §7.4 (Cross-Society LCT Envelope), §7.5 (Cross-Society Witnessing and R7 Reputation Propagation), and §7.6 (cross-society R7 failure modes). The "cross-society action protocol" was never a missing spec — it was already specified by MCP's position in the equation; the 2026-05-14 mcp-protocol.md amendment made the binding explicit.
 - ~~**Society-society trust tensors**~~ — **RESOLVED — `mcp-protocol.md` §7.5 (2026-05-14 amendment)**: society-society trust tensors emerge as the accumulated R7-Reputation projection at the encompassing society's scope, per `mcp-protocol.md` §7.5. Each society maintains its own bilateral view; the encompassing-society projection (when one exists) provides the canonical reference. Specified there rather than as a separate trust-tensor doc.
-- ~~**Exchange-rate discovery mechanisms**~~ — **RESOLVED — `mcp-protocol.md` §7.7 (WIP v0.1.0-draft, 2026-05-14)**: see `mcp-protocol.md` §7.7 (WIP) for the referent-grounded negotiation protocol. Key architectural insight: rates are not abstract floating bilateral exchange rates; they are grounded in a common referent both societies can independently value (kilowatt-hours, GPU-time, attention-hours, etc.). Per-transaction scoping is ideal (each R6/R7 carries its own rate against its specific referent); standing-agreement and oracle-reference are practical fallbacks. The protocol specifies message format (form); negotiation strategy (substance) is society-sovereign. The §7.7 section is currently WIP pending fleet review.
+- ~~**Exchange-rate discovery mechanisms**~~ — **RESOLVED — `mcp-protocol.md` §7.7 (architecture Normative per §7.7.1/§7.7.4; wire format WIP v0.1.0-draft, 2026-05-14)**: see `mcp-protocol.md` §7.7 for the referent-grounded negotiation protocol. Key architectural insight: rates are not abstract floating bilateral exchange rates; they are grounded in a common referent both societies can independently value (kilowatt-hours, GPU-time, attention-hours, etc.). Per-transaction scoping is ideal (each R6/R7 carries its own rate against its specific referent); standing-agreement and oracle-reference are practical fallbacks. The protocol specifies message format (form); negotiation strategy (substance) is society-sovereign. The §7.7 *architecture* (§7.7.1 referent-grounded premise, §7.7.4 form/substance boundary) is Normative; its *wire format* remains WIP pending fleet review.
 - **Federation-of-federations** — when D itself federates with E into higher-order F. Protocol-wise this is recursive application of §2.2 and §3.2 Option 3, but operational guidance for multi-level federations is needed.
 - **Cross-federation citizenship conflicts** — when entity X is citizen of A (which is constituent of D) and B (which is constituent of E), and D and E are in opposition. Likely society-policy not protocol, but worth documenting patterns.
 - **Trust transitivity vs. trust attenuation across federation levels** — whether T3 in society A propagates to D's level and at what discount. The existing SOCIETY_SPECIFICATION.md §3.2.2 mentions "indirect relationship"; this spec leaves the trust math society-sovereign.
