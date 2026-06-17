@@ -30,9 +30,9 @@ The following entity types are recognized in Web4:
 | **Oracle** | External data providers | Price feeds, Law Oracle, weather data | Responsive/Delegative | Active (delivers results) |
 | **Accumulator** | Broadcast listeners and recorders | Presence validators, history indexers | Responsive | Passive (stores data) |
 | **Dictionary** | Living semantic bridges managing compression-trust | Medical-legal translator, AI model bridges, cultural interpreters | Responsive/Agentic | Active (translates) |
-| **Hybrid** | Entities combining multiple types | Human-AI teams, cyborg systems | Mixed | Active |
+| **Hybrid** | Entities combining multiple types | Human-AI teams, cyborg systems | Agentic/Responsive/Delegative | Active |
 | **Policy** | Governance rules as living entities with IRP-backed evaluation | Enterprise safety rules, access policies, compliance frameworks | Responsive/Delegative | Active |
-| **Infrastructure** | Physical passive resources | Buildings, roads, machinery, tools | Passive | Passive |
+| **Infrastructure** | Physical passive resources | Buildings, roads, machinery, tools | None | Passive |
 
 ### 2.2 Entity Behavioral Modes
 
@@ -88,7 +88,7 @@ In addition to behavioral modes, entities are classified by their **energy metab
   ```
   ATP (charged) → Maintenance → ADP (discharged)
       ↓
-  ADP SLASHED (permanently consumed)
+  ADP CONSUMED (permanently, via maintenance)
       ↓
   NO reputation updates
       ↓
@@ -99,7 +99,7 @@ In addition to behavioral modes, entities are classified by their **energy metab
   - Storage resources (databases, file systems)
   - Non-autonomous devices (sensors, actuators)
   - Accumulators (passive data collection)
-- **Key Property**: ADP slashed (consumed), no reputation updates
+- **Key Property**: ADP consumed (permanently destroyed via maintenance), no reputation updates. This routine maintenance discharge is distinct from the punitive, authority-executed *slashing* of `atp-adp-cycle.md` §2.4 (evidence-gated destruction of ATP for law violations).
 - **Reputation Metric**: Utilization frequency × effectiveness by Active Resources
 
 #### The Efficiency Forcing Function
@@ -148,9 +148,9 @@ One of Web4's most radical innovations is treating roles not as labels but as en
   "lawOracle": "lct:web4:oracle:law:...",
   "lawVersion": "v1.2.0",
   "birthTimestamp": "2025-09-14T12:00:00Z",
-  "witnesses": ["lct:web4:witness1", "lct:web4:witness2"],
+  "witnesses": ["lct:web4:witness:1", "lct:web4:witness:2"],
   "genesisBlock": "block:12345",
-  "rights": ["exist", "interact", "accumulate_reputation"],
+  "rights": ["presence", "interact", "accumulate_reputation"],
   "obligations": ["abide_law", "respect_quorum"],
   "ledgerProof": "hash:sha256:...",
   "parentEntity": "lct:web4:parent:..."
@@ -278,7 +278,7 @@ For the role-LCT pairing mechanics see §3.4, "Role-Agent Pairing," above; for t
 
 > **See also**: `society-roles.md` for the full society-roles taxonomy (base-mandatory, context-mandatory, optional) with fractal-composability semantics. The roles enumerated below are the SAL-specific subset; the broader taxonomy in `society-roles.md` includes additional functional roles (Policy-Entity, Treasurer, Administrator, Archivist, etc.) that are base-mandatory for every Web4 society.
 >
-> **Note (do not conflate the two "sevens")**: The seven subsections below (Society, Authority, Law Oracle, Witness, Auditor, Agent, Client) are the **SAL-specific roles**. They are a *different set* from the seven **base-mandatory** roles defined in `society-roles.md` §2 (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen) — the two sets overlap only on **Law Oracle**. The equal count is coincidental, not a correspondence. (The canonical home of the base-mandatory role list is an open design question; see C25-H1.)
+> **Note (subsection count vs role count; SAL roles vs base-mandatory roles)**: §4 has seven subsections, but §4.1 (Society) describes an *entity-type context* (§2.1), **not** a role an entity fills — so there are **six** SAL-specific roles below (Authority, Law Oracle, Witness, Auditor, Agent, Client) plus the Society context that hosts them. These six roles are a *different set* from the **base-mandatory** roles defined in `society-roles.md` §2 (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen) — the two sets overlap only on **Law Oracle**. The canonical home of the base-mandatory role list is **`society-roles.md` §2** (resolved per `SOCIETY_SPECIFICATION.md` §1.2.5 / C51, which attributes the base-mandatory roles to that section); the remaining open item is only the role-*name* reconciliation (SAL "Authority Role" vs society-roles "Sovereign"), not the list's home.
 
 ### 4.1 Society (entity-type capabilities)
 **Society** is an *entity type* (§2.1), not a role an entity fills — it is included here because the SAL-specific roles below are hosted *within* a society and depend on these capabilities. A **Society** is a delegative entity with:
@@ -301,9 +301,11 @@ The **Authority** role within a society:
 > sub-authority position in SAL's delegation tree (`web4-society-authority-law.md` §3.3,
 > `authorityRole web4:delegatesTo subAuthorityRole`). It is **not** the root of the
 > delegation tree; SAL §3.1 names the *root* "Authority Role" LCT, and `society-roles.md`
-> §2.1 names the society's final/root authority **"Sovereign"**. Reconciling the role
-> *name* across these specs (SAL "Authority Role" vs society-roles "Sovereign") is an open
-> design question (see C25-H1); this note fixes only the scoped-vs-root reading.
+> §2.1 names the society's final/root authority **"Sovereign"**. The canonical *home* of
+> the base-mandatory role list is settled — `society-roles.md` §2, per
+> `SOCIETY_SPECIFICATION.md` §1.2.5 / C51 (formerly C25-H1) — so what remains open is only
+> reconciling the role *name* across these specs (SAL "Authority Role" vs society-roles
+> "Sovereign"); this note fixes only the scoped-vs-root reading.
 
 ### 4.3 Law Oracle Role
 A specialized oracle that:
@@ -490,7 +492,7 @@ Roles have unique interaction patterns:
 #### Citizen Role (Special Case)
 - **Automatically pairs**: With every new entity at creation
 - **Cannot be revoked**: Permanent birth certificate pairing
-- **Provides base rights**: Exist, interact, accumulate reputation
+- **Provides base rights**: Presence, interact, accumulate reputation
 - **Context-specific**: Nation-citizen, platform-citizen, network-citizen
 
 #### Other Roles
