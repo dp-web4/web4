@@ -2,11 +2,11 @@
 
 **Version**: 1
 **Status**: Draft — core protocol error taxonomy (RFC 9457 Problem Details); subsystem specs extend it (see §1).
-**Last-Updated**: 2026-06-04
+**Last-Updated**: 2026-06-17
 
 ---
 
-This document defines the standardized **core protocol** error taxonomy for Web4, based on RFC 9457 Problem Details. It is the single source of truth for core protocol error codes (binding, pairing, witnessing, authorization, cryptography, and protocol errors). Subsystem specifications — Society/Authority Law (`web4-society-authority-law.md` §9), ACP (`acp-framework.md` §10), metering (`web4-metering.md` §6), and MCP cross-society (`mcp-protocol.md` §7.6) — **extend** this taxonomy with additional domain-specific `W4_ERR_*` codes and SHOULD reuse the codes defined here where applicable rather than introducing parallel names. A consistent error format is essential for debugging, interoperability, and providing a good developer experience.
+This document defines the standardized **core protocol** error taxonomy for Web4, based on RFC 9457 Problem Details. It is the single source of truth for core protocol error codes (binding, pairing, witnessing, authorization, cryptography, and protocol errors). Subsystem specifications **extend** this taxonomy with additional domain-specific codes and SHOULD reuse the codes defined here where applicable rather than introducing parallel names: Society/Authority Law (`web4-society-authority-law.md` §9), ACP (`acp-framework.md` §10), and metering (`web4-metering.md` §6) add codes following the `W4_ERR_*` convention defined here; MCP cross-society (`mcp-protocol.md` §7.6) currently uses lowercase `web4_*` identifiers for its cross-society failure modes. A consistent error format is essential for debugging, interoperability, and providing a good developer experience.
 
 ## 1. Error Format
 
@@ -138,11 +138,13 @@ Web4 defines a hierarchical error code taxonomy with the following categories:
 - **JSON**: `application/problem+json` (MUST support)
 - **CBOR**: `application/problem+cbor` (SHOULD support)
 
-## 5. HTTP Status Code Mapping
+## 5. Status Code Semantics
+
+Per §1, the `status` member is **transport-agnostic** — the reason phrases below are HTTP status codes used as the canonical *illustrative labels* for each semantic class, and the same semantic class applies over non-HTTP transports (e.g. CBOR over TLS/QUIC, BLE GATT, CAN Bus). Each entry names the semantic class the status conveys:
 
 - **400 Bad Request**: Malformed requests, invalid parameters
-- **401 Unauthorized**: Authentication or authorization failures
-- **403 Forbidden**: Operation not allowed for authenticated entity
+- **401 Unauthorized**: Authentication failure, or a credential that lacks the required capability (e.g. `W4_ERR_AUTHZ_DENIED`)
+- **403 Forbidden**: An authenticated entity lacking the additional scope or authorization required for the operation (e.g. `W4_ERR_AUTHZ_SCOPE`)
 - **408 Request Timeout**: Operation timed out
 - **409 Conflict**: Resource state conflicts
 - **410 Gone**: Resource no longer available
