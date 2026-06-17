@@ -63,15 +63,16 @@ def member_passage(m: dict) -> str:
     return passage
 
 
-def member_tags(m: dict, passage: str) -> dict:
-    """Forward-compat provenance (item 2 of the three adds). profile_version is
-    a content hash so it changes exactly when a member's profile changes."""
-    profile = m.get("profile") or {}
+def member_index_entry(m: dict, passage: str) -> dict:
+    """The cart is a pure INDEX, not a copy of member data. We persist only the
+    minimal map: passage-index → member_lct, plus a content-hash for cache
+    invalidation. NO name, profile text, skills, or pair purpose — those live
+    once in the hub's (encrypted) registry and are re-attached by the hub at
+    query time. `profile_version` is a one-way sha256 of the passage (changes
+    exactly when a member's profile changes), not the content itself."""
     return {
         "member_lct": m.get("lct_id"),
-        "name": m.get("name"),
         "profile_version": hashlib.sha256(passage.encode()).hexdigest()[:12],
-        "last_pair_purpose": profile.get("last_pair_purpose"),
     }
 
 
@@ -95,20 +96,28 @@ def main() -> int:
 
     import cartridge_builder as cb
 
+    # The member prose is used ONLY to compute embeddings — it exists in RAM for
+    # the duration of this process and is never persisted. The cart stores the
+    # opaque member_lct as each passage's "text", so the cart on disk is a pure
+    # index (embeddings + lct ids), carrying no member PII at rest.
     passages = [member_passage(m) for m in members]
-    tags = [member_tags(m, p) for m, p in zip(members, passages)]
+    index = [member_index_entry(m, p) for m, p in zip(members, passages)]
+    cart_text = [str(m.get("lct_id") or "") for m in members]
 
     print(f"embedding {len(passages)} member passages with pinned Nomic model...", flush=True)
     embeddings = cb.embed_texts(passages)
 
     os.makedirs(args.out, exist_ok=True)
-    cart_path, size_mb, fingerprint = cb.save_cartridge(args.out, args.name, embeddings, passages)
+    # Persist the cart with opaque LCTs as the stored text — NOT the prose.
+    cart_path, size_mb, fingerprint = cb.save_cartridge(args.out, args.name, embeddings, cart_text)
 
-    # The forward-compat provenance sidecar, passage-index aligned (== local_addr
-    # in search results). The sidecar maps a hit back to its member_lct via this.
+    # Slim index sidecar, passage-index aligned (== local_addr in search
+    # results): maps a hit back to its member_lct. No names / profile text — the
+    # hub re-attaches those from its authoritative encrypted registry.
     meta_path = os.path.join(args.out, f"{args.name}.members.json")
     with open(meta_path, "w") as f:
-        json.dump({"fingerprint": fingerprint, "members": tags}, f, indent=2)
+        json.dump({"fingerprint": fingerprint, "members": index}, f, indent=2)
+    tags = index  # for the summary print below
 
     print(f"cart:  {cart_path}  ({size_mb:.2f} MB, fingerprint {fingerprint})")
     print(f"meta:  {meta_path}  ({len(tags)} members)")
