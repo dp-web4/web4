@@ -10,7 +10,10 @@ search (cosine + Hamming + keyword rerank) membot ships.
 Endpoints (localhost only — the hub mediates all external access):
   GET  /health                      -> {ok, cart, n_members, fingerprint}
   POST /find_members {query, top_k, temperature}
-        -> {results: [{member_lct, name, score, tags}], total}
+        -> {results: [{member_lct, score}], total}
+        The cart is a pure index (embeddings + opaque member_lct); the sidecar
+        returns only LCT + score. Member name/profile live once in the hub's
+        encrypted registry and are re-attached there — no PII flows through here.
 
 temperature is accepted now (locked v1 contract: ship the knob from day one)
 but the underlying multi_cart.search doesn't expose settle-noise yet, so v1 is
@@ -49,11 +52,12 @@ def do_search(query: str, top_k: int) -> list[dict]:
     for r in res.get("results", []):
         addr = r.get("local_addr")
         meta = members[addr] if isinstance(addr, int) and 0 <= addr < len(members) else {}
+        # The cart is a pure index: return only the opaque member_lct + score.
+        # The hub re-attaches name/profile from its authoritative encrypted
+        # registry — no member PII lives in or flows through this sidecar.
         out.append({
             "member_lct": meta.get("member_lct"),
-            "name": meta.get("name"),
             "score": float(r.get("score", 0.0)),
-            "tags": meta,
         })
     # Drop hits we couldn't attribute to a member_lct (defensive).
     return [r for r in out if r["member_lct"]]

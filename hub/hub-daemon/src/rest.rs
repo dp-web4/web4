@@ -1736,7 +1736,11 @@ async fn dispatch_channel(
             let requested = inner.args.get("top_k").and_then(|v| v.as_u64()).map(|n| n as usize);
             let effective = scope.effective_limit(requested.or(Some(12))).unwrap_or(12);
             let temperature = inner.args.get("temperature").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let hits = membox_find_members(query, effective, temperature).await?;
+            let mut hits = membox_find_members(query, effective, temperature).await?;
+            // The cart is a pure index: the sidecar returns {member_lct, score}.
+            // Re-attach member name from the hub's authoritative (encrypted)
+            // registry here — member PII lives once, in the hub, not the cart.
+            enrich_member_hits(&mut hits, &state.members);
             Ok(serde_json::json!({
                 "results": hits,
                 "total": hits.len(),
@@ -1889,6 +1893,27 @@ async fn dispatch_channel(
             }))
         }
         other => Err(ApiError::bad_request(format!("unknown or non-channel tool: {other}"))),
+    }
+}
+
+/// Re-attach member display data (name) to the index-only hits returned by the
+/// membox cart, looked up from the authoritative registry. The cart holds no
+/// PII — just `member_lct` + embedding — so the hub is the single source of
+/// member identity; unknown/absent LCTs are left as-is (lct + score only).
+fn enrich_member_hits(
+    hits: &mut [serde_json::Value],
+    members: &std::collections::BTreeMap<Uuid, hub_lib::state::Member>,
+) {
+    for hit in hits.iter_mut() {
+        if let Some(lct) = hit
+            .get("member_lct")
+            .and_then(|v| v.as_str())
+            .and_then(|s| Uuid::parse_str(s).ok())
+        {
+            if let Some(name) = members.get(&lct).and_then(|m| m.name.clone()) {
+                hit["name"] = serde_json::json!(name);
+            }
+        }
     }
 }
 
@@ -3911,6 +3936,31 @@ norms:
 
     fn loopback() -> ConnectInfo<SocketAddr> {
         ConnectInfo("127.0.0.1:0".parse().unwrap())
+    }
+
+    #[test]
+    fn find_members_hits_are_enriched_from_the_registry_not_the_cart() {
+        use std::collections::{BTreeMap, BTreeSet};
+        let lct = Uuid::new_v4();
+        let mut members = BTreeMap::new();
+        members.insert(lct, hub_lib::state::Member {
+            lct_id: lct,
+            name: Some("Sprout".into()),
+            skills: BTreeSet::new(),
+            profile: BTreeMap::new(),
+        });
+        // Index-only hits, exactly as the slim cart/sidecar returns them.
+        let unknown = Uuid::new_v4();
+        let mut hits = vec![
+            serde_json::json!({ "member_lct": lct.to_string(), "score": 0.91 }),
+            serde_json::json!({ "member_lct": unknown.to_string(), "score": 0.42 }),
+        ];
+        enrich_member_hits(&mut hits, &members);
+        // Known member: name re-attached from the registry; score preserved.
+        assert_eq!(hits[0]["name"], serde_json::json!("Sprout"));
+        assert_eq!(hits[0]["score"], serde_json::json!(0.91));
+        // Unknown LCT: left as index-only (no fabricated name).
+        assert!(hits[1].get("name").is_none());
     }
 
     #[tokio::test]
