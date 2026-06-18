@@ -1,4 +1,5 @@
 # Web4 Extension Registry
+Status: Draft / experimental — pre-IANA template • Last-Updated: 2026-06-18
 
 ## Registry Name
 Web4 Protocol Extensions
@@ -7,7 +8,7 @@ Web4 Protocol Extensions
 Specification Required (RFC 8126)
 
 ## Reference
-[Web4 Standard Section X.Y]
+[Web4 Standard, protocols/web4-handshake.md §5 (Capability & Suite Negotiation)](../protocols/web4-handshake.md)
 
 ## Registry Contents
 
