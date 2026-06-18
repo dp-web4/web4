@@ -127,6 +127,15 @@ enum Command {
         hub_dir: PathBuf,
     },
 
+    /// Rotate the vault passphrase to one YOU choose (memorable, operator-picked —
+    /// the hub never dictates it). Re-keys the Sovereign identity, the SQLCipher
+    /// state store, and the protected tier from the current passphrase to a new
+    /// one. Stop the hub first; ignite with the new phrase via `hub unlock` after.
+    RotatePassphrase {
+        /// The hub data directory.
+        hub_dir: PathBuf,
+    },
+
     /// V2-7 helper: build + print a SignedEnvelope for a given payload.
     ///
     /// Reads a keypair from an IdentityFile, signs (signer_lct_id ||
@@ -510,6 +519,7 @@ async fn main() -> Result<()> {
         Some(Command::SealIdentity { path }) => run_seal_identity(path).await,
         Some(Command::Unlock { port }) => run_unlock(port).await,
         Some(Command::ExportPublicIdentity { hub_dir }) => run_export_public_identity(hub_dir).await,
+        Some(Command::RotatePassphrase { hub_dir }) => run_rotate_passphrase(hub_dir).await,
         Some(Command::EnvelopeSign { identity, nonce, payload }) => {
             run_envelope_sign(identity, nonce, payload).await
         }
@@ -1182,6 +1192,62 @@ async fn run_seal_identity(path: PathBuf) -> Result<()> {
 
 /// The stub-console unlock plugin: prompt for the passphrase (never store it)
 /// and present it to a locked, running hub's local `/unlock` slot.
+/// Rotate the vault passphrase to an operator-chosen one. Re-keys identity + state
+/// store + protected tier. The hub does not dictate the secret — the admin picks it.
+async fn run_rotate_passphrase(hub_dir: PathBuf) -> Result<()> {
+    use hub_lib::hub::{HubConfig, HubPaths, SovereignMode};
+    use std::io::IsTerminal;
+    if !std::io::stdin().is_terminal() {
+        anyhow::bail!("rotate-passphrase is interactive — run it at a console");
+    }
+    // Current passphrase (env or prompt) — must decrypt the existing vaults.
+    let old = require_passphrase("the CURRENT vault (to re-key it)")?;
+    // New passphrase — operator's choice, entered twice. Empty = explicit NULL (allowed).
+    let new = rpassword::prompt_password("New passphrase (your choice; Enter twice for NONE): ")
+        .context("reading new passphrase")?;
+    let confirm = rpassword::prompt_password("Confirm new passphrase: ")
+        .context("reading confirmation")?;
+    if new != confirm {
+        anyhow::bail!("the two new passphrases did not match — nothing changed");
+    }
+    if new == old {
+        anyhow::bail!("the new passphrase is the same as the current one — nothing to do");
+    }
+
+    let config = HubConfig::load(HubPaths::new(&hub_dir).config())?;
+
+    // 1. Re-key the Sovereign identity (W4VT): decrypt with old, re-seal with new.
+    if let SovereignMode::Local { lct_path } = config.sovereign.mode()? {
+        let id = IdentityFile::load_encrypted(&lct_path, &old)
+            .context("current passphrase did not open the identity — aborting (nothing changed)")?;
+        id.save_encrypted(&lct_path, &new)
+            .with_context(|| format!("re-sealing identity at {}", lct_path.display()))?;
+        println!("  ✓ Sovereign identity re-keyed");
+    }
+
+    // 2. Re-key the SQLCipher state store (same per-hub salt, new passphrase → new key).
+    let old_key = hub_lib::store::derive_store_key(&hub_dir, &old)?;
+    let new_key = hub_lib::store::derive_store_key(&hub_dir, &new)?;
+    hub_lib::store::rekey_store(&hub_dir, old_key, new_key)
+        .context("re-keying the state store")?;
+    println!("  ✓ state store (hub.db) re-keyed");
+
+    // 3. Protected tier: it's keyed straight from the passphrase. Drop it; it re-seeds
+    //    under the new passphrase on next ignition (regenerable).
+    let protected = hub_dir.join("protected.hvlt");
+    if protected.exists() {
+        std::fs::remove_file(&protected).ok();
+        println!("  ✓ protected tier dropped (re-seeds under the new passphrase on ignition)");
+    }
+
+    if new.is_empty() {
+        println!("  ⚠ new passphrase is EMPTY (NULL) — encrypted but openable by anyone. Your choice.");
+    }
+    println!("Passphrase rotated. The old one no longer opens this hub.");
+    println!("  → restart the hub (it will boot locked) and ignite with `hub unlock` using the NEW phrase.");
+    Ok(())
+}
+
 /// Seed the clear tier-0 `public-identity.json` from the encrypted store + identity.
 async fn run_export_public_identity(hub_dir: PathBuf) -> Result<()> {
     use hub_lib::hub::{HubConfig, HubPaths, SovereignMode};
