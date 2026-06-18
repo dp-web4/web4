@@ -1358,6 +1358,7 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "web4-core",
+ "zeroize",
 ]
 
 [[package]]
@@ -1386,6 +1387,7 @@ dependencies = [
  "uuid",
  "web4-core",
  "web4-trust-core",
+ "zeroize",
 ]
 
 [[package]]

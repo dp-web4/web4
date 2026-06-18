@@ -41,7 +41,6 @@ use web4_core::role::SocietyRole;
 
 use hub_lib::hub::HubPaths;
 use hub_lib::events::HubEvent;
-use hub_lib::init::load_society;
 use hub_lib::law::{Decision, Law, R6Request};
 use hub_lib::ledger::HubLedger;
 use hub_lib::signer::{RemoteSigner, SignIntent, SwappableSigner};
@@ -199,7 +198,15 @@ struct QueryHubResponse {
 async fn query_hub(State(s): State<McpState>) -> Result<Json<QueryHubResponse>, ApiError> {
     let ledger = s.ledger.lock().await;
     let state = HubState::project(&ledger);
-    let society = load_society(s.paths.root.clone()).await?;
+    // Read the society via the shared store handle so the in-memory `store_key`
+    // (populated at runtime ignition, then the passphrase is dropped) decrypts
+    // an at-rest vault. The free `load_society(root)` opens the store WITHOUT a
+    // key and so fails post-ignition on an encrypted store — see the locked-shell
+    // note on `open_with_law_and_ledger`. `assign_role` already uses this path.
+    let store = s.open_store().await.map_err(ApiError::internal)?;
+    let society = store.read_society().await
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| ApiError::internal(anyhow::anyhow!("no society found in hub store")))?;
     let role_fill: HashMap<String, Uuid> = society.roles.iter()
         .map(|(k, v)| (k.clone(), v.filling_entity_lct_id))
         .collect();
