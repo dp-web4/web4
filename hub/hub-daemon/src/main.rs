@@ -959,9 +959,13 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
     .await?;
     // Admin UI reuses RestState (read-only; shares ledger + law snapshot).
     let admin_state = rest_state.clone();
+    let gate_state = rest_state.clone();
     let app = mcp_router(mcp_state)
         .merge(rest_router(rest_state))
-        .merge(admin::router(admin_state));
+        .merge(admin::router(admin_state))
+        // Fail-closed lock-gate over the whole surface: while locked, only the
+        // tier-0 allowlist (unlock / well-known / law / issuer metadata) is served.
+        .layer(axum::middleware::from_fn_with_state(gate_state, crate::rest::lock_gate));
 
     tracing::info!(
         hub = %config.hub.name,
