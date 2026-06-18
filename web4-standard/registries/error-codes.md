@@ -1,4 +1,5 @@
 # Web4 Error Code Registry
+Status: Draft / experimental — pre-IANA template • Last-Updated: 2026-06-18
 
 ## Registry Name
 Web4 Error Codes
@@ -7,7 +8,7 @@ Web4 Error Codes
 Expert Review (RFC 8126)
 
 ## Reference
-[Web4 Standard Section X.Y]
+[Web4 Standard, core-spec/errors.md](../core-spec/errors.md)
 
 ## Registry Contents
 

@@ -2,8 +2,9 @@
 Status: Draft • Last-Updated: 2025-09-11T22:47:56.408268Z
 
 ## Suite IDs
-- W4-BASE-1 : X25519 / Ed25519 / ChaCha20-Poly1305 / SHA-256 (COSE)
-- W4-FIPS-1 : P-256 ECDH / ECDSA-P256 / AES-128-GCM / SHA-256 (JOSE)
+- W4-BASE-1 : X25519 / Ed25519 / ChaCha20-Poly1305 / SHA-256 / HKDF (COSE)
+- W4-FIPS-1 : P-256 ECDH / ECDSA-P256 / AES-128-GCM / SHA-256 / HKDF (JOSE)
+- W4-IOT-1 : X25519 / Ed25519 / AES-CCM / SHA-256 / HKDF (CBOR)
 
 ## Extension IDs (provisional)
 - w4_ext_sdjwt_vp@1

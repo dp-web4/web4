@@ -1,4 +1,5 @@
 # Web4 Cipher Suite Registry
+Status: Draft / experimental — pre-IANA template • Last-Updated: 2026-06-18
 
 ## Registry Name
 Web4 Cipher Suites
@@ -7,7 +8,7 @@ Web4 Cipher Suites
 Expert Review (RFC 8126)
 
 ## Reference
-[Web4 Standard Section X.Y]
+[Web4 Standard, core-spec/core-protocol.md §1 (Cryptographic Suites)](../core-spec/core-protocol.md)
 
 ## Registry Contents
 
