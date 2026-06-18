@@ -901,6 +901,24 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
     let port = port_override.unwrap_or(config.daemon.mcp_port);
     let addr: SocketAddr = format!("{}:{}", bind, port).parse()?;
 
+    // Total-enclosure ignition (unlock-first, not auto-operated): the hub's state is
+    // encrypted at rest, so it cannot start without the vault passphrase. We do NOT rely on
+    // a stored secret — if HUB_PASSPHRASE isn't already in the environment, prompt for it
+    // live (a human at the console / a constellation feeding the TTY). With no environment
+    // value AND no terminal (e.g. an unattended `systemctl start`), we refuse to start: a
+    // locked hub is meant to be unlocked, not silently auto-operated from a co-located key.
+    if hub_lib::identity::env_passphrase().is_none() {
+        let pass = require_passphrase("hub ignition (decrypts identity + state at rest)")
+            .context(
+                "this hub is encrypted at rest and no HUB_PASSPHRASE was provided; ignite it \
+                 interactively (run `hub serve` at a console) or inject the passphrase via a \
+                 live unlock mechanism — it is not stored on disk",
+            )?;
+        // Make the ignition secret visible to the store/identity/protected-store openers
+        // for this process only (never written to disk).
+        std::env::set_var("HUB_PASSPHRASE", pass);
+    }
+
     // Both MCP and REST route through the signer abstraction (V2-7 §4
     // for MCP); both work for Local + Hestia mode chapters.
     // Construct a shared Law slot so both MCP + REST evaluate against
