@@ -118,6 +118,15 @@ enum Command {
         port: u16,
     },
 
+    /// Write the clear tier-0 `public-identity.json` (hub id, name, founding
+    /// sovereign, pubkey) so a locked-shell hub can identify itself on
+    /// `/.well-known` and accept `hub unlock`. Reads the encrypted store +
+    /// identity with the passphrase (HUB_PASSPHRASE / prompt). Run once per hub.
+    ExportPublicIdentity {
+        /// The hub data directory.
+        hub_dir: PathBuf,
+    },
+
     /// V2-7 helper: build + print a SignedEnvelope for a given payload.
     ///
     /// Reads a keypair from an IdentityFile, signs (signer_lct_id ||
@@ -500,6 +509,7 @@ async fn main() -> Result<()> {
         }
         Some(Command::SealIdentity { path }) => run_seal_identity(path).await,
         Some(Command::Unlock { port }) => run_unlock(port).await,
+        Some(Command::ExportPublicIdentity { hub_dir }) => run_export_public_identity(hub_dir).await,
         Some(Command::EnvelopeSign { identity, nonce, payload }) => {
             run_envelope_sign(identity, nonce, payload).await
         }
@@ -901,62 +911,76 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
     let port = port_override.unwrap_or(config.daemon.mcp_port);
     let addr: SocketAddr = format!("{}:{}", bind, port).parse()?;
 
-    // Total-enclosure ignition (unlock-first, not auto-operated): the hub's state is
-    // encrypted at rest, so it cannot start without the vault passphrase. We do NOT rely on
-    // a stored secret — if HUB_PASSPHRASE isn't already in the environment, prompt for it
-    // live (a human at the console / a constellation feeding the TTY). With no environment
-    // value AND no terminal (e.g. an unattended `systemctl start`), we refuse to start: a
-    // locked hub is meant to be unlocked, not silently auto-operated from a co-located key.
-    if hub_lib::identity::env_passphrase().is_none() {
-        let pass = require_passphrase("hub ignition (decrypts identity + state at rest)")
-            .context(
-                "this hub is encrypted at rest and no HUB_PASSPHRASE was provided; ignite it \
-                 interactively (run `hub serve` at a console) or inject the passphrase via a \
-                 live unlock mechanism — it is not stored on disk",
-            )?;
-        // Make the ignition secret visible to the store/identity/protected-store openers
-        // for this process only (never written to disk).
-        std::env::set_var("HUB_PASSPHRASE", pass);
-    }
+    // Total enclosure, unlock-first: try to open the encrypted state store with whatever
+    // key is available (none — we keep no passphrase on disk or in env). If it opens
+    // (plaintext / NULL-keyed / fresh hub), boot normally. If it fails closed (encrypted,
+    // no key), boot a LOCKED SHELL that serves only the unlock path; `hub unlock` ignites it
+    // at runtime. The passphrase is never read from the environment.
+    let store_opens = hub_lib::store::open_hub_store(&hub_dir).is_ok();
 
-    // Both MCP and REST route through the signer abstraction (V2-7 §4
-    // for MCP); both work for Local + Hestia mode chapters.
-    // Construct a shared Law slot so both MCP + REST evaluate against
-    // the same in-memory snapshot, and so the REST reload-law endpoint
-    // refreshes both surfaces in one call.
-    let initial_law = {
-        let store = hub_lib::store::open_hub_store(&hub_dir)?;
-        match store.read_law().await? {
-            Some(yaml) => Some(hub_lib::law::Law::parse_and_validate(&yaml)?),
-            None => None,
-        }
+    let (rest_state, mcp_state) = if store_opens {
+        // ── normal boot (store readable without a held key) ──
+        let initial_law = {
+            let store = hub_lib::store::open_hub_store(&hub_dir)?;
+            match store.read_law().await? {
+                Some(yaml) => Some(hub_lib::law::Law::parse_and_validate(&yaml)?),
+                None => None,
+            }
+        };
+        let shared_law = std::sync::Arc::new(tokio::sync::RwLock::new(initial_law));
+        let shared_ledger = {
+            let store = hub_lib::store::open_hub_store(&hub_dir)?;
+            std::sync::Arc::new(tokio::sync::Mutex::new(
+                hub_lib::ledger::HubLedger::open(store).await?,
+            ))
+        };
+        let rest = RestState::open_with_law_and_ledger(
+            hub_dir.clone(),
+            shared_law.clone(),
+            shared_ledger.clone(),
+        )
+        .await?;
+        let mcp = McpState::open_with_law_and_ledger(
+            hub_dir.clone(),
+            shared_law,
+            shared_ledger,
+            rest.signer.clone(),
+            rest.sovereign_lct_id,
+            rest.store_key.clone(),
+            rest.hub_id,
+            rest.hub_name.clone(),
+        )
+        .await?;
+        (rest, mcp)
+    } else {
+        // ── LOCKED SHELL (encrypted store, no key) ──
+        tracing::warn!(
+            "hub state is encrypted and no key is available — starting in a LOCKED shell \
+             (only the unlock path is served). Run `hub unlock` to ignite."
+        );
+        let shared_law = std::sync::Arc::new(tokio::sync::RwLock::new(None));
+        // Empty placeholder ledger on a throwaway temp dir (never the real hub dir, never
+        // written) — replaced in memory at ignition.
+        let placeholder_dir = std::env::temp_dir().join(format!("web4-hub-locked-{}", std::process::id()));
+        std::fs::create_dir_all(&placeholder_dir)?;
+        let placeholder_store = hub_lib::store::open_hub_store_with_key(&placeholder_dir, None)?;
+        let shared_ledger = std::sync::Arc::new(tokio::sync::Mutex::new(
+            hub_lib::ledger::HubLedger::open(placeholder_store).await?,
+        ));
+        let rest = RestState::open_locked_shell(hub_dir.clone(), shared_law.clone(), shared_ledger.clone()).await?;
+        let mcp = McpState::open_with_law_and_ledger(
+            hub_dir.clone(),
+            shared_law,
+            shared_ledger,
+            rest.signer.clone(),
+            rest.sovereign_lct_id,
+            rest.store_key.clone(),
+            rest.hub_id,
+            rest.hub_name.clone(),
+        )
+        .await?;
+        (rest, mcp)
     };
-    let shared_law = std::sync::Arc::new(tokio::sync::RwLock::new(initial_law));
-    // Single in-memory ledger shared across MCP, REST, and admin so an act
-    // recorded through any surface is immediately visible to the others
-    // (previously each surface loaded its own ledger at startup and only
-    // reconverged on restart).
-    let shared_ledger = {
-        let store = hub_lib::store::open_hub_store(&hub_dir)?;
-        std::sync::Arc::new(tokio::sync::Mutex::new(
-            hub_lib::ledger::HubLedger::open(store).await?,
-        ))
-    };
-    // RestState first — it owns the swappable signer, sovereign id, and derived
-    // store key; McpState shares those (so a single runtime ignition lights up
-    // both surfaces, and McpState constructs even in a locked shell).
-    let rest_state =
-        RestState::open_with_law_and_ledger(hub_dir.clone(), shared_law.clone(), shared_ledger.clone())
-            .await?;
-    let mcp_state = McpState::open_with_law_and_ledger(
-        hub_dir.clone(),
-        shared_law,
-        shared_ledger,
-        rest_state.signer.clone(),
-        rest_state.sovereign_lct_id,
-        rest_state.store_key.clone(),
-    )
-    .await?;
     // Admin UI reuses RestState (read-only; shares ledger + law snapshot).
     let admin_state = rest_state.clone();
     let gate_state = rest_state.clone();
@@ -1158,6 +1182,41 @@ async fn run_seal_identity(path: PathBuf) -> Result<()> {
 
 /// The stub-console unlock plugin: prompt for the passphrase (never store it)
 /// and present it to a locked, running hub's local `/unlock` slot.
+/// Seed the clear tier-0 `public-identity.json` from the encrypted store + identity.
+async fn run_export_public_identity(hub_dir: PathBuf) -> Result<()> {
+    use hub_lib::hub::{HubConfig, HubPaths, SovereignMode};
+    let pass = require_passphrase("the hub vault (to read its public identity)")?;
+    let key = hub_lib::store::derive_store_key(&hub_dir, &pass)?;
+    let store = hub_lib::store::open_hub_store_with_key(&hub_dir, Some(key))
+        .context("opening the encrypted hub store")?;
+    let society = store
+        .read_society()
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("no society in the hub store"))?;
+    let config = HubConfig::load(HubPaths::new(&hub_dir).config())?;
+    let (founding, pubkey_hex) = match config.sovereign.mode()? {
+        SovereignMode::Local { lct_path } => {
+            let id = IdentityFile::load_encrypted(&lct_path, &pass)
+                .context("opening the encrypted identity")?;
+            let pk = id.keypair()?.verifying_key().to_hex();
+            (id.lct.id, Some(pk))
+        }
+        SovereignMode::Hestia { lct_id, pubkey_hex, .. } => (lct_id, Some(pubkey_hex)),
+    };
+    let pid = crate::rest::PublicIdentity {
+        hub_id: society.lct_id,
+        hub_name: society.name.clone(),
+        founding_sovereign_lct_id: founding,
+        sovereign_pubkey_hex: pubkey_hex,
+    };
+    pid.write(&hub_dir)?;
+    println!("Wrote {}/public-identity.json", hub_dir.display());
+    println!("  hub:       {} ({})", society.name, society.lct_id);
+    println!("  sovereign: {}", founding);
+    println!("  → the hub can now boot as a locked shell and be ignited with `hub unlock`.");
+    Ok(())
+}
+
 async fn run_unlock(port: u16) -> Result<()> {
     let base = format!("http://127.0.0.1:{port}");
     let client = reqwest::Client::new();

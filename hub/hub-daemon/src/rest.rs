@@ -53,6 +53,37 @@ use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, LockedSigner, Re
 use hub_lib::state::HubState;
 use hub_lib::unlock_gate::{GateDecision, UnlockGate};
 
+/// The hub's **public identity**, written clear at `<hub-dir>/public-identity.json`.
+/// This is the tier-0 public layer: who the hub is (did:web4 / pubkey) and who founded
+/// it — non-secret by definition, the same accepted-clear class as the KDF salt. It lets a
+/// **locked-shell** hub (state store sealed + closed) still answer "what hub is this?" on
+/// `/.well-known` so an operator can `hub unlock` it. Written whenever the hub is ignited;
+/// read at locked boot.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PublicIdentity {
+    pub hub_id: Uuid,
+    pub hub_name: String,
+    pub founding_sovereign_lct_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sovereign_pubkey_hex: Option<String>,
+}
+
+impl PublicIdentity {
+    fn path(hub_dir: &std::path::Path) -> PathBuf {
+        hub_dir.join("public-identity.json")
+    }
+    /// Read the clear public identity, if present.
+    pub fn read(hub_dir: &std::path::Path) -> Option<Self> {
+        std::fs::read(Self::path(hub_dir)).ok().and_then(|b| serde_json::from_slice(&b).ok())
+    }
+    /// Write the clear public identity (idempotent; public info, 0644).
+    pub fn write(&self, hub_dir: &std::path::Path) -> anyhow::Result<()> {
+        let bytes = serde_json::to_vec_pretty(self)?;
+        std::fs::write(Self::path(hub_dir), bytes)?;
+        Ok(())
+    }
+}
+
 #[derive(Clone)]
 pub struct RestState {
     pub paths: HubPaths,
@@ -297,6 +328,48 @@ impl RestState {
         hub_lib::store::open_hub_store_with_key(&self.paths.root, key)
     }
 
+    /// Construct a **locked shell**: the encrypted state store could not be opened
+    /// (no key — total enclosure), so the hub comes up serving only the unlock path.
+    /// Identity (hub_id / name / founding sovereign) is read from the clear tier-0
+    /// `public-identity.json`; the ledger is an empty placeholder (replaced at
+    /// ignition); the signer is a `LockedSigner`; no store key, no protected tier.
+    /// `hub unlock` then ignites it (see [`try_unlock`](Self::try_unlock)).
+    pub async fn open_locked_shell(
+        hub_dir: PathBuf,
+        law: Arc<tokio::sync::RwLock<Option<Law>>>,
+        placeholder_ledger: Arc<Mutex<HubLedger>>,
+    ) -> Result<Self> {
+        let paths = HubPaths::new(hub_dir.clone());
+        let pid = PublicIdentity::read(&hub_dir).ok_or_else(|| {
+            anyhow::anyhow!(
+                "hub state is encrypted and there is no clear public-identity.json — cannot \
+                 start a locked shell without knowing the hub's public identity. Run \
+                 `hub export-public-identity {}` (with the passphrase) once to seed it.",
+                hub_dir.display()
+            )
+        })?;
+        let signer: Arc<dyn RemoteSigner> = Arc::new(LockedSigner::new(pid.founding_sovereign_lct_id));
+        Ok(Self {
+            paths,
+            hub_id: pid.hub_id,
+            hub_name: pid.hub_name,
+            sovereign_lct_id: pid.founding_sovereign_lct_id,
+            signer: Arc::new(SwappableSigner::new(signer)),
+            ledger: placeholder_ledger,
+            nonces: Arc::new(NonceStore::new()),
+            resolver: Arc::new(tokio::sync::RwLock::new(MapResolver::new())),
+            law,
+            constellations: Arc::new(hub_lib::constellation::ConstellationGate::new()),
+            vp_requests: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            unlock_gate: Arc::new(UnlockGate::default_policy()),
+            unlock_verifier_cmd: std::env::var("HUB_UNLOCK_VERIFIER").ok().filter(|s| !s.is_empty()),
+            unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            protected: Arc::new(Mutex::new(None)),
+            store_key: Arc::new(tokio::sync::RwLock::new(None)),
+        })
+    }
+
     /// Re-read the chapter law from storage and swap it into the
     /// in-memory snapshot. Returns Ok with the version (or "none" if
     /// no law set). Used by the `/v1/admin/reload-law` endpoint so
@@ -409,6 +482,17 @@ impl RestState {
                     tracing::warn!("ignition: law reload failed (continuing): {e}");
                 }
                 self.unlock_gate.record_success();
+                // Refresh the clear public-identity tier-0 file so a future locked-shell
+                // boot knows who this hub is (to serve well-known + accept `hub unlock`).
+                let pid = PublicIdentity {
+                    hub_id: self.hub_id,
+                    hub_name: self.hub_name.clone(),
+                    founding_sovereign_lct_id: lct.id,
+                    sovereign_pubkey_hex: self.signer.public_key().map(|p| p.to_hex()),
+                };
+                if let Err(e) = pid.write(&self.paths.root) {
+                    tracing::warn!("ignition: writing public-identity.json failed (non-fatal): {e}");
+                }
                 tracing::warn!(
                     sovereign_lct = %lct.id,
                     "HUB IGNITED via passphrase — identity + state store + protected tier opened into memory; passphrase dropped, never stored"
@@ -1059,6 +1143,9 @@ impl From<VerifyError> for ApiError {
 struct WellKnownHubInfo {
     /// The hub's society LCT id (what `hestia hub connect` keys on).
     hub_lct_id: Uuid,
+    /// True when the hub is a locked shell (state sealed; only the unlock path is
+    /// served). Clients/operators see this to know to `hub unlock` before use.
+    locked: bool,
     /// The hub's LCT public key (hex) — the ECDH peer a member uses to open
     /// an E2E member↔hub channel. `None` if the signer can't expose it
     /// (e.g. Hestia mode). Public, integrity-protecting only (not a secret).
@@ -1094,7 +1181,9 @@ async fn well_known_hub_info(
 ) -> Json<WellKnownHubInfo> {
     Json(WellKnownHubInfo {
         hub_lct_id: s.hub_id,
-        hub_pubkey_hex: s.signer.public_key().map(|pk| pk.to_hex()),
+        locked: s.is_locked(),
+        hub_pubkey_hex: s.signer.public_key().map(|pk| pk.to_hex())
+            .or_else(|| PublicIdentity::read(&s.paths.root).and_then(|p| p.sovereign_pubkey_hex)),
         api_versions: vec!["v1"],
         endpoints: WellKnownEndpoints {
             rest: "/v1",
