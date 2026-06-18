@@ -221,11 +221,23 @@ pub const SQLITE_DB_FILENAME_LEGACY: &str = "chapter.db";
 /// To force a specific backend at create time, use [`open_hub_store_with`].
 pub fn open_hub_store(hub_dir: impl AsRef<Path>) -> Result<Box<dyn HubStore>> {
     let hub_dir = hub_dir.as_ref();
+    open_hub_store_with_key(hub_dir, store_key(hub_dir)?)
+}
+
+/// Like [`open_hub_store`] but with an **explicit** SQLCipher key (or `None`) —
+/// the de-env'd entry point. The daemon holds the derived key in memory after
+/// ignition and passes it here for runtime store re-opens, so the passphrase is
+/// never read from the environment. `None` opens a plaintext/fresh store and
+/// fails closed on an encrypted one.
+pub fn open_hub_store_with_key(
+    hub_dir: impl AsRef<Path>,
+    key: Option<[u8; 32]>,
+) -> Result<Box<dyn HubStore>> {
+    let hub_dir = hub_dir.as_ref();
     let paths = HubPaths::new(hub_dir.to_path_buf());
     let db_path = hub_dir.join(SQLITE_DB_FILENAME);
     let legacy_db_path = hub_dir.join(SQLITE_DB_FILENAME_LEGACY);
 
-    let key = store_key(hub_dir)?;
     if db_path.exists() {
         Ok(Box::new(SqliteBackend::open(&db_path, key)?))
     } else if legacy_db_path.exists() {
@@ -287,13 +299,23 @@ fn migrate_plaintext_to_encrypted(path: &Path, key_hex: &str) -> Result<()> {
 /// identity — closing the gap where a sealed hub's *key* was protected but
 /// everything it *knows* sat in world-readable plaintext next to it.
 fn store_key(hub_dir: &Path) -> Result<Option<[u8; 32]>> {
-    let Some(passphrase) = crate::identity::env_passphrase() else {
-        return Ok(None);
-    };
+    match crate::identity::env_passphrase() {
+        Some(passphrase) => Ok(Some(derive_store_key(hub_dir, &passphrase)?)),
+        None => Ok(None),
+    }
+}
+
+/// Derive the at-rest **SQLCipher key** for this hub's state DB from an explicit
+/// `passphrase`, salted per-hub (`<hub-dir>/.store-salt`). This is the de-env'd
+/// path: callers (the daemon's runtime ignition) pass the passphrase they hold
+/// transiently and keep the returned key in memory — the passphrase is never
+/// read from the process environment. An empty passphrase is a valid (NULL) key,
+/// distinct from "no ignition yet". See also [`open_hub_store_with_key`].
+pub fn derive_store_key(hub_dir: &Path, passphrase: &str) -> Result<[u8; 32]> {
     let salt = load_or_create_store_salt(hub_dir)?;
-    let dk = web4_core::vault::crypto::derive_key(&passphrase, &salt)
+    let dk = web4_core::vault::crypto::derive_key(passphrase, &salt)
         .map_err(|e| anyhow::anyhow!("deriving hub store key: {e}"))?;
-    Ok(Some(*dk.as_bytes()))
+    Ok(*dk.as_bytes())
 }
 
 /// Per-hub salt for [`store_key`], stored clear (salts aren't secret) at
