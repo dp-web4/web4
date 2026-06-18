@@ -106,7 +106,7 @@ pub struct RestState {
     /// granted M-of-N unlock (recursive-vault P2 / H3). `None` when the hub is locked (no
     /// passphrase) — there's no master key to open it. Seeded with a demo Sealed item so a
     /// granted quorum has something real to release.
-    pub protected: Option<Arc<Mutex<hub_lib::vault_tree::OpenVault>>>,
+    pub protected: Arc<Mutex<Option<hub_lib::vault_tree::OpenVault>>>,
     /// The derived SQLCipher key for the state store, held in memory (zeroized on
     /// drop) — the de-env'd replacement for reading `HUB_PASSPHRASE` from the
     /// environment on every runtime store re-open. `None` while locked. Set once
@@ -272,7 +272,9 @@ impl RestState {
             unlock_gate: Arc::new(UnlockGate::default_policy()),
             unlock_verifier_cmd: std::env::var("HUB_UNLOCK_VERIFIER").ok().filter(|s| !s.is_empty()),
             unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
-            protected: open_protected_store(&hub_dir),
+            protected: Arc::new(Mutex::new(
+                hub_lib::identity::env_passphrase().and_then(|p| open_protected_vault(&hub_dir, &p)),
+            )),
             // Derive + hold the store key in memory (env-fed at construction for now;
             // ignition will set it from a transient passphrase — increment 6). Never
             // re-read from env at runtime.
@@ -364,15 +366,52 @@ impl RestState {
                     }
                 };
                 let lct = identity.lct.clone();
-                // Promote: install the real signer in place, then make the
-                // Sovereign pubkey verifiable.
-                self.signer
-                    .swap(Arc::new(LocalKeypairSigner::new(lct.id, kp)));
-                self.resolver.write().await.insert(lct.clone());
+
+                // Open the encrypted STATE store with a key derived from the SAME
+                // passphrase, and load the real ledger. Fail closed BEFORE swapping
+                // the signer — never leave a half-ignited hub (real signer + empty
+                // ledger). A store failure here is an internal error, not a bad guess.
+                let store_key = match hub_lib::store::derive_store_key(&self.paths.root, passphrase) {
+                    Ok(k) => k,
+                    Err(e) => return UnlockOutcome::Unsupported(format!("deriving store key: {e}")),
+                };
+                let store = match hub_lib::store::open_hub_store_with_key(&self.paths.root, Some(store_key)) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::error!("ignition: identity decrypted but state store did not open: {e}");
+                        return UnlockOutcome::Unsupported(format!("state store did not open: {e}"));
+                    }
+                };
+                let real_ledger = match hub_lib::ledger::HubLedger::open(store).await {
+                    Ok(l) => l,
+                    Err(e) => return UnlockOutcome::Unsupported(format!("opening ledger: {e}")),
+                };
+                let projected = HubState::project(&real_ledger);
+
+                // Commit ignition into memory: signer, store key, ledger, resolver, protected.
+                self.signer.swap(Arc::new(LocalKeypairSigner::new(lct.id, kp)));
+                *self.store_key.write().await = Some(zeroize::Zeroizing::new(store_key));
+                *self.ledger.lock().await = real_ledger;
+                {
+                    let mut resolver = self.resolver.write().await;
+                    resolver.insert(lct.clone());
+                    for (m, pk) in &projected.member_pubkeys {
+                        if let Ok(l) = hub_lib::hub::hestia_sovereign_lct(*m, pk) { resolver.insert(l); }
+                    }
+                    for (h, pk) in &projected.council_pubkeys {
+                        if let Ok(l) = hub_lib::hub::hestia_sovereign_lct(*h, pk) { resolver.insert(l); }
+                    }
+                }
+                // Open the protected tier with the transient passphrase (then it's dropped).
+                *self.protected.lock().await = open_protected_vault(&self.paths.root, passphrase);
+                // Load the now-readable law (store opens with the held key).
+                if let Err(e) = self.reload_law().await {
+                    tracing::warn!("ignition: law reload failed (continuing): {e}");
+                }
                 self.unlock_gate.record_success();
                 tracing::warn!(
                     sovereign_lct = %lct.id,
-                    "VAULT UNLOCKED via passphrase (stub-console slot) — hub promoted locked → unlocked"
+                    "HUB IGNITED via passphrase — identity + state store + protected tier opened into memory; passphrase dropped, never stored"
                 );
                 UnlockOutcome::Unlocked { sovereign_lct_id: lct.id }
             }
@@ -784,8 +823,8 @@ async fn unlock_attest(
 /// recognition model — the quorum *authorizes*; the hub holds the credential. Returns the
 /// released payload, or `None` if no protected store is configured / it can't be opened.
 async fn open_protected_tier(s: &RestState) -> Option<String> {
-    let store = s.protected.as_ref()?;
-    let v = store.lock().await;
+    let guard = s.protected.lock().await;
+    let v = guard.as_ref()?;
     let cred = match v.open_item(PROTECTED_NOTE_CRED, None) {
         Ok(c) => String::from_utf8_lossy(&c).into_owned(),
         Err(e) => { tracing::warn!("protected-tier: reading sealing credential failed: {e}"); return None; }
@@ -849,11 +888,10 @@ const PROTECTED_NOTE_CRED: &str = "protected-note.cred";
 /// passphrase; `None` when the hub is locked (no passphrase → no master key). Seeds a demo
 /// Sealed item the first time, so a granted quorum has something real to open. Any failure
 /// is logged and yields `None` (degraded, not fatal — the rest of the hub still runs).
-fn open_protected_store(hub_dir: &std::path::Path) -> Option<Arc<Mutex<hub_lib::vault_tree::OpenVault>>> {
+fn open_protected_vault(hub_dir: &std::path::Path, pass: &str) -> Option<hub_lib::vault_tree::OpenVault> {
     use hub_lib::vault_tree::{ItemKind, OpenVault};
-    let pass = hub_lib::identity::env_passphrase()?; // locked hub → no protected store
     let path = hub_dir.join("protected.hvlt");
-    let mut v = match OpenVault::open_or_create(&path, &pass, "protected-tier") {
+    let mut v = match OpenVault::open_or_create(&path, pass, "protected-tier") {
         Ok(v) => v,
         Err(e) => {
             tracing::warn!("protected-tier store unavailable ({}): {e}", path.display());
@@ -876,7 +914,7 @@ fn open_protected_store(hub_dir: &std::path::Path) -> Option<Arc<Mutex<hub_lib::
         }
         tracing::info!("protected-tier store initialized at {} (demo Sealed item seeded)", path.display());
     }
-    Some(Arc::new(Mutex::new(v)))
+    Some(v)
 }
 
 pub fn router(state: RestState) -> Router {
@@ -963,9 +1001,33 @@ impl ApiError {
 fn locked_error() -> ApiError {
     ApiError {
         status: StatusCode::SERVICE_UNAVAILABLE,
-        message: "hub vault is locked — only tier-0 (non-LCT) reads are served until it is unlocked"
+        message: "hub vault is locked — ignite it first (run `hub unlock`); only the unlock path is served while locked"
             .to_string(),
     }
+}
+
+/// The fail-closed **lock-gate**: while the hub is locked, every request is
+/// refused (503) except the small tier-0 allowlist — the unlock path itself, the
+/// public discovery doc, the (clear) law, and the OID4VCI issuer metadata.
+/// Applied once to the merged app (covers MCP + REST + admin uniformly), so no
+/// handler runs against unpopulated state in a locked shell. A locked hub is
+/// unlocked, not operated.
+pub async fn lock_gate(
+    State(s): State<RestState>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    if s.is_locked() {
+        let path = req.uri().path();
+        let allowed = path == "/.well-known/web4-hub.json"
+            || path.ends_with("/unlock")                              // tier-1 ignition only
+            || path.ends_with("/law")                                  // signed law is tier-0
+            || path.ends_with("/.well-known/openid-credential-issuer"); // public issuer metadata
+        if !allowed {
+            return locked_error().into_response();
+        }
+    }
+    next.run(req).await
 }
 
 impl IntoResponse for ApiError {
