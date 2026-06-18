@@ -11,10 +11,10 @@ Web4 defines standardized cryptographic suites to ensure interoperability and se
 
 ### 1.1. Suite Definitions
 
-| Suite ID          | KEM       | Sig        | AEAD                | Hash    | Profile | Status |
-|-------------------|-----------|------------|---------------------|---------|---------|--------|
-| W4-BASE-1         | X25519    | Ed25519    | ChaCha20-Poly1305   | SHA-256 | COSE    | MUST   |
-| W4-FIPS-1         | ECDH-P256 | ECDSA-P256 | AES-128-GCM         | SHA-256 | JOSE    | SHOULD |
+| Suite ID          | KEM       | Sig        | AEAD                | Hash    | KDF         | Encoding | Status |
+|-------------------|-----------|------------|---------------------|---------|-------------|----------|--------|
+| W4-BASE-1         | X25519    | Ed25519    | ChaCha20-Poly1305   | SHA-256 | HKDF-SHA256 | COSE     | MUST   |
+| W4-FIPS-1         | ECDH-P256 | ECDSA-P256 | AES-128-GCM         | SHA-256 | HKDF-SHA256 | JOSE     | SHOULD |
 
 **Implementation Requirements:**
 - Implementations MUST support W4-BASE-1
@@ -29,7 +29,7 @@ Web4 defines standardized cryptographic suites to ensure interoperability and se
 - **AEAD**: ChaCha20-Poly1305 (RFC 8439)
 - **Hash**: SHA-256 (FIPS 180-4)
 - **KDF**: HKDF-SHA256 (RFC 5869)
-- **Encoding**: COSE (RFC 8152)
+- **Encoding**: COSE (RFC 9052/9053, obsoletes RFC 8152)
 
 #### W4-FIPS-1 (FIPS Compliance)
 - **Key Exchange**: ECDH-P256 (ECDH with P-256, FIPS 186-4)
@@ -45,7 +45,7 @@ All Web4 signed payloads **MUST** implement COSE/CBOR (Ed25519/EdDSA) as mandato
 
 #### COSE/CBOR (MUST)
 - Deterministic CBOR encoding per CTAP2
-- Ed25519 with `crv: Ed25519` and `alg: EdDSA` 
+- Ed25519 with `crv = 6` (COSE curve label) and `alg = -8` (EdDSA)
 - Payload is the canonical CBOR map
 - See web4-handshake.md Section 6.0.3 for complete profile
 
@@ -75,7 +75,7 @@ Private keys MUST be stored securely to prevent unauthorized access. Recommended
 
 ### 2.3. Key Rotation
 
-To mitigate the risk of key compromise, Web4 entities SHOULD rotate their keys periodically. The key rotation process involves generating a new key pair and updating the entity's Web4 Identifier to use the new public key. See `LCT-linked-context-token.md` Section 7.3 for the normative rotation lifecycle (new LCT issuance, `lineage` to the parent, and the dual-validity overlap window before the parent is retired as `superseded`).
+To mitigate the risk of key compromise, Web4 entities SHOULD rotate their keys periodically. The key rotation process involves generating a new key pair and issuing a new LCT bound to the new public key. See `LCT-linked-context-token.md` Section 7.3 for the normative rotation lifecycle (new LCT issuance, `lineage` to the parent, and the dual-validity overlap window before the parent is retired as `superseded`).
 
 
 
@@ -86,7 +86,7 @@ Authentication and authorization are essential for controlling access to Web4 re
 
 ### 3.1. Authentication
 
-Authentication in Web4 is based on digital signatures. An entity authenticates itself by signing a challenge with its private key. The signature can then be verified by the other party using the entity's public key.
+Authentication in Web4 is based on digital signatures. An entity authenticates itself by signing a challenge with its private key. The signature can then be verified by the other party using the entity's public key. See `web4-handshake.md` Section 6.0.5 for the normative session-binding, freshness, nonce-uniqueness, and replay-protection requirements that a conformant challenge-response MUST satisfy.
 
 ### 3.2. Authorization
 
