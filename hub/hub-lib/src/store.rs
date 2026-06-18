@@ -248,6 +248,28 @@ pub fn open_hub_store_with_key(
     }
 }
 
+/// Re-key the SQLCipher state DB in place: open with `old_key`, verify it
+/// decrypts, then `PRAGMA rekey` to `new_key`. Used by passphrase rotation so an
+/// operator can switch to a memorable phrase of their own choosing. Errors
+/// (without changing anything) if `old_key` doesn't open the DB.
+pub fn rekey_store(hub_dir: impl AsRef<Path>, old_key: [u8; 32], new_key: [u8; 32]) -> Result<()> {
+    let hub_dir = hub_dir.as_ref();
+    let db_path = hub_dir.join(SQLITE_DB_FILENAME);
+    if !db_path.exists() {
+        anyhow::bail!("no {} to re-key", db_path.display());
+    }
+    let conn = rusqlite::Connection::open(&db_path)
+        .with_context(|| format!("opening {} to re-key", db_path.display()))?;
+    conn.pragma_update(None, "key", hex::encode(old_key))
+        .context("applying current SQLCipher key")?;
+    // Probe that the OLD key actually decrypts before we re-key.
+    conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get::<_, i64>(0))
+        .map_err(|_| anyhow::anyhow!("current passphrase did not decrypt the state store — aborting"))?;
+    conn.pragma_update(None, "rekey", hex::encode(new_key))
+        .context("re-keying the state store to the new passphrase")?;
+    Ok(())
+}
+
 /// True if `path` begins with the plaintext SQLite magic — i.e. not yet
 /// SQLCipher-encrypted (an encrypted header is indistinguishable from random).
 fn is_plaintext_sqlite(path: &Path) -> bool {
@@ -1228,6 +1250,34 @@ mod tests {
 
         // 5. Wrong key is refused (SQLCipher rejects at first access).
         assert!(SqliteBackend::open(&db_path, Some([9u8; 32])).is_err(), "wrong key rejected");
+    }
+
+    #[tokio::test]
+    async fn rekey_store_switches_the_passphrase_key() {
+        let tmp = tempdir().unwrap();
+        let hub_dir = tmp.path();
+        let db_path = hub_dir.join(SQLITE_DB_FILENAME);
+        let old_key = [3u8; 32];
+        let new_key = [9u8; 32];
+        let founder = Uuid::new_v4();
+        let charter = Charter::found("Rekey".into(), founder);
+
+        // Create an encrypted store under old_key + a row.
+        {
+            let mut b = SqliteBackend::open(&db_path, Some(old_key)).unwrap();
+            b.write_charter(&charter).await.unwrap();
+        }
+        // Rotate old_key → new_key.
+        rekey_store(hub_dir, old_key, new_key).unwrap();
+
+        // Old key no longer opens; new key does, with the row intact.
+        assert!(SqliteBackend::open(&db_path, Some(old_key)).is_err(), "old key must stop working");
+        let b = SqliteBackend::open(&db_path, Some(new_key)).unwrap();
+        assert_eq!(b.read_charter().await.unwrap().unwrap().founding_sovereign_lct_id, founder);
+
+        // Re-keying with a wrong "old" key fails (and doesn't corrupt — new key still works).
+        assert!(rekey_store(hub_dir, [1u8; 32], [2u8; 32]).is_err());
+        assert!(SqliteBackend::open(&db_path, Some(new_key)).is_ok());
     }
 
     #[tokio::test]
