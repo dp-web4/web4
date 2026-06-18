@@ -90,13 +90,16 @@ impl McpState {
         signer: Arc<SwappableSigner>,
         sovereign_lct_id: Uuid,
         store_key: Arc<tokio::sync::RwLock<Option<zeroize::Zeroizing<[u8; 32]>>>>,
+        hub_id: Uuid,
+        hub_name: String,
     ) -> Result<Self> {
-        let paths = HubPaths::new(hub_dir.clone());
-        let society = load_society(&hub_dir).await?;
+        // No load_society here — it reads the (encrypted) store and would fail in a locked
+        // shell. hub_id/hub_name come from RestState (from the ledger when ignited, or from
+        // the clear public-identity.json when locked).
         Ok(Self {
-            paths,
-            hub_id: society.lct_id,
-            hub_name: society.name,
+            paths: HubPaths::new(hub_dir),
+            hub_id,
+            hub_name,
             sovereign_lct_id,
             signer,
             ledger,
