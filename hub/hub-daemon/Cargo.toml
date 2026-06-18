@@ -12,6 +12,7 @@ name = "hub"
 path = "src/main.rs"
 
 [dependencies]
+zeroize = "1"
 hub-lib = { path = "../hub-lib" }
 web4-core.workspace = true
 anyhow.workspace = true
