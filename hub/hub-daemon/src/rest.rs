@@ -102,6 +102,11 @@ pub struct RestState {
     pub unlock_verifier_cmd: Option<String>,
     /// Outstanding tier-2 unlock challenges (id → accumulating attestations).
     pub unlock_sessions: Arc<Mutex<std::collections::HashMap<Uuid, UnlockSession>>>,
+    /// The **protected tier**: a `vault_tree` enclosure holding data that opens only on a
+    /// granted M-of-N unlock (recursive-vault P2 / H3). `None` when the hub is locked (no
+    /// passphrase) — there's no master key to open it. Seeded with a demo Sealed item so a
+    /// granted quorum has something real to release.
+    pub protected: Option<Arc<Mutex<hub_lib::vault_tree::OpenVault>>>,
 }
 
 /// An in-flight tier-2 unlock: the minted challenge + the roster/threshold
@@ -262,6 +267,7 @@ impl RestState {
             unlock_gate: Arc::new(UnlockGate::default_policy()),
             unlock_verifier_cmd: std::env::var("HUB_UNLOCK_VERIFIER").ok().filter(|s| !s.is_empty()),
             unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            protected: open_protected_store(&hub_dir),
         })
     }
 
@@ -628,6 +634,10 @@ pub struct AttestResp {
     rejected: usize,
     required: usize,
     reason: String,
+    /// On the first grant: the tier-2 protected payload the quorum released (H3 — proof the
+    /// M-of-N opened real encrypted data, not just a symbolic authorization).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    released: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -708,7 +718,9 @@ async fn unlock_attest(
     });
     let decision = run_unlock_verifier(&cmd, &vreq).await?;
 
-    // Witness the resolution exactly once, on the first grant.
+    // Witness the resolution exactly once, on the first grant — and actually OPEN the
+    // protected tier (H3): the quorum's authorization releases real Sealed data.
+    let mut released: Option<String> = None;
     if decision.granted && !already_granted {
         witness_event(
             &s,
@@ -725,9 +737,10 @@ async fn unlock_attest(
         if let Some(sess) = s.unlock_sessions.lock().await.get_mut(&req.challenge_id) {
             sess.granted = true;
         }
+        released = open_protected_tier(&s).await;
         tracing::warn!(
-            challenge = %req.challenge_id, tier = %challenge.tier,
-            "TIER-2 VAULT UNLOCK GRANTED by M-of-N quorum (witnessed)"
+            challenge = %req.challenge_id, tier = %challenge.tier, released = released.is_some(),
+            "TIER-2 VAULT UNLOCK GRANTED by M-of-N quorum (witnessed) — protected tier opened"
         );
     }
 
@@ -738,7 +751,25 @@ async fn unlock_attest(
         rejected: decision.rejected,
         required: decision.required,
         reason: decision.reason,
+        released,
     }))
+}
+
+/// On a granted quorum, open the protected-tier Sealed item: read its sealing credential
+/// (master tier, available since ignition) and decrypt the item into memory. This is the
+/// recognition model — the quorum *authorizes*; the hub holds the credential. Returns the
+/// released payload, or `None` if no protected store is configured / it can't be opened.
+async fn open_protected_tier(s: &RestState) -> Option<String> {
+    let store = s.protected.as_ref()?;
+    let v = store.lock().await;
+    let cred = match v.open_item(PROTECTED_NOTE_CRED, None) {
+        Ok(c) => String::from_utf8_lossy(&c).into_owned(),
+        Err(e) => { tracing::warn!("protected-tier: reading sealing credential failed: {e}"); return None; }
+    };
+    match v.open_item(PROTECTED_NOTE, Some(&cred)) {
+        Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
+        Err(e) => { tracing::warn!("protected-tier: opening sealed item failed: {e}"); None }
+    }
 }
 
 /// Invoke the private verifier subprocess: pipe the request JSON to stdin, read
@@ -784,6 +815,44 @@ async fn run_unlock_verifier(
     serde_json::from_slice(&out.stdout).map_err(|e| {
         ApiError::internal(anyhow::anyhow!("unparseable verifier decision: {e}"))
     })
+}
+
+const PROTECTED_NOTE: &str = "protected-note";
+const PROTECTED_NOTE_CRED: &str = "protected-note.cred";
+
+/// Open (or create) the hub's **protected-tier** vault — the recursive-vault enclosure
+/// that holds data released only on a granted M-of-N unlock (H3). Keyed by the vault
+/// passphrase; `None` when the hub is locked (no passphrase → no master key). Seeds a demo
+/// Sealed item the first time, so a granted quorum has something real to open. Any failure
+/// is logged and yields `None` (degraded, not fatal — the rest of the hub still runs).
+fn open_protected_store(hub_dir: &std::path::Path) -> Option<Arc<Mutex<hub_lib::vault_tree::OpenVault>>> {
+    use hub_lib::vault_tree::{ItemKind, OpenVault};
+    let pass = hub_lib::identity::env_passphrase()?; // locked hub → no protected store
+    let path = hub_dir.join("protected.hvlt");
+    let mut v = match OpenVault::open_or_create(&path, &pass, "protected-tier") {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!("protected-tier store unavailable ({}): {e}", path.display());
+            return None;
+        }
+    };
+    if !v.contains(PROTECTED_NOTE) {
+        // Sealing credential the hub holds at master tier (available after ignition); the
+        // tier-2 policy only *uses* it on a granted quorum.
+        let cred = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+        v.put_master(PROTECTED_NOTE_CRED, ItemKind::Credential, cred.as_bytes());
+        let payload = b"TIER-2 PROTECTED PAYLOAD - released only by a witnessed M-of-N quorum unlock.";
+        if let Err(e) = v.put_sealed(PROTECTED_NOTE, ItemKind::Document, payload, &cred) {
+            tracing::warn!("seeding protected-tier item failed: {e}");
+            return None;
+        }
+        if let Err(e) = v.save() {
+            tracing::warn!("persisting protected-tier store failed: {e}");
+            return None;
+        }
+        tracing::info!("protected-tier store initialized at {} (demo Sealed item seeded)", path.display());
+    }
+    Some(Arc::new(Mutex::new(v)))
 }
 
 pub fn router(state: RestState) -> Router {
