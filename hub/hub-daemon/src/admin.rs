@@ -352,7 +352,7 @@ async fn council(State(s): State<RestState>) -> Result<Html<String>, AdminError>
     let projected = HubState::project(&*ledger);
     drop(ledger);
     let proposals = {
-        let store = hub_lib::store::open_hub_store(&s.paths.root)
+        let store = s.open_store().await
             .map_err(|e| AdminError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
         store.list_proposals().await
             .map_err(|e| AdminError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
@@ -483,8 +483,7 @@ async fn pairs(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
 }
 
 async fn law(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
-    use hub_lib::store::open_hub_store;
-    let store = open_hub_store(&s.paths.root)?;
+        let store = s.open_store().await?;
     let yaml = store.read_law().await?;
 
     let mut body = String::from("<h2>Chapter law</h2>");

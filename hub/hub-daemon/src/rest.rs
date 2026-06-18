@@ -107,6 +107,11 @@ pub struct RestState {
     /// passphrase) — there's no master key to open it. Seeded with a demo Sealed item so a
     /// granted quorum has something real to release.
     pub protected: Option<Arc<Mutex<hub_lib::vault_tree::OpenVault>>>,
+    /// The derived SQLCipher key for the state store, held in memory (zeroized on
+    /// drop) — the de-env'd replacement for reading `HUB_PASSPHRASE` from the
+    /// environment on every runtime store re-open. `None` while locked. Set once
+    /// at ignition; shared with `McpState`.
+    pub store_key: Arc<tokio::sync::RwLock<Option<zeroize::Zeroizing<[u8; 32]>>>>,
 }
 
 /// An in-flight tier-2 unlock: the minted challenge + the roster/threshold
@@ -268,7 +273,26 @@ impl RestState {
             unlock_verifier_cmd: std::env::var("HUB_UNLOCK_VERIFIER").ok().filter(|s| !s.is_empty()),
             unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
             protected: open_protected_store(&hub_dir),
+            // Derive + hold the store key in memory (env-fed at construction for now;
+            // ignition will set it from a transient passphrase — increment 6). Never
+            // re-read from env at runtime.
+            store_key: Arc::new(tokio::sync::RwLock::new(
+                match hub_lib::identity::env_passphrase() {
+                    Some(p) => hub_lib::store::derive_store_key(&hub_dir, &p)
+                        .ok()
+                        .map(zeroize::Zeroizing::new),
+                    None => None,
+                },
+            )),
         })
+    }
+
+    /// Open the state store using the in-memory derived key (de-env'd). Used for
+    /// every runtime store re-open instead of reading `HUB_PASSPHRASE` from the
+    /// environment.
+    pub async fn open_store(&self) -> anyhow::Result<Box<dyn hub_lib::store::HubStore>> {
+        let key = self.store_key.read().await.as_ref().map(|z| **z);
+        hub_lib::store::open_hub_store_with_key(&self.paths.root, key)
     }
 
     /// Re-read the chapter law from storage and swap it into the
@@ -278,7 +302,7 @@ impl RestState {
     /// restarting hub serve.
     pub async fn reload_law(&self) -> anyhow::Result<String> {
         use anyhow::Context;
-        let store = hub_lib::store::open_hub_store(&self.paths.root)
+        let store = self.open_store().await
             .context("opening store for law reload")?;
         let new_law: Option<Law> = match store.read_law().await? {
             Some(ref yaml) => Some(Law::parse_and_validate(yaml)
@@ -2604,21 +2628,21 @@ async fn get_proposal(
 // awaits here.
 
 async fn persist_proposal(s: &RestState, proposal: &CouncilProposal) -> Result<(), ApiError> {
-    let mut store = hub_lib::store::open_hub_store(&s.paths.root)
+    let mut store = s.open_store().await
         .map_err(ApiError::internal)?;
     store.write_proposal(proposal).await
         .map_err(ApiError::internal)
 }
 
 async fn read_proposal(s: &RestState, id: Uuid) -> Result<Option<CouncilProposal>, ApiError> {
-    let store = hub_lib::store::open_hub_store(&s.paths.root)
+    let store = s.open_store().await
         .map_err(ApiError::internal)?;
     store.read_proposal(id).await
         .map_err(ApiError::internal)
 }
 
 async fn read_all_proposals(s: &RestState) -> Result<Vec<CouncilProposal>, ApiError> {
-    let store = hub_lib::store::open_hub_store(&s.paths.root)
+    let store = s.open_store().await
         .map_err(ApiError::internal)?;
     store.list_proposals().await
         .map_err(ApiError::internal)
@@ -3192,7 +3216,7 @@ async fn post_pair_message(
         ephemeral_pub_hex: None,
     };
     {
-        let mut store = hub_lib::store::open_hub_store(&s.paths.root)
+        let mut store = s.open_store().await
             .map_err(ApiError::internal)?;
         store.append_pair_message(&msg).await
             .map_err(ApiError::internal)?;
@@ -3251,7 +3275,7 @@ async fn get_pair_messages(
             return Err(ApiError::not_found(format!("pair {} not found", pair_id)));
         }
     }
-    let store = hub_lib::store::open_hub_store(&s.paths.root)
+    let store = s.open_store().await
         .map_err(ApiError::internal)?;
     let messages = store.list_pair_messages(pair_id, q.since).await
         .map_err(ApiError::internal)?;

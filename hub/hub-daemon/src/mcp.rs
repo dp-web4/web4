@@ -39,13 +39,12 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 use web4_core::role::SocietyRole;
 
-use hub_lib::hub::{HubPaths, SovereignMode};
+use hub_lib::hub::HubPaths;
 use hub_lib::events::HubEvent;
-use hub_lib::identity::IdentityFile;
 use hub_lib::init::load_society;
 use hub_lib::law::{Decision, Law, R6Request};
 use hub_lib::ledger::HubLedger;
-use hub_lib::signer::{HestiaCallbackSigner, LocalKeypairSigner, RemoteSigner, SignIntent};
+use hub_lib::signer::{RemoteSigner, SignIntent, SwappableSigner};
 use hub_lib::state::HubState;
 
 #[derive(Clone)]
@@ -54,10 +53,11 @@ pub struct McpState {
     pub hub_id: Uuid,
     pub hub_name: String,
     pub sovereign_lct_id: Uuid,
-    /// Signer abstraction — LocalKeypairSigner for MVP-compat chapters,
-    /// HestiaCallbackSigner for Hestia-mode. MCP handlers route ledger
-    /// signing through this trait, same shape as REST.
-    pub signer: Arc<dyn RemoteSigner>,
+    /// Shared swappable signer (the SAME `Arc<SwappableSigner>` RestState holds).
+    /// MCP handlers route ledger signing through it; runtime ignition swaps the
+    /// LockedSigner → real one once, visible to both surfaces. Also lets McpState
+    /// construct in a locked shell (no `load_auto` of an encrypted identity).
+    pub signer: Arc<SwappableSigner>,
     pub ledger: Arc<Mutex<HubLedger>>,
     /// Chapter law snapshot (loaded at open). PolicyEntity gate runs
     /// before each act-recording tool commits to the ledger.
@@ -66,6 +66,8 @@ pub struct McpState {
     /// any subsequent MCP tool-call picks up the swapped-in law on its
     /// next .read() lock.
     pub law: Arc<tokio::sync::RwLock<Option<Law>>>,
+    /// Shared derived store key (same Arc as RestState) — de-env'd runtime opens.
+    pub store_key: Arc<tokio::sync::RwLock<Option<zeroize::Zeroizing<[u8; 32]>>>>,
 }
 
 impl McpState {
@@ -76,26 +78,21 @@ impl McpState {
     /// this, each surface held its own ledger loaded at startup and only
     /// reconverged on daemon restart — live writes (e.g. a member declaring a
     /// skill via MCP) were invisible to the admin dashboard until then.
+    /// `hub serve` builds RestState first, then constructs McpState sharing
+    /// RestState's `signer`, `sovereign_lct_id`, and `store_key`. McpState no
+    /// longer loads the identity itself — so it constructs cleanly in a locked
+    /// shell, and a single runtime ignition (the signer swap) lights up both
+    /// surfaces.
     pub async fn open_with_law_and_ledger(
         hub_dir: PathBuf,
         law: Arc<tokio::sync::RwLock<Option<Law>>>,
         ledger: Arc<Mutex<HubLedger>>,
+        signer: Arc<SwappableSigner>,
+        sovereign_lct_id: Uuid,
+        store_key: Arc<tokio::sync::RwLock<Option<zeroize::Zeroizing<[u8; 32]>>>>,
     ) -> Result<Self> {
         let paths = HubPaths::new(hub_dir.clone());
-        let config = hub_lib::hub::HubConfig::load(paths.config())?;
         let society = load_society(&hub_dir).await?;
-        let (sovereign_lct_id, signer): (Uuid, Arc<dyn RemoteSigner>) = match config.sovereign.mode()? {
-            SovereignMode::Local { lct_path } => {
-                let sovereign = IdentityFile::load_auto(&lct_path)?;
-                let kp = sovereign.keypair()?;
-                let signer = Arc::new(LocalKeypairSigner::new(sovereign.lct.id, kp));
-                (sovereign.lct.id, signer)
-            }
-            SovereignMode::Hestia { callback_url, lct_id, .. } => {
-                let signer = Arc::new(HestiaCallbackSigner::new(lct_id, callback_url)?);
-                (lct_id, signer)
-            }
-        };
         Ok(Self {
             paths,
             hub_id: society.lct_id,
@@ -104,7 +101,14 @@ impl McpState {
             signer,
             ledger,
             law,
+            store_key,
         })
+    }
+
+    /// De-env'd runtime store open (mirrors `RestState::open_store`).
+    pub async fn open_store(&self) -> Result<Box<dyn hub_lib::store::HubStore>> {
+        let key = self.store_key.read().await.as_ref().map(|z| **z);
+        hub_lib::store::open_hub_store_with_key(&self.paths.root, key)
     }
 }
 
@@ -293,7 +297,7 @@ async fn assign_role(
     // Update the persisted society role-fill (web4-core enforces authority and
     // owns the role LCT), then witness the act in the ledger with that LCT.
     // Without the society update the assignment never showed as filled.
-    let mut store = hub_lib::store::open_hub_store(&s.paths.root)
+    let mut store = s.open_store().await
         .map_err(ApiError::internal)?;
     let mut society = store.read_society().await
         .map_err(ApiError::internal)?

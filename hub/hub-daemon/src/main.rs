@@ -942,11 +942,21 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
             hub_lib::ledger::HubLedger::open(store).await?,
         ))
     };
-    let mcp_state =
-        McpState::open_with_law_and_ledger(hub_dir.clone(), shared_law.clone(), shared_ledger.clone())
-            .await?;
+    // RestState first — it owns the swappable signer, sovereign id, and derived
+    // store key; McpState shares those (so a single runtime ignition lights up
+    // both surfaces, and McpState constructs even in a locked shell).
     let rest_state =
-        RestState::open_with_law_and_ledger(hub_dir.clone(), shared_law, shared_ledger).await?;
+        RestState::open_with_law_and_ledger(hub_dir.clone(), shared_law.clone(), shared_ledger.clone())
+            .await?;
+    let mcp_state = McpState::open_with_law_and_ledger(
+        hub_dir.clone(),
+        shared_law,
+        shared_ledger,
+        rest_state.signer.clone(),
+        rest_state.sovereign_lct_id,
+        rest_state.store_key.clone(),
+    )
+    .await?;
     // Admin UI reuses RestState (read-only; shares ledger + law snapshot).
     let admin_state = rest_state.clone();
     let app = mcp_router(mcp_state)
