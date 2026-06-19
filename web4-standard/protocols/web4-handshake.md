@@ -1,5 +1,5 @@
 # Web4 Core Handshake (HPKE-based)
-Status: Draft • Last-Updated: 2026-06-03T06:00:00Z
+Status: Draft • Last-Updated: 2026-06-18T18:00:00Z
 Authors: Web4 Editors
 
 ## 1. Scope
@@ -21,6 +21,7 @@ At least the following suites MUST be implemented:
 |-------------------|---------|------------|---------------------|---------|---------|
 | W4-BASE-1 (MUST)  | X25519  | Ed25519    | ChaCha20-Poly1305   | SHA-256 | COSE    |
 | W4-FIPS-1 (SHOULD)| P-256EC | ECDSA-P256 | AES-128-GCM         | SHA-256 | JOSE    |
+| W4-IOT-1 (MAY)    | X25519  | Ed25519    | AES-CCM             | SHA-256 | CBOR    |
 
 HPKE KDF is HKDF-SHA-256. Implementations MAY offer additional suites but MUST apply
 GREASE (random unknown suite IDs) during negotiation.
@@ -33,9 +34,12 @@ peer P is derived:
 ```
 w4idp = MB32(HKDF-Extract-Then-Expand(salt=peer_salt,
                                       IKM=sk_master,
-                                      info="W4IDp:v1"))
+                                      info="W4IDp:v1",
+                                      L=16))
 ```
-Where MB32 is multibase base32 without padding.
+Where MB32 is multibase base32 without padding and `L=16` is the HKDF-Expand
+output length in bytes (matching the 16-byte truncation in `core-spec/data-formats.md`
+§4.1), so that two conformant implementations derive identical-length identifiers.
 
 ### 4.2 Pairwise W4IDp Lifecycle
 
@@ -118,7 +122,7 @@ Web4 defines two canonicalization and signature profiles:
 #### 6.0.1 Profile Selection & Negotiation (MUST)
 
 - Each session **MUST** select exactly one signature/canonicalization profile
-- Negotiation is performed via `media` and `ext` in ClientHello/ServerHello:
+- Negotiation is performed via `media` and `ext` in ClientHello / `ext_ack` in ServerHello:
   - `application/web4+cbor` → `w4_sig_cose@1` (COSE/CBOR profile)
   - `application/web4+json` → `w4_sig_jose@1` (JOSE/JSON profile)
 - The **selected media type and signature extension ID MUST be included in TH** (the transcript hash) to prevent downgrade
@@ -149,7 +153,7 @@ All signed Web4 payloads (HandshakeAuth, LCT binding, Metering messages) **MUST*
 
 #### 6.0.5 Binding to Session (MUST)
 
-`HandshakeAuth` signatures **MUST** cover `Hash(TH || channel_binding)` so the chosen `media`, `ext`, and suite list are cryptographically bound to the session. The same key material (`kid`) used in `HandshakeAuth` **MUST** be authorized for subsequent signed messages unless superseded by LCT policy/rotation.
+`HandshakeAuth` signatures **MUST** cover `Hash(TH || channel_binding)` so the chosen `media`, `ext`, and suite list are cryptographically bound to the session. To make this input unambiguous across implementations, `channel_binding` **MUST** be serialized as `channel_binding = epk_I || epk_R` — the Initiator's HPKE ephemeral public key followed by the Responder's, each as raw KEM-public-key bytes with no separator — and the signing input is `Hash(TH || channel_binding)` computed under the negotiated §3 suite Hash. The same key material (`kid`) used in `HandshakeAuth` **MUST** be authorized for subsequent signed messages unless superseded by LCT policy/rotation.
 
 #### 6.0.6 Kid Format (SHOULD)
 
@@ -160,30 +164,51 @@ All signed Web4 payloads (HandshakeAuth, LCT binding, Metering messages) **MUST*
 If the received signature profile doesn't match the negotiated `media`/`ext`, endpoints **MUST** abort with `W4_ERR_PROTO_FORMAT` (Problem Details).
 
 ### 6.1 HandshakeAuth (I → R, then R → I)
+The HandshakeAuth payload is signed as a §6.0.3 `COSE_Sign1` envelope (or the §6.0.4
+JOSE/JWS envelope under the JOSE profile) and then AEAD-encrypted under the HPKE
+`context_key`:
 ```
-ciphertext = AEAD-Encrypt(context_key,
-  {
-    "type": "HandshakeAuth",
+ciphertext = AEAD-Encrypt(context_key, COSE_Sign1(
+  protected: {                                  // §6.0.3 protected headers
+    "alg":          -8,                         // EdDSA
+    "kid":          <key id>,
+    "content-type": "application/web4+cbor"
+  },
+  payload: {                                    // canonical map, signed excluding envelope/sig
+    "type":  "HandshakeAuth",
     "suite": "<chosen>",
-    "kid": "<key id>",
-    "alg": "<sig alg>",
-    "sig": Sign(sk_sig, Hash(TH || channel_binding)),
-    "cap": { "scopes": ["read:lct", "write:lct"], "ext": [...] },
+    "cap":   { "scopes": ["read:lct", "write:lct"], "ext": [...] },
     "nonce": "<random 96-bit>",
-    "ts": "<iso8601>"
-  })
+    "ts":    "<iso8601>"
+  },
+  signature: Sign(sk_sig, Hash(TH || channel_binding))   // detached; see §6.0.5
+))
 ```
-- `channel_binding` MUST include both HPKE ephemeral keys.
-- Receivers MUST verify `sig` against `kid`, reject on failure, and check freshness.
+- `kid`, `alg`, and `content-type` are carried in the `COSE_Sign1` **protected headers**
+  per §6.0.3 (not as sibling payload fields); the payload map is signed **excluding**
+  any `sig`/envelope fields.
+- The signature covers `Hash(TH || channel_binding)` per §6.0.5 (not the raw payload
+  bytes); `channel_binding` is serialized per §6.0.5.
+- `cap.ext` carries authenticated **capability-grant** extensions scoped to the granted
+  capability; it is distinct from the `ext`/`ext_ack` **suite/profile negotiation**
+  channel of §5.1/§5.2.
+- The `nonce` and `ts` are **not** in the signed input (which is frozen at
+  `Hash(TH || channel_binding)`); their integrity is provided by the AEAD envelope
+  (encryption under the HPKE `context_key`).
+- Receivers MUST verify `sig` against `kid`, reject on failure, and check freshness (see §9).
 
 ### 6.2 Session Keys
-Both sides derive:
+Both sides derive two independent directional keys from the HPKE exporter:
 ```
-k_send, k_recv = HKDF-Expand(Secret=HPKE-exporter,
-                             info="W4-SessionKeys:v1",
-                             L=2*keylen)
+k_i2r = HKDF-Expand(Secret=HPKE-exporter, info="W4-SessionKeys:I->R", L=keylen)
+k_r2i = HKDF-Expand(Secret=HPKE-exporter, info="W4-SessionKeys:R->I", L=keylen)
 ```
-Keys MUST be independent for each direction.
+The Initiator sets `k_send = k_i2r`, `k_recv = k_r2i`; the Responder sets
+`k_send = k_r2i`, `k_recv = k_i2r`. Because the two directions use distinct `info`
+labels (not a positional split of one expansion), each peer's send key equals the
+other peer's receive key, so the keys are independent **and** interoperable across
+peers. (A single direction-agnostic expansion split positionally would make both
+peers compute identical send/recv keys and fail to interoperate.)
 
 ## 7. Rekey & Rotation
 A `SessionKeyUpdate` message MAY be sent at any time, protected under current keys and
@@ -207,7 +232,13 @@ stateDiagram-v2
 The Responder runs the mirror-image flow (receive ClientHello → send ServerHello → receive and verify `HandshakeAuth` → `Established`).
 
 ## 9. Anti-Replay & Clocks
-- `nonce` values MUST be unique per key; maintain a replay window.
+- The anti-replay rule tracks the **`HandshakeAuth` `nonce`** (§6.1). Each such `nonce`
+  MUST be unique within the scope of the HPKE `context_key` under which the
+  `HandshakeAuth` is accepted; a receiver MUST reject a `HandshakeAuth` whose `nonce`
+  it has already seen for that context.
+- Maintain a replay window keyed by that `nonce`. The window MUST retain entries for at
+  least the `ts` acceptance band (≥300s, see below) so that a replay arriving anywhere
+  within the accepted time band is still detected.
 - Accept `ts` within ±300s; outside requires additional proof (e.g., witness timestamp).
 
 ## 10. Error Handling (Problem Details, RFC 9457)
