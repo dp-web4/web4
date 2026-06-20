@@ -61,7 +61,7 @@ Each MCP server has an LCT with specific fields:
 {
   "lct_version": "1.0",
   "entity_id": "mcp:database_server_001",
-  "entity_type": "mcp_server",
+  "entity_type": "service",
   "entity_subtype": "database",
   "capabilities": {
     "responsive": true,
@@ -128,7 +128,7 @@ class DatabaseMCPServer(MCPEntity):
     """MCP server delegating to database backends"""
     
     def __init__(self, backend_url: str):
-        super().__init__(entity_type="mcp_server", subtype="database")
+        super().__init__(entity_type="service", subtype="database")
         self.backend = DatabaseConnection(backend_url)
         self.capabilities = {
             "responsive": True,  # Returns query results
@@ -157,7 +157,7 @@ class ToolMCPServer(MCPEntity):
     """MCP server delegating to CLI tools"""
     
     def __init__(self, tool_path: str):
-        super().__init__(entity_type="mcp_server", subtype="tool")
+        super().__init__(entity_type="service", subtype="tool")
         self.tool = ToolWrapper(tool_path)
         self.capabilities = {
             "responsive": True,  # Returns tool output
@@ -186,7 +186,7 @@ class KnowledgeMCPServer(MCPEntity):
     """MCP server delegating to knowledge bases"""
     
     def __init__(self, kb_endpoint: str):
-        super().__init__(entity_type="mcp_server", subtype="knowledge")
+        super().__init__(entity_type="service", subtype="knowledge")
         self.knowledge_base = KnowledgeBaseClient(kb_endpoint)
         self.capabilities = {
             "responsive": True,  # Returns knowledge

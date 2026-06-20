@@ -73,7 +73,7 @@ Every MCP server has an LCT and participates as a full Web4 entity:
 ```json
 {
   "lct_id": "lct:web4:mcp:server:...",
-  "entity_type": "mcp_server",
+  "entity_type": "service",
   "capabilities": {
     "tools": ["database_query", "api_invoke", "compute_task"],
     "protocols": ["mcp/1.0", "web4/1.0"],
@@ -97,7 +97,7 @@ MCP clients (including AI models) are also Web4 entities:
 ```json
 {
   "lct_id": "lct:web4:mcp:client:...",
-  "entity_type": "mcp_client",
+  "entity_type": "ai",
   "model_info": {
     "type": "ai_model",
     "capabilities": ["reasoning", "generation", "analysis"],
@@ -109,6 +109,14 @@ MCP clients (including AI models) are also Web4 entities:
   }
 }
 ```
+
+> **Entity-type grounding (normative).** An MCP server is a `service` entity
+> and an MCP client (an AI model) is an `ai` entity, per the closed entity-type
+> taxonomy in `entity-types.md` §2.1. "MCP server"/"MCP client" name a
+> *deployment role*, not an entity type — the protocol an entity speaks
+> (`protocols: ["mcp/1.0"]`) is a capability, distinct from its taxonomy type.
+> Implementations MUST set `entity_type` to a value in the recognized taxonomy;
+> `mcp_server`/`mcp_client` are not recognized and MUST NOT be used.
 
 ## 4. MCP Protocol Extensions for Web4
 
@@ -328,6 +336,15 @@ Every MCP interaction maps to R6:
 }
 ```
 
+> **Role-identifier field names (note).** Three sections name a role in
+> different contexts, and the names are intentionally distinct: `sender_role`
+> (§4.1) is the role the *caller* acts in; `role_required` (§6.1) is the role a
+> *tool* requires of its callers; and `roleType` (the R6 `role` block above) is
+> the caller's role within the R6 transaction structure. All three carry the
+> same value form, `web4:<RoleName>`. The R6 `role` block here uses the abstract
+> role *name* form; where an implementation binds to a concrete role LCT it uses
+> `r6-framework.md`'s `roleLCT` instead.
+
 ### 7.2 MCP Server Authority
 
 MCP servers can have delegated authority:
@@ -384,7 +401,9 @@ R7 MCP actions extend the §7.1 R6 structure with a `reputation` field in the re
       "temperament": { "delta":  0.00, "context": "no behavioral signal" }
     },
     "propagation_scope": "caller_society | responding_society | both | encompassing_society",
-    "witness_signatures": [...]
+    "witnesses": [
+      { "lct": "lct:web4:witness:...", "signature": "cose:...", "timestamp": "..." }
+    ]
   }
 }
 ```
@@ -392,10 +411,10 @@ R7 MCP actions extend the §7.1 R6 structure with a `reputation` field in the re
 **Normative requirements for R7 over MCP:**
 
 - The `reputation.responding_society_signature` MUST be signed by the responding society's Policy-Entity (the role that made the decision per `society-roles.md` §2.3)
-- The `reputation.outcome_class` MUST be one of the canonical values; implementations MUST NOT invent new values without spec extension
+- The `reputation.outcome_class` MUST be one of the canonical values; implementations MUST NOT invent new values without spec extension. The values are: `success` (the action completed and met its acceptance criteria), `partial` (the action completed but met only some of its acceptance criteria — e.g. a degraded or incomplete result the caller still accepted), `failure` (the action did not complete or did not meet acceptance criteria, without a rules breach), and `violation` (defined below)
 - The `reputation.trust_dimension_updates` deltas MUST be within bounds set by the responding society's Law Oracle for the role context (per `t3-v3-tensors.md` parameter governance)
 - The `reputation.propagation_scope` MUST be set; absent it, implementations SHOULD default by `cross_society.interaction_type` (§7.4): `responding_society` for intra-society R7; `both` for cross-society `first_contact`/`established` actions; and `encompassing_society` for `federated` actions where caller and responder share an encompassing society (the federation standard per §7.5), falling back to `both` when no encompassing society exists
-- For high-consequence actions (per the responding society's classification), `reputation.witness_signatures` MUST contain at least one signature from a Witness role per `society-roles.md` §4.1; the encompassing society's Witness is preferred when one exists
+- For high-consequence actions (per the responding society's classification), `reputation.witnesses` MUST contain at least one entry from a Witness role per `society-roles.md` §4.1; the encompassing society's Witness is preferred when one exists. Each `witnesses` entry is a `{lct, signature, timestamp}` object, matching the canonical Reputation witness shape in `r7-framework.md` §1.7
 
 - When `outcome_class` is `violation`, the `trust_dimension_updates` deltas MUST be non-positive (zero or negative); the responding society's Policy-Entity still signs the envelope (the violation is a completed adjudication, not a protocol error); and the caller's Archivist MUST persist it identically to any other R7 outcome. A `violation` is distinct from a §7.6 transport/protocol failure — it indicates the action completed but breached the responding society's rules.
 
@@ -439,6 +458,7 @@ When the MCP caller and responder are in different societies, the Web4 Context H
 **Normative requirements for cross-society LCT envelopes:**
 
 - `sender_society` and `responding_society` MUST both be present; absent these, the call is intra-society and follows §4.1 alone
+- `responding_role_expected` is OPTIONAL; when present it carries the role (in the `web4:<RoleName>` form, per §4.1 `sender_role`) the caller expects the responder to act in. It is advisory: the responding society MAY fulfil the call from a different role, and a mismatch is not by itself a §7.6 failure. When the caller requires a specific responder role, that constraint belongs in the R6 `rules`/`request`, not here
 - `interaction_type` MUST be set: `first_contact` (per `inter-society-protocol.md` §3.1) requires additional discovery exchange before R7 can complete; `established` and `federated` proceed normally
 - `applicable_law_oracle` resolves the "whose law applies under cross-society interaction" question by explicit reference. Two patterns are supported:
   - **Caller-law**: sender's Law Oracle governs the call; responder MAY refuse if local law conflicts
@@ -447,7 +467,7 @@ When the MCP caller and responder are in different societies, the Web4 Context H
   - An `exchange_agreement_ref` hash referencing a standing agreement (per §7.7.2 standing-agreement flow), OR
   - Inline `referent` + `caller_amount` + `responder_amount` fields representing a per-transaction negotiation outcome (per §7.7.3 acceptance payload)
 
-  > **Interim conformance note (valid until §7.7 reaches v0.1.0-final):** While §7.7's wire format is marked WIP, implementations that carry the `atp_settlement` block SHOULD populate it using the schema above. Implementations MAY omit `atp_settlement` entirely for cross-society calls where the two societies share a currency or where ATP cost is zero. The MUST applies only to the *presence* of the block when cross-currency settlement is needed; the internal structure stabilizes with §7.7.
+  > **Interim conformance note (valid until §7.7 reaches v0.1.0-final):** While §7.7's wire format is marked WIP, implementations that carry the `atp_settlement` block SHOULD populate it using the schema above. Implementations MAY omit `atp_settlement` entirely for cross-society calls where the two societies share a currency or where ATP cost is zero. The MUST applies only to the *presence* of the block when cross-currency settlement is needed; the internal structure stabilizes with §7.7. (The referent-grounded *invariant* — settlement carries both societies' independent valuations of a common referent — is the stable normative design-invariant of §7.7.1; only the field-level wire format is WIP.)
 
 **Relationship to §4.1 Web4 Context Headers:**
 
@@ -476,7 +496,7 @@ Cross-society R7 actions interact with the witness role per `society-roles.md` �
 1. **Encompassing society's Witness** — when A and B share a fractal-encompassing society D, D's Witness role provides neutral attestation peer to both A and B
 2. **Third-society Witness** — when A and B do not share an encompassing D, they MAY invoke witnesses from a third society both trust (selection negotiated at first contact or by standing arrangement)
 3. **Bilateral witness** — A and B each provide a Witness; cross-signed attestations record the action in both ledgers
-4. **No witness** — low-consequence R6 calls MAY proceed without witnessing; for high-consequence actions, R7 MUST NOT proceed without witnessing (consistent with the §7.3 normative requirement that `reputation.witness_signatures` MUST carry at least one Witness signature for high-consequence actions)
+4. **No witness** — low-consequence R6 calls MAY proceed without witnessing; for high-consequence actions, R7 MUST NOT proceed without witnessing (consistent with the §7.3 normative requirement that `reputation.witnesses` MUST carry at least one Witness entry for high-consequence actions)
 
 **R7 Reputation propagation** rules:
 
@@ -714,7 +734,8 @@ Entities discover MCP servers through MRH queries:
 
 ```sparql
 SELECT ?server ?capability ?trust WHERE {
-  ?server a web4:MCPServer ;
+  ?server a web4:Service ;
+          web4:speaksProtocol "mcp/1.0" ;
           web4:hasCapability ?capability ;
           web4:trustScore ?trust .
   ?server web4:witnessedBy ?witness .
@@ -732,13 +753,20 @@ All MCP interactions are metered in ATP:
 class MCPMeter:
     def calculate_cost(self, request, context):
         base_cost = self.resource_costs[request.tool]
-        trust_modifier = 1.0 - (context.t3.average() * 0.2)  # Higher trust = lower cost
+        trust_modifier = 1.0 - (context.t3_in_role.average() * 0.2)  # Higher trust = lower cost
         complexity_factor = self.estimate_complexity(request)
         
         total_cost = base_cost * trust_modifier * complexity_factor
         
         return min(total_cost, context.atp_remaining)  # Cap at the session's remaining ATP balance (per §11)
 ```
+
+Here `context` is an **implementation-assembled aggregate**, not a single wire
+object: `context.t3_in_role` is the §4.1 `trust_context.t3_in_role` (the caller's
+T3 in its acting role — note this is the role-scoped T3, which may carry fewer
+than all three dimensions, so `.average()` is over the dimensions present), and
+`context.atp_remaining` is the §11 session field. A conformant meter reads these
+from the message and session state; the class above is illustrative.
 
 ### 9.2 Dynamic Pricing (informative)
 
@@ -861,11 +889,17 @@ Sessions can be transferred between servers:
 ## 12. Implementation Requirements
 
 ### MUST Requirements
+
+This list summarizes the document's normative MUSTs; it is **not exhaustive** —
+section-level requirements (notably the R7 normative requirements in §7.3/§7.5)
+govern in full.
+
 1. All MCP servers MUST have valid LCTs
 2. All interactions MUST include Web4 context headers
 3. Trust evaluation MUST precede resource access
 4. ATP metering MUST be enforced
 5. Agency proofs MUST be validated when present
+6. R7 actions MUST be witnessed: an R7 transaction MUST NOT proceed without witnessing (§7.5), and for high-consequence actions the `reputation.witnesses` array MUST contain at least one Witness-role entry (§7.3)
 
 ### SHOULD Requirements
 1. Servers SHOULD witness significant interactions
