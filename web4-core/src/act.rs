@@ -71,15 +71,49 @@ impl SubstanceRef {
     }
 }
 
-/// The MRH direction an act is addressed across — *who the future reader is*.
+/// Where an act is addressed — the recipient **and** its MRH relevance horizon
+/// in one typed field: "the MRH scope *is* the addressing" (HUB). This mirrors
+/// the hub-track `HubEvent::ReferencedAct { to: ActAddress, .. }` so the core
+/// act and the hub envelope agree on the recipient model. A hub→citizen
+/// notification is just this act reversed (`from = hub, to = Citizen`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case", tag = "to")]
+pub enum ActAddress {
+    /// Another instance of the plural self (next wake / post-compaction) — a
+    /// memory write. MRH = temporal.
+    FutureSelf { entity: Uuid },
+    /// A peer cell (machine/track LCT) — a handoff. MRH = lateral.
+    Peer { lct_id: Uuid },
+    /// A specific citizen of this society — the notification case
+    /// (hub→citizen). MRH = lateral.
+    Citizen { lct_id: Uuid },
+    /// A role; fans out to its current holders. MRH = broad.
+    Role { role: String },
+    /// The society at large — a forum post. (Contributed back: HUB's draft has
+    /// no all-citizens variant; forum-to-everyone isn't `Role` fan-out.)
+    Society { lct_id: Uuid },
+}
+
+impl ActAddress {
+    /// The coarse MRH axis this address reaches across.
+    pub fn mrh_direction(&self) -> MrhDirection {
+        match self {
+            ActAddress::FutureSelf { .. } => MrhDirection::Temporal,
+            ActAddress::Peer { .. } | ActAddress::Citizen { .. } => MrhDirection::Lateral,
+            ActAddress::Role { .. } | ActAddress::Society { .. } => MrhDirection::Broad,
+        }
+    }
+}
+
+/// The coarse MRH axis an act reaches across (derived from [`ActAddress`]).
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MrhDirection {
     /// To your future self — a memory write (temporal MRH).
     Temporal,
-    /// To a peer — a handoff (lateral MRH).
+    /// To a peer or a citizen — a handoff / notification (lateral MRH).
     Lateral,
-    /// To the society at large — a forum post (broad MRH).
+    /// To a role or the society at large — a forum post (broad MRH).
     Broad,
 }
 
@@ -104,6 +138,16 @@ impl ConsequenceClass {
             ConsequenceClass::Irreversible => 2.0,
         }
     }
+
+    /// Whether an act of this class must carry a council `proposal_ref` (M-of-N
+    /// authorization) to be admissible. This is the bridge to HUB's gate: HUB's
+    /// `High` consequence == our `Irreversible` (the act you can't take back is
+    /// the one that needs council sign-off). Reversibility is the actor-assessable
+    /// *property*; the council requirement is the governance *response* derived
+    /// from it. (Phase 1 records the class; Phase 4 enforces the gate.)
+    pub fn requires_council(self) -> bool {
+        matches!(self, ConsequenceClass::Irreversible)
+    }
 }
 
 /// A thin, witnessed governance record of an entity externalizing work — the
@@ -111,14 +155,12 @@ impl ConsequenceClass {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Act {
     pub act_id: Uuid,
-    /// The acting entity (the LCT that externalized the act).
+    /// The acting entity — the **from**. Rides in the payload; the ledger
+    /// envelope's signer may differ (HUB's identity bridge: the machine/track
+    /// LCT signs the envelope, an arc-LCT is `actor_lct` here).
     pub actor_lct: Uuid,
-    /// The addressee, when the act is directed at a specific peer (a handoff).
-    /// `None` for temporal-self (memory) and broad (forum) acts.
-    #[serde(default)]
-    pub audience: Option<Uuid>,
-    /// Which way across the MRH this act reaches.
-    pub direction: MrhDirection,
+    /// Recipient + MRH relevance horizon, in one field.
+    pub address: ActAddress,
     /// How reversible the act's effect is.
     pub consequence: ConsequenceClass,
     /// Pointer to the fat substance this act governs.
@@ -132,31 +174,31 @@ pub struct Act {
 impl Act {
     /// A **memory write** — an act to your future self (temporal MRH).
     pub fn memory(actor_lct: Uuid, substance: SubstanceRef, at: DateTime<Utc>) -> Self {
-        Self::new(actor_lct, None, MrhDirection::Temporal, substance, at)
+        Self::addressed(actor_lct, ActAddress::FutureSelf { entity: actor_lct }, substance, at)
     }
 
     /// A **handoff** — an act to a peer (lateral MRH).
     pub fn handoff(actor_lct: Uuid, peer_lct: Uuid, substance: SubstanceRef, at: DateTime<Utc>) -> Self {
-        Self::new(actor_lct, Some(peer_lct), MrhDirection::Lateral, substance, at)
+        Self::addressed(actor_lct, ActAddress::Peer { lct_id: peer_lct }, substance, at)
     }
 
-    /// A **forum post** — an act to the society (broad MRH).
-    pub fn forum(actor_lct: Uuid, substance: SubstanceRef, at: DateTime<Utc>) -> Self {
-        Self::new(actor_lct, None, MrhDirection::Broad, substance, at)
+    /// A **forum post** — an act to the society at large (broad MRH).
+    pub fn forum(actor_lct: Uuid, society_lct: Uuid, substance: SubstanceRef, at: DateTime<Utc>) -> Self {
+        Self::addressed(actor_lct, ActAddress::Society { lct_id: society_lct }, substance, at)
     }
 
-    fn new(
+    /// The general constructor — any [`ActAddress`] (incl. the hub→`Citizen`
+    /// notification case and `Role` fan-out).
+    pub fn addressed(
         actor_lct: Uuid,
-        audience: Option<Uuid>,
-        direction: MrhDirection,
+        address: ActAddress,
         substance: SubstanceRef,
         at: DateTime<Utc>,
     ) -> Self {
         Self {
             act_id: Uuid::new_v4(),
             actor_lct,
-            audience,
-            direction,
+            address,
             consequence: ConsequenceClass::default(),
             substance,
             witnesses: Vec::new(),
@@ -172,6 +214,11 @@ impl Act {
     pub fn witnessed_by(mut self, attestation: WitnessAttestation) -> Self {
         self.witnesses.push(attestation);
         self
+    }
+
+    /// The coarse MRH axis this act reaches across (derived from its address).
+    pub fn mrh_direction(&self) -> MrhDirection {
+        self.address.mrh_direction()
     }
 
     /// Whether this act must carry an ATP stake before it's admissible. The
@@ -235,20 +282,35 @@ mod tests {
     fn three_framings_share_one_primitive() {
         let me = Uuid::new_v4();
         let peer = Uuid::new_v4();
-        assert_eq!(Act::memory(me, sref(), now()).direction, MrhDirection::Temporal);
-        assert_eq!(Act::handoff(me, peer, sref(), now()).direction, MrhDirection::Lateral);
-        assert_eq!(Act::forum(me, sref(), now()).direction, MrhDirection::Broad);
+        let soc = Uuid::new_v4();
+        // One primitive, differing only in MRH-as-addressing.
+        assert_eq!(Act::memory(me, sref(), now()).mrh_direction(), MrhDirection::Temporal);
+        assert_eq!(Act::handoff(me, peer, sref(), now()).mrh_direction(), MrhDirection::Lateral);
+        assert_eq!(Act::forum(me, soc, sref(), now()).mrh_direction(), MrhDirection::Broad);
         // The handoff is the only one addressed to a specific peer.
-        assert_eq!(Act::handoff(me, peer, sref(), now()).audience, Some(peer));
-        assert_eq!(Act::memory(me, sref(), now()).audience, None);
+        assert_eq!(Act::handoff(me, peer, sref(), now()).address, ActAddress::Peer { lct_id: peer });
+        assert_eq!(Act::memory(me, sref(), now()).address, ActAddress::FutureSelf { entity: me });
     }
 
     #[test]
-    fn irreversible_acts_gate_on_atp_and_witness() {
-        let a = Act::forum(Uuid::new_v4(), sref(), now())
+    fn citizen_notification_is_the_act_reversed() {
+        // HUB's insight: a hub→citizen notification is the same primitive,
+        // addressed to a Citizen (lateral MRH).
+        let hub = Uuid::new_v4();
+        let citizen = Uuid::new_v4();
+        let n = Act::addressed(hub, ActAddress::Citizen { lct_id: citizen }, sref(), now());
+        assert_eq!(n.mrh_direction(), MrhDirection::Lateral);
+        assert_eq!(n.actor_lct, hub);
+    }
+
+    #[test]
+    fn irreversible_acts_gate_on_atp_witness_and_council() {
+        let a = Act::forum(Uuid::new_v4(), Uuid::new_v4(), sref(), now())
             .with_consequence(ConsequenceClass::Irreversible);
         assert!(a.requires_atp_stake());
         assert!(a.requires_witness());
+        // Bridge to HUB's gate: Irreversible == High == needs a council proposal_ref.
+        assert!(a.consequence.requires_council());
 
         let m = Act::memory(Uuid::new_v4(), sref(), now()); // default Reversible
         assert!(!m.requires_atp_stake());
@@ -272,8 +334,9 @@ mod tests {
         let actor = Uuid::new_v4();
         let mut t_irrev = TrustValueScore::new(actor);
         let mut t_rev = TrustValueScore::new(actor);
-        let irrev = Act::forum(actor, sref(), now()).with_consequence(ConsequenceClass::Irreversible);
-        let rev = Act::forum(actor, sref(), now()).with_consequence(ConsequenceClass::Reversible);
+        let soc = Uuid::new_v4();
+        let irrev = Act::forum(actor, soc, sref(), now()).with_consequence(ConsequenceClass::Irreversible);
+        let rev = Act::forum(actor, soc, sref(), now()).with_consequence(ConsequenceClass::Reversible);
         let (di, _) = irrev.record_outcome(&mut t_irrev, ActOutcome::Failed);
         let (dr, _) = rev.record_outcome(&mut t_rev, ActOutcome::Failed);
         assert!(di < dr, "an irreversible failure debits Validity more steeply");
@@ -287,7 +350,7 @@ mod tests {
             signature: "sig".into(),
             timestamp: now(),
         };
-        let a = Act::forum(Uuid::new_v4(), sref(), now()).witnessed_by(w);
+        let a = Act::forum(Uuid::new_v4(), Uuid::new_v4(), sref(), now()).witnessed_by(w);
         assert_eq!(a.witnesses.len(), 1);
     }
 
