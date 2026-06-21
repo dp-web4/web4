@@ -122,6 +122,8 @@ The References block (L737-752) lists r6/r7, t3-v3, LCT, society-roles, SOCIETY_
 
 **Autonomous remediation set (next remediation turn, C79-candidate)**: B2a, B5, B6 (spec leg), B7, B8 — 5 spec-only AUTONOMOUS edits. B1/B2b/M2/ISP-B10 await operator; B3/B4/I2/B6-SDK ride the SDK track.
 
+> **REMEDIATED in C79** (PR pending, `worker/web4-20260620-180009`): all 5 autonomous findings applied to `atp-adp-cycle.md` (+42/−2). **B2a** — §3.3 R6-scoping note (demurrage is a time-triggered, non-R6 carve-out from MUST #5). **B5** — `mint_adp` harmonized to §3.1 nested form (`state_distribution.ADP` + `allocations.circulating`), preserving both pool invariants. **B6-spec** — §3.1 metric `charge_rate`→`charged_fraction` (full-file sweep; §2.2/§6 conversion-multiplier sites deliberately left). **B7** — ISP + mcp added to §5 inline pointer + References. **B8** — §4.3 role-vocabulary note aligning cascade levels to §2.3 and seating the primary_beneficiary outside the contribution cascade (no % / tensor-delta changes). atp-adp C34→#277→C78→C79 cycle COMPLETE for the autonomous set.
+
 ---
 
 ## §D — Lessons / Method Notes
