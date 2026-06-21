@@ -173,6 +173,10 @@ impl LocalLedger {
                     })?;
                     stored.status = to.clone();
                 }
+                LedgerEvent::Act { .. } => {
+                    // A witnessed act is a governance record over off-ledger
+                    // substance; it doesn't mutate LCT state during replay.
+                }
             }
             expected_prev = entry.entry_hash.clone();
         }

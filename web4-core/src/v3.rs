@@ -147,6 +147,20 @@ impl V3 {
     }
 
     /// Record an observation for a root dimension
+    /// Apply a signed reputation delta directly to a dimension, clamped to
+    /// `[0, 1]`, counting it as one observation. Mirrors [`T3::apply_delta`] for
+    /// the value tensor — e.g. a deadline miss debiting Veracity. Returns the
+    /// realized change after clamping.
+    pub fn apply_delta(&mut self, dimension: ValueDimension, delta: f64) -> f64 {
+        let idx = dimension as usize;
+        let before = self.dimensions[idx];
+        self.dimensions[idx] = (before + delta).clamp(0.0, 1.0);
+        self.observation_counts[idx] += 1;
+        self.weights[idx] =
+            ((1.0 + self.observation_counts[idx] as f64).ln() / 10.0_f64.ln()).min(1.0);
+        self.dimensions[idx] - before
+    }
+
     pub fn observe(&mut self, dimension: ValueDimension, observed_score: f64) -> Result<()> {
         if !(0.0..=1.0).contains(&observed_score) {
             return Err(Web4Error::InvalidInput(

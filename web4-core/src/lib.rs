@@ -54,12 +54,14 @@
 //! - **Coherence requirements**: Entities must maintain identity coherence
 //! - **Hardware binding**: Production deployments bind keys to secure hardware
 
+pub mod act;
 pub mod atp;
 pub mod coherence;
 pub mod crypto;
 pub mod delegation;
 pub mod did;
 pub mod error;
+pub mod event;
 pub mod lct;
 pub mod ledger;
 pub mod pair_channel;
@@ -69,10 +71,14 @@ pub mod oid4vc;
 pub mod sd_jwt_vc;
 pub mod society;
 pub mod t3;
+pub mod time;
 pub mod v3;
 pub mod vault;
 
 // Re-export primary types for convenience
+pub use act::{
+    Act, ActAddress, ActOutcome, ConsequenceClass, MrhDirection, SubstanceMedium, SubstanceRef,
+};
 pub use atp::{ATPAccount, TransferResult};
 pub use coherence::{
     check_coherence, coherence_threshold_for_entity, Coherence, CoherenceCalculator,
@@ -95,6 +101,7 @@ pub use sd_jwt_vc::{SdJwtVc, UnsignedSdJwtVc, VerifiedCredential, verify_issuer,
 pub use society::{MetabolicState, Society};
 pub use vault::{Vault, VaultContents, Document, ItemRef, Protection};
 pub use t3::{TrustDimension, TrustObservation, TrustRelation, T3, T3_DIMENSIONS};
+pub use time::{Criticality, Deadline, DeadlineOutcome, TemporalImpact, Timing, WitnessAvailability};
 pub use v3::{TrustValueScore, ValueDimension, ValueObservation, V3, V3_DIMENSIONS};
 
 /// Library version

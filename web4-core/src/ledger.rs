@@ -110,6 +110,13 @@ pub enum LedgerEvent {
         /// New status.
         to: LctStatus,
     },
+    /// An entity externalized a witnessed act — a memory write, handoff, or
+    /// forum post (CBP's unifying primitive). The thin governance record lives
+    /// here; the fat substance lives wherever the act's `SubstanceRef` points.
+    Act {
+        /// The thin governance record.
+        act: crate::act::Act,
+    },
 }
 
 /// Cryptographic proof that an LCT exists in a ledger at a specific position.
