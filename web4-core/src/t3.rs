@@ -152,6 +152,21 @@ impl T3 {
     /// Record an observation for a root dimension
     ///
     /// Uses exponential moving average with decay factor based on observation count
+    /// Apply a signed reputation delta directly to a dimension, clamped to
+    /// `[0, 1]`, counting it as one observation. This is how a
+    /// [`ReputationDelta`](crate::r6::ReputationDelta) from an R7 action outcome
+    /// — e.g. a missed deadline debiting Temperament — folds into the tensor.
+    /// Returns the realized change after clamping.
+    pub fn apply_delta(&mut self, dimension: TrustDimension, delta: f64) -> f64 {
+        let idx = dimension as usize;
+        let before = self.dimensions[idx];
+        self.dimensions[idx] = (before + delta).clamp(0.0, 1.0);
+        self.observation_counts[idx] += 1;
+        self.weights[idx] =
+            ((1.0 + self.observation_counts[idx] as f64).ln() / 10.0_f64.ln()).min(1.0);
+        self.dimensions[idx] - before
+    }
+
     pub fn observe(&mut self, dimension: TrustDimension, observed_score: f64) -> Result<()> {
         if !(0.0..=1.0).contains(&observed_score) {
             return Err(Web4Error::InvalidInput(

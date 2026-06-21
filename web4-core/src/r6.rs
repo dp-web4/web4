@@ -83,11 +83,16 @@ pub struct Request {
     pub target: String,
     /// Action-specific parameters
     pub parameters: HashMap<String, serde_json::Value>,
-    /// ATP staked on outcome
+    /// ATP staked on outcome (the *energy* resource committed to the action).
     pub atp_stake: f64,
+    /// Deadline staked on outcome (the *time* resource — the temporal twin of
+    /// `atp_stake`). `None` = no temporal accountability. A typed promotion of
+    /// the legacy free-text `constraints["deadline"]`. See [`crate::time`].
+    #[serde(default)]
+    pub deadline: Option<crate::time::Deadline>,
     /// Unique request nonce
     pub nonce: String,
-    /// Execution constraints (deadline, budget)
+    /// Execution constraints (legacy free-text bag; typed time → `deadline`).
     pub constraints: HashMap<String, serde_json::Value>,
     /// Proof of delegated agency (if acting on behalf of another)
     pub proof_of_agency: Option<ProofOfAgency>,
@@ -467,6 +472,7 @@ mod tests {
                 target: "src/main.rs".into(),
                 parameters: HashMap::new(),
                 atp_stake: 10.0,
+                deadline: None,
                 nonce: Uuid::new_v4().to_string(),
                 constraints: HashMap::new(),
                 proof_of_agency: None,
