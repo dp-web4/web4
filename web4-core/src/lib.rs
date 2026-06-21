@@ -54,6 +54,7 @@
 //! - **Coherence requirements**: Entities must maintain identity coherence
 //! - **Hardware binding**: Production deployments bind keys to secure hardware
 
+pub mod act;
 pub mod atp;
 pub mod coherence;
 pub mod crypto;
@@ -75,6 +76,7 @@ pub mod v3;
 pub mod vault;
 
 // Re-export primary types for convenience
+pub use act::{Act, ActOutcome, ConsequenceClass, MrhDirection, SubstanceMedium, SubstanceRef};
 pub use atp::{ATPAccount, TransferResult};
 pub use coherence::{
     check_coherence, coherence_threshold_for_entity, Coherence, CoherenceCalculator,
