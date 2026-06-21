@@ -237,7 +237,7 @@ Each society maintains token pools:
     },
     "metrics": {
       "velocity": 4.2,  // Cycles per period
-      "charge_rate": 0.15,  // ATP/(ATP+ADP): fraction of supply charged
+      "charged_fraction": 0.15,  // ATP/(ATP+ADP): fraction of supply currently charged (state ratio; distinct from the §2.2/§6 conversion-multiplier `charge_rate`)
       "decay_rate": 0.001,  // Per period
       "efficiency": 0.91  // Value preserved
     }
@@ -261,7 +261,11 @@ class SocietyTokenPool:
         if not self.law.permits_minting(authority, amount):
             raise UnauthorizedMinting()
         
-        self.pools['ADP'] += amount
+        # Pool keys follow the §3.1 nested architecture: minted ADP enters the
+        # discharged state distribution and the circulating allocation, keeping
+        # `total_supply` == sum(allocations) and == sum(state_distribution).
+        self.pools['state_distribution']['ADP'] += amount
+        self.pools['allocations']['circulating'] += amount
         self.pools['total_supply'] += amount
         
         return MintingReceipt(amount, justification)
@@ -315,6 +319,16 @@ def apply_demurrage_decay(entity_stakes):
                 t3_delta={"temperament": -0.01}
             )
 ```
+
+> **R6 scoping.** Demurrage performs the ATP→ADP discharge of §2.3, but it is
+> **time-triggered and not an R6 transaction** — it fires automatically once a
+> stake passes the demurrage threshold, with no R6 Request/Result. It is
+> therefore a carve-out from §7.1 MUST #5 ("Discharging MUST occur through R6
+> transactions"), in the same way slashing (§2.4) is a carve-out from the
+> transfer-conservation invariant: MUST #5 scopes *value-spending* discharge,
+> while demurrage is a *maintenance* discharge enforcing anti-hoarding. The
+> hoarding-penalty tensor delta above is the only T3/V3 effect; demurrage
+> creates no V3 value and so does not engage MUST #6.
 
 ## 4. Value Creation and Tracking
 
@@ -401,7 +415,28 @@ The percentages shown are **illustrative defaults**, not protocol constants.
 Societies SHOULD define attribution rates in their economic laws (see §6.2 on
 economic laws). Implementations MUST NOT hard-code these values.
 
+> **Role vocabulary (aligns with §2.3).** The cascade levels use these roles:
+> *Direct executor* (Level 1) is the entity that performs the work — the §2.3
+> `executor` (the acting agent). *Agent/delegator* (Level 2) is an intermediary
+> that appears **only in a delegation chain**; in the simple §2.3 example the
+> executor acts directly for the client, so Level 2 is empty. The **primary
+> beneficiary** (§2.3 `primary_beneficiary`, the client) is the value
+> *recipient*, not a contributor, and therefore sits **outside** this
+> contribution-attribution cascade: its tensor delta — the largest in the
+> example (§4.2, `valuation +0.05`) — is a *value-receipt* update on the
+> consumer of the work, distinct from the contribution shares the cascade
+> distributes. Keeping the beneficiary out of the cascade is why the attribution
+> percentages sum over contributors only and are unaffected by it.
+
 ## 5. Inter-Society Currency Exchange
+
+> **Inter-society homes.** Cross-society settlement is also governed by
+> `inter-society-protocol.md` (which declares `Extends: atp-adp-cycle.md` for the
+> ATP form) and `mcp-protocol.md` (the inter-society protocol; §7.7 covers
+> cross-society exchange-rate negotiation). The exchange mechanisms in §5.2/§5.3
+> describe society-level currency-pair bookkeeping; how rates are *grounded* and
+> negotiated across societies is owned by those specs and is being reconciled
+> with them (see References).
 
 ### 5.1 Society Membership and Currency
 
@@ -749,5 +784,10 @@ This specification cross-references the following Web4 core specs:
   identifiers used throughout (societies, entities, witnesses).
 - **Societies and roles** — `society-roles.md` and `SOCIETY_SPECIFICATION.md`
   for pool governance, monetary authority, and role-scoped economic law.
+- **Inter-society settlement** — `inter-society-protocol.md` (declares
+  `Extends: atp-adp-cycle.md` for the ATP form; §4 covers unit-of-account
+  semantics and ADP minting) and `mcp-protocol.md` (the inter-society protocol;
+  §7.7 covers referent-grounded cross-society exchange-rate negotiation) for the
+  cross-society exchange described in §5.
 
 *"In Web4, value flows like energy through living systems—constantly cycling, never hoarded, always creating."*
