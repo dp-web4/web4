@@ -60,6 +60,7 @@ pub mod crypto;
 pub mod delegation;
 pub mod did;
 pub mod error;
+pub mod event;
 pub mod lct;
 pub mod ledger;
 pub mod pair_channel;
