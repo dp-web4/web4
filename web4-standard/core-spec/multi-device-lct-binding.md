@@ -231,6 +231,8 @@ The Root LCT extends the base LCT with device constellation management:
 }
 ```
 
+> **Constellation entry → resolved device record.** The `device_constellation.devices[]` entries above are the *membership index* — they carry `device_lct_id`, `anchor_type`, `enrolled_at`, `last_witnessed`, and `status`. The trust algorithms (§3.4 `compute_constellation_trust` / `compute_cross_witness_density`, §4.3) operate over the **resolved device record**: each entry joined with its standalone Device LCT (§2.4) to yield the single flat shape the SDK `DeviceRecord` (`implementation/sdk/web4/binding.py`) computes over. Beyond the index fields, that resolved record additionally exposes `cross_witnesses` (list of bare device-LCT-ID strings, §2.4) and an optional `latest_attestation` (an `AttestationEnvelope`, used for attestation freshness; defaults to no-penalty 1.0 when absent). Implementations MAY denormalize these onto the constellation entry directly; the algorithms read them by name off the per-device record regardless of storage layout.
+
 ### 2.4 Device LCT Structure
 
 Each device has its own LCT that binds to the root:
@@ -271,29 +273,21 @@ Each device has its own LCT that binds to the root:
     "last_root_sync": "2026-01-13T12:00:00Z"
   },
 
-  "cross_device_witnesses": [
-    {
-      "device_lct_id": "lct:web4:device:laptop:...",
-      "last_witness": "2026-01-13T11:00:00Z",
-      "witness_count": 42
-    }
+  "cross_witnesses": [
+    "lct:web4:device:laptop:..."
   ],
-
-  "device_trust": {
-    "anchor_strength": 0.95,
-    "attestation_freshness": 0.98,
-    "cross_witness_score": 0.88
-  },
 
   "status": "active"
 }
 ```
 
+> **`cross_witnesses` shape (canonical).** Each entry is a **bare device-LCT-ID string** — the set of devices that have cross-witnessed this one. This matches the SDK `DeviceRecord.cross_witnesses: List[str]` (`implementation/sdk/web4/binding.py`) and the shipped `constellation_trust_multi_device` test vector (`test-vectors/binding/binding-vectors.json`), and is the shape the §3.4 cross-witness-density algorithm iterates. (Earlier drafts carried object entries keyed `device_lct_id` with `last_witness`/`witness_count`; those richer per-witness records are not part of the trust-computation wire surface and were removed to keep one shape corpus-wide.)
+
 **Device lifecycle states**: A device record's `status` field is one of three values:
 
 - `"active"` — Device participates in trust computation, cross-witnessing, and may authorize removal/recovery.
 - `"suspended"` — Device is temporarily excluded from trust computation and cross-witnessing without being permanently revoked. Re-activation by quorum is a future extension; this spec does not define entry/exit transitions for `suspended`. Implementations that do not require suspension semantics MAY treat `suspended` as equivalent to `revoked` for trust-computation purposes.
-- `"revoked"` — Device is permanently removed from the constellation (see §3.5 Device Removal). A revoked device's keys MUST NOT authorize any further operations. A revoked device record additionally carries `revoked_at` (ISO 8601 timestamp) and `revocation_reason` (one of `lost` | `sold` | `compromised` | `upgrade` | `recovery_revoked`); both are absent on `active`/`suspended` records.
+- `"revoked"` — Device is permanently removed from the constellation (see §3.5 Device Removal). A revoked device's keys MUST NOT authorize any further operations. A revoked device record additionally carries `revoked_at` (ISO 8601 timestamp) and `revocation_reason` (one of `lost` | `sold` | `compromised` | `upgrade` | `recovery_revoked`); both are absent on `active`/`suspended` records. The first four reasons are **user-initiated removals** set via §3.5 Device Removal (and are the only values the SDK `remove_device` guard accepts). `recovery_revoked` is **set only by the §3.6 recovery path** when a quorum recovery supersedes lost devices — it is never a valid `remove_device` reason, so the §3.5/SDK 4-value removal guard is correct by construction.
 
 ## 3. Protocols
 
@@ -487,7 +481,7 @@ def enroll_additional_device(root_lct, existing_device, new_device, society):
     root_lct.add_device(new_device_lct)
 
     # 9. Perform initial cross-device witnessing
-    cross_witness(existing_device, new_device)
+    cross_witness(root_lct.device_constellation, existing_device, new_device)
 
     return new_device_lct
 ```
@@ -532,7 +526,7 @@ def cross_witness(constellation, device_a, device_b):
         "sig_b": sig_b_for_a
     }
 
-    # 5. Update cross_device_witnesses in both device LCTs.
+    # 5. Update cross_witnesses in both device LCTs.
     # record_cross_witness (canonical definition in the Web4 SDK,
     # implementation/sdk/web4/binding.py) adds each device to the other's
     # cross-witness list and refreshes last_witnessed; it is idempotent.
@@ -571,7 +565,7 @@ def compute_constellation_trust(root_lct):
 
     # Individual device trust: anchor × witness freshness × attestation freshness.
     # Anchor strength is incorporated via anchor_weight ONLY (it is not also
-    # contained in a separate `composite` aggregate — see §2.4 device_trust).
+    # contained in a separate pre-aggregated trust block on the device record).
     device_trusts = []
     for device in active:
         anchor_weight = ANCHOR_TRUST_WEIGHT[device.anchor_type]
@@ -697,11 +691,12 @@ def compute_cross_witness_density(devices):
     possible_pairs = len(devices) * (len(devices) - 1) / 2
     device_ids = set(d.device_lct_id for d in devices)
 
-    # Count unique mutual witness pairs (in-constellation only)
+    # Count unique mutual witness pairs (in-constellation only).
+    # d.cross_witnesses is a list of bare device-LCT-ID strings (see §2.4 and
+    # the SDK DeviceRecord.cross_witnesses); iterate the ids directly.
     witness_pairs = set()
     for d in devices:
-        for w in d.cross_device_witnesses:
-            w_id = w["device_lct_id"]
+        for w_id in d.cross_witnesses:
             if w_id in device_ids:
                 witness_pairs.add(tuple(sorted([d.device_lct_id, w_id])))
 
@@ -743,8 +738,12 @@ def remove_device(root_lct, device_to_remove, reason, authorizing_devices):
         "requested_at": utc_now()
     }
 
+    # Collect signatures only from the quorum-filtered set (authorizing_active),
+    # not the raw authorizing_devices argument — a device that is not in the
+    # remaining-active set (e.g. the device being removed) must not contribute a
+    # removal signature, consistent with the quorum check just enforced.
     signatures = []
-    for device in authorizing_devices:
+    for device in authorizing_active:
         sig = device.sign_removal_request(removal_request)
         signatures.append(sig)
 
@@ -981,7 +980,8 @@ def default_recovery_quorum(device_count):
     Minimum devices needed for recovery.
 
     Balances security vs. recoverability. For device_count > 4, the quorum
-    is a true majority: ceil(device_count / 2). Test vectors in
+    is at least half the devices: ceil(device_count / 2). (For even n this is
+    exactly n/2, not a strict majority — e.g. n=6 → 3.) Test vectors in
     `web4-standard/test-vectors/binding/binding-vectors.json` (group
     `recovery_quorum_calculation`) are normative for the expected values
     (n=5 → 3, n=6 → 3, n=10 → 5).
@@ -991,7 +991,7 @@ def default_recovery_quorum(device_count):
     elif device_count <= 4:
         return 2
     else:
-        return max(2, (device_count + 1) // 2)  # ceil(n/2) = majority
+        return max(2, (device_count + 1) // 2)  # ceil(n/2): at least half
 ```
 
 ### 5.3 Compromise Response
@@ -1087,7 +1087,7 @@ const credential = await navigator.credentials.create({
 
 This protocol extends [`LCT-linked-context-token.md`](LCT-linked-context-token.md):
 - Adds `device_constellation` to root LCT structure
-- Adds `root_attestation` and `cross_device_witnesses` to device LCT
+- Adds `root_attestation` and `cross_witnesses` to device LCT
 - Extends T3 tensor with `hardware_binding_strength` and `constellation_coherence`
 
 ### 7.2 Society Specification
