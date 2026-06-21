@@ -143,6 +143,23 @@ pub struct RestState {
     /// environment on every runtime store re-open. `None` while locked. Set once
     /// at ignition; shared with `McpState`.
     pub store_key: Arc<tokio::sync::RwLock<Option<zeroize::Zeroizing<[u8; 32]>>>>,
+    /// Per-citizen pending-notifications mailbox (DRAFT — the hub→citizen delivery
+    /// floor). A `ReferencedAct{to: Citizen}` queues a `SealedNotice` here; the citizen
+    /// drains it via the `notifications` channel tool (poll floor). Push to a registered
+    /// LCT-MCP endpoint is the future optimization on the same queue.
+    pub notifications: Arc<Mutex<std::collections::HashMap<Uuid, Vec<SealedNotice>>>>,
+}
+
+/// One sealed notice queued for a citizen. `sealed` is ciphertext sealed to the
+/// citizen's pinned pubkey — only that LCT can open it (`channel_open` with the hub
+/// pubkey + `pair_id`).
+#[derive(Clone, Serialize)]
+pub struct SealedNotice {
+    pub pair_id: Uuid,
+    pub sealed: String,
+    pub act_kind: String,
+    pub pointer_uri: String,
+    pub queued_at: chrono::DateTime<Utc>,
 }
 
 /// An in-flight tier-2 unlock: the minted challenge + the roster/threshold
@@ -317,6 +334,7 @@ impl RestState {
                     None => None,
                 },
             )),
+            notifications: Arc::new(Mutex::new(std::collections::HashMap::new())),
         })
     }
 
@@ -367,6 +385,7 @@ impl RestState {
             unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
             protected: Arc::new(Mutex::new(None)),
             store_key: Arc::new(tokio::sync::RwLock::new(None)),
+            notifications: Arc::new(Mutex::new(std::collections::HashMap::new())),
         })
     }
 
@@ -645,6 +664,54 @@ async fn witness_event(s: &RestState, event: HubEvent) -> Result<u64, ApiError> 
         .await
         .map_err(ApiError::internal)?;
     Ok(entry.index)
+}
+
+/// Hub→citizen notification (DRAFT): witness a `ReferencedAct{to: Citizen}` and queue a
+/// sealed notice in the citizen's mailbox (the poll floor). `body` is sealed to the
+/// citizen's pinned pubkey — only that LCT can open it. Best-effort: missing pubkey / seal
+/// failure logs and drops (the witnessed act still records that a notice was intended).
+async fn notify_citizen(s: &RestState, recipient: Uuid, act_kind: &str, pointer_uri: &str, body: &[u8]) {
+    let pubkey_hex = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger).member_pubkeys.get(&recipient).cloned()
+    };
+    let Some(pubkey_hex) = pubkey_hex else {
+        tracing::warn!("notify_citizen: no pinned pubkey for {recipient}; notice dropped");
+        return;
+    };
+    let pubkey = match hex::decode(&pubkey_hex)
+        .ok()
+        .and_then(|b| <[u8; 32]>::try_from(b).ok())
+        .and_then(|a| web4_core::crypto::PublicKey::from_bytes(&a).ok())
+    {
+        Some(pk) => pk,
+        None => { tracing::warn!("notify_citizen: bad pubkey for {recipient}"); return; }
+    };
+    let pair_id = Uuid::new_v4();
+    let sealed = match s.signer.channel_seal(&pubkey, pair_id, body) {
+        Ok(c) => c,
+        Err(e) => { tracing::warn!("notify_citizen: seal failed: {e}"); return; }
+    };
+    let _ = witness_event(
+        s,
+        HubEvent::ReferencedAct {
+            from_lct: s.sovereign_lct_id,
+            to: hub_lib::events::ActAddress::Citizen { lct_id: recipient },
+            act_kind: act_kind.to_string(),
+            pointer_uri: pointer_uri.to_string(),
+            consequence_class: hub_lib::events::ConsequenceClass::Informational,
+            sealed_body: None, // body delivered via the mailbox, not on the thin ledger
+            acted_at: Utc::now(),
+        },
+    )
+    .await;
+    s.notifications.lock().await.entry(recipient).or_default().push(SealedNotice {
+        pair_id,
+        sealed,
+        act_kind: act_kind.to_string(),
+        pointer_uri: pointer_uri.to_string(),
+        queued_at: Utc::now(),
+    });
 }
 
 #[derive(Deserialize)]
@@ -2089,8 +2156,49 @@ async fn dispatch_channel(
             if accept {
                 out["peer_lct"] = serde_json::json!(from);
                 out["peer_pubkey_hex"] = serde_json::json!(state.member_pubkeys.get(&from));
+                // Hub→citizen push (DRAFT): notify the original requester their intro was
+                // accepted — they'd otherwise only learn by polling list_intros.
+                let notice = serde_json::json!({
+                    "event": "intro_accepted",
+                    "intro_id": intro_id,
+                    "peer_lct": caller_lct_id,
+                    "peer_pubkey_hex": state.member_pubkeys.get(&caller_lct_id),
+                }).to_string();
+                notify_citizen(s, from, "notify:intro_accepted", &format!("intro/{intro_id}"), notice.as_bytes()).await;
             }
             Ok(out)
+        }
+        // ---- DRAFT: referenced acts + the hub→citizen notification poll floor ----
+        "notifications" => {
+            // A citizen drains their pending sealed notices (the delivery floor; push to a
+            // registered LCT-MCP endpoint is the future optimization on the same queue).
+            let notices = s.notifications.lock().await.remove(&caller_lct_id).unwrap_or_default();
+            Ok(serde_json::json!({ "total": notices.len(), "notifications": notices }))
+        }
+        "referenced_act" => {
+            // A caller submits a generic referenced act (cbp's handoff/sweep/memo). from =
+            // the authenticated caller; the hub witnesses it. Substance lives at pointer_uri.
+            let to: hub_lib::events::ActAddress = inner.args.get("to")
+                .cloned()
+                .and_then(|v| serde_json::from_value(v).ok())
+                .ok_or_else(|| ApiError::bad_request("referenced_act requires 'to' (ActAddress)".to_string()))?;
+            let act_kind = inner.args.get("kind").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request("referenced_act requires 'kind'".to_string()))?.to_string();
+            let pointer_uri = inner.args.get("pointer_uri").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request("referenced_act requires 'pointer_uri'".to_string()))?.to_string();
+            let consequence_class = inner.args.get("consequence_class")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or(hub_lib::events::ConsequenceClass::Routine);
+            let index = witness_event(s, HubEvent::ReferencedAct {
+                from_lct: caller_lct_id,
+                to,
+                act_kind,
+                pointer_uri,
+                consequence_class,
+                sealed_body: None,
+                acted_at: Utc::now(),
+            }).await?;
+            Ok(serde_json::json!({ "recorded": true, "entry_index": index }))
         }
         // ---- constellation attestation (challenge-response MFA, assurance tiers) ----
         // Wire contract: forum/legion-constellation-attestation-wire-shape-2026-06-11.md.
@@ -4205,6 +4313,41 @@ norms:
         assert_eq!(hits[0]["score"], serde_json::json!(0.91));
         // Unknown LCT: left as index-only (no fabricated name).
         assert!(hits[1].get("name").is_none());
+    }
+
+    #[tokio::test]
+    async fn notify_citizen_witnesses_a_referenced_act_and_queues_a_sealed_notice() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        // Enroll a citizen with a pinned channel pubkey.
+        let kp = KeyPair::generate();
+        let citizen = Uuid::new_v4();
+        witness_event(&state, HubEvent::MemberAdded {
+            member_lct_id: citizen,
+            added_by: state.sovereign_lct_id,
+            member_name: Some("Cit".into()),
+            member_pubkey_hex: Some(kp.verifying_key().to_hex()),
+        }).await.unwrap();
+
+        // Hub pushes a notification to the citizen.
+        notify_citizen(&state, citizen, "notify:test", "ptr/1", b"hello-citizen").await;
+
+        // Queued for delivery (the poll floor) — sealed, addressed, with the act kind + pointer.
+        {
+            let mb = state.notifications.lock().await;
+            let notices = mb.get(&citizen).expect("a notice was queued");
+            assert_eq!(notices.len(), 1);
+            assert_eq!(notices[0].act_kind, "notify:test");
+            assert_eq!(notices[0].pointer_uri, "ptr/1");
+            assert!(!notices[0].sealed.is_empty(), "the body is sealed to the citizen");
+        }
+        // And witnessed on the ledger as a thin referenced_act (no body on the ledger).
+        let ledger = state.ledger.lock().await;
+        let kinds: Vec<String> = ledger.entries().iter().map(|e| e.event.kind().to_string()).collect();
+        assert!(kinds.contains(&"referenced_act".to_string()));
+        // A notice for an unknown (un-pinned) recipient is dropped, not queued.
+        drop(ledger);
+        notify_citizen(&state, Uuid::new_v4(), "notify:test", "ptr/2", b"x").await;
+        assert_eq!(state.notifications.lock().await.len(), 1, "no pinned pubkey → dropped");
     }
 
     #[tokio::test]

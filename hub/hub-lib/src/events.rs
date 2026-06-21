@@ -305,6 +305,59 @@ pub enum HubEvent {
         declines: Vec<Uuid>,
         resolved_at: DateTime<Utc>,
     },
+
+    /// A **referenced act** — the generic thin governance record (DRAFT, pending
+    /// Phase-0 convergence: forum/hub-to-cbp-web4-referenced-act-and-notifications).
+    /// One shape for both fleet lateral/temporal acts (cbp's handoffs/sweeps/memos)
+    /// AND hub→citizen notifications (a notification = this act with `to = Citizen`).
+    /// `from` is the envelope's `actor_lct_id`. The substance lives at `pointer_uri`;
+    /// the ledger only witnesses the act. `High` consequence acts carry a
+    /// `proposal_ref` (M-of-N council gate, already built).
+    ReferencedAct {
+        /// The originator (the act's `from`). The hub signs every ledger entry as
+        /// the Sovereign (it is the witness), so authorship is carried here as a
+        /// field — `from_lct` is the submitting peer (handoff) or the hub itself
+        /// (notification), exactly as `IntroRequested.from_lct` works.
+        from_lct: Uuid,
+        /// Recipient + relevance horizon (MRH-as-addressing).
+        to: ActAddress,
+        /// Act kind — conventioned free-form: "handoff", "sweep", "memo",
+        /// "notify:intro_accepted", "notify:pair_message", "notify:role_assigned", …
+        act_kind: String,
+        /// Pointer to the substance (forum URL, git commit, snarc id, /pairs/:id, …).
+        pointer_uri: String,
+        consequence_class: ConsequenceClass,
+        /// Optional recipient-only body: ciphertext sealed to the recipient's pinned
+        /// pubkey. Usually carried in the delivery mailbox (kept off the thin ledger);
+        /// present here only when the body should itself be witnessed.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sealed_body: Option<String>,
+        acted_at: DateTime<Utc>,
+    },
+}
+
+/// Who a [`HubEvent::ReferencedAct`] is addressed to — the MRH scope IS the addressing.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "scope", rename_all = "snake_case")]
+pub enum ActAddress {
+    /// Another instance of the plural self (next wake / post-compaction). MRH = temporal.
+    FutureSelf { entity: Uuid },
+    /// A peer cell (machine/track LCT). MRH = lateral.
+    Peer { lct_id: Uuid },
+    /// A specific citizen of this society (the notification case).
+    Citizen { lct_id: Uuid },
+    /// A role — fan-out to current holders.
+    Role { role: String },
+}
+
+/// Consequence tier of a referenced act. `High` requires an M-of-N `proposal_ref`
+/// (enforced later; recorded now).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConsequenceClass {
+    Informational,
+    Routine,
+    High,
 }
 
 /// Why a pair ended. Captures audit-relevant intent so V3 trust
@@ -354,6 +407,7 @@ impl HubEvent {
             Self::VaultUnlockRequested { .. } => "vault_unlock_requested",
             Self::VaultUnlockAttested { .. } => "vault_unlock_attested",
             Self::VaultUnlockResolved { .. } => "vault_unlock_resolved",
+            Self::ReferencedAct { .. } => "referenced_act",
         }
     }
 }

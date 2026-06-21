@@ -681,6 +681,20 @@ fn event_summary(event: &HubEvent) -> String {
                 short(challenge_id),
             )
         }
+        HubEvent::ReferencedAct { to, act_kind, pointer_uri, .. } => {
+            let dst = match to {
+                hub_lib::events::ActAddress::FutureSelf { entity } => format!("future-self {}", short(entity)),
+                hub_lib::events::ActAddress::Peer { lct_id } => format!("peer {}", short(lct_id)),
+                hub_lib::events::ActAddress::Citizen { lct_id } => format!("citizen {}", short(lct_id)),
+                hub_lib::events::ActAddress::Role { role } => format!("role {}", html_escape(role)),
+            };
+            format!(
+                "✉️ act <code>{}</code> → {} <span class=\"muted\">[{}]</span>",
+                html_escape(act_kind),
+                dst,
+                html_escape(pointer_uri),
+            )
+        }
     }
 }
 
