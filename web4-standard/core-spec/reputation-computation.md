@@ -47,7 +47,7 @@ This separation makes trust mechanics **observable, attributable, and verifiable
     },
 
     "contributing_factors": [
-      {"factor": "accuracy_threshold_exceeded", "weight": 0.5},
+      {"factor": "high_accuracy", "weight": 0.4},
       {"factor": "deadline_met", "weight": 0.3},
       {"factor": "resource_efficiency", "weight": 0.2}
     ],
@@ -69,11 +69,11 @@ This separation makes trust mechanics **observable, attributable, and verifiable
 |-------|------|----------|-------------|
 | `subject_lct` | LCT | Yes | Entity whose reputation changed |
 | `role_lct` | LCT | Yes | Role LCT (MRH pairing link) |
-| `role_pairing_in_mrh` | Object | Yes | Full MRH role pairing context |
+| `role_pairing_in_mrh` | Object | No | Full MRH role pairing context (derivable from `role_lct` via the entity↔role MRH pairing; carried only as a denormalized convenience) |
 | `action_type` | String | Yes | Action verb from request |
 | `action_target` | LCT/URI | Yes | Target of the action |
 | `action_id` | Hash | Yes | Transaction that caused the change |
-| `rule_triggered` | String | No | Which reputation rule was triggered |
+| `rule_triggered` | String | No | Which reputation rule(s) were triggered — when multiple rules fire, the ids are joined (comma-separated) and `reason` derives from the full set |
 | `reason` | String | Yes | Human-readable explanation |
 | `t3_delta` | Object | Yes | Trust tensor changes on this role (may be empty) |
 | `v3_delta` | Object | Yes | Value tensor changes on this role (may be empty) |
@@ -280,6 +280,21 @@ Reputation changes are **rule-triggered**, not arbitrary. Law Oracles define rep
 }
 ```
 
+### Trigger Condition Semantics
+
+`trigger_conditions` is an **open-ended** set of conjunctive checks (a rule
+matches only when **all** stated conditions hold). The conditions in common use:
+
+| Condition | Match semantics |
+|-----------|-----------------|
+| `action_type` | Equals the action's verb. |
+| `result_status` | Equals the action result status (e.g. `success`). |
+| `quality_threshold` | Matches **iff** `output.quality >= threshold`. A missing quality value is treated as `0.0`, so the threshold fails. |
+| `min_atp_stake` | Matches **iff** the action's staked ATP `>= min_atp_stake`. Lets rules apply only above a minimum economic commitment. |
+
+Implementations MAY define additional conditions; an unrecognized condition
+SHOULD cause the rule not to match (fail-closed) rather than be ignored.
+
 ### Rule Categories
 
 #### Success Rules
@@ -380,7 +395,10 @@ def compute_reputation_delta(action, result, rules):
     reputation.action_type = action.request.action
     reputation.action_target = action.request.target
     reputation.action_id = action.action_id             # pre-execution id, set at request time
-    reputation.rule_triggered = triggered_rules[0].rule_id
+    # Record the id of EVERY triggered rule (the delta loops above accumulate
+    # across all of them), joined comma-separated — full provenance, SDK parity
+    # (`reputation.py`: rule_ids = ", ".join(r.rule_id for r in triggered)).
+    reputation.rule_triggered = ", ".join(r.rule_id for r in triggered_rules)
     reputation.reason = generate_reason(triggered_rules, factors)
     reputation.t3_delta = t3_changes
     reputation.v3_delta = v3_changes
@@ -446,35 +464,37 @@ def analyze_factors(action, result):
             'value': quality
         })
 
-    # Time-based factors
-    if 'deadline' in action.request.constraints:
-        deadline = action.request.constraints.deadline
-        completion = result.timestamp
+    # Time-based factors (SDK parity — `reputation.py` reads pre-resolved
+    # boolean flags off `action.request.constraints`; it does NOT carry a
+    # `deadline` datetime nor apply a fixed early-completion threshold). The
+    # caller resolves these flags upstream (one illustrative resolution: set
+    # `deadline_met` from `result.timestamp <= constraints.deadline` and
+    # `early_completion` from a society-defined margin, e.g. > 1 hour early).
+    if action.request.constraints.get('deadline_met'):
+        factors.append({
+            'factor': 'deadline_met',
+            'weight': 0.3,
+            'value': True
+        })
 
-        if completion <= deadline:
-            factors.append({
-                'factor': 'deadline_met',
-                'weight': 0.3,
-                'value': True
-            })
+    if action.request.constraints.get('early_completion'):
+        factors.append({
+            'factor': 'early_completion',
+            'weight': 0.2,
+            'value': True
+        })
 
-            time_saved = deadline - completion
-            if time_saved > timedelta(hours=1):
-                factors.append({
-                    'factor': 'early_completion',
-                    'weight': 0.2,
-                    'value': time_saved.total_seconds()
-                })
+    # Resource efficiency factor (SDK parity — `reputation.py` reads
+    # `resource.required_atp` / `result.atp_consumed`, guards `required > 0`,
+    # and rounds the weight to 4 places).
+    required = action.resource.required_atp
+    consumed = result.atp_consumed
 
-    # Resource efficiency factors
-    required = action.resource.required
-    consumed = result.resourceConsumed
-
-    if consumed < required:
+    if required > 0 and consumed < required:
         efficiency = 1.0 - (consumed / required)
         factors.append({
             'factor': 'resource_efficiency',
-            'weight': efficiency * 0.2,
+            'weight': round(efficiency * 0.2, 4),
             'value': efficiency
         })
 
@@ -507,6 +527,14 @@ def analyze_factors(action, result):
 **Net Changes**:
 - Trust: +0.018 + 0.0065 = **+0.0245**
 - Value: **+0.022**
+
+> **Note**: This worked example deliberately exercises a *richer* factor set
+> than conformance vector `rep-001` (`test-vectors/reputation/reputation-operations.json`).
+> Here the rule instance includes the `early_completion`×1.3 temperament
+> modifier and the scenario completes early, yielding temperament **+0.0065**;
+> `rep-001` uses a rule without that modifier and records temperament **+0.005**.
+> Both are internally consistent against their own rule instance — they are not
+> the same instance of `successful_analysis_completion`.
 
 ## 6. Witnessing Reputation Changes
 
@@ -687,6 +715,22 @@ def apply_reputation_decay(entity_lct, role_lct, last_action_timestamp):
 
     return max(-0.5, decay)  # Cap at -0.5 total decay
 ```
+
+**Composing decay with the aggregate**: `apply_reputation_decay` returns a
+*negative delta*, not a reputation value. It composes with
+`compute_current_reputation` additively — the effective reputation is the
+time-weighted aggregate plus the inactivity decay, re-clamped to [0.0, 1.0]:
+
+```python
+def effective_reputation(entity_lct, role_lct, dimension, last_action_timestamp):
+    base = compute_current_reputation(entity_lct, role_lct, dimension)
+    decay = apply_reputation_decay(entity_lct, role_lct, last_action_timestamp)
+    return max(0.0, min(1.0, base + decay))
+```
+
+This mirrors the SDK (`reputation.py`, `ReputationStore.effective_reputation()`
+= `current() + inactivity_decay()`), and is what the checklist item below means
+by applying decay.
 
 ## 8. Implementation Checklist
 
