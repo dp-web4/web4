@@ -190,6 +190,61 @@ SELECT ?dim ?score WHERE {
 
 The shorthand properties (`web4:talent 0.85`) and the full `web4:hasDimensionScore` form are both valid. The shorthand carries the aggregate score of the sub-graph rooted at that dimension.
 
+The same mechanism is open to **protocol-level extensions**, not just domain
+namespaces. For example, multi-device binding contributes two dimensions that
+refine the roots in a hardware context — `hardware_binding_strength` (a candidate
+sub-dimension of Temperament, measuring binding stability) and
+`constellation_coherence` (owned canonically by
+[`multi-device-lct-binding.md`](multi-device-lct-binding.md) §4.4 and treated as a
+simulation parameter in [§10.4](#104-simulation-only-parameters)). These are named
+here as illustrative candidates for the extension mechanism; whether the protocol
+declares them as formal `web4:subDimensionOf` triples in the core ontology is an
+open coordination decision (not settled by this section).
+
+### 2.5 Bridging Flat (6-Dimensional) Trust Schemas into the 3 Roots
+
+Some protocol extensions carry trust as a **flat, role-agnostic schema** rather
+than as a role-bound 3-root T3 tensor. The canonical mechanism for reconciling
+such a schema with the three roots is the **6D→3D trust bridge** (SDK
+`trust_bridge()`; test vector `t3v3-008`). It is the documented attach-path:
+protocol-level flat trust schemas SHOULD be expressed as bridge *inputs* and
+collapsed into the 3 roots, rather than introducing a parallel role-agnostic
+composite (which §6.3 forbids).
+
+The bridge takes six source dimensions. Three are **primary** — each maps to one
+root and is weighted `0.6`. The other three are **secondary** — they are shared
+equally across all three roots, each contributing `(1 − 0.6)/3 = 0.4/3 ≈ 0.1333`:
+
+```
+talent      = 0.6 × competence  + (0.4/3) × (alignment + witnesses + lineage)
+training    = 0.6 × reliability + (0.4/3) × (alignment + witnesses + lineage)
+temperament = 0.6 × consistency + (0.4/3) × (alignment + witnesses + lineage)
+```
+
+(All three results are clamped to `[0.0, 1.0]`; see `t3v3-008` for the worked
+example.)
+
+The six source dimensions correspond to the flat trust keys a protocol extension
+typically carries — for instance the base trust block in
+[`multi-device-lct-binding.md`](multi-device-lct-binding.md):
+
+| Bridge input | Role weighting | Example flat key (multi-device) |
+|--------------|----------------|----------------------------------|
+| competence   | → talent (primary ×0.6)        | `technical_competence` |
+| reliability  | → training (primary ×0.6)      | `social_reliability` |
+| consistency  | → temperament (primary ×0.6)   | `temporal_consistency` |
+| alignment    | secondary, shared ×(0.4/3)     | `context_alignment` |
+| witnesses    | secondary, shared ×(0.4/3)     | `witness_count` |
+| lineage      | secondary, shared ×(0.4/3)     | `lineage_depth` |
+
+A flat trust object is therefore a set of **pre-bridge 6D source inputs** the
+canonical model collapses into the 3 roots — it is *not* itself a set of roots or
+sub-dimensions. The bridge does not, on its own, supply the entity-role binding
+that §1.1 requires; a consumer that bridges a flat schema MUST still bind the
+resulting T3 to an entity-role pair. (How a specific extension such as
+multi-device binding should serialize this — bridge-on-read vs. relabel its flat
+block — is a cross-document coordination decision tracked outside this section.)
+
 ## 3. V3 Tensor: Value Through Verification
 
 The V3 Tensor quantifies value creation through three verification dimensions:
@@ -277,8 +332,9 @@ Aggregate scores use weighted averages based on recency and significance.
 The **composite V3 score** combines the three dimensions with the protocol-invariant
 weights `valuation=0.3, veracity=0.35, validity=0.35` (the authoritative values are
 those in the [§10.2](#102-protocol-invariant-parameters) table; test vector t3v3-002).
-This mirrors the T3 composite weights applied in the [§9.2](#92-mrh-graph-integration)
-SPARQL.
+This parallels the T3 composite *structure* — a single weighted sum of the three
+dimensions — applied in the [§9.2](#92-mrh-graph-integration) SPARQL, but uses its own
+weights (V3 `0.3/0.35/0.35`, distinct from T3's `0.4/0.3/0.3`).
 
 ## 4. Tensor Interactions
 
@@ -485,6 +541,8 @@ RDF triples in MRH explicitly track role-tensor relationships:
 
 ```sparql
 # Query for best entity-role match for task
+PREFIX web4: <https://web4.io/ontology#>
+
 SELECT ?entity ?role ?trust WHERE {
     ?tensor web4:entity ?entity ;
             web4:role ?role ;
@@ -510,6 +568,7 @@ Queries can traverse the fractal sub-dimension graph using `web4:subDimensionOf*
 ```sparql
 # Find all Talent sub-dimensions and their scores for an entity-role pair
 PREFIX web4: <https://web4.io/ontology#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?dim ?dimLabel ?score WHERE {
     ?dim web4:subDimensionOf* web4:Talent .
@@ -523,6 +582,9 @@ SELECT ?dim ?dimLabel ?score WHERE {
 ORDER BY DESC(?score)
 
 # Compare sub-dimension profiles across two entities for the same role
+PREFIX web4: <https://web4.io/ontology#>
+PREFIX lct: <https://web4.io/lct/>
+
 SELECT ?dim ?scoreA ?scoreB WHERE {
     ?dim web4:subDimensionOf* web4:Training .
 
@@ -570,12 +632,12 @@ constitute the complete normative definition.
 | T3 dimension update factors | talent=1.0, training=0.8, temperament=0.6 | §2.3 | t3v3-003 |
 | Talent no-decay | Talent MUST NOT decay through inactivity | §2.3 | t3v3-012 |
 | T3 value range | [0.0, 1.0] — clamped at boundaries | §2.1 | t3v3-005, t3v3-006 |
-| V3 Veracity / Validity range | [0.0, 1.0] — clamped at boundaries | §3.1 | t3v3-002, t3v3-014 |
+| V3 Veracity / Validity range | [0.0, 1.0] — clamped at boundaries (SDK-enforced in `V3.__post_init__`; no dedicated V3 boundary vector — t3v3-002/t3v3-014 exercise interior values only) | §3.1 | t3v3-002, t3v3-014 |
 | Diminishing returns formula | `base_factor^(n−1)`, base=0.8, floor=0.1 | §7.1 | t3v3-007 |
-| 6D-to-3D bridge formula | primary×0.6 + secondary×(0.4/3) | — | t3v3-008 |
+| 6D-to-3D bridge formula | primary×0.6 + secondary×(0.4/3) | [§2.5](#25-bridging-flat-6-dimensional-trust-schemas-into-the-3-roots) | t3v3-008 |
 | V3 calculation | valuation=(earned/expected)×satisfaction; veracity=(verified/total)×confidence; validity=1.0 if transferred else 0.0 | §3.3 | t3v3-014 |
 | Operational health formula | t3_composite×0.4 + v3_composite×0.3 + energy_ratio×0.3 (note: test vector t3v3-010 labels this "coherence" — this is **not** identity coherence C×S×Phi×R from the whitepaper; it measures operational health) | — | t3v3-010 |
-| ATP conservation | total supply = ATP + ADP (invariant) | [`atp-adp-cycle.md`](atp-adp-cycle.md) §2.4 + §6.3 | — |
+| ATP conservation | total supply = ATP + ADP (transfers preserve total supply; the per-transfer form is `initial == final + fees`) | [`atp-adp-cycle.md`](atp-adp-cycle.md) §6.3 (§2.4 Slashing is the deliberate exception) | — |
 
 > **V3 Valuation range** is deliberately omitted from the table above: its
 > classification is the unresolved 3-way divergence flagged in the §3.1 open
