@@ -86,7 +86,8 @@ A declarative specification of what an agent intends to accomplish:
       "fallback": "deny"
     },
     "expiresAt": "2026-01-01T00:00:00Z"
-  }
+  },
+  "createdAt": "2025-09-15T15:30:00Z"
 }
 ```
 
@@ -158,14 +159,21 @@ Immutable record of action execution:
     "resourcesConsumed": {"atp": 2}
   },
   "t3v3Delta": {
-    "agent": {"t3": {"temperament": +0.01}},
-    "client": {"v3": {"valuation": +0.02}}
+    "agent": {"t3": {"temperament": 0.01}},
+    "client": {"v3": {"valuation": 0.02}}
   },
   "witnesses": ["lct:web4:witness:A"],
   "timestamp": "2025-09-15T15:30:10Z",
   "canonicalHash": "sha256:exec_hash_002"
 }
 ```
+
+> **ATP accounting.** `result.resourcesConsumed.atp` records the ATP **discharged**
+> by this execution in the sense of [`atp-adp-cycle.md`](./atp-adp-cycle.md) §2.3
+> (ATP→ADP transition) — it is the *same* quantity, not a separate ACP metering
+> unit. ACP records consumption against the plan's `resourceCaps.maxAtp` budget;
+> it does not mint, charge, or value ATP. The corresponding `atpConsumed` rollups
+> in §6.2 and §8.2 refer to this same discharge total.
 
 ## 3. ACP State Machine
 
@@ -223,7 +231,7 @@ Immutable record of action execution:
 | Failed | Retry | Idle | Reset state for retry |
 | Any active state¹ | Error / Timeout / Deny / Law-check fail | Failed | Log reason, rollback |
 
-¹ **"Any active state"** = the five in-flight states (Planning, Intent Created, Approval Gate, Executing, Recording). `Idle` and `Complete` are excluded: a terminal/idle plan does not transition straight to `Failed` (the SDK `VALID_TRANSITIONS` permits `→Failed` only from the five active states). The wildcard row therefore expands to **six** distinct `→Failed` edges (one per active state, plus the Intent-Created law-check-fail / Approval-Gate deny edges collapse into their source-state entry). Counting the six wildcard-expanded `→Failed` edges plus the seven explicit rows above yields the **13 transitions** asserted by conformance vector `acp-002` (`totalValidTransitions=13`). The `Deny` and `Law-check fail` events are normal governance outcomes routed to `Failed`, not transport errors.
+¹ **"Any active state"** = the five in-flight states (Planning, Intent Created, Approval Gate, Executing, Recording). `Idle` and `Complete` are excluded: a terminal/idle plan does not transition straight to `Failed` (the SDK `VALID_TRANSITIONS` permits `→Failed` only from the five active states). The wildcard row therefore expands to **five** distinct `→Failed` edges (one per active state); the Intent-Created law-check-fail and Approval-Gate deny events are additional triggers routed to `Failed` from states already counted, not new edges. Counting the five wildcard-expanded `→Failed` edges plus the **eight** explicit rows above yields the **13 transitions** asserted by conformance vector `acp-002` (`totalValidTransitions=13`). The `Deny` and `Law-check fail` events are normal governance outcomes routed to `Failed`, not transport errors.
 
 ## 4. ACP-AGY Integration
 
@@ -320,7 +328,7 @@ Critical actions require witness attestation:
 {
   "witness_requirement": {
     "level": 2,  // Number of witnesses required
-    "types": ["time", "audit"],  // Types of witnesses
+    "types": ["time", "audit-minimal"],  // Types of witnesses (Witness Role Registry roles)
     "quorum": {
       "model": "byzantine",
       "threshold": 0.67
@@ -373,8 +381,8 @@ Real-time visibility into agent operations:
     "successRate": 0.98,
     "atpConsumed": 523,
     "trustTrend": {
-      "agent": {"t3": +0.05, "period": "7d"},
-      "client": {"v3": +0.03, "period": "7d"}
+      "agent": {"t3": 0.05, "period": "7d"},
+      "client": {"v3": 0.03, "period": "7d"}
     },
     "alerts": [
       {
@@ -433,6 +441,11 @@ lct:intent acp:hasExecutionRecord lct:record .
 lct:record acp:executedBy lct:agent .
 lct:record acp:witnessedBy lct:witness .
 lct:record acp:recordedIn lct:ledger .
+lct:record acp:executedIntent lct:intent .   # inverse of acp:hasExecutionRecord
+
+# Execution-record result literals (from ExecutionRecord §2.4)
+lct:record acp:status "success" .            # result.status
+lct:record acp:atpConsumed 2 .               # result.resourcesConsumed.atp (§2.4 ATP accounting)
 ```
 
 ### 8.2 SPARQL Queries
@@ -440,22 +453,29 @@ lct:record acp:recordedIn lct:ledger .
 Query agent performance:
 
 ```sparql
-SELECT ?agent ?successRate ?avgATP WHERE {
-  ?plan acp:hasAgent ?agent .
+PREFIX acp: <https://web4.io/ontology/acp#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+SELECT ?agent
+       (COUNT(?record) AS ?total)
+       (SUM(IF(?status = "success", 1, 0)) AS ?successes)
+       (SUM(IF(?status = "success", xsd:double(1), xsd:double(0))) / COUNT(?record) AS ?successRate)
+       (AVG(?atp) AS ?avgATP)
+WHERE {
+  ?plan   acp:hasAgent ?agent .
   ?intent acp:derivedFrom ?plan .
   ?record acp:executedIntent ?intent ;
           acp:status ?status ;
           acp:atpConsumed ?atp .
-  
-  # Calculate metrics
-  BIND(COUNT(?record) AS ?total)
-  BIND(COUNT(IF(?status = "success", 1, 0)) AS ?successes)
-  BIND(?successes / ?total AS ?successRate)
-  BIND(AVG(?atp) AS ?avgATP)
 }
 GROUP BY ?agent
 ORDER BY DESC(?successRate)
 ```
+
+Aggregates appear only in `SELECT` projections (not `BIND`); the conditional
+success count uses `SUM(IF(...))` (a bare `COUNT(IF(...))` would count every
+solution because `IF` always returns a bound value); and `?agent` — the only
+non-aggregated projection — is grouped.
 
 ## 9. Implementation Requirements
 
@@ -575,6 +595,16 @@ def handle_acp_error(error, context):
 ```
 
 ## 11. Use Cases
+
+> **Note — illustrative, non-normative.** The YAML plans in this section are
+> conceptual sketches that communicate intent, not wire format. Their `guards:`
+> keys (e.g. `max_daily_amount`, `require_witness`, `auto_isolation`,
+> `false_positive_rate`) are domain shorthand and are **not** part of the
+> canonical guard model defined in §2.1
+> (`{lawHash, resourceCaps{maxAtp,maxExecutions,rateLimit}, witnessLevel, humanApproval, expiresAt}`).
+> A conformant plan MUST express its guards using the §2.1 fields; domain limits
+> like a daily-amount ceiling are enforced through `resourceCaps` and the
+> applicable society law, not through ad-hoc guard keys.
 
 ### 11.1 Invoice Processing
 
