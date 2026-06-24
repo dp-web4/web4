@@ -20,6 +20,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use web4_core::act::Act;
 use web4_core::role::SocietyRole;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -306,58 +307,31 @@ pub enum HubEvent {
         resolved_at: DateTime<Utc>,
     },
 
-    /// A **referenced act** — the generic thin governance record (DRAFT, pending
-    /// Phase-0 convergence: forum/hub-to-cbp-web4-referenced-act-and-notifications).
-    /// One shape for both fleet lateral/temporal acts (cbp's handoffs/sweeps/memos)
-    /// AND hub→citizen notifications (a notification = this act with `to = Citizen`).
-    /// `from` is the envelope's `actor_lct_id`. The substance lives at `pointer_uri`;
-    /// the ledger only witnesses the act. `High` consequence acts carry a
-    /// `proposal_ref` (M-of-N council gate, already built).
-    ReferencedAct {
-        /// The originator (the act's `from`). The hub signs every ledger entry as
-        /// the Sovereign (it is the witness), so authorship is carried here as a
-        /// field — `from_lct` is the submitting peer (handoff) or the hub itself
-        /// (notification), exactly as `IntroRequested.from_lct` works.
-        from_lct: Uuid,
-        /// Recipient + relevance horizon (MRH-as-addressing).
-        to: ActAddress,
-        /// Act kind — conventioned free-form: "handoff", "sweep", "memo",
-        /// "notify:intro_accepted", "notify:pair_message", "notify:role_assigned", …
-        act_kind: String,
-        /// Pointer to the substance (forum URL, git commit, snarc id, /pairs/:id, …).
-        pointer_uri: String,
-        consequence_class: ConsequenceClass,
-        /// Optional recipient-only body: ciphertext sealed to the recipient's pinned
-        /// pubkey. Usually carried in the delivery mailbox (kept off the thin ledger);
-        /// present here only when the body should itself be witnessed.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        sealed_body: Option<String>,
-        acted_at: DateTime<Utc>,
-    },
-}
-
-/// Who a [`HubEvent::ReferencedAct`] is addressed to — the MRH scope IS the addressing.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "scope", rename_all = "snake_case")]
-pub enum ActAddress {
-    /// Another instance of the plural self (next wake / post-compaction). MRH = temporal.
-    FutureSelf { entity: Uuid },
-    /// A peer cell (machine/track LCT). MRH = lateral.
-    Peer { lct_id: Uuid },
-    /// A specific citizen of this society (the notification case).
-    Citizen { lct_id: Uuid },
-    /// A role — fan-out to current holders.
-    Role { role: String },
-}
-
-/// Consequence tier of a referenced act. `High` requires an M-of-N `proposal_ref`
-/// (enforced later; recorded now).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ConsequenceClass {
-    Informational,
-    Routine,
-    High,
+    /// A **referenced act** — a thin, witnessed governance record of an entity
+    /// externalizing work: the one primitive behind fleet handoffs
+    /// (`to = Peer`), hub→citizen notifications (`to = Citizen` — a notification
+    /// is just this act *reversed*), forum posts (`to = Society`), and memory
+    /// writes (`to = FutureSelf`). The payload is a [`web4_core::act::Act`]
+    /// **verbatim**, so the originating cell and every witness serialize
+    /// byte-identical records (convergence:
+    /// `forum/legion-to-hub-referenced-act-shape-converged-2026-06-20`).
+    ///
+    /// The act binds to a *specific version* of its substance via
+    /// `act.substance.content_hash` (a witnessed pointer that can't silently
+    /// drift from the fat thing it attests), and its reversibility
+    /// (`act.consequence`) drives the council gate —
+    /// `ConsequenceClass::Irreversible ⇒ proposal_ref`, via
+    /// [`web4_core::act::ConsequenceClass::requires_council`].
+    ///
+    /// Authorship is `act.actor_lct` (the *from*): the hub signs every ledger
+    /// entry as the Sovereign (it is the witness), so the actor rides in the
+    /// payload, exactly as `IntroRequested.from_lct`. The cleartext routing
+    /// `kind` and any recipient-sealed body are *delivery* concerns carried on
+    /// the mailbox envelope (the daemon's `SealedNotice`), never duplicated onto
+    /// this witnessed record. A fine-grained act `kind` field is being added to
+    /// core `act::Act` (Legion hosts the registry); until it lands, the coarse
+    /// kind is read from `act.address`.
+    ReferencedAct { act: Act },
 }
 
 /// Why a pair ended. Captures audit-relevant intent so V3 trust

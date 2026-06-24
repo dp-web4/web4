@@ -681,18 +681,20 @@ fn event_summary(event: &HubEvent) -> String {
                 short(challenge_id),
             )
         }
-        HubEvent::ReferencedAct { to, act_kind, pointer_uri, .. } => {
-            let dst = match to {
-                hub_lib::events::ActAddress::FutureSelf { entity } => format!("future-self {}", short(entity)),
-                hub_lib::events::ActAddress::Peer { lct_id } => format!("peer {}", short(lct_id)),
-                hub_lib::events::ActAddress::Citizen { lct_id } => format!("citizen {}", short(lct_id)),
-                hub_lib::events::ActAddress::Role { role } => format!("role {}", html_escape(role)),
+        HubEvent::ReferencedAct { act } => {
+            use web4_core::act::ActAddress;
+            let dst = match &act.address {
+                ActAddress::FutureSelf { entity } => format!("future-self {}", short(entity)),
+                ActAddress::Peer { lct_id } => format!("peer {}", short(lct_id)),
+                ActAddress::Citizen { lct_id } => format!("citizen {}", short(lct_id)),
+                ActAddress::Role { role } => format!("role {}", html_escape(role)),
+                ActAddress::Society { lct_id } => format!("society {}", short(lct_id)),
             };
             format!(
-                "✉️ act <code>{}</code> → {} <span class=\"muted\">[{}]</span>",
-                html_escape(act_kind),
+                "✉️ act <span class=\"muted\">from</span> {} → {} <span class=\"muted\">[{}]</span>",
+                short(&act.actor_lct),
                 dst,
-                html_escape(pointer_uri),
+                html_escape(&act.substance.uri),
             )
         }
     }

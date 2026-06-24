@@ -153,11 +153,14 @@ pub struct RestState {
 /// One sealed notice queued for a citizen. `sealed` is ciphertext sealed to the
 /// citizen's pinned pubkey — only that LCT can open it (`channel_open` with the hub
 /// pubkey + `pair_id`).
+/// The hestia notify wire (`forum/hub-to-hestia-witness-notify-wire-confirmed`):
+/// `pair_id` + cleartext `kind` + sealed body. These are *delivery* concerns —
+/// they ride the mailbox envelope, never the witnessed `Act` on the ledger.
 #[derive(Clone, Serialize)]
 pub struct SealedNotice {
     pub pair_id: Uuid,
     pub sealed: String,
-    pub act_kind: String,
+    pub kind: String,
     pub pointer_uri: String,
     pub queued_at: chrono::DateTime<Utc>,
 }
@@ -670,7 +673,7 @@ async fn witness_event(s: &RestState, event: HubEvent) -> Result<u64, ApiError> 
 /// sealed notice in the citizen's mailbox (the poll floor). `body` is sealed to the
 /// citizen's pinned pubkey — only that LCT can open it. Best-effort: missing pubkey / seal
 /// failure logs and drops (the witnessed act still records that a notice was intended).
-async fn notify_citizen(s: &RestState, recipient: Uuid, act_kind: &str, pointer_uri: &str, body: &[u8]) {
+async fn notify_citizen(s: &RestState, recipient: Uuid, kind: &str, pointer_uri: &str, body: &[u8]) {
     let pubkey_hex = {
         let ledger = s.ledger.lock().await;
         HubState::project(&ledger).member_pubkeys.get(&recipient).cloned()
@@ -692,23 +695,26 @@ async fn notify_citizen(s: &RestState, recipient: Uuid, act_kind: &str, pointer_
         Ok(c) => c,
         Err(e) => { tracing::warn!("notify_citizen: seal failed: {e}"); return; }
     };
-    let _ = witness_event(
-        s,
-        HubEvent::ReferencedAct {
-            from_lct: s.sovereign_lct_id,
-            to: hub_lib::events::ActAddress::Citizen { lct_id: recipient },
-            act_kind: act_kind.to_string(),
-            pointer_uri: pointer_uri.to_string(),
-            consequence_class: hub_lib::events::ConsequenceClass::Informational,
-            sealed_body: None, // body delivered via the mailbox, not on the thin ledger
-            acted_at: Utc::now(),
-        },
-    )
-    .await;
+    // Witness a thin act — a `web4_core::act::Act` verbatim (the convergence's
+    // "both sides witness the same bytes"). `content_hash` binds the witnessed
+    // pointer to this exact notice body so it can't drift; medium = Message (a
+    // direct sealed notice); consequence defaults to Reversible (a notification
+    // is freely undoable). The sealed body rides the mailbox below, NOT the ledger.
+    let act = web4_core::act::Act::addressed(
+        s.sovereign_lct_id,
+        web4_core::act::ActAddress::Citizen { lct_id: recipient },
+        web4_core::act::SubstanceRef::new(
+            pointer_uri,
+            web4_core::sha256_hex(body),
+            web4_core::act::SubstanceMedium::Message,
+        ),
+        Utc::now(),
+    );
+    let _ = witness_event(s, HubEvent::ReferencedAct { act }).await;
     s.notifications.lock().await.entry(recipient).or_default().push(SealedNotice {
         pair_id,
         sealed,
-        act_kind: act_kind.to_string(),
+        kind: kind.to_string(),
         pointer_uri: pointer_uri.to_string(),
         queued_at: Utc::now(),
     });
@@ -2176,28 +2182,34 @@ async fn dispatch_channel(
             Ok(serde_json::json!({ "total": notices.len(), "notifications": notices }))
         }
         "referenced_act" => {
-            // A caller submits a generic referenced act (cbp's handoff/sweep/memo). from =
-            // the authenticated caller; the hub witnesses it. Substance lives at pointer_uri.
-            let to: hub_lib::events::ActAddress = inner.args.get("to")
+            // A caller submits a generic referenced act (cbp's handoff/sweep/memo). The act's
+            // `actor_lct` is the authenticated caller; the hub witnesses it as a verbatim
+            // `web4_core::act::Act`. `to` is a core `ActAddress` (Peer/Citizen/Role/Society/
+            // FutureSelf); the substance pointer carries a `content_hash` so the witnessed
+            // record binds to a specific version and can't silently drift.
+            let address: web4_core::act::ActAddress = inner.args.get("to")
                 .cloned()
                 .and_then(|v| serde_json::from_value(v).ok())
                 .ok_or_else(|| ApiError::bad_request("referenced_act requires 'to' (ActAddress)".to_string()))?;
-            let act_kind = inner.args.get("kind").and_then(|v| v.as_str())
-                .ok_or_else(|| ApiError::bad_request("referenced_act requires 'kind'".to_string()))?.to_string();
-            let pointer_uri = inner.args.get("pointer_uri").and_then(|v| v.as_str())
+            let uri = inner.args.get("pointer_uri").and_then(|v| v.as_str())
                 .ok_or_else(|| ApiError::bad_request("referenced_act requires 'pointer_uri'".to_string()))?.to_string();
-            let consequence_class = inner.args.get("consequence_class")
+            let content_hash = inner.args.get("content_hash").and_then(|v| v.as_str())
+                .unwrap_or("").to_string();
+            let medium: web4_core::act::SubstanceMedium = inner.args.get("medium")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or(hub_lib::events::ConsequenceClass::Routine);
-            let index = witness_event(s, HubEvent::ReferencedAct {
-                from_lct: caller_lct_id,
-                to,
-                act_kind,
-                pointer_uri,
-                consequence_class,
-                sealed_body: None,
-                acted_at: Utc::now(),
-            }).await?;
+                .unwrap_or(web4_core::act::SubstanceMedium::Other);
+            // Reversibility is the canonical, actor-assessable property; the council gate
+            // (`Irreversible ⇒ proposal_ref`) is derived from it. Defaults to Reversible.
+            let consequence: web4_core::act::ConsequenceClass = inner.args.get("consequence")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+            let act = web4_core::act::Act::addressed(
+                caller_lct_id,
+                address,
+                web4_core::act::SubstanceRef::new(uri, content_hash, medium),
+                Utc::now(),
+            ).with_consequence(consequence);
+            let index = witness_event(s, HubEvent::ReferencedAct { act }).await?;
             Ok(serde_json::json!({ "recorded": true, "entry_index": index }))
         }
         // ---- constellation attestation (challenge-response MFA, assurance tiers) ----
@@ -4336,7 +4348,7 @@ norms:
             let mb = state.notifications.lock().await;
             let notices = mb.get(&citizen).expect("a notice was queued");
             assert_eq!(notices.len(), 1);
-            assert_eq!(notices[0].act_kind, "notify:test");
+            assert_eq!(notices[0].kind, "notify:test");
             assert_eq!(notices[0].pointer_uri, "ptr/1");
             assert!(!notices[0].sealed.is_empty(), "the body is sealed to the citizen");
         }
