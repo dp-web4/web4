@@ -173,7 +173,7 @@
     {
       "id": "P0-007",
       "name": "query_policy returns default-allow in v0",
-      "description": "v0 daemon is a default-allow stub. Real engine arrives in v1. Conformance only requires the shape; implementations MAY return real decisions. Note: query_policy MUST run on an action that has NOT yet had record_outcome called on it, since record_outcome consumes the action.",
+      "description": "v0 daemon is a default-allow stub. Real engine arrives in v1. Conformance only requires the shape; implementations MAY return real decisions. The shape is validated against the v1 query_policy output schema (a superset of v0's fields) so this v0 scenario passes on both v0 and v1+ daemons by design: the v0 reply {decision,reason,policyId,enforced} validates against it, and so does a v1 reply carrying ruleId/ruleName/constraints/status/nextPollMs (which the strict additionalProperties:false v0 schema would reject). Note: query_policy MUST run on an action that has NOT yet had record_outcome called on it, since record_outcome consumes the action.",
       "preconditions": ["P0-001"],
       "setup": [
         {
@@ -194,7 +194,7 @@
             "session_id": "{{P0-001.sessionId}}"
           },
           "expect": {
-            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v0/tools/hestia_query_policy.schema.json#/$defs/output",
+            "shapeMatchesSchema": "https://web4.io/schemas/presence-protocol/v1/tools/hestia_query_policy.schema.json#/$defs/output",
             "fieldChecks": [
               { "path": "decision", "isIn": ["allow", "deny", "warn"] },
               { "path": "reason", "isNonEmptyString": true },
