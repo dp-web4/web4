@@ -139,12 +139,14 @@ impl ConsequenceClass {
         }
     }
 
-    /// Whether an act of this class must carry a council `proposal_ref` (M-of-N
-    /// authorization) to be admissible. This is the bridge to HUB's gate: HUB's
-    /// `High` consequence == our `Irreversible` (the act you can't take back is
-    /// the one that needs council sign-off). Reversibility is the actor-assessable
-    /// *property*; the council requirement is the governance *response* derived
-    /// from it. (Phase 1 records the class; Phase 4 enforces the gate.)
+    /// The **default** mapping from consequence class to "needs a council
+    /// `proposal_ref` (M-of-N authorization)". Reversibility is the intrinsic,
+    /// actor-assessable property (canonical, in the type); whether a class
+    /// actually gates on council is **per-society charter policy** that the hub
+    /// owns (via its existing council-threshold config) — a society may gate a
+    /// Costly-but-reversible large spend, or auto-approve a sensitive reversible
+    /// act. This helper is the sensible default (`Irreversible ⇒ council`), not
+    /// type law; the hub may override per charter (HUB, 2026-06-20).
     pub fn requires_council(self) -> bool {
         matches!(self, ConsequenceClass::Irreversible)
     }
@@ -161,6 +163,15 @@ pub struct Act {
     pub actor_lct: Uuid,
     /// Recipient + MRH relevance horizon, in one field.
     pub address: ActAddress,
+    /// Act kind — lets a recipient route/filter **without opening the
+    /// substance**. Convention (HUB, hub↔core converged): a bare `<verb>`
+    /// for fleet/peer acts (`handoff`, `memo`, `sweep`, `forum`); the
+    /// `notify:<event>` namespace for hub→citizen notifications (the
+    /// act-reversed case, e.g. `notify:intro_accepted`). The `notify:*`
+    /// sub-vocabulary is hub-minted; the canonical registry lives in the
+    /// society/ledger spec. Open set — extend freely.
+    #[serde(default)]
+    pub kind: String,
     /// How reversible the act's effect is.
     pub consequence: ConsequenceClass,
     /// Pointer to the fat substance this act governs.
@@ -173,25 +184,28 @@ pub struct Act {
 
 impl Act {
     /// A **memory write** — an act to your future self (temporal MRH).
+    /// Default kind `"memo"`.
     pub fn memory(actor_lct: Uuid, substance: SubstanceRef, at: DateTime<Utc>) -> Self {
-        Self::addressed(actor_lct, ActAddress::FutureSelf { entity: actor_lct }, substance, at)
+        Self::addressed(actor_lct, ActAddress::FutureSelf { entity: actor_lct }, "memo", substance, at)
     }
 
-    /// A **handoff** — an act to a peer (lateral MRH).
+    /// A **handoff** — an act to a peer (lateral MRH). Default kind `"handoff"`.
     pub fn handoff(actor_lct: Uuid, peer_lct: Uuid, substance: SubstanceRef, at: DateTime<Utc>) -> Self {
-        Self::addressed(actor_lct, ActAddress::Peer { lct_id: peer_lct }, substance, at)
+        Self::addressed(actor_lct, ActAddress::Peer { lct_id: peer_lct }, "handoff", substance, at)
     }
 
-    /// A **forum post** — an act to the society at large (broad MRH).
+    /// A **forum post** — an act to the society at large (broad MRH). Default
+    /// kind `"forum"`.
     pub fn forum(actor_lct: Uuid, society_lct: Uuid, substance: SubstanceRef, at: DateTime<Utc>) -> Self {
-        Self::addressed(actor_lct, ActAddress::Society { lct_id: society_lct }, substance, at)
+        Self::addressed(actor_lct, ActAddress::Society { lct_id: society_lct }, "forum", substance, at)
     }
 
-    /// The general constructor — any [`ActAddress`] (incl. the hub→`Citizen`
-    /// notification case and `Role` fan-out).
+    /// The general constructor — any [`ActAddress`] + [`kind`](Act::kind)
+    /// (incl. the hub→`Citizen` `notify:<event>` case and `Role` fan-out).
     pub fn addressed(
         actor_lct: Uuid,
         address: ActAddress,
+        kind: impl Into<String>,
         substance: SubstanceRef,
         at: DateTime<Utc>,
     ) -> Self {
@@ -199,11 +213,19 @@ impl Act {
             act_id: Uuid::new_v4(),
             actor_lct,
             address,
+            kind: kind.into(),
             consequence: ConsequenceClass::default(),
             substance,
             witnesses: Vec::new(),
             at,
         }
+    }
+
+    /// Override the act [`kind`](Act::kind) — e.g. a more specific verb than a
+    /// constructor's default, or a `notify:<event>` on a `Citizen`-addressed act.
+    pub fn with_kind(mut self, kind: impl Into<String>) -> Self {
+        self.kind = kind.into();
+        self
     }
 
     pub fn with_consequence(mut self, c: ConsequenceClass) -> Self {
@@ -290,6 +312,11 @@ mod tests {
         // The handoff is the only one addressed to a specific peer.
         assert_eq!(Act::handoff(me, peer, sref(), now()).address, ActAddress::Peer { lct_id: peer });
         assert_eq!(Act::memory(me, sref(), now()).address, ActAddress::FutureSelf { entity: me });
+        // Default kinds per HUB's vocabulary.
+        assert_eq!(Act::memory(me, sref(), now()).kind, "memo");
+        assert_eq!(Act::handoff(me, peer, sref(), now()).kind, "handoff");
+        assert_eq!(Act::forum(me, soc, sref(), now()).kind, "forum");
+        assert_eq!(Act::memory(me, sref(), now()).with_kind("runbook").kind, "runbook");
     }
 
     #[test]
@@ -298,9 +325,16 @@ mod tests {
         // addressed to a Citizen (lateral MRH).
         let hub = Uuid::new_v4();
         let citizen = Uuid::new_v4();
-        let n = Act::addressed(hub, ActAddress::Citizen { lct_id: citizen }, sref(), now());
+        let n = Act::addressed(
+            hub,
+            ActAddress::Citizen { lct_id: citizen },
+            "notify:intro_accepted",
+            sref(),
+            now(),
+        );
         assert_eq!(n.mrh_direction(), MrhDirection::Lateral);
         assert_eq!(n.actor_lct, hub);
+        assert!(n.kind.starts_with("notify:"));
     }
 
     #[test]
