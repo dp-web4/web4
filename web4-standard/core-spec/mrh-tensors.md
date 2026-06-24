@@ -224,8 +224,11 @@ class TrustPropagation:
         return combined
 
     def maximal(self, paths: List[List[MRHEdge]], decay_factor: float = 0.7) -> float:
-        """Take highest trust path"""
-        return max(self.multiplicative(path, decay_factor) for path in paths)
+        """Take highest trust path (0.0 if no paths, matching SDK propagate_maximal)"""
+        return max(
+            (self.multiplicative(path, decay_factor) for path in paths),
+            default=0.0,
+        )
 ```
 
 Trust patterns in the graph:
@@ -256,7 +259,7 @@ _:trust1 a web4:T3Tensor ;
     web4:entity lct:alice ;
     web4:role web4:Surgeon ;
     web4:talent 0.95 ;       # High surgical skill (aggregate — shorthand)
-    web4:training 0.90 ;     # Extensive medical training (aggregate — shorthand)
+    web4:training 0.92 ;     # Extensive medical training (aggregate — shorthand)
     web4:temperament 0.88 .  # Consistent surgical performance (aggregate — shorthand)
 # These shorthand properties are equivalent to the full web4:hasDimensionScore
 # pattern defined in the T3/V3 ontology (../ontology/t3v3-ontology.ttl).
@@ -370,12 +373,16 @@ ORDER BY DESC(?maxTrust)
 Common SPARQL patterns for MRH queries:
 
 ```sparql
-# Find trust paths between entities
+# Test whether any trust path exists between two entities.
+# NOTE: A SPARQL property path (`+`) is a boolean reachability test — it
+# binds no intermediate nodes, so it cannot project ?path or per-hop ?trust.
+# Path enumeration and trust aggregation are materialized SDK-side
+# (see `mrh.py`: TrustPropagation.multiplicative / .probabilistic / .maximal).
+# Use ASK for the reachability half:
 PREFIX web4: <https://web4.io/ontology#>
 
-SELECT ?path ?trust WHERE {
+ASK {
     <lct:alice> (web4:hasRelationship+) <lct:bob> .
-    # Calculate trust along path
 }
 ```
 
