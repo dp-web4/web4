@@ -84,10 +84,11 @@ This protocol is versioned with a single integer `protocolVersion`.
   change to error code semantics, requires a version bump.**
   Exception: **optional additive fields** (new keys that older readers
   can safely ignore) are back-compatible and do NOT trigger a bump.
-  `status`/`nextPollMs` (output, v1 back-compat addition) and
-  `synthetic` (input, v1 back-compat addition) were both added under
-  this exception. Removals, renames, type changes, or new required
-  fields always bump.
+  `status`/`nextPollMs` (output, v1 back-compat addition — fully
+  conformed: schema + vector P1-004 + CHANGELOG) and `synthetic`
+  (input, v1 back-compat addition — spec-documented but not yet
+  artifact-conformed; see §8) were both added under this exception.
+  Removals, renames, type changes, or new required fields always bump.
 
 The daemon advertises its `protocolVersion` in the
 [`hestia_connect`](#31-hestia_connect) response. SDKs MUST expose a
@@ -333,19 +334,23 @@ the credential's allow-list.
   "approvalToken": null
 }
 ```
-`approvalToken` is reserved for v1+ flows that require user
-interactive approval; in v0 it's always `null`.
+`approvalToken` is reserved for v2+ flows that require user
+interactive approval; in v0 and v1 it's always `null` (interactive
+vault approval is deferred to v2+ — see §6.1 and §8).
 
 **Errors:**
 - `hestia.vault_not_found` — credential not in vault
 - `hestia.vault_scope_mismatch` — caller is not in `allowed_consumers` or scope doesn't match
-- `hestia.vault_denied` — interactive approval refused (reserved for v1+)
+- `hestia.vault_denied` — interactive approval refused (reserved for v2+;
+  interactive vault approval not yet shipped — v0 and v1 daemons MAY emit
+  `hestia.internal_error` instead, see §6.1)
 - `hestia.internal_error`
 
 ### 3.6 `hestia_vault_set`
 
 Store or upsert a credential. v0 has no interactive approval —
-the caller can write without prompt. v1+ MAY add approval flow.
+the caller can write without prompt. v2+ MAY add an interactive
+approval flow (deferred, same as `vault_get` — see §6.1 and §8).
 
 **Input:**
 ```json
@@ -618,7 +623,7 @@ inside the envelope. This is **Mechanism A** from ADR-0005.
 | `hestia.not_connected` | SDK | Method called before `connect()` |
 | `hestia.session_expired` | SDK / daemon | Session no longer valid |
 | `hestia.policy_denied` | daemon (v1+) | Policy engine denied the action |
-| `hestia.vault_denied` | daemon (v1+) | Interactive vault approval refused |
+| `hestia.vault_denied` | daemon (v2+) | Interactive vault approval refused |
 | `hestia.vault_not_found` | daemon | Credential name not in vault |
 | `hestia.vault_scope_mismatch` | daemon | Caller not in allowed_consumers or scope mismatch |
 | `hestia.action_not_found` | daemon | No in-flight action with that `action_id` |
@@ -626,8 +631,15 @@ inside the envelope. This is **Mechanism A** from ADR-0005.
 | `hestia.unknown_tool` | daemon | Tool name not in §3 |
 | `hestia.internal_error` | daemon | Catch-all; the `message` field carries detail |
 
-Codes marked `(v1+)` are reserved — SDKs MAY map them, but v0
-daemons MAY emit `hestia.internal_error` instead until v1 lands.
+Codes marked `(v1+)` (`policy_denied`, `invalid_role`) are **live as
+of v1** — the policy engine was wired 2026-05-16, so a v1+ daemon
+emits them directly; before v1, v0 daemons emitted
+`hestia.internal_error` instead. The code marked `(v2+)`
+(`vault_denied`) stays **reserved** — its only trigger, interactive
+vault approval, is deferred to v2+ (see §3.5/§3.6 and §8). Until that
+flow ships, no daemon emits `vault_denied`; SDKs MAY map it but will
+not receive it, and v0/v1 daemons emit `hestia.internal_error`
+instead. SDKs MAY map any reserved code in advance.
 
 ---
 
@@ -677,7 +689,7 @@ honesty about where it isn't yet held.
 | `PROTOCOL_VERSION` constant exists only in Rust SDK | TS, Python SDKs | Add to both — covered by `1a-4`. |
 | `TrustState` is missing `entityId`, `successCount`, `successRate` in all SDKs | All 3 SDKs | Add fields — covered by `1a-4`. |
 | ~~Error codes `policy_denied`, `invalid_role` referenced by SDKs but never emitted by daemon~~ | ~~Daemon~~ | **Resolved in v1.** The policy engine is wired (v1, 2026-05-16); these two codes are now emittable. §6.1 marks them `(v1+)`. |
-| `vault_denied` referenced by SDKs but not yet emittable | Daemon | **Still pending.** Its only trigger — interactive vault approval refused (§6.1) — is deferred to v2+ (see §3.5/§3.6 and the CHANGELOG). Reserved in §6.1 as `(v1+)` so SDKs MAY map it, but no daemon can emit it until that approval flow ships. |
+| `vault_denied` referenced by SDKs but not yet emittable | Daemon | **Still pending.** Its only trigger — interactive vault approval refused (§6.1) — is deferred to v2+ (see §3.5/§3.6 and the CHANGELOG). Reserved in §6.1 as `(v2+)` so SDKs MAY map it, but no daemon can emit it until that approval flow ships. |
 | `WitnessEntry.timestamp` is a string in SDK types but parsed as `chrono::DateTime` in Rust | Rust SDK | Internal — wire format is the string. No spec change. |
 | Daemon's `hestia://society/state` resource returns `trust_states_known` (snake_case) | None — not drift | `society/state` is an **ad-hoc stats object** (not a §5 struct); its `snake_case` keys are bound by vector P0-009 (`sovereign_lct`, `chain_length`, …). **No rename:** the earlier camelCase aspiration contradicted that vector. This is resource-specific — the four §5-typed resource bodies (`witness/recent`, `session/own`, `society/trust/{plugin_id}`, `vault/{name}`) stay `camelCase`, as vector P0-010 (`entries[0].chainPosition`) and the `witness_entry`/`trust_state` schemas require. See the per-resource casing split in §3. |
 | `synthetic` field in §3.1 `hestia_connect` input has no JSON Schema, no conformance vector, no CHANGELOG entry | Spec ↔ artifacts | Discipline gap (C5 audit P2). No v1 `hestia_connect` schema exists (only `v0/tools/hestia_connect.schema.json`); creating one is a structural prerequisite. Until then, `synthetic` is spec-documented but not artifact-conformed. |
