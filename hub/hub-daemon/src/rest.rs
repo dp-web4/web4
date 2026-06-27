@@ -2536,6 +2536,50 @@ async fn deny_join(s: &RestState, request_id: Uuid, resolved_by: Uuid, reason: O
     }).await
 }
 
+/// Pin (or rotate) an existing member's channel pubkey **through the daemon**:
+/// witness `MemberKeyPinned` and update the LIVE resolver in place — the
+/// no-restart equivalent of the `hub set-member-key` CLI (which writes the store
+/// out-of-band and leaves the running daemon's resolver stale until reboot). The
+/// member must already exist; `insert` replaces the prior entry for this LCT id,
+/// so this is the re-key path (sprout's JetPack-wipe case for an existing member).
+async fn pin_member_key(s: &RestState, member_lct_id: Uuid, pubkey_hex: &str) -> Result<u64, ApiError> {
+    let lct = hub_lib::hub::hestia_sovereign_lct(member_lct_id, pubkey_hex)
+        .map_err(|e| ApiError::bad_request(format!("invalid pubkey_hex: {}", e)))?;
+    {
+        let ledger = s.ledger.lock().await;
+        if !HubState::project(&ledger).members.contains_key(&member_lct_id) {
+            return Err(ApiError::not_found(format!("no member {member_lct_id} to key")));
+        }
+    }
+    let index = witness_event(s, HubEvent::MemberKeyPinned {
+        member_lct_id,
+        member_pubkey_hex: pubkey_hex.to_string(),
+        pinned_by: s.sovereign_lct_id,
+    }).await?;
+    s.resolver.write().await.insert(lct);
+    Ok(index)
+}
+
+/// Remove a member **through the daemon**: witness `MemberRemoved` and evict them
+/// from the LIVE resolver — no restart; their envelopes stop verifying as a
+/// member immediately. (The projection also drops their pinned key, so a future
+/// restart won't re-seed them.)
+async fn remove_member_live(s: &RestState, member_lct_id: Uuid, reason: Option<String>) -> Result<u64, ApiError> {
+    {
+        let ledger = s.ledger.lock().await;
+        if !HubState::project(&ledger).members.contains_key(&member_lct_id) {
+            return Err(ApiError::not_found(format!("no member {member_lct_id} to remove")));
+        }
+    }
+    let index = witness_event(s, HubEvent::MemberRemoved {
+        member_lct_id,
+        removed_by: s.sovereign_lct_id,
+        reason,
+    }).await?;
+    s.resolver.write().await.0.remove(&member_lct_id);
+    Ok(index)
+}
+
 async fn submit_join(
     State(s): State<RestState>,
     Path(hub_id): Path<Uuid>,
@@ -3064,7 +3108,9 @@ async fn commit_proposed_event(
             .map_err(ApiError::internal)?;
         let needs = matches!(
             &entry.event,
-            HubEvent::CouncilMemberAdded { .. } | HubEvent::MemberAdded { .. }
+            HubEvent::CouncilMemberAdded { .. }
+                | HubEvent::MemberAdded { .. }
+                | HubEvent::MemberKeyPinned { .. } // live re-key: insert replaces by lct id
         );
         (entry.index, needs)
     };
@@ -3951,6 +3997,52 @@ norms:
         // Double-resolve is rejected (idempotency guard).
         assert!(approve_join(&state, request_id, state.sovereign_lct_id).await.is_err(),
             "an already-resolved request can't be approved");
+    }
+
+    #[tokio::test]
+    async fn pin_member_key_rotates_the_live_resolver_without_restart() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let member = Uuid::new_v4();
+        let key_a = KeyPair::generate();
+        let key_b = KeyPair::generate();
+
+        admit_member(&state, member, &key_a.verifying_key().to_hex(), Some("Rotator".into()))
+            .await.unwrap();
+        assert_eq!(state.resolver.read().await.0[&member].public_key.to_hex(),
+            key_a.verifying_key().to_hex());
+
+        // Rotate the key live — the sprout JetPack-wipe re-key case for a member.
+        pin_member_key(&state, member, &key_b.verifying_key().to_hex()).await.unwrap();
+        assert_eq!(state.resolver.read().await.0[&member].public_key.to_hex(),
+            key_b.verifying_key().to_hex(),
+            "the live resolver reflects the rotated key immediately — no serve restart");
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert_eq!(proj.member_pubkeys[&member], key_b.verifying_key().to_hex());
+
+        // Keying an unknown LCT errors (must be an existing member).
+        assert!(pin_member_key(&state, Uuid::new_v4(), &key_a.verifying_key().to_hex()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn remove_member_live_evicts_from_resolver_and_projection() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let member = Uuid::new_v4();
+        let kp = KeyPair::generate();
+        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Goodbye".into()))
+            .await.unwrap();
+        assert!(state.resolver.read().await.0.contains_key(&member));
+
+        remove_member_live(&state, member, Some("retired".into())).await.unwrap();
+
+        assert!(!state.resolver.read().await.0.contains_key(&member),
+            "evicted from the live resolver — no restart");
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert!(!proj.members.contains_key(&member));
+        assert!(!proj.member_pubkeys.contains_key(&member),
+            "pinned key dropped from projection — won't be re-seeded on a future restart");
+
+        // Removing a non-member errors.
+        assert!(remove_member_live(&state, Uuid::new_v4(), None).await.is_err());
     }
 
     #[tokio::test]

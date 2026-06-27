@@ -275,6 +275,10 @@ impl HubState {
                         }
                     }
                 }
+                // Drop the pinned channel key too — otherwise a removed member's
+                // key lingers in the projection and gets re-seeded into the
+                // resolver on the next serve restart (they'd still verify).
+                self.member_pubkeys.remove(member_lct_id);
             }
             HubEvent::MemberJoinRequested {
                 request_id, member_lct_id, member_pubkey_hex, name, message, requested_at,
