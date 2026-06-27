@@ -66,8 +66,48 @@ pub struct HubState {
     /// Cleared on hub recovery via projection from the ledger.
     pub pairs: BTreeMap<Uuid, PairState>,
 
+    /// V2-16 admission queue: `request_id` → join request (pending or resolved).
+    /// Built from `MemberJoinRequested`/`MemberJoinResolved`. The operator GUI
+    /// lists `Pending` entries and approves/denies them; law-`Allow` joins are
+    /// auto-admitted and never appear here.
+    pub pending_joins: BTreeMap<Uuid, JoinRequest>,
+
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
+}
+
+/// V2-16: one entry in the admission queue, projected from
+/// `MemberJoinRequested` (creates it `Pending`) and `MemberJoinResolved`
+/// (transitions to `Approved`/`Denied`). The applicant's self-vouched
+/// `member_pubkey_hex` is what the Sovereign pins on approval.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct JoinRequest {
+    pub request_id: Uuid,
+    pub member_lct_id: Uuid,
+    pub member_pubkey_hex: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    pub requested_at: DateTime<Utc>,
+    pub status: JoinStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_by: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JoinStatus {
+    /// Awaiting operator Admit/Deny (law escalated it).
+    Pending,
+    /// Operator approved; a `MemberAdded` was recorded.
+    Approved,
+    /// Operator denied; no admission recorded.
+    Denied,
 }
 
 /// PAIRED-CHANNELS Sprint B: projected state of a single pair.
@@ -234,6 +274,32 @@ impl HubState {
                             }
                         }
                     }
+                }
+            }
+            HubEvent::MemberJoinRequested {
+                request_id, member_lct_id, member_pubkey_hex, name, message, requested_at,
+            } => {
+                self.pending_joins.insert(*request_id, JoinRequest {
+                    request_id: *request_id,
+                    member_lct_id: *member_lct_id,
+                    member_pubkey_hex: member_pubkey_hex.clone(),
+                    name: name.clone(),
+                    message: message.clone(),
+                    requested_at: *requested_at,
+                    status: JoinStatus::Pending,
+                    resolved_by: None,
+                    reason: None,
+                    resolved_at: None,
+                });
+            }
+            HubEvent::MemberJoinResolved {
+                request_id, approved, resolved_by, reason, resolved_at,
+            } => {
+                if let Some(jr) = self.pending_joins.get_mut(request_id) {
+                    jr.status = if *approved { JoinStatus::Approved } else { JoinStatus::Denied };
+                    jr.resolved_by = Some(*resolved_by);
+                    jr.reason = reason.clone();
+                    jr.resolved_at = Some(*resolved_at);
                 }
             }
             HubEvent::MemberSkillDeclared { member_lct_id, skill, .. } => {

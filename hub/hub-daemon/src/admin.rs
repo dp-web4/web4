@@ -698,6 +698,18 @@ fn event_summary(event: &HubEvent) -> String {
                 html_escape(&act.substance.uri),
             )
         }
+        HubEvent::MemberJoinRequested { member_lct_id, name, .. } => format!(
+            "🚪 join requested by {} {} <span class=\"muted\">[escalated → review]</span>",
+            short(member_lct_id),
+            name.as_deref().map(html_escape).unwrap_or_default(),
+        ),
+        HubEvent::MemberJoinResolved { request_id, approved, resolved_by, reason, .. } => format!(
+            "🚪 join {} (req {}) by {}{}",
+            if *approved { "APPROVED" } else { "DENIED" },
+            short(request_id),
+            short(resolved_by),
+            reason.as_deref().map(|r| format!(" — {}", html_escape(r))).unwrap_or_default(),
+        ),
     }
 }
 

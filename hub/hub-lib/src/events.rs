@@ -56,6 +56,38 @@ pub enum HubEvent {
         reason: Option<String>,
     },
 
+    /// A prospective member submitted a join request that hub law **escalated**
+    /// to operator review (V2-16 admission queue). The applicant self-vouches
+    /// `member_pubkey_hex` (the hub bootstraps signature verification from it);
+    /// nothing is admitted until a matching `MemberJoinResolved{approved:true}`
+    /// — and the actual `MemberAdded` — is recorded by the Sovereign. Law-`Allow`
+    /// joins are auto-admitted and skip the queue; law-`Deny` joins are rejected
+    /// and never recorded. `request_id` ties the request to its resolution.
+    MemberJoinRequested {
+        request_id: Uuid,
+        member_lct_id: Uuid,
+        member_pubkey_hex: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
+        /// Optional free-text note from the applicant (shown to the operator).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        message: Option<String>,
+        requested_at: DateTime<Utc>,
+    },
+
+    /// An operator (Sovereign) resolved a pending join request — approved or
+    /// denied. On approval a `MemberAdded` is recorded alongside (the actual
+    /// admission); this event closes the queue entry, recording who decided and
+    /// why. The membrane is fully auditable: request → resolution, both witnessed.
+    MemberJoinResolved {
+        request_id: Uuid,
+        approved: bool,
+        resolved_by: Uuid,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        resolved_at: DateTime<Utc>,
+    },
+
     /// A role assignment was changed.
     RoleAssigned {
         role: SocietyRole,
@@ -363,6 +395,8 @@ impl HubEvent {
             Self::Genesis { .. } => "genesis",
             Self::MemberAdded { .. } => "member_added",
             Self::MemberRemoved { .. } => "member_removed",
+            Self::MemberJoinRequested { .. } => "member_join_requested",
+            Self::MemberJoinResolved { .. } => "member_join_resolved",
             Self::RoleAssigned { .. } => "role_assigned",
             Self::EventRecorded { .. } => "event_recorded",
             Self::CharterAmended { .. } => "charter_amended",

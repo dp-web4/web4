@@ -2376,10 +2376,24 @@ async fn request_citizenship(
                     status: StatusCode::FORBIDDEN,
                     message: "citizenship denied by hub law".to_string(),
                 }),
-                Decision::Escalate => return Err(ApiError {
-                    status: StatusCode::ACCEPTED,
-                    message: "citizenship requires escalation (admin review)".to_string(),
-                }),
+                Decision::Escalate => {
+                    // Queue for operator review (V2-16 admission queue) — witnessed,
+                    // not dropped. The applicant gets the request_id back to poll.
+                    let request_id = Uuid::new_v4();
+                    witness_event(s, HubEvent::MemberJoinRequested {
+                        request_id,
+                        member_lct_id: caller_lct_id,
+                        member_pubkey_hex: pubkey_hex.clone(),
+                        name: args.get("name").and_then(|v| v.as_str()).map(String::from),
+                        message: args.get("message").and_then(|v| v.as_str()).map(String::from),
+                        requested_at: Utc::now(),
+                    }).await?;
+                    return Ok(serde_json::json!({
+                        "admitted": false,
+                        "status": "pending_review",
+                        "request_id": request_id,
+                    }));
+                }
             }
         }
     }
@@ -2431,6 +2445,10 @@ struct JoinPayload {
     member_pubkey_hex: String,
     #[serde(default)]
     name: Option<String>,
+    /// Optional free-text note to the operator (surfaced in the review queue
+    /// when hub law escalates the request).
+    #[serde(default)]
+    message: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -2441,11 +2459,89 @@ struct JoinAccepted {
     welcome: String,
 }
 
+/// A join request that hub law escalated to operator review — queued, not yet
+/// admitted. The applicant polls / the operator actions it via the admin plane.
+#[derive(Serialize)]
+struct JoinQueued {
+    request_id: Uuid,
+    status: &'static str,
+    message: String,
+}
+
+/// Admit a member **through the daemon**: append a Sovereign-signed `MemberAdded`
+/// (pinning `member_pubkey_hex`) and insert the new member into the LIVE
+/// `MapResolver` — so their envelopes verify immediately, **no serve restart**.
+/// Shared by `submit_join` (law-`Allow`) and the operator `approve_join` path.
+/// Returns the new entry's `(index, hash)`.
+async fn admit_member(
+    s: &RestState,
+    member_lct_id: Uuid,
+    member_pubkey_hex: &str,
+    name: Option<String>,
+) -> Result<(u64, String), ApiError> {
+    let applicant_lct = hub_lib::hub::hestia_sovereign_lct(member_lct_id, member_pubkey_hex)
+        .map_err(|e| ApiError::bad_request(format!("invalid member_pubkey_hex: {}", e)))?;
+    let index = witness_event(s, HubEvent::MemberAdded {
+        member_lct_id,
+        added_by: s.sovereign_lct_id,
+        member_name: name,
+        member_pubkey_hex: Some(member_pubkey_hex.to_string()),
+    }).await?;
+    // Live resolver insert — the whole point of the no-restart path.
+    s.resolver.write().await.insert(applicant_lct);
+    let hash = s.ledger.lock().await.head_hash().to_string();
+    Ok((index, hash))
+}
+
+/// Look up a pending join request from the projection, erroring if it's unknown
+/// or already resolved (so admit/deny are idempotent-safe).
+async fn pending_join(s: &RestState, request_id: Uuid) -> Result<hub_lib::state::JoinRequest, ApiError> {
+    let jr = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger).pending_joins.get(&request_id).cloned()
+    };
+    match jr {
+        None => Err(ApiError::not_found(format!("no join request {request_id}"))),
+        Some(jr) if jr.status != hub_lib::state::JoinStatus::Pending =>
+            Err(ApiError::bad_request(format!("join request {request_id} is already {:?}", jr.status))),
+        Some(jr) => Ok(jr),
+    }
+}
+
+/// Operator approves a pending join request: admit the member live (no restart)
+/// and witness the resolution. The audit trail is request → resolution + the
+/// `MemberAdded`, all signed by the Sovereign.
+async fn approve_join(s: &RestState, request_id: Uuid, resolved_by: Uuid) -> Result<(u64, String), ApiError> {
+    let jr = pending_join(s, request_id).await?;
+    let (index, hash) = admit_member(s, jr.member_lct_id, &jr.member_pubkey_hex, jr.name.clone()).await?;
+    witness_event(s, HubEvent::MemberJoinResolved {
+        request_id,
+        approved: true,
+        resolved_by,
+        reason: None,
+        resolved_at: Utc::now(),
+    }).await?;
+    Ok((index, hash))
+}
+
+/// Operator denies a pending join request: witness the resolution, admit nothing.
+async fn deny_join(s: &RestState, request_id: Uuid, resolved_by: Uuid, reason: Option<String>) -> Result<u64, ApiError> {
+    let _jr = pending_join(s, request_id).await?;
+    witness_event(s, HubEvent::MemberJoinResolved {
+        request_id,
+        approved: false,
+        resolved_by,
+        reason,
+        resolved_at: Utc::now(),
+    }).await
+}
+
 async fn submit_join(
     State(s): State<RestState>,
     Path(hub_id): Path<Uuid>,
     Json(envelope): Json<SignedEnvelope>,
-) -> Result<Json<JoinAccepted>, ApiError> {
+) -> Result<axum::response::Response, ApiError> {
+    use axum::response::IntoResponse;
     if hub_id != s.hub_id {
         return Err(ApiError::not_found(format!(
             "hub id {} does not match this hub {}", hub_id, s.hub_id
@@ -2481,98 +2577,70 @@ async fn submit_join(
     adhoc.insert(applicant_lct.clone());
     let _redeemed = verify_envelope(&envelope, &s.nonces, &adhoc, Utc::now())?;
 
-    // 3. PolicyEntity gate — admission policy from chapter law.
-    // R6Request shape: role="applicant" (not yet a member), action is
-    // the join itself, payload carries the request fields.
-    let event = HubEvent::MemberAdded {
+    // 3. PolicyEntity gate — admission policy from chapter law. The R6 payload
+    // is the MemberAdded we *would* record. Allow → auto-admit; Deny → reject;
+    // Escalate → queue for operator review (V2-16 admission queue).
+    let prospective = HubEvent::MemberAdded {
         member_lct_id: payload.member_lct_id,
         added_by: s.sovereign_lct_id,
         member_name: payload.name.clone(),
         member_pubkey_hex: Some(payload.member_pubkey_hex.clone()),
     };
-    let event_kind_str = event.kind().to_string();
-    let event_value_yaml = serde_yaml::to_value(&event)
+    let event_value_yaml = serde_yaml::to_value(&prospective)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {}", e)))?;
 
-    let law_guard = s.law.read().await;
-    if let Some(law) = law_guard.as_ref() {
-        let req = R6Request {
-            role: "applicant".to_string(),
-            action: "member_join_request".to_string(),
-            payload: event_value_yaml.clone(),
-            resource: Default::default(),
-        };
-        let outcome = law.evaluate_outcome(&req);
-        match outcome.decision {
-            Decision::Allow => { /* proceed */ }
-            Decision::Deny => {
-                return Err(ApiError {
-                    status: StatusCode::FORBIDDEN,
-                    message: format!(
-                        "membership denied by hub law (norm: {})",
-                        outcome.winning_norm.as_deref().unwrap_or("?")
-                    ),
-                });
-            }
-            Decision::Escalate => {
-                return Err(ApiError {
-                    status: StatusCode::ACCEPTED,
-                    message: format!(
-                        "membership requires escalation to {} ({}); admin review queue is V2-16",
-                        outcome.escalate_to.as_deref().unwrap_or("sovereign"),
-                        outcome.winning_norm.as_deref().unwrap_or("escalation trigger"),
-                    ),
-                });
-            }
+    let decision = {
+        let law_guard = s.law.read().await;
+        match law_guard.as_ref() {
+            None => Decision::Allow, // open-by-default when no law is set
+            Some(law) => law.evaluate_outcome(&R6Request {
+                role: "applicant".to_string(),
+                action: "member_join_request".to_string(),
+                payload: event_value_yaml,
+                resource: Default::default(),
+            }).decision,
         }
-    }
-    drop(law_guard);
-
-    // 4. Build unsigned MemberAdded entry, ask Sovereign signer to sign it,
-    // commit. Same shape as submit_event's signing path.
-    let (unsigned, intent) = {
-        let ledger = s.ledger.lock().await;
-        let unsigned = ledger.build_entry(s.sovereign_lct_id, event, Utc::now())
-            .map_err(ApiError::internal)?;
-        let intent = SignIntent {
-            request_id: Uuid::new_v4(),
-            hub_id: s.hub_id,
-            hub_name: s.hub_name.clone(),
-            actor_lct_id: s.sovereign_lct_id,
-            ledger_index: unsigned.entry.index,
-            event_kind: event_kind_str.clone(),
-            event: serde_json::to_value(&unsigned.entry.event)
-                .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for intent: {}", e)))?,
-        };
-        (unsigned, intent)
     };
 
-    let signing_bytes = unsigned.signing_bytes.clone();
-    let signature = s.signer
-        .sign(s.sovereign_lct_id, &signing_bytes, &intent)
-        .await
-        .map_err(|e| ApiError::internal(anyhow::anyhow!("Sovereign signer denied/failed: {}", e)))?;
-
-    let entry_index;
-    let entry_hash;
-    {
-        let mut ledger = s.ledger.lock().await;
-        let entry = ledger.append_signed(unsigned, signature).await
-            .map_err(ApiError::internal)?;
-        entry_index = entry.index;
-        entry_hash = entry.entry_hash.clone();
+    match decision {
+        Decision::Deny => Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: "membership denied by hub law".to_string(),
+        }),
+        Decision::Allow => {
+            // Auto-admit, live (no restart).
+            let (entry_index, entry_hash) = admit_member(
+                &s, payload.member_lct_id, &payload.member_pubkey_hex, payload.name.clone(),
+            ).await?;
+            Ok(Json(JoinAccepted {
+                member_lct_id: payload.member_lct_id,
+                entry_index,
+                entry_hash,
+                welcome: format!("welcome to {}", s.hub_name),
+            }).into_response())
+        }
+        Decision::Escalate => {
+            // Queue for operator review — witnessed, NOT dropped (closes the
+            // V2-16 gap). The operator admits/denies via the admin plane.
+            let request_id = Uuid::new_v4();
+            witness_event(&s, HubEvent::MemberJoinRequested {
+                request_id,
+                member_lct_id: payload.member_lct_id,
+                member_pubkey_hex: payload.member_pubkey_hex.clone(),
+                name: payload.name.clone(),
+                message: payload.message.clone(),
+                requested_at: Utc::now(),
+            }).await?;
+            Ok((
+                StatusCode::ACCEPTED,
+                Json(JoinQueued {
+                    request_id,
+                    status: "pending_review",
+                    message: format!("join request queued for operator review at {}", s.hub_name),
+                }),
+            ).into_response())
+        }
     }
-
-    // 5. Add the new member's pubkey to the live resolver so future
-    // member-signed envelopes from them verify without a serve restart.
-    s.resolver.write().await.insert(applicant_lct);
-
-    Ok(Json(JoinAccepted {
-        member_lct_id: payload.member_lct_id,
-        entry_index,
-        entry_hash,
-        welcome: format!("welcome to {}", s.hub_name),
-    }))
 }
 
 // ---------- PolicyEntity gate helper (V2-8 §4) ----------
@@ -3804,11 +3872,85 @@ norms:
             sealed,
             caller_pubkey_hex: Some(applicant.verifying_key().to_hex()),
         };
-        let err = channel_request(State(state.clone()), Path(state.hub_id), Json(req))
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(req))
             .await
-            .err()
-            .expect("join should be escalated, not admitted");
-        assert_eq!(err.status, StatusCode::ACCEPTED, "escalate → 202");
+            .expect("escalated join is queued (200 sealed), not an error");
+        let out = open_resp(&applicant, &hub_pub, pid, &resp.0.sealed);
+        assert_eq!(out["admitted"], serde_json::json!(false), "escalate → not admitted");
+        assert_eq!(out["status"], serde_json::json!("pending_review"));
+        let request_id: Uuid = serde_json::from_value(out["request_id"].clone())
+            .expect("a request_id was returned");
+
+        // It is witnessed as a Pending entry in the admission queue, not dropped.
+        let projected = {
+            let ledger = state.ledger.lock().await;
+            HubState::project(&ledger)
+        };
+        let jr = projected.pending_joins.get(&request_id).expect("queued for review");
+        assert_eq!(jr.status, hub_lib::state::JoinStatus::Pending);
+
+        // The operator approves it → member admitted live, no restart; status flips.
+        let (_idx, _hash) = approve_join(&state, request_id, state.sovereign_lct_id)
+            .await
+            .expect("approve should admit the member");
+        let after = {
+            let ledger = state.ledger.lock().await;
+            HubState::project(&ledger)
+        };
+        assert_eq!(after.pending_joins[&request_id].status, hub_lib::state::JoinStatus::Approved);
+        assert!(after.members.contains_key(&jr.member_lct_id), "approved applicant is now a member");
+        assert!(after.member_pubkeys.contains_key(&jr.member_lct_id), "their pubkey is pinned");
+        assert!(state.resolver.read().await.0.contains_key(&jr.member_lct_id),
+            "and they are in the LIVE resolver — no serve restart needed");
+    }
+
+    #[tokio::test]
+    async fn deny_join_records_denial_and_admits_nobody() {
+        const LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(LAW)).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let applicant = KeyPair::generate();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&applicant, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Reject Me" }));
+        let req = ChannelRequest {
+            caller_lct_id: Uuid::new_v4(),
+            pair_id: pid,
+            sealed,
+            caller_pubkey_hex: Some(applicant.verifying_key().to_hex()),
+        };
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(req))
+            .await.unwrap();
+        let out = open_resp(&applicant, &hub_pub, pid, &resp.0.sealed);
+        let request_id: Uuid = serde_json::from_value(out["request_id"].clone()).unwrap();
+        let member_lct = {
+            let ledger = state.ledger.lock().await;
+            HubState::project(&ledger).pending_joins[&request_id].member_lct_id
+        };
+
+        deny_join(&state, request_id, state.sovereign_lct_id, Some("not this time".into()))
+            .await.expect("deny should record a denial");
+
+        let after = {
+            let ledger = state.ledger.lock().await;
+            HubState::project(&ledger)
+        };
+        assert_eq!(after.pending_joins[&request_id].status, hub_lib::state::JoinStatus::Denied);
+        assert_eq!(after.pending_joins[&request_id].reason.as_deref(), Some("not this time"));
+        assert!(!after.members.contains_key(&member_lct), "denied applicant is NOT a member");
+
+        // Double-resolve is rejected (idempotency guard).
+        assert!(approve_join(&state, request_id, state.sovereign_lct_id).await.is_err(),
+            "an already-resolved request can't be approved");
     }
 
     #[tokio::test]
