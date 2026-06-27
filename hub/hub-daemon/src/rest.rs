@@ -4217,6 +4217,56 @@ norms:
     }
 
     #[tokio::test]
+    async fn operator_joins_page_renders_pending_with_admit_button() {
+        const LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(LAW)).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let applicant = KeyPair::generate();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&applicant, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Render Me", "message": "please let me in" }));
+        let req = ChannelRequest {
+            caller_lct_id: Uuid::new_v4(),
+            pair_id: pid,
+            sealed,
+            caller_pubkey_hex: Some(applicant.verifying_key().to_hex()),
+        };
+        channel_request(State(state.clone()), Path(state.hub_id), Json(req)).await.unwrap();
+
+        let html = crate::admin::joins_page(State(state.clone())).await.unwrap().0;
+        assert!(html.contains("Admission queue"), "page title");
+        assert!(html.contains("Operator plane"), "operator banner");
+        assert!(html.contains("Render Me"), "applicant name shown");
+        assert!(html.contains("please let me in"), "applicant message shown");
+        assert!(html.contains("admit("), "Admit button wired to the API");
+        assert!(html.contains("deny("), "Deny button wired to the API");
+    }
+
+    #[tokio::test]
+    async fn operator_manage_page_renders_member_actions() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let member = Uuid::new_v4();
+        let kp = KeyPair::generate();
+        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Manageable".into()))
+            .await.unwrap();
+
+        let html = crate::admin::manage_page(State(state.clone())).await.unwrap().0;
+        assert!(html.contains("Manage members"));
+        assert!(html.contains("Manageable"));
+        assert!(html.contains("rekey("), "Re-key button wired");
+        assert!(html.contains("removeMember("), "Remove button wired");
+    }
+
+    #[tokio::test]
     async fn find_members_over_channel_then_degrades_when_engine_down() {
         use axum::{routing::post, Router};
 

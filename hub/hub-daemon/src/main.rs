@@ -1029,6 +1029,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     if admin_port != 0 {
         let op_addr: SocketAddr = format!("127.0.0.1:{}", admin_port).parse()?;
         let operator_app = admin::router(operator_state.clone())
+            .merge(admin::operator_router(operator_state.clone()))
             .merge(crate::rest::admin_api_router(operator_state))
             .layer(axum::middleware::from_fn_with_state(operator_gate, crate::rest::lock_gate));
         match tokio::net::TcpListener::bind(op_addr).await {
