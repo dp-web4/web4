@@ -691,7 +691,8 @@ fn event_summary(event: &HubEvent) -> String {
                 ActAddress::Society { lct_id } => format!("society {}", short(lct_id)),
             };
             format!(
-                "✉️ act <span class=\"muted\">from</span> {} → {} <span class=\"muted\">[{}]</span>",
+                "✉️ act <code>{}</code> <span class=\"muted\">from</span> {} → {} <span class=\"muted\">[{}]</span>",
+                html_escape(&act.kind),
                 short(&act.actor_lct),
                 dst,
                 html_escape(&act.substance.uri),

@@ -696,13 +696,15 @@ async fn notify_citizen(s: &RestState, recipient: Uuid, kind: &str, pointer_uri:
         Err(e) => { tracing::warn!("notify_citizen: seal failed: {e}"); return; }
     };
     // Witness a thin act — a `web4_core::act::Act` verbatim (the convergence's
-    // "both sides witness the same bytes"). `content_hash` binds the witnessed
+    // "both sides witness the same bytes"). `kind` is the `notify:<event>` label
+    // (HUB owns the `notify:*` sub-vocabulary); `content_hash` binds the witnessed
     // pointer to this exact notice body so it can't drift; medium = Message (a
     // direct sealed notice); consequence defaults to Reversible (a notification
     // is freely undoable). The sealed body rides the mailbox below, NOT the ledger.
     let act = web4_core::act::Act::addressed(
         s.sovereign_lct_id,
         web4_core::act::ActAddress::Citizen { lct_id: recipient },
+        kind,
         web4_core::act::SubstanceRef::new(
             pointer_uri,
             web4_core::sha256_hex(body),
@@ -2191,6 +2193,10 @@ async fn dispatch_channel(
                 .cloned()
                 .and_then(|v| serde_json::from_value(v).ok())
                 .ok_or_else(|| ApiError::bad_request("referenced_act requires 'to' (ActAddress)".to_string()))?;
+            // The act's routing label — bare `<verb>` for fleet/peer acts
+            // ("handoff"/"sweep"/"memo"/"forum"), `notify:<event>` for hub→citizen.
+            let kind = inner.args.get("kind").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request("referenced_act requires 'kind'".to_string()))?.to_string();
             let uri = inner.args.get("pointer_uri").and_then(|v| v.as_str())
                 .ok_or_else(|| ApiError::bad_request("referenced_act requires 'pointer_uri'".to_string()))?.to_string();
             let content_hash = inner.args.get("content_hash").and_then(|v| v.as_str())
@@ -2206,6 +2212,7 @@ async fn dispatch_channel(
             let act = web4_core::act::Act::addressed(
                 caller_lct_id,
                 address,
+                kind,
                 web4_core::act::SubstanceRef::new(uri, content_hash, medium),
                 Utc::now(),
             ).with_consequence(consequence);
@@ -4356,6 +4363,15 @@ norms:
         let ledger = state.ledger.lock().await;
         let kinds: Vec<String> = ledger.entries().iter().map(|e| e.event.kind().to_string()).collect();
         assert!(kinds.contains(&"referenced_act".to_string()));
+        // The witnessed act is a verbatim core Act carrying the notify kind, addressed to the
+        // citizen, content-bound to the exact body (sha256), with no ciphertext on the ledger.
+        let witnessed = ledger.entries().iter().find_map(|e| match &e.event {
+            HubEvent::ReferencedAct { act } => Some(act.clone()),
+            _ => None,
+        }).expect("a referenced_act was witnessed");
+        assert_eq!(witnessed.kind, "notify:test");
+        assert_eq!(witnessed.address, web4_core::act::ActAddress::Citizen { lct_id: citizen });
+        assert_eq!(witnessed.substance.content_hash, web4_core::sha256_hex(b"hello-citizen"));
         // A notice for an unknown (un-pinned) recipient is dropped, not queued.
         drop(ledger);
         notify_citizen(&state, Uuid::new_v4(), "notify:test", "ptr/2", b"x").await;

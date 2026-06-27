@@ -325,12 +325,13 @@ pub enum HubEvent {
     ///
     /// Authorship is `act.actor_lct` (the *from*): the hub signs every ledger
     /// entry as the Sovereign (it is the witness), so the actor rides in the
-    /// payload, exactly as `IntroRequested.from_lct`. The cleartext routing
-    /// `kind` and any recipient-sealed body are *delivery* concerns carried on
-    /// the mailbox envelope (the daemon's `SealedNotice`), never duplicated onto
-    /// this witnessed record. A fine-grained act `kind` field is being added to
-    /// core `act::Act` (Legion hosts the registry); until it lands, the coarse
-    /// kind is read from `act.address`.
+    /// payload, exactly as `IntroRequested.from_lct`. The act's routing label
+    /// `act.kind` is bare `<verb>` for fleet/peer acts (`handoff`/`memo`/`sweep`/
+    /// `forum`) or `notify:<event>` for the hub→citizen act-reversed case (Legion
+    /// hosts the registry; HUB owns the `notify:*` sub-vocabulary). Any
+    /// recipient-sealed body is a *delivery* concern carried on the mailbox
+    /// envelope (the daemon's `SealedNotice`), never duplicated onto this
+    /// witnessed record — its integrity is bound instead by `content_hash`.
     ReferencedAct { act: Act },
 }
 
@@ -414,5 +415,45 @@ mod tests {
         };
         let json = serde_json::to_string(&e).unwrap();
         assert!(json.contains("\"role\":\"treasurer\""));
+    }
+
+    /// The convergence guarantee: a `ReferencedAct`'s payload is a `web4_core::act::Act`
+    /// *verbatim*, so the fleet's first real Act
+    /// (`shared-context/acts/legion-2026-06-24-session-handoff.act.json`) replays onto the
+    /// hub ledger with zero reshaping, and the inner act bytes are identical to what the
+    /// originating cell witnessed ("both sides witness the same bytes").
+    #[tokio::test]
+    async fn legions_first_real_act_round_trips_as_a_referenced_act_payload() {
+        // The artifact, verbatim (kept in-crate so the test is hermetic).
+        let act_json = r#"{
+  "act_id": "7dea2b7a-e0b2-43b5-adb3-6d1c9ed353e3",
+  "actor_lct": "881f13b0-6ca4-445b-b36a-655018174ba5",
+  "address": { "to": "future_self", "entity": "881f13b0-6ca4-445b-b36a-655018174ba5" },
+  "kind": "handoff",
+  "consequence": "reversible",
+  "substance": {
+    "uri": "shared-context/acts/legion-2026-06-24-session-handoff.md",
+    "content_hash": "c903bf541d68a6dd461e56ae2056c761e399b628ce0ef2f1f054b015cd8d282a",
+    "medium": "doc"
+  },
+  "witnesses": [{
+    "lct": "881f13b0-6ca4-445b-b36a-655018174ba5",
+    "attestation": "authored",
+    "signature": "906aa168fe8431391d5a34317a1c16fb83be3e53cc6a077b33d6a4610873a3e3c960ed4416af041593df6a9c586a0e561d5a22eb4e03f3357321e0fcc415ef0a",
+    "timestamp": "2026-06-24T23:11:44.811783264Z"
+  }],
+  "at": "2026-06-24T23:11:44.811510269Z"
+}"#;
+        // It deserializes into the core Act with no hub-side reshaping...
+        let act: Act = serde_json::from_str(act_json).expect("Legion's act parses as a core Act");
+        assert_eq!(act.kind, "handoff");
+        assert!(matches!(act.address, web4_core::act::ActAddress::FutureSelf { .. }));
+
+        // ...and the inner act bytes survive the wrap/unwrap unchanged (verbatim payload).
+        let value_before: serde_json::Value = serde_json::from_str(act_json).unwrap();
+        let event = HubEvent::ReferencedAct { act };
+        assert_eq!(event.kind(), "referenced_act");
+        let HubEvent::ReferencedAct { act: unwrapped } = &event else { unreachable!() };
+        assert_eq!(serde_json::to_value(unwrapped).unwrap(), value_before);
     }
 }
