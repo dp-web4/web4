@@ -261,6 +261,12 @@ enum Command {
         /// Bind address (default 127.0.0.1 — local-only).
         #[arg(long, default_value = "127.0.0.1")]
         bind: String,
+
+        /// Operator-plane port, always bound to 127.0.0.1 only (never the
+        /// tailnet). Serves the admit/deny/remove/re-key admin API + write GUI.
+        /// Set to 0 to disable the operator plane entirely.
+        #[arg(long, default_value_t = 8771)]
+        admin_port: u16,
     },
 
     /// Print chapter status (name, members, ledger length, head hash, port).
@@ -546,8 +552,8 @@ async fn main() -> Result<()> {
         Some(Command::Migrate { hub_dir, to }) => {
             run_migrate(hub_dir, to).await
         }
-        Some(Command::Serve { hub_dir, port, bind }) => {
-            run_serve(hub_dir, port, bind).await
+        Some(Command::Serve { hub_dir, port, bind, admin_port }) => {
+            run_serve(hub_dir, port, bind, admin_port).await
         }
         Some(Command::Status { hub_dir }) => run_status(hub_dir).await,
         Some(Command::AddMember { hub_dir, member_lct_id, name }) => {
@@ -916,7 +922,7 @@ async fn run_query(sub: QueryCommand) -> Result<()> {
     }
 }
 
-async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -> Result<()> {
+async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, admin_port: u16) -> Result<()> {
     let config = HubConfig::load(hub_lib::hub::HubPaths::new(&hub_dir).config())?;
     let port = port_override.unwrap_or(config.daemon.mcp_port);
     let addr: SocketAddr = format!("{}:{}", bind, port).parse()?;
@@ -994,6 +1000,9 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
     // Admin UI reuses RestState (read-only; shares ledger + law snapshot).
     let admin_state = rest_state.clone();
     let gate_state = rest_state.clone();
+    // Operator plane (separate 127.0.0.1-only listener) shares the same RestState.
+    let operator_state = rest_state.clone();
+    let operator_gate = rest_state.clone();
     let app = mcp_router(mcp_state)
         .merge(rest_router(rest_state))
         .merge(admin::router(admin_state))
@@ -1010,8 +1019,38 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String) -
     println!("hub serve — {} listening on http://{}", config.hub.name, addr);
     println!("  MCP tools:    http://{}/tools", addr);
     println!("  REST v1:      http://{}/v1/", addr);
-    println!("  Admin UI:     http://{}/admin", addr);
+    println!("  Admin UI:     http://{}/admin (read-only on this plane)", addr);
     println!("  Stop:         Ctrl-C");
+
+    // Operator plane: a SECOND listener bound to 127.0.0.1 only — never the
+    // tailnet, never tailscale-served. Carries the admit/deny/remove/re-key
+    // admin API (and the write GUI). Local-presence + an ignited hub is the
+    // authorization; actions sign as the Sovereign and fail closed while locked.
+    if admin_port != 0 {
+        let op_addr: SocketAddr = format!("127.0.0.1:{}", admin_port).parse()?;
+        let operator_app = admin::router(operator_state.clone())
+            .merge(crate::rest::admin_api_router(operator_state))
+            .layer(axum::middleware::from_fn_with_state(operator_gate, crate::rest::lock_gate));
+        match tokio::net::TcpListener::bind(op_addr).await {
+            Ok(op_listener) => {
+                println!("  Operator:     http://{}/admin (LOCAL-ONLY: admit/deny/remove/re-key)", op_addr);
+                tracing::info!(operator_bind = %op_addr, "operator plane (loopback-only) starting");
+                tokio::spawn(async move {
+                    if let Err(e) = axum::serve(
+                        op_listener,
+                        operator_app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+                    )
+                    .await
+                    {
+                        tracing::error!("operator plane terminated: {e}");
+                    }
+                });
+            }
+            Err(e) => {
+                tracing::warn!("operator plane disabled — could not bind {op_addr}: {e}");
+            }
+        }
+    }
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     // `into_make_service_with_connect_info` exposes the peer `SocketAddr` to

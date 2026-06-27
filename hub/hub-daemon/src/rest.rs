@@ -2580,6 +2580,122 @@ async fn remove_member_live(s: &RestState, member_lct_id: Uuid, reason: Option<S
     Ok(index)
 }
 
+// ============================================================================
+// Operator plane — a SEPARATE 127.0.0.1-only listener (never tailscale-served).
+// ============================================================================
+//
+// The fleet port (0.0.0.0:8770) stays read-only for admin + carries the signed
+// fleet APIs. Member-admission *writes* (admit/deny/remove/re-key) live here, on
+// a listener bound to loopback only, so the fleet cannot reach them even through
+// the tailscale TLS proxy (which forwards as 127.0.0.1 and would defeat a plain
+// loopback check on the shared port). Being on this local plane while the hub is
+// ignited IS the authorization — the actions sign as the Sovereign via the live
+// signer (they fail closed if the hub is locked). Defense-in-depth: every handler
+// also re-checks loopback.
+
+/// Reject any non-loopback caller. Redundant given the 127.0.0.1 bind, but cheap
+/// belt-and-suspenders so a future mis-bind can't silently expose operator writes.
+fn require_loopback(peer: &SocketAddr) -> Result<(), ApiError> {
+    if !peer.ip().is_loopback() {
+        return Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: "operator API is local-only (reach it from the hub host / a local tunnel)".to_string(),
+        });
+    }
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct ReasonBody {
+    #[serde(default)]
+    reason: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct KeyBody {
+    pubkey_hex: String,
+}
+
+/// `GET /admin/api/joins` — the admission queue (pending first, newest first).
+async fn admin_list_joins(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger)
+    };
+    let mut joins: Vec<hub_lib::state::JoinRequest> = projected.pending_joins.into_values().collect();
+    joins.sort_by(|a, b| {
+        use hub_lib::state::JoinStatus::Pending;
+        // Pending first, then most-recent request first.
+        let ap = (a.status != Pending, std::cmp::Reverse(a.requested_at));
+        let bp = (b.status != Pending, std::cmp::Reverse(b.requested_at));
+        ap.cmp(&bp)
+    });
+    let pending = joins.iter().filter(|j| j.status == hub_lib::state::JoinStatus::Pending).count();
+    Ok(Json(serde_json::json!({ "pending": pending, "total": joins.len(), "joins": joins })))
+}
+
+/// `POST /admin/api/joins/:request_id/admit` — approve a pending join (live).
+async fn admin_admit_join(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(request_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let (entry_index, entry_hash) = approve_join(&s, request_id, s.sovereign_lct_id).await?;
+    Ok(Json(serde_json::json!({ "approved": true, "entry_index": entry_index, "entry_hash": entry_hash })))
+}
+
+/// `POST /admin/api/joins/:request_id/deny` — deny a pending join.
+async fn admin_deny_join(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(request_id): Path<Uuid>,
+    Json(body): Json<ReasonBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let entry_index = deny_join(&s, request_id, s.sovereign_lct_id, body.reason).await?;
+    Ok(Json(serde_json::json!({ "denied": true, "entry_index": entry_index })))
+}
+
+/// `POST /admin/api/members/:lct_id/key` — pin/rotate a member's channel key (live).
+async fn admin_pin_key(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(lct_id): Path<Uuid>,
+    Json(body): Json<KeyBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let entry_index = pin_member_key(&s, lct_id, &body.pubkey_hex).await?;
+    Ok(Json(serde_json::json!({ "pinned": true, "entry_index": entry_index })))
+}
+
+/// `POST /admin/api/members/:lct_id/remove` — remove a member (live eviction).
+async fn admin_remove_member(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(lct_id): Path<Uuid>,
+    Json(body): Json<ReasonBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let entry_index = remove_member_live(&s, lct_id, body.reason).await?;
+    Ok(Json(serde_json::json!({ "removed": true, "entry_index": entry_index })))
+}
+
+/// The operator-plane write API. Mounted ONLY on the loopback operator listener.
+pub fn admin_api_router(state: RestState) -> Router {
+    Router::new()
+        .route("/admin/api/joins", get(admin_list_joins))
+        .route("/admin/api/joins/:request_id/admit", post(admin_admit_join))
+        .route("/admin/api/joins/:request_id/deny", post(admin_deny_join))
+        .route("/admin/api/members/:lct_id/key", post(admin_pin_key))
+        .route("/admin/api/members/:lct_id/remove", post(admin_remove_member))
+        .with_state(state)
+}
+
 async fn submit_join(
     State(s): State<RestState>,
     Path(hub_id): Path<Uuid>,
@@ -3997,6 +4113,61 @@ norms:
         // Double-resolve is rejected (idempotency guard).
         assert!(approve_join(&state, request_id, state.sovereign_lct_id).await.is_err(),
             "an already-resolved request can't be approved");
+    }
+
+    #[tokio::test]
+    async fn operator_api_lists_and_admits_behind_the_loopback_guard() {
+        const LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(LAW)).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let applicant = KeyPair::generate();
+        let applicant_lct = Uuid::new_v4();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&applicant, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Via API" }));
+        let req = ChannelRequest {
+            caller_lct_id: applicant_lct,
+            pair_id: pid,
+            sealed,
+            caller_pubkey_hex: Some(applicant.verifying_key().to_hex()),
+        };
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(req)).await.unwrap();
+        let out = open_resp(&applicant, &hub_pub, pid, &resp.0.sealed);
+        let request_id: Uuid = serde_json::from_value(out["request_id"].clone()).unwrap();
+
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let remote_addr: SocketAddr = "10.0.0.9:5555".parse().unwrap();
+
+        // Non-loopback callers are rejected (defense-in-depth behind the bind).
+        assert_eq!(
+            admin_list_joins(State(state.clone()), ConnectInfo(remote_addr)).await.err().unwrap().status,
+            StatusCode::FORBIDDEN,
+        );
+        // Loopback lists the pending request.
+        let list = admin_list_joins(State(state.clone()), ConnectInfo(loop_addr)).await.unwrap();
+        assert_eq!(list.0["pending"], serde_json::json!(1));
+
+        // Admit via the API → member admitted live (no restart).
+        admin_admit_join(State(state.clone()), ConnectInfo(loop_addr), Path(request_id)).await.unwrap();
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert!(proj.members.contains_key(&applicant_lct), "admitted via the operator API");
+        assert_eq!(proj.pending_joins[&request_id].status, hub_lib::state::JoinStatus::Approved);
+
+        // A remote caller can't admit even with a valid id.
+        assert_eq!(
+            admin_admit_join(State(state.clone()), ConnectInfo(remote_addr), Path(request_id))
+                .await.err().unwrap().status,
+            StatusCode::FORBIDDEN,
+        );
     }
 
     #[tokio::test]
