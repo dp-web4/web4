@@ -264,8 +264,9 @@ enum Command {
 
         /// Operator-plane port, always bound to 127.0.0.1 only (never the
         /// tailnet). Serves the admit/deny/remove/re-key admin API + write GUI.
-        /// Set to 0 to disable the operator plane entirely.
-        #[arg(long, default_value_t = 8771)]
+        /// Set to 0 to disable the operator plane entirely. (8771 is taken by the
+        /// membox sidecar, so the default is 8772.)
+        #[arg(long, default_value_t = 8772)]
         admin_port: u16,
     },
 

@@ -26,7 +26,6 @@ use axum::{
     Router,
 };
 use hub_lib::events::HubEvent;
-use hub_lib::init::load_society;
 use hub_lib::signer::RemoteSigner; // signer_kind() — signer is now a concrete SwappableSigner
 use hub_lib::state::HubState;
 
@@ -140,7 +139,7 @@ async fn overview(State(s): State<RestState>) -> Result<Html<String>, AdminError
     let last_20: Vec<_> = entries.iter().rev().take(20).cloned().collect();
     drop(ledger);
 
-    let society = load_society(&s.paths.root).await?;
+    let society = s.society().await?;
     let law_guard = s.law.read().await;
     let (law_version, norms, procedures) = match &*law_guard {
         Some(l) => (l.version.clone(), l.norms.len(), l.procedures.len()),
@@ -218,7 +217,7 @@ async fn members(State(s): State<RestState>) -> Result<Html<String>, AdminError>
 }
 
 async fn roles(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
-    let society = load_society(&s.paths.root).await?;
+    let society = s.society().await?;
     let ledger = s.ledger.lock().await;
     let projected = HubState::project(&*ledger);
     drop(ledger);

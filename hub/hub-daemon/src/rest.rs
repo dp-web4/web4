@@ -349,6 +349,16 @@ impl RestState {
         hub_lib::store::open_hub_store_with_key(&self.paths.root, key)
     }
 
+    /// Read the society via the **in-memory-keyed** store. Unlike
+    /// `init::load_society` (which re-opens the store from disk with no key and
+    /// thus fails on an ignited *encrypted* hub), this uses the runtime store key,
+    /// so admin/read handlers work after ignition.
+    pub async fn society(&self) -> anyhow::Result<web4_core::society::Society> {
+        let store = self.open_store().await?;
+        store.read_society().await?
+            .ok_or_else(|| anyhow::anyhow!("no society found in hub store"))
+    }
+
     /// Construct a **locked shell**: the encrypted state store could not be opened
     /// (no key — total enclosure), so the hub comes up serving only the unlock path.
     /// Identity (hub_id / name / founding sovereign) is read from the clear tier-0
