@@ -65,6 +65,8 @@ const STYLE: &str = r#"
 "#;
 
 fn layout(hub_name: &str, title: &str, body: &str) -> Html<String> {
+    // Joins/Manage are operator-plane pages (127.0.0.1 only); on the read-only
+    // fleet plane they 404, which is the honest signal that admin writes aren't there.
     let nav = r#"<nav>
       <a href="/admin">Overview</a>
       <a href="/admin/members">Members</a>
@@ -73,6 +75,8 @@ fn layout(hub_name: &str, title: &str, body: &str) -> Html<String> {
       <a href="/admin/law">Law</a>
       <a href="/admin/council">Council</a>
       <a href="/admin/pairs">Pairs</a>
+      <a href="/admin/joins">Joins ⚙</a>
+      <a href="/admin/manage">Manage ⚙</a>
     </nav>"#;
     Html(format!(
         "<!doctype html><html><head><meta charset=\"utf-8\">\
@@ -747,6 +751,13 @@ function admit(id){ if(confirm('Admit this applicant as a member? Their key is p
 function deny(id){ const reason=prompt('Deny — reason (optional):'); if(reason!==null) hubAct('/admin/api/joins/'+id+'/deny',{reason:reason||null}); }
 function rekey(id){ const k=prompt('New 64-hex Ed25519 public key for member '+id+':'); if(k) hubAct('/admin/api/members/'+id+'/key',{pubkey_hex:k.trim()}); }
 function removeMember(id){ const reason=prompt('Remove member '+id+' — reason (optional):'); if(reason!==null) hubAct('/admin/api/members/'+id+'/remove',{reason:reason||null}); }
+function addMember(){
+  const lct=document.getElementById('add-lct').value.trim();
+  const pubkey_hex=document.getElementById('add-key').value.trim();
+  const name=document.getElementById('add-name').value.trim();
+  if(!lct||!pubkey_hex){ alert('LCT id and pubkey (64 hex) are required.'); return; }
+  hubAct('/admin/api/members/add',{lct_id:lct,pubkey_hex:pubkey_hex,name:name||null});
+}
 </script>"#;
 
 pub(crate) async fn joins_page(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
@@ -816,7 +827,22 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
     drop(ledger);
 
     let mut body = String::from(OPERATOR_BANNER);
-    body.push_str("<h2>Manage members</h2>");
+
+    // Proactive admission: the Sovereign adds a known member directly (e.g. a
+    // fleet machine whose pubkey is already committed in fleet-identity), without
+    // waiting for them to submit a join request. Live — no restart.
+    body.push_str("<h2>Add a member</h2>");
+    body.push_str(
+        "<p class=\"muted\">Add a known member directly (Sovereign act). Takes effect live — no restart.</p>\
+         <div style=\"display:grid;grid-template-columns:max-content 1fr;gap:0.4rem 0.6rem;max-width:760px;align-items:center;\">\
+         <label>LCT id</label><input id=\"add-lct\" placeholder=\"uuid\" style=\"font-family:monospace;padding:0.3rem;\">\
+         <label>Pubkey (64 hex)</label><input id=\"add-key\" placeholder=\"Ed25519 public key, hex\" style=\"font-family:monospace;padding:0.3rem;\">\
+         <label>Name</label><input id=\"add-name\" placeholder=\"(optional)\" style=\"padding:0.3rem;\">\
+         <span></span><span><button onclick=\"addMember()\">Add member</button></span>\
+         </div>",
+    );
+
+    body.push_str("<h2 style=\"margin-top:1.5rem\">Members</h2>");
     body.push_str("<p class=\"muted\">Re-key (rotate a member's channel pubkey) and remove take effect live — no serve restart.</p>");
     if projected.members.is_empty() {
         body.push_str("<p class=\"muted\">No members.</p>");

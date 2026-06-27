@@ -2695,12 +2695,42 @@ async fn admin_remove_member(
     Ok(Json(serde_json::json!({ "removed": true, "entry_index": entry_index })))
 }
 
+#[derive(Deserialize)]
+struct AddMemberBody {
+    lct_id: Uuid,
+    pubkey_hex: String,
+    #[serde(default)]
+    name: Option<String>,
+}
+
+/// `POST /admin/api/members/add` — the Sovereign adds a *known* member directly
+/// (e.g. a fleet machine whose pubkey is already committed), without waiting for
+/// a self-submitted join request. Live (no restart). This is the proactive
+/// counterpart to the request-driven queue; it's a Sovereign act, so it isn't
+/// law-gated (the operator IS the authority), same stance as the add-member CLI.
+async fn admin_add_member(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Json(body): Json<AddMemberBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    {
+        let ledger = s.ledger.lock().await;
+        if HubState::project(&ledger).members.contains_key(&body.lct_id) {
+            return Err(ApiError::bad_request(format!("{} is already a member", body.lct_id)));
+        }
+    }
+    let (entry_index, entry_hash) = admit_member(&s, body.lct_id, &body.pubkey_hex, body.name).await?;
+    Ok(Json(serde_json::json!({ "added": true, "entry_index": entry_index, "entry_hash": entry_hash })))
+}
+
 /// The operator-plane write API. Mounted ONLY on the loopback operator listener.
 pub fn admin_api_router(state: RestState) -> Router {
     Router::new()
         .route("/admin/api/joins", get(admin_list_joins))
         .route("/admin/api/joins/:request_id/admit", post(admin_admit_join))
         .route("/admin/api/joins/:request_id/deny", post(admin_deny_join))
+        .route("/admin/api/members/add", post(admin_add_member))
         .route("/admin/api/members/:lct_id/key", post(admin_pin_key))
         .route("/admin/api/members/:lct_id/remove", post(admin_remove_member))
         .with_state(state)
@@ -4178,6 +4208,31 @@ norms:
                 .await.err().unwrap().status,
             StatusCode::FORBIDDEN,
         );
+    }
+
+    #[tokio::test]
+    async fn operator_add_member_admits_a_known_member_live() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let kp = KeyPair::generate();
+        let lct = Uuid::new_v4();
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let remote_addr: SocketAddr = "10.0.0.9:5555".parse().unwrap();
+        let body = || AddMemberBody { lct_id: lct, pubkey_hex: kp.verifying_key().to_hex(), name: Some("Sprout".into()) };
+
+        // Remote callers are rejected.
+        assert_eq!(
+            admin_add_member(State(state.clone()), ConnectInfo(remote_addr), Json(body()))
+                .await.err().unwrap().status,
+            StatusCode::FORBIDDEN,
+        );
+        // Loopback adds the member live (in the resolver, no restart).
+        admin_add_member(State(state.clone()), ConnectInfo(loop_addr), Json(body())).await.unwrap();
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert!(proj.members.contains_key(&lct));
+        assert!(proj.member_pubkeys.contains_key(&lct));
+        assert!(state.resolver.read().await.0.contains_key(&lct), "in the live resolver");
+        // Double-add is rejected.
+        assert!(admin_add_member(State(state.clone()), ConnectInfo(loop_addr), Json(body())).await.is_err());
     }
 
     #[tokio::test]
