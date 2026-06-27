@@ -108,7 +108,8 @@ pub fn router(state: RestState) -> Router {
 
 // ---------- error ----------
 
-struct AdminError(StatusCode, String);
+#[derive(Debug)]
+pub(crate) struct AdminError(StatusCode, String);
 
 impl IntoResponse for AdminError {
     fn into_response(self) -> axum::response::Response {
@@ -698,11 +699,159 @@ fn event_summary(event: &HubEvent) -> String {
                 html_escape(&act.substance.uri),
             )
         }
+        HubEvent::MemberJoinRequested { member_lct_id, name, .. } => format!(
+            "🚪 join requested by {} {} <span class=\"muted\">[escalated → review]</span>",
+            short(member_lct_id),
+            name.as_deref().map(html_escape).unwrap_or_default(),
+        ),
+        HubEvent::MemberJoinResolved { request_id, approved, resolved_by, reason, .. } => format!(
+            "🚪 join {} (req {}) by {}{}",
+            if *approved { "APPROVED" } else { "DENIED" },
+            short(request_id),
+            short(resolved_by),
+            reason.as_deref().map(|r| format!(" — {}", html_escape(r))).unwrap_or_default(),
+        ),
     }
 }
 
 fn short(id: &uuid::Uuid) -> String {
     let s = id.to_string();
     format!("{}…", &s[..8])
+}
+
+// ============================================================================
+// Operator plane GUI — write pages, mounted ONLY on the 127.0.0.1 operator
+// listener (the buttons POST to the loopback-only /admin/api/* surface).
+// ============================================================================
+
+const OPERATOR_BANNER: &str = r#"<div style="background:#4d3a3a;color:#f5d5d5;padding:0.5rem 0.9rem;border-radius:4px;margin-bottom:1rem;">
+  ⚙ <b>Operator plane</b> — local-only (127.0.0.1). Actions sign as the Sovereign and are witnessed to the ledger.
+  &nbsp;|&nbsp; <a href="/admin/joins" style="color:#ffd9a8">Admission queue</a>
+  &nbsp; <a href="/admin/manage" style="color:#ffd9a8">Manage members</a>
+  &nbsp; <a href="/admin" style="color:#ffd9a8">Dashboard</a>
+</div>
+<style>
+  button { background:#509982; color:#fff; border:0; border-radius:4px; padding:0.3rem 0.7rem;
+           font-size:0.8rem; cursor:pointer; margin-right:0.3rem; }
+  button:hover { background:#5fb89a; }
+  button.danger { background:#a85a5a; } button.danger:hover { background:#c06b6b; }
+</style>"#;
+
+const OPERATOR_JS: &str = r#"<script>
+async function hubAct(url, body) {
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{})});
+  const t = await r.text();
+  if (!r.ok) { alert('Failed ('+r.status+'): '+t); return; }
+  location.reload();
+}
+function admit(id){ if(confirm('Admit this applicant as a member? Their key is pinned live.')) hubAct('/admin/api/joins/'+id+'/admit'); }
+function deny(id){ const reason=prompt('Deny — reason (optional):'); if(reason!==null) hubAct('/admin/api/joins/'+id+'/deny',{reason:reason||null}); }
+function rekey(id){ const k=prompt('New 64-hex Ed25519 public key for member '+id+':'); if(k) hubAct('/admin/api/members/'+id+'/key',{pubkey_hex:k.trim()}); }
+function removeMember(id){ const reason=prompt('Remove member '+id+' — reason (optional):'); if(reason!==null) hubAct('/admin/api/members/'+id+'/remove',{reason:reason||null}); }
+</script>"#;
+
+pub(crate) async fn joins_page(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
+    use hub_lib::state::JoinStatus;
+    let ledger = s.ledger.lock().await;
+    let projected = HubState::project(&*ledger);
+    drop(ledger);
+
+    let mut joins: Vec<hub_lib::state::JoinRequest> = projected.pending_joins.into_values().collect();
+    joins.sort_by(|a, b| {
+        let ak = (a.status != JoinStatus::Pending, std::cmp::Reverse(a.requested_at));
+        let bk = (b.status != JoinStatus::Pending, std::cmp::Reverse(b.requested_at));
+        ak.cmp(&bk)
+    });
+    let pending = joins.iter().filter(|j| j.status == JoinStatus::Pending).count();
+
+    let mut body = String::from(OPERATOR_BANNER);
+    body.push_str("<h2>Admission queue</h2>");
+    body.push_str(&format!(
+        "<p class=\"muted\">{} pending · {} total. Law-<code>Allow</code> joins are auto-admitted and never queue; \
+         only law-<code>Escalate</code> requests land here.</p>",
+        pending, joins.len(),
+    ));
+    if joins.is_empty() {
+        body.push_str("<p class=\"muted\">No join requests waiting.</p>");
+    } else {
+        body.push_str("<table><thead><tr><th>Status</th><th>Requested</th><th>LCT</th><th>Name</th>\
+                       <th>Message</th><th>Pubkey</th><th>Actions</th></tr></thead><tbody>");
+        for j in &joins {
+            let status = match j.status {
+                JoinStatus::Pending => "<span class=\"pill pill-warn\">pending</span>",
+                JoinStatus::Approved => "<span class=\"pill\">approved</span>",
+                JoinStatus::Denied => "<span class=\"pill\">denied</span>",
+            };
+            let actions = if j.status == JoinStatus::Pending {
+                format!(
+                    "<button onclick=\"admit('{id}')\">Admit</button>\
+                     <button class=\"danger\" onclick=\"deny('{id}')\">Deny</button>",
+                    id = j.request_id
+                )
+            } else {
+                let by = j.resolved_by.map(|u| short(&u)).unwrap_or_default();
+                let reason = j.reason.as_deref().map(|r| format!(" — {}", html_escape(r))).unwrap_or_default();
+                format!("<span class=\"muted\">by {}{}</span>", by, reason)
+            };
+            let pk = &j.member_pubkey_hex[..j.member_pubkey_hex.len().min(12)];
+            body.push_str(&format!(
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td><code>{}…</code></td><td>{}</td></tr>",
+                status,
+                j.requested_at.format("%Y-%m-%d %H:%M"),
+                short(&j.member_lct_id),
+                j.name.as_deref().map(html_escape).unwrap_or_default(),
+                j.message.as_deref().map(html_escape).unwrap_or_default(),
+                pk,
+                actions,
+            ));
+        }
+        body.push_str("</tbody></table>");
+    }
+    body.push_str(OPERATOR_JS);
+    Ok(layout(&s.hub_name, "Admission queue", &body))
+}
+
+pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
+    let ledger = s.ledger.lock().await;
+    let projected = HubState::project(&*ledger);
+    drop(ledger);
+
+    let mut body = String::from(OPERATOR_BANNER);
+    body.push_str("<h2>Manage members</h2>");
+    body.push_str("<p class=\"muted\">Re-key (rotate a member's channel pubkey) and remove take effect live — no serve restart.</p>");
+    if projected.members.is_empty() {
+        body.push_str("<p class=\"muted\">No members.</p>");
+    } else {
+        body.push_str("<table><thead><tr><th>LCT</th><th>Name</th><th>Pubkey</th><th>Actions</th></tr></thead><tbody>");
+        for m in projected.members.values() {
+            let name = m.name.as_deref().unwrap_or("(unnamed)");
+            let pk_pill = if projected.member_pubkeys.contains_key(&m.lct_id) {
+                "<span class=\"pill\">pinned</span>"
+            } else {
+                "<span class=\"pill pill-warn\">none</span>"
+            };
+            body.push_str(&format!(
+                "<tr><td><code>{}</code></td><td>{}</td><td>{}</td>\
+                 <td><button onclick=\"rekey('{id}')\">Re-key</button>\
+                 <button class=\"danger\" onclick=\"removeMember('{id}')\">Remove</button></td></tr>",
+                m.lct_id,
+                html_escape(name),
+                pk_pill,
+                id = m.lct_id,
+            ));
+        }
+        body.push_str("</tbody></table>");
+    }
+    body.push_str(OPERATOR_JS);
+    Ok(layout(&s.hub_name, "Manage members", &body))
+}
+
+/// Operator-plane GUI pages (admit/deny + member management). Mounted ONLY on
+/// the loopback operator listener, alongside the read-only dashboard router.
+pub fn operator_router(state: RestState) -> Router {
+    Router::new()
+        .route("/admin/joins", get(joins_page))
+        .route("/admin/manage", get(manage_page))
+        .with_state(state)
 }
 

@@ -2376,10 +2376,24 @@ async fn request_citizenship(
                     status: StatusCode::FORBIDDEN,
                     message: "citizenship denied by hub law".to_string(),
                 }),
-                Decision::Escalate => return Err(ApiError {
-                    status: StatusCode::ACCEPTED,
-                    message: "citizenship requires escalation (admin review)".to_string(),
-                }),
+                Decision::Escalate => {
+                    // Queue for operator review (V2-16 admission queue) — witnessed,
+                    // not dropped. The applicant gets the request_id back to poll.
+                    let request_id = Uuid::new_v4();
+                    witness_event(s, HubEvent::MemberJoinRequested {
+                        request_id,
+                        member_lct_id: caller_lct_id,
+                        member_pubkey_hex: pubkey_hex.clone(),
+                        name: args.get("name").and_then(|v| v.as_str()).map(String::from),
+                        message: args.get("message").and_then(|v| v.as_str()).map(String::from),
+                        requested_at: Utc::now(),
+                    }).await?;
+                    return Ok(serde_json::json!({
+                        "admitted": false,
+                        "status": "pending_review",
+                        "request_id": request_id,
+                    }));
+                }
             }
         }
     }
@@ -2431,6 +2445,10 @@ struct JoinPayload {
     member_pubkey_hex: String,
     #[serde(default)]
     name: Option<String>,
+    /// Optional free-text note to the operator (surfaced in the review queue
+    /// when hub law escalates the request).
+    #[serde(default)]
+    message: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -2441,11 +2459,249 @@ struct JoinAccepted {
     welcome: String,
 }
 
+/// A join request that hub law escalated to operator review — queued, not yet
+/// admitted. The applicant polls / the operator actions it via the admin plane.
+#[derive(Serialize)]
+struct JoinQueued {
+    request_id: Uuid,
+    status: &'static str,
+    message: String,
+}
+
+/// Admit a member **through the daemon**: append a Sovereign-signed `MemberAdded`
+/// (pinning `member_pubkey_hex`) and insert the new member into the LIVE
+/// `MapResolver` — so their envelopes verify immediately, **no serve restart**.
+/// Shared by `submit_join` (law-`Allow`) and the operator `approve_join` path.
+/// Returns the new entry's `(index, hash)`.
+async fn admit_member(
+    s: &RestState,
+    member_lct_id: Uuid,
+    member_pubkey_hex: &str,
+    name: Option<String>,
+) -> Result<(u64, String), ApiError> {
+    let applicant_lct = hub_lib::hub::hestia_sovereign_lct(member_lct_id, member_pubkey_hex)
+        .map_err(|e| ApiError::bad_request(format!("invalid member_pubkey_hex: {}", e)))?;
+    let index = witness_event(s, HubEvent::MemberAdded {
+        member_lct_id,
+        added_by: s.sovereign_lct_id,
+        member_name: name,
+        member_pubkey_hex: Some(member_pubkey_hex.to_string()),
+    }).await?;
+    // Live resolver insert — the whole point of the no-restart path.
+    s.resolver.write().await.insert(applicant_lct);
+    let hash = s.ledger.lock().await.head_hash().to_string();
+    Ok((index, hash))
+}
+
+/// Look up a pending join request from the projection, erroring if it's unknown
+/// or already resolved (so admit/deny are idempotent-safe).
+async fn pending_join(s: &RestState, request_id: Uuid) -> Result<hub_lib::state::JoinRequest, ApiError> {
+    let jr = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger).pending_joins.get(&request_id).cloned()
+    };
+    match jr {
+        None => Err(ApiError::not_found(format!("no join request {request_id}"))),
+        Some(jr) if jr.status != hub_lib::state::JoinStatus::Pending =>
+            Err(ApiError::bad_request(format!("join request {request_id} is already {:?}", jr.status))),
+        Some(jr) => Ok(jr),
+    }
+}
+
+/// Operator approves a pending join request: admit the member live (no restart)
+/// and witness the resolution. The audit trail is request → resolution + the
+/// `MemberAdded`, all signed by the Sovereign.
+async fn approve_join(s: &RestState, request_id: Uuid, resolved_by: Uuid) -> Result<(u64, String), ApiError> {
+    let jr = pending_join(s, request_id).await?;
+    let (index, hash) = admit_member(s, jr.member_lct_id, &jr.member_pubkey_hex, jr.name.clone()).await?;
+    witness_event(s, HubEvent::MemberJoinResolved {
+        request_id,
+        approved: true,
+        resolved_by,
+        reason: None,
+        resolved_at: Utc::now(),
+    }).await?;
+    Ok((index, hash))
+}
+
+/// Operator denies a pending join request: witness the resolution, admit nothing.
+async fn deny_join(s: &RestState, request_id: Uuid, resolved_by: Uuid, reason: Option<String>) -> Result<u64, ApiError> {
+    let _jr = pending_join(s, request_id).await?;
+    witness_event(s, HubEvent::MemberJoinResolved {
+        request_id,
+        approved: false,
+        resolved_by,
+        reason,
+        resolved_at: Utc::now(),
+    }).await
+}
+
+/// Pin (or rotate) an existing member's channel pubkey **through the daemon**:
+/// witness `MemberKeyPinned` and update the LIVE resolver in place — the
+/// no-restart equivalent of the `hub set-member-key` CLI (which writes the store
+/// out-of-band and leaves the running daemon's resolver stale until reboot). The
+/// member must already exist; `insert` replaces the prior entry for this LCT id,
+/// so this is the re-key path (sprout's JetPack-wipe case for an existing member).
+async fn pin_member_key(s: &RestState, member_lct_id: Uuid, pubkey_hex: &str) -> Result<u64, ApiError> {
+    let lct = hub_lib::hub::hestia_sovereign_lct(member_lct_id, pubkey_hex)
+        .map_err(|e| ApiError::bad_request(format!("invalid pubkey_hex: {}", e)))?;
+    {
+        let ledger = s.ledger.lock().await;
+        if !HubState::project(&ledger).members.contains_key(&member_lct_id) {
+            return Err(ApiError::not_found(format!("no member {member_lct_id} to key")));
+        }
+    }
+    let index = witness_event(s, HubEvent::MemberKeyPinned {
+        member_lct_id,
+        member_pubkey_hex: pubkey_hex.to_string(),
+        pinned_by: s.sovereign_lct_id,
+    }).await?;
+    s.resolver.write().await.insert(lct);
+    Ok(index)
+}
+
+/// Remove a member **through the daemon**: witness `MemberRemoved` and evict them
+/// from the LIVE resolver — no restart; their envelopes stop verifying as a
+/// member immediately. (The projection also drops their pinned key, so a future
+/// restart won't re-seed them.)
+async fn remove_member_live(s: &RestState, member_lct_id: Uuid, reason: Option<String>) -> Result<u64, ApiError> {
+    {
+        let ledger = s.ledger.lock().await;
+        if !HubState::project(&ledger).members.contains_key(&member_lct_id) {
+            return Err(ApiError::not_found(format!("no member {member_lct_id} to remove")));
+        }
+    }
+    let index = witness_event(s, HubEvent::MemberRemoved {
+        member_lct_id,
+        removed_by: s.sovereign_lct_id,
+        reason,
+    }).await?;
+    s.resolver.write().await.0.remove(&member_lct_id);
+    Ok(index)
+}
+
+// ============================================================================
+// Operator plane — a SEPARATE 127.0.0.1-only listener (never tailscale-served).
+// ============================================================================
+//
+// The fleet port (0.0.0.0:8770) stays read-only for admin + carries the signed
+// fleet APIs. Member-admission *writes* (admit/deny/remove/re-key) live here, on
+// a listener bound to loopback only, so the fleet cannot reach them even through
+// the tailscale TLS proxy (which forwards as 127.0.0.1 and would defeat a plain
+// loopback check on the shared port). Being on this local plane while the hub is
+// ignited IS the authorization — the actions sign as the Sovereign via the live
+// signer (they fail closed if the hub is locked). Defense-in-depth: every handler
+// also re-checks loopback.
+
+/// Reject any non-loopback caller. Redundant given the 127.0.0.1 bind, but cheap
+/// belt-and-suspenders so a future mis-bind can't silently expose operator writes.
+fn require_loopback(peer: &SocketAddr) -> Result<(), ApiError> {
+    if !peer.ip().is_loopback() {
+        return Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: "operator API is local-only (reach it from the hub host / a local tunnel)".to_string(),
+        });
+    }
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct ReasonBody {
+    #[serde(default)]
+    reason: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct KeyBody {
+    pubkey_hex: String,
+}
+
+/// `GET /admin/api/joins` — the admission queue (pending first, newest first).
+async fn admin_list_joins(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger)
+    };
+    let mut joins: Vec<hub_lib::state::JoinRequest> = projected.pending_joins.into_values().collect();
+    joins.sort_by(|a, b| {
+        use hub_lib::state::JoinStatus::Pending;
+        // Pending first, then most-recent request first.
+        let ap = (a.status != Pending, std::cmp::Reverse(a.requested_at));
+        let bp = (b.status != Pending, std::cmp::Reverse(b.requested_at));
+        ap.cmp(&bp)
+    });
+    let pending = joins.iter().filter(|j| j.status == hub_lib::state::JoinStatus::Pending).count();
+    Ok(Json(serde_json::json!({ "pending": pending, "total": joins.len(), "joins": joins })))
+}
+
+/// `POST /admin/api/joins/:request_id/admit` — approve a pending join (live).
+async fn admin_admit_join(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(request_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let (entry_index, entry_hash) = approve_join(&s, request_id, s.sovereign_lct_id).await?;
+    Ok(Json(serde_json::json!({ "approved": true, "entry_index": entry_index, "entry_hash": entry_hash })))
+}
+
+/// `POST /admin/api/joins/:request_id/deny` — deny a pending join.
+async fn admin_deny_join(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(request_id): Path<Uuid>,
+    Json(body): Json<ReasonBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let entry_index = deny_join(&s, request_id, s.sovereign_lct_id, body.reason).await?;
+    Ok(Json(serde_json::json!({ "denied": true, "entry_index": entry_index })))
+}
+
+/// `POST /admin/api/members/:lct_id/key` — pin/rotate a member's channel key (live).
+async fn admin_pin_key(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(lct_id): Path<Uuid>,
+    Json(body): Json<KeyBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let entry_index = pin_member_key(&s, lct_id, &body.pubkey_hex).await?;
+    Ok(Json(serde_json::json!({ "pinned": true, "entry_index": entry_index })))
+}
+
+/// `POST /admin/api/members/:lct_id/remove` — remove a member (live eviction).
+async fn admin_remove_member(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(lct_id): Path<Uuid>,
+    Json(body): Json<ReasonBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let entry_index = remove_member_live(&s, lct_id, body.reason).await?;
+    Ok(Json(serde_json::json!({ "removed": true, "entry_index": entry_index })))
+}
+
+/// The operator-plane write API. Mounted ONLY on the loopback operator listener.
+pub fn admin_api_router(state: RestState) -> Router {
+    Router::new()
+        .route("/admin/api/joins", get(admin_list_joins))
+        .route("/admin/api/joins/:request_id/admit", post(admin_admit_join))
+        .route("/admin/api/joins/:request_id/deny", post(admin_deny_join))
+        .route("/admin/api/members/:lct_id/key", post(admin_pin_key))
+        .route("/admin/api/members/:lct_id/remove", post(admin_remove_member))
+        .with_state(state)
+}
+
 async fn submit_join(
     State(s): State<RestState>,
     Path(hub_id): Path<Uuid>,
     Json(envelope): Json<SignedEnvelope>,
-) -> Result<Json<JoinAccepted>, ApiError> {
+) -> Result<axum::response::Response, ApiError> {
+    use axum::response::IntoResponse;
     if hub_id != s.hub_id {
         return Err(ApiError::not_found(format!(
             "hub id {} does not match this hub {}", hub_id, s.hub_id
@@ -2481,98 +2737,70 @@ async fn submit_join(
     adhoc.insert(applicant_lct.clone());
     let _redeemed = verify_envelope(&envelope, &s.nonces, &adhoc, Utc::now())?;
 
-    // 3. PolicyEntity gate — admission policy from chapter law.
-    // R6Request shape: role="applicant" (not yet a member), action is
-    // the join itself, payload carries the request fields.
-    let event = HubEvent::MemberAdded {
+    // 3. PolicyEntity gate — admission policy from chapter law. The R6 payload
+    // is the MemberAdded we *would* record. Allow → auto-admit; Deny → reject;
+    // Escalate → queue for operator review (V2-16 admission queue).
+    let prospective = HubEvent::MemberAdded {
         member_lct_id: payload.member_lct_id,
         added_by: s.sovereign_lct_id,
         member_name: payload.name.clone(),
         member_pubkey_hex: Some(payload.member_pubkey_hex.clone()),
     };
-    let event_kind_str = event.kind().to_string();
-    let event_value_yaml = serde_yaml::to_value(&event)
+    let event_value_yaml = serde_yaml::to_value(&prospective)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {}", e)))?;
 
-    let law_guard = s.law.read().await;
-    if let Some(law) = law_guard.as_ref() {
-        let req = R6Request {
-            role: "applicant".to_string(),
-            action: "member_join_request".to_string(),
-            payload: event_value_yaml.clone(),
-            resource: Default::default(),
-        };
-        let outcome = law.evaluate_outcome(&req);
-        match outcome.decision {
-            Decision::Allow => { /* proceed */ }
-            Decision::Deny => {
-                return Err(ApiError {
-                    status: StatusCode::FORBIDDEN,
-                    message: format!(
-                        "membership denied by hub law (norm: {})",
-                        outcome.winning_norm.as_deref().unwrap_or("?")
-                    ),
-                });
-            }
-            Decision::Escalate => {
-                return Err(ApiError {
-                    status: StatusCode::ACCEPTED,
-                    message: format!(
-                        "membership requires escalation to {} ({}); admin review queue is V2-16",
-                        outcome.escalate_to.as_deref().unwrap_or("sovereign"),
-                        outcome.winning_norm.as_deref().unwrap_or("escalation trigger"),
-                    ),
-                });
-            }
+    let decision = {
+        let law_guard = s.law.read().await;
+        match law_guard.as_ref() {
+            None => Decision::Allow, // open-by-default when no law is set
+            Some(law) => law.evaluate_outcome(&R6Request {
+                role: "applicant".to_string(),
+                action: "member_join_request".to_string(),
+                payload: event_value_yaml,
+                resource: Default::default(),
+            }).decision,
         }
-    }
-    drop(law_guard);
-
-    // 4. Build unsigned MemberAdded entry, ask Sovereign signer to sign it,
-    // commit. Same shape as submit_event's signing path.
-    let (unsigned, intent) = {
-        let ledger = s.ledger.lock().await;
-        let unsigned = ledger.build_entry(s.sovereign_lct_id, event, Utc::now())
-            .map_err(ApiError::internal)?;
-        let intent = SignIntent {
-            request_id: Uuid::new_v4(),
-            hub_id: s.hub_id,
-            hub_name: s.hub_name.clone(),
-            actor_lct_id: s.sovereign_lct_id,
-            ledger_index: unsigned.entry.index,
-            event_kind: event_kind_str.clone(),
-            event: serde_json::to_value(&unsigned.entry.event)
-                .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for intent: {}", e)))?,
-        };
-        (unsigned, intent)
     };
 
-    let signing_bytes = unsigned.signing_bytes.clone();
-    let signature = s.signer
-        .sign(s.sovereign_lct_id, &signing_bytes, &intent)
-        .await
-        .map_err(|e| ApiError::internal(anyhow::anyhow!("Sovereign signer denied/failed: {}", e)))?;
-
-    let entry_index;
-    let entry_hash;
-    {
-        let mut ledger = s.ledger.lock().await;
-        let entry = ledger.append_signed(unsigned, signature).await
-            .map_err(ApiError::internal)?;
-        entry_index = entry.index;
-        entry_hash = entry.entry_hash.clone();
+    match decision {
+        Decision::Deny => Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: "membership denied by hub law".to_string(),
+        }),
+        Decision::Allow => {
+            // Auto-admit, live (no restart).
+            let (entry_index, entry_hash) = admit_member(
+                &s, payload.member_lct_id, &payload.member_pubkey_hex, payload.name.clone(),
+            ).await?;
+            Ok(Json(JoinAccepted {
+                member_lct_id: payload.member_lct_id,
+                entry_index,
+                entry_hash,
+                welcome: format!("welcome to {}", s.hub_name),
+            }).into_response())
+        }
+        Decision::Escalate => {
+            // Queue for operator review — witnessed, NOT dropped (closes the
+            // V2-16 gap). The operator admits/denies via the admin plane.
+            let request_id = Uuid::new_v4();
+            witness_event(&s, HubEvent::MemberJoinRequested {
+                request_id,
+                member_lct_id: payload.member_lct_id,
+                member_pubkey_hex: payload.member_pubkey_hex.clone(),
+                name: payload.name.clone(),
+                message: payload.message.clone(),
+                requested_at: Utc::now(),
+            }).await?;
+            Ok((
+                StatusCode::ACCEPTED,
+                Json(JoinQueued {
+                    request_id,
+                    status: "pending_review",
+                    message: format!("join request queued for operator review at {}", s.hub_name),
+                }),
+            ).into_response())
+        }
     }
-
-    // 5. Add the new member's pubkey to the live resolver so future
-    // member-signed envelopes from them verify without a serve restart.
-    s.resolver.write().await.insert(applicant_lct);
-
-    Ok(Json(JoinAccepted {
-        member_lct_id: payload.member_lct_id,
-        entry_index,
-        entry_hash,
-        welcome: format!("welcome to {}", s.hub_name),
-    }))
 }
 
 // ---------- PolicyEntity gate helper (V2-8 §4) ----------
@@ -2996,7 +3224,9 @@ async fn commit_proposed_event(
             .map_err(ApiError::internal)?;
         let needs = matches!(
             &entry.event,
-            HubEvent::CouncilMemberAdded { .. } | HubEvent::MemberAdded { .. }
+            HubEvent::CouncilMemberAdded { .. }
+                | HubEvent::MemberAdded { .. }
+                | HubEvent::MemberKeyPinned { .. } // live re-key: insert replaces by lct id
         );
         (entry.index, needs)
     };
@@ -3804,11 +4034,236 @@ norms:
             sealed,
             caller_pubkey_hex: Some(applicant.verifying_key().to_hex()),
         };
-        let err = channel_request(State(state.clone()), Path(state.hub_id), Json(req))
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(req))
             .await
-            .err()
-            .expect("join should be escalated, not admitted");
-        assert_eq!(err.status, StatusCode::ACCEPTED, "escalate → 202");
+            .expect("escalated join is queued (200 sealed), not an error");
+        let out = open_resp(&applicant, &hub_pub, pid, &resp.0.sealed);
+        assert_eq!(out["admitted"], serde_json::json!(false), "escalate → not admitted");
+        assert_eq!(out["status"], serde_json::json!("pending_review"));
+        let request_id: Uuid = serde_json::from_value(out["request_id"].clone())
+            .expect("a request_id was returned");
+
+        // It is witnessed as a Pending entry in the admission queue, not dropped.
+        let projected = {
+            let ledger = state.ledger.lock().await;
+            HubState::project(&ledger)
+        };
+        let jr = projected.pending_joins.get(&request_id).expect("queued for review");
+        assert_eq!(jr.status, hub_lib::state::JoinStatus::Pending);
+
+        // The operator approves it → member admitted live, no restart; status flips.
+        let (_idx, _hash) = approve_join(&state, request_id, state.sovereign_lct_id)
+            .await
+            .expect("approve should admit the member");
+        let after = {
+            let ledger = state.ledger.lock().await;
+            HubState::project(&ledger)
+        };
+        assert_eq!(after.pending_joins[&request_id].status, hub_lib::state::JoinStatus::Approved);
+        assert!(after.members.contains_key(&jr.member_lct_id), "approved applicant is now a member");
+        assert!(after.member_pubkeys.contains_key(&jr.member_lct_id), "their pubkey is pinned");
+        assert!(state.resolver.read().await.0.contains_key(&jr.member_lct_id),
+            "and they are in the LIVE resolver — no serve restart needed");
+    }
+
+    #[tokio::test]
+    async fn deny_join_records_denial_and_admits_nobody() {
+        const LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(LAW)).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let applicant = KeyPair::generate();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&applicant, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Reject Me" }));
+        let req = ChannelRequest {
+            caller_lct_id: Uuid::new_v4(),
+            pair_id: pid,
+            sealed,
+            caller_pubkey_hex: Some(applicant.verifying_key().to_hex()),
+        };
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(req))
+            .await.unwrap();
+        let out = open_resp(&applicant, &hub_pub, pid, &resp.0.sealed);
+        let request_id: Uuid = serde_json::from_value(out["request_id"].clone()).unwrap();
+        let member_lct = {
+            let ledger = state.ledger.lock().await;
+            HubState::project(&ledger).pending_joins[&request_id].member_lct_id
+        };
+
+        deny_join(&state, request_id, state.sovereign_lct_id, Some("not this time".into()))
+            .await.expect("deny should record a denial");
+
+        let after = {
+            let ledger = state.ledger.lock().await;
+            HubState::project(&ledger)
+        };
+        assert_eq!(after.pending_joins[&request_id].status, hub_lib::state::JoinStatus::Denied);
+        assert_eq!(after.pending_joins[&request_id].reason.as_deref(), Some("not this time"));
+        assert!(!after.members.contains_key(&member_lct), "denied applicant is NOT a member");
+
+        // Double-resolve is rejected (idempotency guard).
+        assert!(approve_join(&state, request_id, state.sovereign_lct_id).await.is_err(),
+            "an already-resolved request can't be approved");
+    }
+
+    #[tokio::test]
+    async fn operator_api_lists_and_admits_behind_the_loopback_guard() {
+        const LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(LAW)).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let applicant = KeyPair::generate();
+        let applicant_lct = Uuid::new_v4();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&applicant, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Via API" }));
+        let req = ChannelRequest {
+            caller_lct_id: applicant_lct,
+            pair_id: pid,
+            sealed,
+            caller_pubkey_hex: Some(applicant.verifying_key().to_hex()),
+        };
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(req)).await.unwrap();
+        let out = open_resp(&applicant, &hub_pub, pid, &resp.0.sealed);
+        let request_id: Uuid = serde_json::from_value(out["request_id"].clone()).unwrap();
+
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let remote_addr: SocketAddr = "10.0.0.9:5555".parse().unwrap();
+
+        // Non-loopback callers are rejected (defense-in-depth behind the bind).
+        assert_eq!(
+            admin_list_joins(State(state.clone()), ConnectInfo(remote_addr)).await.err().unwrap().status,
+            StatusCode::FORBIDDEN,
+        );
+        // Loopback lists the pending request.
+        let list = admin_list_joins(State(state.clone()), ConnectInfo(loop_addr)).await.unwrap();
+        assert_eq!(list.0["pending"], serde_json::json!(1));
+
+        // Admit via the API → member admitted live (no restart).
+        admin_admit_join(State(state.clone()), ConnectInfo(loop_addr), Path(request_id)).await.unwrap();
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert!(proj.members.contains_key(&applicant_lct), "admitted via the operator API");
+        assert_eq!(proj.pending_joins[&request_id].status, hub_lib::state::JoinStatus::Approved);
+
+        // A remote caller can't admit even with a valid id.
+        assert_eq!(
+            admin_admit_join(State(state.clone()), ConnectInfo(remote_addr), Path(request_id))
+                .await.err().unwrap().status,
+            StatusCode::FORBIDDEN,
+        );
+    }
+
+    #[tokio::test]
+    async fn pin_member_key_rotates_the_live_resolver_without_restart() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let member = Uuid::new_v4();
+        let key_a = KeyPair::generate();
+        let key_b = KeyPair::generate();
+
+        admit_member(&state, member, &key_a.verifying_key().to_hex(), Some("Rotator".into()))
+            .await.unwrap();
+        assert_eq!(state.resolver.read().await.0[&member].public_key.to_hex(),
+            key_a.verifying_key().to_hex());
+
+        // Rotate the key live — the sprout JetPack-wipe re-key case for a member.
+        pin_member_key(&state, member, &key_b.verifying_key().to_hex()).await.unwrap();
+        assert_eq!(state.resolver.read().await.0[&member].public_key.to_hex(),
+            key_b.verifying_key().to_hex(),
+            "the live resolver reflects the rotated key immediately — no serve restart");
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert_eq!(proj.member_pubkeys[&member], key_b.verifying_key().to_hex());
+
+        // Keying an unknown LCT errors (must be an existing member).
+        assert!(pin_member_key(&state, Uuid::new_v4(), &key_a.verifying_key().to_hex()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn remove_member_live_evicts_from_resolver_and_projection() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let member = Uuid::new_v4();
+        let kp = KeyPair::generate();
+        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Goodbye".into()))
+            .await.unwrap();
+        assert!(state.resolver.read().await.0.contains_key(&member));
+
+        remove_member_live(&state, member, Some("retired".into())).await.unwrap();
+
+        assert!(!state.resolver.read().await.0.contains_key(&member),
+            "evicted from the live resolver — no restart");
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert!(!proj.members.contains_key(&member));
+        assert!(!proj.member_pubkeys.contains_key(&member),
+            "pinned key dropped from projection — won't be re-seeded on a future restart");
+
+        // Removing a non-member errors.
+        assert!(remove_member_live(&state, Uuid::new_v4(), None).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn operator_joins_page_renders_pending_with_admit_button() {
+        const LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(LAW)).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let applicant = KeyPair::generate();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&applicant, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Render Me", "message": "please let me in" }));
+        let req = ChannelRequest {
+            caller_lct_id: Uuid::new_v4(),
+            pair_id: pid,
+            sealed,
+            caller_pubkey_hex: Some(applicant.verifying_key().to_hex()),
+        };
+        channel_request(State(state.clone()), Path(state.hub_id), Json(req)).await.unwrap();
+
+        let html = crate::admin::joins_page(State(state.clone())).await.unwrap().0;
+        assert!(html.contains("Admission queue"), "page title");
+        assert!(html.contains("Operator plane"), "operator banner");
+        assert!(html.contains("Render Me"), "applicant name shown");
+        assert!(html.contains("please let me in"), "applicant message shown");
+        assert!(html.contains("admit("), "Admit button wired to the API");
+        assert!(html.contains("deny("), "Deny button wired to the API");
+    }
+
+    #[tokio::test]
+    async fn operator_manage_page_renders_member_actions() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let member = Uuid::new_v4();
+        let kp = KeyPair::generate();
+        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Manageable".into()))
+            .await.unwrap();
+
+        let html = crate::admin::manage_page(State(state.clone())).await.unwrap().0;
+        assert!(html.contains("Manage members"));
+        assert!(html.contains("Manageable"));
+        assert!(html.contains("rekey("), "Re-key button wired");
+        assert!(html.contains("removeMember("), "Remove button wired");
     }
 
     #[tokio::test]
