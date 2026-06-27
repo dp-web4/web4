@@ -290,7 +290,10 @@ impl HubState {
             // tier-2 M-of-N decision. They don't change member/role/pair state.
             | HubEvent::VaultUnlockRequested { .. }
             | HubEvent::VaultUnlockAttested { .. }
-            | HubEvent::VaultUnlockResolved { .. } => {
+            | HubEvent::VaultUnlockResolved { .. }
+            // Referenced acts are thin witnessed records; the substance lives at
+            // pointer_uri, not in HubState.
+            | HubEvent::ReferencedAct { .. } => {
                 // Not projected into HubState yet — these affect society.json /
                 // charter.json / hub-law.yaml instead. Future sprints surface
                 // them here too.
