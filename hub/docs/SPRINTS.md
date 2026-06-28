@@ -3,6 +3,8 @@
 **Companion to:** `PRD.md`
 **Date:** 2026-06-07
 
+> **STATUS as of 2026-06:** The MVP (Sprints 0–6) shipped, and substantial V2 work has since shipped on top of it (encrypt-at-rest, machine-enforced chapter law, sealed member channels, EUDI/`did:web4`, Sovereign Council, operator web UI + admission queue, plugin seam). This document remains an accurate record of the MVP build. For everything after the MVP, see `docs/V2-V3-ARCHITECTURE.md` and the README.
+
 Sprints are **capability-defined**, not calendar-defined. Each sprint produces a verifiable milestone — a thing that builds, runs, and demonstrates a specific capability. Pace is set by the work, not by weeks. Each sprint's exit criteria must be met before the next sprint starts.
 
 The whole sprint plan is one stack of seven sprints (Sprint 0 through Sprint 6). After Sprint 6, MVP is shippable.
@@ -176,12 +178,14 @@ The whole sprint plan is one stack of seven sprints (Sprint 0 through Sprint 6).
 
 ## Post-MVP: triggers for V2
 
+> **STATUS as of 2026-06: these triggers have FIRED.** V2 work is underway and much of it has shipped. See `docs/V2-V3-ARCHITECTURE.md` for current state. Annotations below mark what each trigger produced.
+
 After Sprint 6 ships, MVP is in pilot. V2 work starts when one of these triggers fires:
 
-- **Pilot chapter requests web UI** (likely first ask — CLI suffices for the organizer but members want a browser surface)
-- **Second chapter wants to federate** (triggers inter-society protocol implementation)
-- **Pilot chapter wants T3 attestation by witnesses** (triggers reputation pipeline beyond raw skill declarations)
-- **Partner lab asks for programmatic engagement** (triggers cross-society MCP federation work)
-- **A deployment's central operator asks for cross-chapter observability** (triggers Central Overlay phase)
+- **Pilot chapter requests web UI** (likely first ask — CLI suffices for the organizer but members want a browser surface) — **FIRED:** operator/admin web UI shipped (`/admin` dashboard + write-capable operator plane on `127.0.0.1:8772`).
+- **Second chapter wants to federate** (triggers inter-society protocol implementation) — **FIRED (in part):** inter-society primitives shipped — `find_members`, `request_intro`/`respond_intro`, `did:web4`/EUDI, `/.well-known/web4-hub.json` discovery. Central Overlay aggregation still future.
+- **Pilot chapter wants T3 attestation by witnesses** (triggers reputation pipeline beyond raw skill declarations) — **FIRED (in part):** constellation attestation (hub-side verify + challenge/present) shipped; the full T3-accrual reputation pipeline is still future.
+- **Partner lab asks for programmatic engagement** (triggers cross-society MCP federation work) — partly addressed by sealed channels + intros + EUDI credentials.
+- **A deployment's central operator asks for cross-chapter observability** (triggers Central Overlay phase) — still future.
 
 Each trigger defines its own sprint stack. V2 planning is deferred until a trigger fires; sprint-planning-in-advance for hypothetical V2 work is drift.

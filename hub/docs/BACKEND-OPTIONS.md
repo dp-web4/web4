@@ -19,12 +19,20 @@ A hub stores three kinds of state:
 2. **Append-only signed event log** — the ledger. Hash-chained for
    integrity, signed per-entry for authenticity.
 3. **Sidecar records** — V2-9 P2 council proposals (mutable
-   open → committed/rejected/expired lifecycle).
+   open → committed/rejected/expired lifecycle), and pair-message
+   logs.
 
 All three sit behind the `HubStore` trait
 ([`hub-lib/src/store.rs`](../hub-lib/src/store.rs)). Backends are
 swappable; data is portable. `hub migrate` moves an existing chapter
 between any two implemented backends byte-for-byte (no re-signing).
+
+Not all hub data lives in `HubStore`. The membox search **cart** is a
+*pure index* — it stores only `{member_lct, score}` and holds **no
+member PII at rest**. Search hits are enriched on the read path from
+the authoritative (now encrypted) member registry, so member PII lives
+exactly once, in the hub's own store, not duplicated into the sidecar
+index.
 
 ### Hard constraints on any backend
 
@@ -64,11 +72,17 @@ commitments) and aren't negotiable:
 | Atomicity | Append via `O_APPEND`; state via temp-then-rename |
 | Cost | Disk only |
 | Lock-in | Zero. Plain files, inspectable with `cat` / `jq` |
+| At-rest encryption | None at the storage layer — files are plaintext on disk. Pair with an encrypted volume / TPM-sealed dir for confidentiality. |
 | Sovereignty fit | ✅ Maximum — operator literally holds the bytes |
 | Hardware-binding fit | ✅ Pairs cleanly with TPM-sealed dir / encrypted volume |
 
 **Best for:** Single-machine hubs, R&D, chapters small enough for the full
 ledger to live in RAM. The MVP default.
+
+**Confidentiality note:** the `file` backend writes plaintext. Unlike
+`sqlite` (now SQLCipher-encrypted at rest), `file` relies on the
+surrounding filesystem (encrypted volume, TPM-sealed dir) for
+confidentiality of the bytes.
 
 **Limits:** No concurrent multi-process writers (file lock would help but
 isn't implemented). Linear ledger scan for queries. Backup = `tar`.
@@ -76,7 +90,8 @@ isn't implemented). Linear ledger scan for queries. Backup = `tar`.
 ### `sqlite` — single-file embedded SQL  ✅ shipped (V2-2)
 
 ```
-<chapter-dir>/chapter.db   # single SQLite file (+ WAL/SHM transient)
+<chapter-dir>/hub.db   # single SQLite file, SQLCipher-encrypted at rest (+ WAL/SHM transient)
+                       # legacy chapter.db is read in place as a fallback
 ```
 
 | Property | Value |
@@ -85,10 +100,11 @@ isn't implemented). Linear ledger scan for queries. Backup = `tar`.
 | Locality | One file, anywhere |
 | Multi-tenancy | One chapter per file |
 | Atomicity | `INTEGER PRIMARY KEY` on `idx` enforces append-only at the index level; WAL mode for concurrent readers |
-| Cost | Disk + bundled sqlite library |
-| Lock-in | Low. Open with `sqlite3 chapter.db`, dump back to file backend |
-| Sovereignty fit | ✅ Same as file — single artifact you own |
-| Hardware-binding fit | ✅ Same as file |
+| Cost | Disk + bundled SQLCipher library (`rusqlite` "bundled-sqlcipher") |
+| At-rest encryption | ✅ SQLCipher under a key derived (Argon2id) from the vault passphrase; on-disk bytes are ciphertext. Plaintext→encrypted migration happens in place on first keyed open. |
+| Lock-in | Low. Open with a SQLCipher-enabled `sqlite3` + `PRAGMA key`, dump back to file backend |
+| Sovereignty fit | ✅ Same as file — single artifact you own, and now encrypted at rest |
+| Hardware-binding fit | ✅ Same as file; the at-rest key ties to the vault passphrase |
 
 **Best for:** Single-machine hubs that want one artifact to back up, faster
 ledger queries (indexed by `idx`), or transactional state-doc writes.
@@ -118,8 +134,9 @@ chapters. Same `HubStore` trait.
 many hubs and wants shared ops + backup + monitoring. Federated
 deployments where chapters share an operator but not sovereignty.
 
-**Limits:** Async client (`tokio-postgres` / `sqlx`) — see [§Async trait](#open-design-question-async-trait)
-below. Network round-trips on every op (acceptable for hubs serving
+**Limits:** Async client (`tokio-postgres` / `sqlx`) — fits the now-async
+`HubStore` trait (see [§RESOLVED: async trait](#resolved-async-trait-option-b-shipped)
+below). Network round-trips on every op (acceptable for hubs serving
 human-scale request rates).
 
 ### `dynamodb` — AWS managed NoSQL  💭 candidate
@@ -250,54 +267,52 @@ read-only projection (which is fine, just a different abstraction).
 
 ---
 
-## Open design question: async trait
+## RESOLVED: async trait (option B shipped)
 
-The `HubStore` trait is currently synchronous. Network-backed
-backends (Postgres, DynamoDB, S3) MUST do I/O on the tokio runtime
-to participate in the axum daemon's async model.
+This was an open design question (sync vs async `HubStore`). It is now
+**resolved and implemented**: `HubStore` is an **`#[async_trait]`**
+trait (`Send + Sync`) with all methods `async`. Option B shipped.
 
-Three options to resolve:
+How it plays out in the code today:
 
-### A. Wrap calls in `spawn_blocking` (status quo)
+- **Network backends** (DynamoDB; Postgres later) do real `.await`s
+  on tokio.
+- **In-process backends** (`file`, `sqlite`) implement the async
+  signatures with bodies that complete synchronously — no
+  `spawn_blocking`, no actual suspension. `SqliteBackend` wraps its
+  `rusqlite::Connection` in a `std::sync::Mutex` so it is `Sync`
+  (the async-trait default future `Send` bound transitively requires
+  `self: Sync` for `&self` methods); the lock is uncontended in the
+  one-daemon-per-hub case.
+- Every call site `.await`s store calls — consistent with the
+  daemon's other awaits (envelope verify, signer roundtrip).
+- `async_trait` boxes a `Box<dyn Future>` per call; this was the
+  accepted cost for a uniform, object-safe (`Box<dyn HubStore>`)
+  abstraction.
 
-What I did for V2-9 P2 proposal storage — handler spawns a blocking
-task that opens the store + runs the sync operation. Works today,
-zero trait changes, but:
+The original trade-off analysis (the rejected options) is preserved
+below for context.
 
-- Sequentializes I/O behind the rayon-blocking-pool worker count
-- Hidden cost (the blocking pool defaults are tuned for occasional
-  blocking, not "every request")
-- Forces store re-open on every request (no connection pooling)
+### Rejected: A — wrap calls in `spawn_blocking`
 
-### B. `#[async_trait]` on `HubStore`
+The pre-refactor status quo. Worked, zero trait changes, but
+sequentialized I/O behind the blocking-pool worker count, carried
+hidden blocking-pool cost on every request, and forced a store
+re-open per request (no connection pooling).
 
-Convert to async-first. Sync backends (`file`, `sqlite`) implement
-the async signature with `async fn` that just runs synchronously —
-no `spawn_blocking` needed because the work is in-process and fast.
-Network backends do real awaits.
+### Rejected: C — split `HubStore` (sync) + `HubStoreAsync` (async)
 
-Cost: every call site needs `.await`. Boxing overhead per call
-(`async_trait` allocates a `Box<dyn Future>`).
+Two traits, two impl families, converters between them, doubled
+tests. Rejected for the duplication cost.
 
-### C. Split into `HubStore` (sync) + `HubStoreAsync` (async) traits
+### Why B
 
-Two traits, two impl families. Higher-layer code uses one or the
-other. Migration boundary is the daemon: pick async if any backend
-is network-backed.
-
-Cost: trait duplication; converters between the two; tests doubled.
-
-### Recommendation
-
-**B (`#[async_trait]`).** Pay the boxing cost once, get a uniform
-abstraction, and the daemon-internal call sites already await
-elsewhere (envelope verify, signer roundtrip, etc.) so adding
-`.await` to store calls is consistent.
-
-This is a one-sprint refactor that should land **before** the first
-network-backed backend, not as part of it. Otherwise we pay the
-`spawn_blocking` tax permanently on `file`/`sqlite` and end up with
-async only on the new backend (inconsistent).
+Pay the boxing cost once, get a uniform abstraction, and the
+daemon-internal call sites already await elsewhere, so adding
+`.await` to store calls is consistent. It landed **before** the
+first network-backed backend rather than as part of it, so
+`file`/`sqlite` never paid a permanent `spawn_blocking` tax and the
+abstraction stays consistent across backends.
 
 ---
 
@@ -308,23 +323,34 @@ the bytes without the operator's involvement?**
 
 | Backend | Bytes-readable-by |
 |---|---|
-| `file` (on operator's disk) | Just the operator |
-| `sqlite` (same disk) | Just the operator |
+| `file` (on operator's disk) | Just the operator (plaintext on disk — anyone with disk access) |
+| `sqlite` (same disk) | Just the operator — and disk access **alone is insufficient**: on-disk bytes are SQLCipher ciphertext requiring the vault passphrase |
 | `postgres` (self-hosted) | Operator + anyone with DB access |
 | `postgres` (RDS / Aurora) | + AWS, by way of platform access |
 | `dynamodb` | + AWS, same |
 | `s3` (any cloud) | + provider |
 | `cloudflare-d1` / `vercel-postgres` | + provider |
 
-For the chapter state itself, this matters less than it sounds —
-it's all signed and not encrypted by design (the data is public to
-chapter members + auditors; the integrity guarantee comes from
-signatures, not from confidentiality).
+The encryption posture now differs by backend. The `sqlite` backend is
+**encrypted at rest** (SQLCipher, key derived from the vault passphrase),
+so possession of the `hub.db` file is not enough to read the bytes —
+disk access without the passphrase yields only ciphertext. The `file`
+backend is still plaintext on disk (lean on an encrypted volume / TPM
+for confidentiality). The cloud backends store whatever the provider
+holds; some support bring-your-own-key envelope encryption (KMS), but
+that's a different trust model from SQLCipher-under-the-operator's-passphrase.
+
+Integrity, separately, comes from the signed hash-chain on every
+backend (auditors can verify the chain regardless of where the bytes
+live). Encryption at rest is an *added* confidentiality layer, not a
+replacement for signatures.
 
 For an emerging Hestia-mode hub where Hestia holds the keys and the
-hub holds the data: a cloud-hosted hub is *fine*, because the cloud
-provider sees signed-but-public state, not secrets. The vault stays
-on the operator's hardware.
+hub holds the data: a cloud-hosted hub is still *fine* for integrity,
+but note that a cloud provider sees whatever that backend stores in
+its infrastructure — only the local `sqlite` backend gives you
+SQLCipher-at-rest under your own passphrase today. The vault stays on
+the operator's hardware regardless.
 
 The argument for `file` / `sqlite` over cloud-hosted backends is
 operational, not constitutional:

@@ -111,24 +111,25 @@ The hub binary does NOT contain:
 
 ### 4. Storage is backend-abstracted from V2 day one
 
-Not retrofitted. Trait + implementations from the first commit of V2-B5:
+**SHIPPED.** Not retrofitted. The `HubStore`/`ChapterStore` trait + implementations are live:
 - `InMemoryBackend` — tests + ephemeral
-- `SqliteBackend` — single-machine production, ≤~100k members per chapter
-- `PostgresBackend` — multi-tenant, multi-chapter, the cloud-scale answer
-- `S3CompatibleColdStorage` — archive tier for old ledger pages
+- `FileBackend` — the MVP file ledger, now one backend behind the trait
+- `SqliteBackend` — single-machine production; **SQLCipher-encrypted at rest by default**
+- `DynamoDB` backend — opt-in via the `dynamodb` feature
+- `PostgresBackend` / `S3CompatibleColdStorage` — multi-tenant + cold-archive tiers still on the roadmap
 
-File-based `ledger.jsonl` from MVP becomes one backend among many. Migration tool to convert MVP chapters to SQLite or Postgres ships with V2-B5.
+File-based `ledger.jsonl` from MVP is now one backend among many, and the migration tool (`hub migrate`) to convert MVP chapters to another backend has shipped.
 
 The Ledger trait pattern web4-core already uses for LCT anchoring is the model. Hub's chapter event ledger gets the same shape.
 
 ### 5. Multi-Sovereign Council from the start (no single-founder pattern)
 
-Single-Sovereign is a special case of M-of-N where M=N=1. The architecture handles M-of-N natively:
+**SHIPPED.** Single-Sovereign is a special case of M-of-N where M=N=1. The architecture handles M-of-N natively, and the Sovereign Council data model + propose/sign/threshold flow is live:
 - Sovereigns are admitted, retire, get ejected, are member-elected per chapter law
-- Consequential Sovereign actions require N-of-M signatures
+- Consequential Sovereign actions require N-of-M signatures (propose → sign → threshold enforcement, with `proposal_ref` linking committed acts back to the proposal for single-pane audit)
 - Election as constitutional escape valve when Council fails
 
-This is a web4-core upstream change (multi-fill RoleAssignment with threshold semantics). PRs first; hub uses upstream once merged.
+The threshold-signing semantics landed in the hub directly (data model + management + admin UI + M-of-N enforcement).
 
 ### 6. AI is a first-class role-filler
 
@@ -159,6 +160,8 @@ The community evolves the hub. We ship the foundation; communities adapt + exten
 
 ### 8. Secrets in the vault only; access on verified authority + need-to-know; ZKP preferred
 
+> **SHIPPED (hub-native enclosure):** the original framing put all secrets in an *external* Hestia vault and called the hub's plaintext identity JSON an anti-pattern to be deprecated. The hub now carries its own fail-closed encrypt-at-rest enclosure: the Sovereign identity is **encrypted at rest** (with `hub seal-identity` to migrate a plaintext identity in place), the hub boots **unlock-first** into a degraded **locked shell** (tier-0 surface) with **no stored passphrase**, ignites at runtime via an unlock seam (incl. a tier-2 M-of-N witnessed unlock grant), and supports `rotate-passphrase` (operator-chosen secret). SQLCipher-encrypted state + encrypted ledger complete the enclosure. The external-Hestia path remains valid; the hub no longer *requires* it to protect its own keys.
+
 Three rules, in order of specificity:
 
 **A. Vault is the exclusive home of secrets.** Private keys, API credentials, sealing material, any secret the system needs — all live in Hestia's vault. The hub never stores secrets. The hub's databases, ledgers, society state, charters, role assignments — all of it is public-by-design within the chapter (signed for integrity, not encrypted for confidentiality of the data itself). If something needs to be secret, it belongs in a vault, not in chapter storage.
@@ -170,7 +173,7 @@ Three rules, in order of specificity:
 Implications across tracks:
 - **Track H (Hestia)**: vault interface design must support ZKP-producing operations, not just "give me the credential" or "sign this payload." The vault is the privacy-preserving prover. The vault enforces the authority+need-to-know gate at access time. See addendum to Track H delegation post.
 - **Track U (web4-core)**: signature primitives may need ZKP-variant additions (predicate proofs over membership, threshold proofs over T3/V3 scores, range proofs for ATP balances). Likely a U5 sprint once Hestia's ZKP requirements crystallize.
-- **Track B (hub)**: storage is secrets-free **by design** — the trait surface never includes secret material. Identity files in MVP (private key sitting in a JSON file the hub reads) are an anti-pattern under this commitment; they're tolerated through V2-7 only as a bootstrap convenience, then deprecated when Hestia-as-Sovereign ships. Query handlers enforce need-to-know via the law (PolicyEntity gates queries the same way it gates writes).
+- **Track B (hub)**: storage is secrets-free **by design** — the trait surface never includes secret material. The MVP plaintext-identity-file anti-pattern has been **resolved hub-side**: the Sovereign identity is now encrypted at rest behind the fail-closed vault (see the SHIPPED note above), so the bootstrap convenience no longer leaves a key in plaintext. Query handlers enforce need-to-know via the law — **PolicyEntity gates reads the same way it gates writes (shipped).**
 
 This is constitutional alongside #1 (law) and #2 (Hestia). Privacy and authority discipline is foundational to the whole stack; bolting it on later means redesigning every interface.
 
@@ -207,17 +210,17 @@ PRs go to dp-web4/web4. Decided per PR whether this or another session handles e
 
 Application infrastructure built on Hestia, web4-core, ACT.
 
-- **B1**: Member-role refactor — Citizen-default; non-Sovereign roles unfilled at genesis. Founder fills Sovereign + Citizen only. *Independent of other tracks; ships first.*
-- **B2**: Hestia-LCT-as-Sovereign integration — `hub init` accepts existing Hestia LCT; deprecate anonymous-Sovereign pattern. *Needs H2.*
-- **B3**: Sovereign Council mechanics — multi-fill at the role level; admit/retire/eject/elect event types; M-of-N signature validation. *Needs U1+U2.*
-- **B4**: Law parser + interpreter — read signed law file; validate signatures; evaluate requests against rules. PolicyEntity role calls into this. *Needs U3.*
-- **B5**: Storage backend abstraction — Trait + SqliteBackend + PostgresBackend impls; migration tool from file-based MVP. *Foundation for scale.*
-- **B6**: Multi-tenant deployment — schema-per-chapter (default) or tenant-id-column (high-density) within one Postgres deployment; one-chapter-per-process for max isolation. *Needs B5.*
-- **B7**: Member self-add request flow — `MemberJoinRequested` event; admin review surface; chapter-law-policy hook. *Needs H3 and B4.*
-- **B8**: AI role-filler runtime — process supervision (spawning + monitoring AI agents per role); ATP accounting per AI action; T3 scoring; escalation event routing. *Needs U2+U4 and B4.*
-- **B9**: Admin web UI — askama server-rendered HTML; member view + admin view + Sovereign Council interface + escalation review queue. *Needs B7 (review queue), B8 (escalations).*
-- **B10**: HTTPS + caddy convention — reverse-proxy pattern; well-known URI for discovery. *Needs B9.*
-- **B11**: Cloud deployment artifacts — helm chart for k8s + terraform modules for AWS/GCP/Azure. Platform-agnostic via clean storage + reverse-proxy abstractions. *Needs B5+B10.*
+- **B1**: Member-role refactor — Citizen-default; non-Sovereign roles unfilled at genesis. Founder fills Sovereign + Citizen only. **SHIPPED (V2-1).**
+- **B2**: Hestia-LCT-as-Sovereign integration — `hub init` accepts existing Hestia LCT; deprecate anonymous-Sovereign pattern. **SHIPPED (V2-7):** `hub init --sovereign-hestia` + RemoteSigner/HestiaCallbackSigner; MCP + REST acts work on Hestia chapters.
+- **B3**: Sovereign Council mechanics — multi-fill at the role level; admit/retire/eject/elect event types; M-of-N signature validation. **SHIPPED (V2-9):** Council data model + propose/aggregate flow + M-of-N enforcement + admin UI.
+- **B4**: Law parser + interpreter — read signed law file; validate signatures; evaluate requests against rules. PolicyEntity role calls into this. **SHIPPED (V2-8):** YAML law parser/validator, signed law storage (`LawAmended`), evaluator (Law × R6 → Allow/Deny/Escalate), PolicyEntity gate wired into REST + MCP act handlers *and reads*, hot-reload, `hub set-law`/`get-law`/`init-law`.
+- **B5**: Storage backend abstraction — Trait + SqliteBackend + PostgresBackend impls; migration tool from file-based MVP. **SHIPPED (V2-2):** `ChapterStore`/`HubStore` trait + FileBackend + SqliteBackend (SQLCipher-encrypted) + DynamoDB backend + `hub migrate`. Postgres still on the roadmap.
+- **B6**: Multi-tenant deployment — schema-per-chapter (default) or tenant-id-column (high-density) within one Postgres deployment; one-chapter-per-process for max isolation. *Needs B5. (Still future.)*
+- **B7**: Member self-add request flow — `MemberJoinRequested` event; admin review surface; chapter-law-policy hook. **SHIPPED:** V2-12 member self-add via signed envelope, plus a member **admission queue + operator GUI** (no-restart admit/deny/re-key/remove).
+- **B8**: AI role-filler runtime — process supervision (spawning + monitoring AI agents per role); ATP accounting per AI action; T3 scoring; escalation event routing. *Needs U2+U4 and B4. (Still future.)*
+- **B9**: Admin web UI — askama server-rendered HTML; member view + admin view + Sovereign Council interface + escalation review queue. **SHIPPED (V2-16):** read-only `/admin` dashboard + write-capable operator plane (admissions + member management) on the admin port `127.0.0.1:8772`.
+- **B10**: HTTPS + caddy convention — reverse-proxy pattern; well-known URI for discovery. **PARTLY SHIPPED:** the `GET /.well-known/web4-hub.json` discovery endpoint ships; the HTTPS/reverse-proxy convention is still future.
+- **B11**: Cloud deployment artifacts — helm chart for k8s + terraform modules for AWS/GCP/Azure. Platform-agnostic via clean storage + reverse-proxy abstractions. *Needs B5+B10. (Still future.)*
 
 ### Track L — Law primitives (shared between hub + community)
 
@@ -245,30 +248,44 @@ These are demonstrations + starter implementations. Communities can swap any for
 
 Dependency-driven order, not calendar-driven. Each sprint produces a verifiable milestone.
 
-| Sprint | Track | Focus | Depends on |
-|---|---|---|---|
-| V2-1 | B | B1 — Member-role refactor (Citizen-default, others unfilled) | — |
-| V2-2 | B | B5 — Storage backend abstraction + SQLite impl + migration tool | — |
-| V2-3 | H | H1 — Hestia vault (passphrase-first; hardware optional) | — |
-| V2-4 | H | H2-H3 — Hestia member CLI + multi-hub connector | H1 |
-| V2-5 | U | U1+U2 — web4-core PRs: multi-fill RoleAssignment + DelegatedAuthority | — |
-| V2-6 | U | U3 — Law schema PR upstream | — |
-| V2-7 | B | B2 — Hestia-LCT-as-Sovereign integration | H2 + U3 |
-| V2-8 | B | B4 — Law interpreter; PolicyEntity uses it | U3 + B5 |
-| V2-9 | B | B3 — Sovereign Council mechanics | U1+U2 + B2 |
-| V2-10 | H | H4 — Hestia delegation primitives | U2 |
-| V2-11 | H | H5 — AI-variant Hestia | H1+H4 |
-| V2-12 | B | B7 — Member self-add flow | H3 + B4 + B5 |
-| V2-13 | B | B8 — AI role-filler runtime | U2+U4 + B4 + H5 |
-| V2-14 | C | C1-C4 — Reference AI role-fillers (parallel, community-led) | B8 (API) |
-| V2-15 | B | B6 — Multi-tenant deployment | B5 |
-| V2-16 | B | B9 — Admin web UI | B7 + B8 |
-| V2-17 | B | B10 — HTTPS + discovery | B9 |
-| V2-18 | B | B11 — Cloud deployment artifacts | B5 + B10 |
+| Sprint | Track | Focus | Depends on | Status |
+|---|---|---|---|---|
+| V2-1 | B | B1 — Member-role refactor (Citizen-default, others unfilled) | — | **SHIPPED** |
+| V2-2 | B | B5 — Storage backend abstraction + SQLite impl + migration tool | — | **SHIPPED** (file/SQLite/DynamoDB + `hub migrate`) |
+| V2-3 | H | H1 — Hestia vault (passphrase-first; hardware optional) | — | Hestia track |
+| V2-4 | H | H2-H3 — Hestia member CLI + multi-hub connector | H1 | Hestia track |
+| V2-5 | U | U1+U2 — web4-core PRs: multi-fill RoleAssignment + DelegatedAuthority | — | web4-core track |
+| V2-6 | U | U3 — Law schema PR upstream | — | web4-core track |
+| V2-7 | B | B2 — Hestia-LCT-as-Sovereign integration | H2 + U3 | **SHIPPED** |
+| V2-8 | B | B4 — Law interpreter; PolicyEntity uses it | U3 + B5 | **SHIPPED** (gates writes *and* reads) |
+| V2-9 | B | B3 — Sovereign Council mechanics | U1+U2 + B2 | **SHIPPED** (M-of-N propose/sign/threshold) |
+| V2-10 | H | H4 — Hestia delegation primitives | U2 | Hestia track |
+| V2-11 | H | H5 — AI-variant Hestia | H1+H4 | Hestia track |
+| V2-12 | B | B7 — Member self-add flow | H3 + B4 + B5 | **SHIPPED** (+ admission queue/operator GUI) |
+| V2-13 | B | B8 — AI role-filler runtime | U2+U4 + B4 + H5 | future |
+| V2-14 | C | C1-C4 — Reference AI role-fillers (parallel, community-led) | B8 (API) | future (community-led) |
+| V2-15 | B | B6 — Multi-tenant deployment | B5 | future |
+| V2-16 | B | B9 — Admin web UI | B7 + B8 | **SHIPPED** (`/admin` + operator plane) |
+| V2-17 | B | B10 — HTTPS + discovery | B9 | partly (`.well-known` shipped) |
+| V2-18 | B | B11 — Cloud deployment artifacts | B5 + B10 | future |
 
 V2 done when V2-18 ships. That's the "deployable as production community infrastructure" target. V3 is whatever V2 didn't address — likely federation specifics, advanced AI role coordination, performance work at >1M scale.
 
 This is **not** a calendar plan. It's a dependency-graph order. Pace is set by how fast each piece can be done well, not by a roadmap.
+
+---
+
+## Shipped beyond the original plan
+
+Several subsystems were not in the original track structure above but have since shipped. Recorded here so the architecture stays honest about current state.
+
+- **Hub encrypt-at-rest enclosure.** The hub now protects its own keys without requiring an external Hestia: Sovereign identity encrypted at rest, `hub seal-identity` (migrate a plaintext identity in place), unlock-first boot into a degraded **locked shell** (tier-0 surface, no stored passphrase), runtime ignition via an unlock seam (incl. a tier-2 **M-of-N witnessed** unlock grant) and `rotate-passphrase`. SQLCipher-encrypted state + encrypted ledger complete it. (Updates Commitment #8.)
+- **Sealed channels + discovery.** Sealed member↔hub E2E channel; paired member↔member channels (ECDH + ChaCha20-Poly1305, forward secrecy via ephemeral session keys); `find_members` (hub gates, membot engine); `request_intro`/`list_intros`/`respond_intro` (the consent half of discovery); external→citizen bootstrap (`request_citizenship`) over the channel. PolicyEntity gates channel reads with MRH-style result bounding.
+- **EUDI / `did:web4`.** OID4VCI issuer (membership SD-JWT-VCs) + OID4VP verifier, with a RemoteSigner issuer, and `did:web4` identifiers. Society-scale verifiable credentials.
+- **Constellation attestation.** Hub-side verify + challenge/present channel tools.
+- **Member admission queue + operator plane.** Self-add via signed envelope plus a no-restart operator GUI (admit/deny/re-key/remove) on the operator plane (`127.0.0.1:8772`). (Realizes B7 + B9.)
+- **ReferencedAct + hub→citizen notifications.** Acts can reference prior acts; the hub notifies citizens. (Phase-0 Gap A.)
+- **Open-core plugin seam.** The generic `hub-plugin` seam — canonical `gate → handle → scope` dispatch path — is promoted to open core (public). Advanced role-fillers can plug in behind it.
 
 ---
 
@@ -301,13 +318,15 @@ This is **not** a calendar plan. It's a dependency-graph order. Pace is set by h
 
 ## Implications for MVP — what to revisit before V2 starts
 
-Three MVP artifacts conflict with the new commitments and should be flagged for V2-1 cleanup:
+> **RESOLVED.** All three MVP conflicts below have been addressed.
 
-1. **`hub gen-lct ./sovereign.json`** — generates an anonymous chapter-specific LCT. This was MVP-pragmatic. V2 deprecates it in favor of Hestia-as-Sovereign. The CLI keeps the command for testing + non-Hestia use cases but adds a clear "for production, use Hestia LCT" note.
-2. **`Society::bootstrap` filling all 7 roles with founder** — this was the path of least resistance for MVP. V2-1 changes it to Sovereign + Citizen only; other roles unfilled until law specifies otherwise.
-3. **Daemon hardcodes Sovereign-signs-everything** — MVP shortcut. V2-8 changes it: PolicyEntity (reading the law) decides whether a request is authorized before any signing happens.
+Three MVP artifacts conflicted with the new commitments and were flagged for cleanup:
 
-These are clean migration points, not breaking changes. MVP chapters can run as-is; V2 chapters use the new flow.
+1. **`hub gen-lct ./sovereign.json`** — generated an anonymous chapter-specific LCT. **RESOLVED:** Hestia-as-Sovereign (`hub init --sovereign-hestia`) shipped (V2-7), and the Sovereign identity is now encrypted at rest behind the fail-closed vault rather than sitting in a plaintext JSON file.
+2. **`Society::bootstrap` filling all 7 roles with founder** — **RESOLVED (V2-1):** founder fills Sovereign + Citizen only; other roles unfilled until law specifies otherwise.
+3. **Daemon hardcodes Sovereign-signs-everything** — **RESOLVED (V2-8):** the PolicyEntity, reading the signed law, decides whether a request is authorized (Allow/Deny/Escalate) before any signing happens — on writes *and* reads.
+
+These were clean migration points, not breaking changes. MVP chapters can still run as-is; V2 chapters use the new flow.
 
 ---
 

@@ -66,4 +66,64 @@ Each role's LCT can independently:
 - Be rotated to a new filling entity without breaking the chapter's accountability chain
 - Be inspected via `hub query chapter <chapter-dir>` (which shows role-id ↔ filler-id pairs)
 
-In MVP, the daemon signs all ledger entries with the Sovereign keypair regardless of which role "did" the action (the event's `assigned_by`/`recorded_by` field captures the actor at the data layer). V2 will let each role-filler hold their own keypair and sign role-scoped events directly.
+For single-signer acts, the daemon commits ledger entries under the founding
+Sovereign's executor signature regardless of which role "did" the action (the
+event's `assigned_by`/`recorded_by` field captures the actor at the data layer).
+That's *not* the whole story, though: on the **council path**, co-Sovereign
+holders hold their **own** keypairs and counter-sign acts via
+`SignedEnvelope`s. Each vote is a full, independently verifiable envelope, and
+`CouncilProposal::unique_signers()` counts distinct holder signatures toward the
+M-of-N threshold (see `hub-lib/src/proposal.rs`). So role-fillers holding their
+own keys and signing directly is already real for the Sovereign Council — see
+below.
+
+## Sovereign Council — multi-Sovereign M-of-N
+
+A chapter need not have a single founder holding the Sovereign key forever. The
+**Sovereign Council** is a set of co-Sovereigns who jointly authorize chapter
+acts under an M-of-N threshold.
+
+State (`hub-lib/src/state.rs`):
+
+- `council_holders` — the co-Sovereign LCT ids beyond the founding Sovereign.
+- `council_pubkeys` — each holder's pinned public key, so their envelopes verify
+  without an external registry.
+- `council_threshold` — `(m, n)` where **N is derived as `holders + 1`** (the
+  founding Sovereign always counts as one holder). Removing a holder re-derives
+  N and clamps M down if needed.
+
+Events (ledger-audited): `CouncilMemberAdded`, `CouncilMemberRemoved`,
+`CouncilThresholdChanged`.
+
+CLI:
+
+```bash
+hub council add <chapter-dir> <member-lct-id> --pubkey <hex> [--name ...]
+hub council remove <chapter-dir> <member-lct-id> [--kind resigned|ejected|elected] [--reason ...]
+hub council set-threshold <chapter-dir> <m>      # N derived from holders + 1
+hub council show <chapter-dir>
+```
+
+### The propose / sign flow
+
+When the threshold is **1-of-N** (or no threshold is set), single-signer commits
+still work — the act commits on first signature, with a council audit trail.
+
+When the threshold is **M ≥ 2**, single-signer commits are **blocked**: the
+`/events` and pair endpoints return `HTTP 409` and redirect callers to the
+council flow. Acts then aggregate counter-signatures:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /v1/hubs/:id/council/propose` | A holder proposes an act (their envelope is the first vote). |
+| `POST /v1/hubs/:id/council/sign` | Another holder counter-signs an open proposal by id. |
+| `GET /v1/hubs/:id/council/proposals` | List proposals. |
+| `GET /v1/hubs/:id/council/proposals/:id` | Inspect one proposal. |
+
+Each signature is a `SignedEnvelope` stored in the proposal (not a bare
+signature), so every vote stays independently re-verifiable after the fact. Only
+council holders (including the founding Sovereign) may propose or sign; members
+cannot. When unique holder signatures reach M, the hub appends the proposed event
+to the ledger and marks the proposal `Committed` with the resulting
+`entry_index`. Proposals expire after a TTL (default 24h) if the threshold isn't
+met.

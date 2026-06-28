@@ -1,6 +1,6 @@
 # LCT Paired Channels — PRD
 
-**Status:** Architecture + sprint plan. Not yet implemented.
+**Status:** Sprints A–F shipped; G/H/I/J follow-on.
 **Audience:** Anyone implementing the sprints, anyone evaluating "what is a Web4 channel", anyone integrating Hestia / ACT / future societies with hub-mediated comms.
 **Spans repos:** `web4-core` (ECDH primitive), `web4/hub` (events, state, endpoints, law integration).
 
@@ -81,8 +81,8 @@ Each term in `Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP` gets activated by pa
 
 The hub already exposes MCP endpoints. Two ways paired channels engage MCP:
 
-1. **New MCP-callable surface for channel ops** — `pair_request`, `pair_send`, `pair_recv`, `pair_list`. The channel mechanism itself is a Web4 primitive reached through the same tool-call shape as everything else.
-2. **Channels are the transport for hub-mediated MCP tool calls** (post-2026-06-09 reframe; see §0.1 + Sprint J). Citizen-tier-and-above tool calls on the hub MCP server travel over a paired channel between caller-LCT and hub-LCT. The channel is the I/O membrane through which the contract surface operates. *"The channel IS the identity."*
+1. **REST surface for pair lifecycle ops.** Pairing is driven through the signed-envelope REST endpoints, not bespoke MCP verbs: `POST pairs/request`, `POST pairs/{id}/confirm`, `POST pairs/{id}/revoke`, `GET pairs`, `GET pairs/{id}`, and `POST/GET pairs/{id}/messages` (the canonical list is in §4.4). The pair mechanism is a Web4 primitive reached through the same envelope-signing shape as every other consequential act.
+2. **The member↔hub sealed channel is the transport for hub-mediated tool calls** (post-2026-06-09 reframe; see §0.1 + Sprint J). Citizen-tier-and-above tool calls travel over `POST /v1/hubs/{id}/channel` between caller-LCT and hub-LCT — the sealed request authenticates the caller (AEAD open) AND decrypts in one step, and the response is sealed back. The channel tool set is: `query_hub`, `list_members`, `find_skill`, `find_members`, `request_intro`, `list_intros`, `respond_intro`, `notifications`, `referenced_act`, `constellation_challenge`, `present_constellation` (plus `request_citizenship` for the external tier). The channel is the I/O membrane through which the contract surface operates. *"The channel IS the identity."*
 
 ### RDF — ontological backbone
 
@@ -171,16 +171,26 @@ pub pairs: BTreeMap<Uuid, PairState>,
 
 pub struct PairState {
     pub id: Uuid,
-    pub a: Uuid,                    // initiator LCT
-    pub b: Uuid,                    // counterparty LCT
+    pub initiator: Uuid,            // initiator LCT
+    pub counterparty: Uuid,         // counterparty LCT
     pub purpose: String,
-    pub status: PairStatus,         // Pending | Active | Revoked | Expired
-    pub created_at: DateTime<Utc>,
+    pub status: PairStatus,         // stored: Pending | Active | Revoked
+    pub proposed_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
     pub confirmed_at: Option<DateTime<Utc>>,
     pub revoked_at: Option<DateTime<Utc>>,
+    pub revocation_kind: Option<PairRevocationKind>,
+    pub revocation_reason: Option<String>,
     pub message_count: u64,         // for V3 trust accrual signal
+    // Sprint F: per-session ephemeral X25519 pubkeys (hex) for forward secrecy
+    pub initiator_ephemeral_pub_hex: Option<String>,
+    pub counterparty_ephemeral_pub_hex: Option<String>,
 }
 ```
+
+The stored `PairStatus` enum is only `Pending | Active | Revoked`. `Expired`
+is **derived**, not stored — `PairState::effective_status(now)` returns
+`"expired"` when an `Active` pair is past its `expires_at`.
 
 Projection updates on each lifecycle event. Existing per-member views in admin UI gain a "pairs" tab.
 
@@ -306,18 +316,24 @@ Each sprint is sized for one focused work session. Sprints land in the order lis
 
 ### Sprint J — Channel-multiplex the hub MCP/REST tool endpoints
 
-**Status:** gating for the contract-call reframe (§0.1). Should land before G/H/I make full sense.
+**Status:** *Member↔hub sealed channel SHIPPED.* The transport itself —
+`POST /v1/hubs/{id}/channel`, with caller authentication via AEAD open, tier
+resolution from the channel binding, `gate_read` PolicyEntity-on-reads, and
+`ReadScope` tier bounding — is live (`dispatch_channel` in `rest.rs`). What
+remains pending is only **multiplexing the legacy plaintext tool endpoints**
+(`declare_skill` / `record_event`) over the channel; the channel-native tool
+set already runs sealed.
 
-**Motivation:** HUB's authz/confidentiality model (`hub-to-legion-authz-confidentiality-model-2026-06-09.md`, canonical home [`V2-V3-ARCHITECTURE.md` §8](V2-V3-ARCHITECTURE.md)) requires citizen-tier-and-above tool calls to travel over paired channels — *the channel IS the identity*. The current tool endpoints (POST `/tools/declare_skill`, etc.) take HTTP+TLS POST requests and authenticate by request payload, which is the bearer-token-style framing the model explicitly rejects.
+**Motivation:** HUB's authz/confidentiality model (`hub-to-legion-authz-confidentiality-model-2026-06-09.md`, canonical home [`V2-V3-ARCHITECTURE.md` §8](V2-V3-ARCHITECTURE.md)) requires citizen-tier-and-above tool calls to travel over the sealed channel — *the channel IS the identity*. The remaining legacy plaintext tool endpoints authenticate by request payload, which is the bearer-token-style framing the model explicitly rejects; they are the ones still to migrate.
 
-**Goal:** route state-mutating and citizen-tier-and-above tool calls through established paired channels. The pair channel between the requestor's LCT and the hub's LCT becomes the wire over which the tool request travels, with the response re-encrypted over the same channel.
+**Goal:** route the remaining state-mutating legacy tools through the sealed channel. The channel between the requestor's LCT and the hub's LCT is the wire over which the tool request travels, with the response sealed back over the same channel.
 
 **Deliverables:**
-- Tool dispatch reads the request from the channel ciphertext (AEAD open), evaluates per PolicyEntity + Law Oracle, writes the response back to the same channel re-encrypted.
-- Tier resolution from channel binding: the channel's counterparty LCT determines tier (no-LCT / external / citizen / role / constellation) per HUB's authz model.
-- Witnessing residue per smart-contract proposal §6.5: hash of (request, response) committed to the ledger as the V3 attestation signal.
-- Existing `open_channel` + `HubChannel` (member-↔-hub channel, hestia integration) is the V1 transport — reuse, don't re-design.
-- HTTP plaintext POST endpoints remain available for no-LCT-tier (public, plaintext) only; citizen-tier-and-above are refused with `capability_violation` witnessed.
+- **Shipped:** Channel dispatch reads the request from the channel ciphertext (AEAD open), resolves tier from the counterparty LCT (no-LCT / external / citizen / sovereign), evaluates per PolicyEntity (`gate_read`) + bounds results by `ReadScope`, and seals the response back.
+- **Shipped:** Tier resolution from channel binding (`dispatch_channel`): caller is `sovereign` / `citizen` (member) / external; external LCTs may only `request_citizenship`.
+- **Pending:** Witnessing residue per smart-contract proposal §6.5 (hash of (request, response) committed to the ledger as the V3 attestation signal) for the multiplexed legacy tools.
+- **Shipped:** The member↔hub `channel_request` path is the V1 transport — reuse, don't re-design.
+- **Pending:** retiring the plaintext POST tool endpoints (`declare_skill` / `record_event`) at citizen-tier-and-above, refusing them with `capability_violation` witnessed once multiplexed.
 
 **Tests:**
 - Smoke: open channel as citizen, call `declare_skill` over the channel, verify ledger event + queryable state both update + response received over channel.
@@ -410,11 +426,72 @@ Sprint J is the operational landing point for the smart-contract proposal's auth
 
 **MVP (Sprints A-F):** shipped 2026-06-08.
 
-**Next concrete commit candidate (Sprint J):** channel-multiplex the hub tool endpoints. The smallest version is probably: route `declare_skill` over an existing `HubChannel` end-to-end, verify the smoke test, and refuse plaintext POST at citizen-tier with `capability_violation` witnessed. Once that one tool works end-to-end on the channel, the others follow the same pattern.
+**Sprint J — what already ships:** the member↔hub sealed channel (`POST /v1/hubs/{id}/channel`) is live, with the channel-native tool set (`query_hub`, `list_members`, `find_skill`, `find_members`, `request_intro`/`list_intros`/`respond_intro`, `notifications`, `referenced_act`, `constellation_challenge`/`present_constellation`, and `request_citizenship` for the external tier) running sealed under tier resolution + `gate_read` + `ReadScope`. The remaining work is narrow: multiplex the legacy plaintext tools (`declare_skill` / `record_event`) over the same channel and then refuse their plaintext POST at citizen-tier with `capability_violation` witnessed. Once one legacy tool works end-to-end on the channel, the others follow the same pattern.
 
 Sprint J's smoke harness should also include the conjunction check from §6.3 of the smart-contract proposal — for every state-mutating tool, assert ledger event AND queryable state both update (PR #292's lesson made permanent).
 
 **Then:** G/H/I in order, gated on proposal §6 settling.
+
+---
+
+## 10. Shipped reality (as built)
+
+The sprint plan above is the design narrative; this section records what is
+actually live in the code, beyond what the plan's framing alone conveys.
+
+### 10.1 The member↔hub sealed channel is the realized transport
+
+`POST /v1/hubs/{id}/channel` (`channel_request` → `dispatch_channel` in
+`rest.rs`) is the working sealed transport for citizen-tier reads/acts. Sealing
+uses **X25519 ECDH + ChaCha20-Poly1305** (the same primitives §4.1 specifies):
+the sealed request authenticates the caller (AEAD open) *and* decrypts in one
+step, and the response is sealed back over the same channel. Tier is resolved
+from the channel binding (sovereign / citizen-member / external), reads pass
+`gate_read` (PolicyEntity) and are bounded by `ReadScope` for the tier.
+
+### 10.2 Consent intros — the bootstrap for direct member↔member pairs
+
+`request_intro` / `list_intros` / `respond_intro` (channel tools) implement the
+consent half of discovery. An intro is mutual-approval: when the target
+accepts, **each party is handed the other's pinned pubkey** (`peer_lct` +
+`peer_pubkey_hex`), which is exactly what a direct member↔member pair_channel
+needs to derive its shared secret. Because both halves ride the sealed channel,
+both parties hold pinned channel keys by the time an intro is accepted.
+
+### 10.3 Semantic member discovery — `find_members`
+
+`find_members` is live: the hub is the front door (gating + tier scoping), and
+membot is the engine (the sidecar does embedding + 3-signal search). `top_k` is
+bounded by the tier cap; member names are re-attached from the hub's
+authoritative encrypted registry (PII lives once, in the hub, not the cart).
+
+### 10.4 Notification poll-floor + referenced acts
+
+`notifications` is the delivery floor: a citizen drains its pending sealed
+notices from the per-LCT queue (push to a registered LCT-MCP endpoint is the
+future optimization on the same queue). `referenced_act` lets a caller witness
+a generic `web4_core::act::Act` addressed to a core `ActAddress`
+(Peer/Citizen/Role/Society/FutureSelf), with a `content_hash` so the witnessed
+record binds to a specific version and can't silently drift. Together they back
+the hub→citizen push used when an intro is accepted (`notify:intro_accepted`).
+
+### 10.5 Constellation attestation
+
+`constellation_challenge` mints a nonce bound to the `pair_id`;
+`present_constellation` verifies a `ConstellationAttestation` whose owner key is
+checked against the caller's **pinned** resolver pubkey (no pinned key =
+reject; never fall back to a self-carried key). The derived assurance tier binds
+to the channel `pair_id` — the `assurance` hook `ReadScope` reserves. The member
+side ships in hestia (`core/src/constellation.rs`); this is the verifier half.
+
+### 10.6 The pair CLI
+
+The `hub` binary ships client-side pair crypto so smoke scripts and operators
+can drive the channel end-to-end:
+
+- `hub pair-generate-ephemeral` — mint a per-session ephemeral X25519 keypair (Sprint F forward secrecy).
+- `hub pair-encrypt` — seal a plaintext to a peer pubkey under a `pair_id` (X25519 ECDH + ChaCha20-Poly1305).
+- `hub pair-decrypt` — the symmetric inverse; errors if AEAD fails.
 
 ---
 

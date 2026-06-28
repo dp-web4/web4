@@ -1,19 +1,36 @@
 # Hestia Mode
 
-**Status:** V2-7 Step 3b — landed end-to-end including the ergonomic `hub init --sovereign-hestia` CLI. Hub binary holds NO Sovereign keypair during init or serve.
+**Status:** Landed end-to-end, including the ergonomic `hub init --sovereign-hestia` CLI. Hestia mode is now one `SignerKind` under the broader **SwappableSigner** model (below). Hub binary holds NO Sovereign keypair during init or serve in this mode.
 
-In Hestia mode, the hub holds **NO Sovereign keypair**. Every signature attributed to the Sovereign is produced by a remote signer (Hestia) that the hub calls over HTTP. This honors architecture commitment #8 (secrets in vault only) on the hub side.
+## The signer abstraction (the real model)
+
+The hub does not have a binary "Local vs Hestia" personality. Every signature
+flows through **one `SwappableSigner`** (`hub-lib/src/signer.rs`) that wraps a
+`RemoteSigner` whose `SignerKind` is one of:
+
+- **`LocalKeypair`** — `LocalKeypairSigner`, signs in-process from a keypair the hub holds.
+- **`HestiaCallback`** — `HestiaCallbackSigner`, POSTs a sign-request to the operator's Hestia vault over HTTP; the hub only ever sees a public key (to verify) and signatures Hestia returns. *This is "Hestia mode."*
+- **`Locked`** — `LockedSigner`, fail-closed: every key op is denied. The hub still runs (serves tier-0 reads, accepts unlock) but cannot sign until ignited.
+
+Because the seam is `s.signer.sign(..)` everywhere, the backing signer can be
+**swapped at runtime** (`SwappableSigner::swap`) with no restart and no change
+at any call site. This is what makes the locked-shell → ignited transition (§
+*Locked shell + ignition*) possible.
+
+In **Hestia mode**, the hub holds **NO Sovereign keypair**: the installed signer
+is `HestiaCallback`, and every Sovereign signature is produced remotely. This
+honors architecture commitment #8 (secrets in vault only) on the hub side.
 
 ## Why this matters
 
-The MVP convention — operator's IdentityFile sitting on disk, hub loads it at `serve` time, hub keeps the keypair in process — is convenient but conflicts with commitment #8. A compromised hub process = compromised Sovereign keys. Hestia mode moves the keypair into the operator's Hestia vault; the hub only ever sees a public key (to verify) and signatures Hestia returns. Compromising the hub no longer compromises the Sovereign.
+The MVP convention — operator's IdentityFile sitting on disk, hub loads it at `serve` time, hub keeps the keypair in process — is convenient but conflicts with commitment #8. A compromised hub process = compromised Sovereign keys. Hestia mode moves the keypair into the operator's Hestia vault; the hub only ever sees a public key (to verify) and signatures Hestia returns. Compromising the hub no longer compromises the Sovereign. The `Locked` kind goes further still: a hub can boot with *no* usable key at all and be ignited in place.
 
 ## What's the same
 
 - Chapter storage (`charter.json` / `society.json` / `chapter.db`): identical layout.
 - Ledger entries: identical schema. The signature in each entry is now Hestia-produced rather than hub-produced; the chain verifies the same way.
 - REST API surface: identical endpoints, identical wire shapes.
-- MCP tool surface: **disabled** in Hestia mode (MCP still loads keypair directly; signer integration arrives in V2-7 Step 4).
+- MCP / plugin tool surface: routes through the signer abstraction. `PluginCtx::sign` signs as the hub LCT whether the hub holds the key (Local) or signs via a remote callback (Hestia) — it is **not** disabled in Hestia mode.
 - Sync CLI acts (`hub add-member`, etc.): refuse with a clear error pointing operators to REST.
 
 ## What's different
@@ -22,11 +39,18 @@ The MVP convention — operator's IdentityFile sitting on disk, hub loads it at 
 |---|---|---|
 | Sovereign keypair | In hub process | In Hestia vault only |
 | `[sovereign]` config | `lct_path = "..."` | `hestia_callback_url`, `lct_id`, `pubkey_hex` |
-| Genesis signing | Hub signs in-process | Hub posts to Hestia callback (TODO: ergonomic init CLI) |
+| Genesis signing | Hub signs in-process | Hub posts to Hestia callback (via `hub init --sovereign-hestia`) |
 | REST event signing | Hub signs in-process | Hub posts to Hestia callback per event |
-| MCP server | Enabled | Disabled (sub the REST API) |
+| MCP server | Enabled | Enabled (plugin `sign` routes through the signer → Hestia callback) |
 | Sync CLI acts | Enabled | Disabled (use REST API) |
-| verify-ledger | Loads IdentityFile | Uses pubkey from config |
+| verify-ledger | Loads IdentityFile for the pubkey | Uses pubkey from config |
+
+> **Note (encrypted-at-rest):** the identity-resolution column above is only
+> half the story. `verify-ledger` opens the hub's state store, and on a hub
+> whose store is encrypted at rest it must derive the SQLCipher key from the
+> vault passphrase (`HUB_PASSPHRASE` / TTY prompt) to open it — fail-closed
+> otherwise. On such a hub `verify-ledger` cannot run unattended without the
+> passphrase, in either signing mode.
 
 ## Configuration
 
@@ -118,16 +142,57 @@ ls ./my-chapter                       # → charter.json, society.json, ledger.j
                                       #   (no IdentityFile copied or needed)
 
 # 5. Serve + drive a REST event
-hub serve ./my-chapter --port 8770    # → "MCP tools: (disabled — Hestia-mode chapter)"
-                                      # → REST: every event signed via the Hestia callback
+hub serve ./my-chapter --port 8770    # → MCP tools enabled; plugin `sign` routes through the signer
+                                      # → REST + MCP: every event signed via the Hestia callback
 ```
 
 After init, the hub process at no point sees the private key. The chain still verifies because the pubkey is in `config.toml`.
 
-## What's still ahead (V2-7 §4)
+## What's still ahead
 
-- **MCP signer integration**: MCP tools currently refuse to open Hestia-mode chapters with a clear error pointing to REST. Once MCP routes through the signer abstraction (same shape as REST does today), MCP tools work on Hestia chapters too.
 - **Sync CLI acts on Hestia chapters**: design TBD — sync CLI on async-signing wants either an async-CLI variant or block_on'd internal client.
+
+*(Done since this doc was first written: **MCP signer integration** — MCP/plugin tools now route through the signer abstraction (`PluginCtx::sign`), the same shape REST uses, so they work on Hestia chapters too.)*
+
+## Locked shell + ignition (runtime model)
+
+A hub whose state is encrypted at rest boots **unlock-first**. On `serve` the
+daemon tries to open the encrypted store with whatever key is available — and
+keeps **no passphrase on disk or in env**, by doctrine. If the store opens
+(plaintext / NULL-keyed / fresh hub) it boots normally. If it fails closed
+(encrypted, no key), the hub starts in a **locked shell**: it installs a
+`LockedSigner`, serves only tier-0 reads (e.g. `GET /v1/hubs/:id/law`), and
+refuses to sign or open channels — every key op denied, fail-closed.
+
+The hub is then **ignited in place** (no restart) by presenting the passphrase
+to an unlock slot, which derives the key, opens the store, and
+`SwappableSigner::swap`s the real `LocalKeypairSigner` in for the
+`LockedSigner`. Unlock slots:
+
+- `POST /v1/hubs/:id/unlock` — tier-1 stub-console / passphrase unlock; local-only + rate-limited.
+- `POST /v1/hubs/:id/unlock/challenge` + `POST /v1/hubs/:id/unlock/attest` — tier-2 M-of-N witnessed unlock: the hub mints a challenge, admins attest, a private verifier plugin judges the quorum (501 when no verifier is configured).
+
+## Encrypted-at-rest identity + its CLI
+
+The Sovereign identity is stored encrypted (the vault doctrine: a private key is
+never written in the clear; "no passphrase" must be an explicit NULL choice,
+never a silent default). Supporting CLI:
+
+- `hub seal-identity <path>` — migrate a plaintext IdentityFile to an encrypted vault in place (re-writes encrypted under the resolved passphrase; an already-encrypted file is re-keyed).
+- `hub rotate-passphrase <hub-dir>` — rotate the vault passphrase to an operator-chosen (memorable) one; re-keys both the identity and the SQLCipher state store. Interactive (run at a console).
+- `hub export-public-identity <hub-dir>` — export just the public identity (seeds the pubkey-only material a peer / resolver needs, without the private key).
+
+Passphrase resolution is fail-closed everywhere: `HUB_PASSPHRASE` env (set,
+including empty = a deliberate NULL) → interactive TTY prompt → error. There is
+no silent "use plaintext" outcome.
+
+## EUDI: the hub as credential issuer + verifier
+
+At society scale the hub speaks **EUDI** wallet protocols, and this is the most
+prominent consumer of the `RemoteSigner` abstraction:
+
+- **OID4VCI (issuer).** The hub issues `Web4Membership` **SD-JWT-VC** credentials to its own members, signing the credential through its `RemoteSigner` — so issuance works whether the hub holds the key (Local) or signs via the Hestia callback (it may hold no keys in process at all). Routes: `GET /v1/hubs/:id/.well-known/openid-credential-issuer` (issuer metadata), `POST /v1/hubs/:id/nonce`, `POST /v1/hubs/:id/credential`. The holder-key proof in the credential request — which must be a pinned member key — is the auth (credential issuance is a direct wallet pull, not a sealed-channel tool).
+- **OID4VP (verifier / relying party).** The hub verifies presentations: `POST /v1/hubs/:id/vp/request`, `POST /v1/hubs/:id/vp/response`. `web4-core::oid4vc` / `sd_jwt_vc` do the heavy lifting; the REST handlers are thin wrappers.
 
 ## See also
 
