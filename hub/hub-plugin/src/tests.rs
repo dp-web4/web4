@@ -13,13 +13,13 @@ impl PluginCtx for MockCtx {
     fn caller(&self) -> &Caller {
         &self.caller
     }
-    fn hub_lct(&self) -> LctId {
+    fn signer_lct(&self) -> LctId {
         Uuid::nil()
     }
     fn sign(&self, _bytes: &[u8]) -> Result<Vec<u8>, PluginError> {
         Ok(vec![0u8; 64])
     }
-    fn hub_pubkey_hex(&self) -> String {
+    fn signer_pubkey_hex(&self) -> String {
         "00".repeat(32)
     }
     fn state(&self) -> &Value {
