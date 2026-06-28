@@ -86,7 +86,7 @@ Authentication and authorization are essential for controlling access to Web4 re
 
 ### 3.1. Authentication
 
-Authentication in Web4 is based on digital signatures. An entity authenticates itself by signing a challenge with its private key. The signature can then be verified by the other party using the entity's public key. See `web4-handshake.md` Section 6.0.5 for the normative session-binding, freshness, nonce-uniqueness, and replay-protection requirements that a conformant challenge-response MUST satisfy.
+Authentication in Web4 is based on digital signatures. An entity authenticates itself by signing a challenge with its private key. The signature can then be verified by the other party using the entity's public key. See `web4-handshake.md` §6.0.5 (Binding to Session) for the normative session-binding requirement, and §9 (Anti-Replay & Clocks) for the freshness, nonce-uniqueness, and replay-protection requirements that a conformant challenge-response MUST satisfy; the `HandshakeAuth` `nonce`/`ts` fields these rules operate on are defined in §6.1.
 
 ### 3.2. Authorization
 
