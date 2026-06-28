@@ -7,6 +7,8 @@
 **License:** AGPL-3.0-or-later (inherits web4 root)
 **Repo location:** `web4/hub/` (new Cargo workspace, sibling to `web4/web4-core/` and `web4/web4-trust-core/`)
 
+> **STATUS as of 2026-06:** This is the original pre-build PRD. Much of the "Out of scope (V2+)" list below has since shipped: encrypt-at-rest vault/SQLCipher state, machine-enforced chapter law (PolicyEntity gate), sealed member channels + intros + `find_members`, EUDI/`did:web4`, Sovereign Council M-of-N, admin/operator web UI + admission queue, and the open-core plugin seam. The "Out of scope" list below was the **pre-build** scope; items now shipped are annotated inline (**SHIPPED**). For the live architecture see `docs/V2-V3-ARCHITECTURE.md` and the README.
+
 ---
 
 ## 1. Background
@@ -35,7 +37,7 @@ A single-binary Rust daemon that implements a minimum-viable Web4 society:
 
 - **7-role state**: Sovereign, Law-Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen
 - **Founding charter** signed by Sovereign LCT
-- **Append-only witnessed event ledger**, file-persisted
+- **Append-only witnessed event ledger** (file-persisted in the MVP; storage is now backend-abstracted and **encrypted-at-rest by default** — file is one backend among several)
 - **MCP server** as the I/O membrane (per Web4 canonical equation: MCP is *the* outward-facing surface, not an optional accessory)
 - **Admin CLI** for chapter operators (parallel to MCP for human use)
 - **Docker compose** deployment (`docker compose up` brings up the daemon)
@@ -59,13 +61,13 @@ Inheritance discipline matters because (per `CLAUDE.md`): web4 is in *developmen
 
 These are deliberately deferred. Each is real but not MVP.
 
-- **Member Presence Toolkit (Hestia multi-hub extension)**: separate package. Members read the hub via MCP in MVP; the per-member portable-identity layer comes in a follow-on.
+- **Member Presence Toolkit (Hestia multi-hub extension)**: separate package. Members read the hub via MCP in MVP; the per-member portable-identity layer comes in a follow-on. **PARTLY SHIPPED:** members are no longer MCP-read-only — sealed member↔hub channels, paired member↔member channels, `find_members` (semantic discovery), and `request_intro`/`respond_intro` consent flows all ship. Hestia-as-a-separate-package is still true.
 - **Central Overlay**: cross-chapter federation, global skill graph, partner-lab programmatic aggregation. Phase 3 in the inventory doc. MVP is one chapter.
-- **Public web UI for members**: admin CLI + chapter README is the MVP surface. Web UI is V2 (likely Tauri or Leptos to stay Rust-aligned, but format TBD).
+- **Public web UI for members**: admin CLI + chapter README is the MVP surface. Web UI is V2 (likely Tauri or Leptos to stay Rust-aligned, but format TBD). **PARTLY SHIPPED:** an operator/admin web UI ships — read-only dashboard at `/admin` plus a write-capable operator plane (admit/deny admissions, add/re-key/remove members, no restart) bound to `127.0.0.1:8772`. A *member-facing* public web UI is still future.
 - **Slack bot integration**: deferred until one chapter is running and Slack-coexistence requirements are empirical, not designed. Concrete > speculative.
-- **ACT-anchored ledger**: MVP uses local file ledger. ACT anchoring is V2 — useful for tamper-evidence at federation scale but not needed for a single chapter.
-- **Hardbound policy engine integration**: MVP encodes chapter law as text (Sovereign-signed but not machine-enforced). Full policy enforcement is V2 — and requires resolving the Hardbound canonical Web4 alignment debt (per `CANONICAL_AUDIT.md` 2026-01-31).
-- **Federation between chapters**: inter-society protocol exists in spec; MVP doesn't exercise it. V2.
+- **ACT-anchored ledger**: MVP uses local file ledger. ACT anchoring is V2 — useful for tamper-evidence at federation scale but not needed for a single chapter. **PARTLY SHIPPED:** storage is now backend-abstracted (file / SQLite / DynamoDB) and the ledger is **SQLCipher-encrypted at rest** by default. ACT anchoring specifically is still future.
+- **Hardbound policy engine integration**: MVP encodes chapter law as text (Sovereign-signed but not machine-enforced). Full policy enforcement is V2 — and requires resolving the Hardbound canonical Web4 alignment debt. **SHIPPED (hub-native):** chapter law is now **machine-enforced** — the PolicyEntity gate evaluates every consequential request against the signed law and returns Allow/Deny/Escalate, on writes *and* reads. The *Hardbound* policy-engine integration specifically (the licensable enterprise layer) remains a separate V2+ track.
+- **Federation between chapters**: inter-society protocol exists in spec; MVP doesn't exercise it. V2. **PARTLY SHIPPED:** inter-society primitives now ship — `find_members`, `request_intro`/`respond_intro`, `did:web4` + EUDI credentials, and the `GET /.well-known/web4-hub.json` discovery endpoint. The Central Overlay (cross-chapter aggregation / global skill graph) is still future.
 - **Skill attestation by chapter witnesses (T3 accrual)**: MVP records skill *declarations*; T3 attestation chain is V2.
 
 ## 6. Users + use cases
@@ -92,7 +94,7 @@ These are deliberately deferred. Each is real but not MVP.
 - Role assignments land in the ledger as witnessed events
 
 ### FR3 — Event ledger
-- Append-only JSONL at `<chapter-dir>/ledger.jsonl`
+- Append-only JSONL at `<chapter-dir>/ledger.jsonl` (MVP default; the ledger is now one backend among several behind a storage abstraction, encrypted-at-rest by default)
 - Each entry: timestamp, actor LCT, action, payload, signature, prev-entry hash
 - Verifier via web4-core's existing chain verifier — no new verifier code
 - Events include: member added, member removed, role assigned, event recorded, charter amended
@@ -166,11 +168,11 @@ These don't block MVP build but will influence V2 + pilot operations. They need 
 7. Partner-lab engagement model (Citizen role vs peer-society federation)
 8. Existing community member directory backward-compatibility (migration shape)
 
-Full context: `private-context/proposals/2026-06-06-aic-hub-package/06-inventory-and-build-plan.md` §Open questions.
+Full context: pilot inventory + build plan (internal `private-context` proposal, not part of this public repo).
 
 ## 13. References
 
-- pilot inventory + build plan: `private-context/proposals/2026-06-06-aic-hub-package/06-inventory-and-build-plan.md`
+- pilot inventory + build plan: internal `private-context` proposal (not part of this public repo)
 - Web4 canonical equation + ontology: `web4/CLAUDE.md`, `web4/STATUS.md`
 - Web4 standard specs: `web4/web4-standard/core-spec/`
 - Web4 core implementation (Rust + Python): `web4/web4-core/`, `web4/web4-trust-core/`

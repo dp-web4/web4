@@ -1,6 +1,12 @@
 # Hub member discovery — `find_members`
 
 > The hub is the front door; **membot is the engine.**
+>
+> **The cart is a pure index — no member PII at rest.** It stores embeddings
+> keyed to opaque member LCTs and nothing else. Names and profiles live once, in
+> the hub's authoritative encrypted registry, and the hub re-attaches them at
+> query time. Member prose exists only in RAM during embedding; it is never
+> persisted.
 
 Semantic member discovery for a Web4 hub. A member asks *"who can help me with
 X?"* over the E2E channel; the hub gates + scopes the request and composes
@@ -17,9 +23,9 @@ rerank).
 
 | File | Role |
 |------|------|
-| `ingest.py` | Reads hub members → free-form prose passages → embeds (pinned **nomic-embed-text-v1.5**) → writes a `.cart.npz` + a passage-index-aligned `members.json` (forward-compat tags). |
-| `sidecar.py` | Long-lived localhost HTTP service. Mounts the cart + holds the model once. `POST /find_members {query, top_k, temperature}` → ranked `{member_lct, name, score, tags}`. `GET /health`. |
-| `test_ingest.py` | Passage/tag contract tests (no model load). |
+| `ingest.py` | Reads hub members → builds free-form prose passages → embeds (pinned **nomic-embed-text-v1.5**) → writes a `.cart.npz` whose stored "text" is the **opaque member LCT** (not the prose) + a passage-index-aligned `members.json` holding only `{member_lct, profile_version}`. The prose is used to compute embeddings in RAM and discarded. |
+| `sidecar.py` | Long-lived localhost HTTP service. Mounts the cart + holds the model once. `POST /find_members {query, top_k, temperature}` → ranked `{member_lct, score}` (plus the echoed `temperature`) — no name, no tags. `GET /health` → `{ok, cart, n_members, fingerprint}`. |
+| `test_ingest.py` | Passage/index contract tests (no model load). |
 
 The Rust hub-side `find_members` channel tool (in `hub-daemon/src/rest.rs`)
 calls the sidecar over localhost, gated by chapter law (`read:find_members`) and
@@ -29,12 +35,17 @@ forthcoming Walk-as-MCP (register-and-gate, not reimplement).
 ## Locked v1 contract (the three adds)
 
 1. **Model pinned** to `nomic-ai/nomic-embed-text-v1.5` (free via `cartridge_builder`).
-2. **Forward-compat tags** per member (`member_lct`, `profile_version`,
-   `last_pair_purpose`) so V3 trust feedback slots in without re-imprinting.
+2. **Pure index, no PII at rest** — the cart stores the opaque `member_lct` as
+   each passage's text; `members.json` carries only `{member_lct, profile_version}`
+   (`profile_version` is a one-way sha256 prefix of the passage, so it changes
+   exactly when a member's profile changes, without storing the content). The
+   `find_members` response is just `{member_lct, score}`; the hub enriches it
+   with name/profile from its encrypted registry.
 3. **Temperature knob from day one** — accepted at the API boundary now;
    precision-only until membot exposes settle-noise in search (then wired through).
 
-Passage shape: `{Name}. {free-form skills/interests prose}. Recent pair purposes: {…}.`
+Passage shape (RAM only, fed to the embedder and discarded): `{Name}. {free-form
+skills/interests prose}.`
 Tuning: `top_k` 10–15, keyword rerank ~0.05/hit, hippocampus-walk off (single-passage profiles).
 
 ## Operate
