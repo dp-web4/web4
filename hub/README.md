@@ -40,6 +40,24 @@ We don't mandate the policy. We insist that whatever the policy is, is followed 
 - **Single binary, single config file** — `docker compose up` deploys; chapter organizer needs no DevOps experience
 - **Local-first** — chapter data stays in the chapter's directory; no telemetry, no vendor data extraction
 
+## Extending the hub (plugin seam)
+
+The hub is **open-core**: the daemon owns the hard parts — authenticating the
+caller, gating by chapter law, bounding results to the caller's tier, and sealing
+the response — and tools plug in behind that. The generic seam lives in the
+[`hub-plugin`](hub-plugin/) crate:
+
+- `ToolPlugin` — implement `name()` + `handle(ctx, args)`; the core runs your
+  handler only after `gate → handle → scope`.
+- `PluginCtx` — the capabilities the core *lends* a plugin (sign as the hub LCT,
+  read projected state, send a sealed payload to a peer). Deliberately generic —
+  the seam never names a specific tool.
+- `PluginRegistry::dispatch` — the canonical `gate → handle → scope` path, the
+  same contract as the daemon's channel dispatch.
+
+This is the keystone of the split: the public core ships the seam, and any
+operator can add their own (or proprietary) handlers without forking the hub.
+
 ## What this isn't (MVP scope)
 
 - Not a Member Presence Toolkit (Hestia multi-hub plugin — separate package, V2)
