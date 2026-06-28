@@ -57,14 +57,16 @@ impl std::error::Error for PluginError {}
 #[async_trait]
 pub trait PluginCtx: Send + Sync {
     fn caller(&self) -> &Caller;
-    /// The hub's own LCT id (its signing identity).
-    fn hub_lct(&self) -> LctId;
-    /// Sign `bytes` as the hub LCT (Ed25519, 64-byte sig). Works whether the hub
-    /// holds the key (Local) or signs via a remote callback (Hestia).
+    /// The local signing identity's LCT id. Scale-agnostic: the **society** LCT
+    /// when this seam runs in a hub, the **owner** LCT when it runs in a
+    /// person-scale node (e.g. a Hestia mini-hub). The same seam, fractally.
+    fn signer_lct(&self) -> LctId;
+    /// Sign `bytes` as the signer LCT (Ed25519, 64-byte sig). Works whether the
+    /// node holds the key (Local) or signs via a remote callback (Hestia).
     fn sign(&self, bytes: &[u8]) -> Result<Vec<u8>, PluginError>;
-    /// Verify side of `sign` — the hub's public key, hex.
-    fn hub_pubkey_hex(&self) -> String;
-    /// Read-only projected hub state (members/roles/…) as opaque JSON.
+    /// Verify side of `sign` — the signer's public key, hex.
+    fn signer_pubkey_hex(&self) -> String;
+    /// Read-only projected node state (members/roles/devices/…) as opaque JSON.
     fn state(&self) -> &Value;
     /// Send an opaque **sealed** payload to a peer LCT over the paired channel
     /// and get the sealed response. Generic — enables fan-out/recursion and
