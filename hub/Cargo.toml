@@ -1,5 +1,5 @@
 [workspace]
-members = ["hub-lib", "hub-daemon"]
+members = ["hub-lib", "hub-daemon", "hub-plugin"]
 resolver = "2"
 
 [workspace.package]
