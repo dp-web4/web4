@@ -2968,6 +2968,21 @@ struct AdmissionLimitsBody {
     review_limit: Option<u32>,
 }
 
+/// Advance a law version on amendment: increment the trailing numeric component
+/// (semver patch), e.g. `1.0.0` → `1.0.1`; fall back to appending `.1` for
+/// non-numeric versions.
+fn bump_law_version(v: &str) -> String {
+    let parts: Vec<&str> = v.split('.').collect();
+    if let Some((last, head)) = parts.split_last() {
+        if let Ok(n) = last.parse::<u64>() {
+            let mut out: Vec<String> = head.iter().map(|s| s.to_string()).collect();
+            out.push((n + 1).to_string());
+            return out.join(".");
+        }
+    }
+    format!("{v}.1")
+}
+
 /// `POST /admin/api/admission-limits` — set the admission repeat/review limits by
 /// **amending chapter law** (law is the single inspectable source of truth — the
 /// operator's choice is written there, witnessed via LawAmended, not a side
@@ -2986,6 +3001,9 @@ async fn admin_set_admission_limits(
         if let Some(r) = body.repeat_limit { adm.repeat_limit = Some(r); }
         if let Some(r) = body.review_limit { adm.review_limit = Some(r); }
     }
+    // Each amendment advances the version (semver patch bump); the witnessed
+    // LawAmended records who/when/sha alongside.
+    law.version = bump_law_version(&law.version);
     let yaml = serde_yaml::to_string(&law)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing law: {e}")))?;
     // Sanity: the amended law must still parse + validate.
@@ -4856,6 +4874,7 @@ norms:
         let law = state.law.read().await.clone().unwrap();
         assert_eq!(law.admission_repeat_limit(), 5);
         assert_eq!(law.admission_review_limit(), 2);
+        assert_eq!(law.version, "1.0.1", "the amendment advances the version (1.0.0 → 1.0.1)");
         assert!(law.admission.as_ref().unwrap().repeat_limit == Some(5), "persisted in the law's admission section");
         // A LawAmended was witnessed.
         let amended = {

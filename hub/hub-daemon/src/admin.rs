@@ -509,13 +509,30 @@ async fn law(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
             );
         }
         Some(yaml) => {
+            // Provenance of the most recent amendment, surfaced from the witnessed
+            // LawAmended entry so it's inspectable here (no ledger-digging).
+            let last_amend = {
+                let ledger = s.ledger.lock().await;
+                ledger.entries().iter().rev().find_map(|e| match &e.event {
+                    HubEvent::LawAmended { amended_by, .. } => Some((e.timestamp, *amended_by)),
+                    _ => None,
+                })
+            };
+            let amended = match last_amend {
+                Some((ts, by)) => format!(
+                    "<dt>Last amended</dt><dd>{} <span class=\"muted\">by {}</span></dd>",
+                    ts.format("%Y-%m-%d %H:%M UTC"), short(&by),
+                ),
+                None => "<dt>Last amended</dt><dd class=\"muted\">never (genesis law)</dd>".to_string(),
+            };
             let law_guard = s.law.read().await;
             if let Some(l) = &*law_guard {
                 body.push_str(&format!(
-                    "<dl class=\"grid\"><dt>Version</dt><dd>{}</dd>\
+                    "<dl class=\"grid\"><dt>Version</dt><dd>{}</dd>{}\
                      <dt>Norms</dt><dd>{}</dd><dt>Procedures</dt><dd>{}</dd>\
                      <dt>Escalation triggers</dt><dd>{}</dd></dl>",
                     html_escape(&l.version),
+                    amended,
                     l.norms.len(),
                     l.procedures.len(),
                     l.escalation.len(),
