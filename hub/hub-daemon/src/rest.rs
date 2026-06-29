@@ -4764,6 +4764,10 @@ norms:
         assert!(html.contains("please let me in"), "applicant message shown");
         assert!(html.contains("admit("), "Admit button wired to the API");
         assert!(html.contains("deny("), "Deny button wired to the API");
+        // The repair-path review queue + reset control render on the same page.
+        assert!(html.contains("Denial reviews"), "review queue section");
+        assert!(html.contains("grantReview(") && html.contains("refuseReview("), "review buttons wired");
+        assert!(html.contains("admissionReset("), "admission-reset control wired");
     }
 
     #[tokio::test]

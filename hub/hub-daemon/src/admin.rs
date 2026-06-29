@@ -782,6 +782,9 @@ function addMember(){
   if(!lct||!pubkey_hex){ alert('LCT id and pubkey (64 hex) are required.'); return; }
   hubAct('/admin/api/members/add',{lct_id:lct,pubkey_hex:pubkey_hex,name:name||null});
 }
+function grantReview(id){ if(confirm('Grant this review? Clears the applicant’s auto-block so they can apply again.')) hubAct('/admin/api/reviews/'+id+'/grant'); }
+function refuseReview(id){ const reason=prompt('Refuse review — reason (optional):'); if(reason!==null) hubAct('/admin/api/reviews/'+id+'/refuse',{reason:reason||null}); }
+function admissionReset(){ const lct=prompt('Admission-reset which LCT id? (clears denial + review standing)'); if(!lct) return; const reason=prompt('Reason (optional):'); if(reason!==null) hubAct('/admin/api/members/'+lct.trim()+'/admission-reset',{reason:reason||null}); }
 </script>"#;
 
 pub(crate) async fn joins_page(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
@@ -841,6 +844,57 @@ pub(crate) async fn joins_page(State(s): State<RestState>) -> Result<Html<String
         }
         body.push_str("</tbody></table>");
     }
+
+    // ── Denial-review queue (the repair path) ──
+    use hub_lib::state::ReviewStatus;
+    let mut reviews: Vec<hub_lib::state::JoinReview> = projected.join_reviews.into_values().collect();
+    reviews.sort_by(|a, b| {
+        let ak = (a.status != ReviewStatus::Pending, std::cmp::Reverse(a.requested_at));
+        let bk = (b.status != ReviewStatus::Pending, std::cmp::Reverse(b.requested_at));
+        ak.cmp(&bk)
+    });
+    let rpending = reviews.iter().filter(|r| r.status == ReviewStatus::Pending).count();
+    body.push_str("<h2 style=\"margin-top:1.5rem\">Denial reviews</h2>");
+    body.push_str(&format!(
+        "<p class=\"muted\">{} pending. A blocked applicant (≥ repeat_limit denials) pleads here; \
+         granting clears their auto-block. &nbsp; \
+         <button onclick=\"admissionReset()\">Admission-reset an LCT…</button></p>",
+        rpending,
+    ));
+    if reviews.is_empty() {
+        body.push_str("<p class=\"muted\">No reviews.</p>");
+    } else {
+        body.push_str("<table><thead><tr><th>Status</th><th>Requested</th><th>LCT</th>\
+                       <th>Plea</th><th>Actions</th></tr></thead><tbody>");
+        for r in &reviews {
+            let status = match r.status {
+                ReviewStatus::Pending => "<span class=\"pill pill-warn\">pending</span>",
+                ReviewStatus::Granted => "<span class=\"pill\">granted</span>",
+                ReviewStatus::Refused => "<span class=\"pill\">refused</span>",
+            };
+            let actions = if r.status == ReviewStatus::Pending {
+                format!(
+                    "<button onclick=\"grantReview('{id}')\">Grant</button>\
+                     <button class=\"danger\" onclick=\"refuseReview('{id}')\">Refuse</button>",
+                    id = r.review_id
+                )
+            } else {
+                let by = r.resolved_by.map(|u| short(&u)).unwrap_or_default();
+                let reason = r.reason.as_deref().map(|x| format!(" — {}", html_escape(x))).unwrap_or_default();
+                format!("<span class=\"muted\">by {}{}</span>", by, reason)
+            };
+            body.push_str(&format!(
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                status,
+                r.requested_at.format("%Y-%m-%d %H:%M"),
+                short(&r.member_lct_id),
+                r.plea.as_deref().map(html_escape).unwrap_or_default(),
+                actions,
+            ));
+        }
+        body.push_str("</tbody></table>");
+    }
+
     body.push_str(OPERATOR_JS);
     Ok(layout(&s, "Admission queue", &body))
 }
