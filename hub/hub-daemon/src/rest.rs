@@ -2005,16 +2005,20 @@ async fn dispatch_channel(
     } else if state.members.contains_key(&caller_lct_id) {
         "citizen"
     } else {
-        // External tier: an authenticated LCT that isn't a member. The only
-        // thing it may do is request citizenship (the encrypted external→citizen
-        // bootstrap). Everything else is refused.
-        if inner.tool == "request_citizenship" {
-            return request_citizenship(s, caller_lct_id, caller_pubkey_hex, &inner.args).await;
+        // External tier: an authenticated non-member. It may request citizenship
+        // (the encrypted external→citizen bootstrap) or — if it's been auto-blocked
+        // after repeated denials — plead for a denial-review (the repair path).
+        // Everything else is refused.
+        match inner.tool.as_str() {
+            "request_citizenship" =>
+                return request_citizenship(s, caller_lct_id, caller_pubkey_hex, &inner.args).await,
+            "request_admission_review" =>
+                return request_admission_review(s, caller_lct_id, &inner.args).await,
+            _ => return Err(ApiError {
+                status: StatusCode::FORBIDDEN,
+                message: "external LCTs may only request citizenship or a denial review".to_string(),
+            }),
         }
-        return Err(ApiError {
-            status: StatusCode::FORBIDDEN,
-            message: "external LCTs may only request citizenship".to_string(),
-        });
     };
 
     // PolicyEntity-on-reads: chapter law decides whether this tier may run
@@ -2370,6 +2374,18 @@ async fn request_citizenship(
                 "admitted": false, "status": "pending_review",
                 "request_id": request_id, "already_pending": true,
             })),
+        AdmissionState::Blocked { denials, can_review } =>
+            return Ok(serde_json::json!({
+                "admitted": false,
+                "status": "blocked",
+                "denials": denials,
+                "can_review": can_review,
+                "message": if can_review {
+                    "admission blocked after repeated denials — request a denial review (request_admission_review)"
+                } else {
+                    "admission blocked; review limit reached — awaiting operator admission-reset"
+                },
+            })),
         AdmissionState::New => {}
     }
     let name = args.get("name").and_then(|v| v.as_str()).map(String::from);
@@ -2530,19 +2546,36 @@ async fn pending_join(s: &RestState, request_id: Uuid) -> Result<hub_lib::state:
     }
 }
 
-/// The applicant's admission state — the basis for idempotent join handling.
+/// The applicant's admission state — drives idempotent + abuse-resistant join handling.
 enum AdmissionState {
     /// Already a member; a repeat join is a no-op.
     Member,
     /// A pending request already exists for this LCT — reuse it, don't queue another.
     Pending(Uuid),
+    /// Auto-blocked: `denials` ≥ the law's repeat_limit. `can_review` is true while
+    /// review requests remain under the law's review_limit (then it's terminal —
+    /// cleared only by an operator admission-reset).
+    Blocked { denials: u32, can_review: bool },
     /// Neither — proceed to evaluate / queue.
     New,
 }
 
-/// Idempotency gate for admission: collapse repeat applications from the same
-/// applicant LCT. Without this, a burst of join submissions (or a retry after an
-/// already-granted admission) piles up duplicate pending requests in the queue.
+/// The effective admission limits — from chapter law, or the defaults when unset
+/// (law is the single source of truth; defaults live in `hub_lib::law`).
+async fn admission_limits(s: &RestState) -> (u32, u32) {
+    match s.law.read().await.as_ref() {
+        Some(l) => (l.admission_repeat_limit(), l.admission_review_limit()),
+        None => (
+            hub_lib::law::DEFAULT_ADMISSION_REPEAT_LIMIT,
+            hub_lib::law::DEFAULT_ADMISSION_REVIEW_LIMIT,
+        ),
+    }
+}
+
+/// Idempotency + abuse-resistance gate. Collapses repeat applications (already a
+/// member / an existing pending request) and enforces the repair-path block:
+/// after repeat_limit denials the applicant is auto-blocked and must request a
+/// denial-review (itself capped at review_limit).
 async fn admission_state(s: &RestState, lct: Uuid) -> AdmissionState {
     let projected = {
         let ledger = s.ledger.lock().await;
@@ -2558,7 +2591,104 @@ async fn admission_state(s: &RestState, lct: Uuid) -> AdmissionState {
     {
         return AdmissionState::Pending(jr.request_id);
     }
+    let standing = projected.admission.get(&lct).copied().unwrap_or_default();
+    let (repeat_limit, review_limit) = admission_limits(s).await;
+    if standing.denials >= repeat_limit {
+        return AdmissionState::Blocked {
+            denials: standing.denials,
+            can_review: standing.reviews < review_limit,
+        };
+    }
     AdmissionState::New
+}
+
+/// Repair path: a blocked applicant pleads for a denial-review (the only
+/// self-service way to clear an auto-block). Valid only while blocked and under
+/// the law's review_limit; idempotent (an existing pending review is returned).
+async fn request_admission_review(
+    s: &RestState,
+    caller_lct_id: Uuid,
+    args: &serde_json::Value,
+) -> Result<serde_json::Value, ApiError> {
+    let can_review = match admission_state(s, caller_lct_id).await {
+        AdmissionState::Member =>
+            return Ok(serde_json::json!({ "status": "already_member" })),
+        AdmissionState::New =>
+            return Err(ApiError::bad_request(
+                "no admission block to review — you can apply directly".to_string())),
+        AdmissionState::Pending(request_id) =>
+            return Ok(serde_json::json!({
+                "status": "pending_review", "request_id": request_id,
+                "note": "a join request is already queued; no review needed yet",
+            })),
+        AdmissionState::Blocked { can_review, .. } => can_review,
+    };
+    // Idempotency FIRST: an outstanding pending review is the applicant's one
+    // attempt — a re-plea returns it (and is NOT a fresh attempt against the
+    // limit). Only creating a *new* review consumes a slot.
+    let existing = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger).join_reviews.values()
+            .find(|r| r.member_lct_id == caller_lct_id
+                && r.status == hub_lib::state::ReviewStatus::Pending)
+            .map(|r| r.review_id)
+    };
+    if let Some(review_id) = existing {
+        return Ok(serde_json::json!({
+            "status": "pending_review", "review_id": review_id, "already_pending": true }));
+    }
+    // No pending review → creating a new one requires a free slot.
+    if !can_review {
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: "review limit reached — awaiting operator admission-reset".to_string(),
+        });
+    }
+    let plea = args.get("plea").and_then(|v| v.as_str()).map(String::from);
+    let review_id = Uuid::new_v4();
+    witness_event(s, HubEvent::MemberJoinReviewRequested {
+        review_id, member_lct_id: caller_lct_id, plea, requested_at: Utc::now(),
+    }).await?;
+    Ok(serde_json::json!({ "status": "review_requested", "review_id": review_id }))
+}
+
+/// Look up a pending denial-review, erroring if unknown or already resolved.
+async fn pending_review(s: &RestState, review_id: Uuid) -> Result<hub_lib::state::JoinReview, ApiError> {
+    let rv = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger).join_reviews.get(&review_id).cloned()
+    };
+    match rv {
+        None => Err(ApiError::not_found(format!("no review {review_id}"))),
+        Some(rv) if rv.status != hub_lib::state::ReviewStatus::Pending =>
+            Err(ApiError::bad_request(format!("review {review_id} is already {:?}", rv.status))),
+        Some(rv) => Ok(rv),
+    }
+}
+
+/// Operator grants a denial-review → clears the applicant's auto-block (their
+/// denial count resets; they may apply afresh).
+async fn grant_review(s: &RestState, review_id: Uuid, resolved_by: Uuid) -> Result<u64, ApiError> {
+    let _rv = pending_review(s, review_id).await?;
+    witness_event(s, HubEvent::MemberJoinReviewResolved {
+        review_id, granted: true, resolved_by, reason: None, resolved_at: Utc::now(),
+    }).await
+}
+
+/// Operator refuses a denial-review (counts toward the review limit).
+async fn refuse_review(s: &RestState, review_id: Uuid, resolved_by: Uuid, reason: Option<String>) -> Result<u64, ApiError> {
+    let _rv = pending_review(s, review_id).await?;
+    witness_event(s, HubEvent::MemberJoinReviewResolved {
+        review_id, granted: false, resolved_by, reason, resolved_at: Utc::now(),
+    }).await
+}
+
+/// Operator hard-reset of an applicant's admission standing — the terminal
+/// backstop, clearing both denial and review counts.
+async fn admission_reset(s: &RestState, lct: Uuid, reset_by: Uuid, reason: Option<String>) -> Result<u64, ApiError> {
+    witness_event(s, HubEvent::MemberAdmissionReset {
+        member_lct_id: lct, reset_by, reason, reset_at: Utc::now(),
+    }).await
 }
 
 /// Operator approves a pending join request: admit the member live (no restart)
@@ -2768,14 +2898,80 @@ async fn admin_add_member(
 }
 
 /// The operator-plane write API. Mounted ONLY on the loopback operator listener.
+/// `GET /admin/api/reviews` — the denial-review queue (pending first), with the
+/// effective admission limits for context.
+async fn admin_list_reviews(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger)
+    };
+    let mut reviews: Vec<hub_lib::state::JoinReview> = projected.join_reviews.into_values().collect();
+    reviews.sort_by(|a, b| {
+        use hub_lib::state::ReviewStatus::Pending;
+        let ak = (a.status != Pending, std::cmp::Reverse(a.requested_at));
+        let bk = (b.status != Pending, std::cmp::Reverse(b.requested_at));
+        ak.cmp(&bk)
+    });
+    let pending = reviews.iter().filter(|r| r.status == hub_lib::state::ReviewStatus::Pending).count();
+    let (repeat_limit, review_limit) = admission_limits(&s).await;
+    Ok(Json(serde_json::json!({
+        "pending": pending, "total": reviews.len(), "reviews": reviews,
+        "limits": { "repeat_limit": repeat_limit, "review_limit": review_limit },
+    })))
+}
+
+/// `POST /admin/api/reviews/:review_id/grant` — clear the applicant's auto-block.
+async fn admin_grant_review(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(review_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let entry_index = grant_review(&s, review_id, s.sovereign_lct_id).await?;
+    Ok(Json(serde_json::json!({ "granted": true, "entry_index": entry_index })))
+}
+
+/// `POST /admin/api/reviews/:review_id/refuse` — refuse (counts toward the limit).
+async fn admin_refuse_review(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(review_id): Path<Uuid>,
+    Json(body): Json<ReasonBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let entry_index = refuse_review(&s, review_id, s.sovereign_lct_id, body.reason).await?;
+    Ok(Json(serde_json::json!({ "refused": true, "entry_index": entry_index })))
+}
+
+/// `POST /admin/api/members/:lct_id/admission-reset` — terminal backstop: clear
+/// an applicant's denial + review standing so they may apply afresh.
+async fn admin_admission_reset(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(lct_id): Path<Uuid>,
+    Json(body): Json<ReasonBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let entry_index = admission_reset(&s, lct_id, s.sovereign_lct_id, body.reason).await?;
+    Ok(Json(serde_json::json!({ "reset": true, "entry_index": entry_index })))
+}
+
 pub fn admin_api_router(state: RestState) -> Router {
     Router::new()
         .route("/admin/api/joins", get(admin_list_joins))
         .route("/admin/api/joins/:request_id/admit", post(admin_admit_join))
         .route("/admin/api/joins/:request_id/deny", post(admin_deny_join))
+        .route("/admin/api/reviews", get(admin_list_reviews))
+        .route("/admin/api/reviews/:review_id/grant", post(admin_grant_review))
+        .route("/admin/api/reviews/:review_id/refuse", post(admin_refuse_review))
         .route("/admin/api/members/add", post(admin_add_member))
         .route("/admin/api/members/:lct_id/key", post(admin_pin_key))
         .route("/admin/api/members/:lct_id/remove", post(admin_remove_member))
+        .route("/admin/api/members/:lct_id/admission-reset", post(admin_admission_reset))
         .with_state(state)
 }
 
@@ -2845,10 +3041,25 @@ async fn submit_join(
                 }),
             ).into_response());
         }
+        AdmissionState::Blocked { denials, can_review } => {
+            return Ok((
+                StatusCode::FORBIDDEN,
+                Json(serde_json::json!({
+                    "status": "blocked",
+                    "denials": denials,
+                    "can_review": can_review,
+                    "message": if can_review {
+                        "admission blocked after repeated denials — request a denial review"
+                    } else {
+                        "admission blocked; review limit reached — awaiting operator admission-reset"
+                    },
+                })),
+            ).into_response());
+        }
         AdmissionState::New => {}
     }
 
-    // 3. PolicyEntity gate — admission policy from chapter law. The R6 payload
+    // 3. PolicyEntity gate — admission policy from hub law. The R6 payload
     // is the MemberAdded we *would* record. Allow → auto-admit; Deny → reject;
     // Escalate → queue for operator review (V2-16 admission queue).
     let prospective = HubEvent::MemberAdded {
@@ -4425,6 +4636,84 @@ norms:
         // at tier routing — the end-to-end idempotence guarantee.
         approve_join(&state, rid1, state.sovereign_lct_id).await.unwrap();
         assert!(submit().await.is_err(), "an admitted member cannot re-apply via the channel");
+    }
+
+    #[tokio::test]
+    async fn admission_repair_path_blocks_reviews_and_resets() {
+        // Escalate law (no limits set → defaults repeat_limit=3, review_limit=1).
+        const LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(LAW)).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let applicant = KeyPair::generate();
+        let lct = Uuid::new_v4();
+        let hex = applicant.verifying_key().to_hex();
+        let sov = state.sovereign_lct_id;
+
+        // Channel call helper (request_citizenship / request_admission_review).
+        let call = |tool: &'static str, args: serde_json::Value| {
+            let (state, hub_pub, applicant, hex) =
+                (state.clone(), hub_pub.clone(), applicant.clone(), hex.clone());
+            async move {
+                let pid = Uuid::new_v4();
+                let sealed = seal_req(&applicant, &hub_pub, pid, tool, args);
+                let req = ChannelRequest { caller_lct_id: lct, pair_id: pid, sealed,
+                    caller_pubkey_hex: Some(hex) };
+                channel_request(State(state.clone()), Path(state.hub_id), Json(req)).await
+                    .map(|resp| open_resp(&applicant, &hub_pub, pid, &resp.0.sealed))
+            }
+        };
+        // Apply, returning the operator-denied request's id (drives a denial).
+        async fn apply_and_get_rid(out: serde_json::Value) -> Uuid {
+            serde_json::from_value(out["request_id"].clone()).expect("queued request_id")
+        }
+
+        // Three applications, each operator-denied → blocked.
+        for _ in 0..3 {
+            let r = call("request_citizenship", serde_json::json!({"name":"X"})).await.unwrap();
+            let rid = apply_and_get_rid(r).await;
+            deny_join(&state, rid, sov, Some("no".into())).await.unwrap();
+        }
+        let blocked = call("request_citizenship", serde_json::json!({"name":"X"})).await.unwrap();
+        assert_eq!(blocked["status"], serde_json::json!("blocked"));
+        assert_eq!(blocked["can_review"], serde_json::json!(true), "first block → review available");
+
+        // Plea for a review (idempotent), operator grants → auto-block cleared.
+        let rev = call("request_admission_review", serde_json::json!({"plea":"please"})).await.unwrap();
+        let review_id: Uuid = serde_json::from_value(rev["review_id"].clone()).unwrap();
+        let rev2 = call("request_admission_review", serde_json::json!({})).await.unwrap();
+        assert_eq!(rev2["already_pending"], serde_json::json!(true), "review plea is idempotent");
+        grant_review(&state, review_id, sov).await.unwrap();
+
+        // Unblocked: applies again (queues, not blocked).
+        let reapply = call("request_citizenship", serde_json::json!({})).await.unwrap();
+        assert_eq!(reapply["status"], serde_json::json!("pending_review"), "grant cleared the block");
+        let rid2 = apply_and_get_rid(reapply).await;
+        deny_join(&state, rid2, sov, None).await.unwrap();
+        for _ in 0..2 {
+            let r = call("request_citizenship", serde_json::json!({})).await.unwrap();
+            let rid = apply_and_get_rid(r).await;
+            deny_join(&state, rid, sov, None).await.unwrap();
+        }
+        // Blocked again — but reviews (1) now == review_limit (1) → terminal.
+        let blocked2 = call("request_citizenship", serde_json::json!({})).await.unwrap();
+        assert_eq!(blocked2["status"], serde_json::json!("blocked"));
+        assert_eq!(blocked2["can_review"], serde_json::json!(false), "review limit reached → terminal");
+        assert!(call("request_admission_review", serde_json::json!({})).await.is_err(),
+            "terminal: review plea refused");
+
+        // Operator admission-reset → cleared; applies afresh.
+        admission_reset(&state, lct, sov, Some("fresh start".into())).await.unwrap();
+        let after = call("request_citizenship", serde_json::json!({})).await.unwrap();
+        assert_eq!(after["status"], serde_json::json!("pending_review"), "reset cleared everything");
     }
 
     #[tokio::test]

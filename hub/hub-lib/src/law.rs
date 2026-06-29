@@ -152,8 +152,37 @@ pub struct AdmissionPolicy {
     pub sponsor_role: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_trust_score: Option<f64>,
+    /// Abuse-resistant repair path. After `repeat_limit` denials an applicant is
+    /// auto-blocked (must request a review); the review path itself allows up to
+    /// `review_limit` requests before a terminal state (operator reset only).
+    /// Unset → defaults ([`DEFAULT_ADMISSION_REPEAT_LIMIT`] /
+    /// [`DEFAULT_ADMISSION_REVIEW_LIMIT`]). Operator changes are written here (law
+    /// is the single inspectable source of truth), via a witnessed `LawAmended`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repeat_limit: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review_limit: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+}
+
+/// Default admission repeat limit: denials before an applicant is auto-blocked.
+pub const DEFAULT_ADMISSION_REPEAT_LIMIT: u32 = 3;
+/// Default admission review limit: denial-review requests before the terminal
+/// state (cleared only by an operator admission-reset).
+pub const DEFAULT_ADMISSION_REVIEW_LIMIT: u32 = 1;
+
+impl Law {
+    /// Effective admission repeat limit — the law value, or the default.
+    pub fn admission_repeat_limit(&self) -> u32 {
+        self.admission.as_ref().and_then(|a| a.repeat_limit)
+            .unwrap_or(DEFAULT_ADMISSION_REPEAT_LIMIT)
+    }
+    /// Effective admission review limit — the law value, or the default.
+    pub fn admission_review_limit(&self) -> u32 {
+        self.admission.as_ref().and_then(|a| a.review_limit)
+            .unwrap_or(DEFAULT_ADMISSION_REVIEW_LIMIT)
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
