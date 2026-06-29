@@ -4,21 +4,19 @@
 #
 # Web4 Hub — external (peer-side) reachability smoke.
 #
-# Confirms the live hub daemon is reachable BY A FLEET PEER over the tailnet,
-# not just from the host it runs on. This is the check that catches the class
-# of regression that bit the fleet on 2026-06-09: the daemon was bound to
-# 127.0.0.1 (behind `tailscale serve`), so HUB's own localhost smoke passed
-# 200 while every other machine got connection-refused on 100.65.206.122:8770.
+# Confirms the live hub daemon is reachable FROM ANOTHER MACHINE over the
+# network, not just from the host it runs on. This catches a common class of
+# regression: the daemon bound to 127.0.0.1 (e.g. behind a reverse proxy), so a
+# localhost smoke passes 200 while every other machine gets connection-refused.
 #
-# A host-side smoke (even one that curls its own tailnet IP) cannot catch a
-# Windows-host firewall block or a tailnet ACL that only affects *inbound from
+# A host-side smoke (even one that curls the host's own network address) cannot
+# catch a host firewall block or a network ACL that only affects *inbound from
 # peers*. The only honest reachability check is one run FROM a different
-# machine. Run this on CBP (or any tailnet peer), not on HUB.
+# machine — run this on a peer node, not on the hub host.
 #
 # Usage:
-#   ./smoke-external.sh                 # uses the default HUB tailnet endpoint
-#   HUB_HOST=100.65.206.122 HUB_PORT=8770 ./smoke-external.sh
-#   HUB_URL=http://100.65.206.122:8770 ./smoke-external.sh
+#   HUB_HOST=<addr> HUB_PORT=8770 ./smoke-external.sh
+#   HUB_URL=http://<addr>:8770 ./smoke-external.sh
 #
 # Exit codes:
 #   0  all checks passed (hub is peer-reachable and healthy)
@@ -31,7 +29,7 @@
 
 set -euo pipefail
 
-# Default to the documented Web4 Fleet hub endpoint (PRD / proposal §4.2).
+# The hub's network address — override via env for your deployment.
 HUB_HOST="${HUB_HOST:-100.65.206.122}"
 HUB_PORT="${HUB_PORT:-8770}"
 HUB_URL="${HUB_URL:-http://${HUB_HOST}:${HUB_PORT}}"
@@ -99,6 +97,6 @@ else
     echo "    1. daemon bind address — must be 0.0.0.0:${HUB_PORT}, not 127.0.0.1" >&2
     echo "         (systemd unit: --bind 0.0.0.0; confirm with 'ss -ltnp | grep ${HUB_PORT}')" >&2
     echo "    2. host firewall — Windows host must allow inbound TCP ${HUB_PORT} to the WSL2 VM" >&2
-    echo "    3. tailnet ACL — peers must be permitted to reach the hub node on ${HUB_PORT}" >&2
+    echo "    3. network ACL / firewall — peers must be permitted to reach the hub node on ${HUB_PORT}" >&2
     exit 1
 fi

@@ -8,7 +8,7 @@
 
 ## 0. Frame: Web4 is a relationship/trust medium, not a data-exchange medium
 
-Most networking primitives we inherit treat communication as a pipe: bytes flow, the medium is transparent, the relationship between endpoints is somebody else's problem. Tailscale gives you packet transport. TLS gives you confidentiality. Signal gives you E2E text messaging. None of them know — or are designed to know — what the relationship between the two endpoints *is*.
+Most networking primitives we inherit treat communication as a pipe: bytes flow, the medium is transparent, the relationship between endpoints is somebody else's problem. A mesh VPN gives you packet transport. TLS gives you confidentiality. Signal gives you E2E text messaging. None of them know — or are designed to know — what the relationship between the two endpoints *is*.
 
 Web4 inverts this. The canonical equation is
 
@@ -63,13 +63,13 @@ implemented, not just documented.
 **Covers:** the design + sprint plan for shipping 2-party LCT-to-LCT paired channels on a Web4 hub, with end-to-end encryption (payload), hub-witnessed metadata (envelope), hub-law-gated pairing (R6 evaluation), and per-pair lifecycle in the ledger.
 
 **Does not cover:**
-- L3/L4 packet transport. Tailscale / WireGuard / equivalent remain the right tool for "I want to SSH from A to B." Paired channels are L7 LCT-aware messaging.
+- L3/L4 packet transport. A mesh VPN (WireGuard / equivalent) remains the right tool for "I want to SSH from A to B." Paired channels are L7 LCT-aware messaging.
 - Group channels (>2 parties). MVP is strictly 2-party. Multi-party comes later and has different design space (consensus on group membership, forward-secrecy ratcheting for groups is harder, etc.).
 - Anonymity / onion routing. Anti-Web4 — we *want* witnessed pairs.
 - Streaming (voice/video). A relay hop through the hub disqualifies us from streaming use cases; pursue them with WebRTC-style direct connections instead. Acceptable: anything where a few-hundred-ms relay hop is fine (human chat, agent coordination, ATP transfers, AGY requests, role-gated commands).
 - The federation question (paired channel between members of *different* hubs). Will need hub-to-hub federation primitives first; out of scope here.
 
-**Layer distinction we keep crisp:** Tailscale is L3/L4 generic packet transport (lets us SSH HUB ↔ CBP today). Paired channels are L7 LCT-aware witnessed-relationship messaging. They are *complementary*, not substitutes. The hub-as-VPN intuition is right about the substrate property of paired channels; it's wrong if read as "Tailscale replacement." For Web4-native comms (agent acts, ATP transfers, role-delegated requests), paired channels are *better* than Tailscale because the comm IS the act — the witnessed-pair-in-the-ledger is the audit trail, not a separate logging concern. For generic packet transport, Tailscale stays.
+**Layer distinction we keep crisp:** a mesh VPN is L3/L4 generic packet transport (e.g. SSH between two nodes). Paired channels are L7 LCT-aware witnessed-relationship messaging. They are *complementary*, not substitutes. The hub-as-VPN intuition is right about the substrate property of paired channels; it's wrong if read as "VPN replacement." For Web4-native comms (agent acts, ATP transfers, role-delegated requests), paired channels are *better* than a generic VPN because the comm IS the act — the witnessed-pair-in-the-ledger is the audit trail, not a separate logging concern. For generic packet transport, a mesh VPN stays.
 
 ---
 

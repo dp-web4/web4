@@ -262,8 +262,8 @@ enum Command {
         #[arg(long, default_value = "127.0.0.1")]
         bind: String,
 
-        /// Operator-plane port, always bound to 127.0.0.1 only (never the
-        /// tailnet). Serves the admit/deny/remove/re-key admin API + write GUI.
+        /// Operator-plane port, always bound to 127.0.0.1 only (never exposed to
+        /// the network). Serves the admit/deny/remove/re-key admin API + write GUI.
         /// Set to 0 to disable the operator plane entirely. (8771 is taken by the
         /// membox sidecar, so the default is 8772.)
         #[arg(long, default_value_t = 8772)]
@@ -1030,8 +1030,8 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     println!("  Admin UI:     http://{}/admin (read-only on this plane)", addr);
     println!("  Stop:         Ctrl-C");
 
-    // Operator plane: a SECOND listener bound to 127.0.0.1 only — never the
-    // tailnet, never tailscale-served. Carries the admit/deny/remove/re-key
+    // Operator plane: a SECOND listener bound to 127.0.0.1 only — never exposed
+    // to the network, never reverse-proxied. Carries the admit/deny/remove/re-key
     // admin API (and the write GUI). Local-presence + an ignited hub is the
     // authorization; actions sign as the Sovereign and fail closed while locked.
     if admin_port != 0 {
