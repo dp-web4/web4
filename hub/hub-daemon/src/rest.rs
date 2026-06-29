@@ -583,12 +583,21 @@ async fn unlock(
         });
     }
     match s.try_unlock(&req.passphrase, Utc::now().timestamp()).await {
-        UnlockOutcome::Unlocked { sovereign_lct_id } => Ok(Json(UnlockResponse {
-            unlocked: true,
-            status: "unlocked".into(),
-            sovereign_lct_id: Some(sovereign_lct_id),
-            retry_after_secs: None,
-        })),
+        UnlockOutcome::Unlocked { sovereign_lct_id } => {
+            // Now operational + able to sign: hydrate any law-driven defaults
+            // into the law (idempotent; witnessed only if it filled something).
+            match hydrate_law_defaults(&s).await {
+                Ok(true) => tracing::info!("law defaults hydrated post-ignition"),
+                Ok(false) => {}
+                Err(e) => tracing::warn!("law-default hydration skipped: {e}"),
+            }
+            Ok(Json(UnlockResponse {
+                unlocked: true,
+                status: "unlocked".into(),
+                sovereign_lct_id: Some(sovereign_lct_id),
+                retry_after_secs: None,
+            }))
+        }
         UnlockOutcome::NotLocked => Ok(Json(UnlockResponse {
             unlocked: true,
             status: "already_unlocked".into(),
@@ -2984,6 +2993,39 @@ fn bump_law_version(v: &str) -> String {
     format!("{v}.1")
 }
 
+/// Hydrate code defaults into the live hub law so every law-driven parameter is
+/// inspectable in the law itself. Runs once when the hub becomes operational
+/// (normal boot / post-ignition). Writes a witnessed `LawAmended` **only if a
+/// default was actually filled** (idempotent — steady-state boots are no-ops),
+/// so newly-added parameters auto-populate on first boot with no maintenance.
+/// No-op when no law is set (operator establishes a base law via `hub init-law`).
+pub(crate) async fn hydrate_law_defaults(s: &RestState) -> anyhow::Result<bool> {
+    let mut law = match s.law.read().await.clone() {
+        Some(l) => l,
+        None => return Ok(false),
+    };
+    if !law.hydrate_defaults() {
+        return Ok(false);
+    }
+    law.version = bump_law_version(&law.version);
+    let yaml = serde_yaml::to_string(&law)?;
+    hub_lib::law::Law::parse_and_validate(&yaml)?; // sanity — must still validate
+    {
+        let mut ledger = s.ledger.lock().await;
+        ledger.store_mut().write_law(&yaml).await?;
+    }
+    witness_event(s, HubEvent::LawAmended {
+        new_law_sha256: hub_lib::law::Law::sha256_hex_of(&yaml),
+        amended_by: s.sovereign_lct_id,
+        version: law.version.clone(),
+        diff_summary: Some("auto-hydrate law defaults".to_string()),
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("witnessing law-default hydration: {}", e.message))?;
+    *s.law.write().await = Some(law);
+    Ok(true)
+}
+
 /// `POST /admin/api/admission-limits` — set the admission repeat/review limits by
 /// **amending chapter law** (law is the single inspectable source of truth — the
 /// operator's choice is written there, witnessed via LawAmended, not a side
@@ -4783,6 +4825,41 @@ norms:
         admission_reset(&state, lct, sov, Some("fresh start".into())).await.unwrap();
         let after = call("request_citizenship", serde_json::json!({})).await.unwrap();
         assert_eq!(after["status"], serde_json::json!("pending_review"), "reset cleared everything");
+    }
+
+    #[tokio::test]
+    async fn law_defaults_hydrate_into_the_law_idempotently() {
+        // Base law with no admission section (limits live only as code defaults).
+        const BASE_LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(BASE_LAW)).await;
+        assert!(state.law.read().await.as_ref().unwrap().admission.is_none(),
+            "limits start as code defaults, not in the law");
+
+        // First hydrate fills the defaults into the law + advances the version.
+        assert!(hydrate_law_defaults(&state).await.unwrap(), "first hydrate fills gaps");
+        let law = state.law.read().await.clone().unwrap();
+        assert_eq!(law.admission.as_ref().unwrap().repeat_limit, Some(3));
+        assert_eq!(law.admission.as_ref().unwrap().review_limit, Some(1));
+        assert_eq!(law.version, "1.0.1", "amendment advanced the version");
+        // Witnessed as a LawAmended, and persisted to the store.
+        assert!({
+            let l = state.ledger.lock().await;
+            l.entries().iter().any(|e| e.event.kind() == "law_amended")
+        });
+        let persisted = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
+        assert_eq!(hub_lib::law::Law::parse_and_validate(&persisted).unwrap().admission_repeat_limit(), 3);
+
+        // Idempotent: a second hydrate is a no-op (no new amendment).
+        assert!(!hydrate_law_defaults(&state).await.unwrap(), "steady-state boot is a no-op");
     }
 
     #[tokio::test]
