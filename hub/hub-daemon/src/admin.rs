@@ -785,6 +785,15 @@ function addMember(){
 function grantReview(id){ if(confirm('Grant this review? Clears the applicant’s auto-block so they can apply again.')) hubAct('/admin/api/reviews/'+id+'/grant'); }
 function refuseReview(id){ const reason=prompt('Refuse review — reason (optional):'); if(reason!==null) hubAct('/admin/api/reviews/'+id+'/refuse',{reason:reason||null}); }
 function admissionReset(){ const lct=prompt('Admission-reset which LCT id? (clears denial + review standing)'); if(!lct) return; const reason=prompt('Reason (optional):'); if(reason!==null) hubAct('/admin/api/members/'+lct.trim()+'/admission-reset',{reason:reason||null}); }
+function setLimits(){
+  const rt=document.getElementById('lim-repeat').value.trim();
+  const rv=document.getElementById('lim-review').value.trim();
+  const body={};
+  if(rt!=='') body.repeat_limit=parseInt(rt,10);
+  if(rv!=='') body.review_limit=parseInt(rv,10);
+  if(Object.keys(body).length===0){ alert('Enter at least one limit to set.'); return; }
+  if(confirm('Write these admission limits to hub law? (witnessed amendment)')) hubAct('/admin/api/admission-limits',body);
+}
 </script>"#;
 
 pub(crate) async fn joins_page(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
@@ -801,8 +810,39 @@ pub(crate) async fn joins_page(State(s): State<RestState>) -> Result<Html<String
     });
     let pending = joins.iter().filter(|j| j.status == JoinStatus::Pending).count();
 
+    // Admission policy (the repair-path limits) — effective values from hub law,
+    // or code defaults if unset. Setting them writes hub law (witnessed).
+    let (repeat_limit, review_limit, src) = match s.law.read().await.as_ref() {
+        Some(l) => {
+            let in_law = l.admission.as_ref()
+                .map(|a| a.repeat_limit.is_some() || a.review_limit.is_some())
+                .unwrap_or(false);
+            (l.admission_repeat_limit(), l.admission_review_limit(),
+             if in_law { "from hub law" } else { "default (not yet in law)" })
+        }
+        None => (
+            hub_lib::law::DEFAULT_ADMISSION_REPEAT_LIMIT,
+            hub_lib::law::DEFAULT_ADMISSION_REVIEW_LIMIT,
+            "default (no law set)",
+        ),
+    };
+
     let mut body = String::from(OPERATOR_BANNER);
-    body.push_str("<h2>Admission queue</h2>");
+    body.push_str("<h2>Admission policy</h2>");
+    body.push_str(&format!(
+        "<p class=\"muted\">Retries before auto-block: <b>{repeat_limit}</b> · denial-reviews (appeals) \
+         before terminal: <b>{review_limit}</b> &nbsp;<span class=\"pill\">{src}</span>. \
+         Setting these <b>amends hub law</b> (witnessed, inspectable) — the single source of truth.</p>"
+    ));
+    body.push_str(&format!(
+        "<div style=\"display:grid;grid-template-columns:max-content 1fr;gap:0.4rem 0.6rem;max-width:520px;align-items:center;\">\
+         <label>Retries (repeat_limit)</label><input id=\"lim-repeat\" type=\"number\" min=\"1\" placeholder=\"{repeat_limit}\" style=\"padding:0.3rem;width:6rem;\">\
+         <label>Appeals (review_limit)</label><input id=\"lim-review\" type=\"number\" min=\"0\" placeholder=\"{review_limit}\" style=\"padding:0.3rem;width:6rem;\">\
+         <span></span><span><button onclick=\"setLimits()\">Write to hub law</button></span>\
+         </div>"
+    ));
+
+    body.push_str("<h2 style=\"margin-top:1.5rem\">Admission queue</h2>");
     body.push_str(&format!(
         "<p class=\"muted\">{} pending · {} total. Law-<code>Allow</code> joins are auto-admitted and never queue; \
          only law-<code>Escalate</code> requests land here.</p>",

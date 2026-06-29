@@ -2960,8 +2960,58 @@ async fn admin_admission_reset(
     Ok(Json(serde_json::json!({ "reset": true, "entry_index": entry_index })))
 }
 
+#[derive(Deserialize)]
+struct AdmissionLimitsBody {
+    #[serde(default)]
+    repeat_limit: Option<u32>,
+    #[serde(default)]
+    review_limit: Option<u32>,
+}
+
+/// `POST /admin/api/admission-limits` — set the admission repeat/review limits by
+/// **amending chapter law** (law is the single inspectable source of truth — the
+/// operator's choice is written there, witnessed via LawAmended, not a side
+/// config). Requires a base law to exist (`hub init-law`).
+async fn admin_set_admission_limits(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Json(body): Json<AdmissionLimitsBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let mut law = s.law.read().await.clone().ok_or_else(|| ApiError::bad_request(
+        "no hub law set — run `hub init-law` first, then set admission limits".to_string(),
+    ))?;
+    {
+        let adm = law.admission.get_or_insert_with(Default::default);
+        if let Some(r) = body.repeat_limit { adm.repeat_limit = Some(r); }
+        if let Some(r) = body.review_limit { adm.review_limit = Some(r); }
+    }
+    let yaml = serde_yaml::to_string(&law)
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing law: {e}")))?;
+    // Sanity: the amended law must still parse + validate.
+    hub_lib::law::Law::parse_and_validate(&yaml)
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("amended law invalid: {e}")))?;
+    {
+        let mut ledger = s.ledger.lock().await;
+        ledger.store_mut().write_law(&yaml).await.map_err(ApiError::internal)?;
+    }
+    let entry_index = witness_event(&s, HubEvent::LawAmended {
+        new_law_sha256: hub_lib::law::Law::sha256_hex_of(&yaml),
+        amended_by: s.sovereign_lct_id,
+        version: law.version.clone(),
+        diff_summary: Some("admission limits set via operator plane".to_string()),
+    }).await?;
+    let (repeat_limit, review_limit) = (law.admission_repeat_limit(), law.admission_review_limit());
+    *s.law.write().await = Some(law);
+    Ok(Json(serde_json::json!({
+        "updated": true, "entry_index": entry_index,
+        "repeat_limit": repeat_limit, "review_limit": review_limit,
+    })))
+}
+
 pub fn admin_api_router(state: RestState) -> Router {
     Router::new()
+        .route("/admin/api/admission-limits", post(admin_set_admission_limits))
         .route("/admin/api/joins", get(admin_list_joins))
         .route("/admin/api/joins/:request_id/admit", post(admin_admit_join))
         .route("/admin/api/joins/:request_id/deny", post(admin_deny_join))
@@ -4768,6 +4818,56 @@ norms:
         assert!(html.contains("Denial reviews"), "review queue section");
         assert!(html.contains("grantReview(") && html.contains("refuseReview("), "review buttons wired");
         assert!(html.contains("admissionReset("), "admission-reset control wired");
+        // The admission-policy (limits) section + law-writing form render too.
+        assert!(html.contains("Admission policy"), "policy section");
+        assert!(html.contains("setLimits(") && html.contains("Write to hub law"), "limits form wired to law");
+    }
+
+    #[tokio::test]
+    async fn operator_sets_admission_limits_by_amending_law() {
+        const BASE_LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(BASE_LAW)).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let remote: SocketAddr = "10.0.0.9:5555".parse().unwrap();
+
+        // Defaults until set (no admission section in the base law).
+        assert_eq!(state.law.read().await.as_ref().unwrap().admission_review_limit(), 1);
+
+        // Remote caller rejected.
+        assert_eq!(
+            admin_set_admission_limits(State(state.clone()), ConnectInfo(remote),
+                Json(AdmissionLimitsBody { repeat_limit: Some(5), review_limit: Some(2) }))
+                .await.err().unwrap().status,
+            StatusCode::FORBIDDEN,
+        );
+        // Operator sets them → written to law (live + witnessed).
+        admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
+            Json(AdmissionLimitsBody { repeat_limit: Some(5), review_limit: Some(2) }))
+            .await.unwrap();
+        let law = state.law.read().await.clone().unwrap();
+        assert_eq!(law.admission_repeat_limit(), 5);
+        assert_eq!(law.admission_review_limit(), 2);
+        assert!(law.admission.as_ref().unwrap().repeat_limit == Some(5), "persisted in the law's admission section");
+        // A LawAmended was witnessed.
+        let amended = {
+            let l = state.ledger.lock().await;
+            l.entries().iter().any(|e| e.event.kind() == "law_amended")
+        };
+        assert!(amended, "the change is witnessed as a LawAmended");
+        // And it round-trips through the on-disk store (re-projects to the same values).
+        let persisted = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
+        let reparsed = hub_lib::law::Law::parse_and_validate(&persisted).unwrap();
+        assert_eq!(reparsed.admission_repeat_limit(), 5);
+        assert_eq!(reparsed.admission_review_limit(), 2);
     }
 
     #[tokio::test]
