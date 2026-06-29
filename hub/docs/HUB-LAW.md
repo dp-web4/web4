@@ -1,4 +1,4 @@
-# Web4 Community Hub — Chapter Law
+# Web4 Community Hub — Hub Law
 
 Two distinct documents govern a chapter, and it's worth keeping them straight:
 
@@ -6,16 +6,16 @@ Two distinct documents govern a chapter, and it's worth keeping them straight:
   the Sovereign signs at founding. It's plain-text-with-structure (JSON) and its
   sha256 is pinned in `society.json`'s `charter_hash` field — tamper-evident, but
   prose. It says *who the chapter is*.
-- **Chapter law** is a separate, signed **YAML** document with a typed schema. It
-  says *what the hub will and won't do*. Unlike the charter, chapter law is
+- **Hub law** is a separate, signed **YAML** document with a typed schema. It
+  says *what the hub will and won't do*. Unlike the charter, hub law is
   **machine-readable and enforced**: the PolicyEntity gate evaluates every act and
   every gated read against it before anything commits.
 
-This doc is about chapter law — the enforced half.
+This doc is about hub law — the enforced half.
 
 ## The law document
 
-Chapter law is a single YAML file matching `web4-standard/core-spec/chapter-law-schema.md`,
+Hub law is a single YAML file matching `web4-standard/core-spec/hub-law-schema.md`,
 parsed into the typed `Law` struct in `hub-lib/src/law.rs`. Top-level sections:
 
 | Section | Shape | Purpose |
@@ -160,7 +160,7 @@ carrying `new_law_sha256` (the canonical sha256 of the YAML), `version`,
 chain with its hash, any party can walk the ledger, follow the `LawAmended`
 events, and reconstruct exactly which law was in force at any historical point.
 
-## What chapter law should cover (suggested topics)
+## What hub law should cover (suggested topics)
 
 The schema gives you the mechanism; the policy is yours. A practical starter set
 of topics to encode:
@@ -207,11 +207,11 @@ of topics to encode:
   schema's `custom_predicates` slot is reserved for chapter-specific predicates
   the cross-chapter exchange will exercise.
 
-## What chapter law is NOT
+## What hub law is NOT
 
 - Not a binding legal document outside the chapter's own membership.
 - Not a substitute for actual law (employment, finance, etc.) where applicable.
-- Not the charter. The charter is signed prose; chapter law is the enforced,
+- Not the charter. The charter is signed prose; hub law is the enforced,
   machine-readable rules. They reference each other but are distinct documents.
 
 ## Template

@@ -25,13 +25,13 @@ The word "mutation" carries baggage (GraphQL convention, FP anti-pattern connota
 
 ## What this is
 
-The MVP (sprints 0-6) shipped a single-binary chapter-hub that one operator can run end-to-end. This document scopes what V2-V3 turn that into: **open-source community infrastructure that can host millions of members across thousands of chapters, with most operations delegated to AI agents bound by signed chapter law, and humans escalated only for key decisions.**
+The MVP (sprints 0-6) shipped a single-binary chapter-hub that one operator can run end-to-end. This document scopes what V2-V3 turn that into: **open-source community infrastructure that can host millions of members across thousands of chapters, with most operations delegated to AI agents bound by signed hub law, and humans escalated only for key decisions.**
 
 What we're delivering at the long horizon:
 - **Building blocks** — primitives others compose with
 - **Infrastructure** — deployable substrate that scales
 - **Tools** — operator-facing CLIs, UIs, scripts
-- **Guidance** — documented patterns + sample chapter laws
+- **Guidance** — documented patterns + sample hub laws
 - **MVP foundation** — a working starting point a community can adopt and evolve
 
 The hub is **generic open-source infrastructure**. Any community willing to operate as a Web4 society can adopt it. Enterprise can license hardbound as an upgrade for hardware-bound identity + production policy enforcement.
@@ -70,7 +70,7 @@ These survive every sub-conversation. Every implementation decision is checked a
 
 **Everything in this document follows from this.**
 
-Chapter law is a signed structured file (schema TBD — see open questions). The Sovereign Council signs it. The LawOracle role publishes it. The PolicyEntity role evaluates every consequential request against it. The hub binary's job is to **interpret the law**, not to encode policy.
+Hub law is a signed structured file (schema TBD — see open questions). The Sovereign Council signs it. The LawOracle role publishes it. The PolicyEntity role evaluates every consequential request against it. The hub binary's job is to **interpret the law**, not to encode policy.
 
 Implications:
 - Escalation thresholds: in law, not in code
@@ -125,7 +125,7 @@ The Ledger trait pattern web4-core already uses for LCT anchoring is the model. 
 ### 5. Multi-Sovereign Council from the start (no single-founder pattern)
 
 **SHIPPED.** Single-Sovereign is a special case of M-of-N where M=N=1. The architecture handles M-of-N natively, and the Sovereign Council data model + propose/sign/threshold flow is live:
-- Sovereigns are admitted, retire, get ejected, are member-elected per chapter law
+- Sovereigns are admitted, retire, get ejected, are member-elected per hub law
 - Consequential Sovereign actions require N-of-M signatures (propose → sign → threshold enforcement, with `proposal_ref` linking committed acts back to the proposal for single-pane audit)
 - Election as constitutional escape valve when Council fails
 
@@ -150,7 +150,7 @@ Default human-vs-AI mapping per role:
 - **Citizen**: either (humans AND AI agents can be members)
 - **Witness / Auditor**: AI-default
 
-Chapter law specifies which roles are AI-filled and on what terms.
+Hub law specifies which roles are AI-filled and on what terms.
 
 ### 7. Open-source community infrastructure (no single owner)
 
@@ -216,7 +216,7 @@ Application infrastructure built on Hestia, web4-core, ACT.
 - **B4**: Law parser + interpreter — read signed law file; validate signatures; evaluate requests against rules. PolicyEntity role calls into this. **SHIPPED (V2-8):** YAML law parser/validator, signed law storage (`LawAmended`), evaluator (Law × R6 → Allow/Deny/Escalate), PolicyEntity gate wired into REST + MCP act handlers *and reads*, hot-reload, `hub set-law`/`get-law`/`init-law`.
 - **B5**: Storage backend abstraction — Trait + SqliteBackend + PostgresBackend impls; migration tool from file-based MVP. **SHIPPED (V2-2):** `ChapterStore`/`HubStore` trait + FileBackend + SqliteBackend (SQLCipher-encrypted) + DynamoDB backend + `hub migrate`. Postgres still on the roadmap.
 - **B6**: Multi-tenant deployment — schema-per-chapter (default) or tenant-id-column (high-density) within one Postgres deployment; one-chapter-per-process for max isolation. *Needs B5. (Still future.)*
-- **B7**: Member self-add request flow — `MemberJoinRequested` event; admin review surface; chapter-law-policy hook. **SHIPPED:** V2-12 member self-add via signed envelope, plus a member **admission queue + operator GUI** (no-restart admit/deny/re-key/remove).
+- **B7**: Member self-add request flow — `MemberJoinRequested` event; admin review surface; hub-law-policy hook. **SHIPPED:** V2-12 member self-add via signed envelope, plus a member **admission queue + operator GUI** (no-restart admit/deny/re-key/remove).
 - **B8**: AI role-filler runtime — process supervision (spawning + monitoring AI agents per role); ATP accounting per AI action; T3 scoring; escalation event routing. *Needs U2+U4 and B4. (Still future.)*
 - **B9**: Admin web UI — askama server-rendered HTML; member view + admin view + Sovereign Council interface + escalation review queue. **SHIPPED (V2-16):** read-only `/admin` dashboard + write-capable operator plane (admissions + member management) on the admin port `127.0.0.1:8772`.
 - **B10**: HTTPS + caddy convention — reverse-proxy pattern; well-known URI for discovery. **PARTLY SHIPPED:** the `GET /.well-known/web4-hub.json` discovery endpoint ships; the HTTPS/reverse-proxy convention is still future.
@@ -312,7 +312,7 @@ Several subsystems were not in the original track structure above but have since
 ### Sovereign Council formation (gates V2-9)
 - M-of-N defaults? (1-of-1 at founding, then upgradeable to 2-of-3, 3-of-5, etc.?)
 - Threshold change procedure? (Sovereign Council votes? Member vote? Both?)
-- Recommendation: **chapter law specifies** (per Commitment #1). Hub provides the mechanism; chapter sovereign-signs the policy.
+- Recommendation: **hub law specifies** (per Commitment #1). Hub provides the mechanism; chapter sovereign-signs the policy.
 
 ---
 

@@ -79,7 +79,7 @@ pub struct HubState {
 
     /// Admission standing per applicant LCT — the abuse-resistance counters.
     /// `denials` resets on a granted review or an operator reset; `reviews`
-    /// resets only on an operator reset. Thresholds live in chapter law
+    /// resets only on an operator reset. Thresholds live in hub law
     /// (`admission_repeat_limit`/`admission_review_limit`), not here.
     pub admission: BTreeMap<Uuid, AdmissionStanding>,
 

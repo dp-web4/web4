@@ -79,7 +79,7 @@ pub trait PluginCtx: Send + Sync {
 #[async_trait]
 pub trait ToolPlugin: Send + Sync {
     fn name(&self) -> &str;
-    /// Policy-action key for the chapter-law gate. Default `read:<name>`.
+    /// Policy-action key for the hub-law gate. Default `read:<name>`.
     fn policy_action(&self) -> String {
         format!("read:{}", self.name())
     }
@@ -89,7 +89,7 @@ pub trait ToolPlugin: Send + Sync {
     async fn handle(&self, ctx: &dyn PluginCtx, args: &Value) -> Result<Value, PluginError>;
 }
 
-/// Chapter-law gate (core supplies this — e.g. wrapping the PolicyEntity).
+/// Hub-law gate (core supplies this — e.g. wrapping the PolicyEntity).
 pub trait PolicyGate: Send + Sync {
     fn allow(&self, role: &str, action: &str) -> bool;
 }

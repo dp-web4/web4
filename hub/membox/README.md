@@ -15,7 +15,7 @@ drives `request_intro` (next).
 
 This is the **library** integration (Stage 1 of the membot green-light, forum:
 `waving-cat-to-hub-membot-greenlight-2026-06-09.md`): the hub owns ingestion,
-the front door, intros, and chapter-law gating; membot ships the cart format,
+the front door, intros, and hub-law gating; membot ships the cart format,
 the pinned embedding model, and the 3-signal search (cosine + Hamming + keyword
 rerank).
 
@@ -28,7 +28,7 @@ rerank).
 | `test_ingest.py` | Passage/index contract tests (no model load). |
 
 The Rust hub-side `find_members` channel tool (in `hub-daemon/src/rest.rs`)
-calls the sidecar over localhost, gated by chapter law (`read:find_members`) and
+calls the sidecar over localhost, gated by hub law (`read:find_members`) and
 bounded by tier (`ReadScope`). A `walk_members` slot is reserved for membot's
 forthcoming Walk-as-MCP (register-and-gate, not reimplement).
 

@@ -35,7 +35,7 @@ When HUB's supervisor track runs:
 2. **Review** against:
    - Hub PRD (`web4/hub/docs/PRD.md`)
    - Active sprint plan (`web4/hub/docs/SPRINTS.md`, `PAIRED-CHANNELS.md`)
-   - Chapter law for the "Web4 Fleet" society (the hub's own laws govern its evolution)
+   - Hub law for the "Web4 Fleet" society (the hub's own laws govern its evolution)
    - Standard code quality + test coverage
 3. **Merge** via squash unless the contributor requests preserve-history with reason
 4. **Rebuild** the hub daemon binary
@@ -58,7 +58,7 @@ When HUB's supervisor track runs:
 
 ## Sovereign relationship
 
-HUB is the hub *maintainer* — operating the codebase. The Sovereign of the "Web4 Fleet" society is dp's LCT (see hub charter). The hub maintainer does not act as Sovereign and does not amend chapter law without explicit Sovereign signature. Day-to-day operations (merging PRs, redeploying, etc.) do not require Sovereign action; structural changes do.
+HUB is the hub *maintainer* — operating the codebase. The Sovereign of the "Web4 Fleet" society is dp's LCT (see hub charter). The hub maintainer does not act as Sovereign and does not amend hub law without explicit Sovereign signature. Day-to-day operations (merging PRs, redeploying, etc.) do not require Sovereign action; structural changes do.
 
 ## Escalation
 
@@ -66,7 +66,7 @@ If a PR is stalled, contentious, or raises questions HUB can't resolve:
 
 1. **Forum post** in `shared-context/forum/` flagging the issue (HUB-maintainer voice)
 2. **Tag the relevant contributor** in the PR for direct discussion
-3. **Defer to dp** for decisions that require Sovereign judgment (chapter law, security policy, vocabulary canon)
+3. **Defer to dp** for decisions that require Sovereign judgment (hub law, security policy, vocabulary canon)
 
 ## Effective date
 

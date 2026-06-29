@@ -20,13 +20,13 @@ Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 
 A **paired channel** is the natural Web4 shape for inter-entity communication. It is not "Signal but with extra steps." It is the substrate for the four entity-relationship mechanisms the spec already names — binding, **pairing**, witnessing, broadcast — manifest as something running, not just declared.
 
-The content of a paired channel is end-to-end encrypted from outside observers, including the hub itself. But the *existence* of the pair, its lifecycle events, the metadata of each act, and the trust accrual that follows from it are all witnessed in the hub's signed ledger. This is the opposite of anonymity-by-default networks: Web4 wants pairs to be *named*, *witnessed*, *auditable*, and *policy-gated under chapter law*, while keeping the payload private to the two parties.
+The content of a paired channel is end-to-end encrypted from outside observers, including the hub itself. But the *existence* of the pair, its lifecycle events, the metadata of each act, and the trust accrual that follows from it are all witnessed in the hub's signed ledger. This is the opposite of anonymity-by-default networks: Web4 wants pairs to be *named*, *witnessed*, *auditable*, and *policy-gated under hub law*, while keeping the payload private to the two parties.
 
 If Web4 succeeds at this, the consequences ripple:
 
-- Two AI agents collaborating on a task get a paired channel under chapter law. The hub witnesses that they paired, accrues V3 if the collaboration produces verifiable value, and degrades V3 if the pair becomes a source of disputes. **Trust accrues *by relating*, not by declaration.**
+- Two AI agents collaborating on a task get a paired channel under hub law. The hub witnesses that they paired, accrues V3 if the collaboration produces verifiable value, and degrades V3 if the pair becomes a source of disputes. **Trust accrues *by relating*, not by declaration.**
 - A Hestia DelegatedAuthority isn't just a signed token granting permission — it's a pair between the granting entity and the delegate, lived out as observed acts.
-- A society can write chapter law that says "members of role X may pair with members of role Y for purpose Z, capped at N concurrent pairs" — and the law-interpreter gates pairing the same way it gates any other consequential act today.
+- A society can write hub law that says "members of role X may pair with members of role Y for purpose Z, capped at N concurrent pairs" — and the law-interpreter gates pairing the same way it gates any other consequential act today.
 - The "data" exchanged in the channel is incidental. What matters is the *relationship that exists because the channel exists*. When the pair is revoked, the relationship ends in the ledger; everything downstream (T3 scores, V3 accrual, AGY references, derived synthons) updates accordingly.
 
 This document is the PRD for making paired channels a real, working primitive on the hub.
@@ -60,7 +60,7 @@ implemented, not just documented.
 
 ## 1. What this PRD does and doesn't cover
 
-**Covers:** the design + sprint plan for shipping 2-party LCT-to-LCT paired channels on a Web4 hub, with end-to-end encryption (payload), hub-witnessed metadata (envelope), chapter-law-gated pairing (R6 evaluation), and per-pair lifecycle in the ledger.
+**Covers:** the design + sprint plan for shipping 2-party LCT-to-LCT paired channels on a Web4 hub, with end-to-end encryption (payload), hub-witnessed metadata (envelope), hub-law-gated pairing (R6 evaluation), and per-pair lifecycle in the ledger.
 
 **Does not cover:**
 - L3/L4 packet transport. Tailscale / WireGuard / equivalent remain the right tool for "I want to SSH from A to B." Paired channels are L7 LCT-aware messaging.
@@ -103,7 +103,7 @@ This is why paired channels are *the trust-medium claim made operational*. Trust
 
 ### ATP/ADP — bio-inspired energy metabolism
 
-Sending a message in a pair discharges ATP. This isn't decoration; it's the scarcity property that makes the channel a *signal*. Free channels become spam; metered channels become deliberate. The discharge rate is set per pair under chapter law: high-trust pairs may have lower per-message cost; low-trust pairs may have higher cost; pairs over a budget threshold may require escalation. ATP integration is later-sprint work; the architectural commitment is made now.
+Sending a message in a pair discharges ATP. This isn't decoration; it's the scarcity property that makes the channel a *signal*. Free channels become spam; metered channels become deliberate. The discharge rate is set per pair under hub law: high-trust pairs may have lower per-message cost; low-trust pairs may have higher cost; pairs over a budget threshold may require escalation. ATP integration is later-sprint work; the architectural commitment is made now.
 
 ---
 
@@ -113,9 +113,9 @@ Cross-referencing [`V2-V3-ARCHITECTURE.md`](V2-V3-ARCHITECTURE.md) §"Load-beari
 
 | # | Commitment | How paired channels engage |
 |---|---|---|
-| 1 | Law always signed + auditable | Pairing events evaluated through PolicyEntity gate exactly like every other act. Chapter law writes norms over `r6.request.action == "pair_request"`. |
+| 1 | Law always signed + auditable | Pairing events evaluated through PolicyEntity gate exactly like every other act. Hub law writes norms over `r6.request.action == "pair_request"`. |
 | 2 | All consequential acts signed envelopes | Pair lifecycle events (request/confirm/revoke) AND in-channel messages all carry signed envelopes. The envelope's signature is the hub's audit hook; the payload inside is opaque to the hub. |
-| 3 | Read paths gated by need-to-know | Hub's pair listing returns metadata visible to legitimate observers per chapter law; full pair history is for participants + auditors with explicit role. |
+| 3 | Read paths gated by need-to-know | Hub's pair listing returns metadata visible to legitimate observers per hub law; full pair history is for participants + auditors with explicit role. |
 | 4 | Witness graph is hash-chained ledger | Pair lifecycle + per-message metadata flow through the same ledger; same `verify_chain` machinery covers them. |
 | 5 | Multi-Sovereign Council from the start | Pairing that crosses council-significance threshold (e.g., role-delegation pairs) goes through the V2-9 P2 propose/sign flow before commit. |
 | 6 | AI as first-class role-filler | The first big use case. AI ↔ AI pairs are paired channels. The fact that one or both endpoints is non-human is invisible at this layer; presence (LCT) is what matters. |
@@ -204,7 +204,7 @@ Projection updates on each lifecycle event. Existing per-member views in admin U
 - `GET /v1/hubs/{id}/pairs?for=<lct_id>` — list pairs the requester participates in.
 - `GET /v1/hubs/{id}/pairs/{pair_id}` — single pair detail (metadata only; no plaintext).
 
-### 4.5 Chapter law integration
+### 4.5 Hub law integration
 
 The PolicyEntity gate evaluates a `pair_request` like any other act. Sample norms a chapter operator might write:
 
@@ -255,7 +255,7 @@ When the V3 accrual machinery is wired in (post-MVP), it draws from these.
 
 - **Latency:** sub-200ms per relayed message under normal load. Hub-as-relay adds one TCP roundtrip + the verify-envelope cost; ChaCha20-Poly1305 is microseconds.
 - **Throughput:** target 100 msg/sec/pair sustained, peak 1000 (consistent with human-scale chat and agent coordination; NOT streaming).
-- **Storage:** per-pair message log lives in the hub store, same backend as everything else (file/sqlite/dynamodb). Operator can prune old messages per chapter law (default: retain forever; ledger lifecycle events stay regardless).
+- **Storage:** per-pair message log lives in the hub store, same backend as everything else (file/sqlite/dynamodb). Operator can prune old messages per hub law (default: retain forever; ledger lifecycle events stay regardless).
 - **Crypto:** standard, well-reviewed primitives only (X25519, Ed25519↔X25519, ChaCha20-Poly1305, HKDF). No new crypto.
 - **Compatibility:** existing chapters without pairs continue to work (additive change; no schema migration). All new endpoints are additive routes.
 
@@ -284,10 +284,10 @@ Each sprint is sized for one focused work session. Sprints land in the order lis
 ### Sprint C — Pair request / confirm / revoke endpoints (rest.rs)
 
 - 3 POST endpoints + 2 GET endpoints (list, detail)
-- PolicyEntity gate integration: `pair_request` action evaluated under chapter law
+- PolicyEntity gate integration: `pair_request` action evaluated under hub law
 - Per-pair runtime policy: TTL, message-rate-limit fields stored in PairState
 - Admin UI `/admin/pairs` page (read-only list)
-- Smoke: Alice (member) requests pair with Bob (member); Bob confirms; chapter law allows; pair becomes Active in admin UI
+- Smoke: Alice (member) requests pair with Bob (member); Bob confirms; hub law allows; pair becomes Active in admin UI
 - **Output:** hub-daemon endpoints + admin UI + smoke
 
 ### Sprint D — In-channel messages (relay, no encryption yet)
@@ -355,7 +355,7 @@ set already runs sealed.
 
 - On `PairingConfirmed` + per-call ledger events (kind: tool name, signal: witnessing residue from Sprint J), emit signals into the trust-update pipeline (web4-trust-core hooks).
 - Per-pair contract-call count, lifetime, refusal-kind, capability-violation count feed into V3.validity updates.
-- Per-tool weights (some tools confer more trust than others — `declare_skill` vs `record_event`) declared in chapter law.
+- Per-tool weights (some tools confer more trust than others — `declare_skill` vs `record_event`) declared in hub law.
 - Read-only surface in admin UI showing trust deltas attributable to contract activity over the pair channel.
 - **Output:** trust accrual loop is closed for contract activity over paired channels.
 
@@ -363,11 +363,11 @@ set already runs sealed.
 
 **Status:** reframed by smart-contract proposal §6.4. Gated on Sprint J + proposal §6.3 (mutability) + §6.4 (R6 composition) settling.
 
-**Reframe:** ATP discharges per **contract call** (R6 action), not per raw byte/message. Per-tool ATP cost is declared in chapter law; the call is the discrete metering unit.
+**Reframe:** ATP discharges per **contract call** (R6 action), not per raw byte/message. Per-tool ATP cost is declared in hub law; the call is the discrete metering unit.
 
 - Each tool call over a channel discharges ATP per the chapter's per-tool cost rule.
 - Hub enforces ATP budget at call dispatch time (before tool execution begins).
-- Per-tool ATP cost declared in chapter law; per-pair multipliers (trust-discounted rates) possible.
+- Per-tool ATP cost declared in hub law; per-pair multipliers (trust-discounted rates) possible.
 - Refused calls discharge a smaller "rejected-call" cost (so probing isn't free, but execution isn't required to charge).
 - **Output:** paired-channel contract calls carry an economic signal; spam is naturally costly; high-trust pairs may receive discounted rates.
 
@@ -398,12 +398,12 @@ set already runs sealed.
 
 The MVP (Sprints A through F) is done when:
 
-1. Two LCT-holders on the same hub can establish a pair under chapter law, witnessed in the ledger.
+1. Two LCT-holders on the same hub can establish a pair under hub law, witnessed in the ledger.
 2. Messages flow between them E2E-encrypted; the hub stores ciphertext + signed metadata only.
 3. Forward secrecy: revealing an LCT key post-hoc doesn't decrypt past session messages.
 4. `verify-ledger` covers pair lifecycle events unchanged.
 5. Admin UI surfaces active pairs + per-pair message count + lifecycle events.
-6. Chapter law can express per-pair policy (rate, TTL, who-may-pair-with-whom).
+6. Hub law can express per-pair policy (rate, TTL, who-may-pair-with-whom).
 7. A smoke script exercises the full flow: request → confirm → encrypted message exchange → revoke → cannot send post-revoke.
 
 Sprint J is the operational landing point for the smart-contract proposal's authz/confidentiality model — the next concrete commit candidate, post-MVP. Sprints G + H + I are the "make it load-bearing for V3 trust accrual + ATP + real-time delivery" follow-on phase, reframed by the smart-contract proposal and gated on Sprint J + the proposal's §6.3/§6.4 settling. Out-of-scope items are explicitly deferred.

@@ -335,20 +335,20 @@ enum Command {
     },
 
     /// Set (or amend) the chapter's law from a YAML file (V2-8).
-    /// Validates the YAML against the chapter-law schema, writes it
+    /// Validates the YAML against the hub-law schema, writes it
     /// to the hub store, and appends a LawAmended event to the
     /// ledger for audit.
     SetLaw {
         hub_dir: PathBuf,
-        /// Path to a YAML file matching the chapter-law schema (see
-        /// web4-standard/core-spec/chapter-law-schema.md).
+        /// Path to a YAML file matching the hub-law schema (see
+        /// web4-standard/core-spec/hub-law-schema.md).
         yaml: PathBuf,
         /// Optional one-line summary of what changed.
         #[arg(long)]
         diff_summary: Option<String>,
     },
 
-    /// Print the current chapter law YAML (or report none is set).
+    /// Print the current hub law YAML (or report none is set).
     GetLaw {
         hub_dir: PathBuf,
     },
@@ -366,7 +366,7 @@ enum Command {
         pubkey_hex: String,
     },
 
-    /// Write the starter chapter-law template to a file the operator
+    /// Write the starter hub-law template to a file the operator
     /// can review + edit, then apply via `hub set-law`. Doesn't touch
     /// any hub directly.
     InitLaw {
@@ -797,12 +797,12 @@ async fn run_get_law(hub_dir: PathBuf) -> Result<()> {
     let session = HubSession::open(&hub_dir).await?;
     match session.get_law().await? {
         Some(yaml) => print!("{}", yaml),
-        None => println!("No chapter law set."),
+        None => println!("No hub law set."),
     }
     Ok(())
 }
 
-/// Starter chapter-law template — embedded at compile time so the
+/// Starter hub-law template — embedded at compile time so the
 /// binary ships with it. Source: `web4/hub/examples/starter-law.yaml`.
 const STARTER_LAW_YAML: &str = include_str!("../../examples/starter-law.yaml");
 
@@ -828,7 +828,7 @@ async fn run_init_law(output: PathBuf, force: bool) -> Result<()> {
     std::fs::write(&output, STARTER_LAW_YAML)
         .with_context(|| format!("writing starter law to {}", output.display()))?;
 
-    println!("Starter chapter-law written to {}.", output.display());
+    println!("Starter hub-law written to {}.", output.display());
     println!();
     println!("Next steps:");
     println!("  1. Edit {} — adjust norms, admission, atp_issuance, etc.", output.display());
@@ -922,7 +922,7 @@ async fn run_query(sub: QueryCommand) -> Result<()> {
                 for role in &unfilled {
                     println!("    {:?}", role);
                 }
-                println!("    (assign via `hub assign-role <chapter-dir> <role> <member-lct-id>` per chapter law)");
+                println!("    (assign via `hub assign-role <chapter-dir> <role> <member-lct-id>` per hub law)");
             }
             Ok(())
         }

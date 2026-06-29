@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Metalinxx Inc.
 
-//! Chapter law — typed representation + YAML parsing + validation.
+//! Hub law — typed representation + YAML parsing + validation.
 //!
-//! Implements the schema in `web4-standard/core-spec/chapter-law-schema.md`
+//! Implements the schema in `web4-standard/core-spec/hub-law-schema.md`
 //! (Legion's Track U sub-item U3, web4@08213d1). The hub holds law as a
 //! typed Rust struct in memory + as a signed YAML file in chapter storage.
 //! Operators edit YAML; the hub validates, signs, and (eventually)
@@ -30,7 +30,7 @@ use std::collections::HashSet;
 /// A chapter's law document. Parsed from YAML, validated structurally,
 /// (later) compiled to canonical RDF for exchange.
 ///
-/// Wire shape matches `chapter-law-schema.md` §1 exactly. Backward-
+/// Wire shape matches `hub-law-schema.md` §1 exactly. Backward-
 /// compatible field additions use `#[serde(default)]`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Law {
@@ -232,7 +232,7 @@ impl Law {
         serde_yaml::to_string(self).context("serializing hub law to YAML")
     }
 
-    /// Validate per `chapter-law-schema.md` §2 rules 1-10. Errors loudly
+    /// Validate per `hub-law-schema.md` §2 rules 1-10. Errors loudly
     /// on the first failure — operators want one clear message per fix,
     /// not a tower of warnings.
     pub fn validate(&self) -> Result<()> {
@@ -520,7 +520,7 @@ fn parse_value(s: &str) -> Result<serde_yaml::Value> {
 // Evaluator (V2-8 Step 3) — (Law, R6Request) → Decision
 // ============================================================================
 
-/// An R6 request being evaluated against chapter law.
+/// An R6 request being evaluated against hub law.
 ///
 /// Per the Web4 R6 framework (Rules + Role + Request + Reference + Resource
 /// → Result), this struct carries the inputs the evaluator needs:
@@ -776,7 +776,7 @@ fn as_number(v: &serde_yaml::Value) -> Option<f64> {
 mod tests {
     use super::*;
 
-    /// The canonical example from chapter-law-schema.md §1.
+    /// The canonical example from hub-law-schema.md §1.
     const EXAMPLE_LAW: &str = r#"
 version: "1.0.0"
 
@@ -1381,7 +1381,7 @@ escalation:
         assert_eq!(outcome.decision, Decision::Escalate);
     }
 
-    // ----- Interop fixtures (shared-context/interop-fixtures/chapter-law/) -----
+    // ----- Interop fixtures (shared-context/interop-fixtures/hub-law/) -----
     //
     // Legion seeded shared fixtures so the hub parser + the web4-law-check
     // validator CLI assert against the same source-of-truth files. Catches
@@ -1389,16 +1389,16 @@ escalation:
     // and the parser needs updating.
 
     const FIXTURE_MINIMAL: &str = include_str!(
-        "../../../../shared-context/interop-fixtures/chapter-law/minimal.yaml"
+        "../../../../shared-context/interop-fixtures/hub-law/minimal.yaml"
     );
     const FIXTURE_FULL: &str = include_str!(
-        "../../../../shared-context/interop-fixtures/chapter-law/full-featured.yaml"
+        "../../../../shared-context/interop-fixtures/hub-law/full-featured.yaml"
     );
     const FIXTURE_INVALID_BAD_OPERATOR: &str = include_str!(
-        "../../../../shared-context/interop-fixtures/chapter-law/invalid-bad-operator.yaml"
+        "../../../../shared-context/interop-fixtures/hub-law/invalid-bad-operator.yaml"
     );
     const FIXTURE_INVALID_MISSING_NORM_ID: &str = include_str!(
-        "../../../../shared-context/interop-fixtures/chapter-law/invalid-missing-norm-id.yaml"
+        "../../../../shared-context/interop-fixtures/hub-law/invalid-missing-norm-id.yaml"
     );
 
     #[tokio::test]

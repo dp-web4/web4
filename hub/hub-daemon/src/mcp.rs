@@ -58,7 +58,7 @@ pub struct McpState {
     /// construct in a locked shell (no `load_auto` of an encrypted identity).
     pub signer: Arc<SwappableSigner>,
     pub ledger: Arc<Mutex<HubLedger>>,
-    /// Chapter law snapshot (loaded at open). PolicyEntity gate runs
+    /// Hub law snapshot (loaded at open). PolicyEntity gate runs
     /// before each act-recording tool commits to the ledger.
     ///
     /// RwLock for hot-reload via the REST `/v1/admin/reload-law` endpoint;
@@ -381,7 +381,7 @@ async fn append_with_sovereign(
     use chrono::Utc;
     use uuid::Uuid;
 
-    // PolicyEntity gate (V2-8 §4): if a chapter law is loaded, evaluate
+    // PolicyEntity gate (V2-8 §4): if a hub law is loaded, evaluate
     // before signing. MCP returns the same allow/deny/escalate decisions
     // as REST. For MCP we encode deny + escalate as ApiError (which becomes
     // a 500 with the error body for now — V2-16 admin UI is where escalation

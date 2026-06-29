@@ -201,7 +201,7 @@ pub enum HubEvent {
         updated_by: Uuid,
     },
 
-    /// The chapter law was amended (V2-8). The new law's YAML bytes are
+    /// The hub law was amended (V2-8). The new law's YAML bytes are
     /// stored separately via [`crate::store::HubStore::write_law`];
     /// this event records the amendment in the ledger for audit. The
     /// `new_law_sha256` is the canonical hash of the YAML content,
@@ -261,7 +261,7 @@ pub enum HubEvent {
     /// signs a `PairingConfirmed`. Initiator's envelope at submit time
     /// is the request signature; counterparty has not yet agreed.
     ///
-    /// `purpose` is free-text; chapter law can pattern-match against
+    /// `purpose` is free-text; hub law can pattern-match against
     /// it (e.g., allow `delegation_*` purposes only for council holders).
     /// `expires_at` is optional — None means "no auto-expiry, must be
     /// revoked explicitly."
@@ -307,7 +307,7 @@ pub enum HubEvent {
     },
 
     /// PAIRED-CHANNELS Sprint B: pair revoked. Either party may
-    /// voluntarily revoke; chapter law may force-revoke; key rotation
+    /// voluntarily revoke; hub law may force-revoke; key rotation
     /// invalidates the derived shared secret and requires re-pairing.
     /// `revocation_kind` is the audit-relevant signal (voluntary
     /// vs. forced says something different to V3 trust accrual).
