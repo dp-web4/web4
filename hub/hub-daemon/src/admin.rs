@@ -64,20 +64,29 @@ const STYLE: &str = r#"
 </style>
 "#;
 
-fn layout(hub_name: &str, title: &str, body: &str) -> Html<String> {
-    // Joins/Manage are operator-plane pages (127.0.0.1 only); on the read-only
-    // fleet plane they 404, which is the honest signal that admin writes aren't there.
-    let nav = r#"<nav>
+fn layout(s: &RestState, title: &str, body: &str) -> Html<String> {
+    let hub_name = &s.hub_name;
+    // The Joins/Manage write pages exist ONLY on the loopback operator plane.
+    // Show their nav links there; omit them on the read-only fleet plane so we
+    // don't advertise links that would 404.
+    let operator_nav = if s.operator_plane {
+        r#"
+      <a href="/admin/joins">Joins ⚙</a>
+      <a href="/admin/manage">Manage ⚙</a>"#
+    } else {
+        ""
+    };
+    let nav = format!(
+        r#"<nav>
       <a href="/admin">Overview</a>
       <a href="/admin/members">Members</a>
       <a href="/admin/roles">Roles</a>
       <a href="/admin/ledger">Ledger</a>
       <a href="/admin/law">Law</a>
       <a href="/admin/council">Council</a>
-      <a href="/admin/pairs">Pairs</a>
-      <a href="/admin/joins">Joins ⚙</a>
-      <a href="/admin/manage">Manage ⚙</a>
-    </nav>"#;
+      <a href="/admin/pairs">Pairs</a>{operator_nav}
+    </nav>"#
+    );
     Html(format!(
         "<!doctype html><html><head><meta charset=\"utf-8\">\
          <title>{title} — {hub_name}</title>{STYLE}</head>\
@@ -181,10 +190,10 @@ async fn overview(State(s): State<RestState>) -> Result<Html<String>, AdminError
     body.push_str("<h2>Recent acts (last 20)</h2>");
     body.push_str(&render_ledger_table(&last_20));
 
-    Ok(layout(&s.hub_name, "Overview", &body))
+    Ok(layout(&s, "Overview", &body))
 }
 
-async fn members(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
+pub(crate) async fn members(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
     let ledger = s.ledger.lock().await;
     let projected = HubState::project(&*ledger);
     drop(ledger);
@@ -217,7 +226,7 @@ async fn members(State(s): State<RestState>) -> Result<Html<String>, AdminError>
         body.push_str("</tbody></table>");
     }
 
-    Ok(layout(&s.hub_name, "Members", &body))
+    Ok(layout(&s, "Members", &body))
 }
 
 async fn roles(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
@@ -285,7 +294,7 @@ async fn roles(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
         body.push_str("</tbody></table>");
     }
 
-    Ok(layout(&s.hub_name, "Roles", &body))
+    Ok(layout(&s, "Roles", &body))
 }
 
 async fn ledger_list(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
@@ -298,7 +307,7 @@ async fn ledger_list(State(s): State<RestState>) -> Result<Html<String>, AdminEr
         entries.len(),
         render_ledger_table(&entries),
     );
-    Ok(layout(&s.hub_name, "Ledger", &body))
+    Ok(layout(&s, "Ledger", &body))
 }
 
 async fn ledger_detail(
@@ -347,7 +356,7 @@ async fn ledger_detail(
         html_escape(&entry.signature),
         html_escape(&event_json),
     );
-    Ok(layout(&s.hub_name, &format!("Entry #{}", index), &body))
+    Ok(layout(&s, &format!("Entry #{}", index), &body))
 }
 
 async fn council(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
@@ -410,7 +419,7 @@ async fn council(State(s): State<RestState>) -> Result<Html<String>, AdminError>
         body.push_str("</tbody></table>");
     }
 
-    Ok(layout(&s.hub_name, "Council", &body))
+    Ok(layout(&s, "Council", &body))
 }
 
 async fn pairs(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
@@ -483,7 +492,7 @@ async fn pairs(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
         );
     }
 
-    Ok(layout(&s.hub_name, "Pairs", &body))
+    Ok(layout(&s, "Pairs", &body))
 }
 
 async fn law(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
@@ -518,7 +527,7 @@ async fn law(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
             body.push_str("</pre>");
         }
     }
-    Ok(layout(&s.hub_name, "Law", &body))
+    Ok(layout(&s, "Law", &body))
 }
 
 // ---------- shared bits ----------
@@ -818,7 +827,7 @@ pub(crate) async fn joins_page(State(s): State<RestState>) -> Result<Html<String
         body.push_str("</tbody></table>");
     }
     body.push_str(OPERATOR_JS);
-    Ok(layout(&s.hub_name, "Admission queue", &body))
+    Ok(layout(&s, "Admission queue", &body))
 }
 
 pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
@@ -868,7 +877,7 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
         body.push_str("</tbody></table>");
     }
     body.push_str(OPERATOR_JS);
-    Ok(layout(&s.hub_name, "Manage members", &body))
+    Ok(layout(&s, "Manage members", &body))
 }
 
 /// Operator-plane GUI pages (admit/deny + member management). Mounted ONLY on
