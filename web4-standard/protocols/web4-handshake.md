@@ -1,5 +1,5 @@
 # Web4 Core Handshake (HPKE-based)
-Status: Draft • Last-Updated: 2026-06-18T18:00:00Z
+Status: Draft • Last-Updated: 2026-06-29T00:00:00Z
 Authors: Web4 Editors
 
 ## 1. Scope
@@ -21,7 +21,7 @@ At least the following suites MUST be implemented:
 |-------------------|---------|------------|---------------------|---------|---------|
 | W4-BASE-1 (MUST)  | X25519  | Ed25519    | ChaCha20-Poly1305   | SHA-256 | COSE    |
 | W4-FIPS-1 (SHOULD)| P-256EC | ECDSA-P256 | AES-128-GCM         | SHA-256 | JOSE    |
-| W4-IOT-1 (MAY)    | X25519  | Ed25519    | AES-CCM             | SHA-256 | CBOR    |
+| W4-IOT-1 (MAY)    | X25519  | Ed25519    | AES-CCM             | SHA-256 | COSE    |
 
 HPKE KDF is HKDF-SHA-256. Implementations MAY offer additional suites but MUST apply
 GREASE (random unknown suite IDs) during negotiation.
@@ -140,7 +140,7 @@ All signed Web4 payloads (HandshakeAuth, LCT binding, Metering messages) **MUST*
   - `alg = -8` (EdDSA)
   - `kid = <bstr>` (key identifier)
   - `content-type = "application/web4+cbor"`
-- **Sig structure:** Sign the canonical CBOR map of the payload **excluding** any `sig`/envelope fields
+- **Sig structure:** Sign the canonical CBOR map of the payload **excluding** any `sig`/envelope fields. This governs non-handshake signed payloads (LCT binding, Metering); for `HandshakeAuth` the signing input is `Hash(TH || channel_binding)` per §6.0.5, which governs the signed content, while this section governs the `COSE_Sign1` envelope and CBOR canonicalization
 - **Key curve:** Ed25519 (`crv = 6`)
 - **Verification:** Receivers **MUST** decode deterministic CBOR and verify `COSE_Sign1` against `kid`. Unknown protected headers **MUST** be ignored unless listed in `crit`
 
