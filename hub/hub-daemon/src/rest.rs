@@ -2360,12 +2360,17 @@ async fn request_citizenship(
     let pubkey_hex = caller_pubkey_hex.ok_or_else(|| ApiError::bad_request(
         "request_citizenship requires the channel to carry caller_pubkey_hex".to_string(),
     ))?;
-    // Reject if already a member (idempotency / no double-admit).
-    {
-        let ledger = s.ledger.lock().await;
-        if HubState::project(&ledger).members.contains_key(&caller_lct_id) {
-            return Ok(serde_json::json!({ "admitted": true, "already_member": true }));
-        }
+    // Idempotency: collapse repeat applications from the same LCT — already a
+    // member, or an already-pending request, short-circuits without queuing a dup.
+    match admission_state(s, caller_lct_id).await {
+        AdmissionState::Member =>
+            return Ok(serde_json::json!({ "admitted": true, "already_member": true })),
+        AdmissionState::Pending(request_id) =>
+            return Ok(serde_json::json!({
+                "admitted": false, "status": "pending_review",
+                "request_id": request_id, "already_pending": true,
+            })),
+        AdmissionState::New => {}
     }
     let name = args.get("name").and_then(|v| v.as_str()).map(String::from);
     let event = HubEvent::MemberAdded {
@@ -2523,6 +2528,37 @@ async fn pending_join(s: &RestState, request_id: Uuid) -> Result<hub_lib::state:
             Err(ApiError::bad_request(format!("join request {request_id} is already {:?}", jr.status))),
         Some(jr) => Ok(jr),
     }
+}
+
+/// The applicant's admission state — the basis for idempotent join handling.
+enum AdmissionState {
+    /// Already a member; a repeat join is a no-op.
+    Member,
+    /// A pending request already exists for this LCT — reuse it, don't queue another.
+    Pending(Uuid),
+    /// Neither — proceed to evaluate / queue.
+    New,
+}
+
+/// Idempotency gate for admission: collapse repeat applications from the same
+/// applicant LCT. Without this, a burst of join submissions (or a retry after an
+/// already-granted admission) piles up duplicate pending requests in the queue.
+async fn admission_state(s: &RestState, lct: Uuid) -> AdmissionState {
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger)
+    };
+    if projected.members.contains_key(&lct) {
+        return AdmissionState::Member;
+    }
+    if let Some(jr) = projected
+        .pending_joins
+        .values()
+        .find(|j| j.member_lct_id == lct && j.status == hub_lib::state::JoinStatus::Pending)
+    {
+        return AdmissionState::Pending(jr.request_id);
+    }
+    AdmissionState::New
 }
 
 /// Operator approves a pending join request: admit the member live (no restart)
@@ -2783,6 +2819,34 @@ async fn submit_join(
     let mut adhoc = MapResolver::new();
     adhoc.insert(applicant_lct.clone());
     let _redeemed = verify_envelope(&envelope, &s.nonces, &adhoc, Utc::now())?;
+
+    // 2b. Idempotency: collapse repeat applications from the same LCT before the
+    // law gate. Already a member → 200 already_member; an existing pending request
+    // → 202 with that request_id (don't queue a duplicate). Only a genuinely-new
+    // applicant proceeds to evaluation.
+    match admission_state(&s, payload.member_lct_id).await {
+        AdmissionState::Member => {
+            return Ok((
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "member_lct_id": payload.member_lct_id,
+                    "status": "already_member",
+                    "welcome": format!("already a member of {}", s.hub_name),
+                })),
+            ).into_response());
+        }
+        AdmissionState::Pending(request_id) => {
+            return Ok((
+                StatusCode::ACCEPTED,
+                Json(JoinQueued {
+                    request_id,
+                    status: "pending_review",
+                    message: format!("a join request is already queued for review at {}", s.hub_name),
+                }),
+            ).into_response());
+        }
+        AdmissionState::New => {}
+    }
 
     // 3. PolicyEntity gate — admission policy from chapter law. The R6 payload
     // is the MemberAdded we *would* record. Allow → auto-admit; Deny → reject;
@@ -4187,7 +4251,7 @@ norms:
             sealed,
             caller_pubkey_hex: Some(applicant.verifying_key().to_hex()),
         };
-        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(req)).await.unwrap();
+        let resp = match channel_request(State(state.clone()), Path(state.hub_id), Json(req)).await { Ok(r)=>r, Err(e)=>panic!("channel_request {}: {}", e.status, e.message) };
         let out = open_resp(&applicant, &hub_pub, pid, &resp.0.sealed);
         let request_id: Uuid = serde_json::from_value(out["request_id"].clone()).unwrap();
 
@@ -4286,6 +4350,64 @@ norms:
 
         // Removing a non-member errors.
         assert!(remove_member_live(&state, Uuid::new_v4(), None).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn admission_is_idempotent_no_duplicate_pending() {
+        const LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(LAW)).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let applicant = KeyPair::generate();
+        let applicant_lct = Uuid::new_v4();
+        let hex = applicant.verifying_key().to_hex();
+
+        // Submit a request_citizenship over the channel; returns the sealed
+        // dispatch result, or the ApiError if the channel refused it.
+        let submit = || {
+            let (state, hub_pub, applicant, hex) =
+                (state.clone(), hub_pub.clone(), applicant.clone(), hex.clone());
+            async move {
+                let pid = Uuid::new_v4();
+                let sealed = seal_req(&applicant, &hub_pub, pid, "request_citizenship",
+                    serde_json::json!({ "name": "Dup" }));
+                let req = ChannelRequest { caller_lct_id: applicant_lct, pair_id: pid, sealed,
+                    caller_pubkey_hex: Some(hex) };
+                channel_request(State(state.clone()), Path(state.hub_id), Json(req)).await
+                    .map(|resp| open_resp(&applicant, &hub_pub, pid, &resp.0.sealed))
+            }
+        };
+
+        // First application → queued pending.
+        let first = submit().await.unwrap();
+        let rid1: Uuid = serde_json::from_value(first["request_id"].clone()).unwrap();
+        // Repeat application → SAME request_id, flagged already_pending, no new entry.
+        let second = submit().await.unwrap();
+        assert_eq!(second["already_pending"], serde_json::json!(true));
+        assert_eq!(serde_json::from_value::<Uuid>(second["request_id"].clone()).unwrap(), rid1,
+            "a repeat application returns the existing pending request");
+        let pending = {
+            let l = state.ledger.lock().await;
+            HubState::project(&l).pending_joins.values()
+                .filter(|j| j.member_lct_id == applicant_lct
+                    && j.status == hub_lib::state::JoinStatus::Pending)
+                .count()
+        };
+        assert_eq!(pending, 1, "exactly one pending entry — no duplicates");
+
+        // Approve → member. A member can't even re-apply over the channel
+        // (request_citizenship is external-tier-only), so re-application is refused
+        // at tier routing — the end-to-end idempotence guarantee.
+        approve_join(&state, rid1, state.sovereign_lct_id).await.unwrap();
+        assert!(submit().await.is_err(), "an admitted member cannot re-apply via the channel");
     }
 
     #[tokio::test]
