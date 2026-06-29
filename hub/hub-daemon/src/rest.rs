@@ -3542,6 +3542,23 @@ async fn submit_pair_request(
             String::from("self-pair (initiator == counterparty) is not allowed")
         ));
     }
+    // Idempotency / no-duplicate: refuse if a Pending or Active pair between
+    // these two LCTs already exists (either direction). Without this, repeated
+    // pair_requests pile up parallel live pairs for the same relationship.
+    let dup = projected.pairs.values().any(|p| {
+        matches!(p.status, PairStatus::Pending | PairStatus::Active)
+            && p.includes(envelope.signer_lct_id)
+            && p.includes(payload.counterparty_lct_id)
+    });
+    if dup {
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: format!(
+                "a pending or active pair with {} already exists",
+                payload.counterparty_lct_id
+            ),
+        });
+    }
 
     let pair_id = Uuid::new_v4();
     let event = HubEvent::PairingRequested {

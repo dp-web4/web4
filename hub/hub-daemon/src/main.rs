@@ -599,6 +599,12 @@ async fn run_council(sub: CouncilCommand) -> Result<()> {
                 anyhow::bail!("--pubkey must be 32 bytes (got {})", decoded.len());
             }
             let mut session = HubSession::open(&hub_dir).await?;
+            // Idempotency: don't double-admit an existing holder (the projection
+            // would absorb it as a set-insert, but the ledger would carry a
+            // redundant CouncilMemberAdded).
+            if session.state().council_holders.contains(&member_lct_id) {
+                anyhow::bail!("{} is already a Sovereign Council holder", member_lct_id);
+            }
             let entry = session.add_council_member(member_lct_id, pubkey, name.clone()).await?;
             println!("Council member added.");
             println!("  Member LCT:   {}", member_lct_id);
