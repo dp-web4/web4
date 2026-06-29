@@ -142,7 +142,7 @@ pub struct EscalationTrigger {
     pub description: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct AdmissionPolicy {
     #[serde(default)]
     pub open: bool,
