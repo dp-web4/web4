@@ -183,6 +183,36 @@ impl Law {
         self.admission.as_ref().and_then(|a| a.review_limit)
             .unwrap_or(DEFAULT_ADMISSION_REVIEW_LIMIT)
     }
+
+    /// **Hydrate code defaults into the law.** For every law-driven parameter
+    /// that has a code default but no explicit value, write the default in, so
+    /// the law inspectably carries every effective setting (and new parameters
+    /// auto-populate on first boot — no per-parameter maintenance). Explicit
+    /// values are never overwritten. Returns `true` iff anything was filled, so
+    /// the caller persists + witnesses **only on change** (idempotent: a second
+    /// hydrate is a no-op).
+    ///
+    /// SINGLE MAINTENANCE POINT — when you add a law-driven parameter with a code
+    /// default, add its `get_or_insert`/default line here and it auto-hydrates.
+    /// (Filling these specific defaults is behaviour-neutral: each equals what
+    /// the corresponding accessor already returns when the value is absent.)
+    pub fn hydrate_defaults(&mut self) -> bool {
+        let mut changed = false;
+        let adm = self.admission.get_or_insert_with(|| {
+            changed = true; // a section had to be created to hold the defaults
+            Default::default()
+        });
+        if adm.repeat_limit.is_none() {
+            adm.repeat_limit = Some(DEFAULT_ADMISSION_REPEAT_LIMIT);
+            changed = true;
+        }
+        if adm.review_limit.is_none() {
+            adm.review_limit = Some(DEFAULT_ADMISSION_REVIEW_LIMIT);
+            changed = true;
+        }
+        // ── future law-driven defaults: add `get_or_insert`/default lines here ──
+        changed
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1436,5 +1466,24 @@ escalation:
         // but only if atp <= 100 (default 0 satisfies). Both fire.
         // Priority: ADMIN-ONLY-ROLES (20) > ATP-LIMIT (10). Escalate wins.
         assert_eq!(law.evaluate(&assign), Decision::Escalate);
+    }
+
+    #[test]
+    fn hydrate_fills_unset_defaults_preserves_explicit_idempotent() {
+        // A law with one admission limit set explicitly, the other absent.
+        let mut law = Law::parse_and_validate("version: \"1.0.0\"\nadmission:\n  review_limit: 5\n").unwrap();
+        assert!(law.hydrate_defaults(), "fills the missing repeat_limit");
+        let adm = law.admission.as_ref().unwrap();
+        assert_eq!(adm.repeat_limit, Some(DEFAULT_ADMISSION_REPEAT_LIMIT), "default filled");
+        assert_eq!(adm.review_limit, Some(5), "explicit value preserved, not overwritten");
+        assert!(!law.hydrate_defaults(), "idempotent — second call is a no-op");
+
+        // A law with NO admission section gets one created to hold the defaults.
+        let mut bare = Law::parse_and_validate("version: \"1.0.0\"\n").unwrap();
+        assert!(bare.admission.is_none());
+        assert!(bare.hydrate_defaults());
+        assert_eq!(bare.admission_repeat_limit(), DEFAULT_ADMISSION_REPEAT_LIMIT);
+        assert_eq!(bare.admission_review_limit(), DEFAULT_ADMISSION_REVIEW_LIMIT);
+        assert!(!bare.hydrate_defaults(), "idempotent");
     }
 }

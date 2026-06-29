@@ -1004,6 +1004,16 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         .await?;
         (rest, mcp)
     };
+    // On a normal (unlocked) boot the signer is live, so hydrate any law-driven
+    // code defaults into the law now (idempotent; witnessed only if it fills a
+    // gap). On a locked boot this runs post-ignition in the unlock handler.
+    if store_opens {
+        match crate::rest::hydrate_law_defaults(&rest_state).await {
+            Ok(true) => tracing::info!("law defaults hydrated at boot"),
+            Ok(false) => {}
+            Err(e) => tracing::warn!("law-default hydration skipped: {e}"),
+        }
+    }
     // Admin UI reuses RestState (read-only; shares ledger + law snapshot).
     let admin_state = rest_state.clone();
     let gate_state = rest_state.clone();
