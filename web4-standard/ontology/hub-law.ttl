@@ -7,15 +7,15 @@
 @prefix dcterms: <http://purl.org/dc/terms/> .
 
 # =============================================================================
-# Chapter Law Ontology — typed RDF graph for Web4 chapter governance
+# Hub Law Ontology — typed RDF graph for Web4 chapter governance
 #
 # Reference: web4-standard/core-spec/web4-society-authority-law.md §4
 # Track U sub-item U3
 # =============================================================================
 
 law: a owl:Ontology ;
-    dcterms:title "Web4 Chapter Law Ontology" ;
-    dcterms:description "Schema for machine-readable chapter law: norms, procedures, delegation policies, and R6 bindings." ;
+    dcterms:title "Web4 Hub Law Ontology" ;
+    dcterms:description "Schema for machine-readable hub law: norms, procedures, delegation policies, and R6 bindings." ;
     owl:versionInfo "1.0.0" .
 
 # --- Core classes ---

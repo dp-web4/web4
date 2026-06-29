@@ -3,7 +3,7 @@
 **Companion to:** `PRD.md`
 **Date:** 2026-06-07
 
-> **STATUS as of 2026-06:** The MVP (Sprints 0–6) shipped, and substantial V2 work has since shipped on top of it (encrypt-at-rest, machine-enforced chapter law, sealed member channels, EUDI/`did:web4`, Sovereign Council, operator web UI + admission queue, plugin seam). This document remains an accurate record of the MVP build. For everything after the MVP, see `docs/V2-V3-ARCHITECTURE.md` and the README.
+> **STATUS as of 2026-06:** The MVP (Sprints 0–6) shipped, and substantial V2 work has since shipped on top of it (encrypt-at-rest, machine-enforced hub law, sealed member channels, EUDI/`did:web4`, Sovereign Council, operator web UI + admission queue, plugin seam). This document remains an accurate record of the MVP build. For everything after the MVP, see `docs/V2-V3-ARCHITECTURE.md` and the README.
 
 Sprints are **capability-defined**, not calendar-defined. Each sprint produces a verifiable milestone — a thing that builds, runs, and demonstrates a specific capability. Pace is set by the work, not by weeks. Each sprint's exit criteria must be met before the next sprint starts.
 
@@ -93,7 +93,7 @@ The whole sprint plan is one stack of seven sprints (Sprint 0 through Sprint 6).
   - `find_skill(query)` — searches member skill declarations
   - `query_chapter()` — returns chapter identity + role-fill state + recent events summary
   - `record_event(event_spec)` — writes to ledger; requires LCT-signed envelope
-  - `add_member(member_spec)` — adds to ledger; requires LCT-signed envelope from a role-holder authorized to add members per chapter law
+  - `add_member(member_spec)` — adds to ledger; requires LCT-signed envelope from a role-holder authorized to add members per hub law
   - `assign_role(role, member)` — assigns role; requires consent step (assignee LCT signs acceptance) + Sovereign or Administrator authorization
 - Auth model: read-only tools unauthenticated by default; act-recording tools require signed envelope; configurable per chapter
 
@@ -159,7 +159,7 @@ The whole sprint plan is one stack of seven sprints (Sprint 0 through Sprint 6).
 **Deliverables:**
 - `README.md` — what the hub is, who it's for, what it does today (links PRD for depth)
 - `docs/QUICKSTART.md` — chapter-organizer onboarding (5 minutes → first deploy; 30 minutes → first event recorded)
-- `docs/CHAPTER-LAW.md` — template + guidance for writing chapter law that the Sovereign signs
+- `docs/HUB-LAW.md` — template + guidance for writing hub law that the Sovereign signs
 - `docs/ROLES.md` — role-fill guide (who does what, how to delegate when a chapter grows)
 - `docs/TROUBLESHOOTING.md` — common errors + recovery
 - Error message audit: every user-facing error explains what's wrong + how to fix

@@ -43,7 +43,7 @@ We don't mandate the policy. We insist that whatever the policy is, is followed 
 ## Extending the hub (plugin seam)
 
 The hub is **open-core**: the daemon owns the hard parts — authenticating the
-caller, gating by chapter law, bounding results to the caller's tier, and sealing
+caller, gating by hub law, bounding results to the caller's tier, and sealing
 the response — and tools plug in behind that. The generic seam lives in the
 [`hub-plugin`](hub-plugin/) crate:
 
@@ -65,7 +65,7 @@ operator can add their own (or proprietary) handlers without forking the hub.
 - Not a *member-facing* public web UI — that's still out of scope. (An **operator/admin web GUI does ship**: a read-only dashboard at `/admin` on the fleet port, plus a write-capable operator plane — admit/deny admissions, add/re-key/remove members — at `/admin/joins` and `/admin/manage`, bound to 127.0.0.1 only on the admin port, default 8772.)
 - Not Slack-integrated (deferred until pilot empirically defines coexistence requirements)
 - Not ACT-anchored (ledger persists to a local `file` backend or a SQLCipher-encrypted `sqlite` backend; ACT anchoring is V2)
-- Not Hardbound-policy-integrated (chapter law is text; full enforcement requires resolving Hardbound's canonical Web4 alignment debt)
+- Not Hardbound-policy-integrated (hub law is text; full enforcement requires resolving Hardbound's canonical Web4 alignment debt)
 
 See `docs/PRD.md` §5 for full out-of-scope rationale.
 
@@ -98,7 +98,7 @@ Read `docs/QUICKSTART.md` for the chapter-organizer onboarding walkthrough.
 | [`docs/QUICKSTART.md`](docs/QUICKSTART.md) | Chapter-organizer onboarding (5-min deploy, 30-min first event) |
 | [`docs/PRD.md`](docs/PRD.md) | Formal PRD — problem, solution, scope, requirements, risks |
 | [`docs/SPRINTS.md`](docs/SPRINTS.md) | Sprint 0 → 6 plan, exit criteria each |
-| [`docs/CHAPTER-LAW.md`](docs/CHAPTER-LAW.md) | Template + guidance for writing chapter law |
+| [`docs/HUB-LAW.md`](docs/HUB-LAW.md) | Template + guidance for writing hub law |
 | [`docs/ROLES.md`](docs/ROLES.md) | The 7 Web4 society roles, how to fill them |
 | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Common errors + recovery |
 
@@ -145,9 +145,9 @@ hub declare-skill <hub-dir> <member-lct> <skill>    Declare a skill for a member
 hub set-profile <hub-dir> <member-lct> KEY=VALUE... Update member profile fields
 
 # Law
-hub init-law [output] [--force]                     Write a starter chapter-law template
-hub set-law <hub-dir> <yaml> [--diff-summary ...]   Set/amend chapter law (ledgers LawAmended)
-hub get-law <hub-dir>                                Print the current chapter law
+hub init-law [output] [--force]                     Write a starter hub-law template
+hub set-law <hub-dir> <yaml> [--diff-summary ...]   Set/amend hub law (ledgers LawAmended)
+hub get-law <hub-dir>                                Print the current hub law
 
 # Sovereign Council (V2-9)
 hub council add <hub-dir> <member-lct-id> --pubkey HEX [--name]   Admit a co-Sovereign
@@ -189,7 +189,7 @@ POST /tools/declare_skill         { member_lct_id, skill }
 
 ```
 GET  /.well-known/web4-hub.json                       Tier-0 discovery (did:web4, pubkey, founder)
-GET  /v1/hubs/:id/law                                 Public chapter law (readable while locked)
+GET  /v1/hubs/:id/law                                 Public hub law (readable while locked)
 POST /v1/auth/challenge                               Mint an envelope-signing nonce
 POST /v1/hubs/:id/events                              Submit a signed, law-gated act
 GET  /v1/hubs/:id/state                               Projected state (tier-scoped)
@@ -212,7 +212,7 @@ pairs) plus a write-capable operator plane: the admission queue at `/admin/joins
 ### Member admission flow
 
 An external entity calls `request_citizenship` (or `POST /v1/hubs/:id/members/join`).
-The chapter-law gate evaluates it: **Allow** admits immediately, **Deny** rejects (403),
+The hub-law gate evaluates it: **Allow** admits immediately, **Deny** rejects (403),
 **Escalate** parks the request in the operator admission queue (202), where an operator
 Admits or Denies it live from `/admin/joins`.
 

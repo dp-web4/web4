@@ -133,14 +133,14 @@ pub trait HubStore: Send + Sync {
 
     // ----- Law (V2-8: signed YAML, amended via LawAmended events) -----
 
-    /// Read the current chapter law YAML, or None if no law has been
+    /// Read the current hub law YAML, or None if no law has been
     /// set yet. Returns the raw bytes (not the parsed [`crate::law::Law`])
     /// so the store layer stays parser-agnostic.
     async fn read_law(&self) -> Result<Option<String>> {
         Ok(None) // Default: backends not yet supporting law return None
     }
 
-    /// Write/overwrite the current chapter law. Callers should also
+    /// Write/overwrite the current hub law. Callers should also
     /// append a [`crate::events::HubEvent::LawAmended`] event to
     /// the ledger so the amendment is part of the audit trail.
     async fn write_law(&mut self, _yaml: &str) -> Result<()> {
@@ -548,14 +548,14 @@ impl HubStore for FileBackend {
                 .with_context(|| format!("reading law from {}", path.display()));
         }
         // Back-compat: hub dirs created before the chapter→hub rename
-        // wrote `chapter-law.yaml`. If the new name isn't present but
+        // wrote `hub-law.yaml`. If the new name isn't present but
         // the old one is, read the old one. (write_law always writes
         // the new name; next set-law migrates the file.)
-        let legacy = self.paths.root.join("chapter-law.yaml");
+        let legacy = self.paths.root.join("hub-law.yaml");
         if legacy.exists() {
             return std::fs::read_to_string(&legacy)
                 .map(Some)
-                .with_context(|| format!("reading legacy chapter-law from {}", legacy.display()));
+                .with_context(|| format!("reading legacy hub-law from {}", legacy.display()));
         }
         Ok(None)
     }

@@ -1,9 +1,9 @@
-# Chapter Law Schema — YAML Surface + RDF Canonical
+# Hub Law Schema — YAML Surface + RDF Canonical
 
 **Status:** Draft • **Last Updated:** 2026-06-07 • **Track:** U3
 
-This document defines the **YAML ergonomic surface** for chapter law and its
-mapping to the canonical RDF representation (`ontology/chapter-law.ttl`).
+This document defines the **YAML ergonomic surface** for hub law and its
+mapping to the canonical RDF representation (`ontology/hub-law.ttl`).
 
 Chapter operators edit YAML. The hub validates, compiles to RDF, signs, and
 stores the RDF graph. Both formats are valid for exchange; RDF is canonical
@@ -16,7 +16,7 @@ for verification.
 A chapter's law is a single YAML file with these top-level keys:
 
 ```yaml
-# chapter-law.yaml — example
+# hub-law.yaml — example
 version: "1.0.0"
 
 norms:
@@ -95,7 +95,7 @@ A law file is valid if:
 
 ## 3. YAML → RDF Compilation
 
-Each YAML key maps to the `chapter-law.ttl` ontology:
+Each YAML key maps to the `hub-law.ttl` ontology:
 
 | YAML path | RDF predicate |
 |-----------|--------------|
@@ -141,9 +141,9 @@ ex:requires_kyc a law:CustomPredicate ;
 ## 5. Validator CLI
 
 ```bash
-web4-law-check chapter-law.yaml          # validate structure
-web4-law-check chapter-law.yaml --rdf    # compile to RDF (Turtle)
-web4-law-check chapter-law.yaml --json   # compile to JSON-LD
+web4-law-check hub-law.yaml          # validate structure
+web4-law-check hub-law.yaml --rdf    # compile to RDF (Turtle)
+web4-law-check hub-law.yaml --json   # compile to JSON-LD
 ```
 
 The validator is a standalone binary (or wasm module) that:

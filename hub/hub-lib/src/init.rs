@@ -31,7 +31,7 @@ use crate::store::{open_hub_store, open_hub_store_with, BackendKind};
 ///
 /// Founder is Sovereign (constitutional) + Citizen (base membership).
 /// Other roles (LawOracle, PolicyEntity, Treasurer, Administrator, Archivist)
-/// start unfilled. Assignment happens via `hub assign-role` per chapter law.
+/// start unfilled. Assignment happens via `hub assign-role` per hub law.
 /// Witness + Auditor are context-mandatory and stay unfilled until federation
 /// or trust-issuance starts.
 pub const FOUNDER_ROLES_AT_GENESIS: &[SocietyRole] =
@@ -180,7 +180,7 @@ pub async fn init_hub(args: InitArgs) -> Result<InitResult> {
     // 4. Bootstrap the society, then V2-1 unfill: founder fills only
     // Sovereign + Citizen at genesis. The other 5 base-mandatory roles
     // (LawOracle, PolicyEntity, Treasurer, Administrator, Archivist) start
-    // unfilled and are assigned later via `hub assign-role` per chapter law.
+    // unfilled and are assigned later via `hub assign-role` per hub law.
     //
     // This is a hub-side workaround until web4-core upstream PR U1 lands a
     // proper "fill which roles at bootstrap" API. Tracked at
@@ -454,7 +454,7 @@ mod tests {
     async fn init_fills_only_sovereign_and_citizen_at_genesis() {
         // V2-1: founder fills Sovereign + Citizen only. Other 5 base-mandatory
         // roles (LawOracle, PolicyEntity, Treasurer, Administrator, Archivist)
-        // start unfilled and are assigned later per chapter law.
+        // start unfilled and are assigned later per hub law.
         let tmp = tempdir().unwrap();
         let sovereign_path = fresh_sovereign(tmp.path());
         let hub_dir = tmp.path().join("lisbon");

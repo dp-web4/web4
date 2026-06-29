@@ -108,7 +108,7 @@ pub struct RestState {
     /// Wrapped in RwLock so the V2-12 join endpoint can extend it
     /// at runtime as new members are admitted.
     pub resolver: Arc<tokio::sync::RwLock<MapResolver>>,
-    /// Chapter law, loaded at open() time. None = no law set (all
+    /// Hub law, loaded at open() time. None = no law set (all
     /// envelope-authenticated acts allowed). When present, the PolicyEntity
     /// gate runs before each act is committed to the ledger.
     ///
@@ -409,7 +409,7 @@ impl RestState {
         })
     }
 
-    /// Re-read the chapter law from storage and swap it into the
+    /// Re-read the hub law from storage and swap it into the
     /// in-memory snapshot. Returns Ok with the version (or "none" if
     /// no law set). Used by the `/v1/admin/reload-law` endpoint so
     /// operators can `hub set-law` then `curl reload-law` without
@@ -1136,7 +1136,7 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/council/proposals/:proposal_id", get(get_proposal))
         // PAIRED-CHANNELS Sprint C: LCT pair lifecycle endpoints.
         // Request / confirm / revoke are signed-envelope acts; list /
-        // detail are public reads (chapter law gates later).
+        // detail are public reads (hub law gates later).
         .route("/v1/hubs/:hub_id/pairs/request", post(submit_pair_request))
         .route("/v1/hubs/:hub_id/pairs/:pair_id/confirm", post(submit_pair_confirm))
         .route("/v1/hubs/:hub_id/pairs/:pair_id/revoke", post(submit_pair_revoke))
@@ -1701,7 +1701,7 @@ async fn submit_event(
         }
     };
 
-    // 3.5 PolicyEntity gate (V2-8 §4): if a chapter law is loaded,
+    // 3.5 PolicyEntity gate (V2-8 §4): if a hub law is loaded,
     // evaluate the act against it. Deny → 403; Escalate → 202 with the
     // escalate_to role; Allow → proceed.
     let law_guard = s.law.read().await;
@@ -1805,7 +1805,7 @@ struct PublicState {
     head_hash: String,
     /// V2-7 Step 2: public roles list (which roles are filled).
     /// Filler identities are public-by-design within the chapter.
-    /// V2-8 will gate this on need-to-know per chapter law.
+    /// V2-8 will gate this on need-to-know per hub law.
     filled_roles: Vec<RoleSnapshot>,
 }
 
@@ -1946,7 +1946,7 @@ async fn channel_request(
 
 /// Per-tier default cap on how many member records one read may return. The
 /// MRH bound at the result layer: a citizen can't bulk-enumerate the whole
-/// membership; the Sovereign is unbounded. v1 default — chapter law / config
+/// membership; the Sovereign is unbounded. v1 default — hub law / config
 /// will own this value, and a higher trust score or a verified constellation
 /// (MFA) will raise it once those subsystems land.
 const CITIZEN_READ_LIMIT: usize = 50;
@@ -2021,7 +2021,7 @@ async fn dispatch_channel(
         }
     };
 
-    // PolicyEntity-on-reads: chapter law decides whether this tier may run
+    // PolicyEntity-on-reads: hub law decides whether this tier may run
     // this read (default-open when no law / no matching norm).
     gate_read(s, role, inner.tool.as_str()).await?;
 
@@ -2396,7 +2396,7 @@ async fn request_citizenship(
         member_pubkey_hex: Some(pubkey_hex.clone()),
     };
 
-    // PolicyEntity gate — admission policy from chapter law, role="applicant".
+    // PolicyEntity gate — admission policy from hub law, role="applicant".
     {
         let law_guard = s.law.read().await;
         if let Some(law) = law_guard.as_ref() {
@@ -2560,7 +2560,7 @@ enum AdmissionState {
     New,
 }
 
-/// The effective admission limits — from chapter law, or the defaults when unset
+/// The effective admission limits — from hub law, or the defaults when unset
 /// (law is the single source of truth; defaults live in `hub_lib::law`).
 async fn admission_limits(s: &RestState) -> (u32, u32) {
     match s.law.read().await.as_ref() {
@@ -3138,7 +3138,7 @@ async fn submit_join(
 /// the law can add policy on top of code-level authorization).
 /// PolicyEntity-on-reads (the read half of the §8 "PolicyEntity gates queries
 /// the same way it gates writes" commitment). Evaluate a read of `tool` by a
-/// caller in `role` against chapter law. No law → Allow (open-by-default, the
+/// caller in `role` against hub law. No law → Allow (open-by-default, the
 /// pre-gate behavior). Reads are namespaced `read:<tool>` in the action so
 /// read norms don't collide with act (event-kind) norms. Pure + testable;
 /// `gate_read` wires it to the live law slot + HTTP status codes.
@@ -3160,7 +3160,7 @@ fn read_decision(law: Option<&Law>, role: &str, tool: &str) -> DecisionOutcome {
     law.evaluate_outcome(&req)
 }
 
-/// Gate a channel read against chapter law. Allow → proceed; Deny → 403;
+/// Gate a channel read against hub law. Allow → proceed; Deny → 403;
 /// Escalate → 202 (the read is held pending the escalation target's review).
 async fn gate_read(s: &RestState, role: &str, tool: &str) -> Result<(), ApiError> {
     let law_guard = s.law.read().await;
@@ -3574,7 +3574,7 @@ async fn commit_proposed_event(
 // ============================================================================
 //
 // Three POST endpoints (request / confirm / revoke) and two GETs
-// (list / detail). Reads are public-by-default; chapter law gates
+// (list / detail). Reads are public-by-default; hub law gates
 // later. Writes are signed envelopes — same machinery as /v1/hubs/.../events.
 //
 // The hub never sees the ECDH shared secret — that's derived at the
@@ -3782,7 +3782,7 @@ async fn submit_pair_request(
         initiator_ephemeral_pub_hex: payload.initiator_ephemeral_pub_hex,
     };
 
-    // PolicyEntity gate (V2-8 §4): chapter law can pattern-match
+    // PolicyEntity gate (V2-8 §4): hub law can pattern-match
     // `r6.request.action == "pairing_requested"` and gate by purpose,
     // counterparty role, initiator role, etc.
     let law_guard = s.law.read().await;
@@ -3895,7 +3895,7 @@ async fn submit_pair_revoke(
         });
     }
     // Either party (or the founding Sovereign, as operator override)
-    // can revoke. Chapter law could further restrict; today no law
+    // can revoke. Hub law could further restrict; today no law
     // norms target pairing_revoked yet.
     let is_party = envelope.signer_lct_id == pair.initiator
         || envelope.signer_lct_id == pair.counterparty;
@@ -4175,7 +4175,7 @@ mod read_gate_tests {
 
     #[test]
     fn read_defaults_open_without_law() {
-        // No chapter law → reads are open (pre-gate behavior preserved).
+        // No hub law → reads are open (pre-gate behavior preserved).
         assert_eq!(read_decision(None, "citizen", "list_members").decision, Decision::Allow);
         assert_eq!(read_decision(None, "sovereign", "find_skill").decision, Decision::Allow);
     }

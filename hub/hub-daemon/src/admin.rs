@@ -499,7 +499,7 @@ async fn law(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
         let store = s.open_store().await?;
     let yaml = store.read_law().await?;
 
-    let mut body = String::from("<h2>Chapter law</h2>");
+    let mut body = String::from("<h2>Hub law</h2>");
     match yaml {
         None => {
             body.push_str(

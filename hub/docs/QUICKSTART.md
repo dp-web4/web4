@@ -130,8 +130,8 @@ hub init "Your Chapter Name" --sovereign-lct ./sovereign.json --storage sqlite
 
 This creates a `your-chapter-name/` directory (slug derived from the name). With the file backend you get:
 
-- `charter.json` — your chapter's founding charter (auto-generated; see [`CHAPTER-LAW.md`](CHAPTER-LAW.md) to amend later)
-- `society.json` — society state (V2-1: founder fills Sovereign + Citizen; other roles assigned later per chapter law — see [`ROLES.md`](ROLES.md))
+- `charter.json` — your chapter's founding charter (auto-generated; see [`HUB-LAW.md`](HUB-LAW.md) to amend later)
+- `society.json` — society state (V2-1: founder fills Sovereign + Citizen; other roles assigned later per hub law — see [`ROLES.md`](ROLES.md))
 - `ledger.jsonl` — the witnessed event log (Genesis entry already written)
 - `config.toml` — daemon config (MCP port, Sovereign LCT path)
 
@@ -310,7 +310,7 @@ This walks the entire chain, recomputes every entry's hash, validates every sign
 
 ## What to do next
 
-- Read [`CHAPTER-LAW.md`](CHAPTER-LAW.md) and amend your charter to reflect how your chapter actually wants to operate
+- Read [`HUB-LAW.md`](HUB-LAW.md) and amend your charter to reflect how your chapter actually wants to operate
 - Read [`ROLES.md`](ROLES.md) and decide whether to delegate any roles
 - For real members, have them generate their LCT on their own machine and share only the public id with you
 - For automated coordination, hand the MCP URL to your chapter's AI tools (Claude Code, Cursor, custom agents)
