@@ -723,6 +723,21 @@ fn event_summary(event: &HubEvent) -> String {
             short(resolved_by),
             reason.as_deref().map(|r| format!(" — {}", html_escape(r))).unwrap_or_default(),
         ),
+        HubEvent::MemberJoinReviewRequested { member_lct_id, .. } => format!(
+            "🛠 denial-review requested by {} <span class=\"muted\">[repair path]</span>",
+            short(member_lct_id),
+        ),
+        HubEvent::MemberJoinReviewResolved { review_id, granted, resolved_by, reason, .. } => format!(
+            "🛠 review {} (rev {}) by {}{}",
+            if *granted { "GRANTED" } else { "REFUSED" },
+            short(review_id),
+            short(resolved_by),
+            reason.as_deref().map(|r| format!(" — {}", html_escape(r))).unwrap_or_default(),
+        ),
+        HubEvent::MemberAdmissionReset { member_lct_id, reset_by, .. } => format!(
+            "🧹 admission reset for {} by {}",
+            short(member_lct_id), short(reset_by),
+        ),
     }
 }
 

@@ -88,6 +88,41 @@ pub enum HubEvent {
         resolved_at: DateTime<Utc>,
     },
 
+    /// A blocked applicant (≥ admission `repeat_limit` denials) requested a
+    /// denial-review — the only self-service way to clear the auto-block. Goes to
+    /// the operator review queue; capped at the law's `review_limit`, after which
+    /// it's terminal until an operator `MemberAdmissionReset`.
+    MemberJoinReviewRequested {
+        review_id: Uuid,
+        member_lct_id: Uuid,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        plea: Option<String>,
+        requested_at: DateTime<Utc>,
+    },
+
+    /// An operator resolved a denial-review. `granted: true` clears the
+    /// applicant's auto-block (denial count resets → they may apply afresh);
+    /// `false` refuses it (counts toward the review limit). Witnessed for audit.
+    MemberJoinReviewResolved {
+        review_id: Uuid,
+        granted: bool,
+        resolved_by: Uuid,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        resolved_at: DateTime<Utc>,
+    },
+
+    /// Operator hard-reset of an applicant's admission standing — the terminal
+    /// backstop. Clears both denial and review counts so the LCT may apply afresh
+    /// even after the review path is exhausted.
+    MemberAdmissionReset {
+        member_lct_id: Uuid,
+        reset_by: Uuid,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        reset_at: DateTime<Utc>,
+    },
+
     /// A role assignment was changed.
     RoleAssigned {
         role: SocietyRole,
@@ -397,6 +432,9 @@ impl HubEvent {
             Self::MemberRemoved { .. } => "member_removed",
             Self::MemberJoinRequested { .. } => "member_join_requested",
             Self::MemberJoinResolved { .. } => "member_join_resolved",
+            Self::MemberJoinReviewRequested { .. } => "member_join_review_requested",
+            Self::MemberJoinReviewResolved { .. } => "member_join_review_resolved",
+            Self::MemberAdmissionReset { .. } => "member_admission_reset",
             Self::RoleAssigned { .. } => "role_assigned",
             Self::EventRecorded { .. } => "event_recorded",
             Self::CharterAmended { .. } => "charter_amended",

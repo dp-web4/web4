@@ -72,8 +72,57 @@ pub struct HubState {
     /// auto-admitted and never appear here.
     pub pending_joins: BTreeMap<Uuid, JoinRequest>,
 
+    /// Repair path: `review_id` → denial-review request (the only self-service
+    /// way to clear an auto-block). Built from `MemberJoinReviewRequested`/
+    /// `MemberJoinReviewResolved`.
+    pub join_reviews: BTreeMap<Uuid, JoinReview>,
+
+    /// Admission standing per applicant LCT — the abuse-resistance counters.
+    /// `denials` resets on a granted review or an operator reset; `reviews`
+    /// resets only on an operator reset. Thresholds live in chapter law
+    /// (`admission_repeat_limit`/`admission_review_limit`), not here.
+    pub admission: BTreeMap<Uuid, AdmissionStanding>,
+
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
+}
+
+/// Abuse-resistance counters for one applicant LCT (see [`HubState::admission`]).
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+pub struct AdmissionStanding {
+    /// Denials since the last clear (granted review or operator reset).
+    pub denials: u32,
+    /// Denial-review requests since the last operator reset.
+    pub reviews: u32,
+}
+
+/// Repair path: one denial-review request, projected from
+/// `MemberJoinReviewRequested` / `MemberJoinReviewResolved`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct JoinReview {
+    pub review_id: Uuid,
+    pub member_lct_id: Uuid,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plea: Option<String>,
+    pub requested_at: DateTime<Utc>,
+    pub status: ReviewStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_by: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewStatus {
+    /// Awaiting operator Grant/Refuse.
+    Pending,
+    /// Operator granted — the applicant's auto-block is cleared.
+    Granted,
+    /// Operator refused — counts toward the review limit.
+    Refused,
 }
 
 /// V2-16: one entry in the admission queue, projected from
@@ -299,12 +348,59 @@ impl HubState {
             HubEvent::MemberJoinResolved {
                 request_id, approved, resolved_by, reason, resolved_at,
             } => {
+                let member_lct = self.pending_joins.get(request_id).map(|jr| jr.member_lct_id);
                 if let Some(jr) = self.pending_joins.get_mut(request_id) {
                     jr.status = if *approved { JoinStatus::Approved } else { JoinStatus::Denied };
                     jr.resolved_by = Some(*resolved_by);
                     jr.reason = reason.clone();
                     jr.resolved_at = Some(*resolved_at);
                 }
+                // Admission standing: a denial increments the repeat counter; an
+                // approval (now a member) clears it.
+                if let Some(lct) = member_lct {
+                    if *approved {
+                        self.admission.remove(&lct);
+                    } else {
+                        self.admission.entry(lct).or_default().denials += 1;
+                    }
+                }
+            }
+            HubEvent::MemberJoinReviewRequested {
+                review_id, member_lct_id, plea, requested_at,
+            } => {
+                self.join_reviews.insert(*review_id, JoinReview {
+                    review_id: *review_id,
+                    member_lct_id: *member_lct_id,
+                    plea: plea.clone(),
+                    requested_at: *requested_at,
+                    status: ReviewStatus::Pending,
+                    resolved_by: None,
+                    reason: None,
+                    resolved_at: None,
+                });
+                self.admission.entry(*member_lct_id).or_default().reviews += 1;
+            }
+            HubEvent::MemberJoinReviewResolved {
+                review_id, granted, resolved_by, reason, resolved_at,
+            } => {
+                let member_lct = self.join_reviews.get(review_id).map(|rv| rv.member_lct_id);
+                if let Some(rv) = self.join_reviews.get_mut(review_id) {
+                    rv.status = if *granted { ReviewStatus::Granted } else { ReviewStatus::Refused };
+                    rv.resolved_by = Some(*resolved_by);
+                    rv.reason = reason.clone();
+                    rv.resolved_at = Some(*resolved_at);
+                }
+                // A granted review clears the auto-block: reset denials. The review
+                // count keeps accumulating toward the cap until an operator reset.
+                if *granted {
+                    if let Some(lct) = member_lct {
+                        if let Some(st) = self.admission.get_mut(&lct) { st.denials = 0; }
+                    }
+                }
+            }
+            HubEvent::MemberAdmissionReset { member_lct_id, .. } => {
+                // Terminal backstop: full clear (denials + reviews).
+                self.admission.remove(member_lct_id);
             }
             HubEvent::MemberSkillDeclared { member_lct_id, skill, .. } => {
                 let key = skill.to_lowercase();
