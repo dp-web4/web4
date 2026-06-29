@@ -2764,14 +2764,15 @@ async fn remove_member_live(s: &RestState, member_lct_id: Uuid, reason: Option<S
 }
 
 // ============================================================================
-// Operator plane — a SEPARATE 127.0.0.1-only listener (never tailscale-served).
+// Operator plane — a SEPARATE 127.0.0.1-only listener (never network-exposed).
 // ============================================================================
 //
-// The fleet port (0.0.0.0:8770) stays read-only for admin + carries the signed
-// fleet APIs. Member-admission *writes* (admit/deny/remove/re-key) live here, on
-// a listener bound to loopback only, so the fleet cannot reach them even through
-// the tailscale TLS proxy (which forwards as 127.0.0.1 and would defeat a plain
-// loopback check on the shared port). Being on this local plane while the hub is
+// The network-facing port (0.0.0.0:8770) stays read-only for admin + carries the
+// signed APIs. Member-admission *writes* (admit/deny/remove/re-key) live here, on
+// a listener bound to loopback only, so a remote caller cannot reach them even
+// through a TLS-terminating reverse proxy on the same host (which forwards as
+// 127.0.0.1 and would defeat a plain loopback check on the shared port). Being on
+// this local plane while the hub is
 // ignited IS the authorization — the actions sign as the Sovereign via the live
 // signer (they fail closed if the hub is locked). Defense-in-depth: every handler
 // also re-checks loopback.

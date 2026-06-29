@@ -93,12 +93,13 @@ fn ureq_get(url: &str) -> anyhow::Result<serde_json::Value> {
 fn ureq_post(url: &str, body: &serde_json::Value) -> anyhow::Result<serde_json::Value> {
     http(url, Some(serde_json::to_vec(body)?))
 }
-/// Minimal HTTP/1.1 over TcpStream — enough for plain-http tailnet use.
+/// Minimal HTTP/1.1 over TcpStream — enough for plain-http use on a trusted
+/// private network (the sealed channel provides E2E confidentiality on top).
 fn http(url: &str, post_body: Option<Vec<u8>>) -> anyhow::Result<serde_json::Value> {
     use std::io::{Read, Write};
     let rest = url
         .strip_prefix("http://")
-        .ok_or_else(|| anyhow::anyhow!("only http:// supported (tailnet); got {url}"))?;
+        .ok_or_else(|| anyhow::anyhow!("only http:// supported (trusted private network); got {url}"))?;
     let (host, path) = rest.split_once('/').map(|(h, p)| (h, format!("/{p}"))).unwrap_or((rest, "/".into()));
     let addr = if host.contains(':') { host.to_string() } else { format!("{host}:80") };
     let mut stream = std::net::TcpStream::connect(&addr)?;
