@@ -1002,7 +1002,8 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     let admin_state = rest_state.clone();
     let gate_state = rest_state.clone();
     // Operator plane (separate 127.0.0.1-only listener) shares the same RestState.
-    let operator_state = rest_state.clone();
+    let mut operator_state = rest_state.clone();
+    operator_state.operator_plane = true; // this clone serves the write pages → show their nav links
     let operator_gate = rest_state.clone();
     let app = mcp_router(mcp_state)
         .merge(rest_router(rest_state))

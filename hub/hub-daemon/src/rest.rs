@@ -89,6 +89,11 @@ pub struct RestState {
     pub paths: HubPaths,
     pub hub_id: Uuid,
     pub hub_name: String,
+    /// True only for the loopback-only operator-plane listener (the one that
+    /// serves the write pages). Plain bool (not shared): set on the cloned
+    /// RestState handed to the operator app, so the admin nav can show the
+    /// write-page links (`/admin/joins`, `/admin/manage`) only where they exist.
+    pub operator_plane: bool,
     pub sovereign_lct_id: Uuid,
     /// The signer abstraction, behind a `SwappableSigner` so the hub can be
     /// promoted **locked → unlocked at runtime** (the unlock slot swaps the
@@ -338,6 +343,7 @@ impl RestState {
                 },
             )),
             notifications: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            operator_plane: false,
         })
     }
 
@@ -399,6 +405,7 @@ impl RestState {
             protected: Arc::new(Mutex::new(None)),
             store_key: Arc::new(tokio::sync::RwLock::new(None)),
             notifications: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            operator_plane: false,
         })
     }
 
@@ -4279,6 +4286,21 @@ norms:
 
         // Removing a non-member errors.
         assert!(remove_member_live(&state, Uuid::new_v4(), None).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn admin_nav_is_plane_aware() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        // Fleet plane (default): the read-only dashboard must NOT advertise the
+        // operator-only write pages (they'd 404 there).
+        let html = crate::admin::members(State(state.clone())).await.unwrap().0;
+        assert!(!html.contains("/admin/joins"), "fleet nav must not link operator pages");
+        assert!(!html.contains("/admin/manage"), "fleet nav must not link operator pages");
+        // Operator plane: the same page DOES surface the write-page nav links.
+        state.operator_plane = true;
+        let html = crate::admin::members(State(state.clone())).await.unwrap().0;
+        assert!(html.contains("/admin/joins") && html.contains("/admin/manage"),
+            "operator nav links the write pages");
     }
 
     #[tokio::test]
