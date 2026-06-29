@@ -4,7 +4,7 @@
 The nomic model is ~600 MB; reloading it per query is a non-starter. So this is
 a long-lived localhost HTTP service that mounts the per-hub cart + holds the
 loaded model once, and answers find_members. The Rust hub composes it: the hub
-owns chapter-law gating + tier scoping; this just does the 3-signal semantic
+owns hub-law gating + tier scoping; this just does the 3-signal semantic
 search (cosine + Hamming + keyword rerank) membot ships.
 
 Endpoints (localhost only — the hub mediates all external access):
