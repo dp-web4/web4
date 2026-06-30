@@ -165,6 +165,9 @@ pub struct RestState {
 #[derive(Clone, Serialize)]
 pub struct SealedNotice {
     pub pair_id: Uuid,
+    /// Sender LCT, in the clear on the envelope so the recipient can address a
+    /// reply without opening the sealed body (the coordination loop's back-leg).
+    pub from: Uuid,
     pub sealed: String,
     pub kind: String,
     pub pointer_uri: String,
@@ -700,13 +703,20 @@ async fn witness_event(s: &RestState, event: HubEvent) -> Result<u64, ApiError> 
 /// sealed notice in the citizen's mailbox (the poll floor). `body` is sealed to the
 /// citizen's pinned pubkey — only that LCT can open it. Best-effort: missing pubkey / seal
 /// failure logs and drops (the witnessed act still records that a notice was intended).
-async fn notify_citizen(s: &RestState, recipient: Uuid, kind: &str, pointer_uri: &str, body: &[u8]) {
+/// Seal `body` to the recipient's pinned pubkey and queue it in their mailbox
+/// (the poll floor) — NO ledger write. Use this when the act is already witnessed
+/// by the caller (e.g. the `referenced_act` dispatch). `from` rides the envelope
+/// in the clear so the recipient can address a reply. Best-effort: dropped if the
+/// recipient has no pinned pubkey / the seal fails.
+async fn queue_sealed_notice(
+    s: &RestState, recipient: Uuid, from: Uuid, kind: &str, pointer_uri: &str, body: &[u8],
+) {
     let pubkey_hex = {
         let ledger = s.ledger.lock().await;
         HubState::project(&ledger).member_pubkeys.get(&recipient).cloned()
     };
     let Some(pubkey_hex) = pubkey_hex else {
-        tracing::warn!("notify_citizen: no pinned pubkey for {recipient}; notice dropped");
+        tracing::warn!("queue_sealed_notice: no pinned pubkey for {recipient}; notice dropped");
         return;
     };
     let pubkey = match hex::decode(&pubkey_hex)
@@ -715,19 +725,32 @@ async fn notify_citizen(s: &RestState, recipient: Uuid, kind: &str, pointer_uri:
         .and_then(|a| web4_core::crypto::PublicKey::from_bytes(&a).ok())
     {
         Some(pk) => pk,
-        None => { tracing::warn!("notify_citizen: bad pubkey for {recipient}"); return; }
+        None => { tracing::warn!("queue_sealed_notice: bad pubkey for {recipient}"); return; }
     };
     let pair_id = Uuid::new_v4();
     let sealed = match s.signer.channel_seal(&pubkey, pair_id, body) {
         Ok(c) => c,
-        Err(e) => { tracing::warn!("notify_citizen: seal failed: {e}"); return; }
+        Err(e) => { tracing::warn!("queue_sealed_notice: seal failed: {e}"); return; }
     };
-    // Witness a thin act — a `web4_core::act::Act` verbatim (the convergence's
-    // "both sides witness the same bytes"). `kind` is the `notify:<event>` label
-    // (HUB owns the `notify:*` sub-vocabulary); `content_hash` binds the witnessed
-    // pointer to this exact notice body so it can't drift; medium = Message (a
-    // direct sealed notice); consequence defaults to Reversible (a notification
-    // is freely undoable). The sealed body rides the mailbox below, NOT the ledger.
+    s.notifications.lock().await.entry(recipient).or_default().push(SealedNotice {
+        pair_id,
+        from,
+        sealed,
+        kind: kind.to_string(),
+        pointer_uri: pointer_uri.to_string(),
+        queued_at: Utc::now(),
+    });
+}
+
+/// Hub-originated notification: witness a thin `notify:<event>` act AND queue the
+/// sealed notice. For an act the caller already witnessed, use
+/// [`queue_sealed_notice`] directly (avoids double-witnessing).
+async fn notify_citizen(
+    s: &RestState, recipient: Uuid, from: Uuid, kind: &str, pointer_uri: &str, body: &[u8],
+) {
+    // Witness a thin act — `content_hash` binds the witnessed pointer to this
+    // exact notice body so it can't drift; medium = Message; consequence defaults
+    // to Reversible. The sealed body rides the mailbox, NOT the ledger.
     let act = web4_core::act::Act::addressed(
         s.sovereign_lct_id,
         web4_core::act::ActAddress::Citizen { lct_id: recipient },
@@ -740,13 +763,7 @@ async fn notify_citizen(s: &RestState, recipient: Uuid, kind: &str, pointer_uri:
         Utc::now(),
     );
     let _ = witness_event(s, HubEvent::ReferencedAct { act }).await;
-    s.notifications.lock().await.entry(recipient).or_default().push(SealedNotice {
-        pair_id,
-        sealed,
-        kind: kind.to_string(),
-        pointer_uri: pointer_uri.to_string(),
-        queued_at: Utc::now(),
-    });
+    queue_sealed_notice(s, recipient, from, kind, pointer_uri, body).await;
 }
 
 #[derive(Deserialize)]
@@ -2203,7 +2220,7 @@ async fn dispatch_channel(
                     "peer_lct": caller_lct_id,
                     "peer_pubkey_hex": state.member_pubkeys.get(&caller_lct_id),
                 }).to_string();
-                notify_citizen(s, from, "notify:intro_accepted", &format!("intro/{intro_id}"), notice.as_bytes()).await;
+                notify_citizen(s, from, caller_lct_id, "notify:intro_accepted", &format!("intro/{intro_id}"), notice.as_bytes()).await;
             }
             Ok(out)
         }
@@ -2240,6 +2257,19 @@ async fn dispatch_channel(
             let consequence: web4_core::act::ConsequenceClass = inner.args.get("consequence")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
                 .unwrap_or_default();
+            // A Citizen/Peer-addressed act is also a *delivery*: queue a sealed
+            // notice in the recipient's mailbox so the act reaches them without
+            // them having to read the whole ledger. This is what makes the hub a
+            // member→member async message bus (not just a witness): emit a
+            // referenced_act to a peer, the peer drains it via `notifications`.
+            // Role/Society/FutureSelf are not point-deliveries — witnessed only.
+            let recipient = match &address {
+                web4_core::act::ActAddress::Citizen { lct_id }
+                | web4_core::act::ActAddress::Peer { lct_id } => Some(*lct_id),
+                _ => None,
+            };
+            let notice_kind = kind.clone();
+            let notice_uri = uri.clone();
             let act = web4_core::act::Act::addressed(
                 caller_lct_id,
                 address,
@@ -2248,6 +2278,18 @@ async fn dispatch_channel(
                 Utc::now(),
             ).with_consequence(consequence);
             let index = witness_event(s, HubEvent::ReferencedAct { act }).await?;
+            // Deliver (best-effort; dropped if the recipient has no pinned key —
+            // they can still see the witnessed act on the ledger).
+            if let Some(rcpt) = recipient {
+                let body = serde_json::json!({
+                    "from": caller_lct_id,
+                    "kind": notice_kind,
+                    "pointer_uri": notice_uri,
+                    "entry_index": index,
+                })
+                .to_string();
+                queue_sealed_notice(s, rcpt, caller_lct_id, &notice_kind, &notice_uri, body.as_bytes()).await;
+            }
             Ok(serde_json::json!({ "recorded": true, "entry_index": index }))
         }
         // ---- constellation attestation (challenge-response MFA, assurance tiers) ----
@@ -4461,6 +4503,50 @@ mod channel_e2e_tests {
     }
 
     #[tokio::test]
+    async fn referenced_act_to_peer_queues_a_mailbox_notice() {
+        // The member→member message bus: a referenced_act addressed to a Citizen/
+        // Peer is not just witnessed — it queues a sealed notice in the recipient's
+        // mailbox, drained via `notifications`. Self-addressed here so a single
+        // pinned member proves the full emit → deliver → drain loop.
+        let (_tmp, state) = fresh_rest_state(None).await; // open admission pins on join
+        let hub_pub = state.signer.public_key().unwrap();
+        let member = KeyPair::generate();
+        let member_lct = Uuid::new_v4();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&member, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Emitter" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: member_lct, pair_id: pid, sealed,
+            caller_pubkey_hex: Some(member.verifying_key().to_hex()),
+        })).await.expect("admitted + pinned");
+
+        // Emit a referenced_act addressed to self (Peer).
+        let pid2 = Uuid::new_v4();
+        let sealed2 = seal_req(&member, &hub_pub, pid2, "referenced_act", serde_json::json!({
+            "to": { "to": "peer", "lct_id": member_lct },
+            "kind": "handoff",
+            "pointer_uri": "pr/423#thread=t1",
+        }));
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: member_lct, pair_id: pid2, sealed: sealed2, caller_pubkey_hex: None,
+        })).await.expect("referenced_act recorded");
+        assert_eq!(open_resp(&member, &hub_pub, pid2, &resp.0.sealed)["recorded"], serde_json::json!(true));
+
+        // Drain the mailbox — the notice is there, kind + pointer in the clear.
+        let pid3 = Uuid::new_v4();
+        let sealed3 = seal_req(&member, &hub_pub, pid3, "notifications", serde_json::json!({}));
+        let resp3 = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: member_lct, pair_id: pid3, sealed: sealed3, caller_pubkey_hex: None,
+        })).await.expect("drain");
+        let out3 = open_resp(&member, &hub_pub, pid3, &resp3.0.sealed);
+        assert_eq!(out3["total"], serde_json::json!(1), "exactly one notice queued");
+        assert_eq!(out3["notifications"][0]["kind"], serde_json::json!("handoff"));
+        assert_eq!(out3["notifications"][0]["pointer_uri"], serde_json::json!("pr/423#thread=t1"));
+        assert_eq!(out3["notifications"][0]["from"], serde_json::json!(member_lct),
+            "sender LCT rides the envelope in the clear so the recipient can reply");
+    }
+
+    #[tokio::test]
     async fn admission_law_escalates_external_join() {
         // The live admission law: joins escalate to the Sovereign, not auto-admit.
         const LAW: &str = r#"
@@ -5520,7 +5606,7 @@ norms:
         }).await.unwrap();
 
         // Hub pushes a notification to the citizen.
-        notify_citizen(&state, citizen, "notify:test", "ptr/1", b"hello-citizen").await;
+        notify_citizen(&state, citizen, state.sovereign_lct_id, "notify:test", "ptr/1", b"hello-citizen").await;
 
         // Queued for delivery (the poll floor) — sealed, addressed, with the act kind + pointer.
         {
@@ -5546,7 +5632,7 @@ norms:
         assert_eq!(witnessed.substance.content_hash, web4_core::sha256_hex(b"hello-citizen"));
         // A notice for an unknown (un-pinned) recipient is dropped, not queued.
         drop(ledger);
-        notify_citizen(&state, Uuid::new_v4(), "notify:test", "ptr/2", b"x").await;
+        notify_citizen(&state, Uuid::new_v4(), state.sovereign_lct_id, "notify:test", "ptr/2", b"x").await;
         assert_eq!(state.notifications.lock().await.len(), 1, "no pinned pubkey → dropped");
     }
 
