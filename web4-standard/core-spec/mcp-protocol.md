@@ -899,7 +899,7 @@ govern in full.
 3. Trust evaluation MUST precede resource access
 4. ATP metering MUST be enforced
 5. Agency proofs MUST be validated when present
-6. R7 actions MUST be witnessed: an R7 transaction MUST NOT proceed without witnessing (§7.5), and for high-consequence actions the `reputation.witnesses` array MUST contain at least one Witness-role entry (§7.3)
+6. R7 actions MUST be witnessed: for high-consequence actions, an R7 transaction MUST NOT proceed without witnessing (§7.5), and the `reputation.witnesses` array MUST contain at least one Witness-role entry (§7.3)
 
 ### SHOULD Requirements
 1. Servers SHOULD witness significant interactions
