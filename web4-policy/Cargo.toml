@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Metalinxx Inc.
+[package]
+name = "web4-policy"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+authors = ["dp / Metalinxx Inc."]
+repository = "https://github.com/dp-web4/web4"
+description = "Web4 shared policy substrate — the domain-agnostic Law/PolicyEntity engine (R6 norms -> Allow/Deny/Escalate) + default hydration, specialized per-domain via PolicyExtension. Step-2 joint extraction (RFC #419)."
+
+[dependencies]
+web4-core = { path = "../web4-core" }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+semver = "1"

@@ -26,6 +26,7 @@ use axum::{
     Router,
 };
 use hub_lib::events::HubEvent;
+use hub_lib::law::HubLawExt;
 use hub_lib::signer::RemoteSigner; // signer_kind() — signer is now a concrete SwappableSigner
 use hub_lib::state::HubState;
 
@@ -831,7 +832,7 @@ pub(crate) async fn joins_page(State(s): State<RestState>) -> Result<Html<String
     // or code defaults if unset. Setting them writes hub law (witnessed).
     let (repeat_limit, review_limit, src) = match s.law.read().await.as_ref() {
         Some(l) => {
-            let in_law = l.admission.as_ref()
+            let in_law = l.ext.admission.as_ref()
                 .map(|a| a.repeat_limit.is_some() || a.review_limit.is_some())
                 .unwrap_or(false);
             (l.admission_repeat_limit(), l.admission_review_limit(),

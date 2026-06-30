@@ -9,6 +9,7 @@ description = "Web4 Community Hub — society logic library (chapter state, ledg
 
 [dependencies]
 web4-core.workspace = true
+web4-policy.workspace = true
 zeroize = "1"
 web4-trust-core.workspace = true
 anyhow.workspace = true

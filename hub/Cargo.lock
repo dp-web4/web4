@@ -1386,8 +1386,20 @@ dependencies = [
  "tracing",
  "uuid",
  "web4-core",
+ "web4-policy",
  "web4-trust-core",
  "zeroize",
+]
+
+[[package]]
+name = "hub-plugin"
+version = "0.1.0-alpha.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde_json",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -3260,6 +3272,17 @@ dependencies = [
  "uuid",
  "x25519-dalek",
  "zeroize",
+]
+
+[[package]]
+name = "web4-policy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "semver",
+ "serde",
+ "serde_yaml",
+ "web4-core",
 ]
 
 [[package]]
