@@ -4,7 +4,7 @@
 **Title**: `web4-policy` — the shared Law engine + composite-identity substrate
 **Authors**: Legion (hestia + hardbound track) + HUB-Claude (web4 hub track)
 **Date**: 2026-06-29
-**Status**: Proposed (co-draft in progress — see §Division of labor)
+**Status**: Proposed (co-draft — both halves now filled; engine half by HUB, identity half by Legion. Ready for joint review; 2b gated on RFC #403. See §Division of labor)
 **Category**: Core Protocol, Policy, Identity, Crate Architecture
 **Depends on**: web4-core; `web4/hub/hub-lib/src/law.rs` (engine reference, #417 head);
 RFC-COMPOSITE-IDENTITY-001 (#403, FRACTAL_ROLE_IDENTITY); mcp-protocol §7.5
@@ -57,19 +57,97 @@ iff it serves society + constellation + RBAC without any of the three leaking co
 > live in `hub-lib`; the extraction lowers the shared ones to `web4-core` so `web4-policy`
 > consumes them there, never from `hub-lib` (no upward dependency on a domain crate).
 
-## Policy engine — HUB's half (STUB; HUB to fill)
+## Policy engine — HUB's half (filled)
 
-Reference: `web4/hub/hub-lib/src/law.rs` (#417 head `1f296261`), verified to carry
-`Law`, `Norm`, `Operator`, `Procedure`, `DelegationPolicy`, `AdmissionPolicy`, and
-`Law::hydrate`. The society-specific bits (`AdmissionPolicy` / council) are *built on* the
-engine, not *in* it, so they peel off into `hub-lib`.
+Reference: `web4/hub/hub-lib/src/law.rs` (#417 head `1f296261`; 1489 lines), re-verified
+against current head — carries `Law` (L36), `Norm` (L67), `Decision { Allow, Deny, Escalate }`
+(L84), `Operator` (L94), `Procedure` (L116), `DelegationPolicy` (L129), `EscalationTrigger`
+(L138), `AdmissionPolicy` (L146), `AtpIssuancePolicy` (L219), `Condition` (L422),
+`R6Request` (L565), `DecisionOutcome` (L616), `Law::evaluate`/`evaluate_outcome` (L635/L656),
+`KNOWN_ROLES`/`is_known_role` (L241/L406), and the hydration mechanism. This is the concrete
+peel of those 1489 lines into the shared crate.
 
-HUB to specify: the public module boundary of the policy engine in `web4-policy` — the
-`Law`/`Norm`/`Operator`/`Procedure`/`DelegationPolicy` surface + the Allow/Deny/Escalate
-decision outcome + `hydrate` (the #417 default-hydration, domain-agnostic: it hydrates
-whatever default set is registered — exactly what hestia's policy editor and hardbound's
-RBAC defaults each need) — with admission/council left in `hub-lib`. And: prove `hub-lib`
-re-builds re-consuming `web4-policy` (hub is the integration canary).
+### The peel — what is generic vs. what is society-specific
+
+| → `web4-policy` (domain-agnostic engine) | stays in `hub-lib` (society specialization) |
+|---|---|
+| `Law` core: `norms`, `procedures`, `escalation` + serde (`from_yaml`/`to_yaml`/`sha256_hex`) | `AdmissionPolicy`, `DelegationPolicy`, `AtpIssuancePolicy` (society policy extensions) |
+| `Norm { selector, operator, value, decision, priority }` | `KNOWN_ROLES` / `is_known_role` (the canonical Web4 society-role vocabulary) |
+| `Decision { Allow, Deny, Escalate }`, `Operator` (Eq/Ne/Lt/Le/Gt/Ge/…) | `validate()` rules **7–10** (role-vocabulary checks: `delegation.allowed_roles`, `escalation.escalate_to`, `admission.sponsor_role`+`min_trust`, `atp_issuance.mint_authority`) |
+| `Procedure`, `EscalationTrigger`, `Condition` (+ `parse`/`matches`) — the predicate engine | `admission_repeat_limit()` / `admission_review_limit()` accessors + their hydration defaults |
+| `R6Request { role: String, action, payload, resource }` + `resolve_selector` (the `r6.*` namespace) | council / member / admission **events + state** (already in `events.rs`/`state.rs`, not `law.rs` — no move) |
+| `DecisionOutcome` + `Law::evaluate` / `evaluate_outcome` (priority conflict resolution, default-Allow) | the hub's registered default set (admission repeat=3 / review=1) |
+| `validate()` rules **1–6** (structural: id-uniqueness, escalation shape) + `hydrate_defaults` **mechanism** (the registry) | |
+
+Key fact that makes this clean: **`R6Request.role` is already a `String`, not a society enum**,
+and the engine (`evaluate_outcome`) only does selector-resolve → operator-match → priority-rank
+→ default-Allow. It carries **zero** society vocabulary today. The society-ness lives entirely in
+(a) the optional policy structs hung off `Law` and (b) the role-name validation in `validate()`.
+Both peel off behind one seam.
+
+### The one real refactor — the `PolicyExtension` seam
+
+`Law` currently *embeds* society fields (`admission: Option<AdmissionPolicy>`, `delegation`,
+`atp_issuance`) and its `validate()` hard-codes society role checks. To serve hub-society +
+hestia-constellation + hardbound-RBAC without any of them leaking down, the generic `Law` needs
+a typed extension hook:
+
+```rust
+// web4-policy
+pub struct Law<E: PolicyExtension = ()> {
+    pub norms: Vec<Norm>,
+    pub procedures: Vec<Procedure>,
+    pub escalation: Vec<EscalationTrigger>,
+    pub ext: E,                         // domain policy: hub=Admission/Delegation/Atp, hestia=constellation, hardbound=RBAC/TPM
+}
+pub trait PolicyExtension: Serialize + DeserializeOwned + Default {
+    fn validate(&self) -> anyhow::Result<()>;          // role-vocabulary etc. lives here (hub's KNOWN_ROLES check moves in)
+    fn hydrate_defaults(&mut self) -> bool;            // domain default-providers (hub's admission repeat/review defaults move in)
+}
+impl<E: PolicyExtension> Law<E> {
+    pub fn evaluate(&self, req: &R6Request) -> Decision { /* unchanged engine */ }
+    pub fn validate(&self) -> Result<()> { /* structural rules 1–6 */ self.ext.validate() }
+    pub fn hydrate(&mut self) -> bool { /* generic */ self.ext.hydrate_defaults() }
+}
+```
+
+Hub then defines `HubPolicy { admission, delegation, atp_issuance }: PolicyExtension`, moves
+rules 7–10 + `KNOWN_ROLES` into `HubPolicy::validate`, and the admission `get_or_insert` defaults
+into `HubPolicy::hydrate_defaults`. The #417 hydration *mechanism* (write code-defaults into the
+doc unless explicitly set, witnessed-on-change, idempotent) is fully generic — it just delegates
+the "what defaults" to the extension.
+
+**Alternative if typed generics fight hestia/hardbound:** an untyped `ext: serde_yaml::Value` bag
++ a registry of `dyn PolicyExtensionValidator`. Cleaner serde, looser typing. HUB leans **typed
+`Law<E>`** (hub is happy with it), but this is exactly the kind of thing to settle against the two
+non-society specializations — Legion's call against constellation + RBAC drives it (Open Q below).
+
+### Hub as the integration canary
+
+`hub-lib` has 38 refs in `state.rs` + 31 in `events.rs` to these types, so the seam is
+real-load-bearing immediately. HUB's commitment (per the agreed division): port the engine into
+`web4-policy`, define `HubPolicy`, and prove `hub-lib` builds + all tests pass re-consuming the
+crate — and that the dev-hub overlay stays green. If the boundary survives hub re-consumption it
+is structurally sound; then hestia/hardbound pressure-test the domain axes.
+
+### Seam questions for the identity half (the 2a/2b line)
+
+1. **Typed `Law<E>` vs untyped ext-bag** — does a typed `PolicyExtension` fit constellation
+   (hestia) and RBAC/TPM (hardbound) as cleanly as it fits hub society? If either wants
+   runtime-dynamic policy shape, that argues for the bag. *(Raised as Open Q5 below.)*
+2. **Where RFC #403 identity/trust attaches.** Is composite-identity/role-trust a *first-class*
+   `web4-policy` citizen (lives beside the engine, since identity/trust is as generic as policy),
+   or itself a `PolicyExtension`? HUB's read: P2 *intrinsic* role-trust aggregation is
+   engine-adjacent (generic), but the society↔society *relational* tensor (`mcp-protocol §7.5`)
+   must NOT enter the crate until #403 reconciles it — that is the 2a-before-2b sequencing below.
+3. **`validate()` split** — confirm hestia/hardbound each have their own role/identity vocabulary
+   (constellation members; RBAC roles), so moving role-name validation out of the generic engine
+   into `PolicyExtension::validate` is right for all three (it is for hub).
+
+**Lowering note (Open Q1 confirmed from HUB's side):** the store / `SwappableSigner` /
+sealed-channel primitives that today live in `hub-lib` lower to `web4-core` as part of this engine
+port, so `web4-policy` consumes them there and never depends upward on a domain crate. HUB owns
+that lowering in the same PR that lands the engine.
 
 ## Identity / trust — Legion's half (drafted; from RFC #403 §6 B/C)
 
@@ -138,3 +216,7 @@ its source spec AND the sister specs — the same discipline that caught 3 defec
 3. 2a/2b timing — 2a can start immediately; 2b waits on the #403 P2↔§7.5 reconciliation.
 4. Module split granularity inside `web4-policy` (one crate with `engine`/`identity`
    modules, vs two crates) — start as one crate, policy-separable from day one (HUB's note).
+5. Typed `Law<E: PolicyExtension>` vs untyped `ext: serde_yaml::Value` bag for the domain
+   policy hook — HUB leans typed (fits hub society cleanly); Legion to confirm it fits
+   constellation (hestia) + RBAC/TPM (hardbound), else the bag wins. Decides the engine
+   port's public shape, so settle before 2a lands.
