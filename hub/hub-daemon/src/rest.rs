@@ -43,6 +43,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use hub_lib::hub::{HubPaths, SovereignMode};
+use hub_lib::law::HubLawExt;
 use hub_lib::envelope::{verify_envelope, Challenge, MapResolver, NonceStore, PublicKeyResolver, SignedEnvelope, VerifyError};
 use hub_lib::events::HubEvent;
 use hub_lib::identity::IdentityFile;
@@ -3040,7 +3041,7 @@ async fn admin_set_admission_limits(
         "no hub law set — run `hub init-law` first, then set admission limits".to_string(),
     ))?;
     {
-        let adm = law.admission.get_or_insert_with(Default::default);
+        let adm = law.ext.admission.get_or_insert_with(Default::default);
         if let Some(r) = body.repeat_limit { adm.repeat_limit = Some(r); }
         if let Some(r) = body.review_limit { adm.review_limit = Some(r); }
     }
@@ -4841,14 +4842,14 @@ norms:
     priority: 100
 "#;
         let (_tmp, state) = fresh_rest_state(Some(BASE_LAW)).await;
-        assert!(state.law.read().await.as_ref().unwrap().admission.is_none(),
+        assert!(state.law.read().await.as_ref().unwrap().ext.admission.is_none(),
             "limits start as code defaults, not in the law");
 
         // First hydrate fills the defaults into the law + advances the version.
         assert!(hydrate_law_defaults(&state).await.unwrap(), "first hydrate fills gaps");
         let law = state.law.read().await.clone().unwrap();
-        assert_eq!(law.admission.as_ref().unwrap().repeat_limit, Some(3));
-        assert_eq!(law.admission.as_ref().unwrap().review_limit, Some(1));
+        assert_eq!(law.ext.admission.as_ref().unwrap().repeat_limit, Some(3));
+        assert_eq!(law.ext.admission.as_ref().unwrap().review_limit, Some(1));
         assert_eq!(law.version, "1.0.1", "amendment advanced the version");
         // Witnessed as a LawAmended, and persisted to the store.
         assert!({
@@ -4953,7 +4954,7 @@ norms:
         assert_eq!(law.admission_repeat_limit(), 5);
         assert_eq!(law.admission_review_limit(), 2);
         assert_eq!(law.version, "1.0.1", "the amendment advances the version (1.0.0 → 1.0.1)");
-        assert!(law.admission.as_ref().unwrap().repeat_limit == Some(5), "persisted in the law's admission section");
+        assert!(law.ext.admission.as_ref().unwrap().repeat_limit == Some(5), "persisted in the law's admission section");
         // A LawAmended was witnessed.
         let amended = {
             let l = state.ledger.lock().await;

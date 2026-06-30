@@ -1,129 +1,60 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Metalinxx Inc.
 
-//! Hub law — typed representation + YAML parsing + validation.
+//! Hub law — the **society specialization** of the shared policy engine.
 //!
-//! Implements the schema in `web4-standard/core-spec/hub-law-schema.md`
-//! (Legion's Track U sub-item U3, web4@08213d1). The hub holds law as a
-//! typed Rust struct in memory + as a signed YAML file in chapter storage.
-//! Operators edit YAML; the hub validates, signs, and (eventually)
-//! compiles to canonical RDF for cross-chapter exchange.
+//! The domain-agnostic engine (Law/Norm/Decision/Operator/Procedure/Condition/
+//! R6Request/evaluate/hydrate mechanism + structural validation) was extracted
+//! into the `web4-policy` crate (RFC #419 step-2 joint extraction). This module
+//! is now the hub's specialization on top of it:
 //!
-//! ## V2-8 scope split
-//!
-//! - **Step 1 (this module)**: types + YAML parser + structural validator.
-//!   Pure library, no PolicyEntity integration yet.
-//! - Step 2: signed law storage + LawAmended HubEvent for audit trail.
-//! - Step 3: evaluator — given (Law, R6Request) → Decision.
-//! - Step 4: PolicyEntity integration in REST + MCP act handlers.
-//!
-//! ## Architecture commitment #1: law always signed + auditable
-//!
-//! Law in storage is signed; amendments go through the ledger as
-//! LawAmended acts. The hub binary contains NO policy — it's a law
-//! interpreter that reads the chapter's signed law and applies it.
+//! - `Law` = [`web4_policy::Law`]`<`[`HubPolicy`]`>` — the generic engine carrying
+//!   the hub's society policy (admission / delegation / ATP issuance), flattened
+//!   into the same wire form as before (the extraction is byte-compatible with
+//!   signed law already on disk).
+//! - [`HubPolicy`] implements [`PolicyExtension`]: the society validation rules
+//!   (role vocabulary, admission/delegation/ATP constraints) and the admission
+//!   default-hydration (web4 #417), which the generic `Law::hydrate_defaults`
+//!   delegates to.
+//! - The generic engine types are re-exported so existing `crate::law::{Law, Norm,
+//!   Decision, R6Request, …}` imports keep working unchanged.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use web4_policy::PolicyExtension;
 
-/// A chapter's law document. Parsed from YAML, validated structurally,
-/// (later) compiled to canonical RDF for exchange.
-///
-/// Wire shape matches `hub-law-schema.md` §1 exactly. Backward-
-/// compatible field additions use `#[serde(default)]`.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Law {
-    pub version: String,
+// Re-export the generic engine surface so `crate::law::*` consumers are unchanged.
+pub use web4_policy::{
+    Condition, CustomPredicate, Decision, DecisionOutcome, EscalationTrigger, Norm, Operator,
+    Procedure, R6Request,
+};
 
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub norms: Vec<Norm>,
+/// The hub's law: the generic policy engine specialized with [`HubPolicy`].
+pub type Law = web4_policy::Law<HubPolicy>;
 
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub procedures: Vec<Procedure>,
+/// Known SocietyRole names per web4-core. Used by the §2 validation rules
+/// (delegation/escalation/admission/atp role typing). Kept as a free list (not
+/// the `SocietyRole` enum directly) so law files can reference future custom
+/// roles, while the canonical Web4 roles are enforced for role-typed fields.
+pub const KNOWN_ROLES: &[&str] = &[
+    "sovereign",
+    "administrator",
+    "treasurer",
+    "archivist",
+    "witness",
+    "citizen",
+    "applicant",
+];
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub delegation: Option<DelegationPolicy>,
-
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub escalation: Vec<EscalationTrigger>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub admission: Option<AdmissionPolicy>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub atp_issuance: Option<AtpIssuancePolicy>,
-
-    /// Community-defined custom predicates (per §4 extension mechanism).
-    /// Not yet evaluated — V2-8 Step 3 may add a hook.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub custom_predicates: Vec<CustomPredicate>,
+fn is_known_role(role: &str) -> bool {
+    KNOWN_ROLES.contains(&role.to_lowercase().as_str())
 }
 
-/// A single norm — the atomic unit of law. Triggered when `selector`
-/// matched against a value, applies `operator` + `value`, returns
-/// `decision`. Higher `priority` wins on conflicts (default 0).
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Norm {
-    pub id: String,
-    pub selector: String,
-    pub operator: Operator,
-    /// Norm-specific value — strings, numbers, bools all accepted via
-    /// untyped serde::Value. The evaluator (V2-8 Step 3) coerces based
-    /// on the selector + operator.
-    pub value: serde_yaml::Value,
-    pub decision: Decision,
-    #[serde(default)]
-    pub priority: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum Decision {
-    Allow,
-    Deny,
-    Escalate,
-}
-
-/// Per schema §2 rule 4: one of `<=`, `>=`, `==`, `!=`, `<`, `>`, `in`,
-/// `not_in`, `matches`. Renamed to Rust-idiomatic enum names with
-/// serde aliases for the symbol forms.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum Operator {
-    #[serde(rename = "<=")]
-    Le,
-    #[serde(rename = ">=")]
-    Ge,
-    #[serde(rename = "==")]
-    Eq,
-    #[serde(rename = "!=")]
-    Ne,
-    #[serde(rename = "<")]
-    Lt,
-    #[serde(rename = ">")]
-    Gt,
-    #[serde(rename = "in")]
-    In,
-    #[serde(rename = "not_in")]
-    NotIn,
-    #[serde(rename = "matches")]
-    Matches,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Procedure {
-    pub id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub requires_witnesses: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub requires_quorum: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub applies_to: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-}
+/// Default admission repeat limit: denials before an applicant is auto-blocked.
+pub const DEFAULT_ADMISSION_REPEAT_LIMIT: u32 = 3;
+/// Default admission review limit: denial-review requests before the terminal
+/// state (cleared only by an operator admission-reset).
+pub const DEFAULT_ADMISSION_REVIEW_LIMIT: u32 = 1;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DelegationPolicy {
@@ -132,14 +63,6 @@ pub struct DelegationPolicy {
     pub requires_approval: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub allowed_roles: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EscalationTrigger {
-    pub condition: String,
-    pub escalate_to: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -156,7 +79,7 @@ pub struct AdmissionPolicy {
     /// auto-blocked (must request a review); the review path itself allows up to
     /// `review_limit` requests before a terminal state (operator reset only).
     /// Unset → defaults ([`DEFAULT_ADMISSION_REPEAT_LIMIT`] /
-    /// [`DEFAULT_ADMISSION_REVIEW_LIMIT`]). Operator changes are written here (law
+    /// [`DEFAULT_ADMISSION_REVIEW_LIMIT`]); operator changes are written here (law
     /// is the single inspectable source of truth), via a witnessed `LawAmended`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repeat_limit: Option<u32>,
@@ -164,55 +87,6 @@ pub struct AdmissionPolicy {
     pub review_limit: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-}
-
-/// Default admission repeat limit: denials before an applicant is auto-blocked.
-pub const DEFAULT_ADMISSION_REPEAT_LIMIT: u32 = 3;
-/// Default admission review limit: denial-review requests before the terminal
-/// state (cleared only by an operator admission-reset).
-pub const DEFAULT_ADMISSION_REVIEW_LIMIT: u32 = 1;
-
-impl Law {
-    /// Effective admission repeat limit — the law value, or the default.
-    pub fn admission_repeat_limit(&self) -> u32 {
-        self.admission.as_ref().and_then(|a| a.repeat_limit)
-            .unwrap_or(DEFAULT_ADMISSION_REPEAT_LIMIT)
-    }
-    /// Effective admission review limit — the law value, or the default.
-    pub fn admission_review_limit(&self) -> u32 {
-        self.admission.as_ref().and_then(|a| a.review_limit)
-            .unwrap_or(DEFAULT_ADMISSION_REVIEW_LIMIT)
-    }
-
-    /// **Hydrate code defaults into the law.** For every law-driven parameter
-    /// that has a code default but no explicit value, write the default in, so
-    /// the law inspectably carries every effective setting (and new parameters
-    /// auto-populate on first boot — no per-parameter maintenance). Explicit
-    /// values are never overwritten. Returns `true` iff anything was filled, so
-    /// the caller persists + witnesses **only on change** (idempotent: a second
-    /// hydrate is a no-op).
-    ///
-    /// SINGLE MAINTENANCE POINT — when you add a law-driven parameter with a code
-    /// default, add its `get_or_insert`/default line here and it auto-hydrates.
-    /// (Filling these specific defaults is behaviour-neutral: each equals what
-    /// the corresponding accessor already returns when the value is absent.)
-    pub fn hydrate_defaults(&mut self) -> bool {
-        let mut changed = false;
-        let adm = self.admission.get_or_insert_with(|| {
-            changed = true; // a section had to be created to hold the defaults
-            Default::default()
-        });
-        if adm.repeat_limit.is_none() {
-            adm.repeat_limit = Some(DEFAULT_ADMISSION_REPEAT_LIMIT);
-            changed = true;
-        }
-        if adm.review_limit.is_none() {
-            adm.review_limit = Some(DEFAULT_ADMISSION_REVIEW_LIMIT);
-            changed = true;
-        }
-        // ── future law-driven defaults: add `get_or_insert`/default lines here ──
-        changed
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -225,116 +99,65 @@ pub struct AtpIssuancePolicy {
     pub description: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CustomPredicate {
-    pub id: String,
-    pub sub_predicate_of: String,
+/// The hub's society policy — the [`PolicyExtension`] flattened into [`Law`].
+///
+/// `#[serde(flatten)]` in `web4_policy::Law` merges these at the top level, so the
+/// law's wire form is unchanged: `{version, norms, …, delegation, admission,
+/// atp_issuance}`.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct HubPolicy {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    pub delegation: Option<DelegationPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub admission: Option<AdmissionPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub atp_issuance: Option<AtpIssuancePolicy>,
 }
 
-/// Known SocietyRole names per web4-core. Used by §2 validation
-/// rules 7, 8, 9, 10. Kept as a free list (not the SocietyRole enum
-/// directly) so law files can reference future custom roles without
-/// the validator rejecting them — but the canonical Web4 roles are
-/// enforced for the role-typed fields.
-const KNOWN_ROLES: &[&str] = &[
-    "sovereign",
-    "law_oracle",
-    "policy_entity",
-    "treasurer",
-    "administrator",
-    "archivist",
-    "citizen",
-    "witness",
-    "auditor",
-];
-
-impl Law {
-    /// Parse a YAML law document. Returns the typed Law on success.
-    /// Run `Law::validate()` separately for structural checks.
-    pub fn from_yaml(s: &str) -> Result<Self> {
-        serde_yaml::from_str(s).context("parsing hub law YAML")
-    }
-
-    /// Serialize back to YAML for storage / display.
-    pub fn to_yaml(&self) -> Result<String> {
-        serde_yaml::to_string(self).context("serializing hub law to YAML")
-    }
-
-    /// Validate per `hub-law-schema.md` §2 rules 1-10. Errors loudly
-    /// on the first failure — operators want one clear message per fix,
-    /// not a tower of warnings.
-    pub fn validate(&self) -> Result<()> {
-        // Rule 1: version is a semver string.
-        if self.version.is_empty() {
-            return Err(anyhow!("law.version is required (semver string)"));
-        }
-        if semver::Version::parse(&self.version).is_err() {
-            return Err(anyhow!(
-                "law.version '{}' is not a valid semver string (e.g. \"1.0.0\")",
-                self.version
-            ));
-        }
-
-        // Rules 2 + 3 + 4: norms shape (id, selector, operator, value,
-        // decision required; decision + operator are typed enums so
-        // serde already rejected bad values during parse).
-        // Rule 5: norm ids unique within the file.
-        let mut seen_ids = HashSet::new();
-        for norm in &self.norms {
-            if norm.id.is_empty() {
-                return Err(anyhow!("norm has empty id"));
-            }
-            if norm.selector.is_empty() {
-                return Err(anyhow!("norm '{}' has empty selector", norm.id));
-            }
-            if !seen_ids.insert(norm.id.clone()) {
-                return Err(anyhow!("duplicate norm id '{}'", norm.id));
-            }
-        }
-
-        // Rule 6: delegation.max_depth >= 0.
+impl PolicyExtension for HubPolicy {
+    /// Society validation rules 6-10 (hub-law-schema §2): delegation depth +
+    /// roles, escalation target role, admission sponsor role + trust range, ATP
+    /// mint authority role + cap. `law` is passed so the escalation targets
+    /// (which live on the generic engine) validate against the hub role vocabulary.
+    fn validate(&self, law: &Law) -> Result<()> {
+        // Rule 6 + 7: delegation depth >= 0; allowed_roles are known roles.
         if let Some(d) = &self.delegation {
             if d.max_depth < 0 {
                 return Err(anyhow!(
-                    "delegation.max_depth must be >= 0 (got {})", d.max_depth
+                    "delegation.max_depth must be >= 0 (got {})",
+                    d.max_depth
                 ));
             }
-            // Rule 7: delegation.allowed_roles entries are valid SocietyRole names.
             for role in &d.allowed_roles {
                 if !is_known_role(role) {
                     return Err(anyhow!(
-                        "delegation.allowed_roles contains unknown role '{}' \
-                         (known: {})",
-                        role, KNOWN_ROLES.join(", ")
+                        "delegation.allowed_roles contains unknown role '{}' (known: {})",
+                        role,
+                        KNOWN_ROLES.join(", ")
                     ));
                 }
             }
         }
 
-        // Rule 8: escalation[].escalate_to is a valid role.
-        for esc in &self.escalation {
+        // Rule 8 (society half): escalation[].escalate_to is a valid role.
+        for esc in &law.escalation {
             if !is_known_role(&esc.escalate_to) {
                 return Err(anyhow!(
-                    "escalation[].escalate_to '{}' is not a known role \
-                     (known: {})",
-                    esc.escalate_to, KNOWN_ROLES.join(", ")
+                    "escalation[].escalate_to '{}' is not a known role (known: {})",
+                    esc.escalate_to,
+                    KNOWN_ROLES.join(", ")
                 ));
-            }
-            if esc.condition.is_empty() {
-                return Err(anyhow!("escalation trigger has empty condition"));
             }
         }
 
-        // Rule 9: admission.sponsor_role is a valid role (if set).
+        // Rule 9: admission.sponsor_role valid (if set); min_trust_score in [0,1].
         if let Some(a) = &self.admission {
             if let Some(role) = &a.sponsor_role {
                 if !is_known_role(role) {
                     return Err(anyhow!(
-                        "admission.sponsor_role '{}' is not a known role \
-                         (known: {})",
-                        role, KNOWN_ROLES.join(", ")
+                        "admission.sponsor_role '{}' is not a known role (known: {})",
+                        role,
+                        KNOWN_ROLES.join(", ")
                     ));
                 }
             }
@@ -348,13 +171,13 @@ impl Law {
             }
         }
 
-        // Rule 10: atp_issuance.mint_authority is a valid role (if set).
+        // Rule 10: atp_issuance.mint_authority valid role; max_mint_per_cycle >= 0.
         if let Some(a) = &self.atp_issuance {
             if !is_known_role(&a.mint_authority) {
                 return Err(anyhow!(
-                    "atp_issuance.mint_authority '{}' is not a known role \
-                     (known: {})",
-                    a.mint_authority, KNOWN_ROLES.join(", ")
+                    "atp_issuance.mint_authority '{}' is not a known role (known: {})",
+                    a.mint_authority,
+                    KNOWN_ROLES.join(", ")
                 ));
             }
             if a.max_mint_per_cycle < 0 {
@@ -365,440 +188,55 @@ impl Law {
             }
         }
 
-        // Procedure ids unique too (parallel to rule 5).
-        let mut proc_ids = HashSet::new();
-        for proc in &self.procedures {
-            if proc.id.is_empty() {
-                return Err(anyhow!("procedure has empty id"));
-            }
-            if !proc_ids.insert(proc.id.clone()) {
-                return Err(anyhow!("duplicate procedure id '{}'", proc.id));
-            }
-        }
-
         Ok(())
     }
 
-    /// Parse + validate in one call. Most operators want this.
-    pub fn parse_and_validate(yaml: &str) -> Result<Self> {
-        let law = Self::from_yaml(yaml)?;
-        law.validate()?;
-        Ok(law)
-    }
-
-    /// Canonical SHA-256 of the law's serialized YAML form. Used to
-    /// populate `HubEvent::LawAmended.new_law_sha256` when recording
-    /// an amendment in the ledger.
-    pub fn sha256_hex(&self) -> Result<String> {
-        use web4_core::crypto::sha256_hex;
-        let yaml = self.to_yaml()?;
-        Ok(sha256_hex(yaml.as_bytes()))
-    }
-
-    /// SHA-256 of a raw YAML string (without round-tripping through the
-    /// parser). Useful when the caller already has the canonical bytes
-    /// and wants to avoid re-serialization drift.
-    pub fn sha256_hex_of(yaml: &str) -> String {
-        web4_core::crypto::sha256_hex(yaml.as_bytes())
+    /// Hydrate the hub's law-driven code defaults (web4 #417): the admission
+    /// repeat/review limits. SINGLE MAINTENANCE POINT — add new hub defaults here.
+    /// Returns true iff anything was filled (so the caller witnesses only on change).
+    fn hydrate_defaults(&mut self) -> bool {
+        let mut changed = false;
+        let adm = self.admission.get_or_insert_with(|| {
+            changed = true;
+            Default::default()
+        });
+        if adm.repeat_limit.is_none() {
+            adm.repeat_limit = Some(DEFAULT_ADMISSION_REPEAT_LIMIT);
+            changed = true;
+        }
+        if adm.review_limit.is_none() {
+            adm.review_limit = Some(DEFAULT_ADMISSION_REVIEW_LIMIT);
+            changed = true;
+        }
+        // ── future hub law-driven defaults: add `get_or_insert`/default lines here ──
+        changed
     }
 }
 
-fn is_known_role(role: &str) -> bool {
-    KNOWN_ROLES.contains(&role.to_lowercase().as_str())
+/// Hub-specific accessors on [`Law`]. `Law` is a foreign type alias
+/// (`web4_policy::Law<HubPolicy>`), so these live on an extension trait rather
+/// than an inherent impl. Bring into scope with `use crate::law::HubLawExt;`.
+pub trait HubLawExt {
+    /// Effective admission repeat limit — the law value, or the code default.
+    fn admission_repeat_limit(&self) -> u32;
+    /// Effective admission review limit — the law value, or the code default.
+    fn admission_review_limit(&self) -> u32;
 }
 
-// ============================================================================
-// Escalation conditions (V2-8 Step 3b)
-// ============================================================================
-
-/// A parsed escalation-trigger condition: `<selector> <op> <value>`.
-///
-/// The schema represents conditions as free-text strings like
-/// `"r6.resource.atp > 50"` or `"r6.request.action == 'amend_charter'"`.
-/// This struct is the parsed form; it reuses the same operator-evaluation
-/// machinery as norms via [`R6Request::resolve_selector`] + the
-/// `operator_matches` helper.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Condition {
-    pub selector: String,
-    pub operator: Operator,
-    pub value: serde_yaml::Value,
-}
-
-impl Condition {
-    /// Parse a condition expression.
-    ///
-    /// Grammar (informal):
-    ///   condition := selector OP value
-    ///   selector  := identifier ( "." identifier )*    (must start with "r6")
-    ///   OP        := "<=" | ">=" | "==" | "!=" | "<" | ">" | "in" | "not_in" | "matches"
-    ///   value     := number | quoted_string | bare_word | list
-    ///   list      := "[" value ( "," value )* "]"
-    ///
-    /// Whitespace around tokens is forgiving. Quoted strings use either
-    /// `"..."` or `'...'`. Bare words become strings.
-    pub fn parse(s: &str) -> Result<Self> {
-        let s = s.trim();
-        // Operators must be tried longest-first so "<=" beats "<", etc.
-        // Word ops ("in", "not_in", "matches") need word boundaries.
-        const SYMBOL_OPS: &[(&str, Operator)] = &[
-            ("<=", Operator::Le),
-            (">=", Operator::Ge),
-            ("==", Operator::Eq),
-            ("!=", Operator::Ne),
-            ("<", Operator::Lt),
-            (">", Operator::Gt),
-        ];
-        const WORD_OPS: &[(&str, Operator)] = &[
-            ("not_in", Operator::NotIn),
-            ("matches", Operator::Matches),
-            ("in", Operator::In),
-        ];
-
-        for (sym, op) in SYMBOL_OPS {
-            if let Some(pos) = s.find(sym) {
-                let selector = s[..pos].trim();
-                let value_str = s[pos + sym.len()..].trim();
-                return Self::build(selector, op.clone(), value_str);
-            }
-        }
-        // Word ops need to be surrounded by whitespace (otherwise "matches"
-        // could match a substring of a selector).
-        for (word, op) in WORD_OPS {
-            let needle = format!(" {} ", word);
-            if let Some(pos) = s.find(&needle) {
-                let selector = s[..pos].trim();
-                let value_str = s[pos + needle.len()..].trim();
-                return Self::build(selector, op.clone(), value_str);
-            }
-        }
-
-        Err(anyhow!(
-            "escalation condition '{}' has no recognized operator \
-             (expected one of: <=, >=, ==, !=, <, >, in, not_in, matches)",
-            s
-        ))
+impl HubLawExt for Law {
+    fn admission_repeat_limit(&self) -> u32 {
+        self.ext
+            .admission
+            .as_ref()
+            .and_then(|a| a.repeat_limit)
+            .unwrap_or(DEFAULT_ADMISSION_REPEAT_LIMIT)
     }
-
-    fn build(selector: &str, operator: Operator, value_str: &str) -> Result<Self> {
-        if selector.is_empty() {
-            return Err(anyhow!("escalation condition has empty selector"));
-        }
-        if !selector.starts_with("r6.") && selector != "r6" {
-            return Err(anyhow!(
-                "escalation condition selector '{}' must start with 'r6.'",
-                selector
-            ));
-        }
-        let value = parse_value(value_str)?;
-        Ok(Condition {
-            selector: selector.to_string(),
-            operator,
-            value,
-        })
-    }
-
-    /// Does this condition match the request?
-    pub fn matches(&self, req: &R6Request) -> bool {
-        match req.resolve_selector(&self.selector) {
-            Some(actual) => operator_matches(&self.operator, &actual, &self.value),
-            None => false,
-        }
-    }
-}
-
-/// Parse a value literal: number, quoted string, bare word, or list.
-fn parse_value(s: &str) -> Result<serde_yaml::Value> {
-    let s = s.trim();
-    if s.is_empty() {
-        return Err(anyhow!("empty value in escalation condition"));
-    }
-    // List
-    if s.starts_with('[') && s.ends_with(']') {
-        let inner = &s[1..s.len() - 1];
-        if inner.trim().is_empty() {
-            return Ok(serde_yaml::Value::Sequence(vec![]));
-        }
-        let items: Result<Vec<_>> = inner.split(',').map(|p| parse_value(p.trim())).collect();
-        return Ok(serde_yaml::Value::Sequence(items?));
-    }
-    // Quoted string
-    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
-        if s.len() < 2 {
-            return Err(anyhow!("malformed quoted string in escalation condition"));
-        }
-        return Ok(serde_yaml::Value::String(s[1..s.len() - 1].to_string()));
-    }
-    // Number
-    if let Ok(n) = s.parse::<i64>() {
-        return Ok(serde_yaml::Value::Number(n.into()));
-    }
-    if let Ok(n) = s.parse::<f64>() {
-        return Ok(serde_yaml::Value::Number(serde_yaml::Number::from(n)));
-    }
-    // Bool
-    match s {
-        "true" => return Ok(serde_yaml::Value::Bool(true)),
-        "false" => return Ok(serde_yaml::Value::Bool(false)),
-        _ => {}
-    }
-    // Bare word as string
-    Ok(serde_yaml::Value::String(s.to_string()))
-}
-
-// ============================================================================
-// Evaluator (V2-8 Step 3) — (Law, R6Request) → Decision
-// ============================================================================
-
-/// An R6 request being evaluated against hub law.
-///
-/// Per the Web4 R6 framework (Rules + Role + Request + Reference + Resource
-/// → Result), this struct carries the inputs the evaluator needs:
-/// - Role (which role-LCT is acting)
-/// - Request (action + payload)
-/// - Resource (quantifiable costs — ATP, member-count, etc.)
-///
-/// The `Rules` come from the [`Law`] passed alongside; the `Reference`
-/// (prior ledger context) is implicit in the evaluator's caller; the
-/// `Result` is what [`Law::evaluate`] returns.
-#[derive(Clone, Debug, Default)]
-pub struct R6Request {
-    /// Role taking the action (e.g. "citizen", "treasurer", "sovereign").
-    pub role: String,
-    /// Action being requested (e.g. "add_member", "assign_role").
-    pub action: String,
-    /// Action-specific payload (member_lct_id, name, role being assigned, etc.).
-    pub payload: serde_yaml::Value,
-    /// Quantifiable resources (atp: 50, witness_count: 3, etc.).
-    pub resource: std::collections::HashMap<String, serde_yaml::Value>,
-}
-
-impl R6Request {
-    /// Resolve a selector like `"r6.resource.atp"` or `"r6.request.action"`
-    /// against this request. Returns the matching value or None if the
-    /// selector doesn't resolve to anything.
-    pub fn resolve_selector(&self, selector: &str) -> Option<serde_yaml::Value> {
-        let parts: Vec<&str> = selector.split('.').collect();
-        if parts.first() != Some(&"r6") {
-            return None; // Unknown root namespace
-        }
-        match parts.get(1).copied() {
-            Some("role") => Some(serde_yaml::Value::String(self.role.clone())),
-            Some("request") => match parts.get(2).copied() {
-                Some("action") => Some(serde_yaml::Value::String(self.action.clone())),
-                Some("payload") => {
-                    // r6.request.payload OR r6.request.payload.<field>
-                    if parts.len() == 3 {
-                        Some(self.payload.clone())
-                    } else {
-                        // Walk the payload by remaining path
-                        let mut cursor = &self.payload;
-                        for key in &parts[3..] {
-                            cursor = cursor.get(*key)?;
-                        }
-                        Some(cursor.clone())
-                    }
-                }
-                _ => None,
-            },
-            Some("resource") => {
-                let key = parts.get(2)?;
-                self.resource.get(*key).cloned()
-            }
-            _ => None,
-        }
-    }
-}
-
-/// Rich evaluation outcome: decision + which rule fired (for audit /
-/// debugging / human-review queueing).
-#[derive(Clone, Debug)]
-pub struct DecisionOutcome {
-    pub decision: Decision,
-    /// Norm id that fired (highest priority), if any.
-    pub winning_norm: Option<String>,
-    /// Index of the escalation trigger that fired, if any. Pair with
-    /// `law.escalation[index]` to get the trigger's escalate_to.
-    pub escalation_index: Option<usize>,
-    /// Role to escalate to (populated from the matching trigger). None
-    /// if no escalation fired. Defaults to "sovereign" if a norm
-    /// produced Escalate but no escalation trigger fired (per architecture
-    /// convention — escalations without a target route to Sovereign).
-    pub escalate_to: Option<String>,
-}
-
-impl Law {
-    /// Evaluate this law against an [`R6Request`]. Returns a [`Decision`]
-    /// (use [`Self::evaluate_outcome`] for the full audit info).
-    ///
-    /// See [`Self::evaluate_outcome`] for the algorithm.
-    pub fn evaluate(&self, req: &R6Request) -> Decision {
-        self.evaluate_outcome(req).decision
-    }
-
-    /// Full evaluation: returns Decision + which rule fired.
-    ///
-    /// Algorithm:
-    /// 1. Walk every norm. Resolve selector against the request, apply
-    ///    operator + value. If matches, the norm "fires."
-    /// 2. Among firing norms, highest `priority` wins (ties broken by
-    ///    first-defined).
-    /// 3. Walk every escalation trigger. Parse `condition` into a
-    ///    [`Condition`] and check whether it matches the request.
-    /// 4. Combine:
-    ///    - Norm winner is Deny → Deny is terminal; return Deny.
-    ///    - Any escalation matches → return Escalate with escalate_to.
-    ///    - Norm winner is Escalate → return Escalate with escalate_to
-    ///      defaulted to "sovereign" (norms don't carry an explicit
-    ///      target per the schema).
-    ///    - Norm winner is Allow → return Allow.
-    ///    - No norm fired AND no escalation fired → default Allow.
-    pub fn evaluate_outcome(&self, req: &R6Request) -> DecisionOutcome {
-        let mut winner: Option<&Norm> = None;
-        for norm in &self.norms {
-            let actual = match req.resolve_selector(&norm.selector) {
-                Some(v) => v,
-                None => continue,
-            };
-            if !operator_matches(&norm.operator, &actual, &norm.value) {
-                continue;
-            }
-            match winner {
-                None => winner = Some(norm),
-                Some(current) if norm.priority > current.priority => winner = Some(norm),
-                _ => {}
-            }
-        }
-
-        // Deny is terminal — no escalation can override.
-        if let Some(w) = winner {
-            if w.decision == Decision::Deny {
-                return DecisionOutcome {
-                    decision: Decision::Deny,
-                    winning_norm: Some(w.id.clone()),
-                    escalation_index: None,
-                    escalate_to: None,
-                };
-            }
-        }
-
-        // Check escalation triggers.
-        for (idx, trigger) in self.escalation.iter().enumerate() {
-            let condition = match Condition::parse(&trigger.condition) {
-                Ok(c) => c,
-                // Malformed condition: treat as non-firing rather than
-                // crash. validate() should have caught it, but be defensive.
-                Err(_) => continue,
-            };
-            if condition.matches(req) {
-                return DecisionOutcome {
-                    decision: Decision::Escalate,
-                    winning_norm: winner.map(|w| w.id.clone()),
-                    escalation_index: Some(idx),
-                    escalate_to: Some(trigger.escalate_to.clone()),
-                };
-            }
-        }
-
-        // No escalation fired. Use the winning norm if any.
-        match winner {
-            Some(norm) => {
-                let escalate_to = if norm.decision == Decision::Escalate {
-                    Some("sovereign".to_string())
-                } else {
-                    None
-                };
-                DecisionOutcome {
-                    decision: norm.decision.clone(),
-                    winning_norm: Some(norm.id.clone()),
-                    escalation_index: None,
-                    escalate_to,
-                }
-            }
-            None => DecisionOutcome {
-                decision: Decision::Allow,
-                winning_norm: None,
-                escalation_index: None,
-                escalate_to: None,
-            },
-        }
-    }
-}
-
-/// Apply an operator: does `actual <op> expected` hold?
-///
-/// Type coercion rules:
-/// - `<=`, `>=`, `<`, `>` require both sides to be numeric. Non-numeric
-///   → false.
-/// - `==`, `!=` use serde_yaml::Value deep equality (numbers compared
-///   as f64; strings as strings; nested structs structurally).
-/// - `in`, `not_in` expect `expected` to be a sequence; actual is in/not
-///   in that sequence by Value equality.
-/// - `matches` reserved for V2-8 Step 3b (regex on string selectors).
-///   Currently returns false.
-fn operator_matches(
-    op: &Operator,
-    actual: &serde_yaml::Value,
-    expected: &serde_yaml::Value,
-) -> bool {
-    use Operator::*;
-    match op {
-        Eq => values_equal(actual, expected),
-        Ne => !values_equal(actual, expected),
-        Le | Ge | Lt | Gt => {
-            let a = as_number(actual);
-            let e = as_number(expected);
-            match (a, e) {
-                (Some(a), Some(e)) => match op {
-                    Le => a <= e,
-                    Ge => a >= e,
-                    Lt => a < e,
-                    Gt => a > e,
-                    _ => unreachable!(),
-                },
-                _ => false,
-            }
-        }
-        In => {
-            if let serde_yaml::Value::Sequence(seq) = expected {
-                seq.iter().any(|v| values_equal(actual, v))
-            } else {
-                false
-            }
-        }
-        NotIn => {
-            if let serde_yaml::Value::Sequence(seq) = expected {
-                !seq.iter().any(|v| values_equal(actual, v))
-            } else {
-                false
-            }
-        }
-        Matches => {
-            // Regex evaluation deferred to V2-8 Step 3b
-            false
-        }
-    }
-}
-
-fn values_equal(a: &serde_yaml::Value, b: &serde_yaml::Value) -> bool {
-    use serde_yaml::Value::*;
-    match (a, b) {
-        (Number(x), Number(y)) => {
-            // Compare via f64 to handle int↔float coercion.
-            x.as_f64() == y.as_f64()
-        }
-        // serde_yaml's PartialEq handles strings, bools, sequences, mappings
-        _ => a == b,
-    }
-}
-
-fn as_number(v: &serde_yaml::Value) -> Option<f64> {
-    match v {
-        serde_yaml::Value::Number(n) => n.as_f64(),
-        // Allow "100" as a string-to-number coercion for YAML
-        // unquoted-vs-quoted forgiveness.
-        serde_yaml::Value::String(s) => s.parse::<f64>().ok(),
-        _ => None,
+    fn admission_review_limit(&self) -> u32 {
+        self.ext
+            .admission
+            .as_ref()
+            .and_then(|a| a.review_limit)
+            .unwrap_or(DEFAULT_ADMISSION_REVIEW_LIMIT)
     }
 }
 
@@ -877,9 +315,9 @@ atp_issuance:
         assert_eq!(law.norms.len(), 2);
         assert_eq!(law.procedures.len(), 2);
         assert_eq!(law.escalation.len(), 2);
-        assert!(law.delegation.is_some());
-        assert!(law.admission.is_some());
-        assert!(law.atp_issuance.is_some());
+        assert!(law.ext.delegation.is_some());
+        assert!(law.ext.admission.is_some());
+        assert!(law.ext.atp_issuance.is_some());
     }
 
     #[tokio::test]
@@ -1037,7 +475,7 @@ version: "0.1.0"
 "#;
         let law = Law::parse_and_validate(yaml).unwrap();
         assert_eq!(law.norms.len(), 0);
-        assert!(law.delegation.is_none());
+        assert!(law.ext.delegation.is_none());
     }
 
     #[tokio::test]
@@ -1067,7 +505,7 @@ delegation:
     - ADMINISTRATOR
 "#;
         let law = Law::parse_and_validate(yaml).unwrap();
-        assert_eq!(law.delegation.as_ref().unwrap().allowed_roles.len(), 2);
+        assert_eq!(law.ext.delegation.as_ref().unwrap().allowed_roles.len(), 2);
     }
 
     // ----- Evaluator tests (V2-8 Step 3) -----
@@ -1473,17 +911,60 @@ escalation:
         // A law with one admission limit set explicitly, the other absent.
         let mut law = Law::parse_and_validate("version: \"1.0.0\"\nadmission:\n  review_limit: 5\n").unwrap();
         assert!(law.hydrate_defaults(), "fills the missing repeat_limit");
-        let adm = law.admission.as_ref().unwrap();
+        let adm = law.ext.admission.as_ref().unwrap();
         assert_eq!(adm.repeat_limit, Some(DEFAULT_ADMISSION_REPEAT_LIMIT), "default filled");
         assert_eq!(adm.review_limit, Some(5), "explicit value preserved, not overwritten");
         assert!(!law.hydrate_defaults(), "idempotent — second call is a no-op");
 
         // A law with NO admission section gets one created to hold the defaults.
         let mut bare = Law::parse_and_validate("version: \"1.0.0\"\n").unwrap();
-        assert!(bare.admission.is_none());
+        assert!(bare.ext.admission.is_none());
         assert!(bare.hydrate_defaults());
         assert_eq!(bare.admission_repeat_limit(), DEFAULT_ADMISSION_REPEAT_LIMIT);
         assert_eq!(bare.admission_review_limit(), DEFAULT_ADMISSION_REVIEW_LIMIT);
         assert!(!bare.hydrate_defaults(), "idempotent");
     }
+
+    #[test]
+    fn live_admission_law_roundtrips_and_evaluates() {
+        // The exact law the running HUB serves (GET /law, v1.0.2) — the signed,
+        // hash-chained artifact. Integration canary for the #419 extraction: the
+        // new Law<HubPolicy> must parse it, evaluate it, expose the admission
+        // accessors, and re-serialize as a FIXED POINT (serde(flatten) of
+        // HubPolicy must not drift — drift would change a law's hash).
+        let live = r#"
+version: "1.0.2"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+    description: "Citizenship is not open-admission."
+admission:
+  open: false
+  requires_sponsor: false
+  repeat_limit: 3
+  review_limit: 1
+"#;
+        let law = Law::parse_and_validate(live).expect("live law parses + validates");
+        assert_eq!(law.admission_repeat_limit(), 3);
+        assert_eq!(law.admission_review_limit(), 1);
+        assert!(!law.ext.admission.as_ref().unwrap().open);
+        let mut req = R6Request {
+            role: "external".into(),
+            action: "member_join_request".into(),
+            ..Default::default()
+        };
+        assert_eq!(law.evaluate(&req), Decision::Escalate);
+        req.action = "something_else".into();
+        assert_eq!(law.evaluate(&req), Decision::Allow);
+        // Serialization is a fixed point — the flatten extraction cannot silently
+        // change a law's serialized bytes (and thus its hash).
+        let y1 = law.to_yaml().unwrap();
+        let y2 = Law::from_yaml(&y1).unwrap().to_yaml().unwrap();
+        assert_eq!(y1, y2, "law serialization must be a fixed point (hash-stable)");
+    }
+
 }
