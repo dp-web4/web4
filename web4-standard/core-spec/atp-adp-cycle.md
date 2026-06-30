@@ -380,7 +380,8 @@ def track_value_flow(r6_transaction):
         for witness in r6_transaction.witnesses
     ]
     
-    # Tertiary (society-level aggregate, not a T3/V3 dimension)
+    # Tertiary (society-level aggregate, not a T3/V3 dimension —
+    # rollup accounting, outside §7.1 MUST #6 per its scope note)
     society_updates = [
         (r6_transaction.society, {"aggregate_value": +0.0001})
     ]
@@ -618,7 +619,18 @@ them from the governing society's published laws.
 3. Societies MUST maintain token pools
 4. Charging MUST require value proof
 5. Discharging MUST occur through R6 transactions
-6. Value MUST be tracked through T3/V3 tensors
+6. Entity-level value MUST be tracked through T3/V3 tensors; society-level aggregates MAY use non-tensor rollup accounting (§4.2)
+
+> **Note on society-level value (MUST #6 scope).** MUST #6 scopes the
+> *entity-role* legs that the §4.2 reference implementation tracks through
+> T3/V3 deltas — the primary beneficiary's `v3`, the contributors'/agents'
+> `t3`, and the witnesses' `t3`. The *society-level* aggregate (§4.3 Levels 4–5:
+> Society and Parent-society) is a coarse rollup tracked via the
+> `aggregate_value` channel in §4.2 — explicitly "**not a T3/V3 dimension**" —
+> so it does **not** engage MUST #6. This is the same carve-out pattern as the
+> §3.3 demurrage note (a maintenance discharge that "creates no V3 value and so
+> does not engage MUST #6"): MUST #6 governs entity-role tensor accounting, not
+> the society-aggregate rollup.
 
 > **Note on intermediate (escrow) state.** The two-state requirement above is
 > not violated by an *escrow/lock* lifecycle: ATP reserved for an in-flight
