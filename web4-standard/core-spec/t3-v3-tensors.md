@@ -637,7 +637,7 @@ constitute the complete normative definition.
 | 6D-to-3D bridge formula | primary×0.6 + secondary×(0.4/3) | [§2.5](#25-bridging-flat-6-dimensional-trust-schemas-into-the-3-roots) | t3v3-008 |
 | V3 calculation | valuation=(earned/expected)×satisfaction; veracity=(verified/total)×confidence; validity=1.0 if transferred else 0.0 | §3.3 | t3v3-014 |
 | Operational health formula | t3_composite×0.4 + v3_composite×0.3 + energy_ratio×0.3 (note: test vector t3v3-010 labels this "coherence" — this is **not** identity coherence C×S×Phi×R from the whitepaper; it measures operational health) | — | t3v3-010 |
-| ATP conservation | total supply = ATP + ADP (transfers preserve total supply; the per-transfer form is `initial == final + fees`) | [`atp-adp-cycle.md`](atp-adp-cycle.md) §6.3 (§2.4 Slashing is the deliberate exception) | — |
+| ATP conservation | total supply = ATP + ADP (transfers preserve total supply; the per-transfer form is `initial == final + fees`) | [`atp-adp-cycle.md`](atp-adp-cycle.md) §3.1/§3.2 (supply equation `total supply = ATP + ADP`), §2.4 (per-transfer invariant `initial == final + fees`; Slashing is the deliberate exception), §6.3 (fee-recycling preserves total supply) | — |
 
 > **V3 Valuation range** is deliberately omitted from the table above: its
 > classification is the unresolved 3-way divergence flagged in the §3.1 open
