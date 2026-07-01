@@ -2103,6 +2103,52 @@ async fn dispatch_channel(
                 "truncated": total > limit.unwrap_or(total),
             }))
         }
+        // R7 reputation READ — the (subject, role) trust/value tensors accrued on
+        // this society's ledger. Role-contextualized (RFC #403): pass `role_lct` to
+        // scope to one role-pairing, or omit for all of the subject's role reps.
+        "reputation" => {
+            let Some(subject) = inner.args.get("subject_lct").and_then(|v| v.as_str()) else {
+                return Err(ApiError::bad_request("reputation requires 'subject_lct'".to_string()));
+            };
+            let role_filter = inner.args.get("role_lct").and_then(|v| v.as_str());
+            let mut out: Vec<serde_json::Value> = state.reputation.iter()
+                .filter(|((subj, role), _)| subj == subject && role_filter.is_none_or(|r| r == role))
+                .map(|((subj, role), rep)| serde_json::json!({
+                    "subject_lct": subj,
+                    "role_lct": role,
+                    "t3": rep.t3,
+                    "v3": rep.v3,
+                    "observations": rep.observations,
+                    "last_updated": rep.last_updated,
+                }))
+                .collect();
+            let total = out.len();
+            if let Some(n) = limit { out.truncate(n); }
+            Ok(serde_json::json!({
+                "reputation": out,
+                "total": total,
+                "truncated": total > limit.unwrap_or(total),
+            }))
+        }
+        // R7 reputation RECORD (Sovereign-only in v1) — witness a pre-computed
+        // `ReputationDelta` so it folds into the projection. The delta is produced by
+        // `web4_core::r6::compute_reputation` (factors × society-law weights); the hub
+        // records + applies it, it does NOT invent the scoring math.
+        "record_reputation" => {
+            if role != "sovereign" {
+                return Err(ApiError {
+                    status: StatusCode::FORBIDDEN,
+                    message: "record_reputation is Sovereign-only (v1)".to_string(),
+                });
+            }
+            let delta: web4_core::r6::ReputationDelta = inner.args.get("delta")
+                .cloned()
+                .and_then(|v| serde_json::from_value(v).ok())
+                .ok_or_else(|| ApiError::bad_request(
+                    "record_reputation requires 'delta' (a ReputationDelta)".to_string()))?;
+            let index = witness_event(s, HubEvent::ReputationRecorded { delta }).await?;
+            Ok(serde_json::json!({ "recorded": true, "entry_index": index }))
+        }
         "list_members" => {
             let all: Vec<&hub_lib::state::Member> = state.members.values().collect();
             let total = all.len();

@@ -729,6 +729,15 @@ fn event_summary(event: &HubEvent) -> String {
                 html_escape(&act.substance.uri),
             )
         }
+        HubEvent::ReputationRecorded { delta } => format!(
+            "📊 reputation Δ for {} <span class=\"muted\">in role</span> {} \
+             <span class=\"muted\">(ΔT3 {:+.3}, ΔV3 {:+.3}) — {}</span>",
+            html_escape(&delta.subject_lct),
+            html_escape(&delta.role_lct),
+            delta.net_trust_change(),
+            delta.net_value_change(),
+            html_escape(&delta.reason),
+        ),
         HubEvent::MemberJoinRequested { member_lct_id, name, .. } => format!(
             "🚪 join requested by {} {} <span class=\"muted\">[escalated → review]</span>",
             short(member_lct_id),

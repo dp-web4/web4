@@ -400,6 +400,14 @@ pub enum HubEvent {
     /// envelope (the daemon's `SealedNotice`), never duplicated onto this
     /// witnessed record — its integrity is bound instead by `content_hash`.
     ReferencedAct { act: Act },
+
+    /// R7 reputation back-propagation: a role-contextualized trust/value delta
+    /// recorded on the ledger — the *witnessed* half of reputation. The delta is
+    /// computed elsewhere (`web4_core::r6::compute_reputation` from factors ×
+    /// society-law weights); the hub records + applies it, never invents the math.
+    /// Reputation is NEVER global — the delta's `(subject_lct, role_lct)` scopes
+    /// it to an MRH role-pairing link (RFC #403).
+    ReputationRecorded { delta: web4_core::r6::ReputationDelta },
 }
 
 /// Why a pair ended. Captures audit-relevant intent so V3 trust
@@ -455,6 +463,7 @@ impl HubEvent {
             Self::VaultUnlockAttested { .. } => "vault_unlock_attested",
             Self::VaultUnlockResolved { .. } => "vault_unlock_resolved",
             Self::ReferencedAct { .. } => "referenced_act",
+            Self::ReputationRecorded { .. } => "reputation_recorded",
         }
     }
 }
