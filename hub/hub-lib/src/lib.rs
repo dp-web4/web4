@@ -33,6 +33,7 @@ pub mod law;
 pub mod ledger;
 pub mod pair_message;
 pub mod proposal;
+pub mod replay;
 pub mod session;
 
 #[cfg(feature = "dynamodb")]
