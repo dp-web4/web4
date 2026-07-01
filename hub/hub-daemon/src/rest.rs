@@ -154,6 +154,11 @@ pub struct RestState {
     /// drains it via the `notifications` channel tool (poll floor). Push to a registered
     /// LCT-MCP endpoint is the future optimization on the same queue.
     pub notifications: Arc<Mutex<std::collections::HashMap<Uuid, Vec<SealedNotice>>>>,
+
+    /// Ephemeral liveness — last channel contact per member (presence /
+    /// "bidirectional ping"). In-memory, NOT witnessed (too frequent for the
+    /// ledger); resets on restart. Any authenticated channel op refreshes it.
+    pub last_seen: Arc<Mutex<std::collections::HashMap<Uuid, chrono::DateTime<Utc>>>>,
 }
 
 /// One sealed notice queued for a citizen. `sealed` is ciphertext sealed to the
@@ -347,6 +352,7 @@ impl RestState {
                 },
             )),
             notifications: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            last_seen: Arc::new(Mutex::new(std::collections::HashMap::new())),
             operator_plane: false,
         })
     }
@@ -409,6 +415,7 @@ impl RestState {
             protected: Arc::new(Mutex::new(None)),
             store_key: Arc::new(tokio::sync::RwLock::new(None)),
             notifications: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            last_seen: Arc::new(Mutex::new(std::collections::HashMap::new())),
             operator_plane: false,
         })
     }
@@ -2048,6 +2055,11 @@ async fn dispatch_channel(
         }
     };
 
+    // Presence: any authenticated member contact is a liveness signal — the
+    // "bidirectional ping" (calling `presence` both announces you and returns
+    // who else is around). Ephemeral + in-memory; never witnessed.
+    s.last_seen.lock().await.insert(caller_lct_id, Utc::now());
+
     // PolicyEntity-on-reads: hub law decides whether this tier may run
     // this read (default-open when no law / no matching norm).
     gate_read(s, role, inner.tool.as_str()).await?;
@@ -2063,6 +2075,34 @@ async fn dispatch_channel(
             "member_count": state.member_count(),
             "last_ledger_index": state.last_index,
         })),
+        // Presence roster — the read half of the bidirectional ping. Each member
+        // with a status derived from how recently they last touched the channel:
+        // online (<90s) / away (<10m) / offline. Ephemeral; thresholds will move
+        // to law later. The caller's own last_seen was just refreshed above.
+        "presence" => {
+            let seen = s.last_seen.lock().await;
+            let now = Utc::now();
+            let mut roster: Vec<serde_json::Value> = state.members.keys().map(|lct| {
+                let (last, status) = match seen.get(lct) {
+                    Some(t) => {
+                        let age = (now - *t).num_seconds();
+                        let st = if age < 90 { "online" } else if age < 600 { "away" } else { "offline" };
+                        (Some(t.to_rfc3339()), st)
+                    }
+                    None => (None, "offline"),
+                };
+                serde_json::json!({ "lct_id": lct, "last_seen": last, "status": status })
+            }).collect();
+            roster.sort_by(|a, b| a["lct_id"].as_str().cmp(&b["lct_id"].as_str()));
+            let total = roster.len();
+            if let Some(n) = limit { roster.truncate(n); }
+            Ok(serde_json::json!({
+                "now": now.to_rfc3339(),
+                "present": roster,
+                "total": total,
+                "truncated": total > limit.unwrap_or(total),
+            }))
+        }
         "list_members" => {
             let all: Vec<&hub_lib::state::Member> = state.members.values().collect();
             let total = all.len();
@@ -4544,6 +4584,45 @@ mod channel_e2e_tests {
         assert_eq!(out3["notifications"][0]["pointer_uri"], serde_json::json!("pr/423#thread=t1"));
         assert_eq!(out3["notifications"][0]["from"], serde_json::json!(member_lct),
             "sender LCT rides the envelope in the clear so the recipient can reply");
+    }
+
+    #[tokio::test]
+    async fn presence_roster_shows_active_members_online() {
+        let (_tmp, state) = fresh_rest_state(None).await; // open admission
+        let hub_pub = state.signer.public_key().unwrap();
+        let a = KeyPair::generate();
+        let a_lct = Uuid::new_v4();
+        let b = KeyPair::generate();
+        let b_lct = Uuid::new_v4();
+        // admit both, then each does a citizen op so presence registers their liveness
+        for (kp, lct) in [(&a, a_lct), (&b, b_lct)] {
+            let pid = Uuid::new_v4();
+            let sealed = seal_req(kp, &hub_pub, pid, "request_citizenship",
+                serde_json::json!({ "name": "P" }));
+            channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+                caller_lct_id: lct, pair_id: pid, sealed,
+                caller_pubkey_hex: Some(kp.verifying_key().to_hex()),
+            })).await.expect("admitted");
+            let pid2 = Uuid::new_v4();
+            let sealed2 = seal_req(kp, &hub_pub, pid2, "query_hub", serde_json::json!({}));
+            channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+                caller_lct_id: lct, pair_id: pid2, sealed: sealed2, caller_pubkey_hex: None,
+            })).await.expect("liveness op");
+        }
+        // A reads the presence roster (the bidirectional ping).
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&a, &hub_pub, pid, "presence", serde_json::json!({}));
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: a_lct, pair_id: pid, sealed, caller_pubkey_hex: None,
+        })).await.expect("presence");
+        let out = open_resp(&a, &hub_pub, pid, &resp.0.sealed);
+        let present = out["present"].as_array().expect("present array");
+        let find = |lct: Uuid| present.iter().find(|m| m["lct_id"] == serde_json::json!(lct)).cloned();
+        let ma = find(a_lct).expect("A in roster");
+        let mb = find(b_lct).expect("B in roster");
+        assert_eq!(ma["status"], serde_json::json!("online"), "A just active -> online");
+        assert_eq!(mb["status"], serde_json::json!("online"), "B just active -> online");
+        assert!(!ma["last_seen"].is_null() && !mb["last_seen"].is_null(), "last_seen populated");
     }
 
     #[tokio::test]
