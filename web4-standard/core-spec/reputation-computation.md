@@ -292,8 +292,13 @@ matches only when **all** stated conditions hold). The conditions in common use:
 | `quality_threshold` | Matches **iff** `output.quality >= threshold`. A missing quality value is treated as `0.0`, so the threshold fails. |
 | `min_atp_stake` | Matches **iff** the action's staked ATP `>= min_atp_stake`. Lets rules apply only above a minimum economic commitment. |
 
-Implementations MAY define additional conditions; an unrecognized condition
-SHOULD cause the rule not to match (fail-closed) rather than be ignored.
+Implementations MAY define additional conditions. The reference SDK
+(`reputation.py` `ReputationRule.matches()`) evaluates only the recognized
+conditions above and **ignores** any it does not recognize (**fail-open**): a
+rule matches when all recognized conditions pass, regardless of extra keys.
+An implementation MAY instead treat an unrecognized condition as fail-closed
+(cause the rule not to match); this is a stricter local choice and is **not
+currently required** for conformance.
 
 ### Rule Categories
 
@@ -649,7 +654,7 @@ def compute_current_reputation(entity_lct, role_lct, dimension, time_horizon_day
     weight_sum = 0.0
 
     for delta in deltas:
-        age_days = (now() - delta.timestamp).total_seconds() / 86400.0  # fractional days (SDK parity)
+        age_days = max(0.0, (now() - delta.timestamp).total_seconds() / 86400.0)  # fractional days, floored at 0 for clock skew (SDK parity)
         recency_weight = math.exp(-age_days / 30.0)  # exp decay, 30-day time constant (1/e; ≈20.8-day half-life)
 
         weighted_sum += delta.change * recency_weight
@@ -700,7 +705,7 @@ def apply_reputation_decay(entity_lct, role_lct, last_action_timestamp):
     in role B decays only in role B. The SDK (`reputation.py`
     `inactivity_decay(entity_lct, role_lct)`) keys decay state the same way.
     """
-    days_inactive = (now() - last_action_timestamp).total_seconds() / 86400.0
+    days_inactive = max(0.0, (now() - last_action_timestamp).total_seconds() / 86400.0)  # floored at 0 for clock skew (SDK parity)
 
     if days_inactive < 30:
         return 0.0  # No decay within 30 days
