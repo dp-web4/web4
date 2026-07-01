@@ -35,7 +35,7 @@ use axum::{
     Router,
 };
 use std::net::SocketAddr;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -45,6 +45,7 @@ use uuid::Uuid;
 use hub_lib::hub::{HubPaths, SovereignMode};
 use hub_lib::law::HubLawExt;
 use hub_lib::envelope::{verify_envelope, Challenge, MapResolver, NonceStore, PublicKeyResolver, SignedEnvelope, VerifyError};
+use hub_lib::replay::ReplayGuard;
 use hub_lib::events::HubEvent;
 use hub_lib::identity::IdentityFile;
 use hub_lib::init::load_society;
@@ -105,6 +106,10 @@ pub struct RestState {
     pub signer: Arc<SwappableSigner>,
     pub ledger: Arc<Mutex<HubLedger>>,
     pub nonces: Arc<NonceStore>,
+    /// Anti-replay seen-set for sealed channel requests (see [`ReplayGuard`]).
+    /// AEAD authenticates the sealer but not freshness; this rejects captured
+    /// `{pair_id, sealed}` re-submissions that would double-witness write acts.
+    pub replay: Arc<ReplayGuard>,
     /// Public-key resolver for envelope signature verification.
     /// Wrapped in RwLock so the V2-12 join endpoint can extend it
     /// at runtime as new members are admitted.
@@ -329,6 +334,7 @@ impl RestState {
             signer: Arc::new(SwappableSigner::new(signer)),
             ledger,
             nonces: Arc::new(NonceStore::new()),
+            replay: Arc::new(ReplayGuard::new()),
             resolver: Arc::new(tokio::sync::RwLock::new(resolver)),
             law,
             constellations: Arc::new(hub_lib::constellation::ConstellationGate::new()),
@@ -404,6 +410,7 @@ impl RestState {
             signer: Arc::new(SwappableSigner::new(signer)),
             ledger: placeholder_ledger,
             nonces: Arc::new(NonceStore::new()),
+            replay: Arc::new(ReplayGuard::new()),
             resolver: Arc::new(tokio::sync::RwLock::new(MapResolver::new())),
             law,
             constellations: Arc::new(hub_lib::constellation::ConstellationGate::new()),
@@ -1204,6 +1211,9 @@ impl ApiError {
     fn internal(e: anyhow::Error) -> Self {
         Self { status: StatusCode::INTERNAL_SERVER_ERROR, message: format!("{:#}", e) }
     }
+    fn conflict(msg: impl Into<String>) -> Self {
+        Self { status: StatusCode::CONFLICT, message: msg.into() }
+    }
 }
 
 /// The hub's vault is locked: refuse citizen-tier+ work, 503. Tier-0 (no-LCT)
@@ -1921,6 +1931,16 @@ struct ChannelInner {
     tool: String,
     #[serde(default)]
     args: serde_json::Value,
+    /// Anti-replay nonce, fresh per request. Optional for back-compat: when
+    /// present it keys the replay guard directly; when absent the guard falls
+    /// back to the sealed-blob hash (still rejects byte-identical replays).
+    #[serde(default)]
+    nonce: Option<String>,
+    /// Client send time. Optional for back-compat: when present, requests
+    /// outside the freshness window are rejected, which makes the TTL-bounded
+    /// replay set complete (a replay can't outlive the window it's checked in).
+    #[serde(default)]
+    issued_at: Option<DateTime<Utc>>,
 }
 
 async fn channel_request(
@@ -1964,6 +1984,38 @@ async fn channel_request(
         ))?;
     let inner: ChannelInner = serde_json::from_slice(&plaintext)
         .map_err(|e| ApiError::bad_request(format!("malformed channel request: {e}")))?;
+
+    // Anti-replay. AEAD authenticated the sealer but proves possession, not
+    // freshness: a captured `{pair_id, sealed}` POST decrypts identically on
+    // re-submission, which would double-witness a write act (referenced_act,
+    // record_reputation, …) and inflate the ledger + any reputation folded
+    // from it. Freshness-gate when the client dates the request, then dedup on
+    // its nonce (or, for older clients, the sealed-blob hash). Keys are
+    // namespaced by caller so a nonce value can't collide across members.
+    // Reads are idempotent so this is harmless for them; the seal is randomized
+    // per call, so a legitimate re-invocation is a new key, never a false reject.
+    let now = Utc::now();
+    const CHANNEL_FRESHNESS_SECS: i64 = 120;
+    if let Some(issued) = inner.issued_at {
+        if (now - issued).num_seconds().abs() > CHANNEL_FRESHNESS_SECS {
+            return Err(ApiError::bad_request(
+                "channel request outside freshness window (replay or clock skew)".to_string(),
+            ));
+        }
+    }
+    let replay_key = match &inner.nonce {
+        Some(n) => format!("{}:n:{n}", req.caller_lct_id),
+        None => format!(
+            "{}:h:{}",
+            req.caller_lct_id,
+            web4_core::crypto::sha256_hex(req.sealed.as_bytes())
+        ),
+    };
+    if !s.replay.check_and_record(&replay_key, now) {
+        return Err(ApiError::conflict(
+            "channel request replay rejected (already processed)".to_string(),
+        ));
+    }
 
     // Authz + dispatch on the decrypted request.
     let response = dispatch_channel(&s, req.caller_lct_id, req.pair_id, req.caller_pubkey_hex.clone(), inner).await?;
@@ -4630,6 +4682,88 @@ mod channel_e2e_tests {
         assert_eq!(out3["notifications"][0]["pointer_uri"], serde_json::json!("pr/423#thread=t1"));
         assert_eq!(out3["notifications"][0]["from"], serde_json::json!(member_lct),
             "sender LCT rides the envelope in the clear so the recipient can reply");
+    }
+
+    #[tokio::test]
+    async fn channel_replay_is_rejected_and_does_not_double_witness() {
+        // Capture-and-replay: re-POSTing the identical sealed bytes must be
+        // rejected, or a write act would be witnessed twice. Uses the back-compat
+        // hash path (seal_req sends no nonce/issued_at).
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let member = KeyPair::generate();
+        let member_lct = Uuid::new_v4();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&member, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Replayer" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: member_lct, pair_id: pid, sealed,
+            caller_pubkey_hex: Some(member.verifying_key().to_hex()),
+        })).await.expect("admitted + pinned");
+
+        // Emit a referenced_act to self, then replay the EXACT same bytes.
+        let pid2 = Uuid::new_v4();
+        let sealed2 = seal_req(&member, &hub_pub, pid2, "referenced_act", serde_json::json!({
+            "to": { "to": "peer", "lct_id": member_lct },
+            "kind": "handoff",
+            "pointer_uri": "pr/999#thread=t1",
+        }));
+        let mk = || ChannelRequest {
+            caller_lct_id: member_lct, pair_id: pid2, sealed: sealed2.clone(), caller_pubkey_hex: None,
+        };
+        channel_request(State(state.clone()), Path(state.hub_id), Json(mk()))
+            .await.expect("first submission recorded");
+        let replay = channel_request(State(state.clone()), Path(state.hub_id), Json(mk())).await;
+        assert!(replay.is_err(), "identical re-POST must be rejected as a replay");
+
+        // The act was witnessed exactly once: the mailbox holds one notice.
+        let pid3 = Uuid::new_v4();
+        let sealed3 = seal_req(&member, &hub_pub, pid3, "notifications", serde_json::json!({}));
+        let resp3 = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: member_lct, pair_id: pid3, sealed: sealed3, caller_pubkey_hex: None,
+        })).await.expect("drain");
+        let out3 = open_resp(&member, &hub_pub, pid3, &resp3.0.sealed);
+        assert_eq!(out3["total"], serde_json::json!(1),
+            "replay must not double-witness — exactly one notice");
+
+        // A genuinely new invocation (fresh seal) is NOT blocked.
+        let pid4 = Uuid::new_v4();
+        let sealed4 = seal_req(&member, &hub_pub, pid4, "presence", serde_json::json!({}));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: member_lct, pair_id: pid4, sealed: sealed4, caller_pubkey_hex: None,
+        })).await.expect("a fresh request with new sealed bytes is accepted");
+    }
+
+    #[tokio::test]
+    async fn channel_stale_issued_at_is_rejected() {
+        // A client-dated request outside the freshness window is refused — this is
+        // what bounds the replay set so a deferred replay can't outlive it.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let member = KeyPair::generate();
+        let member_lct = Uuid::new_v4();
+        // Pin first (fresh request_citizenship, no issued_at → accepted).
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&member, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Timely" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: member_lct, pair_id: pid, sealed,
+            caller_pubkey_hex: Some(member.verifying_key().to_hex()),
+        })).await.expect("pinned");
+
+        // Seal a presence read stamped 10 minutes in the past.
+        let pid2 = Uuid::new_v4();
+        let stale = (Utc::now() - chrono::Duration::seconds(600)).to_rfc3339();
+        let inner = serde_json::json!({
+            "tool": "presence", "args": {},
+            "nonce": Uuid::new_v4().to_string(), "issued_at": stale,
+        });
+        let sealed2 = pair_channel::seal(&member, &hub_pub, pid2, &serde_json::to_vec(&inner).unwrap())
+            .unwrap().to_base64();
+        let res = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: member_lct, pair_id: pid2, sealed: sealed2, caller_pubkey_hex: None,
+        })).await;
+        assert!(res.is_err(), "stale issued_at must be rejected as out-of-window");
     }
 
     #[tokio::test]

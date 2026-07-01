@@ -63,9 +63,17 @@ fn main() -> anyhow::Result<()> {
     let hub_pub = PublicKey::from_bytes(&pk_arr)?;
     eprintln!("hub {hub_id} @ {base} (pubkey {}…)", &hub_pub_hex[..16]);
 
-    // 2. Seal {tool, args} with a fresh pair_id.
+    // 2. Seal {tool, args} with a fresh pair_id. The nonce + issued_at let the
+    //    hub reject replays with a bounded seen-set (freshness window closes the
+    //    gap a TTL alone would leave); both are inside the sealed blob, so AEAD
+    //    authenticates them.
     let pair_id = Uuid::new_v4();
-    let inner = serde_json::json!({ "tool": tool, "args": tool_args });
+    let inner = serde_json::json!({
+        "tool": tool,
+        "args": tool_args,
+        "nonce": Uuid::new_v4().to_string(),
+        "issued_at": chrono::Utc::now().to_rfc3339(),
+    });
     let sealed = pair_channel::seal(&me, &hub_pub, pair_id, &serde_json::to_vec(&inner)?)?;
 
     // 3. POST the channel request.
