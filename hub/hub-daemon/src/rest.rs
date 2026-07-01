@@ -722,6 +722,15 @@ async fn witness_event(s: &RestState, event: HubEvent) -> Result<u64, ApiError> 
 /// by the caller (e.g. the `referenced_act` dispatch). `from` rides the envelope
 /// in the clear so the recipient can address a reply. Best-effort: dropped if the
 /// recipient has no pinned pubkey / the seal fails.
+/// Per-member mailbox size cap. A member can't flood a peer's mailbox (or the
+/// hub's memory) without bound; at the cap the oldest notice is dropped to make
+/// room (ring semantics — the most recent N always survive).
+const MAX_NOTICES_PER_MEMBER: usize = 1000;
+/// Notice retention. Notices older than this are pruned on enqueue and on drain,
+/// so a mailbox that's touched (or polled) doesn't accumulate stale entries. A
+/// fully-idle mailbox is bounded instead by [`MAX_NOTICES_PER_MEMBER`].
+const NOTICE_TTL_SECS: i64 = 7 * 24 * 3600;
+
 async fn queue_sealed_notice(
     s: &RestState, recipient: Uuid, from: Uuid, kind: &str, pointer_uri: &str, body: &[u8],
 ) {
@@ -746,13 +755,24 @@ async fn queue_sealed_notice(
         Ok(c) => c,
         Err(e) => { tracing::warn!("queue_sealed_notice: seal failed: {e}"); return; }
     };
-    s.notifications.lock().await.entry(recipient).or_default().push(SealedNotice {
+    let now = Utc::now();
+    let cutoff = now - chrono::Duration::seconds(NOTICE_TTL_SECS);
+    let mut mailbox = s.notifications.lock().await;
+    let queue = mailbox.entry(recipient).or_default();
+    queue.retain(|n| n.queued_at >= cutoff); // TTL prune
+    while queue.len() >= MAX_NOTICES_PER_MEMBER {
+        queue.remove(0); // at cap: drop oldest to make room
+        tracing::warn!(
+            "mailbox for {recipient} at cap ({MAX_NOTICES_PER_MEMBER}); dropped oldest notice"
+        );
+    }
+    queue.push(SealedNotice {
         pair_id,
         from,
         sealed,
         kind: kind.to_string(),
         pointer_uri: pointer_uri.to_string(),
-        queued_at: Utc::now(),
+        queued_at: now,
     });
 }
 
@@ -2366,7 +2386,9 @@ async fn dispatch_channel(
         "notifications" => {
             // A citizen drains their pending sealed notices (the delivery floor; push to a
             // registered LCT-MCP endpoint is the future optimization on the same queue).
-            let notices = s.notifications.lock().await.remove(&caller_lct_id).unwrap_or_default();
+            let cutoff = Utc::now() - chrono::Duration::seconds(NOTICE_TTL_SECS);
+            let mut notices = s.notifications.lock().await.remove(&caller_lct_id).unwrap_or_default();
+            notices.retain(|n| n.queued_at >= cutoff); // don't deliver expired notices
             Ok(serde_json::json!({ "total": notices.len(), "notifications": notices }))
         }
         "referenced_act" => {
@@ -4764,6 +4786,37 @@ mod channel_e2e_tests {
             caller_lct_id: member_lct, pair_id: pid2, sealed: sealed2, caller_pubkey_hex: None,
         })).await;
         assert!(res.is_err(), "stale issued_at must be rejected as out-of-window");
+    }
+
+    #[tokio::test]
+    async fn mailbox_is_capped_and_drops_oldest() {
+        // Flood protection: a member's mailbox can't grow without bound. Past the
+        // cap the oldest notices are dropped (ring), so the newest survive.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let member = KeyPair::generate();
+        let member_lct = Uuid::new_v4();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&member, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Flooded" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: member_lct, pair_id: pid, sealed,
+            caller_pubkey_hex: Some(member.verifying_key().to_hex()),
+        })).await.expect("pinned");
+
+        let overflow = super::MAX_NOTICES_PER_MEMBER + 5;
+        for i in 0..overflow {
+            super::queue_sealed_notice(
+                &state, member_lct, member_lct, "handoff",
+                &format!("pr/{i}"), b"body",
+            ).await;
+        }
+        let mailbox = state.notifications.lock().await;
+        let queue = mailbox.get(&member_lct).expect("mailbox exists");
+        assert_eq!(queue.len(), super::MAX_NOTICES_PER_MEMBER, "capped at the max");
+        // The first 5 (oldest) were dropped; the newest is the last enqueued.
+        assert_eq!(queue.first().unwrap().pointer_uri, "pr/5", "oldest dropped");
+        assert_eq!(queue.last().unwrap().pointer_uri, format!("pr/{}", overflow - 1));
     }
 
     #[tokio::test]
