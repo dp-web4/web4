@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-06-12
+**Last Updated**: 2026-07-01
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,12 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-07-01: Publisher Maintenance — No-Change Verification (manual pass; closes the 19-day PUBLISHER_CONTEXT logging gap since 06-12)
+- **Both standing integration triggers remain unfired.** `web4-standard/core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02) — §7.7 / core-protocol → Normative has NOT flipped. No EUDI Phase 2 / did:web4 spec change in `web4-standard/` since the 06-12 did:web4 integration. No v0.28.0 → PyPI publish observed. **126 web4 commits since 06-12**; `git log --since=2026-06-12 -- whitepaper/ docs/whitepaper-web/` shows **exactly one whitepaper-scope commit — `6a8d333`, which IS the 06-12 did:web4 integration itself**; every other commit is out-of-scope C-series/hub churn (the established profile).
+- **Source ↔ published in sync by construction.** The last commit touching `whitepaper/sections/` is `6a8d333` — the same commit that regenerated md/pdf/html — so no rebuild was performed (a rebuild would produce only CRLF/timestamp churn, per the 06-09→06-11 precedent). No stale-artifact defect (cf. the 06-12 index.html finding); the three published formats share one source-edit date.
+- **No term drift.** Drift-grep over live `sections/*` (excl. `*/archive/`) for all documented wrong expansions (ATP/LCT/T3/V3/ADP) returns zero real hits (benign "cryptographic signatures" excluded).
+- **Verdict:** clean no-change pass; no integration, no commit beyond this log entry. Standing triggers carried forward unchanged: v0.28.0 → PyPI; core-protocol → Normative; EUDI Phase 2 interop. Today's autonomous Synchronism Publisher (2026-07-01, HOLD / arc-at-rest) reported "both Current" — this manual pass independently confirms the web4 half.
 
 ### 2026-06-12: Publisher Maintenance - SUBSTANTIVE INTEGRATION (first content integration since 2026-05-19): did:web4 DID Method added to Part 8; stale web artifact regenerated (name-sweep edits finally propagate to index.html); published PDF rebuilt after 27 days stale
 - **The watch fired.** The 06-11 entry narrowed the PAIRED-CHANNELS watch to "web4-standard spec changes — a new normative spec doc is now the only public surface." One day later, `391e7ad` (2026-06-11 15:20 PDT) landed exactly that: **`web4-standard/core-spec/did-web4-method.md`** — the did:web4 DID Method, normative (RFC 2119) for identifier syntax, the LCT→DID-Document mapping, and resolution; header status "Draft — Phase 0 implemented in `web4-core::did` (reference)"; companion EUDI Phase 1 SD-JWT-VC issuance landed the same day (`c76d6e7`, `web4-core::sd_jwt_vc`). Not the paired-channels primitive itself, but it meets the inclusion criteria's High Priority bar directly ("new protocol element implemented in code"). Also notable this window: the 02:30 UTC autonomous Synchronism Publisher **did not run at all today** (no 2026-06-12 report) — not just "Web4: Not checked" but a missed run; the Synchronism side was handled in the same maintenance pass (S690 integration, `52a388a3`).
