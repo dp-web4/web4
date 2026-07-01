@@ -86,6 +86,12 @@ pub struct HubState {
     /// Role-contextualized reputation, keyed by `(subject_lct, role_lct)` — the
     /// projected side of R7 back-propagation. Reputation is NEVER global; it lives
     /// on the MRH role-pairing link (RFC #403). Folded from `ReputationRecorded`.
+    ///
+    /// Serialized as a JSON **array** of entries, not a map: JSON object keys
+    /// must be strings, and a tuple key would make `serde_json::to_string(&state)`
+    /// fail at runtime. The array form (`{subject_lct, role_lct, …}`) keeps the
+    /// whole `HubState` safely serializable.
+    #[serde(serialize_with = "serialize_reputation")]
     pub reputation: BTreeMap<(String, String), RoleReputation>,
 
     /// Last seen index from the ledger (for cache invalidation in future).
@@ -112,6 +118,37 @@ impl RoleReputation {
             last_updated: ts,
         }
     }
+}
+
+/// Serialize the tuple-keyed reputation map as a JSON array of flattened
+/// entries. JSON object keys must be strings, so a `(String, String)`-keyed map
+/// can't serialize as an object — emitting a sequence keeps the whole
+/// [`HubState`] serializable (and is friendlier to consumers than a joined
+/// string key).
+fn serialize_reputation<S>(
+    map: &BTreeMap<(String, String), RoleReputation>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    use serde::ser::SerializeSeq;
+    #[derive(Serialize)]
+    struct Entry<'a> {
+        subject_lct: &'a str,
+        role_lct: &'a str,
+        #[serde(flatten)]
+        reputation: &'a RoleReputation,
+    }
+    let mut seq = serializer.serialize_seq(Some(map.len()))?;
+    for ((subject_lct, role_lct), reputation) in map {
+        seq.serialize_element(&Entry {
+            subject_lct,
+            role_lct,
+            reputation,
+        })?;
+    }
+    seq.end()
 }
 
 /// Map a `ReputationDelta` dimension name to the typed T3 dimension.
@@ -761,6 +798,42 @@ mod tests {
         // Role-contextualized: a different role for the SAME subject is a distinct
         // pairing (no global reputation) — nothing there.
         assert!(state.reputation.get(&(subject, "treasurer".to_string())).is_none());
+    }
+
+    #[tokio::test]
+    async fn hub_state_with_reputation_serializes_as_array() {
+        // Guards the tuple-key landmine: a `(String, String)`-keyed map can't be a
+        // JSON object, so without the custom serializer `to_string(&state)` would
+        // fail at runtime. It must succeed and emit reputation as an array.
+        use std::collections::HashMap;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let subject = Uuid::new_v4().to_string();
+        let mut t3_delta = HashMap::new();
+        t3_delta.insert("talent".to_string(),
+            web4_core::r6::TensorDelta { change: 0.1, from_value: 0.0, to_value: 0.1 });
+        let delta = web4_core::r6::ReputationDelta {
+            subject_lct: subject.clone(),
+            role_lct: "citizen".to_string(),
+            action_type: "handoff".into(), action_target: "hub".into(), action_id: "a".into(),
+            rule_triggered: "r".into(), reason: "x".into(),
+            t3_delta, v3_delta: HashMap::new(),
+            contributing_factors: vec![], witnesses: vec![], timestamp: Utc::now(),
+        };
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta }),
+        ]).await;
+        let state = HubState::project(&ledger);
+        let json = serde_json::to_value(&state).expect("HubState must serialize");
+        let arr = json["reputation"].as_array().expect("reputation is a JSON array");
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["subject_lct"], serde_json::json!(subject));
+        assert_eq!(arr[0]["role_lct"], serde_json::json!("citizen"));
+        assert_eq!(arr[0]["observations"], serde_json::json!(1));
     }
 
     #[tokio::test]
