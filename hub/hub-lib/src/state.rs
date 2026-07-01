@@ -83,8 +83,56 @@ pub struct HubState {
     /// (`admission_repeat_limit`/`admission_review_limit`), not here.
     pub admission: BTreeMap<Uuid, AdmissionStanding>,
 
+    /// Role-contextualized reputation, keyed by `(subject_lct, role_lct)` — the
+    /// projected side of R7 back-propagation. Reputation is NEVER global; it lives
+    /// on the MRH role-pairing link (RFC #403). Folded from `ReputationRecorded`.
+    pub reputation: BTreeMap<(String, String), RoleReputation>,
+
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
+}
+
+/// Accumulated role-contextualized reputation for one `(subject, role)` pairing.
+/// Folded from `ReputationRecorded` deltas via `T3/V3::apply_delta` — the hub
+/// applies the math but never invents it (weights are a society-law hook).
+#[derive(Clone, Debug, Serialize)]
+pub struct RoleReputation {
+    pub t3: web4_core::t3::T3,
+    pub v3: web4_core::v3::V3,
+    pub observations: u32,
+    pub last_updated: DateTime<Utc>,
+}
+
+impl RoleReputation {
+    fn new(ts: DateTime<Utc>) -> Self {
+        Self {
+            t3: web4_core::t3::T3::default(),
+            v3: web4_core::v3::V3::default(),
+            observations: 0,
+            last_updated: ts,
+        }
+    }
+}
+
+/// Map a `ReputationDelta` dimension name to the typed T3 dimension.
+fn trust_dim(s: &str) -> Option<web4_core::t3::TrustDimension> {
+    use web4_core::t3::TrustDimension::*;
+    match s {
+        "talent" => Some(Talent),
+        "training" => Some(Training),
+        "temperament" => Some(Temperament),
+        _ => None,
+    }
+}
+/// Map a `ReputationDelta` dimension name to the typed V3 dimension.
+fn value_dim(s: &str) -> Option<web4_core::v3::ValueDimension> {
+    use web4_core::v3::ValueDimension::*;
+    match s {
+        "valuation" => Some(Valuation),
+        "veracity" => Some(Veracity),
+        "validity" => Some(Validity),
+        _ => None,
+    }
 }
 
 /// Abuse-resistance counters for one applicant LCT (see [`HubState::admission`]).
@@ -464,6 +512,27 @@ impl HubState {
                 // charter.json / hub-law.yaml instead. Future sprints surface
                 // them here too.
             }
+            // R7 reputation: fold the delta into the (subject, role) tensors. The
+            // hub applies the delta (via T3/V3::apply_delta); the *weights* that
+            // produced it are a society-law hook, computed by the recorder.
+            HubEvent::ReputationRecorded { delta } => {
+                let rep = self
+                    .reputation
+                    .entry((delta.subject_lct.clone(), delta.role_lct.clone()))
+                    .or_insert_with(|| RoleReputation::new(ts));
+                for (dim, td) in &delta.t3_delta {
+                    if let Some(d) = trust_dim(dim) {
+                        rep.t3.apply_delta(d, td.change);
+                    }
+                }
+                for (dim, td) in &delta.v3_delta {
+                    if let Some(d) = value_dim(dim) {
+                        rep.v3.apply_delta(d, td.change);
+                    }
+                }
+                rep.observations += 1;
+                rep.last_updated = ts;
+            }
             HubEvent::CouncilMemberAdded { member_lct_id, member_pubkey_hex, member_name, .. } => {
                 self.council_holders.insert(*member_lct_id);
                 self.council_pubkeys.insert(*member_lct_id, member_pubkey_hex.clone());
@@ -650,6 +719,48 @@ mod tests {
         let state = HubState::project(&ledger);
         assert_eq!(state.member_count(), 1);
         assert!(state.members.contains_key(&sov.lct.id));
+    }
+
+    #[tokio::test]
+    async fn reputation_recorded_folds_into_role_pairing() {
+        use std::collections::HashMap;
+        use web4_core::t3::{T3, TrustDimension};
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let subject = Uuid::new_v4().to_string();
+        let mut t3_delta = HashMap::new();
+        t3_delta.insert("temperament".to_string(),
+            web4_core::r6::TensorDelta { change: 0.2, from_value: 0.0, to_value: 0.2 });
+        let delta = web4_core::r6::ReputationDelta {
+            subject_lct: subject.clone(),
+            role_lct: "citizen".to_string(),
+            action_type: "handoff".into(),
+            action_target: "hub".into(),
+            action_id: "act-1".into(),
+            rule_triggered: "on_time".into(),
+            reason: "delivered on time".into(),
+            t3_delta,
+            v3_delta: HashMap::new(),
+            contributing_factors: vec![],
+            witnesses: vec![],
+            timestamp: Utc::now(),
+        };
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta }),
+        ]).await;
+        let state = HubState::project(&ledger);
+        let rep = state.reputation.get(&(subject.clone(), "citizen".to_string()))
+            .expect("reputation projected for the (subject, citizen) role-pairing");
+        assert_eq!(rep.observations, 1);
+        let before = T3::default().score(TrustDimension::Temperament);
+        assert!(rep.t3.score(TrustDimension::Temperament) >= before, "temperament folded up");
+        // Role-contextualized: a different role for the SAME subject is a distinct
+        // pairing (no global reputation) — nothing there.
+        assert!(state.reputation.get(&(subject, "treasurer".to_string())).is_none());
     }
 
     #[tokio::test]
