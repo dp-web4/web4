@@ -9,6 +9,7 @@ Motivation, philosophy, and conceptual foundations.
 | [EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md) | High-level overview for executives |
 | [STRATEGIC_DIRECTION.md](STRATEGIC_DIRECTION.md) | Vision and roadmap |
 | [STRATEGIC_DIRECTION_FROM_MANUS.md](STRATEGIC_DIRECTION_FROM_MANUS.md) | Agent perspective |
+| [web4_hestia_vs_bluesky.md](web4_hestia_vs_bluesky.md) | Web4/Hestia vs Bluesky — portable **agency** vs portable **speech** ([pdf](web4_hestia_vs_bluesky.pdf)) |
 
 ## Conceptual Foundations
 
