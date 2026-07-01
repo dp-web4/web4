@@ -364,11 +364,24 @@ impl HubState {
     /// Build the projection from a ledger.
     pub fn project(ledger: &HubLedger) -> Self {
         let mut state = HubState::default();
-        for entry in ledger.entries() {
-            state.apply(&entry.event, entry.timestamp);
-            state.last_index = entry.index;
-        }
+        state.advance(ledger, 0);
         state
+    }
+
+    /// Fold ledger entries at position `from..` into this state and return the
+    /// next unfolded position. The ledger is append-only (entries are never
+    /// rewritten and `index == position`), so folding only the tail is exact —
+    /// this is the primitive behind an incremental projection cache: keep a
+    /// state plus its high-water position and re-fold only what's new, turning
+    /// per-query projection from O(ledger) into O(appended).
+    pub fn advance(&mut self, ledger: &HubLedger, from: usize) -> usize {
+        let entries = ledger.entries();
+        let start = from.min(entries.len());
+        for entry in &entries[start..] {
+            self.apply(&entry.event, entry.timestamp);
+            self.last_index = entry.index;
+        }
+        entries.len()
     }
 
     fn apply(&mut self, event: &HubEvent, ts: DateTime<Utc>) {
@@ -870,6 +883,38 @@ mod tests {
         assert!(!state.members.contains_key(&alice));
         // Skill index should also drop the orphaned skill entry.
         assert!(state.find_skill("rust").is_empty());
+    }
+
+    #[tokio::test]
+    async fn advance_folds_only_the_tail_and_matches_full_projection() {
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let alice = Uuid::new_v4();
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::MemberAdded {
+                member_lct_id: alice, added_by: sov.lct.id,
+                member_name: Some("Alice".into()), member_pubkey_hex: None,
+            }),
+        ]).await;
+        let full = HubState::project(&ledger);
+
+        // Folding from 0 reproduces the full projection and reports the tail.
+        let mut inc = HubState::default();
+        let next = inc.advance(&ledger, 0);
+        assert_eq!(next, ledger.entries().len());
+        assert_eq!(inc.member_count(), full.member_count());
+        assert_eq!(inc.last_index, full.last_index);
+        assert!(inc.members.contains_key(&alice));
+
+        // Advancing again from the high-water mark folds nothing (idempotent).
+        let members_before = inc.member_count();
+        let next2 = inc.advance(&ledger, next);
+        assert_eq!(next2, next);
+        assert_eq!(inc.member_count(), members_before);
     }
 
     #[tokio::test]

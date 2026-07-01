@@ -105,6 +105,12 @@ pub struct RestState {
     /// keys; signs via Hestia HTTP callback); LockedSigner while sealed.
     pub signer: Arc<SwappableSigner>,
     pub ledger: Arc<Mutex<HubLedger>>,
+    /// Incremental projection cache. The ledger is append-only, so a cached
+    /// `HubState` can be advanced by folding only entries appended since it was
+    /// built — O(appended) instead of O(ledger) per query. Behind a **sync**
+    /// mutex taken only while the async ledger lock is already held (see
+    /// [`RestState::projected`]), so it's uncontended and never spans an await.
+    pub state_cache: Arc<std::sync::Mutex<ProjectionCache>>,
     pub nonces: Arc<NonceStore>,
     /// Anti-replay seen-set for sealed channel requests (see [`ReplayGuard`]).
     /// AEAD authenticates the sealer but not freshness; this rejects captured
@@ -211,6 +217,17 @@ pub struct ChallengeWire {
     pub issued_at: u64,
 }
 
+/// Cached projection: a folded `HubState` plus the ledger position it reflects.
+/// `advance` re-folds only entries appended since, so repeat queries are
+/// O(appended) rather than O(ledger). Correct because the ledger is append-only
+/// (entries never rewritten, `index == position`); a fresh RestState on restart
+/// starts an empty cache.
+#[derive(Default)]
+pub struct ProjectionCache {
+    state: HubState,
+    next: usize,
+}
+
 impl RestState {
     /// Whether the vault is sealed. The lock state **is** the kind of the
     /// currently-installed signer — a `LockedSigner` (set at startup when the
@@ -218,6 +235,18 @@ impl RestState {
     /// degraded no-LCT-tier mode; the unlock slot swaps in the real signer.
     pub fn is_locked(&self) -> bool {
         matches!(self.signer.signer_kind(), hub_lib::signer::SignerKind::Locked)
+    }
+
+    /// Current projection, served from the incremental cache. **Call while
+    /// holding the ledger lock** (pass the guard): the sync cache mutex is taken
+    /// and released within, never across an await, and always under the ledger
+    /// lock — so it's uncontended (one ledger-lock holder at a time) and
+    /// deadlock-free. Result is identical to `HubState::project(ledger)`.
+    pub fn projected(&self, ledger: &HubLedger) -> HubState {
+        let mut cache = self.state_cache.lock().expect("projection cache poisoned");
+        let from = cache.next;
+        cache.next = cache.state.advance(ledger, from);
+        cache.state.clone()
     }
 }
 
@@ -333,6 +362,7 @@ impl RestState {
             sovereign_lct_id,
             signer: Arc::new(SwappableSigner::new(signer)),
             ledger,
+            state_cache: Arc::new(std::sync::Mutex::new(ProjectionCache::default())),
             nonces: Arc::new(NonceStore::new()),
             replay: Arc::new(ReplayGuard::new()),
             resolver: Arc::new(tokio::sync::RwLock::new(resolver)),
@@ -409,6 +439,7 @@ impl RestState {
             sovereign_lct_id: pid.founding_sovereign_lct_id,
             signer: Arc::new(SwappableSigner::new(signer)),
             ledger: placeholder_ledger,
+            state_cache: Arc::new(std::sync::Mutex::new(ProjectionCache::default())),
             nonces: Arc::new(NonceStore::new()),
             replay: Arc::new(ReplayGuard::new()),
             resolver: Arc::new(tokio::sync::RwLock::new(MapResolver::new())),
@@ -736,7 +767,7 @@ async fn queue_sealed_notice(
 ) {
     let pubkey_hex = {
         let ledger = s.ledger.lock().await;
-        HubState::project(&ledger).member_pubkeys.get(&recipient).cloned()
+        s.projected(&ledger).member_pubkeys.get(&recipient).cloned()
     };
     let Some(pubkey_hex) = pubkey_hex else {
         tracing::warn!("queue_sealed_notice: no pinned pubkey for {recipient}; notice dropped");
@@ -2102,7 +2133,7 @@ async fn dispatch_channel(
 ) -> Result<serde_json::Value, ApiError> {
     let state = {
         let ledger = s.ledger.lock().await;
-        HubState::project(&ledger)
+        s.projected(&ledger)
     };
 
     // Tier resolution.
@@ -4817,6 +4848,30 @@ mod channel_e2e_tests {
         // The first 5 (oldest) were dropped; the newest is the last enqueued.
         assert_eq!(queue.first().unwrap().pointer_uri, "pr/5", "oldest dropped");
         assert_eq!(queue.last().unwrap().pointer_uri, format!("pr/{}", overflow - 1));
+    }
+
+    #[tokio::test]
+    async fn projection_cache_reflects_appends_and_matches_full_projection() {
+        // The incremental cache must never go stale: after an append the cached
+        // projection includes the new entry and equals a from-scratch projection.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let before = { let l = state.ledger.lock().await; state.projected(&l) };
+        let n0 = before.member_count();
+
+        let zed = Uuid::new_v4();
+        witness_event(&state, HubEvent::MemberAdded {
+            member_lct_id: zed, added_by: state.sovereign_lct_id,
+            member_name: Some("Zed".into()), member_pubkey_hex: None,
+        }).await.expect("append MemberAdded");
+
+        let after = { let l = state.ledger.lock().await; state.projected(&l) };
+        assert_eq!(after.member_count(), n0 + 1, "cache advanced to include the append");
+        assert!(after.members.contains_key(&zed));
+        // Cache == source of truth.
+        let fresh = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert_eq!(after.member_count(), fresh.member_count());
+        assert_eq!(after.last_index, fresh.last_index);
+        assert!(fresh.members.contains_key(&zed));
     }
 
     #[tokio::test]
