@@ -738,6 +738,20 @@ fn event_summary(event: &HubEvent) -> String {
             delta.net_value_change(),
             html_escape(&delta.reason),
         ),
+        HubEvent::ObligationOpened { request_id, subject_lct, role_lct, due_at, criticality, .. } => format!(
+            "⏳ obligation <code>{}</code> opened by {} <span class=\"muted\">in role</span> {} \
+             <span class=\"muted\">(due {}, {:?})</span>",
+            html_escape(request_id),
+            html_escape(subject_lct),
+            html_escape(role_lct),
+            due_at.format("%Y-%m-%d %H:%M UTC"),
+            criticality,
+        ),
+        HubEvent::ObligationResolved { request_id, outcome, .. } => format!(
+            "✅ obligation <code>{}</code> resolved <span class=\"muted\">({})</span>",
+            html_escape(request_id),
+            html_escape(outcome),
+        ),
         HubEvent::MemberJoinRequested { member_lct_id, name, .. } => format!(
             "🚪 join requested by {} {} <span class=\"muted\">[escalated → review]</span>",
             short(member_lct_id),
