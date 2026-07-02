@@ -119,11 +119,25 @@ pub struct Norm {
     pub description: Option<String>,
 }
 
+/// The outcome of policy evaluation. `Allow` and `Warn` are non-blocking (the
+/// action proceeds); `Deny` and `Escalate` block. `Warn` is a non-blocking
+/// flagged-allow — "allowed, but noteworthy" — a genuine fourth outcome, not a
+/// flag on `Allow`: it keeps the advisory inside the resolved decision where the
+/// engine already arbitrates by priority. The advisory text rides the winning
+/// norm's existing `description`, surfaced via `winning_norm` in `DecisionOutcome`
+/// (no hot-path field). Three consumers need it — society, hardbound audit, and
+/// the hestia constellation, where it is already deployed feeding `EntityTrust`
+/// as a live risk signal.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Decision {
+    /// Proceed silently.
     Allow,
+    /// Proceed, but flag the action as noteworthy (non-blocking advisory).
+    Warn,
+    /// Block the action (terminal).
     Deny,
+    /// Block pending a higher authority's decision.
     Escalate,
 }
 
@@ -468,9 +482,9 @@ impl<E: PolicyExtension> Law<E> {
     /// Full evaluation: Decision + which rule fired.
     ///
     /// 1. Walk norms; among those that fire, highest `priority` wins (ties → first).
-    /// 2. Deny is terminal.
+    /// 2. Deny is terminal (Warn is NOT — a winning Warn proceeds, like Allow).
     /// 3. Else walk escalation triggers; first match → Escalate.
-    /// 4. Else the winning norm's decision (Escalate defaults escalate_to=sovereign).
+    /// 4. Else the winning norm's decision — Warn/Allow proceed; Escalate defaults escalate_to=sovereign.
     /// 5. No norm + no escalation → default Allow.
     pub fn evaluate_outcome(&self, req: &R6Request) -> DecisionOutcome {
         let mut winner: Option<&Norm> = None;
@@ -656,6 +670,53 @@ norms:
 "#;
         let law: Law = Law::parse_and_validate(yaml).unwrap();
         assert_eq!(law.evaluate(&req("external", "join")), Decision::Escalate);
+    }
+
+    #[test]
+    fn warn_is_non_terminal_and_proceeds() {
+        // A winning Warn norm returns Warn and does NOT block — same non-blocking
+        // shape as Allow (escalate_to = None), unlike Deny/Escalate.
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: warn_risky
+    selector: r6.request.action
+    operator: "=="
+    value: risky
+    decision: warn
+    priority: 5
+    description: "allowed, but noteworthy"
+"#;
+        let law: Law = Law::parse_and_validate(yaml).unwrap();
+        let out = law.evaluate_outcome(&req("citizen", "risky"));
+        assert_eq!(out.decision, Decision::Warn);
+        assert_eq!(out.escalate_to, None);
+        assert_eq!(out.winning_norm.as_deref(), Some("warn_risky"));
+    }
+
+    #[test]
+    fn higher_priority_warn_beats_lower_priority_deny() {
+        // Priority semantics unchanged: the Deny-terminal check fires only when Deny
+        // WINS. A higher-priority Warn wins outright, so the lower Deny never triggers
+        // the terminal block — the action proceeds with Warn.
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: deny_low
+    selector: r6.request.action
+    operator: "=="
+    value: act
+    decision: deny
+    priority: 1
+  - id: warn_high
+    selector: r6.request.action
+    operator: "=="
+    value: act
+    decision: warn
+    priority: 5
+"#;
+        let law: Law = Law::parse_and_validate(yaml).unwrap();
+        assert_eq!(law.evaluate(&req("citizen", "act")), Decision::Warn);
     }
 
     #[test]
