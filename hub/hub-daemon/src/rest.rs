@@ -1806,6 +1806,15 @@ async fn submit_event(
         let outcome = law.evaluate_outcome(&req);
         match outcome.decision {
             Decision::Allow => { /* proceed */ }
+            Decision::Warn => {
+                // Non-blocking flagged-allow: proceed, but surface the advisory.
+                // Structured Warn consumption (witnessing) lands with the
+                // sequenced hub-consumes step after the hestia migration.
+                tracing::warn!(
+                    "act flagged by hub law (norm: {})",
+                    outcome.winning_norm.as_deref().unwrap_or("?")
+                );
+            }
             Decision::Deny => {
                 return Err(ApiError {
                     status: StatusCode::FORBIDDEN,
@@ -2653,6 +2662,10 @@ async fn request_citizenship(
             };
             match law.evaluate_outcome(&req).decision {
                 Decision::Allow => {}
+                Decision::Warn => {
+                    // Non-blocking flagged-allow: admission proceeds, flagged.
+                    tracing::warn!("member_join_request flagged by hub law (proceeding)");
+                }
                 Decision::Deny => return Err(ApiError {
                     status: StatusCode::FORBIDDEN,
                     message: "citizenship denied by hub law".to_string(),
@@ -3434,8 +3447,12 @@ async fn submit_join(
             status: StatusCode::FORBIDDEN,
             message: "membership denied by hub law".to_string(),
         }),
-        Decision::Allow => {
-            // Auto-admit, live (no restart).
+        Decision::Allow | Decision::Warn => {
+            // Auto-admit, live (no restart). Warn is a non-blocking
+            // flagged-allow: same path, with the advisory surfaced.
+            if decision == Decision::Warn {
+                tracing::warn!("member join flagged by hub law (auto-admitting)");
+            }
             let (entry_index, entry_hash) = admit_member(
                 &s, payload.member_lct_id, &payload.member_pubkey_hex, payload.name.clone(),
             ).await?;
@@ -3512,6 +3529,14 @@ async fn gate_read(s: &RestState, role: &str, tool: &str) -> Result<(), ApiError
     let outcome = read_decision(law_guard.as_ref(), role, tool);
     match outcome.decision {
         Decision::Allow => Ok(()),
+        Decision::Warn => {
+            // Non-blocking flagged-allow: the read proceeds, flagged.
+            tracing::warn!(
+                "read '{tool}' flagged by hub law (norm: {})",
+                outcome.winning_norm.as_deref().unwrap_or("?")
+            );
+            Ok(())
+        }
         Decision::Deny => Err(ApiError {
             status: StatusCode::FORBIDDEN,
             message: format!(
@@ -4136,6 +4161,10 @@ async fn submit_pair_request(
             .map_err(ApiError::internal)?;
         match law.evaluate_outcome(&req).decision {
             Decision::Allow => {}
+            Decision::Warn => {
+                // Non-blocking flagged-allow: the pairing proceeds, flagged.
+                tracing::warn!("pair_request flagged by hub law (proceeding)");
+            }
             Decision::Deny => {
                 return Err(ApiError {
                     status: StatusCode::FORBIDDEN,

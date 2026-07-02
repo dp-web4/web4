@@ -398,6 +398,15 @@ async fn append_with_sovereign(
         let outcome = law.evaluate_outcome(&req);
         match outcome.decision {
             Decision::Allow => { /* proceed */ }
+            Decision::Warn => {
+                // Non-blocking flagged-allow: proceed, but surface the advisory.
+                // Structured Warn consumption (witnessing) lands with the
+                // sequenced hub-consumes step after the hestia migration.
+                tracing::warn!(
+                    "act flagged by hub law (norm: {})",
+                    outcome.winning_norm.as_deref().unwrap_or("?")
+                );
+            }
             Decision::Deny => {
                 return Err(ApiError::forbidden(format!(
                     "act denied by hub law (norm: {})",
