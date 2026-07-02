@@ -408,6 +408,28 @@ pub enum HubEvent {
     /// Reputation is NEVER global — the delta's `(subject_lct, role_lct)` scopes
     /// it to an MRH role-pairing link (RFC #403).
     ReputationRecorded { delta: web4_core::r6::ReputationDelta },
+
+    /// §5.1 R7 carrier: an accountability *obligation* opened by a coordination
+    /// act that carried an `r7` block with a deadline. The subject committed to
+    /// `request_id` due by `due_at`; resolution (met/late via `ObligationResolved`,
+    /// or missed via the timeout sweep) folds a temporal `ReputationRecorded`.
+    ObligationOpened {
+        request_id: String,
+        subject_lct: String,
+        role_lct: String,
+        due_at: DateTime<Utc>,
+        criticality: web4_core::time::Criticality,
+        opened_at: DateTime<Utc>,
+    },
+
+    /// §5.1 R7 carrier: an obligation reached a terminal state. `outcome` is
+    /// "met" | "late" | "missed" (audit trail; the trust debit/credit rides a
+    /// separate `ReputationRecorded`). Clears the obligation from the projection.
+    ObligationResolved {
+        request_id: String,
+        outcome: String,
+        resolved_at: DateTime<Utc>,
+    },
 }
 
 /// Why a pair ended. Captures audit-relevant intent so V3 trust
@@ -464,6 +486,8 @@ impl HubEvent {
             Self::VaultUnlockResolved { .. } => "vault_unlock_resolved",
             Self::ReferencedAct { .. } => "referenced_act",
             Self::ReputationRecorded { .. } => "reputation_recorded",
+            Self::ObligationOpened { .. } => "obligation_opened",
+            Self::ObligationResolved { .. } => "obligation_resolved",
         }
     }
 }

@@ -2129,6 +2129,126 @@ impl ReadScope {
     }
 }
 
+/// §5.1 R7 carrier: the effect of an `r7` block on a `referenced_act`.
+enum R7Op {
+    /// Open an accountability obligation the caller (subject) commits to.
+    Open {
+        request_id: String,
+        role_lct: String,
+        due_at: DateTime<Utc>,
+        criticality: web4_core::time::Criticality,
+    },
+    /// Mark that this act satisfies (completes) a prior obligation.
+    Satisfy { request_id: String },
+}
+
+/// Parse the optional `r7` block on a `referenced_act`. `Ok(None)` = absent.
+/// `Err` = present but malformed → the caller rejects the whole act: per the
+/// fleet fail-closed convention, an unrecognized/ambiguous R7 shape is
+/// `deny+warn`, never "ignore and proceed". Exactly one of `deadline` (open) or
+/// `satisfies` (resolve).
+fn parse_r7(args: &serde_json::Value) -> Result<Option<R7Op>, ApiError> {
+    let Some(r7) = args.get("r7") else {
+        return Ok(None);
+    };
+    let fail = |why: &str| {
+        tracing::warn!("referenced_act r7 malformed: {why} — rejected (fail-closed)");
+        ApiError::bad_request(format!("malformed r7 block: {why}"))
+    };
+    if !r7.is_object() {
+        return Err(fail("r7 must be an object"));
+    }
+    match (r7.get("satisfies").is_some(), r7.get("deadline").is_some()) {
+        (true, false) => {
+            let request_id = r7
+                .get("satisfies")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| fail("satisfies must be a request_id string"))?
+                .to_string();
+            Ok(Some(R7Op::Satisfy { request_id }))
+        }
+        (false, true) => {
+            let request_id = r7
+                .get("request_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| fail("open requires request_id"))?
+                .to_string();
+            let role_lct = r7
+                .get("role_lct")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| fail("open requires role_lct"))?
+                .to_string();
+            let dl = r7.get("deadline").unwrap();
+            let due_at: DateTime<Utc> = dl
+                .get("due_at")
+                .and_then(|v| v.as_str())
+                .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+                .map(|d| d.with_timezone(&Utc))
+                .ok_or_else(|| fail("deadline.due_at must be rfc3339"))?;
+            let criticality: web4_core::time::Criticality = dl
+                .get("criticality")
+                .map(|v| serde_json::from_value(v.clone()))
+                .transpose()
+                .map_err(|_| fail("deadline.criticality must be soft|firm|hard"))?
+                .unwrap_or_default();
+            Ok(Some(R7Op::Open { request_id, role_lct, due_at, criticality }))
+        }
+        _ => Err(fail("exactly one of deadline (open) or satisfies (resolve)")),
+    }
+}
+
+/// Build the temporal `ReputationDelta` for a resolved obligation from the
+/// deadline outcome's `TemporalImpact`. The hub *computes* this from witnessed
+/// timestamps (not a caller claim) and folds it via the #430 `ReputationRecorded`
+/// path, scoped to the obligation's `(subject_lct, role_lct)`.
+fn temporal_delta(
+    ob: &hub_lib::state::Obligation,
+    request_id: &str,
+    outcome: &str,
+    impact: &web4_core::time::TemporalImpact,
+    action_id: u64,
+    action_kind: &str,
+    ts: DateTime<Utc>,
+) -> web4_core::r6::ReputationDelta {
+    use std::collections::HashMap;
+    let mut t3_delta = HashMap::new();
+    if impact.temperament != 0.0 {
+        t3_delta.insert(
+            "temperament".to_string(),
+            web4_core::r6::TensorDelta {
+                change: impact.temperament,
+                from_value: 0.0,
+                to_value: impact.temperament,
+            },
+        );
+    }
+    let mut v3_delta = HashMap::new();
+    if impact.veracity != 0.0 {
+        v3_delta.insert(
+            "veracity".to_string(),
+            web4_core::r6::TensorDelta {
+                change: impact.veracity,
+                from_value: 0.0,
+                to_value: impact.veracity,
+            },
+        );
+    }
+    web4_core::r6::ReputationDelta {
+        subject_lct: ob.subject_lct.clone(),
+        role_lct: ob.role_lct.clone(),
+        action_type: action_kind.to_string(),
+        action_target: "hub".to_string(),
+        action_id: action_id.to_string(),
+        rule_triggered: format!("deadline_{outcome}"),
+        reason: format!("obligation {request_id} {outcome}"),
+        t3_delta,
+        v3_delta,
+        contributing_factors: vec![],
+        witnesses: vec![],
+        timestamp: ts,
+    }
+}
+
 /// Tier resolution + dispatch for a decrypted channel request.
 /// Tiers: Sovereign / citizen (member) → reads; **external** (authenticated
 /// LCT, not yet a member) → only `request_citizenship`. Finer role/trust/
@@ -2457,6 +2577,10 @@ async fn dispatch_channel(
             let consequence: web4_core::act::ConsequenceClass = inner.args.get("consequence")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
                 .unwrap_or_default();
+            // §5.1 R7 carrier: parse the optional `r7` block up front so a
+            // malformed one rejects the whole act (fail-closed) before anything
+            // is witnessed.
+            let r7_op = parse_r7(&inner.args)?;
             // A Citizen/Peer-addressed act is also a *delivery*: queue a sealed
             // notice in the recipient's mailbox so the act reaches them without
             // them having to read the whole ledger. This is what makes the hub a
@@ -2478,6 +2602,59 @@ async fn dispatch_channel(
                 Utc::now(),
             ).with_consequence(consequence);
             let index = witness_event(s, HubEvent::ReferencedAct { act }).await?;
+            // §5.1 R7 carrier effects (r7 already validated fail-closed above).
+            let mut r7_out = serde_json::Map::new();
+            if let Some(op) = r7_op {
+                match op {
+                    R7Op::Open { request_id, role_lct, due_at, criticality } => {
+                        witness_event(s, HubEvent::ObligationOpened {
+                            request_id: request_id.clone(),
+                            subject_lct: caller_lct_id.to_string(),
+                            role_lct,
+                            due_at,
+                            criticality,
+                            opened_at: Utc::now(),
+                        }).await?;
+                        r7_out.insert("obligation_opened".into(), serde_json::json!(request_id));
+                    }
+                    R7Op::Satisfy { request_id } => {
+                        // Unknown obligation → deny+warn (fail-closed).
+                        let ob = state.obligations.get(&request_id).cloned().ok_or_else(|| {
+                            tracing::warn!("r7 satisfies unknown obligation {request_id} — rejected (fail-closed)");
+                            ApiError::bad_request(format!("unknown obligation {request_id}"))
+                        })?;
+                        let now = Utc::now();
+                        // The hub computes met/late from witnessed timestamps — the
+                        // caller can't claim an outcome. completed_at is set, so the
+                        // outcome is only ever Met or Late (never Missed/Suspended).
+                        let deadline = web4_core::time::Deadline::new(ob.due_at)
+                            .with_criticality(ob.criticality);
+                        let timing = web4_core::time::Timing::started(ob.opened_at).complete(now);
+                        let outcome = deadline.evaluate(
+                            &timing,
+                            web4_core::time::WitnessAvailability::Available,
+                            true,
+                            now,
+                        );
+                        let impact = deadline.reputation_impact(&outcome);
+                        let outcome_str = match &outcome {
+                            web4_core::time::DeadlineOutcome::Late { .. } => "late",
+                            _ => "met",
+                        };
+                        let delta = temporal_delta(&ob, &request_id, outcome_str, &impact, index, &notice_kind, now);
+                        witness_event(s, HubEvent::ReputationRecorded { delta }).await?;
+                        witness_event(s, HubEvent::ObligationResolved {
+                            request_id: request_id.clone(),
+                            outcome: outcome_str.to_string(),
+                            resolved_at: now,
+                        }).await?;
+                        r7_out.insert("obligation_resolved".into(), serde_json::json!(request_id));
+                        r7_out.insert("outcome".into(), serde_json::json!(outcome_str));
+                        r7_out.insert("t3_temperament".into(), serde_json::json!(impact.temperament));
+                        r7_out.insert("v3_veracity".into(), serde_json::json!(impact.veracity));
+                    }
+                }
+            }
             // Deliver (best-effort; dropped if the recipient has no pinned key —
             // they can still see the witnessed act on the ledger).
             if let Some(rcpt) = recipient {
@@ -2490,7 +2667,11 @@ async fn dispatch_channel(
                 .to_string();
                 queue_sealed_notice(s, rcpt, caller_lct_id, &notice_kind, &notice_uri, body.as_bytes()).await;
             }
-            Ok(serde_json::json!({ "recorded": true, "entry_index": index }))
+            let mut resp = serde_json::json!({ "recorded": true, "entry_index": index });
+            if !r7_out.is_empty() {
+                resp.as_object_mut().unwrap().extend(r7_out);
+            }
+            Ok(resp)
         }
         // ---- constellation attestation (challenge-response MFA, assurance tiers) ----
         // Wire contract: forum/legion-constellation-attestation-wire-shape-2026-06-11.md.
@@ -4901,6 +5082,107 @@ mod channel_e2e_tests {
         assert_eq!(after.member_count(), fresh.member_count());
         assert_eq!(after.last_index, fresh.last_index);
         assert!(fresh.members.contains_key(&zed));
+    }
+
+    // ---- §5.1 R7 carrier: obligations + deadline→reputation ----
+
+    async fn pin_member(state: &RestState, hub_pub: &web4_core::crypto::PublicKey) -> (KeyPair, Uuid) {
+        let member = KeyPair::generate();
+        let lct = Uuid::new_v4();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&member, hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Obligor" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: lct, pair_id: pid, sealed,
+            caller_pubkey_hex: Some(member.verifying_key().to_hex()),
+        })).await.expect("pinned");
+        (member, lct)
+    }
+
+    async fn ref_act(state: &RestState, m: &KeyPair, lct: Uuid, hub_pub: &web4_core::crypto::PublicKey,
+                     args: serde_json::Value) -> Result<serde_json::Value, ApiError> {
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(m, hub_pub, pid, "referenced_act", args);
+        let r = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: lct, pair_id: pid, sealed, caller_pubkey_hex: None,
+        })).await?;
+        Ok(open_resp(m, hub_pub, pid, &r.0.sealed))
+    }
+
+    #[tokio::test]
+    async fn r7_obligation_opens_then_resolves_on_time() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let (m, lct) = pin_member(&state, &hub_pub).await;
+
+        // Open an obligation due in the future.
+        let due = (Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
+        let out = ref_act(&state, &m, lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": lct}, "kind":"handoff", "pointer_uri":"pr/500",
+            "r7": {"request_id":"req-1","role_lct":"citizen",
+                   "deadline":{"due_at": due, "criticality":"firm"}},
+        })).await.expect("open ok");
+        assert_eq!(out["obligation_opened"], serde_json::json!("req-1"));
+        // Projected: the obligation is open.
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert!(proj.obligations.contains_key("req-1"));
+
+        // Resolve it now (before due) → Met, positive temperament.
+        let out2 = ref_act(&state, &m, lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": lct}, "kind":"review_done", "pointer_uri":"pr/500",
+            "r7": {"satisfies":"req-1"},
+        })).await.expect("resolve ok");
+        assert_eq!(out2["outcome"], serde_json::json!("met"));
+        assert!(out2["t3_temperament"].as_f64().unwrap() > 0.0, "on-time = positive temperament");
+
+        // Projected: obligation cleared, reputation folded at (subject, role).
+        let proj2 = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert!(!proj2.obligations.contains_key("req-1"), "resolved obligation removed");
+        let rep = proj2.reputation.get(&(lct.to_string(), "citizen".to_string()))
+            .expect("reputation folded for (subject, citizen)");
+        assert_eq!(rep.observations, 1);
+    }
+
+    #[tokio::test]
+    async fn r7_resolve_after_deadline_is_late_and_debits() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let (m, lct) = pin_member(&state, &hub_pub).await;
+
+        // Open already past-due, then resolve → Late (negative).
+        let due = (Utc::now() - chrono::Duration::hours(1)).to_rfc3339();
+        ref_act(&state, &m, lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": lct}, "kind":"handoff", "pointer_uri":"pr/501",
+            "r7": {"request_id":"req-2","role_lct":"citizen",
+                   "deadline":{"due_at": due, "criticality":"firm"}},
+        })).await.expect("open ok");
+        let out = ref_act(&state, &m, lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": lct}, "kind":"review_done", "pointer_uri":"pr/501",
+            "r7": {"satisfies":"req-2"},
+        })).await.expect("resolve ok");
+        assert_eq!(out["outcome"], serde_json::json!("late"));
+        assert!(out["t3_temperament"].as_f64().unwrap() < 0.0, "late = temperament debit");
+    }
+
+    #[tokio::test]
+    async fn r7_malformed_or_unknown_is_rejected_fail_closed() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let (m, lct) = pin_member(&state, &hub_pub).await;
+
+        // r7 present but neither open nor satisfies → deny (fail-closed).
+        let bad = ref_act(&state, &m, lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": lct}, "kind":"handoff", "pointer_uri":"pr/x",
+            "r7": {"foo":"bar"},
+        })).await;
+        assert!(bad.is_err(), "malformed r7 rejected");
+
+        // satisfies an obligation that was never opened → deny (fail-closed).
+        let unknown = ref_act(&state, &m, lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": lct}, "kind":"review_done", "pointer_uri":"pr/x",
+            "r7": {"satisfies":"never-opened"},
+        })).await;
+        assert!(unknown.is_err(), "unknown obligation rejected");
     }
 
     #[tokio::test]
