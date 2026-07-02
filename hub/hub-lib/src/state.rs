@@ -94,8 +94,26 @@ pub struct HubState {
     #[serde(serialize_with = "serialize_reputation")]
     pub reputation: BTreeMap<(String, String), RoleReputation>,
 
+    /// §5.1 R7 carrier: open accountability obligations, keyed by `request_id`.
+    /// An `ObligationOpened` inserts; `ObligationResolved` removes. String-keyed,
+    /// so serialization-safe. The timeout sweep (P2) reads this to debit misses.
+    pub obligations: BTreeMap<String, Obligation>,
+
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
+}
+
+/// An open R7 obligation: the subject committed to `request_id` due by `due_at`,
+/// in the `role_lct` context. Folded from `ObligationOpened`; removed on
+/// `ObligationResolved`. Retains `criticality` + `opened_at` so a met/late/missed
+/// evaluation can reconstruct the `Deadline` + `Timing`.
+#[derive(Clone, Debug, Serialize)]
+pub struct Obligation {
+    pub subject_lct: String,
+    pub role_lct: String,
+    pub due_at: DateTime<Utc>,
+    pub criticality: web4_core::time::Criticality,
+    pub opened_at: DateTime<Utc>,
 }
 
 /// Accumulated role-contextualized reputation for one `(subject, role)` pairing.
@@ -582,6 +600,28 @@ impl HubState {
                 }
                 rep.observations += 1;
                 rep.last_updated = ts;
+            }
+            HubEvent::ObligationOpened {
+                request_id,
+                subject_lct,
+                role_lct,
+                due_at,
+                criticality,
+                opened_at,
+            } => {
+                self.obligations.insert(
+                    request_id.clone(),
+                    Obligation {
+                        subject_lct: subject_lct.clone(),
+                        role_lct: role_lct.clone(),
+                        due_at: *due_at,
+                        criticality: *criticality,
+                        opened_at: *opened_at,
+                    },
+                );
+            }
+            HubEvent::ObligationResolved { request_id, .. } => {
+                self.obligations.remove(request_id);
             }
             HubEvent::CouncilMemberAdded { member_lct_id, member_pubkey_hex, member_name, .. } => {
                 self.council_holders.insert(*member_lct_id);
