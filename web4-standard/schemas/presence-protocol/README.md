@@ -41,11 +41,28 @@ schemas/presence-protocol/
       hestia_query_policy.schema.json
 ```
 
-Note: the `hestia://society/state` resource body and the §5.2
-`R6Action` struct have no JSON Schema yet (the former is an ad-hoc
-stats object bound directly by conformance vector P0-009; the latter
-is a documentary type catalog with no wire carrier — see
-presence-protocol.md §8).
+Note: four spec-referenced artifacts have no JSON Schema in this tree
+yet — a known-gap ledger, not a permanent exemption:
+
+- The `hestia://society/state` resource body — an ad-hoc stats object
+  bound directly by conformance vector P0-009, not a §5 struct.
+- The §5.2 `R6Action` struct — a documentary type catalog with no wire
+  carrier (see presence-protocol.md §8).
+- The `Session` struct (§5.1), returned by the `hestia://session/own`
+  resource. The `hestia_connect` output schema binds only the four-field
+  connect reply (`sessionId`, `softLct`, `assignedRole`,
+  `protocolVersion`), not the full eight-field Session record the
+  resource read returns.
+- The `VaultEntry` struct (§5.7), returned by the `hestia://vault/{name}`
+  resource. `hestia_vault_get` returns `{value, approvalToken}`, not a
+  `VaultEntry`, so no tool-output schema covers it.
+
+The last two are the only `camelCase` §5-typed resource bodies reached
+*solely* through `resources/read` — unlike `witness/recent`→`WitnessEntry`
+and `society/trust`→`TrustState`, which ride the `query_history` /
+`record_outcome` tool-output schemas — so they also have no conformance
+vector. Authoring their schemas (under `v0/common/`) and their
+`resources/read` vectors is pending.
 
 ## Validation
 
