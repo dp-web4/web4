@@ -74,9 +74,9 @@ A declarative specification of what an agent intends to accomplish:
   "guards": {
     "lawHash": "sha256:...",
     "resourceCaps": {
-      "max_atp": 25,
-      "max_executions": 100,
-      "rate_limit": "10/hour"
+      "maxAtp": 25,
+      "maxExecutions": 100,
+      "rateLimit": "10/hour"
     },
     "witnessLevel": 2,
     "humanApproval": {
@@ -309,7 +309,7 @@ def check_law_compliance(plan, law_oracle):
             raise ScopeViolation(f"trigger {trigger} not allowed by law")
     
     # 3. Verify resource caps within law limits
-    if plan.guards.resourceCaps.max_atp > law.max_atp_per_plan:
+    if plan.guards.resourceCaps.maxAtp > law.max_atp_per_plan:
         raise ResourceCapExceeded()
     
     # 4. Ensure witness requirements met
