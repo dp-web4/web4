@@ -121,6 +121,31 @@ impl V3 {
         })
     }
 
+    /// Reconstruct a V3 from persisted parts: root scores + per-dimension
+    /// observation counts. Weights are recomputed from the counts using the
+    /// same logarithmic formula as [`V3::apply_delta`]/[`V3::observe`], so a
+    /// tensor that is saved and re-loaded keeps its confidence without having
+    /// to replay its observation history. Scores are clamped to `[0, 1]`.
+    /// Mirrors [`crate::t3::T3::from_parts`] for the value tensor.
+    pub fn from_parts(
+        scores: [f64; V3_DIMENSIONS],
+        observation_counts: [u64; V3_DIMENSIONS],
+    ) -> Self {
+        let mut dimensions = [0.0; V3_DIMENSIONS];
+        let mut weights = [0.0; V3_DIMENSIONS];
+        for i in 0..V3_DIMENSIONS {
+            dimensions[i] = scores[i].clamp(0.0, 1.0);
+            weights[i] =
+                ((1.0 + observation_counts[i] as f64).ln() / 10.0_f64.ln()).min(1.0);
+        }
+        Self {
+            dimensions,
+            weights,
+            observation_counts,
+            sub_dimensions: HashMap::new(),
+        }
+    }
+
     /// Get the score for a root dimension
     pub fn score(&self, dimension: ValueDimension) -> f64 {
         self.dimensions[dimension as usize]
@@ -129,6 +154,15 @@ impl V3 {
     /// Get the weight (confidence) for a root dimension
     pub fn weight(&self, dimension: ValueDimension) -> f64 {
         self.weights[dimension as usize]
+    }
+
+    /// Get all per-dimension observation counts.
+    ///
+    /// Exposes the raw evidence counts so persistence layers can serialize and
+    /// later restore confidence via [`V3::from_parts`]. Mirrors
+    /// [`crate::t3::T3::observation_counts`].
+    pub fn observation_counts(&self) -> &[u64; V3_DIMENSIONS] {
+        &self.observation_counts
     }
 
     /// Get all root dimension scores
@@ -479,6 +513,25 @@ mod tests {
         // No observations = neutral = 0.5
         assert!(tv.meets_requirements(0.5, 0.5, 0.5));
         assert!(!tv.meets_requirements(0.6, 0.5, 0.5));
+    }
+
+    #[test]
+    fn test_from_parts_roundtrips_scores_and_confidence() {
+        let mut v3 = V3::new();
+        for _ in 0..3 {
+            v3.apply_delta(ValueDimension::Valuation, 0.02);
+        }
+        v3.apply_delta(ValueDimension::Veracity, 0.1);
+
+        let scores = *v3.scores();
+        let counts = *v3.observation_counts();
+        let rebuilt = V3::from_parts(scores, counts);
+
+        for dim in ValueDimension::all() {
+            assert_eq!(rebuilt.score(dim), v3.score(dim));
+            assert_eq!(rebuilt.observation_counts()[dim as usize], counts[dim as usize]);
+            assert!((rebuilt.weight(dim) - v3.weight(dim)).abs() < 1e-12);
+        }
     }
 
     #[test]

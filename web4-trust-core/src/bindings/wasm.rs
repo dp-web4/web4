@@ -6,7 +6,11 @@
 use wasm_bindgen::prelude::*;
 use js_sys::{Array, Object, Reflect};
 
-use crate::tensor::{T3Tensor as RustT3, V3Tensor as RustV3};
+// P3b: bindings now wrap the canonical `web4_core` tensors and share the trust
+// semantics via `crate::tensor` free functions (no parallel math).
+use crate::tensor;
+use web4_core::t3::{TrustDimension, T3 as RustT3};
+use web4_core::v3::{ValueDimension, V3 as RustV3};
 use crate::entity::EntityTrust as RustEntityTrust;
 use crate::storage::{TrustStore, InMemoryStore};
 
@@ -20,68 +24,69 @@ pub struct T3Tensor {
 
 #[wasm_bindgen]
 impl T3Tensor {
-    /// Create a new T3 tensor with specified values
+    /// Create a new T3 tensor with specified values (clamped to [0,1], with no
+    /// observation history — honest "unmeasured" confidence).
     #[wasm_bindgen(constructor)]
     pub fn new(talent: f64, training: f64, temperament: f64) -> Self {
         Self {
-            inner: RustT3::new(talent, training, temperament),
+            inner: RustT3::from_parts([talent, training, temperament], [0, 0, 0]),
         }
     }
 
     /// Create a neutral tensor (all 0.5)
     pub fn neutral() -> Self {
-        Self { inner: RustT3::neutral() }
+        Self { inner: RustT3::new() }
     }
 
     // Getters
     #[wasm_bindgen(getter)]
-    pub fn talent(&self) -> f64 { self.inner.talent }
+    pub fn talent(&self) -> f64 { self.inner.score(TrustDimension::Talent) }
 
     #[wasm_bindgen(getter)]
-    pub fn training(&self) -> f64 { self.inner.training }
+    pub fn training(&self) -> f64 { self.inner.score(TrustDimension::Training) }
 
     #[wasm_bindgen(getter)]
-    pub fn temperament(&self) -> f64 { self.inner.temperament }
+    pub fn temperament(&self) -> f64 { self.inner.score(TrustDimension::Temperament) }
 
     // Setters
     #[wasm_bindgen(setter)]
-    pub fn set_talent(&mut self, value: f64) { self.inner.talent = value.clamp(0.0, 1.0); }
+    pub fn set_talent(&mut self, value: f64) { tensor::t3_set_score(&mut self.inner, TrustDimension::Talent, value); }
 
     #[wasm_bindgen(setter)]
-    pub fn set_training(&mut self, value: f64) { self.inner.training = value.clamp(0.0, 1.0); }
+    pub fn set_training(&mut self, value: f64) { tensor::t3_set_score(&mut self.inner, TrustDimension::Training, value); }
 
     #[wasm_bindgen(setter)]
-    pub fn set_temperament(&mut self, value: f64) { self.inner.temperament = value.clamp(0.0, 1.0); }
+    pub fn set_temperament(&mut self, value: f64) { tensor::t3_set_score(&mut self.inner, TrustDimension::Temperament, value); }
 
     /// Calculate average trust score
     pub fn average(&self) -> f64 {
-        self.inner.average()
+        tensor::t3_average(&self.inner)
     }
 
     /// Get trust level as string
     pub fn level(&self) -> String {
-        self.inner.level().to_string()
+        tensor::t3_level(&self.inner).to_string()
     }
 
     /// Update from action outcome
     #[wasm_bindgen(js_name = updateFromOutcome)]
     pub fn update_from_outcome(&mut self, success: bool, magnitude: f64) {
-        self.inner.update_from_outcome(success, magnitude);
+        tensor::t3_update_from_outcome(&mut self.inner, success, magnitude);
     }
 
     /// Apply temporal decay
     #[wasm_bindgen(js_name = applyDecay)]
     pub fn apply_decay(&mut self, days_inactive: f64, decay_rate: f64) -> bool {
-        self.inner.apply_decay(days_inactive, decay_rate)
+        tensor::t3_apply_decay(&mut self.inner, days_inactive, decay_rate)
     }
 
     /// Convert to JSON object
     #[wasm_bindgen(js_name = toJSON)]
     pub fn to_json(&self) -> JsValue {
         let obj = Object::new();
-        let _ = Reflect::set(&obj, &"talent".into(), &self.inner.talent.into());
-        let _ = Reflect::set(&obj, &"training".into(), &self.inner.training.into());
-        let _ = Reflect::set(&obj, &"temperament".into(), &self.inner.temperament.into());
+        let _ = Reflect::set(&obj, &"talent".into(), &self.inner.score(TrustDimension::Talent).into());
+        let _ = Reflect::set(&obj, &"training".into(), &self.inner.score(TrustDimension::Training).into());
+        let _ = Reflect::set(&obj, &"temperament".into(), &self.inner.score(TrustDimension::Temperament).into());
         obj.into()
     }
 }
@@ -97,33 +102,33 @@ impl V3Tensor {
     #[wasm_bindgen(constructor)]
     pub fn new(valuation: f64, veracity: f64, validity: f64) -> Self {
         Self {
-            inner: RustV3::new(valuation, veracity, validity),
+            inner: RustV3::from_parts([valuation, veracity, validity], [0, 0, 0]),
         }
     }
 
     pub fn neutral() -> Self {
-        Self { inner: RustV3::neutral() }
+        Self { inner: RustV3::new() }
     }
 
     #[wasm_bindgen(getter)]
-    pub fn valuation(&self) -> f64 { self.inner.valuation }
+    pub fn valuation(&self) -> f64 { self.inner.score(ValueDimension::Valuation) }
 
     #[wasm_bindgen(getter)]
-    pub fn veracity(&self) -> f64 { self.inner.veracity }
+    pub fn veracity(&self) -> f64 { self.inner.score(ValueDimension::Veracity) }
 
     #[wasm_bindgen(getter)]
-    pub fn validity(&self) -> f64 { self.inner.validity }
+    pub fn validity(&self) -> f64 { self.inner.score(ValueDimension::Validity) }
 
     pub fn average(&self) -> f64 {
-        self.inner.average()
+        tensor::v3_average(&self.inner)
     }
 
     #[wasm_bindgen(js_name = toJSON)]
     pub fn to_json(&self) -> JsValue {
         let obj = Object::new();
-        let _ = Reflect::set(&obj, &"valuation".into(), &self.inner.valuation.into());
-        let _ = Reflect::set(&obj, &"veracity".into(), &self.inner.veracity.into());
-        let _ = Reflect::set(&obj, &"validity".into(), &self.inner.validity.into());
+        let _ = Reflect::set(&obj, &"valuation".into(), &self.inner.score(ValueDimension::Valuation).into());
+        let _ = Reflect::set(&obj, &"veracity".into(), &self.inner.score(ValueDimension::Veracity).into());
+        let _ = Reflect::set(&obj, &"validity".into(), &self.inner.score(ValueDimension::Validity).into());
         obj.into()
     }
 }
@@ -185,23 +190,23 @@ impl EntityTrust {
 
     // T3 accessors (canonical 3D)
     #[wasm_bindgen(getter)]
-    pub fn talent(&self) -> f64 { self.inner.t3.talent }
+    pub fn talent(&self) -> f64 { self.inner.talent() }
 
     #[wasm_bindgen(getter)]
-    pub fn training(&self) -> f64 { self.inner.t3.training }
+    pub fn training(&self) -> f64 { self.inner.training() }
 
     #[wasm_bindgen(getter)]
-    pub fn temperament(&self) -> f64 { self.inner.t3.temperament }
+    pub fn temperament(&self) -> f64 { self.inner.temperament() }
 
     // V3 accessors (canonical 3D)
     #[wasm_bindgen(getter)]
-    pub fn valuation(&self) -> f64 { self.inner.v3.valuation }
+    pub fn valuation(&self) -> f64 { self.inner.valuation() }
 
     #[wasm_bindgen(getter)]
-    pub fn veracity(&self) -> f64 { self.inner.v3.veracity }
+    pub fn veracity(&self) -> f64 { self.inner.veracity() }
 
     #[wasm_bindgen(getter)]
-    pub fn validity(&self) -> f64 { self.inner.v3.validity }
+    pub fn validity(&self) -> f64 { self.inner.validity() }
 
     /// Get T3 average
     #[wasm_bindgen(js_name = t3Average)]
@@ -267,14 +272,14 @@ impl EntityTrust {
         let _ = Reflect::set(&obj, &"entity_name".into(), &self.inner.entity_name.clone().into());
 
         // T3 (canonical 3D)
-        let _ = Reflect::set(&obj, &"talent".into(), &self.inner.t3.talent.into());
-        let _ = Reflect::set(&obj, &"training".into(), &self.inner.t3.training.into());
-        let _ = Reflect::set(&obj, &"temperament".into(), &self.inner.t3.temperament.into());
+        let _ = Reflect::set(&obj, &"talent".into(), &self.inner.talent().into());
+        let _ = Reflect::set(&obj, &"training".into(), &self.inner.training().into());
+        let _ = Reflect::set(&obj, &"temperament".into(), &self.inner.temperament().into());
 
         // V3 (canonical 3D)
-        let _ = Reflect::set(&obj, &"valuation".into(), &self.inner.v3.valuation.into());
-        let _ = Reflect::set(&obj, &"veracity".into(), &self.inner.v3.veracity.into());
-        let _ = Reflect::set(&obj, &"validity".into(), &self.inner.v3.validity.into());
+        let _ = Reflect::set(&obj, &"valuation".into(), &self.inner.valuation().into());
+        let _ = Reflect::set(&obj, &"veracity".into(), &self.inner.veracity().into());
+        let _ = Reflect::set(&obj, &"validity".into(), &self.inner.validity().into());
 
         // Metadata
         let _ = Reflect::set(&obj, &"action_count".into(), &(self.inner.action_count as f64).into());
