@@ -428,6 +428,11 @@ pub enum HubEvent {
     ObligationResolved {
         request_id: String,
         outcome: String,
+        /// Who resolved it. For P1 this is always the obligation's subject (the
+        /// satisfy path is subject-only); recorded so audit — and future
+        /// law-gated delegated resolution — has the resolver on the ledger.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        resolved_by: Option<Uuid>,
         resolved_at: DateTime<Utc>,
     },
 }

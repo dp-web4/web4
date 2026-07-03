@@ -2211,6 +2211,9 @@ fn temporal_delta(
     ts: DateTime<Utc>,
 ) -> web4_core::r6::ReputationDelta {
     use std::collections::HashMap;
+    // from_value/to_value are synthetic (0.0 → change): the #430 fold reads only
+    // `change` via apply_delta, and the true prior value lives in the projected
+    // tensor, not here. They exist to satisfy the TensorDelta shape.
     let mut t3_delta = HashMap::new();
     if impact.temperament != 0.0 {
         t3_delta.insert(
@@ -2581,6 +2584,36 @@ async fn dispatch_channel(
             // malformed one rejects the whole act (fail-closed) before anything
             // is witnessed.
             let r7_op = parse_r7(&inner.args)?;
+            // Validate r7 SEMANTICS against current state here too — before the
+            // ReferencedAct is witnessed — so a fail-closed reject never leaves a
+            // half-applied act on the ledger. (The apply block below assumes these
+            // hold.) Two ambiguous conditions → deny+warn per the fleet directive:
+            if let Some(op) = &r7_op {
+                match op {
+                    // Re-opening a live obligation would let a subject reset its
+                    // own clock past a miss, or clobber another member's obligation.
+                    R7Op::Open { request_id, .. } => {
+                        if state.obligations.contains_key(request_id) {
+                            tracing::warn!("r7 re-opens live obligation {request_id} — rejected (fail-closed)");
+                            return Err(ApiError::bad_request(format!("obligation {request_id} already open")));
+                        }
+                    }
+                    // Only the obligation's own subject may satisfy it — else a
+                    // third party could impose a Late debit or an unearned Met
+                    // credit on the subject (griefing).
+                    R7Op::Satisfy { request_id } => {
+                        let ob = state.obligations.get(request_id).ok_or_else(|| {
+                            tracing::warn!("r7 satisfies unknown obligation {request_id} — rejected (fail-closed)");
+                            ApiError::bad_request(format!("unknown obligation {request_id}"))
+                        })?;
+                        if ob.subject_lct != caller_lct_id.to_string() {
+                            tracing::warn!("r7 satisfy of {request_id} by non-subject {caller_lct_id} — rejected (fail-closed)");
+                            return Err(ApiError::bad_request(
+                                "only the obligation's subject may satisfy it".to_string()));
+                        }
+                    }
+                }
+            }
             // A Citizen/Peer-addressed act is also a *delivery*: queue a sealed
             // notice in the recipient's mailbox so the act reaches them without
             // them having to read the whole ledger. This is what makes the hub a
@@ -2646,6 +2679,7 @@ async fn dispatch_channel(
                         witness_event(s, HubEvent::ObligationResolved {
                             request_id: request_id.clone(),
                             outcome: outcome_str.to_string(),
+                            resolved_by: Some(caller_lct_id),
                             resolved_at: now,
                         }).await?;
                         r7_out.insert("obligation_resolved".into(), serde_json::json!(request_id));
@@ -5183,6 +5217,65 @@ mod channel_e2e_tests {
             "r7": {"satisfies":"never-opened"},
         })).await;
         assert!(unknown.is_err(), "unknown obligation rejected");
+    }
+
+    #[tokio::test]
+    async fn r7_reopen_is_rejected_and_clock_not_reset() {
+        // The clock-reset attack: open past-due, re-open with a fresh future
+        // deadline, then satisfy → "met". The re-open must be rejected, and even
+        // if it weren't the keep-first fold preserves the original clock.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let (m, lct) = pin_member(&state, &hub_pub).await;
+        let past = (Utc::now() - chrono::Duration::hours(1)).to_rfc3339();
+        ref_act(&state, &m, lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": lct}, "kind":"handoff", "pointer_uri":"pr/1",
+            "r7": {"request_id":"req-x","role_lct":"citizen",
+                   "deadline":{"due_at": past, "criticality":"firm"}},
+        })).await.expect("open past-due");
+
+        let future = (Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
+        let reopen = ref_act(&state, &m, lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": lct}, "kind":"handoff", "pointer_uri":"pr/1",
+            "r7": {"request_id":"req-x","role_lct":"citizen",
+                   "deadline":{"due_at": future, "criticality":"firm"}},
+        })).await;
+        assert!(reopen.is_err(), "re-open of a live obligation must be rejected");
+
+        // Satisfy → still LATE (the original past-due clock stands).
+        let out = ref_act(&state, &m, lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": lct}, "kind":"review_done", "pointer_uri":"pr/1",
+            "r7": {"satisfies":"req-x"},
+        })).await.expect("resolve");
+        assert_eq!(out["outcome"], serde_json::json!("late"), "clock was not reset");
+    }
+
+    #[tokio::test]
+    async fn r7_satisfy_by_non_subject_is_rejected() {
+        // Griefing guard: only the obligation's subject may satisfy it.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let (a, a_lct) = pin_member(&state, &hub_pub).await;
+        let (b, b_lct) = pin_member(&state, &hub_pub).await;
+        let future = (Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
+        ref_act(&state, &a, a_lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": a_lct}, "kind":"handoff", "pointer_uri":"pr/2",
+            "r7": {"request_id":"req-a","role_lct":"citizen",
+                   "deadline":{"due_at": future, "criticality":"firm"}},
+        })).await.expect("A opens");
+
+        // B attempts to resolve A's obligation → rejected.
+        let grief = ref_act(&state, &b, b_lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": b_lct}, "kind":"review_done", "pointer_uri":"pr/2",
+            "r7": {"satisfies":"req-a"},
+        })).await;
+        assert!(grief.is_err(), "a non-subject cannot satisfy another's obligation");
+
+        // A resolves its own → ok.
+        ref_act(&state, &a, a_lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": a_lct}, "kind":"review_done", "pointer_uri":"pr/2",
+            "r7": {"satisfies":"req-a"},
+        })).await.expect("subject resolves its own");
     }
 
     #[tokio::test]
