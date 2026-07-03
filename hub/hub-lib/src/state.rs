@@ -609,16 +609,19 @@ impl HubState {
                 criticality,
                 opened_at,
             } => {
-                self.obligations.insert(
-                    request_id.clone(),
-                    Obligation {
-                        subject_lct: subject_lct.clone(),
-                        role_lct: role_lct.clone(),
-                        due_at: *due_at,
-                        criticality: *criticality,
-                        opened_at: *opened_at,
-                    },
-                );
+                // Keep-first: a duplicate ObligationOpened for a live request_id
+                // must NOT overwrite (that would let a subject reset its own
+                // deadline clock). The channel handler already rejects re-opens
+                // deny+warn; this is the projection-level backstop so any that
+                // slip through (e.g. a concurrent-witness race) can't reset the
+                // clock — the original opened_at/due_at stand.
+                self.obligations.entry(request_id.clone()).or_insert_with(|| Obligation {
+                    subject_lct: subject_lct.clone(),
+                    role_lct: role_lct.clone(),
+                    due_at: *due_at,
+                    criticality: *criticality,
+                    opened_at: *opened_at,
+                });
             }
             HubEvent::ObligationResolved { request_id, .. } => {
                 self.obligations.remove(request_id);
