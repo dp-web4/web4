@@ -50,7 +50,7 @@ The standard specifies fractal composable identity as MUSTs. The skeleton is sou
   (`core-spec/r7-framework.md:252`). R6 (`r6-framework.md:14`) is the routine grammar;
   R7 appends Reputation for consequential actions.
 - **MRH is the fractal boundary.** The Markov horizon depth bounds transitive relevance
-  and is what makes composition levels separable (`mrh-tensors.md:143`, default depth 3).
+  and is what makes composition levels separable (`mrh-tensors.md:174`, default depth 3).
 - **Delegation flows authority down, accountability up** — scoped, attenuating,
   consent-only (`web4-society-authority-law.md` §3.2; `inter-society-protocol.md:38`
   *"no mechanism for any society to assert authority over another without consent"*);
