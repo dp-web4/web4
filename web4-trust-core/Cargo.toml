@@ -14,7 +14,7 @@ default = ["file-store"]
 file-store = ["serde_json", "sha2"]
 sled-store = ["sled"]
 python = ["pyo3", "parking_lot", "file-store"]
-wasm = ["wasm-bindgen", "js-sys", "getrandom/js", "serde_json", "web4-core"]
+wasm = ["wasm-bindgen", "js-sys", "getrandom/js", "serde_json"]
 
 [dependencies]
 # Core
@@ -39,8 +39,11 @@ wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3", optional = true }
 getrandom = { version = "0.2", optional = true }
 
-# Optional: Web4 core types (for WASM bindings)
-web4-core = { path = "../web4-core", version = "0.2", optional = true }
+# Web4 canonical trust/value tensors (T3/V3) + shared primitives.
+# Non-optional as of P3b: EntityTrust holds `web4_core::t3::T3` / `web4_core::v3::V3`
+# internally, so the canonical engine is required for the default build (not just
+# the WASM bindings, which also re-export web4-core role/society/atp/r6 types).
+web4-core = { path = "../web4-core", version = "0.2" }
 
 # WASM-specific uuid with JS random source
 [target.'cfg(target_arch = "wasm32")'.dependencies]

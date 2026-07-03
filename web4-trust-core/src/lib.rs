@@ -41,8 +41,16 @@ pub mod storage;
 #[cfg(any(feature = "python", feature = "wasm"))]
 pub mod bindings;
 
-// Re-exports for convenience
-pub use tensor::{T3Tensor, V3Tensor, TrustLevel};
+// Re-exports for convenience.
+//
+// P3b: the crate no longer defines `T3Tensor`/`V3Tensor`. The one canonical
+// tensor is `web4_core::t3::T3` / `web4_core::v3::V3`, re-exported here so
+// downstream consumers can name them without adding a direct `web4-core` dep.
+// (Removing the old `pub use tensor::{T3Tensor, V3Tensor}` is a breaking change
+// — see the P3b PR notes.)
+pub use tensor::TrustLevel;
+pub use web4_core::t3::{TrustDimension, T3};
+pub use web4_core::v3::{ValueDimension, V3};
 pub use entity::{EntityTrust, EntityType};
 pub use witnessing::{WitnessEvent, WitnessingChain};
 pub use storage::TrustStore;

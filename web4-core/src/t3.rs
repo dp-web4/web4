@@ -124,6 +124,36 @@ impl T3 {
         })
     }
 
+    /// Reconstruct a T3 from persisted parts: root scores + per-dimension
+    /// observation counts. Weights are recomputed from the counts using the
+    /// same logarithmic formula as [`T3::apply_delta`]/[`T3::observe`], so a
+    /// tensor that is saved and re-loaded keeps its confidence without having
+    /// to replay its observation history. Scores are clamped to `[0, 1]`.
+    ///
+    /// This is the persistence-round-trip constructor used by at-rest stores
+    /// (e.g. sealed `EntityTrust` files): the serialized form carries the three
+    /// root scores plus their observation counts, and this rebuilds the exact
+    /// tensor state. Sub-dimensions are not part of the persisted parts and are
+    /// initialized empty.
+    pub fn from_parts(
+        scores: [f64; T3_DIMENSIONS],
+        observation_counts: [u64; T3_DIMENSIONS],
+    ) -> Self {
+        let mut dimensions = [0.0; T3_DIMENSIONS];
+        let mut weights = [0.0; T3_DIMENSIONS];
+        for i in 0..T3_DIMENSIONS {
+            dimensions[i] = scores[i].clamp(0.0, 1.0);
+            weights[i] =
+                ((1.0 + observation_counts[i] as f64).ln() / 10.0_f64.ln()).min(1.0);
+        }
+        Self {
+            dimensions,
+            weights,
+            observation_counts,
+            sub_dimensions: HashMap::new(),
+        }
+    }
+
     /// Get the score for a root dimension
     pub fn score(&self, dimension: TrustDimension) -> f64 {
         self.dimensions[dimension as usize]
@@ -132,6 +162,15 @@ impl T3 {
     /// Get the weight (confidence) for a root dimension
     pub fn weight(&self, dimension: TrustDimension) -> f64 {
         self.weights[dimension as usize]
+    }
+
+    /// Get all per-dimension observation counts.
+    ///
+    /// Exposes the raw evidence counts so persistence layers can serialize and
+    /// later restore confidence via [`T3::from_parts`]. Weights are a pure
+    /// function of these counts, so this is sufficient to round-trip state.
+    pub fn observation_counts(&self) -> &[u64; T3_DIMENSIONS] {
+        &self.observation_counts
     }
 
     /// Get all root dimension scores
@@ -525,6 +564,38 @@ mod tests {
         assert!(t3.meets_thresholds(&[0.8, 0.7, 0.6]));
         assert!(t3.meets_thresholds(&[0.7, 0.6, 0.5]));
         assert!(!t3.meets_thresholds(&[0.9, 0.7, 0.6]));
+    }
+
+    #[test]
+    fn test_from_parts_roundtrips_scores_and_confidence() {
+        // Build a tensor via real observations, capture its state, then
+        // reconstruct from (scores, counts) and assert exact equality of both
+        // scores and weights — this is the persistence round-trip contract.
+        let mut t3 = T3::new();
+        for _ in 0..5 {
+            t3.apply_delta(TrustDimension::Talent, 0.05);
+        }
+        t3.apply_delta(TrustDimension::Training, -0.1);
+
+        let scores = *t3.scores();
+        let counts = *t3.observation_counts();
+        let rebuilt = T3::from_parts(scores, counts);
+
+        for dim in TrustDimension::all() {
+            assert_eq!(rebuilt.score(dim), t3.score(dim));
+            assert_eq!(rebuilt.observation_counts()[dim as usize], counts[dim as usize]);
+            assert!((rebuilt.weight(dim) - t3.weight(dim)).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn test_from_parts_zero_counts_have_zero_weight() {
+        // Honest "unmeasured": scores set, but no observations -> zero weight.
+        let t3 = T3::from_parts([0.8, 0.75, 0.9], [0, 0, 0]);
+        for dim in TrustDimension::all() {
+            assert_eq!(t3.weight(dim), 0.0);
+        }
+        assert_eq!(t3.score(TrustDimension::Talent), 0.8);
     }
 
     #[test]
