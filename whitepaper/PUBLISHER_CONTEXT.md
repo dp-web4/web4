@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-07-01
+**Last Updated**: 2026-07-03
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,14 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-07-03: Publisher Maintenance — No-Change Verification (manual pass; Synchronism autonomous Publisher failed outright today — no report at all, so no "Web4: Not checked" line even exists)
+- **Both standing integration triggers remain unfired.** `web4-standard/core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02). No v0.28.0 → PyPI publish observed (`web4-core/python` and `web4-trust-core` both still 0.2.0). No EUDI Phase 2 / did:web4 movement: the only `web4-standard/` changes since 07-01 are four files of C-series wire-shape remediation (acp-framework, reputation-computation, FRACTAL_ROLE_IDENTITY, presence-protocol README) — no new spec doc, no status flip.
+- **Zero whitepaper-scope commits.** 16 web4 commits since the 07-01 pass (`7098d93..HEAD`); `git log -- whitepaper/ docs/whitepaper-web/` over that range is empty — 100% C-series/hub churn, the established profile.
+- **Three-format artifact date check (per the 06-12 lesson): no spread.** All three published artifacts (`WEB4_Whitepaper_Complete.md`, `index.html`, `WEB4_Whitepaper.pdf`) last touched by the same commit `6a8d333` (2026-06-12), which is also the last source edit — md/pdf/html internally consistent and in sync by construction. No rebuild performed (CRLF/timestamp churn only).
+- **No term drift.** Drift-grep over live `sections/*` (excl. `*/archive/`) for all documented wrong expansions (ATP/LCT/T3/V3/ADP) returns zero hits.
+- **Autonomous-run note:** today's 03:30 UTC Synchronism autonomous Publisher run failed silently (40-second run, no report file) — the web4 gap streak continues in a new, worse form: not "Web4: Not checked" but no run output at all. Logged on the Synchronism side (see its PUBLISHER_CONTEXT 2026-07-03 entry); strengthens both the liveness-check and content-hash-trigger recommendations.
+- **Verdict:** clean no-change pass; no integration, no commit beyond this log entry. Standing triggers carried forward unchanged: v0.28.0 → PyPI; core-protocol → Normative; EUDI Phase 2 interop; PAIRED-CHANNELS watch (spec-surface only).
 
 ### 2026-07-01: Publisher Maintenance — No-Change Verification (manual pass; closes the 19-day PUBLISHER_CONTEXT logging gap since 06-12)
 - **Both standing integration triggers remain unfired.** `web4-standard/core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02) — §7.7 / core-protocol → Normative has NOT flipped. No EUDI Phase 2 / did:web4 spec change in `web4-standard/` since the 06-12 did:web4 integration. No v0.28.0 → PyPI publish observed. **126 web4 commits since 06-12**; `git log --since=2026-06-12 -- whitepaper/ docs/whitepaper-web/` shows **exactly one whitepaper-scope commit — `6a8d333`, which IS the 06-12 did:web4 integration itself**; every other commit is out-of-scope C-series/hub churn (the established profile).
