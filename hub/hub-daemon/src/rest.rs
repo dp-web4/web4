@@ -2365,22 +2365,69 @@ async fn dispatch_channel(
                 "truncated": total > limit.unwrap_or(total),
             }))
         }
-        // R7 reputation RECORD (Sovereign-only in v1) — witness a pre-computed
-        // `ReputationDelta` so it folds into the projection. The delta is produced by
-        // `web4_core::r6::compute_reputation` (factors × society-law weights); the hub
-        // records + applies it, it does NOT invent the scoring math.
+        // R7 reputation RECORD — witness a pre-computed `ReputationDelta` so it folds
+        // into the projection. The delta is produced by `web4_core::r6::compute_reputation`
+        // (factors × society-law weights); the hub records + applies it, it does NOT
+        // invent the scoring math.
+        //
+        // Authorization (thread repemit-1, co-spec'd with Legion):
+        // - **Sovereign** may always record (path unchanged — Sovereign ingest untouched).
+        // - A **non-Sovereign authenticated emitter** is gated by the hub law's
+        //   `reputation_emit` section. Pin #1: the emitter is the *authenticated
+        //   channel identity* (`caller_lct_id`), NOT a payload field — a delta whose
+        //   payload names a foreign emitter is irrelevant; only who sealed the op counts.
+        //   With no section (or no matching rule) the path is dark: fail-closed deny.
         "record_reputation" => {
-            if role != "sovereign" {
-                return Err(ApiError {
-                    status: StatusCode::FORBIDDEN,
-                    message: "record_reputation is Sovereign-only (v1)".to_string(),
-                });
-            }
             let delta: web4_core::r6::ReputationDelta = inner.args.get("delta")
                 .cloned()
                 .and_then(|v| serde_json::from_value(v).ok())
                 .ok_or_else(|| ApiError::bad_request(
                     "record_reputation requires 'delta' (a ReputationDelta)".to_string()))?;
+            if role != "sovereign" {
+                // Emitter = the authenticated caller (Pin #1); subject-role = the
+                // delta's role_lct (the only role signal the hub holds in v1).
+                let emitter = caller_lct_id.to_string();
+                let outcome = {
+                    let law_guard = s.law.read().await;
+                    match law_guard.as_ref() {
+                        Some(law) => law.reputation_emit_decision(&emitter, &delta.role_lct),
+                        // No law ⇒ dark: Sovereign-only, the pre-wiring behavior.
+                        None => hub_lib::law::ReputationEmitOutcome {
+                            decision: Decision::Deny,
+                            matched_rule: None,
+                        },
+                    }
+                };
+                match outcome.decision {
+                    Decision::Allow => { /* authorized emit — proceed */ }
+                    Decision::Warn => {
+                        // Non-blocking flagged-allow: the emit proceeds, flagged.
+                        tracing::warn!(
+                            "reputation_emit by {emitter} for role '{}' flagged by hub law (rule: {})",
+                            delta.role_lct,
+                            outcome.matched_rule.as_deref().unwrap_or("?")
+                        );
+                    }
+                    Decision::Deny => {
+                        tracing::warn!(
+                            "reputation_emit by {emitter} for role '{}' denied (fail-closed; \
+                             no matching reputation_emit rule)",
+                            delta.role_lct
+                        );
+                        return Err(ApiError {
+                            status: StatusCode::FORBIDDEN,
+                            message: "record_reputation not authorized for this emitter by hub law \
+                                      (reputation_emit)".to_string(),
+                        });
+                    }
+                    Decision::Escalate => {
+                        return Err(ApiError {
+                            status: StatusCode::ACCEPTED,
+                            message: "record_reputation escalated by hub law (reputation_emit)".to_string(),
+                        });
+                    }
+                }
+            }
             let index = witness_event(s, HubEvent::ReputationRecorded { delta }).await?;
             Ok(serde_json::json!({ "recorded": true, "entry_index": index }))
         }

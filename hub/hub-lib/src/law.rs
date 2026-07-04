@@ -99,6 +99,69 @@ pub struct AtpIssuancePolicy {
     pub description: Option<String>,
 }
 
+/// One `reputation_emit` rule — "this emitter may record reputation deltas for
+/// this subject-pattern." Co-spec'd with Legion on thread `repemit-1`
+/// (`shared-context/forum/legion-to-hub-reputation-emit-grammar-cospec-2026-07-04.md`
+/// + `…grammar-confirmed…`). v1 authority hinge, two pins:
+///
+/// - **`emitter`** is matched against the **authenticated channel identity** of the
+///   caller that sealed the emit (its pinned-key LCT id), NEVER a self-declared
+///   payload field — Pin #1 (the eval, [`HubLawExt::reputation_emit_decision`], is
+///   handed the authenticated caller, not a delta field).
+/// - **`subject`** is matched against the delta's `role_lct`:
+///   - `subject: <role>` matches iff `delta.role_lct == <role>` (the only role
+///     signal the hub holds in v1).
+///   - `subject: constellation:<emitter>` is the **v2** attestation pattern
+///     ("subject is a member of emitter's constellation"). It is **inert in v1** —
+///     it can't be evaluated until hestia's constellation-publish lands, so it
+///     never matches and fails closed. Warned at law-load (Pin #2) so a v2 rule
+///     staged early isn't a silent no-op.
+///
+/// Ordered by `priority` (highest wins, ties → first); no matching rule ⇒
+/// fail-closed deny.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ReputationEmitRule {
+    /// The authenticated channel identity permitted to emit (Pin #1). Matched
+    /// against the caller's pinned-key LCT id, not a payload field.
+    pub emitter: String,
+    /// Subject pattern — `<role>` (matches `delta.role_lct`) or the v2-inert
+    /// `constellation:<emitter>` token.
+    pub subject: String,
+    /// Reuses the shared [`Decision`] vocabulary (`allow` / `warn` / `deny` /
+    /// `escalate`) — same as norms.
+    pub decision: Decision,
+    /// Highest priority among matching rules wins (ties → first).
+    pub priority: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// The hub's `reputation_emit` law section — who, other than the Sovereign, may
+/// record reputation deltas, and for which subject-roles. Absent section ⇒ the
+/// emit path is fully dark (Sovereign-only, the pre-wiring behavior).
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ReputationEmitPolicy {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rules: Vec<ReputationEmitRule>,
+}
+
+/// A `subject` token that references `constellation:<emitter>` — the v2 attestation
+/// pattern, inert in v1 (see [`ReputationEmitRule`]). Discriminated by the
+/// `constellation:` prefix; note `role:constellation:member` (a v1 `role_lct`
+/// value that merely *contains* the word) starts with `role:` and is NOT inert.
+pub fn subject_is_v2_inert(subject: &str) -> bool {
+    subject.starts_with("constellation:")
+}
+
+/// Resolved outcome of a `reputation_emit` evaluation: the winning rule's
+/// [`Decision`] plus its description (for operator-visible logging), or a
+/// fail-closed [`Decision::Deny`] with `matched_rule = None` when nothing matched.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReputationEmitOutcome {
+    pub decision: Decision,
+    pub matched_rule: Option<String>,
+}
+
 /// The hub's society policy — the [`PolicyExtension`] flattened into [`Law`].
 ///
 /// `#[serde(flatten)]` in `web4_policy::Law` merges these at the top level, so the
@@ -112,6 +175,8 @@ pub struct HubPolicy {
     pub admission: Option<AdmissionPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub atp_issuance: Option<AtpIssuancePolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reputation_emit: Option<ReputationEmitPolicy>,
 }
 
 impl PolicyExtension for HubPolicy {
@@ -188,6 +253,31 @@ impl PolicyExtension for HubPolicy {
             }
         }
 
+        // Rule 11 (thread repemit-1): reputation_emit rules must carry a non-empty
+        // emitter + subject. Pin #2 — a rule whose subject is a v2-inert
+        // `constellation:<emitter>` token is ACCEPTED (stays fail-closed at eval),
+        // but warned here at law-load so a v2 rule staged before the
+        // constellation-publish lands isn't a silent no-op. validate() is the parse
+        // choke point (`parse_and_validate`), so this warns exactly at load.
+        if let Some(re) = &self.reputation_emit {
+            for (i, rule) in re.rules.iter().enumerate() {
+                if rule.emitter.trim().is_empty() {
+                    return Err(anyhow!("reputation_emit.rules[{}].emitter must not be empty", i));
+                }
+                if rule.subject.trim().is_empty() {
+                    return Err(anyhow!("reputation_emit.rules[{}].subject must not be empty", i));
+                }
+                if subject_is_v2_inert(&rule.subject) {
+                    tracing::warn!(
+                        "reputation_emit.rules[{}] uses the v2 token `subject: {}` — inert in v1 \
+                         (never matches, fails closed) until hestia constellation-publish lands",
+                        i,
+                        rule.subject
+                    );
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -221,6 +311,13 @@ pub trait HubLawExt {
     fn admission_repeat_limit(&self) -> u32;
     /// Effective admission review limit — the law value, or the code default.
     fn admission_review_limit(&self) -> u32;
+    /// Evaluate the `reputation_emit` section for an emit sealed by `emitter` (the
+    /// **authenticated** caller LCT id — Pin #1) carrying a delta whose role is
+    /// `delta_role_lct`. Highest-priority matching rule wins (ties → first); no
+    /// match — or no section at all — ⇒ fail-closed [`Decision::Deny`]. The
+    /// Sovereign path is not routed through here (Sovereign may always record); this
+    /// governs only non-Sovereign emitters.
+    fn reputation_emit_decision(&self, emitter: &str, delta_role_lct: &str) -> ReputationEmitOutcome;
 }
 
 impl HubLawExt for Law {
@@ -237,6 +334,43 @@ impl HubLawExt for Law {
             .as_ref()
             .and_then(|a| a.review_limit)
             .unwrap_or(DEFAULT_ADMISSION_REVIEW_LIMIT)
+    }
+
+    fn reputation_emit_decision(&self, emitter: &str, delta_role_lct: &str) -> ReputationEmitOutcome {
+        let deny = || ReputationEmitOutcome { decision: Decision::Deny, matched_rule: None };
+        let Some(re) = self.ext.reputation_emit.as_ref() else {
+            // No section ⇒ the emit path is dark: nothing but the Sovereign records.
+            return deny();
+        };
+        // Highest priority among matching rules wins; ties → first in file order
+        // (mirrors the norm engine's `priority > current` strict comparison).
+        let mut winner: Option<&ReputationEmitRule> = None;
+        for rule in &re.rules {
+            // Pin #1: emitter is the authenticated caller, matched verbatim.
+            if rule.emitter != emitter {
+                continue;
+            }
+            // v2-inert `constellation:<emitter>` tokens never match in v1 (fail closed).
+            if subject_is_v2_inert(&rule.subject) {
+                continue;
+            }
+            // v1 `subject: <role>` matches iff it equals the delta's role_lct.
+            if rule.subject != delta_role_lct {
+                continue;
+            }
+            match winner {
+                Some(w) if rule.priority > w.priority => winner = Some(rule),
+                None => winner = Some(rule),
+                _ => {}
+            }
+        }
+        match winner {
+            Some(rule) => ReputationEmitOutcome {
+                decision: rule.decision.clone(),
+                matched_rule: rule.description.clone().or_else(|| Some(rule.emitter.clone())),
+            },
+            None => deny(),
+        }
     }
 }
 
@@ -965,6 +1099,106 @@ admission:
         let y1 = law.to_yaml().unwrap();
         let y2 = Law::from_yaml(&y1).unwrap().to_yaml().unwrap();
         assert_eq!(y1, y2, "law serialization must be a fixed point (hash-stable)");
+    }
+
+    // ── reputation_emit (thread repemit-1) ──────────────────────────────────
+
+    /// Legion's concrete v1 rule, verbatim from the locked grammar co-spec.
+    const LEGION_EMIT_LAW: &str = r#"
+version: "1.0.0"
+reputation_emit:
+  rules:
+    - emitter: "61525719-def6-475c-a030-917f24a9dbf2"
+      subject: "role:constellation:member"
+      decision: allow
+      priority: 10
+      description: "Legion/hestia may report reputation on its constellation members (v1 role-scoped)"
+"#;
+
+    const LEGION_EMITTER: &str = "61525719-def6-475c-a030-917f24a9dbf2";
+    const P3A_ROLE: &str = "role:constellation:member";
+
+    #[test]
+    fn reputation_emit_no_section_is_dark() {
+        // No reputation_emit section ⇒ every non-Sovereign emit fails closed.
+        let law = Law::parse_and_validate("version: \"1.0.0\"\n").unwrap();
+        let out = law.reputation_emit_decision(LEGION_EMITTER, P3A_ROLE);
+        assert_eq!(out, ReputationEmitOutcome { decision: Decision::Deny, matched_rule: None });
+    }
+
+    #[test]
+    fn reputation_emit_legion_rule_allows_matching_emitter_and_role() {
+        let law = Law::parse_and_validate(LEGION_EMIT_LAW).unwrap();
+        let out = law.reputation_emit_decision(LEGION_EMITTER, P3A_ROLE);
+        assert_eq!(out.decision, Decision::Allow);
+        assert!(out.matched_rule.is_some());
+    }
+
+    #[test]
+    fn reputation_emit_wrong_emitter_denied() {
+        // Pin #1: a different authenticated identity, even with the right role,
+        // does not match Legion's rule — fail closed.
+        let law = Law::parse_and_validate(LEGION_EMIT_LAW).unwrap();
+        let out = law.reputation_emit_decision("00000000-0000-0000-0000-000000000000", P3A_ROLE);
+        assert_eq!(out.decision, Decision::Deny);
+    }
+
+    #[test]
+    fn reputation_emit_wrong_role_denied() {
+        // Right emitter, but a delta tagged with a role the rule doesn't cover.
+        let law = Law::parse_and_validate(LEGION_EMIT_LAW).unwrap();
+        let out = law.reputation_emit_decision(LEGION_EMITTER, "role:constellation:sovereign");
+        assert_eq!(out.decision, Decision::Deny);
+    }
+
+    #[test]
+    fn reputation_emit_v2_constellation_token_is_inert() {
+        // A v2 `subject: constellation:<emitter>` rule never matches in v1 (fail
+        // closed) even for the right emitter/subject — until the publish lands.
+        let law = Law::parse_and_validate(
+            "version: \"1.0.0\"\nreputation_emit:\n  rules:\n    - emitter: \"e1\"\n      subject: \"constellation:e1\"\n      decision: allow\n      priority: 10\n",
+        )
+        .unwrap();
+        // The subject the emitter would carry equals the token string, yet it must
+        // still not fire — the token is inert, not a literal role match.
+        let out = law.reputation_emit_decision("e1", "constellation:e1");
+        assert_eq!(out.decision, Decision::Deny, "v2 token must fail closed in v1");
+    }
+
+    #[test]
+    fn reputation_emit_role_containing_constellation_word_is_not_inert() {
+        // Guard the discriminator: `role:constellation:member` starts with `role:`,
+        // so it's a live v1 role match — NOT the inert `constellation:` token.
+        assert!(!subject_is_v2_inert(P3A_ROLE));
+        assert!(subject_is_v2_inert("constellation:e1"));
+    }
+
+    #[test]
+    fn reputation_emit_priority_and_decisions() {
+        // Two matching rules for the same emitter+role: highest priority wins.
+        let law = Law::parse_and_validate(
+            "version: \"1.0.0\"\nreputation_emit:\n  rules:\n    - emitter: \"e1\"\n      subject: \"r\"\n      decision: allow\n      priority: 5\n    - emitter: \"e1\"\n      subject: \"r\"\n      decision: deny\n      priority: 20\n",
+        )
+        .unwrap();
+        assert_eq!(law.reputation_emit_decision("e1", "r").decision, Decision::Deny,
+            "priority-20 deny outranks priority-5 allow");
+    }
+
+    #[test]
+    fn reputation_emit_legion_law_roundtrips_fixed_point() {
+        // The wire form of the reputation_emit section must be hash-stable.
+        let law = Law::parse_and_validate(LEGION_EMIT_LAW).unwrap();
+        let y1 = law.to_yaml().unwrap();
+        let y2 = Law::from_yaml(&y1).unwrap().to_yaml().unwrap();
+        assert_eq!(y1, y2, "reputation_emit serialization must be a fixed point");
+    }
+
+    #[test]
+    fn reputation_emit_empty_emitter_rejected() {
+        let res = Law::parse_and_validate(
+            "version: \"1.0.0\"\nreputation_emit:\n  rules:\n    - emitter: \"\"\n      subject: \"r\"\n      decision: allow\n      priority: 1\n",
+        );
+        assert!(res.is_err(), "empty emitter must be rejected at validate");
     }
 
 }
