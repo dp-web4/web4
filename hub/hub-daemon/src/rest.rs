@@ -3579,9 +3579,87 @@ async fn admin_set_admission_limits(
     })))
 }
 
+/// Query for [`admin_ledger_tail`].
+#[derive(Deserialize)]
+struct LedgerTailQuery {
+    /// Return entries with `index >= since`. Omitted → the last `limit` entries.
+    /// Poll pattern: pass the previous response's `total` as `since` next time.
+    since: Option<u64>,
+    /// Max entries returned. Default 50, hard-capped at 500.
+    limit: Option<usize>,
+}
+
+/// `GET /admin/api/ledger?since=N&limit=M` — operator-plane ledger tail.
+///
+/// Returns the witnessed-act **envelope metadata** (index, actor, event kind,
+/// and for a `referenced_act` the recipient + act kind + pointer) straight from
+/// the daemon's in-memory ledger. This is the operator's view of the witnessed
+/// chain — e.g. observing the thor↔cbp channel flow — **without the vault
+/// passphrase** (the running daemon already holds the ledger decrypted).
+///
+/// It never exposes sealed notice **bodies**: those ride the mailbox encrypted
+/// to the recipient and are not on the ledger. Local-only (operator plane).
+async fn admin_ledger_tail(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    axum::extract::Query(q): axum::extract::Query<LedgerTailQuery>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let ledger = s.ledger.lock().await;
+    let entries = ledger.entries();
+    let total = entries.len();
+    let limit = q.limit.unwrap_or(50).min(500);
+    // Default window is the last `limit` entries; an explicit `since` overrides
+    // (clamped to the chain length so an over-large cursor just returns empty).
+    let start = match q.since {
+        Some(n) => (n as usize).min(total),
+        None => total.saturating_sub(limit),
+    };
+    let acts: Vec<serde_json::Value> = entries
+        .iter()
+        .skip(start)
+        .take(limit)
+        .map(|e| {
+            let mut v = serde_json::json!({
+                "index": e.index,
+                "at": e.timestamp,
+                "actor": e.actor_lct_id,
+                "event": e.event.kind(),
+            });
+            if let HubEvent::ReferencedAct { act } = &e.event {
+                use web4_core::act::ActAddress::*;
+                let (to_kind, to): (&str, Option<Uuid>) = match &act.address {
+                    Citizen { lct_id } => ("citizen", Some(*lct_id)),
+                    Peer { lct_id } => ("peer", Some(*lct_id)),
+                    Society { lct_id } => ("society", Some(*lct_id)),
+                    FutureSelf { entity } => ("future_self", Some(*entity)),
+                    Role { role } => {
+                        v["to_role"] = serde_json::json!(role);
+                        ("role", None)
+                    }
+                };
+                v["to_kind"] = serde_json::json!(to_kind);
+                if let Some(id) = to {
+                    v["to"] = serde_json::json!(id);
+                }
+                v["act_kind"] = serde_json::json!(act.kind);
+                v["pointer"] = serde_json::json!(act.substance.uri);
+            }
+            v
+        })
+        .collect();
+    Ok(Json(serde_json::json!({
+        "total": total,
+        "head_hash": ledger.head_hash(),
+        "returned": acts.len(),
+        "acts": acts,
+    })))
+}
+
 pub fn admin_api_router(state: RestState) -> Router {
     Router::new()
         .route("/admin/api/admission-limits", post(admin_set_admission_limits))
+        .route("/admin/api/ledger", get(admin_ledger_tail))
         .route("/admin/api/joins", get(admin_list_joins))
         .route("/admin/api/joins/:request_id/admit", post(admin_admit_join))
         .route("/admin/api/joins/:request_id/deny", post(admin_deny_join))
@@ -6452,6 +6530,44 @@ norms:
         drop(ledger);
         notify_citizen(&state, Uuid::new_v4(), state.sovereign_lct_id, "notify:test", "ptr/2", b"x").await;
         assert_eq!(state.notifications.lock().await.len(), 1, "no pinned pubkey → dropped");
+    }
+
+    #[tokio::test]
+    async fn admin_ledger_tail_is_local_only_and_projects_referenced_acts() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let remote: std::net::SocketAddr = "8.8.8.8:9".parse().unwrap();
+        let local: std::net::SocketAddr = "127.0.0.1:9".parse().unwrap();
+        let q = || axum::extract::Query(LedgerTailQuery { since: None, limit: Some(50) });
+
+        // Operator plane is local-only: a remote caller is refused.
+        assert_eq!(
+            admin_ledger_tail(State(state.clone()), ConnectInfo(remote), q())
+                .await.err().unwrap().status,
+            StatusCode::FORBIDDEN
+        );
+
+        // Witness a member→citizen notice; it appears in the tail with who/what/pointer
+        // projected from the clear envelope (the sealed body never reaches the ledger).
+        let kp = KeyPair::generate();
+        let citizen = Uuid::new_v4();
+        witness_event(&state, HubEvent::MemberAdded {
+            member_lct_id: citizen,
+            added_by: state.sovereign_lct_id,
+            member_name: Some("Cit".into()),
+            member_pubkey_hex: Some(kp.verifying_key().to_hex()),
+        }).await.unwrap();
+        notify_citizen(&state, citizen, state.sovereign_lct_id, "coordination", "forum/x#thread=t1", b"hi").await;
+
+        let resp = admin_ledger_tail(State(state.clone()), ConnectInfo(local), q()).await.unwrap().0;
+        let acts = resp["acts"].as_array().expect("acts array");
+        let ra = acts.iter().rev()
+            .find(|a| a["event"] == "referenced_act")
+            .expect("the referenced_act shows in the tail");
+        assert_eq!(ra["act_kind"], "coordination");
+        assert_eq!(ra["to_kind"], "citizen");
+        assert_eq!(ra["to"], serde_json::json!(citizen));
+        assert_eq!(ra["pointer"], "forum/x#thread=t1");
+        assert!(resp["total"].as_u64().unwrap() >= 1);
     }
 
     #[tokio::test]
