@@ -50,6 +50,52 @@ fn is_known_role(role: &str) -> bool {
     KNOWN_ROLES.contains(&role.to_lowercase().as_str())
 }
 
+/// The canonical **constellation session-capacity** role vocabulary — the
+/// `role_lct` a constellation orchestrator (e.g. hestia, claude-code) acts under
+/// for per-`(instance, role)` reputation (RFC #403 role dimension; #430 fold).
+///
+/// This is a **distinct namespace** from [`KNOWN_ROLES`] (the Web4 *society*
+/// roles — sovereign/administrator/…): a society role types delegation/admission/
+/// ATP authority, whereas a constellation role scopes an instance's reputation to
+/// the capacity it is acting in. Both are role vocabularies; they do not overlap.
+///
+/// Published per thread `identity-p1-cospec` (HUB Concern 2): self-declared roles
+/// fragment the fold exactly like `plugin_id` does one level up (`mesh-worker` vs
+/// `mesh_worker`). Members validate their declared role at connect against this
+/// set and **fail closed to [`DEFAULT_CONSTELLATION_ROLE`]** on any unknown value
+/// — never minting a novel role subject. See [`normalize_constellation_role`].
+pub const KNOWN_CONSTELLATION_ROLES: &[&str] = &[
+    "role:constellation:interactive-dev", // a human-driven session
+    "role:constellation:mesh-worker",     // a hub-mesh-fired autonomous session
+    "role:constellation:reviewer",        // a review/verify session
+    "role:constellation:autonomous-timer", // a scheduled/cron session
+    "role:constellation:member",          // the fail-closed default capacity
+];
+
+/// The fail-closed default constellation role: an unknown/unstated capacity folds
+/// here rather than fragmenting reputation onto a freely-minted role subject.
+/// Matches hestia's v1 `V1_CONSTELLATION_ROLE` placeholder.
+pub const DEFAULT_CONSTELLATION_ROLE: &str = "role:constellation:member";
+
+/// Whether `role` is a published constellation session-capacity role.
+/// Case-sensitive: the vocabulary is canonical lowercase `role:constellation:*`.
+pub fn is_known_constellation_role(role: &str) -> bool {
+    KNOWN_CONSTELLATION_ROLES.contains(&role)
+}
+
+/// Validate a self-declared constellation role at connect, failing closed to
+/// [`DEFAULT_CONSTELLATION_ROLE`] on any unpublished value. This is the hub's
+/// half of the HUB Concern 2 contract: a member calls this with the role it
+/// declared, stamps the returned canonical string as its `role_lct`, and thereby
+/// cannot fragment the fold with a typo'd or novel capacity.
+pub fn normalize_constellation_role(declared: &str) -> &'static str {
+    KNOWN_CONSTELLATION_ROLES
+        .iter()
+        .find(|&&r| r == declared)
+        .copied()
+        .unwrap_or(DEFAULT_CONSTELLATION_ROLE)
+}
+
 /// Default admission repeat limit: denials before an applicant is auto-blocked.
 pub const DEFAULT_ADMISSION_REPEAT_LIMIT: u32 = 3;
 /// Default admission review limit: denial-review requests before the terminal
@@ -377,6 +423,41 @@ impl HubLawExt for Law {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn constellation_roles_are_a_separate_namespace_from_society_roles() {
+        // The two vocabularies must not overlap: a society role is never a valid
+        // constellation role and vice-versa (they type different things).
+        for r in KNOWN_CONSTELLATION_ROLES {
+            assert!(!is_known_role(r), "'{r}' leaked into the society role set");
+        }
+        for r in KNOWN_ROLES {
+            assert!(
+                !is_known_constellation_role(r),
+                "society role '{r}' is not a constellation role"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_constellation_role_fails_closed_to_default() {
+        // The HUB Concern 2 contract: typos/novel capacities do NOT fragment the
+        // fold — they collapse to the published default.
+        assert_eq!(
+            normalize_constellation_role("role:constellation:mesh_worker"), // underscore typo
+            DEFAULT_CONSTELLATION_ROLE
+        );
+        assert_eq!(
+            normalize_constellation_role("role:constellation:whatever-i-want"),
+            DEFAULT_CONSTELLATION_ROLE
+        );
+        // A published capacity passes through unchanged.
+        assert_eq!(
+            normalize_constellation_role("role:constellation:mesh-worker"),
+            "role:constellation:mesh-worker"
+        );
+        assert!(is_known_constellation_role(DEFAULT_CONSTELLATION_ROLE));
+    }
 
     /// The canonical example from hub-law-schema.md §1.
     const EXAMPLE_LAW: &str = r#"

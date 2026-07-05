@@ -2239,6 +2239,9 @@ fn temporal_delta(
     web4_core::r6::ReputationDelta {
         subject_lct: ob.subject_lct.clone(),
         role_lct: ob.role_lct.clone(),
+        // Hub-internal obligation-outcome delta: the hub does not hardware-attest
+        // the subject's sovereign here, so it stays at the fail-closed default.
+        sovereign_strength: web4_core::r6::SovereignStrength::default(),
         action_type: action_kind.to_string(),
         action_target: "hub".to_string(),
         action_id: action_id.to_string(),
@@ -2354,6 +2357,7 @@ async fn dispatch_channel(
                     "t3": rep.t3,
                     "v3": rep.v3,
                     "observations": rep.observations,
+                    "sovereign_strength": rep.sovereign_strength,
                     "last_updated": rep.last_updated,
                 }))
                 .collect();
