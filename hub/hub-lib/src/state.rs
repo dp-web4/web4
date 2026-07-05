@@ -125,6 +125,13 @@ pub struct RoleReputation {
     pub v3: web4_core::v3::V3,
     pub observations: u32,
     pub last_updated: DateTime<Utc>,
+    /// Attestation strength of this folded `(subject, role)` bucket — the
+    /// **weakest** sovereign strength of any delta that fed it (HUB Concern 1,
+    /// thread `identity-p1-cospec`). `placeholder` ⇒ member-attested, not
+    /// hub-verified: the subject's `instance_lct` derives from a placeholder
+    /// sovereign and cannot be cryptographically bound. Only a bucket fed
+    /// **exclusively** by hardware-sovereign deltas reports `hardware`.
+    pub sovereign_strength: web4_core::r6::SovereignStrength,
 }
 
 impl RoleReputation {
@@ -134,6 +141,9 @@ impl RoleReputation {
             v3: web4_core::v3::V3::default(),
             observations: 0,
             last_updated: ts,
+            // Neutral bucket, no deltas folded yet → strongest possible; the
+            // first (and every) delta can only weaken it via `min` below.
+            sovereign_strength: web4_core::r6::SovereignStrength::Hardware,
         }
     }
 }
@@ -598,6 +608,11 @@ impl HubState {
                         rep.v3.apply_delta(d, td.change);
                     }
                 }
+                // Fail-closed provenance: the bucket is only as strong as the
+                // weakest delta that fed it. A placeholder-attested delta pins the
+                // bucket to `placeholder` and no later hardware delta can upgrade
+                // the placeholder-era observations back to `hardware`.
+                rep.sovereign_strength = rep.sovereign_strength.min(delta.sovereign_strength);
                 rep.observations += 1;
                 rep.last_updated = ts;
             }
@@ -827,6 +842,7 @@ mod tests {
         let delta = web4_core::r6::ReputationDelta {
             subject_lct: subject.clone(),
             role_lct: "citizen".to_string(),
+            sovereign_strength: web4_core::r6::SovereignStrength::Hardware,
             action_type: "handoff".into(),
             action_target: "hub".into(),
             action_id: "act-1".into(),
@@ -854,6 +870,51 @@ mod tests {
         // Role-contextualized: a different role for the SAME subject is a distinct
         // pairing (no global reputation) — nothing there.
         assert!(state.reputation.get(&(subject, "treasurer".to_string())).is_none());
+        // Single hardware-attested delta → the bucket reports `hardware`.
+        assert_eq!(rep.sovereign_strength, web4_core::r6::SovereignStrength::Hardware);
+    }
+
+    #[tokio::test]
+    async fn fold_pins_bucket_to_weakest_sovereign_strength() {
+        // HUB Concern 2 (identity-p1-cospec): a placeholder-attested delta pins the
+        // (subject, role) bucket to `placeholder`, and a later hardware delta must
+        // NOT upgrade the placeholder-era observations back to `hardware`.
+        use std::collections::HashMap;
+        use web4_core::r6::{ReputationDelta, SovereignStrength, TensorDelta};
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let subject = Uuid::new_v4().to_string();
+        let mk = |strength: SovereignStrength, id: &str| {
+            let mut t3 = HashMap::new();
+            t3.insert("temperament".to_string(),
+                TensorDelta { change: 0.1, from_value: 0.0, to_value: 0.1 });
+            ReputationDelta {
+                subject_lct: subject.clone(),
+                role_lct: "role:constellation:mesh-worker".to_string(),
+                sovereign_strength: strength,
+                action_type: "act".into(), action_target: "hub".into(), action_id: id.into(),
+                rule_triggered: "r".into(), reason: "x".into(),
+                t3_delta: t3, v3_delta: HashMap::new(),
+                contributing_factors: vec![], witnesses: vec![], timestamp: Utc::now(),
+            }
+        };
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            // hardware first, then a placeholder delta, then hardware again.
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta: mk(SovereignStrength::Hardware, "a1") }),
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta: mk(SovereignStrength::Placeholder, "a2") }),
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta: mk(SovereignStrength::Hardware, "a3") }),
+        ]).await;
+        let state = HubState::project(&ledger);
+        let rep = state.reputation
+            .get(&(subject, "role:constellation:mesh-worker".to_string()))
+            .expect("bucket projected");
+        assert_eq!(rep.observations, 3);
+        assert_eq!(rep.sovereign_strength, SovereignStrength::Placeholder,
+            "one placeholder delta must pin the whole bucket to placeholder (fail-closed)");
     }
 
     #[tokio::test]
@@ -871,6 +932,7 @@ mod tests {
         let delta = web4_core::r6::ReputationDelta {
             subject_lct: subject.clone(),
             role_lct: "citizen".to_string(),
+            sovereign_strength: Default::default(),
             action_type: "handoff".into(), action_target: "hub".into(), action_id: "a".into(),
             rule_triggered: "r".into(), reason: "x".into(),
             t3_delta, v3_delta: HashMap::new(),

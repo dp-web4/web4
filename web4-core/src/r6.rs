@@ -221,6 +221,34 @@ pub struct ContributingFactor {
     pub description: String,
 }
 
+/// Attestation strength of the emitter's sovereign identity, carried on a
+/// [`ReputationDelta`] so the hub fold can qualify per-instance reputation.
+///
+/// A `subject_lct` derived from a **placeholder** sovereign (e.g. hestia's
+/// `lct:web4:hestia:sovereign:phase1-placeholder`) cannot be cryptographically
+/// bound to its claimed instance — the hub records the delta but must tag the
+/// folded bucket as **member-attested, not hub-verified**. When the hardware
+/// sovereign (TPM / P0 track) lands, the emitter flips this to `Hardware` and
+/// the instance identity becomes unforgeable. Fail-closed: absent ⇒
+/// `Placeholder` (the weakest claim), and a bucket is only as strong as the
+/// weakest delta that fed it (see `identity-p1-cospec`, HUB Concern 1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SovereignStrength {
+    /// Member-attested only: the sovereign is a phase-1 placeholder, so the hub
+    /// cannot verify the `(instance, role)` binding. Ordered **below** `Hardware`.
+    Placeholder,
+    /// Hardware-bound sovereign (TPM): the `instance_lct` is unforgeable.
+    Hardware,
+}
+
+impl Default for SovereignStrength {
+    fn default() -> Self {
+        // Fail-closed: an unstated strength is the weakest claim.
+        SovereignStrength::Placeholder
+    }
+}
+
 /// R7's first-class reputation output — explicit trust/value delta per action.
 ///
 /// Key: reputation is ROLE-CONTEXTUALIZED. The `role_lct` field determines
@@ -231,6 +259,11 @@ pub struct ReputationDelta {
     pub subject_lct: String,
     /// WHICH ROLE CONTEXT (the MRH link, not global)
     pub role_lct: String,
+    /// Attestation strength of the emitter's sovereign (see [`SovereignStrength`]).
+    /// Backward-compatible: deltas emitted before this field existed deserialize
+    /// as `Placeholder` (the fail-closed default), never fabricating `Hardware`.
+    #[serde(default)]
+    pub sovereign_strength: SovereignStrength,
     /// What action caused the change
     pub action_type: String,
     /// Target of the action
@@ -435,6 +468,7 @@ impl R7Action {
         self.reputation = Some(ReputationDelta {
             subject_lct: self.role.actor_lct.clone(),
             role_lct: self.role.role_lct.clone(),
+            sovereign_strength: SovereignStrength::default(),
             action_type: self.request.action.clone(),
             action_target: self.request.target.clone(),
             action_id: self.action_id.clone(),
