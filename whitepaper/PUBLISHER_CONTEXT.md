@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-07-04
+**Last Updated**: 2026-07-05
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,14 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-07-05: Publisher Maintenance — No-Change Verification (manual pass, dp-requested; all standing triggers unfired, zero whitepaper-scope churn; spec-audit surface converging to clean)
+- **Both standing integration triggers remain unfired.** `web4-standard/core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02) — no promotion to Normative. `web4-core/python` and `web4-trust-core` both still `version = "0.2.0"` — no v0.28.0 → PyPI publish. EUDI Phase 2 / did:web4: no new spec doc or status flip in `web4-standard/` since the 06-12 integration.
+- **Zero whitepaper-scope commits.** web4 commits since the 07-04 pass (`e0afca9..HEAD`); `git log e0afca9..HEAD -- whitepaper/ docs/whitepaper-web/` is empty — the churn is C135/C136/C137 3rd-delta spec audits (LCT-linked-context-token, inter-society-protocol, entity-types), each adding only its own audit-report file under the audit-tracking dir and each reporting a **2nd consecutive fully-clean delta** — the spec-audit surface is now converging to clean, not surfacing new remediation. Established out-of-scope profile.
+- **Source ↔ published in sync by construction.** All published artifacts still trace to the 06-12 source edit (`6a8d333`); PDFs 430514 bytes dated 2026-06-12, unchanged. No rebuild performed (CRLF/timestamp churn only).
+- **No term drift.** Drift-grep over live `sections/*` (excl. `*/archive/`) for all documented wrong expansions (ATP/LCT/T3/V3/ADP: Alignment Transfer Protocol, Attention/Attestation Token Protocol, Lightweight Coordination/Cryptographic Token, Attention Transfer Packet, Alignment Discharge) returns zero hits.
+- **Autonomous-run note (cross-repo):** the Synchronism 03:30 UTC autonomous Publisher again completed a full ~5m run (03:30:02→03:35:00, "Session Complete") but persisted no report (2026-07-05) — the same full-run-no-persist signature as 07-04, now confirmed on two consecutive days, i.e. a *reproducible* report-write/commit fault rather than startup flakiness (07-03 was a 40s startup crash). Logged in detail on the Synchronism side; the liveness-check + content-hash-trigger recommendations apply to the web4 stream too.
+- **Verdict:** clean no-change pass; no integration, no commit beyond this log entry. Standing triggers carried forward unchanged: v0.28.0 → PyPI; core-protocol → Normative; EUDI Phase 2 interop; PAIRED-CHANNELS watch (spec-surface only).
 
 ### 2026-07-04: Publisher Maintenance — No-Change Verification (manual pass, dp-requested; all standing triggers unfired, zero whitepaper-scope churn)
 - **Both standing integration triggers remain unfired.** `web4-standard/core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02) — no promotion to Normative. `web4-core/python` still `version = "0.2.0"` — no v0.28.0 → PyPI publish. EUDI Phase 2 / did:web4: no new spec doc or status flip.
