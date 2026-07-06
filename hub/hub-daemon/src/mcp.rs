@@ -24,7 +24,7 @@
 
 use anyhow::Result;
 use axum::{
-    extract::{Query, State},
+    extract::{ConnectInfo, Query, State},
     http::StatusCode,
     response::{IntoResponse, Json},
     routing::{get, post},
@@ -33,6 +33,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -276,8 +277,10 @@ struct EventRecordedResponse {
 
 async fn add_member(
     State(s): State<McpState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     Json(req): Json<AddMemberRequest>,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
+    require_loopback(&peer)?;
     let event = HubEvent::MemberAdded {
         member_lct_id: req.member_lct_id,
         added_by: s.sovereign_lct_id,
@@ -302,8 +305,10 @@ struct AssignRoleRequest {
 
 async fn assign_role(
     State(s): State<McpState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     Json(req): Json<AssignRoleRequest>,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
+    require_loopback(&peer)?;
     // Update the persisted society role-fill (web4-core enforces authority and
     // owns the role LCT), then witness the act in the ledger with that LCT.
     // Without the society update the assignment never showed as filled.
@@ -340,8 +345,10 @@ struct RecordEventRequest {
 
 async fn record_event(
     State(s): State<McpState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     Json(req): Json<RecordEventRequest>,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
+    require_loopback(&peer)?;
     let event = HubEvent::EventRecorded {
         event_kind: req.event_kind,
         title: req.title,
@@ -362,8 +369,10 @@ struct DeclareSkillRequest {
 
 async fn declare_skill(
     State(s): State<McpState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     Json(req): Json<DeclareSkillRequest>,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
+    require_loopback(&peer)?;
     let event = HubEvent::MemberSkillDeclared {
         member_lct_id: req.member_lct_id,
         skill: req.skill,
@@ -374,12 +383,49 @@ async fn declare_skill(
 
 // ---------- helper ----------
 
+/// Operator-plane guard for the MCP *write* tools. They sign as the Sovereign,
+/// so — unlike the read tools — they must never be reachable from the network
+/// (H-001): the MCP router is merged into the public listener, so each write
+/// tool rejects any non-loopback caller. Local reachability is still not full
+/// authorization (an operator token is the tracked follow-up), but this closes
+/// the remote Sovereign-signing bypass.
+fn require_loopback(peer: &SocketAddr) -> Result<(), ApiError> {
+    if peer.ip().is_loopback() {
+        Ok(())
+    } else {
+        Err(ApiError::forbidden(
+            "MCP write tools sign as the Sovereign and are local-only — reach them from the hub host",
+        ))
+    }
+}
+
 async fn append_with_sovereign(
     s: &McpState,
     event: HubEvent,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
     use chrono::Utc;
     use uuid::Uuid;
+
+    // Council gate (parity with REST /events, V2-9 Phase 2): if a council
+    // threshold of 2+ is active, a single-signer Sovereign commit is not
+    // permitted — governed acts must flow through council propose/sign. Without
+    // this the MCP write path silently bypasses the M-of-N guarantee REST
+    // enforces (H-002).
+    let council_threshold_active = {
+        let ledger = s.ledger.lock().await;
+        matches!(
+            hub_lib::state::HubState::project(&*ledger).council_threshold,
+            Some((m, _)) if m >= 2
+        )
+    };
+    if council_threshold_active {
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: "council mode active (threshold >= 2-of-N): submit governed acts via \
+                      POST /v1/hubs/{hub_id}/council/propose + /sign, not the MCP write tools"
+                .to_string(),
+        });
+    }
 
     // PolicyEntity gate (V2-8 §4): if a hub law is loaded, evaluate
     // before signing. MCP returns the same allow/deny/escalate decisions
@@ -458,4 +504,26 @@ async fn append_with_sovereign(
         entry_hash: entry.entry_hash.clone(),
         event_kind: entry.event.kind().to_string(),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// H-001 gate: the Sovereign-signing MCP write tools are merged into the
+    /// public listener, so they must refuse any non-loopback caller. (Read tools
+    /// stay open; only the write path carries Sovereign authority.)
+    #[test]
+    fn write_tools_require_loopback() {
+        let remote: SocketAddr = "203.0.113.7:52000".parse().unwrap();
+        let local4: SocketAddr = "127.0.0.1:52000".parse().unwrap();
+        let local6: SocketAddr = "[::1]:52000".parse().unwrap();
+        assert_eq!(
+            require_loopback(&remote).unwrap_err().status,
+            StatusCode::FORBIDDEN,
+            "a remote caller of a Sovereign-signing write tool must be forbidden"
+        );
+        assert!(require_loopback(&local4).is_ok(), "loopback v4 is allowed");
+        assert!(require_loopback(&local6).is_ok(), "loopback v6 is allowed");
+    }
 }
