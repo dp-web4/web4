@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-07-05
+**Last Updated**: 2026-07-06
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,14 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-07-06: Publisher Maintenance — No-Change Verification (manual pass, dp-requested; all standing triggers unfired; three-format artifact spread investigated and cleared as a benign mtime)
+- **Both standing integration triggers remain unfired.** `web4-standard/core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02) — no promotion to Normative. No v0.28.0 → PyPI publish signal; no EUDI Phase 2 / did:web4 spec doc or status flip in `web4-standard/` since the 06-12 integration.
+- **Zero whitepaper-scope commits.** web4 commits since the 07-05 pass (`d3f785d..HEAD`); `git log d3f785d..HEAD -- whitepaper/ docs/whitepaper-web/` is empty — the churn is C138/C140/C142/C144 3rd-delta spec audits (errors, security-framework, initial-registries, web4-handshake), identity-p1 constellation role enum, and hub-daemon ledger-tail/Cargo.lock plumbing. The C-series audits continue to report 2nd-consecutive fully-clean deltas (C142) or first-clean deltas (C140); one direction-inversion correction (C144 DELTA-1) landed in the spec-audit lane, not whitepaper scope. Established out-of-scope profile.
+- **Three-format artifact spread investigated → benign.** `docs/whitepaper-web/WEB4_Whitepaper_Complete.md` carries a Jun-30 filesystem mtime while the PDF/HTML show Jun-12, which superficially looked like the 06-12-style stale-artifact spread. `git log -- docs/whitepaper-web/WEB4_Whitepaper_Complete.md` confirms all three formats were last *committed* by the same commit `6a8d333` (2026-06-12), working tree clean — the mtime is a checkout/copy touch, not a content divergence. **Source ↔ published still in sync by construction** (last `whitepaper/sections/` commit is also `6a8d333`). No rebuild performed (would yield only CRLF/timestamp churn and re-open a real mtime spread).
+- **No term drift.** Drift-grep over live `sections/*` (excl. `*/archive/`) for all documented wrong expansions (ATP/LCT/T3/V3/ADP: Alignment Transfer Protocol, Attention/Attestation Token Protocol, Lightweight Coordination/Cryptographic Token, Attention Transfer Packet, Alignment Discharge) returns zero hits.
+- **Autonomous-run note (cross-repo):** the Synchronism 03:30 UTC autonomous Publisher **recovered today** — after three consecutive report-persist failures (07-03 startup crash / 07-04–07-05 full-run-no-persist), the 07-06 run persisted `reports/2026-07-06-publisher-report.md` and committed it (`2a355b6e`, HOLD). Its report labels itself the "3rd consecutive report-persist failure" recovery, but the artifact did land this cycle — the persist path worked. The liveness-check + content-hash-trigger recommendations still stand until the fault is understood (one success ≠ fixed).
+- **Verdict:** clean no-change pass; no integration, no commit beyond this log entry. Standing triggers carried forward unchanged: v0.28.0 → PyPI; core-protocol → Normative; EUDI Phase 2 interop; PAIRED-CHANNELS watch (spec-surface only).
 
 ### 2026-07-05: Publisher Maintenance — No-Change Verification (manual pass, dp-requested; all standing triggers unfired, zero whitepaper-scope churn; spec-audit surface converging to clean)
 - **Both standing integration triggers remain unfired.** `web4-standard/core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02) — no promotion to Normative. `web4-core/python` and `web4-trust-core` both still `version = "0.2.0"` — no v0.28.0 → PyPI publish. EUDI Phase 2 / did:web4: no new spec doc or status flip in `web4-standard/` since the 06-12 integration.
