@@ -2827,6 +2827,15 @@ fn enrich_member_hits(
     }
 }
 
+/// True iff `url`'s host is a loopback literal — the membox sidecar is local-only
+/// (H-011). Unparseable / non-loopback → false (fail-closed).
+fn membox_url_is_local(url: &str) -> bool {
+    match reqwest::Url::parse(url).ok().as_ref().and_then(|u| u.host_str()) {
+        Some(h) => matches!(h, "127.0.0.1" | "localhost" | "::1" | "[::1]"),
+        None => false,
+    }
+}
+
 /// Call the local membox sidecar (the discovery engine) for semantic member
 /// search. The hub composes membot as a localhost dependency; this never faces
 /// the network. A sidecar that's down → 503 with a clear message (discovery
@@ -2838,6 +2847,22 @@ async fn membox_find_members(
 ) -> Result<Vec<serde_json::Value>, ApiError> {
     let base = std::env::var("WEB4_MEMBOX_URL")
         .unwrap_or_else(|_| "http://127.0.0.1:8771".to_string());
+    // H-011: the sidecar is a localhost dependency (see doc above). A non-loopback
+    // WEB4_MEMBOX_URL would ship member queries + metadata off-box to an
+    // unauthenticated endpoint (exfiltration / result manipulation), so refuse it
+    // unless the operator explicitly opts in.
+    if !membox_url_is_local(&base)
+        && std::env::var("WEB4_MEMBOX_ALLOW_REMOTE").as_deref() != Ok("1")
+    {
+        tracing::warn!(
+            "refusing non-loopback WEB4_MEMBOX_URL={base} (set WEB4_MEMBOX_ALLOW_REMOTE=1 to allow)"
+        );
+        return Err(ApiError {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            message: "member-discovery sidecar must be loopback; set WEB4_MEMBOX_ALLOW_REMOTE=1 to override"
+                .to_string(),
+        });
+    }
     let client = reqwest::Client::new();
     let resp = client
         .post(format!("{}/find_members", base.trim_end_matches('/')))
@@ -6572,6 +6597,16 @@ norms:
         assert_eq!(ra["to"], serde_json::json!(citizen));
         assert_eq!(ra["pointer"], "forum/x#thread=t1");
         assert!(resp["total"].as_u64().unwrap() >= 1);
+    }
+
+    #[test]
+    fn membox_url_locality_is_fail_closed() {
+        // H-011: loopback literals pass; anything else (and unparseable) is refused.
+        assert!(membox_url_is_local("http://127.0.0.1:8771"));
+        assert!(membox_url_is_local("http://localhost:8771"));
+        assert!(!membox_url_is_local("http://10.0.0.5:8771"), "LAN host refused");
+        assert!(!membox_url_is_local("https://evil.example/find"), "remote refused");
+        assert!(!membox_url_is_local("not a url"), "unparseable is fail-closed");
     }
 
     #[tokio::test]
