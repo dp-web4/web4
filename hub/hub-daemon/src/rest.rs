@@ -476,7 +476,49 @@ impl RestState {
             .map(|l| l.version.clone())
             .unwrap_or_else(|| "none".to_string());
         *self.law.write().await = new_law;
+        // H-009: verify the served law against the witnessed ledger head.
+        self.verify_law_integrity().await;
         Ok(version)
+    }
+
+    /// H-009 (law rollback / tamper detection): compare the hash of the law we
+    /// actually serve (from the encrypted store) against the last `LawAmended`
+    /// witnessed in the ledger. Uses `Law::sha256_hex_of` — the exact function the
+    /// amendment path hashes with — so a match is authoritative. Logs a loud
+    /// warning on mismatch (served law diverged from the witnessed head: rollback
+    /// or store tampering) and returns a short status for callers/telemetry.
+    /// Warn-only for now; refuse-writes-on-mismatch is a follow-on once we've
+    /// confirmed there is no legitimate transient-mismatch window.
+    pub async fn verify_law_integrity(&self) -> &'static str {
+        // The hash the ledger last witnessed for the law (newest LawAmended).
+        let witnessed = {
+            let ledger = self.ledger.lock().await;
+            ledger.entries().iter().rev().find_map(|e| match &e.event {
+                HubEvent::LawAmended { new_law_sha256, .. } => Some(new_law_sha256.clone()),
+                _ => None,
+            })
+        };
+        // The hash of what we actually serve (readable only once unlocked).
+        let served = match self.open_store().await {
+            Ok(store) => match store.read_law().await {
+                Ok(Some(yaml)) => Some(hub_lib::law::Law::sha256_hex_of(&yaml)),
+                _ => None,
+            },
+            Err(_) => None,
+        };
+        match (witnessed, served) {
+            (Some(w), Some(s)) if w == s => "ok",
+            (Some(w), Some(s)) => {
+                tracing::warn!(
+                    witnessed = %w, served = %s,
+                    "LAW INTEGRITY MISMATCH — the served law does not match the last witnessed \
+                     LawAmended (possible rollback or store tampering); inspect and re-witness via `hub set-law`"
+                );
+                "mismatch"
+            }
+            // No law, or no LawAmended yet / store locked: nothing to verify against.
+            _ => "unverifiable",
+        }
     }
 
     /// The **unlock slot** (tier-1 ignition via the stub-console / passphrase
@@ -6678,6 +6720,40 @@ norms:
         assert_eq!(public_origin(&h), "https://hub.4-gov.org");
         assert_eq!(public_host(&h), "hub.4-gov.org", "did:web4 host also honors the config");
         std::env::remove_var("HUB_PUBLIC_BASE_URL");
+    }
+
+    #[tokio::test]
+    async fn law_integrity_ok_and_detects_mismatch() {
+        // H-009: verify_law_integrity compares the served law's hash against the
+        // newest witnessed LawAmended, using the same canonical sha256_hex_of.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        const LAW: &str = "version: \"1.0.0\"\nnorms: []\n";
+        {
+            let mut store = state.open_store().await.unwrap();
+            store.write_law(LAW).await.unwrap();
+        }
+        // No LawAmended witnessed yet → nothing to compare against.
+        assert_eq!(state.verify_law_integrity().await, "unverifiable");
+
+        // Witness a LawAmended carrying the hash of the ACTUAL stored law → ok.
+        let yaml = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
+        let good = hub_lib::law::Law::sha256_hex_of(&yaml);
+        witness_event(&state, HubEvent::LawAmended {
+            new_law_sha256: good,
+            amended_by: state.sovereign_lct_id,
+            version: "1.0.0".into(),
+            diff_summary: None,
+        }).await.unwrap();
+        assert_eq!(state.verify_law_integrity().await, "ok");
+
+        // A newer LawAmended with a different hash → served law no longer matches head.
+        witness_event(&state, HubEvent::LawAmended {
+            new_law_sha256: "0".repeat(64),
+            amended_by: state.sovereign_lct_id,
+            version: "1.0.1".into(),
+            diff_summary: None,
+        }).await.unwrap();
+        assert_eq!(state.verify_law_integrity().await, "mismatch");
     }
 
     #[tokio::test]

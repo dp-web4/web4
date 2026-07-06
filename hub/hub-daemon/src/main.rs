@@ -1029,6 +1029,10 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
              serve a signed law before production (hub set-law)"
         );
         println!("  ⚠ NO-LAW MODE — acts/admissions ungated; serve a signed law for production");
+    } else if rest_state.verify_law_integrity().await == "mismatch" {
+        // H-009: served law diverged from the witnessed ledger head (only checkable
+        // once the store is unlocked; a locked boot reports "unverifiable" → skipped).
+        println!("  ⚠ LAW INTEGRITY MISMATCH — served law != last witnessed LawAmended (see log)");
     }
     let app = mcp_router(mcp_state)
         .merge(rest_router(rest_state))
