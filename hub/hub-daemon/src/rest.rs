@@ -1477,9 +1477,9 @@ async fn vp_request(
     if hub_id != s.hub_id {
         return Err(ApiError::not_found(format!("unknown hub {hub_id}")));
     }
-    let host = headers.get(axum::http::header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("127.0.0.1");
-    let client_id = web4_core::did::did_web4(host, s.hub_id);
-    let response_uri = format!("http://{host}/v1/hubs/{}/vp/response", s.hub_id);
+    let host = public_host(&headers);
+    let client_id = web4_core::did::did_web4(&host, s.hub_id);
+    let response_uri = format!("{}/v1/hubs/{}/vp/response", public_origin(&headers), s.hub_id);
     let nonce = web4_core::oid4vc::opaque_token(Uuid::new_v4().as_bytes());
     let claims: Vec<&str> = body.required_claims.iter().map(|c| c.as_str()).collect();
     let mut req = web4_core::oid4vc::PresentationRequest::new(&client_id, &nonce, &response_uri, &body.vct);
@@ -1539,10 +1539,35 @@ async fn vp_response(
 const VCI_VCT: &str = "Web4Membership";
 
 /// The hub's OID4VCI `credential_issuer` URL: `http://<host>/v1/hubs/<id>`;
+/// H-005: the public origin (`scheme://host`) for OID issuer / audience /
+/// response URLs. If `HUB_PUBLIC_BASE_URL` is set (production behind a TLS
+/// proxy) it is authoritative and the request `Host` is NOT trusted. Unset →
+/// derive `http://{Host}` (dev only — `Host` is attacker-controlled, so issuer
+/// identity must not be minted from it in production).
+fn public_origin(headers: &axum::http::HeaderMap) -> String {
+    if let Ok(base) = std::env::var("HUB_PUBLIC_BASE_URL") {
+        let base = base.trim().trim_end_matches('/');
+        if !base.is_empty() {
+            return base.to_string();
+        }
+    }
+    let host = headers
+        .get(axum::http::header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("127.0.0.1");
+    format!("http://{host}")
+}
+
+/// The bare `host[:port]` for `did:web4` (which takes a host, not a URL),
+/// derived from [`public_origin`] so it honors `HUB_PUBLIC_BASE_URL` too.
+fn public_host(headers: &axum::http::HeaderMap) -> String {
+    let origin = public_origin(headers);
+    origin.split("://").nth(1).unwrap_or(&origin).to_string()
+}
+
 /// `for_vct` derives `<issuer>/credential` from it = the mounted route.
 fn vci_issuer_url(headers: &axum::http::HeaderMap, hub_id: Uuid) -> String {
-    let host = headers.get(axum::http::header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("127.0.0.1");
-    format!("http://{host}/v1/hubs/{hub_id}")
+    format!("{}/v1/hubs/{hub_id}", public_origin(headers))
 }
 
 /// GET /v1/hubs/{hub_id}/.well-known/openid-credential-issuer
@@ -1623,9 +1648,9 @@ async fn vci_credential(
     };
 
     // 4. Build the credential, signed by the hub identity.
-    let host = headers.get(axum::http::header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("127.0.0.1");
-    let issuer_did = web4_core::did::did_web4(host, s.sovereign_lct_id);
-    let subject_did = web4_core::did::did_web4(host, member_lct);
+    let host = public_host(&headers);
+    let issuer_did = web4_core::did::did_web4(&host, s.sovereign_lct_id);
+    let subject_did = web4_core::did::did_web4(&host, member_lct);
     let mut builder = web4_core::sd_jwt_vc::SdJwtVc::new(VCI_VCT, &issuer_did)
         .iat(now)
         .holder_binding(&holder_pk)
@@ -6638,6 +6663,21 @@ norms:
         assert!(!membox_url_is_local("http://10.0.0.5:8771"), "LAN host refused");
         assert!(!membox_url_is_local("https://evil.example/find"), "remote refused");
         assert!(!membox_url_is_local("not a url"), "unparseable is fail-closed");
+    }
+
+    #[test]
+    fn public_origin_honors_configured_base_over_host() {
+        use axum::http::{header::HOST, HeaderMap};
+        let mut h = HeaderMap::new();
+        h.insert(HOST, "attacker.example".parse().unwrap());
+        // Unset → derives from the (untrusted) Host header — dev behavior.
+        std::env::remove_var("HUB_PUBLIC_BASE_URL");
+        assert_eq!(public_origin(&h), "http://attacker.example");
+        // H-005: set → authoritative; the request Host is ignored, trailing slash trimmed.
+        std::env::set_var("HUB_PUBLIC_BASE_URL", "https://hub.4-gov.org/");
+        assert_eq!(public_origin(&h), "https://hub.4-gov.org");
+        assert_eq!(public_host(&h), "hub.4-gov.org", "did:web4 host also honors the config");
+        std::env::remove_var("HUB_PUBLIC_BASE_URL");
     }
 
     #[tokio::test]
