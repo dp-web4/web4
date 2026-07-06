@@ -33,6 +33,23 @@ We don't mandate the policy. We insist that whatever the policy is, is followed 
 | 5 | Docker package + first-chapter demo scripts | ✓ (Docker untested on dev machine; first operator with Docker should report) |
 | 6 | Pilot-organizer docs + polish | ✓ |
 
+## Deployment models (in process)
+
+> **Status: in process.** The hub runs today as a single binary + config file (see [Quick start](#quick-start)). The map below is the target set of turnkey deployment postures — and the `hub up` installer that selects them — so an operator with no IT background can stand a hub up in one command.
+
+The same binary is meant to serve a spectrum of deployments — each a **fail-closed config profile, not a fork** — chosen by one question: *how will people reach this hub?*
+
+| Archetype | Reachability | TLS | Operator access | For |
+|---|---|---|---|---|
+| Dev / local | localhost only | none | loopback (dev-warn) | building / testing |
+| Private (VPN) | overlay / tailnet only | overlay | SSH / loopback | trusted teams & fleets |
+| Public, managed | public DNS (e.g. Fly.io) | automatic | operator token | zero-server-care hosting |
+| Self-hosted, fixed IP | public, port exposed, no VPN | auto (Caddy + Let's Encrypt) | token; admin plane loopback | own-your-infra / data locality |
+| Self-hosted + VPN admin | public channel; **admin plane VPN-only** | automatic | token on channel; admin over overlay | public society, private administration |
+| Self-hosted via tunnel | public via reverse tunnel — **no static IP, no port-forward** | tunnel-provided | token | behind NAT / non-experts |
+
+**The `hub up` command (planned).** One command asks how the hub will be reached, maps it to an archetype, and does the rest: provisions TLS + domain, self-tests reachability (offering the tunnel path when the box is behind NAT, so there is **no port-forwarding or firewall editing**), generates a `0600` operator token, installs a signed **starter law with fail-closed defaults**, guides the interactive vault ignition (the passphrase is never written to disk), installs the service so a reboot self-heals to the locked shell, and prints a "you're live" summary. Guiding principle: **fail-closed by default, unsafe only by an explicit flag** — a non-expert cannot accidentally stand up an open, unauthenticated, no-law public hub.
+
 ## What this is
 
 - **Web4 society shell** — uses `web4-core` + `web4-trust-core` directly; no reimplementation of LCT / T3/V3 / MRH / ATP / R6 primitives
