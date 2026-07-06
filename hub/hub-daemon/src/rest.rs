@@ -1103,6 +1103,10 @@ async fn open_protected_tier(s: &RestState) -> Option<String> {
     }
 }
 
+/// H-010: hard cap on the tier-2 unlock verifier subprocess so a hung/slow
+/// verifier can't wedge the unlock-attestation path indefinitely.
+const UNLOCK_VERIFIER_TIMEOUT_SECS: u64 = 10;
+
 /// Invoke the private verifier subprocess: pipe the request JSON to stdin, read
 /// the decision JSON from stdout. Fail-closed: a non-zero exit or unparseable
 /// output is an error (the caller does not get a grant).
@@ -1111,10 +1115,19 @@ async fn run_unlock_verifier(
     req: &serde_json::Value,
 ) -> Result<VerifierDecision, ApiError> {
     use tokio::io::AsyncWriteExt;
+    // H-010: the verifier is a signing-authority gate — require an ABSOLUTE path so
+    // a compromised PATH / working directory can't substitute a different binary.
+    if !std::path::Path::new(cmd).is_absolute() {
+        return Err(ApiError {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            message: format!("HUB_UNLOCK_VERIFIER must be an absolute path (got {cmd:?})"),
+        });
+    }
     let mut child = tokio::process::Command::new(cmd)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true) // H-010: killed if the timeout below fires (drops this future)
         .spawn()
         .map_err(|e| ApiError {
             status: StatusCode::SERVICE_UNAVAILABLE,
@@ -1122,20 +1135,32 @@ async fn run_unlock_verifier(
         })?;
     let body = serde_json::to_vec(req)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing verifier request: {e}")))?;
-    {
-        let mut stdin = child.stdin.take().ok_or_else(|| {
-            ApiError::internal(anyhow::anyhow!("verifier stdin unavailable"))
-        })?;
-        stdin
-            .write_all(&body)
-            .await
-            .map_err(|e| ApiError::internal(anyhow::anyhow!("writing to verifier: {e}")))?;
-        // stdin dropped here → EOF for the verifier.
-    }
-    let out = child
-        .wait_with_output()
-        .await
-        .map_err(|e| ApiError::internal(anyhow::anyhow!("awaiting verifier: {e}")))?;
+    // H-010: bound the whole write+wait so a verifier that hangs on stdin or never
+    // exits can't stall the unlock path. On timeout the future drops → kill_on_drop.
+    let out = tokio::time::timeout(
+        std::time::Duration::from_secs(UNLOCK_VERIFIER_TIMEOUT_SECS),
+        async move {
+            {
+                let mut stdin = child.stdin.take().ok_or_else(|| {
+                    ApiError::internal(anyhow::anyhow!("verifier stdin unavailable"))
+                })?;
+                stdin
+                    .write_all(&body)
+                    .await
+                    .map_err(|e| ApiError::internal(anyhow::anyhow!("writing to verifier: {e}")))?;
+                // stdin dropped here → EOF for the verifier.
+            }
+            child
+                .wait_with_output()
+                .await
+                .map_err(|e| ApiError::internal(anyhow::anyhow!("awaiting verifier: {e}")))
+        },
+    )
+    .await
+    .map_err(|_elapsed| ApiError {
+        status: StatusCode::GATEWAY_TIMEOUT,
+        message: format!("unlock verifier timed out after {UNLOCK_VERIFIER_TIMEOUT_SECS}s (fail-closed)"),
+    })??;
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr);
         return Err(ApiError {
@@ -1345,6 +1370,11 @@ struct WellKnownHubInfo {
     /// tool-call base. Both are relative to the hub's reachable URL
     /// (the client already knows it — they fetched this from there).
     endpoints: WellKnownEndpoints,
+    /// True when a hub law is loaded. **`false` = no-law / permissive mode**
+    /// (H-003): acts and admissions are not gated by law. Production hubs should
+    /// serve a signed starter law; a no-law public hub is dev-only. Exposed so
+    /// clients/operators can detect the posture without guessing.
+    law_present: bool,
     /// Hubs this server hosts. Single-hub deployments return one entry;
     /// future multi-hub hosting returns multiple.
     hubs: Vec<WellKnownHubSummary>,
@@ -1376,6 +1406,7 @@ async fn well_known_hub_info(
             rest: "/v1",
             mcp: "/tools",
         },
+        law_present: s.law.read().await.is_some(),
         hubs: vec![WellKnownHubSummary {
             id: s.hub_id,
             name: s.hub_name.clone(),

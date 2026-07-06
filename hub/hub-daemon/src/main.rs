@@ -1021,6 +1021,15 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     let mut operator_state = rest_state.clone();
     operator_state.operator_plane = true; // this clone serves the write pages → show their nav links
     let operator_gate = rest_state.clone();
+    // H-003: make the no-law posture loud at startup — a hub with no law gates
+    // nothing (acts/admissions run permissive). Production must serve a signed law.
+    if rest_state.law.read().await.is_none() {
+        tracing::warn!(
+            "no hub law loaded — PERMISSIVE no-law mode: acts and admissions are NOT gated by law; \
+             serve a signed law before production (hub set-law)"
+        );
+        println!("  ⚠ NO-LAW MODE — acts/admissions ungated; serve a signed law for production");
+    }
     let app = mcp_router(mcp_state)
         .merge(rest_router(rest_state))
         .merge(admin::router(admin_state))
