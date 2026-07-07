@@ -5125,7 +5125,16 @@ mod channel_e2e_tests {
         tool: &str,
         args: serde_json::Value,
     ) -> String {
-        let inner = serde_json::json!({ "tool": tool, "args": args });
+        // H-007 Phase 1: the test harness seals what a real client (channel_client)
+        // does — nonce + issued_at on the ChannelInner — so the ~35 harness channel
+        // calls stay green once Phase-2 enforcement requires freshness on write
+        // tools. Behaviorally a no-op today (the hub tolerates both fields).
+        let inner = serde_json::json!({
+            "tool": tool,
+            "args": args,
+            "nonce": Uuid::new_v4().to_string(),
+            "issued_at": chrono::Utc::now().to_rfc3339(),
+        });
         let pt = serde_json::to_vec(&inner).unwrap();
         pair_channel::seal(applicant, hub_pub, pair_id, &pt)
             .unwrap()
