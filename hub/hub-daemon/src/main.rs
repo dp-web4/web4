@@ -997,8 +997,16 @@ async fn run_up(
     }
     println!();
     println!("Go live:");
+    // A copy-pasteable hub name: the hub_dir's last component ("./hub" → "hub").
+    let hub_name = hub_dir
+        .file_name()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty() && *s != ".")
+        .unwrap_or("hub");
     let mut n = 1;
-    println!("  {n}. hub init {}                 # create the identity (prompts for a passphrase)", hub_dir.display());
+    println!("  {n}. hub gen-lct sovereign.json           # your sovereign identity (prompts for a passphrase — keep both safe)");
+    n += 1;
+    println!("  {n}. hub init \"{hub_name}\" --sovereign-lct sovereign.json --hub-dir {}", hub_dir.display());
     n += 1;
     println!("  {n}. hub set-law {} {}   # ratify the law", hub_dir.display(), law_path.display());
     n += 1;
@@ -1021,6 +1029,9 @@ async fn run_up(
     }
     match &base_url {
         Some(u) => println!("You'll be live at: {u}"),
+        // 0.0.0.0 is a bind address, not a dialable URL.
+        None if arch.bind == "0.0.0.0" =>
+            println!("You'll be live at: this host's LAN/VPN address, port 8770"),
         None => println!("You'll be live at: http://{}:8770", arch.bind),
     }
     println!();
