@@ -211,7 +211,7 @@ def slash_atp(caller, violator, amount, evidence, witnesses):
 > **Supply accounting.** Slashing **destroys** ATP: the slashed amount is removed
 > from the society's `total_supply` (§3.1) rather than discharged to ADP. Slashing
 > therefore sits **outside** the transfer-conservation invariant
-> (`initial == final + fees`), which scopes only ATP→ADP transfers — a destruction
+> (`initial == final + fees`), which scopes only ATP transfers between entities (§6.3) — a destruction
 > event is an intended supply reduction, not a conservation violation.
 
 ## 3. Society Token Pools
