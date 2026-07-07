@@ -1110,13 +1110,18 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     // authorization; actions sign as the Sovereign and fail closed while locked.
     if admin_port != 0 {
         let op_addr: SocketAddr = format!("127.0.0.1:{}", admin_port).parse()?;
+        // H-004: pluggable operator-plane auth (loopback default / token). Built
+        // from HUB_OPERATOR_AUTH; applied as the OUTERMOST layer so an
+        // unauthorized caller is rejected before the lock gate and any handler.
+        let op_auth = crate::rest::OperatorAuth::from_env(&hub_dir)?;
         let operator_app = admin::router(operator_state.clone())
             .merge(admin::operator_router(operator_state.clone()))
             .merge(crate::rest::admin_api_router(operator_state))
             // Sovereign-signing MCP write tools live ONLY here (loopback-only,
             // never proxied) — residual-review P0.
             .merge(mcp_write_router(mcp_state))
-            .layer(axum::middleware::from_fn_with_state(operator_gate, crate::rest::lock_gate));
+            .layer(axum::middleware::from_fn_with_state(operator_gate, crate::rest::lock_gate))
+            .layer(axum::middleware::from_fn_with_state(op_auth, crate::rest::operator_auth_gate));
         match tokio::net::TcpListener::bind(op_addr).await {
             Ok(op_listener) => {
                 println!("  Operator:     http://{}/admin (LOCAL-ONLY: admit/deny/remove/re-key)", op_addr);
