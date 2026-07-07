@@ -115,7 +115,8 @@ impl McpState {
     }
 }
 
-pub fn router(state: McpState) -> Router {
+/// Read-only MCP tools — safe on the public listener.
+pub fn read_router(state: McpState) -> Router {
     Router::new()
         .route("/tools", get(list_tools))
         .route("/tools/query_hub", get(query_hub))
@@ -123,6 +124,18 @@ pub fn router(state: McpState) -> Router {
         .route("/tools/query_chapter", get(query_hub))
         .route("/tools/list_members", get(list_members))
         .route("/tools/find_skill", get(find_skill))
+        .with_state(state)
+}
+
+/// Sovereign-signing MCP **write** tools. P0 (residual review): these must live
+/// ONLY on the loopback operator listener. A same-host reverse proxy / tunnel
+/// forwarding public traffic to `127.0.0.1:<hub-port>` makes `ConnectInfo(peer)`
+/// read as loopback, so the `require_loopback` guard alone is defeated behind a
+/// proxy — exactly the public-deploy topology. Mounting them on the never-proxied
+/// operator plane (`:8772`, 127.0.0.1-only) closes that hole; the loopback guard
+/// stays as defense-in-depth.
+pub fn write_router(state: McpState) -> Router {
+    Router::new()
         .route("/tools/add_member", post(add_member))
         .route("/tools/assign_role", post(assign_role))
         .route("/tools/record_event", post(record_event))
@@ -176,10 +189,9 @@ async fn list_tools() -> Json<Vec<ToolDescriptor>> {
         ToolDescriptor { name: "query_hub",       method: "GET",  description: "Hub identity + role-fill + recent events" },
         ToolDescriptor { name: "list_members",   method: "GET",  description: "Current hub members" },
         ToolDescriptor { name: "find_skill",     method: "GET",  description: "Find members by skill (substring, case-insensitive). ?q=..." },
-        ToolDescriptor { name: "add_member",     method: "POST", description: "Add a new member" },
-        ToolDescriptor { name: "assign_role",    method: "POST", description: "Assign a role to a member" },
-        ToolDescriptor { name: "record_event",   method: "POST", description: "Record a hub event (demo night, workshop, etc.)" },
-        ToolDescriptor { name: "declare_skill",  method: "POST", description: "Declare a skill for a member" },
+        // Write tools (add_member/assign_role/record_event/declare_skill) sign as
+        // the Sovereign and are served ONLY on the loopback operator plane — not
+        // advertised here (they 404 on the public listener by design).
     ])
 }
 
@@ -309,9 +321,9 @@ async fn assign_role(
     Json(req): Json<AssignRoleRequest>,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
     require_loopback(&peer)?;
-    // Update the persisted society role-fill (web4-core enforces authority and
-    // owns the role LCT), then witness the act in the ledger with that LCT.
-    // Without the society update the assignment never showed as filled.
+    // Mutate the IN-MEMORY society to learn the role LCT and build the event.
+    // Nothing is persisted yet — `society` is a local copy; web4-core enforces
+    // authority and owns the role LCT.
     let mut store = s.open_store().await
         .map_err(ApiError::internal)?;
     let mut society = store.read_society().await
@@ -320,15 +332,18 @@ async fn assign_role(
     let role_lct_id = society
         .assign_role(req.role.clone(), req.member_lct_id, s.sovereign_lct_id)
         .map_err(|e| ApiError::forbidden(format!("role assignment rejected: {e}")))?;
-    store.write_society(&society).await.map_err(ApiError::internal)?;
-
     let event = HubEvent::RoleAssigned {
         role: req.role,
         role_lct_id,
         assigned_to: req.member_lct_id,
         assigned_by: s.sovereign_lct_id,
     };
-    append_with_sovereign(&s, event).await
+    // P0 (residual review): gate BEFORE persisting. A council/law rejection here
+    // drops the in-memory `society` (never written), so society state can't run
+    // ahead of the witnessed ledger. Persist + append only after the gate passes.
+    check_governance(&s, &event).await?;
+    store.write_society(&society).await.map_err(ApiError::internal)?;
+    append_signed_event(&s, event).await
 }
 
 // ---------- POST /tools/record_event ----------
@@ -399,18 +414,17 @@ fn require_loopback(peer: &SocketAddr) -> Result<(), ApiError> {
     }
 }
 
-async fn append_with_sovereign(
-    s: &McpState,
-    event: HubEvent,
-) -> Result<Json<EventRecordedResponse>, ApiError> {
-    use chrono::Utc;
-    use uuid::Uuid;
-
+/// The council + law governance gate, **read-only** (no signing, no append).
+///
+/// P0 (residual review): a handler that performs pre-append side effects — e.g.
+/// `assign_role` persisting society state — MUST call this *before* it persists,
+/// then call [`append_signed_event`]. Otherwise a council/law rejection can leave
+/// state ahead of the witnessed ledger. Handlers with no side effects can use the
+/// combined [`append_with_sovereign`].
+async fn check_governance(s: &McpState, event: &HubEvent) -> Result<(), ApiError> {
     // Council gate (parity with REST /events, V2-9 Phase 2): if a council
     // threshold of 2+ is active, a single-signer Sovereign commit is not
-    // permitted — governed acts must flow through council propose/sign. Without
-    // this the MCP write path silently bypasses the M-of-N guarantee REST
-    // enforces (H-002).
+    // permitted — governed acts must flow through council propose/sign (H-002).
     let council_threshold_active = {
         let ledger = s.ledger.lock().await;
         matches!(
@@ -427,17 +441,13 @@ async fn append_with_sovereign(
         });
     }
 
-    // PolicyEntity gate (V2-8 §4): if a hub law is loaded, evaluate
-    // before signing. MCP returns the same allow/deny/escalate decisions
-    // as REST. For MCP we encode deny + escalate as ApiError (which becomes
-    // a 500 with the error body for now — V2-16 admin UI is where escalation
-    // queueing actually lands).
+    // PolicyEntity gate (V2-8 §4): if a hub law is loaded, evaluate before signing.
     let law_guard = s.law.read().await;
     if let Some(law) = law_guard.as_ref() {
         let req = R6Request {
             role: "sovereign".to_string(),
             action: event.kind().to_string(),
-            payload: serde_yaml::to_value(&event)
+            payload: serde_yaml::to_value(event)
                 .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {}", e)))?,
             resource: Default::default(),
         };
@@ -445,9 +455,6 @@ async fn append_with_sovereign(
         match outcome.decision {
             Decision::Allow => { /* proceed */ }
             Decision::Warn => {
-                // Non-blocking flagged-allow: proceed, but surface the advisory.
-                // Structured Warn consumption (witnessing) lands with the
-                // sequenced hub-consumes step after the hestia migration.
                 tracing::warn!(
                     "act flagged by hub law (norm: {})",
                     outcome.winning_norm.as_deref().unwrap_or("?")
@@ -468,6 +475,18 @@ async fn append_with_sovereign(
             }
         }
     }
+    Ok(())
+}
+
+/// Sign `event` as the Sovereign and append it to the ledger. Assumes
+/// [`check_governance`] has already passed (use [`append_with_sovereign`] unless
+/// you've already preflighted around a side effect).
+async fn append_signed_event(
+    s: &McpState,
+    event: HubEvent,
+) -> Result<Json<EventRecordedResponse>, ApiError> {
+    use chrono::Utc;
+    use uuid::Uuid;
 
     // Build the unsigned entry under the lock, release for the (possibly
     // remote) sign, then re-acquire to commit. Same shape as REST.
@@ -504,6 +523,16 @@ async fn append_with_sovereign(
         entry_hash: entry.entry_hash.clone(),
         event_kind: entry.event.kind().to_string(),
     }))
+}
+
+/// Gate ([`check_governance`]) then append — for handlers with NO pre-append side
+/// effects (add_member, record_event, declare_skill).
+async fn append_with_sovereign(
+    s: &McpState,
+    event: HubEvent,
+) -> Result<Json<EventRecordedResponse>, ApiError> {
+    check_governance(s, &event).await?;
+    append_signed_event(s, event).await
 }
 
 #[cfg(test)]

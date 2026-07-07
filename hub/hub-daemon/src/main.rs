@@ -25,7 +25,7 @@ use uuid::Uuid;
 use web4_core::lct::EntityType;
 use web4_core::role::SocietyRole;
 
-use crate::mcp::{router as mcp_router, McpState};
+use crate::mcp::{read_router as mcp_read_router, write_router as mcp_write_router, McpState};
 use crate::rest::{router as rest_router, RestState};
 
 /// Web4 Community Hub — minimum-viable Web4 society for a community chapter.
@@ -1034,7 +1034,11 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         // once the store is unlocked; a locked boot reports "unverifiable" → skipped).
         println!("  ⚠ LAW INTEGRITY MISMATCH — served law != last witnessed LawAmended (see log)");
     }
-    let app = mcp_router(mcp_state)
+    // Public listener: read-only MCP tools + REST + read-only admin. The
+    // Sovereign-signing MCP WRITE tools are NOT here — they're mounted on the
+    // loopback operator plane below (residual-review P0: a same-host proxy makes
+    // ConnectInfo read as loopback, so the public listener can't safely carry them).
+    let app = mcp_read_router(mcp_state.clone())
         .merge(rest_router(rest_state))
         .merge(admin::router(admin_state))
         // Fail-closed lock-gate over the whole surface: while locked, only the
@@ -1062,6 +1066,9 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         let operator_app = admin::router(operator_state.clone())
             .merge(admin::operator_router(operator_state.clone()))
             .merge(crate::rest::admin_api_router(operator_state))
+            // Sovereign-signing MCP write tools live ONLY here (loopback-only,
+            // never proxied) — residual-review P0.
+            .merge(mcp_write_router(mcp_state))
             .layer(axum::middleware::from_fn_with_state(operator_gate, crate::rest::lock_gate));
         match tokio::net::TcpListener::bind(op_addr).await {
             Ok(op_listener) => {
