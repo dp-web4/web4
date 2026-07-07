@@ -1368,6 +1368,112 @@ pub async fn lock_gate(
     next.run(req).await
 }
 
+/// H-004: pluggable operator-plane authentication. The operator plane carries
+/// Sovereign-signing authority (admit/deny/remove/re-key + the MCP write tools),
+/// and **loopback reachability alone is not authentication** (any same-host
+/// process reaches 127.0.0.1 — X-001). Installation-configurable via the
+/// `HUB_OPERATOR_AUTH` env:
+///   - unset / `loopback` (default): loopback-only — for dev + boxes where SSH
+///     access *is* the second factor.
+///   - `token`: a random 0600 token file under `hub_dir`, required in the
+///     `X-Operator-Token` header on every operator request — for API/automation
+///     or public deployments.
+///
+/// Future backends (`uds` peer-cred, `mtls`, `proxy_header`) slot in behind this
+/// same middleware without touching handlers — the point dp asked for: one
+/// authorization seam, many installation-selected factors.
+#[derive(Clone)]
+pub struct OperatorAuth {
+    /// `Some(token)` in token mode; `None` in loopback-only mode.
+    token: Option<String>,
+}
+
+impl OperatorAuth {
+    /// Resolve from `HUB_OPERATOR_AUTH`. In `token` mode, load an existing token
+    /// file or generate one (0600) under `hub_dir`. Fail-closed: an unreadable
+    /// token file is an error, not a silent downgrade to loopback-only.
+    pub fn from_env(hub_dir: &std::path::Path) -> anyhow::Result<Self> {
+        use anyhow::Context;
+        match std::env::var("HUB_OPERATOR_AUTH").ok().as_deref() {
+            Some("token") => {
+                let path = hub_dir.join("operator.token");
+                let token = if path.exists() {
+                    std::fs::read_to_string(&path)
+                        .with_context(|| format!("reading operator token {}", path.display()))?
+                        .trim()
+                        .to_string()
+                } else {
+                    // 2×UUIDv4 = 256 bits, hex — no extra dep, plenty for a bearer token.
+                    let t = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+                    std::fs::write(&path, &t)
+                        .with_context(|| format!("writing operator token {}", path.display()))?;
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+                    }
+                    println!(
+                        "  operator auth: TOKEN mode — new token written to {} (0600); \
+                         send it as the X-Operator-Token header",
+                        path.display()
+                    );
+                    t
+                };
+                if token.is_empty() {
+                    anyhow::bail!("operator token file {} is empty", path.display());
+                }
+                Ok(Self { token: Some(token) })
+            }
+            // Default (unset or "loopback"): loopback-only.
+            _ => Ok(Self { token: None }),
+        }
+    }
+
+    /// Constant-time token check (no early-exit timing oracle on the header compare).
+    fn token_ok(&self, provided: Option<&str>) -> bool {
+        match (&self.token, provided) {
+            (Some(expected), Some(got)) => {
+                let (a, b) = (expected.as_bytes(), got.as_bytes());
+                let mut diff = a.len() ^ b.len();
+                for i in 0..a.len().max(b.len()) {
+                    diff |= (*a.get(i).unwrap_or(&0) ^ *b.get(i).unwrap_or(&0)) as usize;
+                }
+                diff == 0
+            }
+            _ => false,
+        }
+    }
+}
+
+/// H-004 operator-plane auth middleware — runs on the loopback operator listener.
+/// Enforces loopback (defense-in-depth over the 127.0.0.1 bind) + the configured
+/// second factor. Applied as the outermost layer, so an unauthorized caller is
+/// rejected before any handler or the lock gate.
+pub async fn operator_auth_gate(
+    State(auth): State<OperatorAuth>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    if !peer.ip().is_loopback() {
+        return (StatusCode::FORBIDDEN, "operator plane is local-only").into_response();
+    }
+    if auth.token.is_some() {
+        let provided = req
+            .headers()
+            .get("x-operator-token")
+            .and_then(|h| h.to_str().ok());
+        if !auth.token_ok(provided) {
+            return (
+                StatusCode::FORBIDDEN,
+                "operator token required or invalid (X-Operator-Token)",
+            )
+                .into_response();
+        }
+    }
+    next.run(req).await
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
         let body = serde_json::json!({"error": self.message});
@@ -6729,6 +6835,25 @@ norms:
         assert_eq!(public_origin(&h), "https://hub.4-gov.org");
         assert_eq!(public_host(&h), "hub.4-gov.org", "did:web4 host also honors the config");
         std::env::remove_var("HUB_PUBLIC_BASE_URL");
+    }
+
+    #[test]
+    fn operator_auth_token_check_exact_and_length_safe() {
+        let auth = OperatorAuth { token: Some("s3cret-token".to_string()) };
+        assert!(auth.token_ok(Some("s3cret-token")));
+        assert!(!auth.token_ok(Some("s3cret-toke")), "shorter rejected");
+        assert!(!auth.token_ok(Some("s3cret-tokenX")), "longer rejected");
+        assert!(!auth.token_ok(Some("wrong")), "wrong rejected");
+        assert!(!auth.token_ok(None), "missing header rejected");
+        assert!(!OperatorAuth { token: None }.token_ok(Some("x")), "loopback mode has no token");
+    }
+
+    #[test]
+    fn operator_auth_defaults_to_loopback() {
+        std::env::remove_var("HUB_OPERATOR_AUTH");
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(OperatorAuth::from_env(tmp.path()).unwrap().token.is_none(),
+            "unset HUB_OPERATOR_AUTH → loopback-only");
     }
 
     #[tokio::test]
