@@ -929,6 +929,29 @@ async fn run_query(sub: QueryCommand) -> Result<()> {
     }
 }
 
+/// P1 (residual review): production-profile preflight — pure + testable. Returns
+/// `Err(reason)` when a required hardening isn't satisfied and isn't explicitly
+/// overridden. Enforced only under `HUB_PROFILE=production` (opt-in; this fleet
+/// binds 0.0.0.0 for a tailnet, which isn't "public", so it can't be auto-derived).
+fn production_preflight(
+    law_present: bool,
+    public_base_url: &str,
+    allow_no_law: bool,
+    allow_insecure_origin: bool,
+) -> std::result::Result<(), &'static str> {
+    if !law_present && !allow_no_law {
+        return Err("refusing to serve with NO hub law (acts/admissions ungated). \
+                    Serve a signed law (hub set-law), or set HUB_ALLOW_NO_LAW=1");
+    }
+    let origin_ok = public_base_url.starts_with("https://")
+        || (public_base_url.starts_with("http://") && allow_insecure_origin);
+    if !origin_ok {
+        return Err("HUB_PUBLIC_BASE_URL must be an https:// origin (issuer/audience URLs must \
+                    not derive from the Host header). Set it, or HUB_ALLOW_INSECURE_ORIGIN=1 for http dev");
+    }
+    Ok(())
+}
+
 async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, admin_port: u16) -> Result<()> {
     let config = HubConfig::load(hub_lib::hub::HubPaths::new(&hub_dir).config())?;
     let port = port_override.unwrap_or(config.daemon.mcp_port);
@@ -1034,6 +1057,30 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         // once the store is unlocked; a locked boot reports "unverifiable" → skipped).
         println!("  ⚠ LAW INTEGRITY MISMATCH — served law != last witnessed LawAmended (see log)");
     }
+
+    // P1 (residual review): production profile. Opt-in via HUB_PROFILE=production
+    // (the `hub up` kit sets it for public archetypes). When on, REFUSE the unsafe
+    // defaults GPT flagged unless explicitly overridden. Deliberately NOT auto-
+    // derived from the bind address: this hub binds 0.0.0.0 for a *tailnet*, which
+    // is not "public", so an off-by-default enforcement must be opt-in.
+    let loopback_bind = matches!(bind.as_str(), "127.0.0.1" | "localhost" | "::1" | "[::1]");
+    if std::env::var("HUB_PROFILE").as_deref() == Ok("production") {
+        let law_present = rest_state.law.read().await.is_some();
+        production_preflight(
+            law_present,
+            &std::env::var("HUB_PUBLIC_BASE_URL").unwrap_or_default(),
+            std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
+            std::env::var("HUB_ALLOW_INSECURE_ORIGIN").as_deref() == Ok("1"),
+        )
+        .map_err(|e| anyhow::anyhow!("HUB_PROFILE=production: {e}"))?;
+        println!("  production profile: law + https public base URL enforced");
+    } else if !loopback_bind {
+        println!(
+            "  ⚠ public bind ({bind}) without HUB_PROFILE=production — hardening (require law + \
+             https base URL) is NOT enforced; set HUB_PROFILE=production to enable it"
+        );
+    }
+
     // Public listener: read-only MCP tools + REST + read-only admin. The
     // Sovereign-signing MCP WRITE tools are NOT here — they're mounted on the
     // loopback operator plane below (residual-review P0: a same-host proxy makes
@@ -1585,6 +1632,19 @@ fn slugify(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn production_preflight_requires_law_and_https_origin() {
+        // Happy path: law present + https origin.
+        assert!(production_preflight(true, "https://hub.4-gov.org", false, false).is_ok());
+        // No law → refused, unless HUB_ALLOW_NO_LAW.
+        assert!(production_preflight(false, "https://x", false, false).is_err());
+        assert!(production_preflight(false, "https://x", true, false).is_ok());
+        // Missing / http origin → refused, unless HUB_ALLOW_INSECURE_ORIGIN.
+        assert!(production_preflight(true, "", false, false).is_err());
+        assert!(production_preflight(true, "http://x", false, false).is_err());
+        assert!(production_preflight(true, "http://x", false, true).is_ok());
+    }
 
     #[test]
     fn slugify_handles_common_cases() {
