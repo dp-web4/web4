@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-07-06
+**Last Updated**: 2026-07-07
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,14 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-07-07: Publisher Maintenance — No-Change Verification (manual pass, dp-requested; all standing triggers unfired, zero whitepaper-scope churn; hub security-hardening sprint dominates the window)
+- **Both standing integration triggers remain unfired.** `web4-standard/core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02) — no promotion to Normative. `web4-core/python` and `web4-trust-core` both still `version = "0.2.0"` — no v0.28.0 → PyPI publish. No EUDI Phase 2 / did:web4 spec doc or status flip in `web4-standard/`.
+- **Zero whitepaper-scope commits.** 16 web4 commits since the 07-06 pass (`d427855..HEAD`); `git log d427855..HEAD -- whitepaper/ docs/whitepaper-web/` is empty. The window is dominated by a hub security-hardening sprint (H-001…H-011: loopback gating, operator-plane auth, law-head verification, nonce/freshness sealing; PRs #462–#473) plus C146/C148/C150 3rd-delta spec audits. C148 (mcp-protocol) CLEAN; C150 (atp-adp-cycle) closed N2 and flagged **1 LOW latent: §2.4 "ATP→ADP transfers" scope mislabel in the *spec*, newly load-bearing** — spec-audit lane, not whitepaper scope, but the whitepaper's ATP/ADP section (05-part3) should be re-checked against §2.4 if/when the spec-side fix lands. Established out-of-scope profile otherwise.
+- **Source ↔ published in sync by construction.** Last `whitepaper/sections/` commit and last `docs/whitepaper-web/` commit are both `6a8d333` (2026-06-12); working tree clean. PDF unchanged (430514 bytes, 2026-06-12). No rebuild performed (would yield only CRLF/timestamp churn).
+- **No term drift.** Drift-grep over live `sections/*` (excl. `*/archive/`) for all documented wrong expansions (ATP/LCT/T3/V3/ADP: Alignment Transfer Protocol, Attention/Attestation Token Protocol, Lightweight Coordination/Cryptographic Token, Attention Transfer Packet, Alignment Discharge, Audit Trail Point, Lifecycle-Continuous Trust, Triple Trust/Value) returns zero hits. Same grep over Synchronism `whitepaper/sections/`: zero hits.
+- **Autonomous-run note (cross-repo):** the Synchronism 03:30 UTC autonomous Publisher regressed after its 07-06 recovery — the 07-07 cron left only a "Starting" line, and a manual pass covered the day (report persisted + committed `ad0ce44f`, verdict HOLD; its Phase-1 marks both whitepapers Current, no proposals, no terminology concerns). That is 4 faults in 5 days across two failure signatures; the liveness-check + content-hash-trigger recommendations remain open and now look necessary rather than precautionary.
+- **Verdict:** clean no-change pass; no integration, no commit beyond this log entry. Standing triggers carried forward unchanged: v0.28.0 → PyPI; core-protocol → Normative; EUDI Phase 2 interop; PAIRED-CHANNELS watch (spec-surface only). New watch item: C150 §2.4 scope-mislabel fix → re-check whitepaper ATP/ADP section on landing.
 
 ### 2026-07-06: Publisher Maintenance — No-Change Verification (manual pass, dp-requested; all standing triggers unfired; three-format artifact spread investigated and cleared as a benign mtime)
 - **Both standing integration triggers remain unfired.** `web4-standard/core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02) — no promotion to Normative. No v0.28.0 → PyPI publish signal; no EUDI Phase 2 / did:web4 spec doc or status flip in `web4-standard/` since the 06-12 integration.
