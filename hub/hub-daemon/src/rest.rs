@@ -2089,16 +2089,37 @@ struct ChannelInner {
     tool: String,
     #[serde(default)]
     args: serde_json::Value,
-    /// Anti-replay nonce, fresh per request. Optional for back-compat: when
-    /// present it keys the replay guard directly; when absent the guard falls
-    /// back to the sealed-blob hash (still rejects byte-identical replays).
+    /// Anti-replay nonce, fresh per request. REQUIRED (non-empty) on
+    /// write-class tools since H-007 Phase 2; optional on reads for
+    /// back-compat — when absent there, the replay guard falls back to the
+    /// sealed-blob hash (still rejects byte-identical replays).
     #[serde(default)]
     nonce: Option<String>,
-    /// Client send time. Optional for back-compat: when present, requests
-    /// outside the freshness window are rejected, which makes the TTL-bounded
-    /// replay set complete (a replay can't outlive the window it's checked in).
+    /// Client send time. REQUIRED on write-class tools since H-007 Phase 2;
+    /// optional on reads for back-compat. When present, requests outside the
+    /// freshness window are rejected, which makes the TTL-bounded replay set
+    /// complete (a replay can't outlive the window it's checked in).
     #[serde(default)]
     issued_at: Option<DateTime<Utc>>,
+}
+
+/// H-007 Phase 2 (thread sec-mesh-freshness): the write-class channel tools —
+/// anything that witnesses a ledger event or mutates admission / intro /
+/// constellation-MFA state. These REQUIRE freshness fields (non-empty `nonce`
+/// + `issued_at`); reads stay tolerant because they're idempotent — a replayed
+/// read leaks nothing new and older read-only callers keep working.
+fn channel_tool_requires_freshness(tool: &str) -> bool {
+    matches!(
+        tool,
+        "request_citizenship"
+            | "request_admission_review"
+            | "record_reputation"
+            | "request_intro"
+            | "respond_intro"
+            | "referenced_act"
+            | "constellation_challenge"
+            | "present_constellation"
+    )
 }
 
 async fn channel_request(
@@ -2152,6 +2173,24 @@ async fn channel_request(
     // namespaced by caller so a nonce value can't collide across members.
     // Reads are idempotent so this is harmless for them; the seal is randomized
     // per call, so a legitimate re-invocation is a new key, never a false reject.
+    //
+    // H-007 Phase 2 (flipped after both fleet halves shipped: web4#471 +
+    // hestia#16): a write-class tool gets NO back-compat tolerance — absent or
+    // empty `nonce`, or absent `issued_at`, is fail-closed rejected. Every
+    // witnessed act is therefore freshness-bounded and nonce-deduped, never
+    // hash-fallback-deduped.
+    if channel_tool_requires_freshness(&inner.tool) {
+        if !inner.nonce.as_deref().is_some_and(|n| !n.trim().is_empty()) {
+            return Err(ApiError::bad_request(
+                "write-class channel request requires a non-empty 'nonce' (H-007 Phase 2)".to_string(),
+            ));
+        }
+        if inner.issued_at.is_none() {
+            return Err(ApiError::bad_request(
+                "write-class channel request requires 'issued_at' (H-007 Phase 2)".to_string(),
+            ));
+        }
+    }
     let now = Utc::now();
     const CHANNEL_FRESHNESS_SECS: i64 = 120;
     if let Some(issued) = inner.issued_at {
@@ -2719,8 +2758,24 @@ async fn dispatch_channel(
                 .ok_or_else(|| ApiError::bad_request("referenced_act requires 'kind'".to_string()))?.to_string();
             let uri = inner.args.get("pointer_uri").and_then(|v| v.as_str())
                 .ok_or_else(|| ApiError::bad_request("referenced_act requires 'pointer_uri'".to_string()))?.to_string();
+            // H-008 Phase 2: the substance `content_hash` is REQUIRED and
+            // scheme-tagged so the witnessed record says what the hash covers:
+            // `git-sha:` pins a PR/commit pointer, `sha256-content:` hashes the
+            // readable content, `sha256-pointer:` is the opaque-pointer
+            // fallback. Untagged or missing → fail-closed reject (fleet
+            // convention; emitters: hub-notify.sh + channel clients).
+            const CONTENT_HASH_SCHEMES: [&str; 3] =
+                ["git-sha:", "sha256-content:", "sha256-pointer:"];
             let content_hash = inner.args.get("content_hash").and_then(|v| v.as_str())
                 .unwrap_or("").to_string();
+            if !CONTENT_HASH_SCHEMES.iter()
+                .any(|s| content_hash.len() > s.len() && content_hash.starts_with(s))
+            {
+                return Err(ApiError::bad_request(
+                    "referenced_act requires a scheme-tagged 'content_hash' \
+                     (git-sha:|sha256-content:|sha256-pointer:) (H-008 Phase 2)".to_string(),
+                ));
+            }
             let medium: web4_core::act::SubstanceMedium = inner.args.get("medium")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
                 .unwrap_or(web4_core::act::SubstanceMedium::Other);
@@ -5222,6 +5277,7 @@ mod channel_e2e_tests {
             "to": { "to": "peer", "lct_id": member_lct },
             "kind": "handoff",
             "pointer_uri": "pr/423#thread=t1",
+            "content_hash": "git-sha:0123456789abcdef0123456789abcdef01234567",
         }));
         let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
             caller_lct_id: member_lct, pair_id: pid2, sealed: sealed2, caller_pubkey_hex: None,
@@ -5245,8 +5301,8 @@ mod channel_e2e_tests {
     #[tokio::test]
     async fn channel_replay_is_rejected_and_does_not_double_witness() {
         // Capture-and-replay: re-POSTing the identical sealed bytes must be
-        // rejected, or a write act would be witnessed twice. Uses the back-compat
-        // hash path (seal_req sends no nonce/issued_at).
+        // rejected, or a write act would be witnessed twice. seal_req stamps a
+        // nonce (H-007 Phase 1), so the replay dedups on the nonce path.
         let (_tmp, state) = fresh_rest_state(None).await;
         let hub_pub = state.signer.public_key().unwrap();
         let member = KeyPair::generate();
@@ -5265,6 +5321,7 @@ mod channel_e2e_tests {
             "to": { "to": "peer", "lct_id": member_lct },
             "kind": "handoff",
             "pointer_uri": "pr/999#thread=t1",
+            "content_hash": "git-sha:0123456789abcdef0123456789abcdef01234567",
         }));
         let mk = || ChannelRequest {
             caller_lct_id: member_lct, pair_id: pid2, sealed: sealed2.clone(), caller_pubkey_hex: None,
@@ -5300,7 +5357,7 @@ mod channel_e2e_tests {
         let hub_pub = state.signer.public_key().unwrap();
         let member = KeyPair::generate();
         let member_lct = Uuid::new_v4();
-        // Pin first (fresh request_citizenship, no issued_at → accepted).
+        // Pin first (fresh request_citizenship; seal_req stamps nonce + issued_at).
         let pid = Uuid::new_v4();
         let sealed = seal_req(&member, &hub_pub, pid, "request_citizenship",
             serde_json::json!({ "name": "Timely" }));
@@ -5322,6 +5379,109 @@ mod channel_e2e_tests {
             caller_lct_id: member_lct, pair_id: pid2, sealed: sealed2, caller_pubkey_hex: None,
         })).await;
         assert!(res.is_err(), "stale issued_at must be rejected as out-of-window");
+    }
+
+    /// Seal a raw ChannelInner (arbitrary fields) and POST it as `lct`.
+    async fn post_raw_inner(state: &RestState, m: &KeyPair, lct: Uuid,
+                            hub_pub: &web4_core::crypto::PublicKey,
+                            inner: serde_json::Value) -> Result<Json<ChannelResponse>, ApiError> {
+        let pid = Uuid::new_v4();
+        let sealed = pair_channel::seal(m, hub_pub, pid, &serde_json::to_vec(&inner).unwrap())
+            .unwrap().to_base64();
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: lct, pair_id: pid, sealed, caller_pubkey_hex: None,
+        })).await
+    }
+
+    #[tokio::test]
+    async fn phase2_write_without_freshness_is_rejected_reads_stay_tolerant() {
+        // H-007 Phase 2: a write-class tool missing `nonce` (or sending an empty
+        // one) or missing `issued_at` is fail-closed rejected. Reads keep the
+        // back-compat tolerance — a bare {tool,args} presence still works.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let (m, lct) = pin_member(&state, &hub_pub).await;
+        let act_args = serde_json::json!({
+            "to": { "to": "peer", "lct_id": lct },
+            "kind": "handoff",
+            "pointer_uri": "pr/1#thread=t",
+            "content_hash": "git-sha:0123456789abcdef0123456789abcdef01234567",
+        });
+
+        // No nonce (issued_at present) → rejected.
+        let r = post_raw_inner(&state, &m, lct, &hub_pub, serde_json::json!({
+            "tool": "referenced_act", "args": act_args,
+            "issued_at": Utc::now().to_rfc3339(),
+        })).await;
+        assert!(r.is_err(), "write without nonce must be rejected");
+
+        // Empty nonce → rejected.
+        let r = post_raw_inner(&state, &m, lct, &hub_pub, serde_json::json!({
+            "tool": "referenced_act", "args": act_args,
+            "nonce": "", "issued_at": Utc::now().to_rfc3339(),
+        })).await;
+        assert!(r.is_err(), "write with empty nonce must be rejected");
+
+        // No issued_at (nonce present) → rejected.
+        let r = post_raw_inner(&state, &m, lct, &hub_pub, serde_json::json!({
+            "tool": "referenced_act", "args": act_args,
+            "nonce": Uuid::new_v4().to_string(),
+        })).await;
+        assert!(r.is_err(), "write without issued_at must be rejected");
+
+        // A read with neither field is still served (back-compat, idempotent).
+        let r = post_raw_inner(&state, &m, lct, &hub_pub, serde_json::json!({
+            "tool": "presence", "args": {},
+        })).await;
+        assert!(r.is_ok(), "bare read must stay accepted");
+    }
+
+    #[tokio::test]
+    async fn phase2_untagged_or_missing_content_hash_is_rejected() {
+        // H-008 Phase 2: referenced_act must carry a scheme-tagged content_hash
+        // (git-sha: | sha256-content: | sha256-pointer:). Raw hex or absent →
+        // fail-closed reject; a tagged one is witnessed.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let (m, lct) = pin_member(&state, &hub_pub).await;
+        let base = serde_json::json!({
+            "to": { "to": "peer", "lct_id": lct },
+            "kind": "memo",
+            "pointer_uri": "forum/x.md",
+        });
+
+        let mk = |extra: serde_json::Value| {
+            let mut a = base.clone();
+            if let Some(h) = extra.as_str() { a["content_hash"] = serde_json::json!(h); }
+            a
+        };
+
+        // Missing content_hash → rejected. (Bypasses ref_act's compliance default.)
+        let r = post_raw_inner(&state, &m, lct, &hub_pub, serde_json::json!({
+            "tool": "referenced_act", "args": mk(serde_json::Value::Null),
+            "nonce": Uuid::new_v4().to_string(), "issued_at": Utc::now().to_rfc3339(),
+        })).await;
+        assert!(r.is_err(), "missing content_hash must be rejected");
+
+        // Untagged raw hex → rejected.
+        let r = post_raw_inner(&state, &m, lct, &hub_pub, serde_json::json!({
+            "tool": "referenced_act", "args": mk(serde_json::json!("deadbeefdeadbeef")),
+            "nonce": Uuid::new_v4().to_string(), "issued_at": Utc::now().to_rfc3339(),
+        })).await;
+        assert!(r.is_err(), "untagged content_hash must be rejected");
+
+        // Bare tag with no value → rejected.
+        let r = post_raw_inner(&state, &m, lct, &hub_pub, serde_json::json!({
+            "tool": "referenced_act", "args": mk(serde_json::json!("sha256-content:")),
+            "nonce": Uuid::new_v4().to_string(), "issued_at": Utc::now().to_rfc3339(),
+        })).await;
+        assert!(r.is_err(), "empty-value content_hash must be rejected");
+
+        // Properly tagged → witnessed.
+        let ok = ref_act(&state, &m, lct, &hub_pub, mk(serde_json::json!(
+            format!("sha256-content:{}", web4_core::sha256_hex(b"memo-body"))
+        ))).await.expect("tagged content_hash accepted");
+        assert_eq!(ok["recorded"], serde_json::json!(true));
     }
 
     #[tokio::test]
@@ -5395,7 +5555,12 @@ mod channel_e2e_tests {
     }
 
     async fn ref_act(state: &RestState, m: &KeyPair, lct: Uuid, hub_pub: &web4_core::crypto::PublicKey,
-                     args: serde_json::Value) -> Result<serde_json::Value, ApiError> {
+                     mut args: serde_json::Value) -> Result<serde_json::Value, ApiError> {
+        // H-008 Phase 2 compliance for tests that don't care about the hash.
+        if args.get("content_hash").is_none() {
+            args["content_hash"] = serde_json::json!(
+                format!("sha256-content:{}", web4_core::sha256_hex(b"test-substance")));
+        }
         let pid = Uuid::new_v4();
         let sealed = seal_req(m, hub_pub, pid, "referenced_act", args);
         let r = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
