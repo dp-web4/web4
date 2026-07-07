@@ -938,6 +938,8 @@ fn production_preflight(
     public_base_url: &str,
     allow_no_law: bool,
     allow_insecure_origin: bool,
+    operator_token_auth: bool,
+    allow_loopback_operator: bool,
 ) -> std::result::Result<(), &'static str> {
     if !law_present && !allow_no_law {
         return Err("refusing to serve with NO hub law (acts/admissions ungated). \
@@ -948,6 +950,15 @@ fn production_preflight(
     if !origin_ok {
         return Err("HUB_PUBLIC_BASE_URL must be an https:// origin (issuer/audience URLs must \
                     not derive from the Host header). Set it, or HUB_ALLOW_INSECURE_ORIGIN=1 for http dev");
+    }
+    // HUB-002: the operator plane carries Sovereign-signing authority, and
+    // loopback reachability alone is not authentication (X-001). Production
+    // must present a real factor unless the deployment explicitly claims
+    // host-level access control (SSH-gated box) as its second factor.
+    if !operator_token_auth && !allow_loopback_operator {
+        return Err("HUB_OPERATOR_AUTH=token is required in production (loopback alone is not \
+                    authentication for the Sovereign-signing operator plane). Set it, or set \
+                    HUB_ALLOW_LOOPBACK_OPERATOR=1 if host access (SSH) is the second factor");
     }
     Ok(())
 }
@@ -1055,7 +1066,10 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     } else if rest_state.verify_law_integrity().await == "mismatch" {
         // H-009: served law diverged from the witnessed ledger head (only checkable
         // once the store is unlocked; a locked boot reports "unverifiable" → skipped).
-        println!("  ⚠ LAW INTEGRITY MISMATCH — served law != last witnessed LawAmended (see log)");
+        // HUB-001: governed writes now refuse while this holds (reads still serve);
+        // re-witness via `hub set-law`, or HUB_ALLOW_LAW_MISMATCH=1 for warn-only.
+        println!("  ⚠ LAW INTEGRITY MISMATCH — served law != last witnessed LawAmended (see log); \
+                  governed writes REFUSED until re-witnessed (hub set-law)");
     }
 
     // P1 (residual review): production profile. Opt-in via HUB_PROFILE=production
@@ -1071,9 +1085,11 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             &std::env::var("HUB_PUBLIC_BASE_URL").unwrap_or_default(),
             std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
             std::env::var("HUB_ALLOW_INSECURE_ORIGIN").as_deref() == Ok("1"),
+            std::env::var("HUB_OPERATOR_AUTH").as_deref() == Ok("token"),
+            std::env::var("HUB_ALLOW_LOOPBACK_OPERATOR").as_deref() == Ok("1"),
         )
         .map_err(|e| anyhow::anyhow!("HUB_PROFILE=production: {e}"))?;
-        println!("  production profile: law + https public base URL enforced");
+        println!("  production profile: law + https public base URL + operator token enforced");
     } else if !loopback_bind {
         println!(
             "  ⚠ public bind ({bind}) without HUB_PROFILE=production — hardening (require law + \
@@ -1640,15 +1656,25 @@ mod tests {
 
     #[test]
     fn production_preflight_requires_law_and_https_origin() {
-        // Happy path: law present + https origin.
-        assert!(production_preflight(true, "https://hub.4-gov.org", false, false).is_ok());
+        // Happy path: law present + https origin + operator token auth.
+        assert!(production_preflight(true, "https://hub.4-gov.org", false, false, true, false).is_ok());
         // No law → refused, unless HUB_ALLOW_NO_LAW.
-        assert!(production_preflight(false, "https://x", false, false).is_err());
-        assert!(production_preflight(false, "https://x", true, false).is_ok());
+        assert!(production_preflight(false, "https://x", false, false, true, false).is_err());
+        assert!(production_preflight(false, "https://x", true, false, true, false).is_ok());
         // Missing / http origin → refused, unless HUB_ALLOW_INSECURE_ORIGIN.
-        assert!(production_preflight(true, "", false, false).is_err());
-        assert!(production_preflight(true, "http://x", false, false).is_err());
-        assert!(production_preflight(true, "http://x", false, true).is_ok());
+        assert!(production_preflight(true, "", false, false, true, false).is_err());
+        assert!(production_preflight(true, "http://x", false, false, true, false).is_err());
+        assert!(production_preflight(true, "http://x", false, true, true, false).is_ok());
+    }
+
+    #[test]
+    fn production_preflight_requires_operator_token() {
+        // HUB-002: loopback-only operator auth → refused in production...
+        assert!(production_preflight(true, "https://x", false, false, false, false).is_err());
+        // ...unless the deployment explicitly claims host access as the factor.
+        assert!(production_preflight(true, "https://x", false, false, false, true).is_ok());
+        // Token mode satisfies it outright.
+        assert!(production_preflight(true, "https://x", false, false, true, false).is_ok());
     }
 
     #[test]

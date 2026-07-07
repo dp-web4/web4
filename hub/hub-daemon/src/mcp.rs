@@ -422,6 +422,13 @@ fn require_loopback(peer: &SocketAddr) -> Result<(), ApiError> {
 /// state ahead of the witnessed ledger. Handlers with no side effects can use the
 /// combined [`append_with_sovereign`].
 async fn check_governance(s: &McpState, event: &HubEvent) -> Result<(), ApiError> {
+    // HUB-001 (parity with REST): refuse governed writes while the served law
+    // diverges from the witnessed LawAmended head — the law we'd evaluate below
+    // may be rolled-back/tampered. Override: HUB_ALLOW_LAW_MISMATCH=1.
+    crate::rest::law_integrity_write_gate(&s.ledger, s.open_store().await.ok())
+        .await
+        .map_err(|message| ApiError { status: StatusCode::CONFLICT, message })?;
+
     // Council gate (parity with REST /events, V2-9 Phase 2): if a council
     // threshold of 2+ is active, a single-signer Sovereign commit is not
     // permitted — governed acts must flow through council propose/sign (H-002).
