@@ -48,7 +48,13 @@ The same binary is meant to serve a spectrum of deployments — each a **fail-cl
 | Self-hosted + VPN admin | public channel; **admin plane VPN-only** | automatic | token on channel; admin over overlay | public society, private administration |
 | Self-hosted via tunnel | public via reverse tunnel — **no static IP, no port-forward** | tunnel-provided | token | behind NAT / non-experts |
 
-**The `hub up` command (planned).** One command asks how the hub will be reached, maps it to an archetype, and does the rest: provisions TLS + domain, self-tests reachability (offering the tunnel path when the box is behind NAT, so there is **no port-forwarding or firewall editing**), generates a `0600` operator token, installs a signed **starter law with fail-closed defaults**, guides the interactive vault ignition (the passphrase is never written to disk), installs the service so a reboot self-heals to the locked shell, and prints a "you're live" summary. Guiding principle: **fail-closed by default, unsafe only by an explicit flag** — a non-expert cannot accidentally stand up an open, unauthenticated, no-law public hub.
+**The `hub up` command (first increment available).** One command asks how the hub will be reached, maps it to an archetype, and writes a ready **fail-closed config profile**:
+
+```
+hub up ./hub --profile public-tunnel --domain hub.4-gov.org
+```
+
+It writes `hub-up.env` (`HUB_PROFILE` / `HUB_OPERATOR_AUTH` / `HUB_PUBLIC_BASE_URL` / `HUB_BIND` for the archetype), a signed **starter law** (fail-closed default), and — for public archetypes — a `0600` **operator token**, then prints a tailored go-live runbook (`init → set-law → [tunnel/TLS] → serve → unlock`). Public archetypes are enforced fail-closed: `public-*` always uses token auth + the production profile + a domain, so a non-expert cannot accidentally stand up an open, unauthenticated, no-law public hub. *In process:* fully automating the TLS/tunnel/systemd steps the runbook currently prints.
 
 ## What this is
 

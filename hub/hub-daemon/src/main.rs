@@ -395,6 +395,25 @@ enum Command {
         #[command(subcommand)]
         subcommand: QueryCommand,
     },
+
+    /// Turnkey setup for a deployment archetype (the `hub up` kit). Writes a
+    /// fail-closed config profile (env + starter law + operator token) and prints
+    /// the exact go-live runbook — one command for operators with no IT background.
+    Up {
+        /// Hub directory (society state lives here).
+        #[arg(default_value = "./hub")]
+        hub_dir: PathBuf,
+        /// Deployment archetype: dev | private-vpn | public-managed |
+        /// public-selfhost | public-tunnel. Omit to be prompted.
+        #[arg(long)]
+        profile: Option<String>,
+        /// Public hostname for the public archetypes (e.g. hub.4-gov.org).
+        #[arg(long)]
+        domain: Option<String>,
+        /// Don't prompt; error if a required value is missing (for scripts).
+        #[arg(long)]
+        yes: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -583,6 +602,7 @@ async fn main() -> Result<()> {
             run_set_member_key(hub_dir, member_lct_id, pubkey_hex).await
         }
         Some(Command::InitLaw { output, force }) => run_init_law(output, force).await,
+        Some(Command::Up { hub_dir, profile, domain, yes }) => run_up(hub_dir, profile, domain, yes).await,
         Some(Command::Council { subcommand }) => run_council(subcommand).await,
         Some(Command::Query { subcommand }) => run_query(subcommand).await,
     }
@@ -834,6 +854,179 @@ async fn run_init_law(output: PathBuf, force: bool) -> Result<()> {
     println!("  1. Edit {} — adjust norms, admission, atp_issuance, etc.", output.display());
     println!("  2. Apply to a chapter:  hub set-law <chapter-dir> {}", output.display());
     println!("  3. If serve is running: curl -X POST http://<host>/v1/admin/reload-law");
+    Ok(())
+}
+
+// ---------- `hub up` — the turnkey deployment kit -----------------------------
+
+/// A deployment archetype = a named, fail-closed posture (see the deployment map
+/// in the hub README). `hub up` turns "which archetype" into a ready config.
+/// INVARIANT: every `public-*` archetype uses token auth + the production profile
+/// + a domain, so a non-expert can't stand up an open, no-auth public hub.
+struct Archetype {
+    id: &'static str,
+    profile: Option<&'static str>, // HUB_PROFILE (production for public)
+    operator_auth: &'static str,   // HUB_OPERATOR_AUTH: loopback | token
+    bind: &'static str,            // serve --bind
+    needs_domain: bool,
+    tunnel: bool,
+    blurb: &'static str,
+}
+
+const ARCHETYPES: &[Archetype] = &[
+    Archetype { id: "dev",             profile: None,               operator_auth: "loopback", bind: "127.0.0.1", needs_domain: false, tunnel: false, blurb: "local dev — localhost only, no TLS" },
+    Archetype { id: "private-vpn",     profile: None,               operator_auth: "loopback", bind: "0.0.0.0",   needs_domain: false, tunnel: false, blurb: "trusted team over a VPN/tailnet; admin via SSH" },
+    Archetype { id: "public-managed",  profile: Some("production"), operator_auth: "token",    bind: "0.0.0.0",   needs_domain: true,  tunnel: false, blurb: "public managed host (e.g. Fly.io) — platform does TLS" },
+    Archetype { id: "public-selfhost", profile: Some("production"), operator_auth: "token",    bind: "0.0.0.0",   needs_domain: true,  tunnel: false, blurb: "public self-hosted, fixed IP + Caddy/Let's Encrypt" },
+    Archetype { id: "public-tunnel",   profile: Some("production"), operator_auth: "token",    bind: "127.0.0.1", needs_domain: true,  tunnel: true,  blurb: "self-hosted behind NAT via a reverse tunnel — no port-forward" },
+];
+
+fn find_archetype(id: &str) -> Option<&'static Archetype> {
+    ARCHETYPES.iter().find(|a| a.id == id)
+}
+
+fn archetype_ids() -> String {
+    ARCHETYPES.iter().map(|a| a.id).collect::<Vec<_>>().join(" | ")
+}
+
+async fn run_up(
+    hub_dir: PathBuf,
+    profile: Option<String>,
+    domain: Option<String>,
+    yes: bool,
+) -> Result<()> {
+    use std::io::Write as _;
+
+    // 1. Resolve the archetype (flag or one interactive question).
+    let arch: &Archetype = match profile {
+        Some(p) => find_archetype(&p)
+            .ok_or_else(|| anyhow::anyhow!("unknown --profile '{p}'. One of: {}", archetype_ids()))?,
+        None if yes => anyhow::bail!("--profile is required with --yes. One of: {}", archetype_ids()),
+        None => {
+            println!("How will people reach this hub?");
+            for (i, a) in ARCHETYPES.iter().enumerate() {
+                println!("  {}. {:<16} {}", i + 1, a.id, a.blurb);
+            }
+            print!("Choose 1-{}: ", ARCHETYPES.len());
+            std::io::stdout().flush().ok();
+            let mut line = String::new();
+            std::io::stdin().read_line(&mut line)?;
+            let idx: usize = line
+                .trim()
+                .parse()
+                .ok()
+                .filter(|n| (1..=ARCHETYPES.len()).contains(n))
+                .ok_or_else(|| anyhow::anyhow!("not a valid choice"))?;
+            &ARCHETYPES[idx - 1]
+        }
+    };
+
+    // 2. Domain for the public archetypes.
+    let domain: Option<String> = if arch.needs_domain {
+        Some(match domain {
+            Some(d) if !d.trim().is_empty() => d.trim().to_string(),
+            _ if yes => anyhow::bail!("archetype '{}' needs --domain (e.g. hub.4-gov.org)", arch.id),
+            _ => {
+                print!("Public hostname (e.g. hub.4-gov.org): ");
+                std::io::stdout().flush().ok();
+                let mut d = String::new();
+                std::io::stdin().read_line(&mut d)?;
+                let d = d.trim().to_string();
+                if d.is_empty() {
+                    anyhow::bail!("a hostname is required for '{}'", arch.id);
+                }
+                d
+            }
+        })
+    } else {
+        None
+    };
+
+    // 3. hub_dir + a fail-closed starter law (write only if absent).
+    std::fs::create_dir_all(&hub_dir).with_context(|| format!("creating {}", hub_dir.display()))?;
+    let law_path = hub_dir.join("hub-law.yaml");
+    if !law_path.exists() {
+        hub_lib::law::Law::parse_and_validate(STARTER_LAW_YAML)
+            .context("embedded starter-law failed to validate (binary bug)")?;
+        std::fs::write(&law_path, STARTER_LAW_YAML)
+            .with_context(|| format!("writing {}", law_path.display()))?;
+    }
+
+    // 4. Operator token for token archetypes (0600; reuse an existing one).
+    let token: Option<String> = if arch.operator_auth == "token" {
+        let tpath = hub_dir.join("operator.token");
+        if tpath.exists() {
+            Some(std::fs::read_to_string(&tpath)?.trim().to_string())
+        } else {
+            let t = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+            std::fs::write(&tpath, &t).with_context(|| format!("writing {}", tpath.display()))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&tpath, std::fs::Permissions::from_mode(0o600))?;
+            }
+            Some(t)
+        }
+    } else {
+        None
+    };
+
+    // 5. Write the env profile (reusable as a systemd EnvironmentFile).
+    let base_url = domain.as_ref().map(|d| format!("https://{d}"));
+    let env_path = hub_dir.join("hub-up.env");
+    let mut env = format!("# hub up — {} profile\nHUB_BIND={}\n", arch.id, arch.bind);
+    if let Some(p) = arch.profile {
+        env.push_str(&format!("HUB_PROFILE={p}\n"));
+    }
+    env.push_str(&format!("HUB_OPERATOR_AUTH={}\n", arch.operator_auth));
+    if let Some(u) = &base_url {
+        env.push_str(&format!("HUB_PUBLIC_BASE_URL={u}\n"));
+    }
+    std::fs::write(&env_path, &env).with_context(|| format!("writing {}", env_path.display()))?;
+
+    // 6. Print the tailored go-live runbook.
+    println!();
+    println!("✔ hub up — '{}' profile ready in {}", arch.id, hub_dir.display());
+    println!("  {}", arch.blurb);
+    println!();
+    println!("Wrote:");
+    println!("  {}  — env profile (HUB_PROFILE/OPERATOR_AUTH/PUBLIC_BASE_URL/BIND)", env_path.display());
+    println!("  {}  — fail-closed starter law", law_path.display());
+    if token.is_some() {
+        println!("  {}  — operator token (0600)", hub_dir.join("operator.token").display());
+    }
+    println!();
+    println!("Go live:");
+    let mut n = 1;
+    println!("  {n}. hub init {}                 # create the identity (prompts for a passphrase)", hub_dir.display());
+    n += 1;
+    println!("  {n}. hub set-law {} {}   # ratify the law", hub_dir.display(), law_path.display());
+    n += 1;
+    if arch.tunnel {
+        println!("  {n}. cloudflared tunnel run …            # map {} → http://127.0.0.1:8770 (no port-forward)", domain.as_deref().unwrap_or("<domain>"));
+        n += 1;
+    } else if base_url.is_some() {
+        println!("  {n}. point DNS + TLS at this host       # {} → here (Caddy+LE, or the platform)", domain.as_deref().unwrap_or("<domain>"));
+        n += 1;
+    }
+    println!("  {n}. set -a; . {}; set +a          # load the profile", env_path.display());
+    n += 1;
+    println!("     hub serve {} --bind \"$HUB_BIND\"", hub_dir.display());
+    println!("  {n}. hub unlock                          # ignite the vault (passphrase — never stored)", );
+    println!();
+    if let Some(t) = &token {
+        println!("Operator token (send as the X-Operator-Token header for admin/API):");
+        println!("  {t}");
+        println!();
+    }
+    match &base_url {
+        Some(u) => println!("You'll be live at: {u}"),
+        None => println!("You'll be live at: http://{}:8770", arch.bind),
+    }
+    println!();
+    println!("Fail-closed by default: a public profile refuses to serve without a law and (production)");
+    println!("without an https base URL + operator token — a novice can't accidentally stand up an");
+    println!("open, unauthenticated, no-law public hub.");
     Ok(())
 }
 
@@ -1653,6 +1846,22 @@ fn slugify(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hub_up_public_archetypes_are_fail_closed() {
+        assert!(find_archetype("nope").is_none());
+        assert_eq!(find_archetype("dev").unwrap().operator_auth, "loopback");
+        assert!(find_archetype("public-tunnel").unwrap().tunnel);
+        for a in ARCHETYPES {
+            if a.id.starts_with("public-") {
+                assert_eq!(a.operator_auth, "token", "public must use token auth: {}", a.id);
+                assert_eq!(a.profile, Some("production"), "public must set production: {}", a.id);
+                assert!(a.needs_domain, "public needs a domain: {}", a.id);
+            } else {
+                assert_eq!(a.operator_auth, "loopback", "non-public uses loopback: {}", a.id);
+            }
+        }
+    }
 
     #[test]
     fn production_preflight_requires_law_and_https_origin() {
