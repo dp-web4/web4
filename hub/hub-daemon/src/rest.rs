@@ -487,37 +487,19 @@ impl RestState {
     /// amendment path hashes with — so a match is authoritative. Logs a loud
     /// warning on mismatch (served law diverged from the witnessed head: rollback
     /// or store tampering) and returns a short status for callers/telemetry.
-    /// Warn-only for now; refuse-writes-on-mismatch is a follow-on once we've
-    /// confirmed there is no legitimate transient-mismatch window.
+    /// HUB-001: governed writes now refuse on "mismatch" (see
+    /// [`law_integrity_write_gate`]) unless `HUB_ALLOW_LAW_MISMATCH=1`.
     pub async fn verify_law_integrity(&self) -> &'static str {
-        // The hash the ledger last witnessed for the law (newest LawAmended).
-        let witnessed = {
-            let ledger = self.ledger.lock().await;
-            ledger.entries().iter().rev().find_map(|e| match &e.event {
-                HubEvent::LawAmended { new_law_sha256, .. } => Some(new_law_sha256.clone()),
-                _ => None,
-            })
-        };
-        // The hash of what we actually serve (readable only once unlocked).
-        let served = match self.open_store().await {
-            Ok(store) => match store.read_law().await {
-                Ok(Some(yaml)) => Some(hub_lib::law::Law::sha256_hex_of(&yaml)),
-                _ => None,
-            },
-            Err(_) => None,
-        };
-        match (witnessed, served) {
-            (Some(w), Some(s)) if w == s => "ok",
-            (Some(w), Some(s)) => {
-                tracing::warn!(
-                    witnessed = %w, served = %s,
-                    "LAW INTEGRITY MISMATCH — the served law does not match the last witnessed \
-                     LawAmended (possible rollback or store tampering); inspect and re-witness via `hub set-law`"
-                );
-                "mismatch"
-            }
-            // No law, or no LawAmended yet / store locked: nothing to verify against.
-            _ => "unverifiable",
+        law_integrity_status(&self.ledger, self.open_store().await.ok()).await
+    }
+
+    /// HUB-001 write gate: refuse a governed write while the served law
+    /// diverges from the witnessed `LawAmended` head. See
+    /// [`law_integrity_write_gate`] for semantics; this is the RestState hook.
+    async fn ensure_law_integrity_for_write(&self) -> Result<(), ApiError> {
+        match law_integrity_write_gate(&self.ledger, self.open_store().await.ok()).await {
+            Ok(()) => Ok(()),
+            Err(msg) => Err(ApiError { status: StatusCode::CONFLICT, message: msg }),
         }
     }
 
@@ -738,9 +720,81 @@ fn unlock_default_threshold(n: usize) -> u32 {
     ((n + 1) / 2) as u32
 }
 
+/// H-009 integrity computation, shared by REST and MCP (each state carries its
+/// own ledger handle + store opener): the witnessed hash is the newest
+/// `LawAmended` in the ledger; the served hash is what's actually in the store.
+pub(crate) async fn law_integrity_status(
+    ledger: &tokio::sync::Mutex<HubLedger>,
+    store: Option<Box<dyn hub_lib::store::HubStore>>,
+) -> &'static str {
+    let witnessed = {
+        let ledger = ledger.lock().await;
+        ledger.entries().iter().rev().find_map(|e| match &e.event {
+            HubEvent::LawAmended { new_law_sha256, .. } => Some(new_law_sha256.clone()),
+            _ => None,
+        })
+    };
+    // The hash of what we actually serve (readable only once unlocked).
+    let served = match store {
+        Some(store) => match store.read_law().await {
+            Ok(Some(yaml)) => Some(hub_lib::law::Law::sha256_hex_of(&yaml)),
+            _ => None,
+        },
+        None => None,
+    };
+    law_integrity_verdict(witnessed, served)
+}
+
+/// Pure H-009 verdict: "ok" (hashes match), "mismatch" (diverged — rollback or
+/// store tampering), "unverifiable" (no law / no LawAmended yet / store locked).
+fn law_integrity_verdict(witnessed: Option<String>, served: Option<String>) -> &'static str {
+    match (witnessed, served) {
+        (Some(w), Some(s)) if w == s => "ok",
+        (Some(w), Some(s)) => {
+            tracing::warn!(
+                witnessed = %w, served = %s,
+                "LAW INTEGRITY MISMATCH — the served law does not match the last witnessed \
+                 LawAmended (possible rollback or store tampering); inspect and re-witness via `hub set-law`"
+            );
+            "mismatch"
+        }
+        // No law, or no LawAmended yet / store locked: nothing to verify against.
+        _ => "unverifiable",
+    }
+}
+
+/// HUB-001 (fail-closed law integrity): governed writes refuse while the served
+/// law diverges from the witnessed head. "Unverifiable" (locked store, no law
+/// yet) does NOT block — only a positive mismatch does, so fresh hubs and locked
+/// shells are unaffected. `HUB_ALLOW_LAW_MISMATCH=1` restores the old warn-only
+/// behavior for a deployment that needs to ride through a known transient.
+pub(crate) async fn law_integrity_write_gate(
+    ledger: &tokio::sync::Mutex<HubLedger>,
+    store: Option<Box<dyn hub_lib::store::HubStore>>,
+) -> Result<(), String> {
+    if std::env::var("HUB_ALLOW_LAW_MISMATCH").as_deref() == Ok("1") {
+        return Ok(());
+    }
+    if law_integrity_status(ledger, store).await == "mismatch" {
+        return Err(
+            "law integrity mismatch — the served law does not match the last witnessed \
+             LawAmended (possible rollback or store tampering); governed writes are refused \
+             until the law is re-witnessed (`hub set-law` + reload), or explicitly overridden \
+             with HUB_ALLOW_LAW_MISMATCH=1"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 /// Witness a hub event to the signed ledger (build → sign as Sovereign →
 /// append). Returns the committed entry index. Requires an ignited signer.
+/// HUB-001: refuses on law-integrity mismatch — except `LawAmended` itself,
+/// which is the recovery path (re-witnessing the law is how a mismatch clears).
 async fn witness_event(s: &RestState, event: HubEvent) -> Result<u64, ApiError> {
+    if !matches!(event, HubEvent::LawAmended { .. }) {
+        s.ensure_law_integrity_for_write().await?;
+    }
     let event_kind_str = event.kind().to_string();
     let event_value = serde_json::to_value(&event)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
@@ -1999,6 +2053,10 @@ async fn submit_event(
             }
         }
     };
+
+    // 3.4 HUB-001: a law-integrity mismatch means the law we'd evaluate below
+    // may be rolled-back/tampered — refuse the governed write outright.
+    s.ensure_law_integrity_for_write().await?;
 
     // 3.5 PolicyEntity gate (V2-8 §4): if a hub law is loaded,
     // evaluate the act against it. Deny → 403; Escalate → 202 with the
@@ -4502,6 +4560,8 @@ async fn commit_proposed_event(
     event: &HubEvent,
     proposal_ref: Option<Uuid>,
 ) -> Result<u64, ApiError> {
+    // HUB-001: council commits are governed writes — refuse on law mismatch.
+    s.ensure_law_integrity_for_write().await?;
     let event_kind_str = event.kind().to_string();
     let event_value = serde_json::to_value(event)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
@@ -5141,6 +5201,8 @@ async fn get_pair_messages(
 /// envelope (verified above) + the event's fields (initiator_lct_id,
 /// confirmed_by, revoked_by). Auditors correlate.
 async fn commit_pair_event(s: &RestState, event: HubEvent) -> Result<(u64, String), ApiError> {
+    // HUB-001: pair lifecycle events are governed writes — refuse on law mismatch.
+    s.ensure_law_integrity_for_write().await?;
     let event_kind_str = event.kind().to_string();
     let event_value = serde_json::to_value(&event)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
@@ -7053,6 +7115,54 @@ norms:
             diff_summary: None,
         }).await.unwrap();
         assert_eq!(state.verify_law_integrity().await, "mismatch");
+    }
+
+    #[tokio::test]
+    async fn law_mismatch_refuses_governed_writes_until_rewitnessed() {
+        // HUB-001: with the served law diverged from the witnessed head, a
+        // governed write refuses; re-witnessing the law (the LawAmended-exempt
+        // recovery path) clears the block.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        const LAW: &str = "version: \"1.0.0\"\nnorms: []\n";
+        {
+            let mut store = state.open_store().await.unwrap();
+            store.write_law(LAW).await.unwrap();
+        }
+        // Force a mismatch: witness a head hash that isn't the stored law's.
+        witness_event(&state, HubEvent::LawAmended {
+            new_law_sha256: "0".repeat(64),
+            amended_by: state.sovereign_lct_id,
+            version: "1.0.1".into(),
+            diff_summary: None,
+        }).await.unwrap();
+        assert_eq!(state.verify_law_integrity().await, "mismatch");
+
+        // Governed write → refused (CONFLICT), fail-closed.
+        let err = witness_event(&state, HubEvent::CouncilMemberAdded {
+            member_lct_id: Uuid::new_v4(),
+            member_pubkey_hex: "00".repeat(32),
+            added_by: state.sovereign_lct_id,
+            member_name: Some("Blocked".into()),
+        }).await.err().expect("governed write must refuse on law mismatch");
+        assert_eq!(err.status, StatusCode::CONFLICT);
+
+        // Recovery: LawAmended itself is exempt — re-witness the REAL hash…
+        let yaml = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
+        witness_event(&state, HubEvent::LawAmended {
+            new_law_sha256: hub_lib::law::Law::sha256_hex_of(&yaml),
+            amended_by: state.sovereign_lct_id,
+            version: "1.0.2".into(),
+            diff_summary: None,
+        }).await.expect("LawAmended must stay writable (recovery path)");
+        assert_eq!(state.verify_law_integrity().await, "ok");
+
+        // …and governed writes flow again.
+        witness_event(&state, HubEvent::CouncilMemberAdded {
+            member_lct_id: Uuid::new_v4(),
+            member_pubkey_hex: "00".repeat(32),
+            added_by: state.sovereign_lct_id,
+            member_name: Some("Unblocked".into()),
+        }).await.expect("governed write must succeed once re-witnessed");
     }
 
     #[tokio::test]
