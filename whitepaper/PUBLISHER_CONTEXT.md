@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-07-07
+**Last Updated**: 2026-07-08
 **Whitepaper Status**: Active Development
 
 ---
@@ -202,6 +202,15 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-07-08: Publisher Maintenance — No-Change Verification (manual pass, dp-requested; all standing triggers unfired; 07-07 watch item CLOSED — C150 §2.4 fix landed, whitepaper re-checked, no edit needed)
+- **Both standing integration triggers remain unfired.** `web4-standard/core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02) — no promotion to Normative. `web4-core/python` and `web4-trust-core` both still `version = "0.2.0"` — no v0.28.0 → PyPI publish. No EUDI Phase 2 / did:web4 spec doc or status flip in `web4-standard/`.
+- **Zero whitepaper-scope commits.** `git log 70be74b..HEAD -- whitepaper/ docs/whitepaper-web/` is empty; the window is C152–C156 4th-delta spec audits, the `hub up` turnkey deployment kit (#481), and HUB-001/HUB-002 fail-closed hardening (#479) — the established out-of-scope profile.
+- **Watch item CLOSED: C150 §2.4 scope-mislabel fix landed** as C151 `256ab51` (2026-07-07): the spec's supply-accounting note now scopes the conservation invariant to "ATP transfers between entities (§6.3)" instead of "ATP→ADP transfers". Whitepaper re-checked per the 07-07 watch instruction: the only invariant mentions are the Executive Summary and Conclusion's "ATPAccount (conservation-invariant transfer)" — already transfer-scoped, consistent with the corrected spec — and the ATP/ADP section (05-part3) does not discuss the invariant at all, so it never carried the mislabel. **No whitepaper change needed.**
+- **Source ↔ published in sync by construction.** Last `whitepaper/sections/` commit and last `docs/whitepaper-web/` commit are both `6a8d333` (2026-06-12); working tree clean, in sync with origin/main. PDF unchanged (430514 bytes, 2026-06-12). No rebuild performed (would yield only CRLF/timestamp churn).
+- **No term drift.** Drift-grep over live `sections/*` (excl. `*/archive/`) for all documented wrong expansions (ATP/LCT/T3/V3/ADP: Alignment Transfer Protocol, Attention/Attestation Token Protocol, Lightweight Coordination/Cryptographic Token, Attention Transfer Packet, Alignment Discharge, Audit Trail Point, Lifecycle-Continuous Trust, Triple Trust/Value) returns zero hits. Same grep over Synchronism `whitepaper/sections/`: zero hits.
+- **Autonomous-run note (cross-repo):** the Synchronism autonomous Publisher ran successfully for a **2nd consecutive day** — the 07-08 report persisted and committed (`12391b2c`, HOLD; it self-corrects the 07-07 manual pass's over-unification of the locality no-go and re-flags B3 un-refuted + the site-side fabrication, all pending dp). Synchronism source ↔ Pages deploy also verified in sync (last deploy 2026-07-06 postdates last source commit 2026-06-22). The liveness-check + content-hash-trigger recommendations remain open until the 07-03…07-07 fault signatures are understood, but the fault has not recurred.
+- **Verdict:** clean no-change pass; no integration, no commit beyond this log entry. Standing triggers carried forward: v0.28.0 → PyPI; core-protocol → Normative; EUDI Phase 2 interop; PAIRED-CHANNELS watch (spec-surface only). C150 §2.4 watch item retired (resolved with no whitepaper impact).
 
 ### 2026-07-07: Publisher Maintenance — No-Change Verification (manual pass, dp-requested; all standing triggers unfired, zero whitepaper-scope churn; hub security-hardening sprint dominates the window)
 - **Both standing integration triggers remain unfired.** `web4-standard/core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02) — no promotion to Normative. `web4-core/python` and `web4-trust-core` both still `version = "0.2.0"` — no v0.28.0 → PyPI publish. No EUDI Phase 2 / did:web4 spec doc or status flip in `web4-standard/`.
