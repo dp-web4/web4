@@ -1,0 +1,165 @@
+@prefix web4:  <https://web4.io/ontology#> .
+@prefix role:  <https://web4.io/ontology/role/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+# =============================================================================
+# Role-Extension Ontology — law attached to an orchestration Role-entity's LCT
+#
+# Phase-0 — promoted to canonical home on CBP green-light
+# (forum/cbp-to-legion-hub-phase0-2.3-witness-green-light-2026-07-08.md;
+#  concord: forum/cbp-to-legion-hub-phase0-concord-ratified-2026-07-08.md).
+# Prose companion: ./role-extension-schema.md
+#
+# PROVISIONAL SURFACE: the role:driftMark enum (three string values) promotes as
+# PROVISIONAL pending HUB confirmation of the audit-UI naming (CBP condition (a)).
+# A later HUB rename is a clarification of a provisional note, not a break of a
+# ratified standard. See role:driftMark below. Phase-1 may formalize the enum as a
+# controlled vocabulary (owl:oneOf / SKOS) — CBP condition (b), held for Phase-1.
+#
+# An orchestration Role-entity is EntityType::Role + SocietyRole::Custom(..) with
+# its own LCT. A role:Extension is the machine-readable law bound to that LCT.
+# It composes UNDER society + constellation law via strictest-wins fold — an
+# extension can only TIGHTEN (remove affordances), never grant.
+# =============================================================================
+
+role: a owl:Ontology ;
+    dcterms:title "Web4 Role-Extension Ontology" ;
+    dcterms:description "Schema for the law extension attached to an orchestration Role-entity LCT: affordances, responsibilities, scope/MRH." ;
+    owl:versionInfo "0.1.0-draft" .
+
+# --- Core classes ---
+
+role:Extension a rdfs:Class ;
+    rdfs:label "Role Extension" ;
+    rdfs:comment "The law bound to an orchestration Role-entity LCT. Exactly three parts: affordances, responsibilities, scope. Folds under society and constellation law as the strictest-wins role overlay." .
+
+role:Affordance a rdfs:Class ;
+    rdfs:label "Affordance" ;
+    rdfs:comment "A typed capability the role's occupant MAY exercise. Typed so a concrete launch invocation is machine-checkable against it before spawn. Tightening-only: honored by the fold iff parent law already permits it." .
+
+role:Responsibility a rdfs:Class ;
+    rdfs:label "Responsibility" ;
+    rdfs:comment "A duty the occupant MUST discharge, with cadence and reporting. Checked by the Witness daemon, not the launcher." .
+
+role:Scope a rdfs:Class ;
+    rdfs:label "Scope / MRH" ;
+    rdfs:comment "The Markov Relevancy Horizon of the grant: repos, machines, channels, data classes, ATP budget the role ranges over." .
+
+# --- Affordance subclasses (the typed permit surface) ---
+
+role:ToolAffordance a rdfs:Class ;
+    rdfs:subClassOf role:Affordance ;
+    rdfs:comment "Permits a tool or tool-category. Maps to hestia PolicyMatch.tools / .categories." .
+
+role:ChannelAffordance a rdfs:Class ;
+    rdfs:subClassOf role:Affordance ;
+    rdfs:comment "Permits a mesh channel or hub endpoint." .
+
+role:RepoAffordance a rdfs:Class ;
+    rdfs:subClassOf role:Affordance ;
+    rdfs:comment "Permits a repo, optionally narrowed by path glob and read-vs-write-class." .
+
+role:WriteClassAffordance a rdfs:Class ;
+    rdfs:subClassOf role:Affordance ;
+    rdfs:comment "Permits a write-class: commit | push | merge | delete | outward-send." .
+
+role:CliFlagAffordance a rdfs:Class ;
+    rdfs:subClassOf role:Affordance ;
+    rdfs:comment "Permits a specific launcher flag. Absence is fail-closed: the launcher MUST refuse a flag the role does not afford. --dangerously-skip-permissions is exactly this." .
+
+# --- Extension structural properties ---
+
+role:boundToRoleLct a rdf:Property ;
+    rdfs:domain role:Extension ;
+    rdfs:range rdfs:Resource ;
+    rdfs:comment "The Role-entity LCT this extension governs (RoleAssignment.role_lct_id). Authority binds here, NEVER to the occupant; unchanged across occupant rotation." .
+
+role:hasAffordance a rdf:Property ;
+    rdfs:domain role:Extension ;
+    rdfs:range role:Affordance .
+
+role:hasResponsibility a rdf:Property ;
+    rdfs:domain role:Extension ;
+    rdfs:range role:Responsibility .
+
+role:hasScope a rdf:Property ;
+    rdfs:domain role:Extension ;
+    rdfs:range role:Scope .
+
+role:defaultVerdict a rdf:Property ;
+    rdfs:domain role:Extension ;
+    rdfs:range xsd:string ;
+    rdfs:comment "allow | warn | deny — the overlay's verdict when no affordance matches. Fail-closed roles default to deny." .
+
+# --- Affordance detail properties ---
+
+role:permits a rdf:Property ;
+    rdfs:domain role:Affordance ;
+    rdfs:range xsd:string ;
+    rdfs:comment "The concrete grant token (tool name, channel id, repo, write-class, or flag)." .
+
+role:pathGlob a rdf:Property ;
+    rdfs:domain role:RepoAffordance ;
+    rdfs:range xsd:string .
+
+role:writeClass a rdf:Property ;
+    rdfs:domain role:RepoAffordance ;
+    rdfs:range xsd:string ;
+    rdfs:comment "read | commit | push | merge | delete." .
+
+# --- Responsibility detail properties ---
+
+role:cadence a rdf:Property ;
+    rdfs:domain role:Responsibility ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Cron-like or event trigger describing how often the duty is due." .
+
+role:reportsTo a rdf:Property ;
+    rdfs:domain role:Responsibility ;
+    rdfs:range rdfs:Resource ;
+    rdfs:comment "The Witness/Auditor role LCT that attests discharge of this duty." .
+
+# --- Scope detail properties ---
+
+role:atpBudget a rdf:Property ;
+    rdfs:domain role:Scope ;
+    rdfs:range xsd:decimal ;
+    rdfs:comment "ATP ceiling the role may spend per period. Enforced by Treasurer at act time." .
+
+role:rangesOver a rdf:Property ;
+    rdfs:domain role:Scope ;
+    rdfs:range rdfs:Resource ;
+    rdfs:comment "A resource (repo, machine, channel, data class) inside the role's MRH." .
+
+# --- Composition / fold properties (eval-time invariant) ---
+
+role:foldsUnder a rdf:Property ;
+    rdfs:domain role:Extension ;
+    rdfs:range rdfs:Resource ;
+    rdfs:comment "The parent law level (society or constellation) this extension composes under via strictest-wins fold. Extension can only tighten." .
+
+# --- Authoring-validity witness (the write-time linter's DURABLE output) ---
+# The eval-time fold holds only CURRENT parent law, so it cannot tell 'was ever
+# valid' from 'never valid' — both surface as (overlay-permissive, base-denies).
+# The discriminator is history. These two properties persist the write-time
+# linter's verdict so an eval-time denial can carry a TRUTHFUL cause. Write-time
+# is still not an enforcement proof (eval-time is the invariant); this is its
+# residual, load-bearing job.
+
+role:authoredUnder a rdf:Property ;
+    rdfs:domain role:Extension ;
+    rdfs:range rdfs:Resource ;
+    rdfs:comment "The parent-law version/snapshot the write-time linter checked this extension against at authoring time. The attribution anchor: paired with role:lintVerdict it records whether the extension was EVER valid." .
+
+role:lintVerdict a rdf:Property ;
+    rdfs:domain role:Extension ;
+    rdfs:range xsd:string ;
+    rdfs:comment "'pass' | 'fail' — the write-time linter's recorded verdict against role:authoredUnder. pass ⟹ a later eval-time deny is drift:parent-tightened; fail ⟹ author:violation; absent ⟹ drift:unattributed. Persisted, not throwaway." .
+
+role:driftMark a rdf:Property ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Eval-time denial cause, read from the authoring-validity witness (role:authoredUnder + role:lintVerdict), NOT re-derived from the fold alone (the fold cannot tell these apart — all three present as overlay-permissive/base-denies). One of three: 'author:violation' (lintVerdict=fail — extension exceeded parent even at authoring — author error) | 'drift:parent-tightened' (lintVerdict=pass — once-valid extension, parent later tightened — silent role-rot, not the author's fault) | 'drift:unattributed' (no witness — offline/linter-skipped/pre-migration string-role — denied, cause unknown; fail-closed on the deny, honest on the cause). Emitted into PolicyEvaluation.constraints. STABILITY: these three enum strings are PROVISIONAL pending HUB confirmation of the audit-UI naming (CBP condition (a), 2026-07-08); a HUB rename is a clarification, not a standard break. drift:unattributed requires a DISTINCT UI affordance from the other two — cause-unknown, not cause-known-benign." .
