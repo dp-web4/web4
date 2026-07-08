@@ -759,7 +759,7 @@ Reputation cannot be easily gamed through fake identities because:
 1. Each action costs ATP (economic barrier)
 2. Reputation is role-specific (can't transfer across roles)
 3. Witnesses validate changes (collusion is detectable)
-4. Historical patterns are analyzed (sudden changes flagged)
+4. Historical patterns SHOULD be analyzed for sudden changes (see §10, Machine Learning Reputation Models; not yet specified)
 
 ### Gaming Prevention
 Rules must be designed to prevent gaming:
