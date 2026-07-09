@@ -92,6 +92,29 @@ sections/
 
 ---
 
+### Posture Invariants (public-face ordering — dp, 2026-07-09)
+
+The whitepaper is our public face. A first-time reader must meet ideas in this order, and every daily pass
+should check the doc still holds it. Full guidance: `docs/best-practices/public-docs-posture.md`.
+
+1. **why → what → how; status is a footnote.** The reader meets *why it matters* → *what the idea is* →
+   *how it works*, and only then *what is built today*. A public surface must **not lead with a
+   version/status/test-count block** — that reads as a PR merge report. Status stays honest and present, but
+   demoted to an Implementation-Status section/appendix, never the lead.
+2. **Foundations build fractally; ATP is not a foundation.** Dependency order:
+   presence (LCT) → capability & trust (T3/V3) → context (MRH) → grammar (R6/R7) → **value feedback (ATP/ADP)**
+   → memory. **ATP/ADP is a value-feedback mechanism, not a founding pillar** — and it is the least-
+   implemented core component (Hardbound-only, no public reference impl). Do not give it billing ahead of
+   T3/V3 or call it "the beating heart / lifeblood." It gets a full treatment in Part 3 as *feedback on the
+   foundation*.
+3. **Re-level and reorder; never dilute honesty.** Posture fixes move and reframe material; they never delete
+   a truth claim, a status marker, or a findings-vs-framings distinction.
+
+*Watch item:* if a future edit reintroduces a status block as the lead of the Exec Summary or Introduction,
+or re-promotes ATP ahead of T3/V3, flag it as a posture regression.
+
+---
+
 ## 3. Inclusion Criteria
 
 ### Content SHOULD be integrated when:

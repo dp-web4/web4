@@ -5,6 +5,33 @@ Entries are added chronologically, never modified or deleted.
 
 ---
 
+## 2026-07-09 - Posture Revision: Why-First, Foundation-First
+
+A structural (not factual) revision to fix the public-face reading arc. Review + rationale:
+`WHITEPAPER_STRUCTURE_REVIEW_2026-07-09.md`; standing guidance persisted to
+`docs/best-practices/public-docs-posture.md` and `PUBLISHER_CONTEXT.md` (Posture Invariants). No truth
+claim, status marker, or findings-vs-framings distinction was removed — material was reordered and re-leveled.
+
+### Changed
+- **Introduction** — no longer opens on a shipped-status block. Rewritten as a why-first orientation (the
+  concrete agent-authorization stakes) + a "how to read this" map with the fractal dependency order;
+  removed the duplicated "Core Mechanisms" catalog (it lived in the Exec Summary and Part 1 §1.4 already).
+- **Executive Summary** — removed the ~200-word version/status block from the lead; now opens on *why*. The
+  ARC-AGI-3 proof point relocated into the Implementation Status section. "The Core Innovation" reordered
+  foundation-first (presence → **T3/V3 trust, previously absent** → value-feedback), with ATP reframed as a
+  feedback layer, not a pillar.
+- **Part 1 §1.4** — component map reordered to dependency order: LCT → T3/V3 → MRH → R6/R7 → **ATP last**,
+  ATP explicitly labeled the value-feedback layer and "not in the public packages." §1.2 corrected: ATP/ADP
+  is Hardbound-only, not "partially shipped" in `web4-core`.
+- **Part 3** — opening reframed: ATP is the value-feedback cycle that rides on the presence+trust foundation,
+  not "the beating heart of Web4." §3.1 heading "The Lifeblood of Value" → "The Value-Feedback Cycle."
+- **README** — corrected the stale flat `sections/*.md` layout description to the real nested
+  `sections/<n>/index.md` fractal structure. Title page date → 2026-07-09.
+
+### Deferred (dp-gated)
+- Site rebuild + deploy (`make-web.sh` → `docs/whitepaper-web/` GitHub Pages / metalinxx.io) — the
+  outward-facing publish step is held for dp. Sources are committed; regenerate + publish on approval.
+
 ## 2025-08-18 - Manifesto Energy Restoration
 
 ### Added

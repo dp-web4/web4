@@ -6,21 +6,24 @@ This directory contains the modular, maintainable version of the Web4 whitepaper
 
 ```
 whitepaper/
-├── sections/           # Individual whitepaper sections
-│   ├── 00-metadata.md
-│   ├── 01-executive-summary.md
-│   ├── 02-foundational-concepts.md
-│   ├── 03-blockchain-typology.md
-│   ├── 04-entity-architecture.md
-│   ├── 05-implementation-examples.md
-│   ├── 06-security-privacy.md
-│   ├── 07-performance.md
-│   ├── 08-future-directions.md
-│   ├── 09-philosophical-implications.md
-│   ├── 10-conclusion.md
-│   ├── 11-references.md
-│   ├── 12-appendices.md
-│   └── 13-contact.md
+├── sections/           # Fractal layout: one DIRECTORY per section, content in index.md
+│   ├── 01-title-authors/index.md
+│   ├── 00-executive-summary/index.md
+│   ├── 00-introduction/index.md
+│   ├── 02-glossary/index.md
+│   ├── 03-part1-defining-web4/index.md
+│   ├── 04-part2-foundational-concepts/index.md   # + dictionaries.md, meta/
+│   ├── 05-part3-value-trust-mechanics/index.md
+│   ├── 06-part4-implications-vision/index.md
+│   ├── 07-part5-memory/index.md
+│   ├── 08-part6-blockchain-typology/index.md
+│   ├── 09-part7-implementation-details/index.md
+│   ├── 09-part7-implementation-examples/index.md
+│   ├── 10-part8-web4-context/index.md
+│   ├── 11-conclusion/index.md
+│   ├── 12-references/index.md
+│   └── 13-appendices/index.md
+│   # reading order is defined by the add_section calls in make-md.sh, not by dir names
 ├── build/             # Generated output (git-ignored)
 │   ├── WEB4_Whitepaper_Complete.md
 │   ├── WEB4_Whitepaper.pdf

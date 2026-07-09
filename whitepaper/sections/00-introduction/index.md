@@ -1,26 +1,33 @@
 # Introduction
 
-> **Status (2026-04-29)**: This whitepaper documents Web4 — a research program proposing trust-native architecture for an internet that includes AI agents as participants. Some of what's described below is **shipped and installable** (`web4-core` 0.1.1 and `web4-trust-core` 0.1.1 on crates.io and PyPI; the agent-commerce-delegation demo with 166 passing tests; the AttestationEnvelope hardware-trust primitive). Some is **operational in the Hardbound CLI** as protocol-validation work (R7 action framework, ACP, Sybil-resistance proofs, multi-device LCT binding). Some is **specified but not yet built**. The Executive Summary draws explicit lines between the three; the body sections that follow describe the full architecture, with current-state markers where they apply.
+WEB4 is a proposed architecture for trust, value, and intelligence in an age where AI agents act alongside
+humans. The web arrived in layers — Web1 gave us access, Web2 gave us participation, Web3 gave us ownership.
+Each solved the problem the last one left open. The problem now open is **trust between diverse
+intelligences**: when an autonomous agent makes a purchase, executes code, or takes a decision on your
+behalf, how do you know it will act appropriately *before* it acts — and prove what it did *after* — without
+handing a single platform the power to decide? Web4's wager is that the missing layer is **verifiable
+presence**: trust as a first-class primitive of the protocol itself, earned through witnessed contribution
+rather than granted by a platform or bought with a token.
 
-This document presents WEB4 — a proposed architecture for trust, value, and intelligence in an age of autonomous collaboration between humans and AI. The work is grounded in the conventions of Web1 (access), Web2 (participation), and Web3 (ownership): the framing question is whether *verifiable presence* is the next missing layer.
+This document makes that case and then builds it. It is written to be read at the depth that serves you.
 
-The document follows a fractal structure: conceptual foundations followed by technical implementations for those who wish to build. The conceptual layer borrows from the [Synchronism](https://dpcars.net/synchronism) research program (coherence and resonance as organizing principles for sustainable systems), but Web4 itself is practical architecture — protocols, schemas, ledger backends, attestation primitives — and is evaluable on those terms.
+## How to read this document
 
-## Core Mechanisms
+The whitepaper follows a **fractal structure** — conceptual foundations first, technical implementation for
+those who wish to build, each level containing the whole. The layers build in dependency order:
 
-WEB4 introduces and interconnects several foundational components:
+> **presence (LCTs)** → **capability & trust (T3/V3)** → **context (MRH)** → **the grammar of action (R6/R7)**
+> → **value feedback (ATP/ADP)** → **memory as temporal sensing**
 
-- **Linked Context Tokens (LCTs)**: The reification of presence itself—non-transferable, cryptographically anchored footprints that give every entity verifiable presence in the digital realm.
+Each layer assumes only the ones before it. The [Executive Summary](../00-executive-summary/) gives the whole
+arc — the why, the what, and an honest, explicitly-drawn line between what is **shipped**, what is
+**operational in the Hardbound CLI** as protocol-validation work, and what is **still specification**. The
+body sections carry current-state markers where they apply, so a reader can always tell vision from
+deployed code.
 
-- **T3 and V3 Tensors**: Multidimensional trust and value representations whose three root dimensions—Talent, Training, Temperament (T3) and Valuation, Veracity, Validity (V3)—serve as root nodes in open-ended RDF sub-graphs of contextualized sub-dimensions, bound to entity-role pairs.
-
-- **Allocation Transfer Packet (ATP)**: A semi-fungible energy-value exchange modeled on biological ATP/ADP cycles, where work creates value and value generates energy.
-
-- **Markov Relevancy Horizon (MRH)**: A contextual boundary governing what is knowable, actionable, and relevant within each entity's scope, implemented as a typed RDF graph.
-
-- **RDF Ontological Backbone**: All Web4 relationships—trust tensors, MRH edges, role bindings—are expressed as typed RDF triples, enabling semantic interoperability with existing web standards and open-ended extensibility without modifying the core protocol.
-
-- **Memory as Temporal Sensor**: A reconception of memory not as storage but as active perception of temporal patterns, building trust through witnessed experience.
+The conceptual layer borrows from the [Synchronism](https://dpcars.net/synchronism) research program
+(coherence and resonance as organizing principles for sustainable systems), but Web4 itself is practical
+architecture — protocols, schemas, ledger backends, attestation primitives — and is evaluable on those terms.
 
 ## Philosophical Grounding
 

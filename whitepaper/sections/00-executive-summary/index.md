@@ -1,10 +1,14 @@
 # Executive Summary: The Trust-Native Internet
 
-> **Status calibration**: This whitepaper presents the Web4 **vision architecture**. As of 2026-05-15, the v0.2.0 package family is public on crates.io, PyPI, and npm: `web4-core` 0.2.0, `web4-trust-core` 0.2.0 (Rust crate + Python wheel as `web4-trust` + npm WASM browser bindings — first npm publish), and `web4-sdk` 0.27.0 (PyPI; renamed from `web4` in this release because the PyPI name `web4` is held by an unrelated dormant package — the `from web4 import ...` import path is unchanged). All AGPL-3.0-or-later. v0.2.0 closes the 17-day publish-vs-main gap since v0.1.1 (2026-04-28), bringing inter-society protocol, society-roles, and MCP §7.3-§7.6 cross-society spec into shipped code along with the 35-vector conformance test suite. A working agent-commerce-delegation demo with 166 passing tests is at [`web4/demo/`](https://github.com/dp-web4/web4/tree/main/demo). The strongest single proof point: 0% → 94.85% on ARC-AGI-3 with the same Claude Opus 4.6 via the SAGE harness ([public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4)). **Most of what follows is specification, not deployed code.** The implementation-status section below draws explicit lines between currently-available, emerging, and not-yet-implemented.
+AI agents now make purchases, execute code, and take decisions on behalf of the humans they serve. Our
+internet has no native way to answer the two questions this raises: *how do I know an agent will act
+appropriately, before it acts?* and *how do I prove what it actually did, after the fact, without trusting a
+single intermediary?* Platforms answer with revocable logs; blockchains answer with tokens and limited
+expressivity. Neither makes **trust itself** verifiable.
 
 WEB4 asks whether trust can be a first-class primitive of an internet for humans and AI agents — earned through witnessed contribution, expressed through a typed RDF ontology, anchored cryptographically. The framing borrows from the conventions of Web1 (access), Web2 (participation), Web3 (ownership): the question is whether *verifiable presence* is the next missing layer.
 
-The vision below is ambitious. The work tests the vision. The boundary between what's tested and what's still vision is named explicitly throughout.
+The vision below is ambitious. The work tests the vision. The boundary between what's tested and what's still vision is named explicitly throughout — and drawn out in full in the [Implementation Status](#implementation-status) section, not glossed. Most of what follows is specification, not deployed code, and the document says so wherever it applies.
 
 > **Findings vs Framings**: This whitepaper mixes two categories of claim — *findings* (working implementations, passing tests, the public scorecard) and *framings* (analogies and philosophical positioning that orient how the architecture is read). Both matter; conflating them is the failure mode external reviewers flag most often. The "Implementation Status" subsection below lists the findings; the analogies in the body sections (Linux/GNU/distribution, biological-membrane, trust-as-gravity, memory-as-temporal-sensor) are framings. The Conclusion expands this distinction; Appendix J discloses the methodology that makes the distinction load-bearing.
 
@@ -12,11 +16,15 @@ The vision below is ambitious. The work tests the vision. The boundary between w
 
 At the heart of WEB4 lies a simple yet profound shift: **presence is witnessed, witnessed presence builds trust, and contribution generates value**—and the relationships between them are expressed through a formal ontology, typed, extensible, and machine-readable.
 
-Through **Linked Context Tokens (LCTs)**, every entity—human, AI, device, organization, or role—gains a cryptographic footprint in the digital realm. This is not merely an identifier but a reification of presence itself—a node in a cross-linked graph of witnessed interactions. An LCT crystallizes the moment an entity enters Web4 and accompanies it throughout its participation. Its strength is not absolute security but structural resilience: the more an LCT is witnessed, linked, and contextualized, the more robust its presence becomes. Every action, every contribution, every interaction accumulates into a trust history that belongs to no one else.
+The architecture builds in layers, each assuming only the ones before it.
 
-The **Allocation Transfer Packet (ATP)** transforms energy into value through a biological metaphor made digital. Like ATP in living cells, our protocol tracks energy expenditure and value creation in a continuous cycle. Work consumes energy, creating value, which when recognized by others, generates new energy. This is not mining or staking—it's genuine contribution recognized by genuine benefit.
+**Presence — Linked Context Tokens (LCTs).** Every entity—human, AI, device, organization, or role—gains a cryptographic footprint in the digital realm. This is not merely an identifier but a reification of presence itself—a node in a cross-linked graph of witnessed interactions. An LCT crystallizes the moment an entity enters Web4 and accompanies it throughout its participation. Its strength is not absolute security but structural resilience: the more an LCT is witnessed, linked, and contextualized, the more robust its presence becomes. Every action, every contribution, every interaction accumulates into a trust history that belongs to no one else.
 
-**Memory as Temporal Sensing** reconceives data storage as active perception. Memory doesn't just record the past; it actively perceives temporal patterns, building trust through witnessed experience. Every interaction leaves a trace, every trace can be witnessed, and every witness strengthens the fabric of collective trust.
+**Trust — the T3/V3 tensors.** On that presence, Web4 measures capability and contribution as multi-dimensional, typed relationships rather than flat scores. **T3** (Talent, Training, Temperament) captures what an entity can be trusted to do; **V3** (Valuation, Veracity, Validity) captures the worth of what it produces. Each dimension is not a number but an open-ended RDF sub-graph, refinable with context-specific sub-dimensions, and bound to an entity-*role* pair — trust is a relationship, contextual, not a global reputation score. Presence makes an entity real; the tensors make it *trustable*.
+
+**Value feedback — the Allocation Transfer Packet (ATP/ADP cycle).** Built on top of the trust layer, ATP closes the loop from contribution back to allocation. Modeled on the biological ATP/ADP cycle, work discharges energy (ATP→ADP) and witnessed, recognized contribution recharges it (ADP→ATP). This is not mining or staking—it's genuine contribution recognized by genuine benefit, a thermodynamic accounting that makes value track work rather than speculation. It is a *feedback mechanism riding on presence and trust, not a foundation beneath them* — and, of the core components, the least far along toward a public reference implementation (see Implementation Status).
+
+**Memory as Temporal Sensing.** Finally, memory is reconceived from storage into active perception. Memory doesn't just record the past; it actively perceives temporal patterns, building trust through witnessed experience. Every interaction leaves a trace, every trace can be witnessed, and every witness strengthens the fabric of collective trust.
 
 ## Why Now?
 
@@ -34,7 +42,9 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 
 ### Implementation Status
 
-**This whitepaper primarily presents the Web4 vision architecture.** Implementation is in early stages, with components at varying levels of maturity:
+**This whitepaper primarily presents the Web4 vision architecture.** Implementation is in early stages, with components at varying levels of maturity.
+
+The strongest single proof point to date: **0% → 94.85% on ARC-AGI-3** with the same Claude Opus 4.6 driven through the SAGE harness ([public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4)) — a measurable demonstration that the coherence/trust architecture changes what an unchanged model can do. Below, components by maturity:
 
 **Currently Available** (ready for testing):
 - **`web4-core` and `web4-trust-core` v0.2.0** (published 2026-05-15 to crates.io, PyPI, and npm; supersedes v0.1.1 from 2026-04-28): the LCT presence primitive, T3/V3 trust tensors (3 root dims, fractally extensible via `web4:subDimensionOf`), coherence scoring, in-memory and on-disk Ledger backends, the AttestationEnvelope hardware-trust primitive, and new in v0.2.0 — Society / SocietyRole / RoleAssignment types, ATPAccount with conservation-invariant transfer (society-configurable fees + max_balance), and R7Action with reputation as first-class output. Install: `cargo add web4-core` / `pip install web4-core` / `npm install web4-trust-core` (the npm package is WASM bindings for the browser surface, ~337KB). Release record: [`docs/proof/PUBLISHED.md`](https://github.com/dp-web4/web4/blob/main/docs/proof/PUBLISHED.md) and [`CHANGELOG.md`](https://github.com/dp-web4/web4/blob/main/CHANGELOG.md).

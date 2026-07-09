@@ -4,13 +4,13 @@
 
 ## 3. Value, Trust, and Capability Mechanics
 
-This section explores the beating heart of Web4—the mechanisms that transform energy into value, capability into trust, and contribution into reward. Here, biological metaphors become digital reality, creating an economy where genuine work generates genuine worth.
+Parts 1 and 2 established the foundation: presence (LCTs), the trust and value tensors (T3/V3), context (MRH), and the grammar of action (R6/R7). This section adds the layer that **rides on top of that foundation** — the mechanisms that feed value back to where work was done, transforming contribution into reward. ATP/ADP is not a foundation beneath Web4; it is the value-feedback loop built *on* presence and trust. Here, biological metaphors become digital reality, creating an economy where genuine work generates genuine worth.
 
-## 3.1. Allocation Transfer Packet (ATP): The Lifeblood of Value
+## 3.1. Allocation Transfer Packet (ATP): The Value-Feedback Cycle
 
 > *"Allocation flows through work. Packets carry the proof."*
 
-The Allocation Transfer Packet (ATP) revolutionizes how we track and reward contribution. No more mining meaningless hashes. No more staking for the sake of staking. In Web4, resources allocated become work performed, and work performed generates new allocation—a perpetual cycle of meaningful contribution.
+The Allocation Transfer Packet (ATP) is Web4's mechanism for tracking and rewarding contribution — the loop that closes from work performed back to allocation earned. It presupposes the foundation: an entity has presence (an LCT) and accrues trust (T3/V3) *before* its work can be recognized and recharged. No more mining meaningless hashes, no more staking for the sake of staking; resources allocated become work performed, and witnessed work performed generates new allocation—a perpetual cycle of meaningful contribution. (This is also the least-deployed of the core mechanisms in public code: operational in the Hardbound CLI, with a public reference implementation still pending.)
 
 ### 3.1.1. The ATP/ADP Cycle: Biology Made Digital
 
