@@ -23,9 +23,7 @@
 //! Reference: `web4-standard/core-spec/inter-society-protocol.md`,
 //!            `web4-standard/core-spec/society-roles.md`
 
-use crate::crypto::KeyPair;
 use crate::error::{Result, Web4Error};
-use crate::lct::{EntityType, Lct};
 use crate::role::{RoleAssignment, SocietyRole};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

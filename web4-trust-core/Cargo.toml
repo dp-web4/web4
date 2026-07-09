@@ -43,7 +43,7 @@ getrandom = { version = "0.2", optional = true }
 # Non-optional as of P3b: EntityTrust holds `web4_core::t3::T3` / `web4_core::v3::V3`
 # internally, so the canonical engine is required for the default build (not just
 # the WASM bindings, which also re-export web4-core role/society/atp/r6 types).
-web4-core = { path = "../web4-core", version = "0.2" }
+web4-core = { path = "../web4-core", version = "0.3" }
 
 # WASM-specific uuid with JS random source
 [target.'cfg(target_arch = "wasm32")'.dependencies]

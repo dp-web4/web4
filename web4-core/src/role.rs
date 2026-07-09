@@ -20,8 +20,6 @@
 //!
 //! Reference: `web4-standard/core-spec/society-roles.md`
 
-use crate::lct::{EntityType, Lct};
-use crate::crypto::KeyPair;
 use crate::t3::T3;
 use crate::v3::V3;
 use chrono::{DateTime, Utc};
