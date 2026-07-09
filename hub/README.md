@@ -33,6 +33,14 @@ We don't mandate the policy. We insist that whatever the policy is, is followed 
 | 5 | Docker package + first-chapter demo scripts | ✓ (Docker untested on dev machine; first operator with Docker should report) |
 | 6 | Pilot-organizer docs + polish | ✓ |
 
+**Post-MVP hardening (2026-07).** A full external security review (GPT-5.5 Pro, 3 passes) drove a
+hardening cycle, all landed: MCP write tools moved off the public listener onto the loopback operator
+plane; `assign_role` gates council/law *before* persisting; **pluggable operator-auth** (`HUB_OPERATOR_AUTH=token`);
+sealed-channel **freshness enforcement** on write tools; **`HUB_PROFILE=production`** refusing unsafe
+defaults; law-integrity **fail-closed** on mismatch; issuer URLs from `HUB_PUBLIC_BASE_URL` not the Host
+header; unlock-verifier timeout. Plus the **`hub up`** turnkey deploy kit (see *Deployment models*) and
+the start of role-based launch orchestration (roles as LCT entities).
+
 ## Deployment models (in process)
 
 > **Status: in process.** The hub runs today as a single binary + config file (see [Quick start](#quick-start)). The map below is the target set of turnkey deployment postures — and the `hub up` installer that selects them — so an operator with no IT background can stand a hub up in one command.

@@ -1,6 +1,6 @@
 # Web4 Implementation Status
 
-**Last Updated**: June 15, 2026
+**Last Updated**: July 9, 2026
 
 ---
 
@@ -28,20 +28,22 @@ The strongest single external validation: a 2026-05-13 three-round Kimi 2.6 cros
 
 ---
 
-## Published artifacts (current: v0.1.1, 2026-04-28)
+## Published artifacts (current: v0.2.0)
 
 | Package | Registry | Version | Install |
 |---|---|---|---|
-| **web4-core** (Rust) | [crates.io](https://crates.io/crates/web4-core) | 0.1.1 | `cargo add web4-core` |
-| **web4-core** (Python) | [PyPI](https://pypi.org/project/web4-core/) | 0.1.1 | `pip install web4-core` |
-| **web4-trust-core** (Rust) | [crates.io](https://crates.io/crates/web4-trust-core) | 0.1.1 | `cargo add web4-trust-core` |
-| **web4-trust** (Python) | [PyPI](https://pypi.org/project/web4-trust/) | 0.1.1 | `pip install web4-trust` |
+| **web4-core** (Rust) | [crates.io](https://crates.io/crates/web4-core) | 0.2.0 | `cargo add web4-core` |
+| **web4-core** (Python) | [PyPI](https://pypi.org/project/web4-core/) | 0.2.0 | `pip install web4-core` |
+| **web4-trust-core** (Rust) | [crates.io](https://crates.io/crates/web4-trust-core) | 0.2.0 | `cargo add web4-trust-core` |
+| **web4-trust** (Python) | [PyPI](https://pypi.org/project/web4-trust/) | 0.2.0 | `pip install web4-trust` |
 
-> v0.1.0 yanked from crates.io: the Python `web4-core` wheel shipped without `__init__.py`, so `import web4_core` returned an empty module. Fixed in v0.1.1; v0.1.0 PyPI artifacts remain installable but `web4-trust`'s docstring also incorrectly described tensors as "6-dimensional" (canonical: 3 root dims, fractally extensible via `web4:subDimensionOf`). Use v0.1.1.
+> **`web4-core` 0.3.0 is queued** — the repo has moved well past the published 0.2.0 (role entities, canonical T3/V3, the Act primitive, EUDI/OID4VC, the vault). Use the latest published (0.2.0) until 0.3.0 lands.
+>
+> *Historical:* v0.1.0 was yanked (Python wheel shipped without `__init__.py`); fixed in 0.1.1. Use the latest.
 
 All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial licensing: contact Metalinxx Inc. via the [project repository](https://github.com/dp-web4/web4).
 
-`web4-core` provides LCT (Linked Context Token) primitives + T3/V3 trust tensors + identity coherence + ledger anchoring (`InMemoryLedger`, `LocalLedger`). `web4-trust-core` adds trust persistence and witnessing primitives. The Python wheels are PyO3-built bindings over the same Rust core.
+`web4-core` provides LCT (Linked Context Token) primitives + T3/V3 trust tensors (canonical, since 0.2) + identity coherence + ledger anchoring (`InMemoryLedger`, `LocalLedger`). As of the 0.2/0.3 line it also carries the **Act** primitive (witnessed action grammar) + `ReputationDelta`, **role entities** (`RoleEntity`/`RoleExtension`/`RoleRegistry`, LCT issuance), the **EUDI/W3C-DID stack** (`did` / `sd_jwt_vc` / `oid4vc`), and the recursive **vault**. `web4-trust-core` adds trust persistence, witnessing, and decay. The Python wheels are PyO3-built bindings over the same Rust core.
 
 ---
 
@@ -52,8 +54,9 @@ All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial 
 | **Spec corpus** (LCT, T3/V3, MRH, ATP/ADP, R6/R7) | Stable | [`web4-standard/core-spec/`](web4-standard/core-spec/) |
 | **Inter-society protocol spec** (genesis, first-contact, federation, secession) | v0.1.2 DRAFT, 2026-05-13 | [`web4-standard/core-spec/inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) |
 | **Society roles spec** (7 base-mandatory + context-mandatory + optional) | v0.1.0 DRAFT, 2026-05-13 | [`web4-standard/core-spec/society-roles.md`](web4-standard/core-spec/society-roles.md) |
-| **`web4-core`** | **Published v0.1.1** (crates.io + PyPI). LCT, T3/V3, Coherence, Ledger trait + 2 backends (InMemory, Local file). 52 unit tests + 4 doctests. | [`web4-core/`](web4-core/) |
-| **`web4-trust-core`** | **Published v0.1.1** (crates.io + PyPI). Trust storage, witnessing, decay. | [`web4-trust-core/`](web4-trust-core/) |
+| **`web4-core`** | **Published v0.2.0** (crates.io + PyPI); **0.3.0 queued**. LCT, canonical T3/V3, Coherence, Ledger + 2 backends, plus **Act**, **role entities**, the **EUDI/DID stack**, and the **vault**. 164 tests. | [`web4-core/`](web4-core/) |
+| **`web4-trust-core`** | **Published v0.2.0** (crates.io + PyPI). Trust storage, witnessing, decay. | [`web4-trust-core/`](web4-trust-core/) |
+| **Community Hub** (`web4/hub`) | Runnable single-binary Web4 society server: signed law + witnessed hash-chained ledger, sealed member↔hub channel, admission/council, EUDI issuer/verifier. Hardened this cycle (external security review: MCP-writes→loopback operator plane, council-gate-before-persist, pluggable operator-auth token, freshness enforcement, production profile, law-integrity fail-closed) + a `hub up` turnkey deploy kit. | [`hub/`](hub/) |
 | **Runnable proof of presence** | `python identity_bootstrap.py` — bootstraps a host LCT (keypair on disk, hash-chained `LocalLedger`, public `lct.json` sidecar); `--verify` re-checks the chain on re-run. ~30 sec. | [`web4-core/python/examples/identity_bootstrap.py`](web4-core/python/examples/identity_bootstrap.py) |
 | **Cross-language interop demo** | Python mints an LCT to a hash-chained ledger; a Rust binary reads the same `ledger.jsonl` and verifies chain integrity + anchor proof. The on-disk format is the contract. | [`web4-core/examples/cross_language_verify/`](web4-core/examples/cross_language_verify/) |
 | **Reference Python SDK** | 2,627 tests, mypy --strict clean (not yet on PyPI separately) | [`web4-standard/implementation/`](web4-standard/implementation/) |
