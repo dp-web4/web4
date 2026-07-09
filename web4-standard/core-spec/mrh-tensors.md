@@ -198,12 +198,14 @@ Trust emerges from graph patterns and propagates through edges:
 # Trust propagation algorithms (conceptual structure).
 # The SDK implements these as stateless module-level functions
 # (propagate_multiplicative, propagate_probabilistic, propagate_maximal)
-# with identical mathematical semantics. Two API differences from the
-# pseudocode below: (1) the SDK's propagate_probabilistic/propagate_maximal
-# consume pre-computed path-trust scalars (List[float]) rather than raw
-# List[MRHEdge] paths, and (2) they drop the decay_factor parameter — decay
-# is applied earlier, during multiplicative path scoring. Only
-# propagate_multiplicative carries decay_factor.
+# with identical mathematical semantics. Three API differences from the
+# pseudocode below: (1) all three SDK functions consume List[float] rather
+# than MRHEdge objects — propagate_multiplicative takes per-edge weights,
+# (2) propagate_probabilistic/propagate_maximal take pre-computed per-path
+# trust scalars rather than raw List[List[MRHEdge]] paths, and (3) those two
+# drop the decay_factor parameter — decay is applied earlier, during
+# multiplicative path scoring. Only propagate_multiplicative carries
+# decay_factor.
 class TrustPropagation:
     def multiplicative(self, path: List[MRHEdge], decay_factor: float = 0.7) -> float:
         """Trust decays multiplicatively along path"""
