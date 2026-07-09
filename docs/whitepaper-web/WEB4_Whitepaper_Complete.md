@@ -2,17 +2,21 @@
 
 **Authors:** Dennis Palatov, GPT4o, Deepseek, Grok, Claude, Gemini, Manus
 
-**Updated:** April 29, 2026
+**Updated:** July 9, 2026
 
 ---
 
 # Executive Summary: The Trust-Native Internet
 
-> **Status calibration**: This whitepaper presents the Web4 **vision architecture**. As of 2026-05-15, the v0.2.0 package family is public on crates.io, PyPI, and npm: `web4-core` 0.2.0, `web4-trust-core` 0.2.0 (Rust crate + Python wheel as `web4-trust` + npm WASM browser bindings — first npm publish), and `web4-sdk` 0.27.0 (PyPI; renamed from `web4` in this release because the PyPI name `web4` is held by an unrelated dormant package — the `from web4 import ...` import path is unchanged). All AGPL-3.0-or-later. v0.2.0 closes the 17-day publish-vs-main gap since v0.1.1 (2026-04-28), bringing inter-society protocol, society-roles, and MCP §7.3-§7.6 cross-society spec into shipped code along with the 35-vector conformance test suite. A working agent-commerce-delegation demo with 166 passing tests is at [`web4/demo/`](https://github.com/dp-web4/web4/tree/main/demo). The strongest single proof point: 0% → 94.85% on ARC-AGI-3 with the same Claude Opus 4.6 via the SAGE harness ([public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4)). **Most of what follows is specification, not deployed code.** The implementation-status section below draws explicit lines between currently-available, emerging, and not-yet-implemented.
+AI agents now make purchases, execute code, and take decisions on behalf of the humans they serve. Our
+internet has no native way to answer the two questions this raises: *how do I know an agent will act
+appropriately, before it acts?* and *how do I prove what it actually did, after the fact, without trusting a
+single intermediary?* Platforms answer with revocable logs; blockchains answer with tokens and limited
+expressivity. Neither makes **trust itself** verifiable.
 
 WEB4 asks whether trust can be a first-class primitive of an internet for humans and AI agents — earned through witnessed contribution, expressed through a typed RDF ontology, anchored cryptographically. The framing borrows from the conventions of Web1 (access), Web2 (participation), Web3 (ownership): the question is whether *verifiable presence* is the next missing layer.
 
-The vision below is ambitious. The work tests the vision. The boundary between what's tested and what's still vision is named explicitly throughout.
+The vision below is ambitious. The work tests the vision. The boundary between what's tested and what's still vision is named explicitly throughout — and drawn out in full in the [Implementation Status](#implementation-status) section, not glossed. Most of what follows is specification, not deployed code, and the document says so wherever it applies.
 
 > **Findings vs Framings**: This whitepaper mixes two categories of claim — *findings* (working implementations, passing tests, the public scorecard) and *framings* (analogies and philosophical positioning that orient how the architecture is read). Both matter; conflating them is the failure mode external reviewers flag most often. The "Implementation Status" subsection below lists the findings; the analogies in the body sections (Linux/GNU/distribution, biological-membrane, trust-as-gravity, memory-as-temporal-sensor) are framings. The Conclusion expands this distinction; Appendix J discloses the methodology that makes the distinction load-bearing.
 
@@ -20,11 +24,15 @@ The vision below is ambitious. The work tests the vision. The boundary between w
 
 At the heart of WEB4 lies a simple yet profound shift: **presence is witnessed, witnessed presence builds trust, and contribution generates value**—and the relationships between them are expressed through a formal ontology, typed, extensible, and machine-readable.
 
-Through **Linked Context Tokens (LCTs)**, every entity—human, AI, device, organization, or role—gains a cryptographic footprint in the digital realm. This is not merely an identifier but a reification of presence itself—a node in a cross-linked graph of witnessed interactions. An LCT crystallizes the moment an entity enters Web4 and accompanies it throughout its participation. Its strength is not absolute security but structural resilience: the more an LCT is witnessed, linked, and contextualized, the more robust its presence becomes. Every action, every contribution, every interaction accumulates into a trust history that belongs to no one else.
+The architecture builds in layers, each assuming only the ones before it.
 
-The **Allocation Transfer Packet (ATP)** transforms energy into value through a biological metaphor made digital. Like ATP in living cells, our protocol tracks energy expenditure and value creation in a continuous cycle. Work consumes energy, creating value, which when recognized by others, generates new energy. This is not mining or staking—it's genuine contribution recognized by genuine benefit.
+**Presence — Linked Context Tokens (LCTs).** Every entity—human, AI, device, organization, or role—gains a cryptographic footprint in the digital realm. This is not merely an identifier but a reification of presence itself—a node in a cross-linked graph of witnessed interactions. An LCT crystallizes the moment an entity enters Web4 and accompanies it throughout its participation. Its strength is not absolute security but structural resilience: the more an LCT is witnessed, linked, and contextualized, the more robust its presence becomes. Every action, every contribution, every interaction accumulates into a trust history that belongs to no one else.
 
-**Memory as Temporal Sensing** reconceives data storage as active perception. Memory doesn't just record the past; it actively perceives temporal patterns, building trust through witnessed experience. Every interaction leaves a trace, every trace can be witnessed, and every witness strengthens the fabric of collective trust.
+**Trust — the T3/V3 tensors.** On that presence, Web4 measures capability and contribution as multi-dimensional, typed relationships rather than flat scores. **T3** (Talent, Training, Temperament) captures what an entity can be trusted to do; **V3** (Valuation, Veracity, Validity) captures the worth of what it produces. Each dimension is not a number but an open-ended RDF sub-graph, refinable with context-specific sub-dimensions, and bound to an entity-*role* pair — trust is a relationship, contextual, not a global reputation score. Presence makes an entity real; the tensors make it *trustable*.
+
+**Value feedback — the Allocation Transfer Packet (ATP/ADP cycle).** Built on top of the trust layer, ATP closes the loop from contribution back to allocation. Modeled on the biological ATP/ADP cycle, work discharges energy (ATP→ADP) and witnessed, recognized contribution recharges it (ADP→ATP). This is not mining or staking—it's genuine contribution recognized by genuine benefit, a thermodynamic accounting that makes value track work rather than speculation. It is a *feedback mechanism riding on presence and trust, not a foundation beneath them* — and, of the core components, the least far along toward a public reference implementation (see Implementation Status).
+
+**Memory as Temporal Sensing.** Finally, memory is reconceived from storage into active perception. Memory doesn't just record the past; it actively perceives temporal patterns, building trust through witnessed experience. Every interaction leaves a trace, every trace can be witnessed, and every witness strengthens the fabric of collective trust.
 
 ## Why Now?
 
@@ -42,7 +50,9 @@ This whitepaper presents both vision and blueprint. The conceptual sections expl
 
 ### Implementation Status
 
-**This whitepaper primarily presents the Web4 vision architecture.** Implementation is in early stages, with components at varying levels of maturity:
+**This whitepaper primarily presents the Web4 vision architecture.** Implementation is in early stages, with components at varying levels of maturity.
+
+The strongest single proof point to date: **0% → 94.85% on ARC-AGI-3** with the same Claude Opus 4.6 driven through the SAGE harness ([public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4)) — a measurable demonstration that the coherence/trust architecture changes what an unchanged model can do. Below, components by maturity:
 
 **Currently Available** (ready for testing):
 - **`web4-core` and `web4-trust-core` v0.2.0** (published 2026-05-15 to crates.io, PyPI, and npm; supersedes v0.1.1 from 2026-04-28): the LCT presence primitive, T3/V3 trust tensors (3 root dims, fractally extensible via `web4:subDimensionOf`), coherence scoring, in-memory and on-disk Ledger backends, the AttestationEnvelope hardware-trust primitive, and new in v0.2.0 — Society / SocietyRole / RoleAssignment types, ATPAccount with conservation-invariant transfer (society-configurable fees + max_balance), and R7Action with reputation as first-class output. Install: `cargo add web4-core` / `pip install web4-core` / `npm install web4-trust-core` (the npm package is WASM bindings for the browser surface, ~337KB). Release record: [`docs/proof/PUBLISHED.md`](https://github.com/dp-web4/web4/blob/main/docs/proof/PUBLISHED.md) and [`CHANGELOG.md`](https://github.com/dp-web4/web4/blob/main/CHANGELOG.md).
@@ -88,27 +98,34 @@ Join us in building the trust-native internet—where memory becomes wisdom, int
 
 # Introduction
 
-> **Status (2026-04-29)**: This whitepaper documents Web4 — a research program proposing trust-native architecture for an internet that includes AI agents as participants. Some of what's described below is **shipped and installable** (`web4-core` 0.1.1 and `web4-trust-core` 0.1.1 on crates.io and PyPI; the agent-commerce-delegation demo with 166 passing tests; the AttestationEnvelope hardware-trust primitive). Some is **operational in the Hardbound CLI** as protocol-validation work (R7 action framework, ACP, Sybil-resistance proofs, multi-device LCT binding). Some is **specified but not yet built**. The Executive Summary draws explicit lines between the three; the body sections that follow describe the full architecture, with current-state markers where they apply.
+WEB4 is a proposed architecture for trust, value, and intelligence in an age where AI agents act alongside
+humans. The web arrived in layers — Web1 gave us access, Web2 gave us participation, Web3 gave us ownership.
+Each solved the problem the last one left open. The problem now open is **trust between diverse
+intelligences**: when an autonomous agent makes a purchase, executes code, or takes a decision on your
+behalf, how do you know it will act appropriately *before* it acts — and prove what it did *after* — without
+handing a single platform the power to decide? Web4's wager is that the missing layer is **verifiable
+presence**: trust as a first-class primitive of the protocol itself, earned through witnessed contribution
+rather than granted by a platform or bought with a token.
 
-This document presents WEB4 — a proposed architecture for trust, value, and intelligence in an age of autonomous collaboration between humans and AI. The work is grounded in the conventions of Web1 (access), Web2 (participation), and Web3 (ownership): the framing question is whether *verifiable presence* is the next missing layer.
+This document makes that case and then builds it. It is written to be read at the depth that serves you.
 
-The document follows a fractal structure: conceptual foundations followed by technical implementations for those who wish to build. The conceptual layer borrows from the [Synchronism](https://dpcars.net/synchronism) research program (coherence and resonance as organizing principles for sustainable systems), but Web4 itself is practical architecture — protocols, schemas, ledger backends, attestation primitives — and is evaluable on those terms.
+## How to read this document
 
-## Core Mechanisms
+The whitepaper follows a **fractal structure** — conceptual foundations first, technical implementation for
+those who wish to build, each level containing the whole. The layers build in dependency order:
 
-WEB4 introduces and interconnects several foundational components:
+> **presence (LCTs)** → **capability & trust (T3/V3)** → **context (MRH)** → **the grammar of action (R6/R7)**
+> → **value feedback (ATP/ADP)** → **memory as temporal sensing**
 
-- **Linked Context Tokens (LCTs)**: The reification of presence itself—non-transferable, cryptographically anchored footprints that give every entity verifiable presence in the digital realm.
+Each layer assumes only the ones before it. The [Executive Summary](../00-executive-summary/) gives the whole
+arc — the why, the what, and an honest, explicitly-drawn line between what is **shipped**, what is
+**operational in the Hardbound CLI** as protocol-validation work, and what is **still specification**. The
+body sections carry current-state markers where they apply, so a reader can always tell vision from
+deployed code.
 
-- **T3 and V3 Tensors**: Multidimensional trust and value representations whose three root dimensions—Talent, Training, Temperament (T3) and Valuation, Veracity, Validity (V3)—serve as root nodes in open-ended RDF sub-graphs of contextualized sub-dimensions, bound to entity-role pairs.
-
-- **Allocation Transfer Packet (ATP)**: A semi-fungible energy-value exchange modeled on biological ATP/ADP cycles, where work creates value and value generates energy.
-
-- **Markov Relevancy Horizon (MRH)**: A contextual boundary governing what is knowable, actionable, and relevant within each entity's scope, implemented as a typed RDF graph.
-
-- **RDF Ontological Backbone**: All Web4 relationships—trust tensors, MRH edges, role bindings—are expressed as typed RDF triples, enabling semantic interoperability with existing web standards and open-ended extensibility without modifying the core protocol.
-
-- **Memory as Temporal Sensor**: A reconception of memory not as storage but as active perception of temporal patterns, building trust through witnessed experience.
+The conceptual layer borrows from the [Synchronism](https://dpcars.net/synchronism) research program
+(coherence and resonance as organizing principles for sustainable systems), but Web4 itself is practical
+architecture — protocols, schemas, ledger backends, attestation primitives — and is evaluable on those terms.
 
 ## Philosophical Grounding
 
@@ -573,7 +590,7 @@ These are not future problems. They are current problems in agent-commerce deleg
 - A **contextual scoping mechanism** that bounds what's relevant for any decision (MRH)
 - A **shared ontological layer** so all of the above interoperate across implementations (RDF)
 
-The first three — LCT, T3, ATP/ADP — are partially shipped as of 2026-04-29 (`web4-core` 0.1.1, `web4-trust-core` 0.1.1, working agent-commerce demo). MRH and the full RDF graph are specified and being progressively implemented. Whether this is the right *factoring* of the problem — versus, say, building on DIDs/VCs or extending MCP authorization — is a sociological question about adoption, evaluable only over time.
+The presence and trust layers — LCT and T3 — are partially shipped as of 2026-04-29 (`web4-core` 0.1.1, `web4-trust-core` 0.1.1, working agent-commerce demo). The ATP/ADP value cycle is operational in the Hardbound CLI as protocol-validation work but is **not yet in the public packages**. MRH and the full RDF graph are specified and being progressively implemented. Whether this is the right *factoring* of the problem — versus, say, building on DIDs/VCs or extending MCP authorization — is a sociological question about adoption, evaluable only over time.
 
 ## 1.3. Goals
 
@@ -593,20 +610,22 @@ These goals are testable. The whitepaper sections that follow describe the mecha
 
 Web4's architecture has five tightly-coupled components. Each is described in detail in subsequent parts; this section is the orientation map. Status notes indicate what is currently shipped, operational in Hardbound, or specified.
 
+The components are listed in **dependency order** — each builds on the ones before it, from presence up to value feedback.
+
 1. **Linked Context Tokens (LCTs)** — non-transferable, cryptographically bound presence primitives. Each LCT is permanently associated with one entity (human, AI, organization, role, task, or resource) and accumulates witnessed interactions over its lifecycle. LCTs are the substrate from which identity and reputation are built; they support multi-device binding, multi-factor witnessing (the [constellation pattern](https://github.com/dp-web4/web4/blob/main/docs/specs/heterogeneous-identity.md)), and parent/child lineage with cryptographically-anchored revocation. **Status**: core primitive shipped in `web4-core` 0.1.1; multi-device binding operational in Hardbound; full witness-web protocol specified.
 
-2. **Allocation Transfer Packet (ATP)** — semi-fungible energy-value cycle modeled on biological ATP/ADP. Use discharges ATP into ADP; witnessed contribution recharges ADP back to ATP. The cycle is both a metaphor and a concrete protocol: discharge and recharge are first-class operations with anti-gaming constraints. **Status**: protocol operational in Hardbound CLI (recharge, team pools, dynamic action costs, anti-gaming caps, formally proven Sybil resistance via 5 theorems and 4 game-theoretic models). Public reference implementation: pending.
-
-3. **T3/V3 Tensors** — multi-dimensional records of capability and contribution.
+2. **T3/V3 Tensors** — multi-dimensional records of capability and contribution, built directly on LCT presence.
    * **T3** (Trust Tensor): three root dimensions — **T**alent, **T**raining, **T**emperament — each itself an open-ended RDF sub-graph of context-specific sub-dimensions linked via `web4:subDimensionOf`. Not a fixed-size 3-vector; a fractal extensibility pattern.
    * **V3** (Value Tensor): three root dimensions — **V**aluation, **V**eracity, **V**alidity — same fractal RDF pattern.
    Both tensors are bound to **entity-role pairs** via RDF triples — trust is a relationship, not a property. **Status**: T3 and V3 shipped in `web4-trust-core` 0.1.1; sub-dimension extensibility working; observation/decay logic shipped.
 
-4. **Markov Relevancy Horizon (MRH)** — contextual scoping mechanism. Defines an entity's zone of influence, comprehension, and authorization as a typed RDF graph rather than a flat boundary. Trust propagates through MRH edges with decay. **Status**: 134 RDF triples operational in Hardbound, Turtle export, trust-propagation through graph paths with decay (41/41 integration checks).
+3. **Markov Relevancy Horizon (MRH)** — contextual scoping mechanism. Defines an entity's zone of influence, comprehension, and authorization as a typed RDF graph rather than a flat boundary. Trust propagates through MRH edges with decay. **Status**: 134 RDF triples operational in Hardbound, Turtle export, trust-propagation through graph paths with decay (41/41 integration checks).
 
-5. **R6 / R7 Action Framework** — the grammar of every Web4 action. R6 = **R**ules / **R**ole / **R**equest / **R**eference / **R**esource → **R**esult. R7 = R6 + **R**eputation as a first-class output. Every cryptographically-signed action in Web4 follows this shape, making cross-system audit possible. **Status**: R7 operational in Hardbound (62/62 integration checks); composes with the ACP (Agentic Context Protocol) plan→intent→law-check→approve→execute→record lifecycle (28/28 checks).
+4. **R6 / R7 Action Framework** — the grammar of every Web4 action. R6 = **R**ules / **R**ole / **R**equest / **R**eference / **R**esource → **R**esult. R7 = R6 + **R**eputation as a first-class output. Every cryptographically-signed action in Web4 follows this shape, making cross-system audit possible. **Status**: R7 operational in Hardbound (62/62 integration checks); composes with the ACP (Agentic Context Protocol) plan→intent→law-check→approve→execute→record lifecycle (28/28 checks).
 
-These five components share a common substrate: **RDF triples** as the typed-relationship backbone. RDF is what makes Web4 extensible without central coordination — anyone can add a sub-dimension to T3, an MRH edge type, or a witness relationship without modifying the core protocol. LCTs anchor presence; ATP accounts for value flow; T3/V3 measure capability and contribution; MRH bounds context; R6/R7 grammars all of it together as auditable actions.
+5. **Allocation Transfer Packet (ATP/ADP cycle)** — the value-feedback layer that rides on top of the foundation above. A semi-fungible energy-value cycle modeled on biological ATP/ADP: use discharges ATP into ADP; witnessed contribution (assessed through the trust tensors) recharges ADP back to ATP. The cycle is both a metaphor and a concrete protocol — discharge and recharge are first-class operations with anti-gaming constraints — and it closes the loop from contribution back to allocation. It is a *feedback mechanism, not a foundation*, and it is the least-mature of the five in public code. **Status**: protocol operational in Hardbound CLI (recharge, team pools, dynamic action costs, anti-gaming caps, formally proven Sybil resistance via 5 theorems and 4 game-theoretic models); **not** in the public `web4-core` packages — public reference implementation pending.
+
+These five components share a common substrate: **RDF triples** as the typed-relationship backbone. RDF is what makes Web4 extensible without central coordination — anyone can add a sub-dimension to T3, an MRH edge type, or a witness relationship without modifying the core protocol. LCTs anchor presence; T3/V3 measure capability and contribution; MRH bounds context; R6/R7 grammar it all together as auditable actions; and the ATP/ADP cycle feeds value back to where work was done.
 
 # Part 2: Foundational Concepts and Entities
 
@@ -1232,13 +1251,13 @@ The metaphor and the mechanism each do work. Readers reasoning about emergent dy
 
 ## 3. Value, Trust, and Capability Mechanics
 
-This section explores the beating heart of Web4—the mechanisms that transform energy into value, capability into trust, and contribution into reward. Here, biological metaphors become digital reality, creating an economy where genuine work generates genuine worth.
+Parts 1 and 2 established the foundation: presence (LCTs), the trust and value tensors (T3/V3), context (MRH), and the grammar of action (R6/R7). This section adds the layer that **rides on top of that foundation** — the mechanisms that feed value back to where work was done, transforming contribution into reward. ATP/ADP is not a foundation beneath Web4; it is the value-feedback loop built *on* presence and trust. Here, biological metaphors become digital reality, creating an economy where genuine work generates genuine worth.
 
-## 3.1. Allocation Transfer Packet (ATP): The Lifeblood of Value
+## 3.1. Allocation Transfer Packet (ATP): The Value-Feedback Cycle
 
 > *"Allocation flows through work. Packets carry the proof."*
 
-The Allocation Transfer Packet (ATP) revolutionizes how we track and reward contribution. No more mining meaningless hashes. No more staking for the sake of staking. In Web4, resources allocated become work performed, and work performed generates new allocation—a perpetual cycle of meaningful contribution.
+The Allocation Transfer Packet (ATP) is Web4's mechanism for tracking and rewarding contribution — the loop that closes from work performed back to allocation earned. It presupposes the foundation: an entity has presence (an LCT) and accrues trust (T3/V3) *before* its work can be recognized and recharged. No more mining meaningless hashes, no more staking for the sake of staking; resources allocated become work performed, and witnessed work performed generates new allocation—a perpetual cycle of meaningful contribution. (This is also the least-deployed of the core mechanisms in public code: operational in the Hardbound CLI, with a public reference implementation still pending.)
 
 ### 3.1.1. The ATP/ADP Cycle: Biology Made Digital
 
@@ -3793,4 +3812,4 @@ This appendix exists so the reader can calibrate. The architecture in this white
 
 ---
 
-*Generated: 2026-06-12 04:40:13*
+*Generated: 2026-07-09 15:56:33*
