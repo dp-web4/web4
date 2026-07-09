@@ -16,6 +16,10 @@ This crate provides the cryptographic and semantic primitives — Linked Context
 - **V3 (Value Tensor)** — 3 root dimensions (Valuation / Veracity / Validity). Same fractal RDF pattern as T3.
 - **Coherence** — Identity coherence scoring `C × S × Φ × R` (Continuity × Stability × Phi × Reachability). Multiplicative — a low score in any factor limits the whole.
 - **Crypto** — Ed25519 signing/verification, SHA-256 hashing.
+- **Act** — the witnessed action grammar (`Act`, `ActAddress`, `SubstanceRef`, `ConsequenceClass`) + `ReputationDelta` — how a witnessed act and its reputation effect are expressed.
+- **Role entities** — roles as first-class LCT entities (`RoleEntity`, `RoleExtension`, `RoleRegistry`) with LCT issuance and monotone-tightening law composition — the substrate for role-based orchestration.
+- **EUDI / W3C-DID interop** — an LCT resolves as a `did:web4` DID Document and is expressible as an IETF **SD-JWT-VC** credential over **OpenID4VCI / OpenID4VP** (`did`, `sd_jwt_vc`, `oid4vc`).
+- **Vault** — a recursive, memory-only-unlock encrypted store (`vault`): no plaintext at rest, per-item locking, fresh-launch naivety.
 
 ## Quick start
 
