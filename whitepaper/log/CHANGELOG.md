@@ -28,9 +28,13 @@ claim, status marker, or findings-vs-framings distinction was removed — materi
 - **README** — corrected the stale flat `sections/*.md` layout description to the real nested
   `sections/<n>/index.md` fractal structure. Title page date → 2026-07-09.
 
-### Deferred (dp-gated)
-- Site rebuild + deploy (`make-web.sh` → `docs/whitepaper-web/` GitHub Pages / metalinxx.io) — the
-  outward-facing publish step is held for dp. Sources are committed; regenerate + publish on approval.
+### Published
+- Site rebuilt + published to GitHub Pages (`docs/whitepaper-web/` → https://dp-web4.github.io/web4/whitepaper-web/):
+  HTML + monolith markdown regenerated from the revised sources (dp: "the best way to preview is to publish").
+- **PDF** is rebuilt by the `build_whitepaper.yml` CI (pandoc + texlive-xetex) on push to `whitepaper/**` — the
+  local dev box lacks a LaTeX toolchain, so the PDF is a CI-only artifact. Note: the CI deploy step's bare
+  `git push` fails non-fast-forward whenever a concurrent commit lands mid-run; a rebase-before-push fix is
+  proposed but must be applied by a maintainer with `workflow` token scope.
 
 ## 2025-08-18 - Manifesto Energy Restoration
 
