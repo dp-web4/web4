@@ -192,6 +192,19 @@ impl RoleExtension {
     pub fn affords(&self, wanted: &Affordance) -> bool {
         self.affordances.contains(wanted)
     }
+
+    /// Validate the fail-closed invariants that the type system can't express.
+    /// Callers MUST call this before evaluating an extension: making a field
+    /// REQUIRED stops it being *absent*, but an explicitly-empty `folds_under`
+    /// (`[]`) still deserializes and would leave the overlay as the only law with
+    /// nothing to be strictest against — the fail-open worst case CBP flagged (F1,
+    /// "emptiness is rejected at use"). Rejected here.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.folds_under.is_empty() {
+            return Err("role extension has empty folds_under: no parent law to compose under (fail-open)");
+        }
+        Ok(())
+    }
 }
 
 /// A first-class orchestration role: a `EntityType::Role` LCT + its canonical
@@ -330,6 +343,15 @@ mod tests {
         // omitting folds_under is a hard error, not silent no-parent
         let no_parent = r#"{"bound_to_role_lct":"00000000-0000-0000-0000-000000000000","default_verdict":"deny"}"#;
         assert!(serde_json::from_str::<RoleExtension>(no_parent).is_err(), "absent folds_under must fail");
+    }
+
+    #[test]
+    fn validate_rejects_empty_folds_under() {
+        // REQUIRED stops absent; validate() stops explicitly-empty (F1 "at use").
+        let mut e = ext(Some(LintVerdict::Pass));
+        assert!(e.validate().is_ok());
+        e.folds_under.clear();
+        assert!(e.validate().is_err(), "empty folds_under = no parent law = fail-open, must reject");
     }
 
     #[test]
