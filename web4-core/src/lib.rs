@@ -98,7 +98,7 @@ pub use r6::{
 pub use delegation::{DelegatedAuthority, DelegationScope};
 pub use did::{DidDocument, DidDocumentMetadata, ServiceEndpoints, did_web4, parse_did_web4};
 pub use role::{RoleAssignment, RoleEvent, RoleEventKind, SocietyRole};
-pub use role_extension::{Affordance, DriftMark, ExtensionVerdict, LintVerdict, Responsibility, RoleEntity, RoleExtension, RoleRegistry, Scope};
+pub use role_extension::{Affordance, AtpBudget, DriftMark, ExtensionVerdict, LintVerdict, Responsibility, RoleEntity, RoleExtension, RoleRegistry, Scope};
 pub use sd_jwt_vc::{SdJwtVc, UnsignedSdJwtVc, VerifiedCredential, verify_issuer, verify_presentation, present, web4_presence_credential};
 pub use society::{MetabolicState, Society};
 pub use vault::{Vault, VaultContents, Document, ItemRef, Protection};

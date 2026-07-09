@@ -59,27 +59,49 @@ pub struct Responsibility {
 }
 
 /// `role:Scope` — the MRH horizon the role reads and acts within.
+/// `role:atpBudget` — the ATP ceiling a role may spend per period, enforced by the
+/// Treasurer at act time. Unbounded MUST be an explicit choice ON the record, never
+/// an omission: absence deserializes to `Limited(0.0)` (no budget = fail-closed),
+/// so an attributed-but-unbounded role is a deliberate `Unbounded`, not a silent gap.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AtpBudget {
+    /// A finite per-period ceiling.
+    Limited(f64),
+    /// Explicitly unbounded — a choice on the record, subject to audit.
+    Unbounded,
+}
+
+impl Default for AtpBudget {
+    /// Fail-closed: an unspecified budget grants nothing, not everything.
+    fn default() -> Self {
+        AtpBudget::Limited(0.0)
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Scope {
-    /// `role:rangesOver` — resources (repos, machines, channels, data classes) in the MRH.
+    /// `role:rangesOver` — resources (repos, machines, channels, data classes) in
+    /// the MRH. Empty = no MRH (fail-closed: the window is the epistemic horizon).
     #[serde(default)]
     pub ranges_over: Vec<String>,
-    /// `role:atpBudget` — ATP ceiling per period, enforced by the Treasurer at act time.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub atp_budget: Option<f64>,
+    /// `role:atpBudget` — fail-closed to `Limited(0.0)` when absent.
+    #[serde(default)]
+    pub atp_budget: AtpBudget,
 }
 
 /// The extension's no-match verdict (`role:defaultVerdict`). Monotone restriction
-/// requires this to be `Allow`: the extension only *adds* denies/warns on top of
-/// inherited law, so a no-match means "the role adds no restriction here" and the
-/// parent law decides via the fold. `Warn`/`Deny` defaults are expressible but
-/// tighten the whole surface and should be rare.
+/// constrains the *direction of change* — an extension may only tighten inherited
+/// law — NOT the default; `Deny` is a legal (maximal) tightening, `Allow` is the
+/// no-op, and monotone permits both. So the default is `Deny` (fail-closed, per the
+/// ttl "Fail-closed roles default to deny"): a well-formed permissive role sets
+/// `Allow` explicitly; an omitted field must never mint a permissive extension.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ExtensionVerdict {
-    #[default]
     Allow,
     Warn,
+    #[default]
     Deny,
 }
 
@@ -130,12 +152,14 @@ pub struct RoleExtension {
     /// `role:hasScope`.
     #[serde(default)]
     pub scope: Scope,
-    /// `role:defaultVerdict` — Allow under monotone restriction.
-    #[serde(default)]
+    /// `role:defaultVerdict` — REQUIRED. Absence is a deserialize error, never a
+    /// silent permissive default: "the field was omitted" must not be
+    /// indistinguishable from "the author chose Allow" (F1, CBP 2026-07-08).
     pub default_verdict: ExtensionVerdict,
-    /// `role:foldsUnder` — the parent law level(s) (society / constellation) this
-    /// composes under. Extension can only tighten.
-    #[serde(default)]
+    /// `role:foldsUnder` — the parent law level(s) this composes under. REQUIRED
+    /// and must be non-empty: an extension folding under NO parent has nothing to
+    /// be strictest against, so its overlay becomes the only law — the fail-open
+    /// worst case. Absence is a deserialize error; emptiness is rejected at use.
     pub folds_under: Vec<String>,
     /// `role:authoredUnder` — the parent-law snapshot the write-time linter checked
     /// this extension against. `None` = no witness → `drift:unattributed` on deny.
@@ -160,14 +184,26 @@ impl RoleExtension {
         }
     }
 
-    /// Does this extension grant `token` under any affordance? Fail-closed helper
-    /// for the launcher: a flag/tool/repo not afforded is refused.
-    pub fn affords(&self, token: &str) -> bool {
-        self.affordances.iter().any(|a| {
-            matches!(a,
-                Affordance::Tool(t) | Affordance::Channel(t) | Affordance::Repo(t)
-                    | Affordance::WriteClass(t) | Affordance::CliFlag(t) if t == token)
-        })
+    /// Does this extension grant exactly this affordance? Fail-closed helper for
+    /// the launcher: a grant not present is refused. **Kind-aware** — the five
+    /// `role:Affordance` subclasses are distinct namespaces, so a `Repo("x")` does
+    /// NOT satisfy a query about a `Channel("x")`. (F3, CBP 2026-07-08: the old
+    /// token-only check unioned the namespaces — fail-open across kinds.)
+    pub fn affords(&self, wanted: &Affordance) -> bool {
+        self.affordances.contains(wanted)
+    }
+
+    /// Validate the fail-closed invariants that the type system can't express.
+    /// Callers MUST call this before evaluating an extension: making a field
+    /// REQUIRED stops it being *absent*, but an explicitly-empty `folds_under`
+    /// (`[]`) still deserializes and would leave the overlay as the only law with
+    /// nothing to be strictest against — the fail-open worst case CBP flagged (F1,
+    /// "emptiness is rejected at use"). Rejected here.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.folds_under.is_empty() {
+            return Err("role extension has empty folds_under: no parent law to compose under (fail-open)");
+        }
+        Ok(())
     }
 }
 
@@ -253,7 +289,7 @@ mod tests {
                 cadence: Some("event".into()),
                 reports_to: None,
             }],
-            scope: Scope { ranges_over: vec!["repo:web4".into()], atp_budget: Some(100.0) },
+            scope: Scope { ranges_over: vec!["repo:web4".into()], atp_budget: AtpBudget::Limited(100.0) },
             default_verdict: ExtensionVerdict::Allow,
             folds_under: vec!["law:constellation".into()],
             authored_under: lint.map(|_| "lawsnap:2026-07-08".into()),
@@ -283,12 +319,39 @@ mod tests {
     }
 
     #[test]
-    fn affords_is_fail_closed() {
+    fn affords_is_fail_closed_and_kind_aware() {
         let e = ext(Some(LintVerdict::Pass));
-        assert!(e.affords("--dangerously-skip-permissions"));
-        assert!(e.affords("Bash"));
-        assert!(!e.affords("--some-flag-not-granted"));
-        assert!(!e.affords("Write"));
+        assert!(e.affords(&Affordance::CliFlag("--dangerously-skip-permissions".into())));
+        assert!(e.affords(&Affordance::Tool("Bash".into())));
+        assert!(!e.affords(&Affordance::CliFlag("--some-flag-not-granted".into())));
+        assert!(!e.affords(&Affordance::Tool("Write".into())));
+        // F3: the same token under a DIFFERENT kind is NOT afforded (distinct namespaces).
+        assert!(!e.affords(&Affordance::Repo("Bash".into())));
+        assert!(!e.affords(&Affordance::Channel("--dangerously-skip-permissions".into())));
+    }
+
+    #[test]
+    fn defaults_are_fail_closed() {
+        // F1: an extension with the wire fields OMITTED must not mint a permissive
+        // record. default_verdict + folds_under are REQUIRED (deserialize error);
+        // ExtensionVerdict::default() and AtpBudget::default() are the closed pole.
+        assert_eq!(ExtensionVerdict::default(), ExtensionVerdict::Deny);
+        assert_eq!(AtpBudget::default(), AtpBudget::Limited(0.0));
+        // omitting default_verdict is a hard error, not silent Allow
+        let missing = r#"{"bound_to_role_lct":"00000000-0000-0000-0000-000000000000","folds_under":["law:x"]}"#;
+        assert!(serde_json::from_str::<RoleExtension>(missing).is_err(), "absent default_verdict must fail");
+        // omitting folds_under is a hard error, not silent no-parent
+        let no_parent = r#"{"bound_to_role_lct":"00000000-0000-0000-0000-000000000000","default_verdict":"deny"}"#;
+        assert!(serde_json::from_str::<RoleExtension>(no_parent).is_err(), "absent folds_under must fail");
+    }
+
+    #[test]
+    fn validate_rejects_empty_folds_under() {
+        // REQUIRED stops absent; validate() stops explicitly-empty (F1 "at use").
+        let mut e = ext(Some(LintVerdict::Pass));
+        assert!(e.validate().is_ok());
+        e.folds_under.clear();
+        assert!(e.validate().is_err(), "empty folds_under = no parent law = fail-open, must reject");
     }
 
     #[test]
@@ -306,13 +369,25 @@ mod tests {
     }
 
     #[test]
-    fn extension_serde_round_trips_the_ontology_shape() {
+    fn extension_serde_round_trips() {
         let e = ext(Some(LintVerdict::Pass));
         let json = serde_json::to_string(&e).unwrap();
         let back: RoleExtension = serde_json::from_str(&json).unwrap();
         assert_eq!(e, back);
-        // driftMark strings match the ontology's provisional enum exactly.
-        assert_eq!(serde_json::to_string(&DriftMark::DriftUnattributed).unwrap(), "\"drift:unattributed\"");
+    }
+
+    /// F2: bind the Rust `driftMark` enum to its SOURCE OF TRUTH — the merged ttl —
+    /// so a rename in the ontology breaks THIS build, not just a same-file literal.
+    /// All THREE markers pinned (the provisional enum is designed to move).
+    #[test]
+    fn drift_mark_strings_match_the_merged_ontology() {
+        let ttl = include_str!("../../web4-standard/ontology/role-extension.ttl");
+        for marker in ["author:violation", "drift:parent-tightened", "drift:unattributed"] {
+            assert!(ttl.contains(marker), "ontology missing driftMark marker '{marker}'");
+        }
+        // and the Rust serialization emits exactly those tokens
         assert_eq!(serde_json::to_string(&DriftMark::AuthorViolation).unwrap(), "\"author:violation\"");
+        assert_eq!(serde_json::to_string(&DriftMark::DriftParentTightened).unwrap(), "\"drift:parent-tightened\"");
+        assert_eq!(serde_json::to_string(&DriftMark::DriftUnattributed).unwrap(), "\"drift:unattributed\"");
     }
 }
