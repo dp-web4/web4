@@ -251,7 +251,7 @@ def validate_acp_agency(plan, intent):
         raise ScopeViolation()
     
     # 3. Verify resource caps not exceeded
-    if exceeds_caps(intent, grant.resourceCaps):
+    if exceeds_caps(intent, grant.scope.r6Caps.resourceCaps):
         raise ResourceCapExceeded()
     
     # 4. Witness check deferred to approval-gate phase (§3.2 Approval Gate
@@ -415,7 +415,7 @@ Multiple layers of security:
 | Unauthorized actions | Agency grants, scope enforcement |
 | Malicious plans | Law compliance, witness requirements |
 | Replay attacks | Nonces, temporal bounds |
-| Trust gaming | Audit adjustments, reputation stakes |
+| Trust gaming | Audit adjustments (reputation staking is a future mechanism — see reputation-computation.md §10) |
 
 ## 8. ACP-MRH Integration
 
@@ -565,8 +565,9 @@ def handle_acp_error(error, context):
     
     elif isinstance(error, WitnessDeficit):
         # This class is raised for two distinct deficits:
-        #   - runtime-count deficit (§4.1): too few witnesses gathered at
-        #     execution time -> waiting can still satisfy the requirement.
+        #   - runtime-count deficit (approval-gate phase, §3.2/§5.2): too few
+        #     witnesses gathered at execution time -> waiting can still satisfy
+        #     the requirement.
         #   - config-level deficit (§5.1): the plan's DECLARED witnessLevel is
         #     below the law minimum -> waiting cannot raise a static config
         #     value; the plan must be amended or aborted.
