@@ -8,6 +8,15 @@ The Web4 package family currently consists of:
 - **`web4-core`** (Python + Rust crate) — core primitives, PyO3 bindings. `pip install web4-core` / `cargo add web4-core`.
 - **`web4-trust`** (Python wheel) / **`web4-trust-core`** (Rust crate + npm WASM bindings) — trust tensors and the trust ledger. `pip install web4-trust` / `cargo add web4-trust-core` / `npm install web4-trust-core`.
 
+## web4-core Unreleased (0.4.0)
+
+- **BREAKING (Rust + JS/wasm): `compute_reputation` signature** — now takes the subject's real
+  tensor baselines: `compute_reputation(quality, t3_from, v3_from, rule, reason, factors)`
+  (wasm: `computeReputation(quality, t3From, v3From, rule, reason)`). Previously `from_value`
+  was fabricated as `0.5` and `change` could exceed the clamped movement; now `from`/`to` are
+  real and `change = to − from` post-clamp. Migration: pass your subject's current T3/V3
+  averages (use `0.5, 0.5` only for genuinely neutral subjects).
+
 ## web4-core 0.3.0 — 2026-07-09 (single-package release)
 
 `web4-core` only (Rust crate + Python wheel); the trust family stays at 0.2.0. Closes the 18-commit gap accumulated since 0.2.0 (2026-05-15). 171 tests green at publish; `cargo publish --dry-run` + fresh-venv wheel install verified first. Tags: `web4-core-rust-v0.3.0`, `web4-core-py-v0.3.0`.
