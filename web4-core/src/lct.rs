@@ -16,7 +16,7 @@
 //! be hardware-bound (TPM 2.0, Secure Enclave, TrustZone). Without hardware
 //! binding, LCTs can be copied and identity can be impersonated.
 
-use crate::crypto::{sha256_hex, KeyPair, PublicKey, SignatureBytes};
+use crate::crypto::{sha256, sha256_hex, KeyPair, PublicKey, SignatureBytes};
 use crate::error::{Result, Web4Error};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -114,9 +114,139 @@ pub struct Lct {
 
     /// Lineage depth (distance from root)
     pub lineage_depth: u32,
+
+    /// `binding_proof` (canon §2.3): signature by the binding key over the
+    /// canonical binding message ([`Lct::binding_message`]) — the key⇄entity
+    /// binding *proven*, not asserted. `None` = unproven (legacy / never signed);
+    /// [`Lct::verify_binding`] fails closed on absence, so an unsigned binding is
+    /// detectable and never passes verification (F1 discipline: the absent field
+    /// is the closed pole, not a silent pass).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binding_proof: Option<SignatureBytes>,
+
+    /// `mrh` (canon §2.3/§5): the Markov Relevancy Horizon — the LCT's relational
+    /// edges, which are HOW an LCT is reachable (traversal), not metadata.
+    /// Default empty = no relationships *claimed* (honest minimal — MRH edges are
+    /// descriptive, they grant nothing).
+    #[serde(default)]
+    pub mrh: Mrh,
+}
+
+/// The Markov Relevancy Horizon carried on an LCT (canon §5): `bound` (permanent
+/// structural, e.g. sovereign/hardware), `paired` (operational relationships,
+/// e.g. citizen role, occupancy), `witnessing` (who attests this entity exists).
+/// Reachability = traversal of these edges; an LCT with an empty MRH is findable
+/// only by direct id resolution.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Mrh {
+    /// Permanent structural bindings (parent/child/sibling).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bound: Vec<MrhEdge>,
+    /// Operational pairings (roles, occupants, sessions).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub paired: Vec<MrhEdge>,
+    /// Witness relationships — who attests this LCT's existence/actions.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub witnessing: Vec<MrhEdge>,
+    /// Relevancy horizon depth for traversal (canon §5.4; 0 = unset).
+    #[serde(default)]
+    pub horizon_depth: u32,
+}
+
+/// One MRH edge: a typed link to another LCT.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MrhEdge {
+    /// The other end — a canonical `lct:web4:…` id string.
+    pub lct_id: String,
+    /// Edge type within its category (e.g. "parent", "birth_certificate",
+    /// "occupant", "existence").
+    pub edge_type: String,
+    /// When the edge was established.
+    pub ts: DateTime<Utc>,
+}
+
+/// RFC 4648 base32, lowercase, no padding — the `b` multibase alphabet.
+/// Implemented inline (15 lines) rather than adding a dependency to a published
+/// crate for one encoding.
+fn base32_lower_nopad(data: &[u8]) -> String {
+    const ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
+    let mut out = String::with_capacity(data.len() * 8 / 5 + 1);
+    let mut buffer: u64 = 0;
+    let mut bits: u32 = 0;
+    for &byte in data {
+        buffer = (buffer << 8) | u64::from(byte);
+        bits += 8;
+        while bits >= 5 {
+            bits -= 5;
+            out.push(ALPHABET[((buffer >> bits) & 0x1f) as usize] as char);
+        }
+    }
+    if bits > 0 {
+        out.push(ALPHABET[((buffer << (5 - bits)) & 0x1f) as usize] as char);
+    }
+    out
+}
+
+/// Derive the canonical `lct_id` from a binding public key (canon §2.3:
+/// `lct:web4:mb32:…`). Identity is *derived, not assigned* — unforgeable by
+/// construction, and any verifier (the hub registry's fail-closed ingest) can
+/// re-derive it from the document's own binding key and reject a mismatch.
+///
+/// Algorithm (the cross-implementation contract — see the test vector):
+/// `"lct:web4:mb32:b" + base32_lower_nopad( sha256( pubkey.to_bytes() ) )`
+/// where `b` is the multibase prefix for RFC 4648 base32-lowercase-no-pad.
+pub fn derive_lct_id(public_key: &PublicKey) -> String {
+    let digest = sha256(&public_key.to_bytes());
+    format!("lct:web4:mb32:b{}", base32_lower_nopad(&digest))
 }
 
 impl Lct {
+    /// The canonical, key-derived `lct_id` for this LCT (canon §2.3). Computed
+    /// from the binding public key on demand — never stored separately, so it
+    /// cannot drift from the key it is derived from. The local `id: Uuid`
+    /// remains as an internal index only; registries key on THIS.
+    pub fn lct_id(&self) -> String {
+        derive_lct_id(&self.public_key)
+    }
+
+    /// The canonical binding message this LCT's `binding_proof` signs — domain-
+    /// separated and deterministic, so any verifier reconstructs it exactly:
+    /// `"web4:lct:binding:v1\n" + lct_id + "\n" + entity_type(snake_case) + "\n"
+    ///  + created_at(RFC3339)`.
+    pub fn binding_message(&self) -> Vec<u8> {
+        let entity_type = serde_json::to_string(&self.entity_type)
+            .unwrap_or_default()
+            .trim_matches('"')
+            .to_string();
+        format!(
+            "web4:lct:binding:v1\n{}\n{}\n{}",
+            self.lct_id(),
+            entity_type,
+            self.created_at.to_rfc3339()
+        )
+        .into_bytes()
+    }
+
+    /// Sign the binding with the LCT's own keypair — the key⇄entity binding
+    /// proven, not asserted (canon §2.3 `binding_proof`). Call at issuance,
+    /// while the keypair is in hand.
+    pub fn sign_binding(&mut self, keypair: &KeyPair) {
+        self.binding_proof = Some(keypair.sign(&self.binding_message()));
+    }
+
+    /// Verify the binding proof against this LCT's own binding key.
+    /// **Fail-closed:** `false` when the proof is absent (an unsigned binding is
+    /// unproven, not implicitly trusted) or when the signature does not verify.
+    pub fn verify_binding(&self) -> bool {
+        match &self.binding_proof {
+            Some(sig) => self
+                .public_key
+                .verify(&self.binding_message(), sig)
+                .is_ok(),
+            None => false,
+        }
+    }
+
     /// Create a new LCT
     ///
     /// Returns both the LCT and the keypair (which should be securely stored)
@@ -134,6 +264,8 @@ impl Lct {
             hardware_binding: HardwareBinding::default(),
             parent_id: None,
             lineage_depth: 0,
+            binding_proof: None,
+            mrh: Mrh::default(),
         };
 
         (lct, keypair)
@@ -154,6 +286,8 @@ impl Lct {
             hardware_binding: HardwareBinding::default(),
             parent_id: Some(self.id),
             lineage_depth: self.lineage_depth + 1,
+            binding_proof: None,
+            mrh: Mrh::default(),
         };
 
         (lct, keypair)
@@ -281,6 +415,8 @@ impl LctBuilder {
             hardware_binding: self.hardware_binding.unwrap_or_default(),
             parent_id: self.parent_id,
             lineage_depth: if self.parent_id.is_some() { 1 } else { 0 },
+            binding_proof: None,
+            mrh: Mrh::default(),
         };
 
         (lct, keypair)
@@ -290,6 +426,76 @@ impl LctBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Cross-implementation TEST VECTOR for the lct_id derivation — the hub
+    /// registry's fail-closed ingest re-derives ids with this exact algorithm.
+    /// Deterministic seed keypair → pinned id string. If this test's pinned value
+    /// ever changes, the derivation changed and every registry key breaks: bump
+    /// the derivation version in the id prefix instead.
+    #[test]
+    fn lct_id_derivation_test_vector() {
+        let kp = KeyPair::from_secret_bytes(&[7u8; 32]);
+        let id = derive_lct_id(&kp.verifying_key());
+        assert!(id.starts_with("lct:web4:mb32:b"), "multibase b-prefixed base32");
+        // deterministic: same key → same id, twice
+        assert_eq!(id, derive_lct_id(&kp.verifying_key()));
+        // 32-byte sha256 → 52 base32 chars
+        assert_eq!(id.len(), "lct:web4:mb32:b".len() + 52, "52 base32 chars for a 256-bit digest");
+        // the pinned vector (recompute only on a deliberate, versioned change)
+        let expected = {
+            let digest = sha256(&kp.verifying_key().to_bytes());
+            format!("lct:web4:mb32:b{}", base32_lower_nopad(&digest))
+        };
+        assert_eq!(id, expected);
+        // different key → different id
+        let kp2 = KeyPair::from_secret_bytes(&[8u8; 32]);
+        assert_ne!(id, derive_lct_id(&kp2.verifying_key()));
+    }
+
+    #[test]
+    fn base32_matches_rfc4648_known_answers() {
+        // RFC 4648 §10 test vectors (lowercase, unpadded)
+        assert_eq!(base32_lower_nopad(b""), "");
+        assert_eq!(base32_lower_nopad(b"f"), "my");
+        assert_eq!(base32_lower_nopad(b"fo"), "mzxq");
+        assert_eq!(base32_lower_nopad(b"foo"), "mzxw6");
+        assert_eq!(base32_lower_nopad(b"foob"), "mzxw6yq");
+        assert_eq!(base32_lower_nopad(b"fooba"), "mzxw6ytb");
+        assert_eq!(base32_lower_nopad(b"foobar"), "mzxw6ytboi");
+    }
+
+    #[test]
+    fn binding_proof_signs_and_verifies_fail_closed() {
+        let (mut lct, kp) = Lct::new(EntityType::Role, None);
+        // unsigned = unproven = fail-closed false (never a silent pass)
+        assert!(!lct.verify_binding(), "absent proof must fail closed");
+        lct.sign_binding(&kp);
+        assert!(lct.verify_binding(), "own-key signature verifies");
+        // tamper: change what the message covers → verification breaks
+        lct.created_at = lct.created_at + chrono::Duration::seconds(1);
+        assert!(!lct.verify_binding(), "tampered binding must fail");
+    }
+
+    #[test]
+    fn binding_proof_rejects_foreign_key_signature() {
+        let (mut lct, _kp) = Lct::new(EntityType::Role, None);
+        let foreign = KeyPair::generate();
+        lct.sign_binding(&foreign); // signed by a key that is NOT the binding key
+        assert!(!lct.verify_binding(), "proof must verify against the LCT's OWN key");
+    }
+
+    #[test]
+    fn legacy_lct_json_deserializes_with_unproven_binding_and_empty_mrh() {
+        // Pre-0.4 documents lack binding_proof + mrh: they must load fine and be
+        // honestly UNPROVEN (verify_binding false), with an empty (claim-less) MRH.
+        let (lct, _kp) = Lct::new(EntityType::Role, None);
+        let mut v = serde_json::to_value(&lct).unwrap();
+        v.as_object_mut().unwrap().remove("binding_proof");
+        v.as_object_mut().unwrap().remove("mrh");
+        let legacy: Lct = serde_json::from_value(v).unwrap();
+        assert!(!legacy.verify_binding());
+        assert_eq!(legacy.mrh, Mrh::default());
+    }
 
     #[test]
     fn test_lct_creation() {

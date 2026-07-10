@@ -223,9 +223,13 @@ impl RoleEntity {
     /// extension's `bound_to_role_lct` is overwritten with the freshly-minted id so
     /// the binding is authoritative, not caller-asserted.
     pub fn issue(label: impl Into<String>, sovereign_lct: Uuid, mut extension: RoleExtension) -> (Self, KeyPair) {
-        let (lct, keypair) = LctBuilder::new(EntityType::Role)
+        let (mut lct, keypair) = LctBuilder::new(EntityType::Role)
             .created_by(sovereign_lct)
             .build();
+        // Sign the binding at issuance, while the keypair is in hand — the
+        // key⇄entity binding proven, not asserted (canon §2.3). The registry's
+        // fail-closed ingest verifies this before projecting.
+        lct.sign_binding(&keypair);
         extension.bound_to_role_lct = lct.id;
         (
             Self { lct, label: label.into(), extension },
@@ -307,6 +311,10 @@ mod tests {
         assert_eq!(role.extension.bound_to_role_lct, role.lct.id);
         assert_ne!(role.lct.id, Uuid::nil());
         assert_eq!(role.label, "role:constellation:mesh-worker");
+        // issued at genesis with a PROVEN binding (canon §2.3), verifiable by
+        // anyone from the document alone — the registry ingest relies on this.
+        assert!(role.lct.verify_binding(), "issue() must sign the binding");
+        assert!(role.lct.lct_id().starts_with("lct:web4:mb32:b"), "key-derived canonical id");
     }
 
     #[test]
