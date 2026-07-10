@@ -87,7 +87,7 @@ pub use coherence::{
 };
 pub use crypto::{sha256, sha256_hex, KeyPair, PublicKey, SignatureBytes};
 pub use error::{Result, Web4Error};
-pub use lct::{derive_lct_id, EntityType, HardwareBinding, Lct, LctBuilder, LctStatus, Mrh, MrhEdge};
+pub use lct::{derive_lct_id, EntityType, HardwareBinding, LegacyAlias, LegacyDerivation, Lct, LctBuilder, LctStatus, Mrh, MrhEdge};
 pub use ledger::{
     InMemoryLedger, Ledger, LedgerEntry, LedgerEvent, LedgerProof, LocalLedger, MintReceipt,
 };
