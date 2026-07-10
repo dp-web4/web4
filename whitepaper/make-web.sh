@@ -30,6 +30,22 @@ fi
 
 echo "Building Web4 whitepaper web version..."
 
+# Guard: the md->HTML converter uses the Python `markdown` library; WITHOUT it,
+# it silently falls back to a regex hack that DROPS every [text](url) link and
+# mangles tables (this shipped link-broken HTML to production before this guard).
+# Ensure the module is present — install if missing, hard-fail rather than degrade.
+if ! python3 -c 'import markdown' 2>/dev/null; then
+  echo "  'markdown' module missing — attempting install…"
+  python3 -m pip install --quiet --break-system-packages markdown 2>/dev/null \
+    || python3 -m pip install --quiet --user markdown 2>/dev/null || true
+  if ! python3 -c 'import markdown' 2>/dev/null; then
+    echo "❌ ERROR: Python 'markdown' module is required for correct HTML (links/tables)" >&2
+    echo "   and could not be auto-installed. Run 'pip install markdown' and retry." >&2
+    echo "   Refusing to generate link-broken HTML." >&2
+    exit 1
+  fi
+fi
+
 OUTPUT_DIR="build/web"
 SECTIONS_DIR="sections"
 ASSETS_DIR="$OUTPUT_DIR/assets"
