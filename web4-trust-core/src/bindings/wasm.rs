@@ -832,14 +832,20 @@ impl WasmR7Action {
     /// Compute reputation delta from a quality score (makes this an R7 action).
     ///
     /// quality: 0.0 to 1.0. Below 0.5 = negative, above 0.5 = positive.
+    /// t3_from / v3_from: the subject's ACTUAL current tensor baselines (0.0–1.0)
+    /// — previously fabricated as 0.5 inside web4-core, which made every emitted
+    /// from_value/to_value wrong for non-neutral subjects. Pass the real values.
     #[wasm_bindgen(js_name = computeReputation)]
     pub fn compute_reputation(
         &mut self,
         quality: f64,
+        t3_from: f64,
+        v3_from: f64,
         rule_triggered: &str,
         reason: &str,
     ) {
-        self.inner.compute_reputation(quality, rule_triggered, reason, vec![]);
+        self.inner
+            .compute_reputation(quality, t3_from, v3_from, rule_triggered, reason, vec![]);
     }
 
     /// Compute the canonical hash for chain integrity.
