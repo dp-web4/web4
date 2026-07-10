@@ -79,38 +79,38 @@ for line in lines:
 if current_section:
     sections.append((current_title, '\n'.join(current_section)))
 
-# Find Executive Summary
-exec_summary = None
+# Find the opening section (Why Web4) — it goes on the title page, before the TOC
+opening = None
 other_sections = []
 
 for title, content in sections:
-    if 'Executive Summary' in title:
-        exec_summary = (title, content)
+    if 'Why Web4' in title:
+        opening = (title, content)
     else:
         other_sections.append((title, content))
 
 # Rebuild document with custom order
 with open('build/WEB4_Whitepaper_Reordered.md', 'w') as f:
-    # Start with title and Executive Summary on same page
-    f.write('# WEB4: A Comprehensive Architecture for Trust-Native Distributed Intelligence\n\n')
+    # Start with title and the Why Web4 opening on the same page
+    f.write('# WEB4: A Technical Introduction\n\n')
+    f.write('*The trust-native internet, explained through its canonical equation*\n\n')
     f.write('*Dennis Palatov, GPT4o, Deepseek, Grok, Claude, Gemini, Manus*\n\n')
-    f.write('*April 2026*\n\n')
+    f.write('*July 2026*\n\n')
     f.write('---\n\n')
-    
-    # Executive Summary (without its own title since we have main title)
-    if exec_summary:
-        # Remove the "# Executive Summary" line from content
-        exec_content = exec_summary[1].replace('# Executive Summary', '## Executive Summary')
-        f.write(exec_content + '\n\n')
-    
+
+    # Why Web4 (demoted to ## since we have the main title above)
+    if opening:
+        opening_content = opening[1].replace('# Why Web4', '## Why Web4')
+        f.write(opening_content + '\n\n')
+
     # Add TOC on new page
     f.write('\\newpage\n\n')
     f.write('\\tableofcontents\n\n')
     f.write('\\newpage\n\n')
-    
-    # All other sections (skip any title sections we already handled)
+
+    # All other sections (skip the title section we already handled)
     for title, content in other_sections:
-        if 'WEB4:' not in title and 'Trust-Native' not in title:
+        if 'WEB4:' not in title:
             f.write(content + '\n\n')
 
 print("✓ Document reordered")

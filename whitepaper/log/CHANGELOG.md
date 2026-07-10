@@ -5,6 +5,35 @@ Entries are added chronologically, never modified or deleted.
 
 ---
 
+## 2026-07-09 (later) - Fresh Rewrite: Equation-Ordered Technical Introduction
+
+Full rewrite per dp: "the paper has drifted too far and needs a fresh rewrite." The whitepaper is now a
+**scoped technical introduction to the canonical Web4 standard**, organized around the canonical equation
+`Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP`. ~3815 lines → ~516. Pre-rewrite sections preserved at
+`archive/sections-2026-07-09-pre-rewrite/`.
+
+### Structure (new)
+Title → Why Web4 → The Canonical Equation → one section per equation element in order
+(MCP, RDF, LCT, T3/V3, MRH, ATP/ADP) → Built on the Foundation (R6/R7, roles-as-entities,
+SAL/AGY/ACP, dictionaries) → The Standard & Current Implementations (web4-standard, web4/hub, hestia,
+with repo links) → Conclusion → compact Glossary → References.
+
+### Cut as drift (not lost — archived)
+Code examples; the coherence framework and its physics math (C×S×Φ×R, η, superconductivity);
+trust-as-gravity; blockchain typology (Compost/Leaf/Stem/Root — no normative spec in core-spec/);
+memory-as-temporal-sensor section (same reason); implications/vision essays; appendices;
+duplicated exec-summary/introduction catalogs; manifesto flourishes.
+
+### Also changed
+- Every mechanism section now links its **normative spec** in `web4-standard/core-spec/`.
+- Web nav rebuilt **flat** (one entry per section, ids verified 1:1 against real sections) — fixes the
+  broken sub-anchor navigation (e.g. "R6 Action Framework" landing inside the dictionaries text).
+- `make-md.sh` / `make-web.sh` / `make-pdf.sh` re-pointed at the new section list; PDF title page and
+  web header/title updated ("WEB4: A Technical Introduction", July 9, 2026).
+- Glossary rewritten compact and scoped to the paper's terms; the standard's `GLOSSARY.md` linked as
+  the authoritative full vocabulary.
+- Scope rules added to `PUBLISHER_CONTEXT.md` so the daily Publisher pass holds the new boundary.
+
 ## 2026-07-09 - Posture Revision: Why-First, Foundation-First
 
 A structural (not factual) revision to fix the public-face reading arc. Review + rationale:

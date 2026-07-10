@@ -56,23 +56,21 @@ add_section() {
 
 echo "Combining sections..."
 
-# Add sections in proper order
+# Add sections in proper order (2026-07-09 rewrite: equation-ordered technical introduction)
 add_section "01-title-authors"
-add_section "00-executive-summary"
-add_section "00-introduction"
-add_section "02-glossary"
-add_section "03-part1-defining-web4"
-add_section "04-part2-foundational-concepts"
-add_section "05-part3-value-trust-mechanics"
-add_section "06-part4-implications-vision"
-add_section "07-part5-memory"
-add_section "08-part6-blockchain-typology"
-add_section "09-part7-implementation-details"
-add_section "09-part7-implementation-examples"
-add_section "10-part8-web4-context"
-add_section "11-conclusion"
-add_section "12-references"
-add_section "13-appendices"
+add_section "02-why-web4"
+add_section "03-the-equation"
+add_section "04-mcp"
+add_section "05-rdf"
+add_section "06-lct"
+add_section "07-t3v3"
+add_section "08-mrh"
+add_section "09-atp-adp"
+add_section "10-composed-architecture"
+add_section "11-standard-and-implementations"
+add_section "12-conclusion"
+add_section "13-glossary"
+add_section "14-references"
 
 # Add timestamp
 echo "" >> "$OUTPUT_FILE"

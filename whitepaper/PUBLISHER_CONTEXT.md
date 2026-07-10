@@ -42,53 +42,53 @@ Secondary: Researchers, protocol designers, standards bodies
 
 ## 2. Section Structure
 
-### Current Organization
+### Current Organization (2026-07-09 rewrite — equation-ordered technical introduction)
+
+The whitepaper was rewritten from scratch on 2026-07-09 (dp directive: "the paper has drifted too far
+and needs a fresh rewrite"). It is now a **scoped technical introduction to the canonical Web4 standard**,
+organized around the canonical equation. The pre-rewrite sections are preserved at
+`archive/sections-2026-07-09-pre-rewrite/`.
 
 ```
 sections/
-├── 00-executive-summary/        # Overview and key value propositions
-├── 00-introduction/             # Web4 vision and positioning
-├── 01-title-authors/            # Document metadata
-├── 02-glossary/                 # Canonical terminology
-├── 03-part1-defining-web4/      # What Web4 is and isn't
-├── 04-part2-foundational-concepts/
-│   ├── Linked Context Tokens (LCTs)
-│   ├── Dictionary Entities
-│   ├── Trust Through Witnessing
-│   └── Markov Relevancy Horizons
-├── 05-part3-value-trust-mechanics/
-│   ├── ATP/ADP Cycles
-│   ├── T3 Trust Tensor
-│   ├── V3 Value Tensor
-│   └── Compression-Trust Dynamics
-├── 06-part4-implications-vision/
-│   ├── Privacy and Sovereignty
-│   ├── Governance Models
-│   └── Economic Implications
-├── 07-part5-memory/             # Memory as temporal sensor
-├── 08-part6-blockchain-typology/
-│   ├── Four-Chain Hierarchy
-│   ├── Fractal Lightchain
-│   └── Compost/Leaf/Stem/Root
-├── 09-part7-implementation-details/
-├── 09-part7-implementation-examples/
-├── 10-part8-web4-context/       # Integration with existing systems
-├── 11-conclusion/
-├── 12-references/
-└── 13-appendices/
+├── 01-title-authors/                 # Title page ("WEB4: A Technical Introduction")
+├── 02-why-web4/                      # The stakes — the two agent-trust questions
+├── 03-the-equation/                  # Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP (the spine)
+├── 04-mcp/                           # Element 1: the I/O membrane
+├── 05-rdf/                           # Element 2: the ontological backbone
+├── 06-lct/                           # Element 3: the presence substrate
+├── 07-t3v3/                          # Element 4: trust & value tensors
+├── 08-mrh/                           # Element 5: the relevancy horizon
+├── 09-atp-adp/                       # Element 6: value feedback (honest maturity note)
+├── 10-composed-architecture/         # R6/R7, roles-as-entities, SAL/AGY/ACP, dictionaries
+├── 11-standard-and-implementations/  # web4-standard tree + hub + hestia as living examples
+├── 12-conclusion/                    # Equation read back, legal framework, invitation
+├── 13-glossary/                      # Compact glossary scoped to the paper's terms
+└── 14-references/
 ```
+
+### Scope rules (2026-07-09, dp-ratified)
+
+- The paper explains **the canonical standard** — every mechanism section links its normative spec in
+  `web4-standard/`. If a concept has no normative spec, it does not get a section.
+- **Cut as drift, do not reintroduce**: code examples, the coherence framework and its math (C×S×Φ×R, η,
+  superconductivity), trust-as-gravity, blockchain typology (Compost/Leaf/Stem/Root), memory-as-temporal-
+  sensor as a section, manifesto-flourish prose, duplicated status catalogs.
+- Elements are explained **in equation order** (MCP → RDF → LCT → T3/V3 → MRH → ATP/ADP); composed
+  concepts after; implementations (web4 core packages, web4/hub, hestia) linked as living examples.
+- Web nav is **flat, one entry per section**; nav `data-section` ids must match the `sections` array in
+  `make-web.sh` 1:1 (the drift of hand-injected sub-anchors is what broke navigation pre-rewrite).
 
 ### Section Responsibilities
 
 | Section | Purpose | Update Frequency |
 |---------|---------|------------------|
-| Executive Summary | Current state | Every major update |
-| Glossary (02) | Canonical terms | Critical - rarely change |
-| Foundational Concepts (04) | Core protocol | Stable - major changes only |
-| Value-Trust Mechanics (05) | How it works | Updates with new mechanisms |
-| Implementation (09) | How to build | Frequent - with new code |
-| Memory (07) | Temporal sensing | Updates with HRM progress |
-| Blockchain (08) | Chain architecture | Stable - major changes only |
+| Why Web4 (02) | The stakes | Rarely — posture-stable |
+| The Equation (03) | The organizing spine | Only if the canonical equation changes |
+| Elements (04–09) | One equation term each | When the corresponding core-spec changes materially |
+| Composed (10) | R6/R7, roles, SAL, dictionaries | When those specs change materially |
+| Standard & Implementations (11) | Repo map + living examples | When repos/status change (most volatile) |
+| Glossary (13) | Compact canonical terms | Critical — rarely change |
 
 ---
 

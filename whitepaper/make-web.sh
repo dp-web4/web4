@@ -653,7 +653,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } else if (!hash) {
             // Show first section by default
-            showSection('executive-summary');
+            showSection('why-web4');
         }
     }
     
@@ -761,8 +761,8 @@ cat > "$OUTPUT_DIR/index.html" << 'HTML'
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEB4: Trust-Native Distributed Intelligence</title>
-    <meta name="description" content="WEB4 Whitepaper - A comprehensive architecture for trust-native distributed intelligence">
+    <title>WEB4: A Technical Introduction</title>
+    <meta name="description" content="WEB4 Whitepaper - a technical introduction to the trust-native internet, explained through its canonical equation">
     <link rel="stylesheet" href="assets/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
 </head>
@@ -775,36 +775,23 @@ cat > "$OUTPUT_DIR/index.html" << 'HTML'
             <!-- Search Box -->
             <input type="text" id="search-box" placeholder="Search..." style="width: 100%; padding: 0.5rem; margin-bottom: 1rem; border: 1px solid var(--border-color); border-radius: 4px;">
             
-            <!-- Navigation List -->
+            <!-- Navigation List (flat: one entry per section — nav ids MUST match the
+                 `sections` array below; a nav entry without a matching real section is
+                 the bug class that made links land on the wrong content) -->
             <ul class="nav-list">
-                <li><a href="#executive-summary" class="nav-link active" data-section="executive-summary">Executive Summary</a></li>
-                <li><a href="#introduction" class="nav-link" data-section="introduction">Introduction</a></li>
-                <li><a href="#glossary" class="nav-link" data-section="glossary">Glossary</a></li>
-                <li><a href="#defining-web4" class="nav-link" data-section="defining-web4">Defining Web4</a></li>
-                <li class="expandable">
-                    <a href="#foundational-concepts" class="nav-link expandable-toggle" data-section="foundational-concepts">
-                        Foundational Concepts <span class="expand-icon">▶</span>
-                    </a>
-                    <ul class="sub-nav" style="display: none;">
-                        <li><a href="#lcts" class="sub-nav-link" data-section="foundational-concepts" data-target="lcts">Linked Context Tokens</a></li>
-                        <li><a href="#entities" class="sub-nav-link" data-section="foundational-concepts" data-target="entities">Entities</a></li>
-                        <li><a href="#roles" class="sub-nav-link" data-section="foundational-concepts" data-target="roles">Roles as First-Class Entities</a></li>
-                        <li><a href="#r6" class="sub-nav-link" data-section="foundational-concepts" data-target="r6">R6 Action Framework</a></li>
-                        <li><a href="#mrh" class="sub-nav-link" data-section="foundational-concepts" data-target="mrh">Markov Relevancy Horizon</a></li>
-                        <li><a href="#dictionaries" class="sub-nav-link" data-section="foundational-concepts" data-target="dictionaries">Dictionaries</a></li>
-                        <li><a href="#trust-gravity" class="sub-nav-link" data-section="foundational-concepts" data-target="trust-gravity">Trust as Gravity</a></li>
-                    </ul>
-                </li>
-                <li><a href="#value-trust" class="nav-link" data-section="value-trust">Value & Trust Mechanics</a></li>
-                <li><a href="#implications" class="nav-link" data-section="implications">Implications & Vision</a></li>
-                <li><a href="#memory" class="nav-link" data-section="memory">Memory as Temporal Sensor</a></li>
-                <li><a href="#blockchain" class="nav-link" data-section="blockchain">Blockchain Typology</a></li>
-                <li><a href="#implementation-details" class="nav-link" data-section="implementation-details">Implementation Details</a></li>
-                <li><a href="#implementation-examples" class="nav-link" data-section="implementation-examples">Implementation Examples</a></li>
-                <li><a href="#context" class="nav-link" data-section="context">Web4 Context</a></li>
+                <li><a href="#why-web4" class="nav-link active" data-section="why-web4">Why Web4</a></li>
+                <li><a href="#the-equation" class="nav-link" data-section="the-equation">The Canonical Equation</a></li>
+                <li><a href="#mcp" class="nav-link" data-section="mcp">MCP: The I/O Membrane</a></li>
+                <li><a href="#rdf" class="nav-link" data-section="rdf">RDF: The Ontological Backbone</a></li>
+                <li><a href="#lct" class="nav-link" data-section="lct">LCT: The Presence Substrate</a></li>
+                <li><a href="#t3v3" class="nav-link" data-section="t3v3">T3/V3: Trust &amp; Value Tensors</a></li>
+                <li><a href="#mrh" class="nav-link" data-section="mrh">MRH: The Relevancy Horizon</a></li>
+                <li><a href="#atp-adp" class="nav-link" data-section="atp-adp">ATP/ADP: The Value Cycle</a></li>
+                <li><a href="#composed" class="nav-link" data-section="composed">Built on the Foundation</a></li>
+                <li><a href="#standard" class="nav-link" data-section="standard">Standard &amp; Implementations</a></li>
                 <li><a href="#conclusion" class="nav-link" data-section="conclusion">Conclusion</a></li>
+                <li><a href="#glossary" class="nav-link" data-section="glossary">Glossary</a></li>
                 <li><a href="#references" class="nav-link" data-section="references">References</a></li>
-                <li><a href="#appendices" class="nav-link" data-section="appendices">Appendices</a></li>
             </ul>
             
             <!-- Download Links -->
@@ -819,9 +806,10 @@ cat > "$OUTPUT_DIR/index.html" << 'HTML'
         <main class="main-content">
             <!-- Header -->
             <header>
-                <h1>WEB4: A Comprehensive Architecture for Trust-Native Distributed Intelligence</h1>
+                <h1>WEB4: A Technical Introduction</h1>
                 <p style="color: var(--secondary-color); margin-bottom: 2rem;">
-                    <em>Updated: February 16, 2026</em><br>
+                    <em>The trust-native internet, explained through its canonical equation</em><br>
+                    <em>Updated: July 9, 2026</em><br>
                     <em>Authors: Dennis Palatov, GPT4o, Deepseek, Grok, Claude, Gemini, Manus</em>
                 </p>
             </header>
@@ -832,56 +820,45 @@ HTML
 # Convert each section to HTML and add to index
 echo "Converting sections to HTML..."
 
-# Process sections in order using fractal structure
+# Process sections in order (2026-07-09 rewrite: equation-ordered technical introduction).
+# Section ids here MUST match the nav-list data-section values above, 1:1.
 sections=(
-    "00-executive-summary/index.md:executive-summary"
-    "00-introduction/index.md:introduction"
-    "02-glossary/index.md:glossary"
-    "03-part1-defining-web4/index.md:defining-web4"
-    "04-part2-foundational-concepts/index.md:foundational-concepts"
-    "05-part3-value-trust-mechanics/index.md:value-trust"
-    "06-part4-implications-vision/index.md:implications"
-    "07-part5-memory/index.md:memory"
-    "08-part6-blockchain-typology/index.md:blockchain"
-    "09-part7-implementation-details/index.md:implementation-details"
-    "09-part7-implementation-examples/index.md:implementation-examples"
-    "10-part8-web4-context/index.md:context"
-    "11-conclusion/index.md:conclusion"
-    "12-references/index.md:references"
-    "13-appendices/index.md:appendices"
+    "02-why-web4/index.md:why-web4"
+    "03-the-equation/index.md:the-equation"
+    "04-mcp/index.md:mcp"
+    "05-rdf/index.md:rdf"
+    "06-lct/index.md:lct"
+    "07-t3v3/index.md:t3v3"
+    "08-mrh/index.md:mrh"
+    "09-atp-adp/index.md:atp-adp"
+    "10-composed-architecture/index.md:composed"
+    "11-standard-and-implementations/index.md:standard"
+    "12-conclusion/index.md:conclusion"
+    "13-glossary/index.md:glossary"
+    "14-references/index.md:references"
 )
 
 # Process each section in order
 for entry in "${sections[@]}"; do
     IFS=':' read -r file section_id <<< "$entry"
-    
+
     if [ -f "$SECTIONS_DIR/$file" ]; then
-        # Add appropriate class for first section (executive summary)
-        if [ "$section_id" = "executive-summary" ]; then
+        # First section (why-web4) is the default active/visible one
+        if [ "$section_id" = "why-web4" ]; then
             echo "            <section id=\"$section_id\" class=\"section active\">" >> "$OUTPUT_DIR/index.html"
         else
             echo "            <section id=\"$section_id\" class=\"section\">" >> "$OUTPUT_DIR/index.html"
         fi
-        
+
         # Convert markdown to HTML and append
         md_to_html "$SECTIONS_DIR/$file" "$OUTPUT_DIR/temp_section.html"
-        
-        # Special handling for foundational concepts to ensure IDs are added
-        if [ "$section_id" = "foundational-concepts" ]; then
-            # Add IDs to the foundational concepts headers
-            sed -i 's|<p><h2>2\.1\. Linked Context Tokens (LCTs): The Reification of Presence</h2></p>|<h2 id="lcts">2.1. Linked Context Tokens (LCTs): The Reification of Presence</h2>|g' "$OUTPUT_DIR/temp_section.html"
-            sed -i 's|<p><h2>2\.2\. Entities in the WEB4 Framework</h2></p>|<h2 id="entities">2.2. Entities in the WEB4 Framework</h2>|g' "$OUTPUT_DIR/temp_section.html"
-            sed -i 's|<p><h2>2\.3\. Roles as First-Class Entities</h2></p>|<h2 id="roles">2.3. Roles as First-Class Entities</h2>|g' "$OUTPUT_DIR/temp_section.html"
-            sed -i 's|<p><h2>2\.4\. The R6 Action Framework: Where Intent Becomes Reality</h2></p>|<h2 id="r6">2.4. The R6 Action Framework: Where Intent Becomes Reality</h2>|g' "$OUTPUT_DIR/temp_section.html"
-            sed -i 's|<p><h2>2\.5\. Markov Relevancy Horizon (MRH): The Lens of Context</h2></p>|<h2 id="mrh">2.5. Markov Relevancy Horizon (MRH): The Lens of Context</h2>|g' "$OUTPUT_DIR/temp_section.html"
-            sed -i 's|<p><h2>2\.6\. Dictionaries: The Living Keepers of Meaning</h2></p>|<h2 id="dictionaries">2.6. Dictionaries: The Living Keepers of Meaning</h2>|g' "$OUTPUT_DIR/temp_section.html"
-            sed -i 's|<p><h2>2\.7\. Trust as Gravity: The Force That Shapes Everything</h2></p>|<h2 id="trust-gravity">2.7. Trust as Gravity: The Force That Shapes Everything</h2>|g' "$OUTPUT_DIR/temp_section.html"
-        fi
-        
+
         cat "$OUTPUT_DIR/temp_section.html" >> "$OUTPUT_DIR/index.html"
         rm "$OUTPUT_DIR/temp_section.html"
-        
+
         echo "            </section>" >> "$OUTPUT_DIR/index.html"
+    else
+        echo "  ⚠ WARNING: $SECTIONS_DIR/$file missing — nav entry '$section_id' would be dead" >&2
     fi
 done
 
