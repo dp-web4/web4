@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } else if (!hash) {
             // Show first section by default
-            showSection('executive-summary');
+            showSection('why-web4');
         }
     }
     

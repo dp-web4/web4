@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-07-09
+**Last Updated**: 2026-07-10
 **Whitepaper Status**: Active Development
 
 ---
@@ -225,6 +225,13 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-07-10: Publisher Maintenance — Post-Rewrite Artifact Repair (manual pass, dp-requested; 2 real defects fixed, both leftovers of the 07-09 rewrite)
+- **FIXED: published-site navigation defaulted to a nonexistent section.** The 07-09 rewrite regenerated `docs/whitepaper-web/index.html` and the monolith but **not `assets/navigation.js`** — the committed js still ran `showSection('executive-summary')` on no-hash load, and the rewritten HTML has zero `id="executive-summary"` (first nav section is `why-web4`). A first-time visitor landing on the bare URL hit the broken default path. Regenerated via `make-web.sh`; default now `why-web4`. **Lesson (extends the 06-12 three-format rule): the web surface is index.html + assets/ — date-check the assets dir too, not just the three document formats.**
+- **FIXED: tracked `whitepaper/build/web/index.html` was still the pre-rewrite paper** (Jun-12 mtime, title "Trust-Native Distributed Intelligence", 22 nav sections vs the rewrite's 13). PUBLISHER_CONTEXT §5 routes `make-web.sh → build/web/ → metalinxx.io`, so a deploy from `build/web` would have shipped the retired 3815-line paper. Rebuilt; `build/web/index.html` now byte-identical (modulo EOL) to `docs/whitepaper-web/index.html`.
+- **Source ↔ published verified in sync otherwise.** `make-md.sh` rebuild diffs against the committed monolith reduce to the timestamp footer only (reverted, per the no-churn precedent). PDF (109737 bytes, 2026-07-09, 17pp) matches the rewrite — not rebuilt. `git status` on `sections/` clean.
+- **Build-script note:** all three `make-*.sh` carry CRLF in the working copy (WSL checkout artifact; committed blobs are fine) — direct `./make-md.sh` fails on the shebang. Ran via `bash <(sed 's/\r$//' script)`. Also removed an empty junk `build/web\r\r/` directory (Sep-2025 CRLF artifact, untracked).
+- **No integration triggers checked-and-fired.** Whitepaper-scope commits since the 07-09 pass are the rewrite itself (`4bd36e8`) + this repair; spec-side churn remains the established out-of-scope C-series profile. Synchronism side: autonomous Publisher ran 07-10 (`933ce9f9`, HOLD — retraction of its own 07-09 audit-posture endorsement; whitepaper explicitly held Current, no unilateral edit during rest); Synchronism build artifacts verified current (no section source newer than built md/PDF) — nothing rebuilt there.
 
 ### 2026-07-09: Publisher Maintenance — No-Change Verification (manual pass, dp-requested; all standing triggers unfired; NEW watch item — role-extension promoted to `web4-standard/ontology/` but Phase-0/PROVISIONAL, not yet a whitepaper trigger)
 - **Both standing integration triggers remain unfired.** `web4-standard/core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02) — no promotion to Normative. `web4-core/python` and `web4-trust-core` both still `version = "0.2.0"` — no v0.28.0 → PyPI publish. No EUDI Phase 2 / did:web4 spec doc or status flip in `web4-standard/`.
