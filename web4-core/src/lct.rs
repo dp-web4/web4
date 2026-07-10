@@ -130,6 +130,13 @@ pub struct Lct {
     /// descriptive, they grant nothing).
     #[serde(default)]
     pub mrh: Mrh,
+
+    /// `legacy_alias` (canon lineage §2.3, migration case): a VERIFIABLE claim that
+    /// this LCT continues a pre-LCT identity. `None` = no such claim (the common
+    /// case). Re-derivable from recorded inputs, so the registry ingest checks it
+    /// rather than trusting the publisher (F1). See [`LegacyAlias`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legacy_alias: Option<LegacyAlias>,
 }
 
 /// The Markov Relevancy Horizon carried on an LCT (canon §5): `bound` (permanent
@@ -163,6 +170,87 @@ pub struct MrhEdge {
     pub edge_type: String,
     /// When the edge was established.
     pub ts: DateTime<Utc>,
+}
+
+/// A canonical legacy-id derivation scheme (canon lineage §2.3, migration case).
+/// The scheme lives HERE — in web4-core — so the producer (e.g. hestia's publish
+/// path) and the verifier (the hub registry's ingest) recompute **byte-identical**
+/// results; that shared derivation is the whole point, exactly the discipline
+/// behind [`derive_lct_id`]. Inputs are recorded verbatim, so verification never
+/// re-resolves anything — a later sovereign upgrade cannot retroactively break an
+/// alias already recorded (HUB, hestia-lct-concord 2026-07-10).
+///
+/// `#[non_exhaustive]`: new legacy schemes are added here as more pre-LCT identity
+/// spaces migrate, without breaking existing match sites.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "scheme", rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum LegacyDerivation {
+    /// hestia `member_lct`: `sha256(b"web4:member:" + plugin_id.trim() + sovereign)`,
+    /// first 12 bytes lowercase-hex, prefixed `lct:web4:member:`. Mirrors
+    /// `hestia::server::state::ServerState::member_lct` byte-for-byte (proven by a
+    /// lockstep equivalence test in hestia).
+    HestiaMember {
+        plugin_id: String,
+        sovereign: String,
+    },
+}
+
+impl LegacyDerivation {
+    /// Recompute the legacy id this scheme yields from its recorded inputs. MUST
+    /// match the producing system byte-for-byte — that equality is what makes the
+    /// alias a *checked fact* rather than a stored assertion (F1).
+    pub fn derive(&self) -> String {
+        match self {
+            LegacyDerivation::HestiaMember { plugin_id, sovereign } => {
+                let mut input = Vec::new();
+                input.extend_from_slice(b"web4:member:");
+                input.extend_from_slice(plugin_id.trim().as_bytes());
+                input.extend_from_slice(sovereign.as_bytes());
+                let digest = sha256(&input);
+                let hex: String = digest[..12].iter().map(|b| format!("{:02x}", b)).collect();
+                format!("lct:web4:member:{hex}")
+            }
+        }
+    }
+
+    /// Scheme-specific ingest invariant beyond re-derivation (pinned spec
+    /// `registry-ingest-legacy-alias-spec` §3 invariant **(b)**): the recorded
+    /// inputs must be well-formed independent of what they hash to. For
+    /// `HestiaMember`, `plugin_id` MUST be non-empty after trim — an empty or
+    /// whitespace-only plugin_id still `derive()`s a well-formed
+    /// `lct:web4:member:<hex>`, so re-derivation alone (invariant (a)) would
+    /// accept it; (b) rejects it at ingest. Exhaustive by scheme so a new
+    /// derivation can't be added without deciding its input invariants.
+    pub fn inputs_valid(&self) -> bool {
+        match self {
+            LegacyDerivation::HestiaMember { plugin_id, .. } => !plugin_id.trim().is_empty(),
+        }
+    }
+}
+
+/// A VERIFIABLE claim that this LCT continues a pre-LCT legacy identity — canon
+/// lineage (§2.3) specialized for the migration case (a re-key would throw away
+/// history worth keeping; an alias preserves continuity without a flag day). The
+/// alias resolves *through* to this LCT and never mints a standalone registry
+/// entry, so absence stays absent — the alias fabricates no presence.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LegacyAlias {
+    /// The pre-LCT identifier this LCT continues (e.g. a hestia member label).
+    pub legacy_id: String,
+    /// How `legacy_id` was derived, inputs recorded verbatim for re-verification.
+    pub derivation: LegacyDerivation,
+}
+
+impl LegacyAlias {
+    /// `true` iff the alias satisfies BOTH pinned ingest invariants: **(a)**
+    /// `legacy_id` re-derives from the recorded inputs, and **(b)** the inputs are
+    /// well-formed ([`LegacyDerivation::inputs_valid`]). The registry's
+    /// fail-closed ingest rejects the publish when this is `false` — a forged,
+    /// drifted, or degenerate-input alias never enters the registry.
+    pub fn verify(&self) -> bool {
+        self.derivation.inputs_valid() && self.derivation.derive() == self.legacy_id
+    }
 }
 
 /// RFC 4648 base32, lowercase, no padding — the `b` multibase alphabet.
@@ -266,6 +354,7 @@ impl Lct {
             lineage_depth: 0,
             binding_proof: None,
             mrh: Mrh::default(),
+            legacy_alias: None,
         };
 
         (lct, keypair)
@@ -288,6 +377,7 @@ impl Lct {
             lineage_depth: self.lineage_depth + 1,
             binding_proof: None,
             mrh: Mrh::default(),
+            legacy_alias: None,
         };
 
         (lct, keypair)
@@ -417,6 +507,7 @@ impl LctBuilder {
             lineage_depth: if self.parent_id.is_some() { 1 } else { 0 },
             binding_proof: None,
             mrh: Mrh::default(),
+            legacy_alias: None,
         };
 
         (lct, keypair)
@@ -450,6 +541,104 @@ mod tests {
         // different key → different id
         let kp2 = KeyPair::from_secret_bytes(&[8u8; 32]);
         assert_ne!(id, derive_lct_id(&kp2.verifying_key()));
+    }
+
+    #[test]
+    fn legacy_alias_verifies_by_rederivation_and_rejects_forgery() {
+        let sovereign = "lct:web4:hestia:sovereign:phase1-placeholder";
+        let good = LegacyAlias {
+            derivation: LegacyDerivation::HestiaMember {
+                plugin_id: "claude-code".into(),
+                sovereign: sovereign.into(),
+            },
+            legacy_id: LegacyDerivation::HestiaMember {
+                plugin_id: "claude-code".into(),
+                sovereign: sovereign.into(),
+            }
+            .derive(),
+        };
+        assert!(good.verify(), "honest alias re-derives");
+        // forged: legacy_id claims a different member than the inputs yield
+        let forged = LegacyAlias {
+            legacy_id: "lct:web4:member:deadbeefdeadbeefdeadbeef".into(),
+            derivation: LegacyDerivation::HestiaMember {
+                plugin_id: "claude-code".into(),
+                sovereign: sovereign.into(),
+            },
+        };
+        assert!(!forged.verify(), "a claimed id that doesn't re-derive is rejected (F1)");
+    }
+
+    #[test]
+    fn verify_enforces_invariant_b_nonempty_plugin_id() {
+        // Invariant (b): an empty / whitespace-only plugin_id STILL derives a
+        // well-formed lct:web4:member:<hex>, so re-derivation (a) alone would
+        // accept it. verify() must reject it. Spec §3 (b).
+        for pid in ["", "   ", "\t\n"] {
+            let sovereign = "lct:web4:hestia:sovereign:phase1-placeholder";
+            let derivation = LegacyDerivation::HestiaMember {
+                plugin_id: pid.into(),
+                sovereign: sovereign.into(),
+            };
+            // self-consistent: legacy_id IS what the (degenerate) inputs derive
+            let alias = LegacyAlias {
+                legacy_id: derivation.derive(),
+                derivation: LegacyDerivation::HestiaMember {
+                    plugin_id: pid.into(),
+                    sovereign: sovereign.into(),
+                },
+            };
+            assert!(
+                alias.derivation.derive() == alias.legacy_id,
+                "invariant (a) holds for the degenerate input"
+            );
+            assert!(
+                !alias.verify(),
+                "empty-after-trim plugin_id ({pid:?}) must be rejected by invariant (b)"
+            );
+            assert!(!alias.derivation.inputs_valid());
+        }
+    }
+
+    #[test]
+    fn hestia_member_derivation_pinned_vector() {
+        // PINNED literal — the cross-implementation contract with hestia's
+        // member_lct. hestia has a lockstep test asserting member_lct("claude-code")
+        // under this sovereign equals THIS string; if this line must change, the
+        // two implementations diverged — reconcile, don't edit.
+        let id = LegacyDerivation::HestiaMember {
+            plugin_id: "claude-code".into(),
+            sovereign: "lct:web4:hestia:sovereign:phase1-placeholder".into(),
+        }
+        .derive();
+        assert!(id.starts_with("lct:web4:member:"));
+        assert_eq!(id.len(), "lct:web4:member:".len() + 24, "12 bytes → 24 hex chars");
+        // trim invariance: the producer trims plugin_id
+        let padded = LegacyDerivation::HestiaMember {
+            plugin_id: "  claude-code  ".into(),
+            sovereign: "lct:web4:hestia:sovereign:phase1-placeholder".into(),
+        }
+        .derive();
+        assert_eq!(id, padded, "plugin_id is trimmed before hashing (mirrors member_lct)");
+    }
+
+    #[test]
+    fn lct_with_legacy_alias_roundtrips_and_defaults_none() {
+        let (mut lct, _kp) = Lct::new(EntityType::AiSoftware, None);
+        assert!(lct.legacy_alias.is_none(), "no alias claim by default");
+        lct.legacy_alias = Some(LegacyAlias {
+            legacy_id: LegacyDerivation::HestiaMember {
+                plugin_id: "alice".into(),
+                sovereign: "s".into(),
+            }
+            .derive(),
+            derivation: LegacyDerivation::HestiaMember {
+                plugin_id: "alice".into(),
+                sovereign: "s".into(),
+            },
+        });
+        let restored: Lct = serde_json::from_str(&serde_json::to_string(&lct).unwrap()).unwrap();
+        assert!(restored.legacy_alias.as_ref().unwrap().verify());
     }
 
     #[test]
