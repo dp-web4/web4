@@ -429,9 +429,24 @@ impl R7Action {
     ///
     /// quality: 0.0 to 1.0. Below 0.5 = negative, above 0.5 = positive.
     /// This makes the action an R7 action.
+    ///
+    /// `t3_from` / `v3_from` are the subject's ACTUAL current tensor baselines
+    /// (uniform per tensor, matching this helper's uniform-shift model). They were
+    /// previously fabricated as `0.5 // placeholder`, which made every emitted
+    /// `TensorDelta.from_value` a lie for any subject not at neutral — a consumer
+    /// folding `from_value`/`to_value` (rather than `change`) reconstructed a
+    /// trajectory that never happened. Callers with per-dimension baselines should
+    /// build the delta directly (as hestia's `delta_from_change` does) — this
+    /// helper is the uniform-shift convenience.
+    ///
+    /// Clamp honesty: `change` is recomputed as `to - from` AFTER clamping, so a
+    /// subject near the ceiling books the truncated movement that actually
+    /// happened, not the nominal shift (mirrors `delta_from_change`).
     pub fn compute_reputation(
         &mut self,
         quality: f64,
+        t3_from: f64,
+        v3_from: f64,
         rule_triggered: &str,
         reason: &str,
         factors: Vec<ContributingFactor>,
@@ -441,26 +456,30 @@ impl R7Action {
 
         // T3 delta: each dimension shifts proportionally to quality
         let trust_shift = 0.05 * (quality - 0.5); // ±0.025 max per action
+        let t3_from = t3_from.clamp(0.0, 1.0);
+        let t3_to = (t3_from + trust_shift).clamp(0.0, 1.0);
         for dim in &["talent", "training", "temperament"] {
             t3_delta.insert(
                 dim.to_string(),
                 TensorDelta {
-                    change: trust_shift,
-                    from_value: 0.5, // placeholder — caller should set from actual
-                    to_value: (0.5 + trust_shift).clamp(0.0, 1.0),
+                    change: t3_to - t3_from,
+                    from_value: t3_from,
+                    to_value: t3_to,
                 },
             );
         }
 
         // V3 delta: proportional to quality offset
         let value_shift = 0.02 * (quality - 0.5);
+        let v3_from = v3_from.clamp(0.0, 1.0);
+        let v3_to = (v3_from + value_shift).clamp(0.0, 1.0);
         for dim in &["valuation", "veracity", "validity"] {
             v3_delta.insert(
                 dim.to_string(),
                 TensorDelta {
-                    change: value_shift,
-                    from_value: 0.5,
-                    to_value: (0.5 + value_shift).clamp(0.0, 1.0),
+                    change: v3_to - v3_from,
+                    from_value: v3_from,
+                    to_value: v3_to,
                 },
             );
         }
@@ -547,7 +566,7 @@ mod tests {
     #[test]
     fn test_r7_reputation() {
         let mut action = sample_action();
-        action.compute_reputation(0.8, "completion_rule", "Task completed well", vec![]);
+        action.compute_reputation(0.8, 0.5, 0.5, "completion_rule", "Task completed well", vec![]);
 
         assert!(action.is_r7());
         let rep = action.reputation.as_ref().unwrap();
@@ -557,9 +576,27 @@ mod tests {
     }
 
     #[test]
+    fn reputation_uses_real_baselines_and_clamps_honestly() {
+        // from_value was fabricated as 0.5 regardless of the subject's actual
+        // trust; now the caller's real baseline flows through, and `change` is
+        // recomputed AFTER clamping so a near-ceiling subject books the truncated
+        // movement that actually happened, not the nominal shift.
+        let mut action = sample_action();
+        action.compute_reputation(0.8, 0.99, 0.3, "rule", "near ceiling", vec![]);
+        let rep = action.reputation.as_ref().unwrap();
+        let t = &rep.t3_delta["talent"];
+        assert!((t.from_value - 0.99).abs() < 1e-12, "real baseline, not 0.5");
+        assert!((t.to_value - 1.0).abs() < 1e-12, "clamped at ceiling");
+        assert!((t.change - 0.01).abs() < 1e-9, "change = to - from post-clamp (0.01, not nominal 0.015)");
+        let v = &rep.v3_delta["veracity"];
+        assert!((v.from_value - 0.3).abs() < 1e-12);
+        assert!((v.change - 0.006).abs() < 1e-9, "v3 unclamped case: change == nominal shift");
+    }
+
+    #[test]
     fn test_r7_negative_reputation() {
         let mut action = sample_action();
-        action.compute_reputation(0.2, "failure_rule", "Task failed", vec![]);
+        action.compute_reputation(0.2, 0.5, 0.5, "failure_rule", "Task failed", vec![]);
 
         let rep = action.reputation.as_ref().unwrap();
         assert!(rep.net_trust_change() < 0.0);
