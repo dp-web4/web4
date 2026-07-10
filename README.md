@@ -9,7 +9,7 @@
 > **AI is already taking actions in the world. We can't prove what it did.**
 > Web4 is the open standard that closes that gap.
 
-An open standard for verifiable AI presence — proposed by Metalinxx Inc., owned by no one. Research-stage. v0.2.0 packages public; reference implementation + a runnable society hub public; no production deployment yet. **[STATUS.md](STATUS.md)** is the calibration — read it before judging the claims below.
+An open standard for verifiable AI presence — proposed by Metalinxx Inc., owned by no one. Research-stage. `web4-core` v0.3.0 public on crates.io + PyPI (`web4-trust-core` at v0.2.0); reference implementation + a runnable society hub public; no production deployment yet. **[STATUS.md](STATUS.md)** is the calibration — read it before judging the claims below.
 
 **Proof point**: 0% → 94.85% on ARC-AGI-3 with the same Claude Opus 4.6, structured around Web4 patterns via the [SAGE](https://github.com/dp-web4/SAGE) harness. [Public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4). The model didn't change — the structure around it did.
 
@@ -148,10 +148,10 @@ The applications come when the substrate exists *and* the present-tense pain for
 - **Cross-model independent review** (2026-05-13): Kimi 2.6 reviewed the repo + specs across three rounds of dialogue. Verbatim transcript at [`forum/kimi2_6_review.md`](forum/kimi2_6_review.md). Scoring: architectural coherence 8.5/10, bootstrap story 8/10, spec completeness intra-society 7/10, spec completeness inter-society 4/10. The dialogue produced two new spec docs (see below).
 
 ### Implementation status
-- **Published artifacts**: `web4-core` and `web4-trust-core` on crates.io; `web4-core` and `web4-trust` on PyPI. **Current: v0.2.0** (0.3.0 queued — role entities, canonical T3/V3, the Act primitive, EUDI/OID4VC, the vault), AGPL-3.0-or-later. See [STATUS.md](STATUS.md) for the full version table and [docs/proof/PUBLISHED.md](docs/proof/PUBLISHED.md) for the publish trail.
+- **Published artifacts**: `web4-core` and `web4-trust-core` on crates.io; `web4-core` and `web4-trust` on PyPI. **Current: `web4-core` v0.3.0** (published 2026-07-09 — role entities + LCT issuance/registry, canonical T3/V3, the Act primitive, EUDI/OID4VC, the vault; `web4-trust-core`/`web4-trust` at v0.2.0), AGPL-3.0-or-later. See [STATUS.md](STATUS.md) for the full version table and [docs/proof/PUBLISHED.md](docs/proof/PUBLISHED.md) for the publish trail.
 - **Community Hub** (`web4/hub`): a runnable single-binary Web4 society server — signed law, witnessed hash-chained ledger, sealed member↔hub channel, admission/council, EUDI issuer/verifier. Hardened this cycle under a 3-pass external security review; ships a `hub up` turnkey deploy kit.
 - **EUDI / W3C-DID interop** (code, Phase 0–2): an LCT resolves as a `did:web4` DID Document and issues/presents as an IETF SD-JWT-VC over OpenID4VCI/VP — person-scale (hestia) + society-scale (hub) round trip.
-- **Stage**: research, not production. v0.2.0 packages are public; reference implementation, hub, and harness are public; no production deployment yet.
+- **Stage**: research, not production. Packages are public (`web4-core` 0.3.0, trust family 0.2.0); reference implementation, hub, and harness are public; no production deployment yet.
 - Spec corpus: stable, with two new core specs added 2026-05-13 (see below)
 - **NEW**: [`inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) v0.1.2 DRAFT — society genesis, first-contact (3 sovereign options), ATP-as-unit-of-account, secession
 - **NEW**: [`society-roles.md`](web4-standard/core-spec/society-roles.md) v0.1.0 DRAFT — 7 base-mandatory roles + context-mandatory + optional, with fractal composability

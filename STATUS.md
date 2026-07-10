@@ -28,16 +28,16 @@ The strongest single external validation: a 2026-05-13 three-round Kimi 2.6 cros
 
 ---
 
-## Published artifacts (current: v0.2.0)
+## Published artifacts (current: `web4-core` v0.3.0, trust family v0.2.0)
 
 | Package | Registry | Version | Install |
 |---|---|---|---|
-| **web4-core** (Rust) | [crates.io](https://crates.io/crates/web4-core) | 0.2.0 | `cargo add web4-core` |
-| **web4-core** (Python) | [PyPI](https://pypi.org/project/web4-core/) | 0.2.0 | `pip install web4-core` |
+| **web4-core** (Rust) | [crates.io](https://crates.io/crates/web4-core) | **0.3.0** | `cargo add web4-core` |
+| **web4-core** (Python) | [PyPI](https://pypi.org/project/web4-core/) | **0.3.0** | `pip install web4-core` |
 | **web4-trust-core** (Rust) | [crates.io](https://crates.io/crates/web4-trust-core) | 0.2.0 | `cargo add web4-trust-core` |
 | **web4-trust** (Python) | [PyPI](https://pypi.org/project/web4-trust/) | 0.2.0 | `pip install web4-trust` |
 
-> **`web4-core` 0.3.0 is queued** — the repo has moved well past the published 0.2.0 (role entities, canonical T3/V3, the Act primitive, EUDI/OID4VC, the vault). Use the latest published (0.2.0) until 0.3.0 lands.
+> **`web4-core` 0.3.0 published 2026-07-09** (crates.io + PyPI, cp312 manylinux wheel) — closes the 18-commit gap past 0.2.0: **role entities** (`RoleEntity`/`RoleExtension`/`RoleRegistry` + LCT issuance, incl. the fail-closed `affords()` fix #492), canonical T3/V3, the **Act** primitive, the **EUDI/OID4VC/DID stack**, and the recursive **vault**. 171 tests green at publish; tags `web4-core-rust-v0.3.0` / `web4-core-py-v0.3.0`.
 >
 > *Historical:* v0.1.0 was yanked (Python wheel shipped without `__init__.py`); fixed in 0.1.1. Use the latest.
 
@@ -54,7 +54,7 @@ All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial 
 | **Spec corpus** (LCT, T3/V3, MRH, ATP/ADP, R6/R7) | Stable | [`web4-standard/core-spec/`](web4-standard/core-spec/) |
 | **Inter-society protocol spec** (genesis, first-contact, federation, secession) | v0.1.2 DRAFT, 2026-05-13 | [`web4-standard/core-spec/inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) |
 | **Society roles spec** (7 base-mandatory + context-mandatory + optional) | v0.1.0 DRAFT, 2026-05-13 | [`web4-standard/core-spec/society-roles.md`](web4-standard/core-spec/society-roles.md) |
-| **`web4-core`** | **Published v0.2.0** (crates.io + PyPI); **0.3.0 queued**. LCT, canonical T3/V3, Coherence, Ledger + 2 backends, plus **Act**, **role entities**, the **EUDI/DID stack**, and the **vault**. 164 tests. | [`web4-core/`](web4-core/) |
+| **`web4-core`** | **Published v0.3.0** (crates.io + PyPI, 2026-07-09). LCT, canonical T3/V3, Coherence, Ledger + 2 backends, plus **Act**, **role entities** (fail-closed `affords()`), the **EUDI/DID stack**, and the **vault**. 171 tests. | [`web4-core/`](web4-core/) |
 | **`web4-trust-core`** | **Published v0.2.0** (crates.io + PyPI). Trust storage, witnessing, decay. | [`web4-trust-core/`](web4-trust-core/) |
 | **Community Hub** (`web4/hub`) | Runnable single-binary Web4 society server: signed law + witnessed hash-chained ledger, sealed member↔hub channel, admission/council, EUDI issuer/verifier. Hardened this cycle (external security review: MCP-writes→loopback operator plane, council-gate-before-persist, pluggable operator-auth token, freshness enforcement, production profile, law-integrity fail-closed) + a `hub up` turnkey deploy kit. | [`hub/`](hub/) |
 | **Runnable proof of presence** | `python identity_bootstrap.py` — bootstraps a host LCT (keypair on disk, hash-chained `LocalLedger`, public `lct.json` sidecar); `--verify` re-checks the chain on re-run. ~30 sec. | [`web4-core/python/examples/identity_bootstrap.py`](web4-core/python/examples/identity_bootstrap.py) |

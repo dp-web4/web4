@@ -4,7 +4,33 @@ This document records the package family releases, what shipped, where to find i
 
 ---
 
-## Current Release: v0.2.0 (2026-05-15)
+## Current Release: web4-core v0.3.0 (2026-07-09)
+
+Single-package release: `web4-core` (Rust crate + Python cp312 manylinux_2_34 wheel) published from CBP after 171 green tests, a clean `cargo publish --dry-run`, and a fresh-venv wheel install check. The trust family (`web4-trust-core` / `web4-trust`) remains at 0.2.0.
+
+### Quick install
+
+```toml
+[dependencies]
+web4-core = "0.3"
+```
+
+```bash
+pip install web4-core   # 0.3.0
+```
+
+### What was published
+
+| Package | Registry | Version | Released | License |
+|---|---|---|---|---|
+| `web4-core` | [crates.io](https://crates.io/crates/web4-core) | **0.3.0** | 2026-07-09 | AGPL-3.0-or-later |
+| `web4-core` | [PyPI](https://pypi.org/project/web4-core/) | **0.3.0** | 2026-07-09 | AGPL-3.0-or-later |
+
+Headline content vs 0.2.0 (18 commits): **role entities** (`RoleEntity`/`RoleExtension`/`RoleRegistry`, LCT issuance, fail-closed `affords()` after #492), the **Act** primitive + `ReputationDelta`, canonical **T3/V3** as the single tensor source, the recursive **vault**, and the **EUDI/OID4VC/DID** stack. Full notes: [`CHANGELOG.md`](../../CHANGELOG.md). Git tags: `web4-core-rust-v0.3.0`, `web4-core-py-v0.3.0`.
+
+---
+
+## Previous Release: v0.2.0 (2026-05-15)
 
 First coordinated release closing the publish-vs-main gap accumulated since v0.1.1 (2026-04-28). Roughly 17 days and 66 commits of substantive spec, SDK, and conformance work.
 

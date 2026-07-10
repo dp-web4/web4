@@ -8,6 +8,26 @@ The Web4 package family currently consists of:
 - **`web4-core`** (Python + Rust crate) — core primitives, PyO3 bindings. `pip install web4-core` / `cargo add web4-core`.
 - **`web4-trust`** (Python wheel) / **`web4-trust-core`** (Rust crate + npm WASM bindings) — trust tensors and the trust ledger. `pip install web4-trust` / `cargo add web4-trust-core` / `npm install web4-trust-core`.
 
+## web4-core 0.3.0 — 2026-07-09 (single-package release)
+
+`web4-core` only (Rust crate + Python wheel); the trust family stays at 0.2.0. Closes the 18-commit gap accumulated since 0.2.0 (2026-05-15). 171 tests green at publish; `cargo publish --dry-run` + fresh-venv wheel install verified first. Tags: `web4-core-rust-v0.3.0`, `web4-core-py-v0.3.0`.
+
+### Added
+
+- **Role entities** (#489): `RoleEntity` / `RoleExtension` / `RoleRegistry` — orchestration roles as first-class `EntityType::Role` LCTs with typed affordances (Tool/Channel/Repo/WriteClass/CliFlag), responsibilities, MRH scope + ATP budget, and sovereign-issued LCT binding. The Phase-1→2 bridge for role orchestration (and the load-bearing primitive for foreign-agent onboarding).
+- **Act primitive + time/events axis** (#369, #384): witnessed action grammar with `Act.kind`, `requires_council` as default-not-law, and `ReputationDelta`.
+- **Constellation role enum + provenance-strength fold** (#457): published capacity roles; `SovereignStrength` fail-closed to `Placeholder` for non-hub-verified claims.
+- **Recursive vault** (`web4_core::vault`): Argon2id + ChaCha20-Poly1305, per-item independent locking, memory-only unlock, `DerivedKey::from_bytes`, self-framing seal/open.
+- **EUDI / W3C-DID stack** (`did` / `sd_jwt_vc` / `oid4vc`): signer-agnostic SD-JWT-VC issuance, OID4VCI holder-proof, `jwt_payload_claim` for external-signer validation, unverified peek helpers.
+
+### Changed
+
+- **Canonical T3/V3** (#445): `EntityTrust` migrated to the canonical `web4_core::t3::T3` / `v3::V3` tensor types — one tensor source across the dependency graph.
+
+### Fixed
+
+- **`RoleExtension` defaults + `affords()` were fail-OPEN** (#492, CBP review F1–F3 on #489): affordance checks now fail closed — absence is denial.
+
 ## 0.2.0 — 2026-05-15 (package family release)
 
 First coordinated release closing the publish-vs-main gap flagged by Nova 2026-05-15. Brings `web4-core`, `web4-trust-core` (Rust + Python + npm WASM) up to the body of work accumulated since April 28 v0.1.1 — roughly 17 days and 66 commits of substantive spec, SDK, and conformance work.
