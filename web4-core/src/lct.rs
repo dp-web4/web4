@@ -213,6 +213,20 @@ impl LegacyDerivation {
             }
         }
     }
+
+    /// Scheme-specific ingest invariant beyond re-derivation (pinned spec
+    /// `registry-ingest-legacy-alias-spec` §3 invariant **(b)**): the recorded
+    /// inputs must be well-formed independent of what they hash to. For
+    /// `HestiaMember`, `plugin_id` MUST be non-empty after trim — an empty or
+    /// whitespace-only plugin_id still `derive()`s a well-formed
+    /// `lct:web4:member:<hex>`, so re-derivation alone (invariant (a)) would
+    /// accept it; (b) rejects it at ingest. Exhaustive by scheme so a new
+    /// derivation can't be added without deciding its input invariants.
+    pub fn inputs_valid(&self) -> bool {
+        match self {
+            LegacyDerivation::HestiaMember { plugin_id, .. } => !plugin_id.trim().is_empty(),
+        }
+    }
 }
 
 /// A VERIFIABLE claim that this LCT continues a pre-LCT legacy identity — canon
@@ -229,11 +243,13 @@ pub struct LegacyAlias {
 }
 
 impl LegacyAlias {
-    /// `true` iff `legacy_id` re-derives from the recorded inputs. The registry's
-    /// fail-closed ingest rejects the publish when this is `false` — a forged or
-    /// drifted alias never enters the registry.
+    /// `true` iff the alias satisfies BOTH pinned ingest invariants: **(a)**
+    /// `legacy_id` re-derives from the recorded inputs, and **(b)** the inputs are
+    /// well-formed ([`LegacyDerivation::inputs_valid`]). The registry's
+    /// fail-closed ingest rejects the publish when this is `false` — a forged,
+    /// drifted, or degenerate-input alias never enters the registry.
     pub fn verify(&self) -> bool {
-        self.derivation.derive() == self.legacy_id
+        self.derivation.inputs_valid() && self.derivation.derive() == self.legacy_id
     }
 }
 
@@ -551,6 +567,37 @@ mod tests {
             },
         };
         assert!(!forged.verify(), "a claimed id that doesn't re-derive is rejected (F1)");
+    }
+
+    #[test]
+    fn verify_enforces_invariant_b_nonempty_plugin_id() {
+        // Invariant (b): an empty / whitespace-only plugin_id STILL derives a
+        // well-formed lct:web4:member:<hex>, so re-derivation (a) alone would
+        // accept it. verify() must reject it. Spec §3 (b).
+        for pid in ["", "   ", "\t\n"] {
+            let sovereign = "lct:web4:hestia:sovereign:phase1-placeholder";
+            let derivation = LegacyDerivation::HestiaMember {
+                plugin_id: pid.into(),
+                sovereign: sovereign.into(),
+            };
+            // self-consistent: legacy_id IS what the (degenerate) inputs derive
+            let alias = LegacyAlias {
+                legacy_id: derivation.derive(),
+                derivation: LegacyDerivation::HestiaMember {
+                    plugin_id: pid.into(),
+                    sovereign: sovereign.into(),
+                },
+            };
+            assert!(
+                alias.derivation.derive() == alias.legacy_id,
+                "invariant (a) holds for the degenerate input"
+            );
+            assert!(
+                !alias.verify(),
+                "empty-after-trim plugin_id ({pid:?}) must be rejected by invariant (b)"
+            );
+            assert!(!alias.derivation.inputs_valid());
+        }
     }
 
     #[test]
