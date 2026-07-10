@@ -301,6 +301,13 @@ impl Lct {
     /// separated and deterministic, so any verifier reconstructs it exactly:
     /// `"web4:lct:binding:v1\n" + lct_id + "\n" + entity_type(snake_case) + "\n"
     ///  + created_at(RFC3339)`.
+    ///
+    /// The timestamp is rendered with [`SecondsFormat::AutoSi`] + `use_z=true`,
+    /// so the message bytes are **byte-identical to the wire form** serde writes
+    /// (`…Z`, not `+00:00`). A non-chrono verifier that reconstructs this message
+    /// from the document's own `created_at` string gets the exact bytes that were
+    /// signed — the cross-implementation contract (HUB #499 blocker 2). Changing
+    /// this rendering after any document is signed requires a `v1`→`v2` bump.
     pub fn binding_message(&self) -> Vec<u8> {
         let entity_type = serde_json::to_string(&self.entity_type)
             .unwrap_or_default()
@@ -310,7 +317,7 @@ impl Lct {
             "web4:lct:binding:v1\n{}\n{}\n{}",
             self.lct_id(),
             entity_type,
-            self.created_at.to_rfc3339()
+            self.created_at.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true)
         )
         .into_bytes()
     }
@@ -318,7 +325,19 @@ impl Lct {
     /// Sign the binding with the LCT's own keypair — the key⇄entity binding
     /// proven, not asserted (canon §2.3 `binding_proof`). Call at issuance,
     /// while the keypair is in hand.
+    ///
+    /// **Debug-asserts the keypair binds this LCT's own public key** — signing
+    /// with a foreign key would mint a binding that `verify_binding` then rejects,
+    /// a caller error worth catching at the source (HUB #499 non-blocking nit;
+    /// `RoleEntity::issue` is correct, but other constructors hand out the keypair
+    /// and could be miswired). Debug-only: release builds still produce the (self-
+    /// detectably invalid) proof rather than panicking in production.
     pub fn sign_binding(&mut self, keypair: &KeyPair) {
+        debug_assert_eq!(
+            keypair.verifying_key(),
+            self.public_key,
+            "sign_binding: keypair must bind this LCT's own public key"
+        );
         self.binding_proof = Some(keypair.sign(&self.binding_message()));
     }
 
@@ -532,12 +551,16 @@ mod tests {
         assert_eq!(id, derive_lct_id(&kp.verifying_key()));
         // 32-byte sha256 → 52 base32 chars
         assert_eq!(id.len(), "lct:web4:mb32:b".len() + 52, "52 base32 chars for a 256-bit digest");
-        // the pinned vector (recompute only on a deliberate, versioned change)
-        let expected = {
-            let digest = sha256(&kp.verifying_key().to_bytes());
-            format!("lct:web4:mb32:b{}", base32_lower_nopad(&digest))
-        };
-        assert_eq!(id, expected);
+        // The PINNED literal — NOT recomputed from the same primitives under test
+        // (that would be a tautology that survives any consistent derivation drift).
+        // Independently re-derived on HUB from the [7u8;32] seed and confirmed
+        // byte-identical (#499). A foreign implementation asserts against THIS
+        // string; if this line ever has to change, the derivation changed and every
+        // registry key breaks — bump the id-prefix version instead of editing it.
+        assert_eq!(
+            id,
+            "lct:web4:mb32:b72asyextvngonlc5w2nmguxza3frweppip5thyss5577kurghceq"
+        );
         // different key → different id
         let kp2 = KeyPair::from_secret_bytes(&[8u8; 32]);
         assert_ne!(id, derive_lct_id(&kp2.verifying_key()));
@@ -667,10 +690,31 @@ mod tests {
 
     #[test]
     fn binding_proof_rejects_foreign_key_signature() {
+        // The threat model is a maliciously-constructed document, not a self-
+        // inflicted miswiring — so build the foreign-signed proof DIRECTLY (bypass
+        // sign_binding, which now debug-asserts against exactly this mistake). What
+        // must hold regardless of provenance: verify_binding checks against the
+        // LCT's OWN key, so a proof by any other key is rejected.
         let (mut lct, _kp) = Lct::new(EntityType::Role, None);
         let foreign = KeyPair::generate();
-        lct.sign_binding(&foreign); // signed by a key that is NOT the binding key
+        lct.binding_proof = Some(foreign.sign(&lct.binding_message()));
         assert!(!lct.verify_binding(), "proof must verify against the LCT's OWN key");
+    }
+
+    #[test]
+    fn signed_lct_json_roundtrip_verifies_from_wire_timestamp() {
+        // The REGISTRY INGEST PATH (HUB #499): a signed LCT serialized to JSON and
+        // back must still verify — proving binding_message reconstructed from the
+        // document's own `created_at` WIRE string (…Z) is byte-identical to what was
+        // signed. This is what breaks if to_rfc3339() (+00:00) diverges from serde.
+        let (mut lct, kp) = Lct::new(EntityType::Role, None);
+        lct.sign_binding(&kp);
+        let json = serde_json::to_string(&lct).unwrap();
+        let restored: Lct = serde_json::from_str(&json).unwrap();
+        assert!(
+            restored.verify_binding(),
+            "signed LCT must verify after a JSON roundtrip (message == wire bytes)"
+        );
     }
 
     #[test]
