@@ -1868,13 +1868,19 @@ mod tests {
             payload: Default::default(),
             resource: Default::default(),
         };
-        // S conservative default: the consequential governance actions the gate
-        // actually receives escalate (RWOA gradient), not ride DEFAULT-ALLOW.
-        assert_eq!(law.evaluate(&req("assign_role")), Decision::Escalate);
-        assert_eq!(law.evaluate(&req("add_member")), Decision::Escalate);
-        // Low-stakes / unlisted reversible acts still ride the permissive base.
-        assert_eq!(law.evaluate(&req("member_join_request")), Decision::Allow);
-        assert_eq!(law.evaluate(&req("some_read")), Decision::Allow);
+        // The gate evaluates `action` = HubEvent::kind() (member_added,
+        // role_assigned, ...). Named norms cover the highest-stakes kinds:
+        assert_eq!(law.evaluate(&req("role_assigned")), Decision::Escalate);
+        assert_eq!(law.evaluate(&req("charter_amended")), Decision::Escalate);
+        assert_eq!(law.evaluate(&req("law_amended")), Decision::Escalate);
+        // S conservative default catches the other consequential governance kinds:
+        assert_eq!(law.evaluate(&req("member_added")), Decision::Escalate);
+        assert_eq!(law.evaluate(&req("council_threshold_changed")), Decision::Escalate);
+        assert_eq!(law.evaluate(&req("pairing_revoked")), Decision::Escalate);
+        // Low-stakes / reversible / informational kinds ride the permissive base:
+        assert_eq!(law.evaluate(&req("member_join_requested")), Decision::Allow);
+        assert_eq!(law.evaluate(&req("event_recorded")), Decision::Allow);
+        assert_eq!(law.evaluate(&req("reputation_recorded")), Decision::Allow);
     }
 
     #[test]

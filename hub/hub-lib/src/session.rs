@@ -118,19 +118,32 @@ impl HubSession {
         let mut society = store.read_society().await
             .context("reading society state")?
             .ok_or_else(|| anyhow::anyhow!("society state missing for hub"))?;
+        // W/O preflight: web4-core enforces Sovereign/Administrator authority
+        // in-memory here, BEFORE any persisted side effect. A rejected assignment
+        // returns now, leaving the persisted society file bit-identical.
         let role_lct_id = society
             .assign_role(role.clone(), member_lct_id, self.sovereign_lct_id)
             .map_err(|e| anyhow::anyhow!("role assignment rejected: {e}"))?;
-        store.write_society(&society).await
-            .context("persisting updated role-fill")?;
 
+        // A (RWOA accountability ratchet): append the authorizing witnessed record
+        // FIRST, then persist the derived society projection. Record-before-
+        // projection means there is no reachable path where the role-fill persists
+        // without its ledger record — if the append fails we return before
+        // write_society, leaving society bit-identical. (Previously persisted-then-
+        // appended: a failed append left an act with no authorizing record — the
+        // O/A gap the ratchet flags. A write_society failure after the record is
+        // the safe direction: the ledger is authoritative and the projection
+        // re-materializes from it.)
         let event = HubEvent::RoleAssigned {
             role,
             role_lct_id,
             assigned_to: member_lct_id,
             assigned_by: self.sovereign_lct_id,
         };
-        self.append(event).await
+        let entry = self.append(event).await?;
+        store.write_society(&society).await
+            .context("persisting role-fill projection after its ledger record")?;
+        Ok(entry)
     }
 
     pub async fn record_event(

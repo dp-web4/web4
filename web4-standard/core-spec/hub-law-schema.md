@@ -73,7 +73,7 @@ norms:
   - id: ADMIN-ONLY-ROLES
     selector: r6.request.action
     operator: "=="
-    value: assign_role
+    value: role_assigned          # r6.request.action = HubEvent::kind() (event-kind, not a verb)
     decision: escalate
     priority: 20
     description: "Role assignment requires Sovereign or Administrator"
