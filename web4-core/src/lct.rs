@@ -34,6 +34,14 @@ pub enum EntityType {
     AiEmbodied,
     /// Organization
     Organization,
+    /// Society — a law-bearing collective that issues birth certificates and
+    /// maintains an LCT registry (canon §2.3 lists `society` as a first-class
+    /// entity type). Distinct from `Organization` for DISCRIMINATION, not trust:
+    /// Phase-2 `society_conferred` provenance must check that the *conferring*
+    /// entity is a society, which `Organization` cannot carry without conflation
+    /// (HUB concord vote, 2026-07-10). Same coherence threshold as Organization —
+    /// nothing reorders.
+    Society,
     /// Role (first-class entity)
     Role,
     /// Task
@@ -469,6 +477,7 @@ impl Lct {
             EntityType::AiEmbodied => 0.6,   // Hardware binding helps
             EntityType::AiSoftware => 0.7,   // Higher bar due to copyability
             EntityType::Organization => 0.5,
+            EntityType::Society => 0.5,      // same prior as Organization — no reorder
             EntityType::Role => 0.5,
             EntityType::Task => 0.3,
             EntityType::Resource => 0.3,
