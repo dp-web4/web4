@@ -282,3 +282,14 @@ cd archive/forum-pdfs/
 - `WEB4_DIRECTORY_STRUCTURE.txt` - Visual tree with activity
 - `WEB4_FINDINGS_SUMMARY.txt` - Executive summary
 - `WEB4_QUICK_REFERENCE.md` - Practical contributor guide
+
+### archive/demo/ (formerly /demo/)
+**Original Location**: `/demo/`
+**Archived**: 2026-07-13
+**Status**: Superseded illustrative demo
+
+**Reason for Archival**:
+- Standalone Python/FastAPI mock of one use-case (agent commerce delegation), not built on the shipped `web4-core` / `web4-trust-core` crates.
+- Predates the current architecture (Societies, SAL/hub-law, witnessed hash-chained ledger, sealed channels, RWOA, roles-as-entities, the operator gate).
+- Last substantive work ~3 months prior; retained for history.
+- **Current reference deployment**: the running Web4 society — `web4/hub/` + `hestia` (github.com/dp-web4/hestia).

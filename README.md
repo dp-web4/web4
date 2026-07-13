@@ -39,7 +39,7 @@ If you want a fast read on whether this is real, in order:
 
 1. [**STATUS.md**](STATUS.md) — what's shipped, what's specified, what's aspirational.
 2. [**docs/proof/PUBLISHED.md**](docs/proof/PUBLISHED.md) — what's published and why v0.1.0 was yanked.
-3. [**demo/**](demo/) — agent commerce delegation, 166 tests passing.
+3. [**hub/**](hub/) — a **running Web4 society**: LCT-pinned membership, sealed E2E channels, a witnessed hash-chained ledger, hub-law gating acts, governance-driven roles. Operated in production by the fleet. (With [hestia](https://github.com/dp-web4/hestia) at the agent boundary.) This is the standard *running* — the current reference deployment.
 4. [**simulations/**](simulations/) — 424 attack vectors / 84 tracks, ~85% detection rate against synthetic adversaries (no red team yet; see STATUS for honest characterization).
 5. [**docs/specs/heterogeneous-identity.md**](docs/specs/heterogeneous-identity.md) — multi-factor identity as a constellation. Answers "what stops a hardware vendor from gating LCT access?" structurally.
 6. [**docs/whitepapers/web4-and-standard-credentials.md**](docs/whitepapers/web4-and-standard-credentials.md) — how Web4 interoperates with eIDAS/EUDI, W3C Verifiable Credentials, and OpenID (did:web4, SD-JWT-VC, OID4VCI/VP) — and what it adds that they don't.
@@ -289,16 +289,13 @@ The original prototype (`/game/`) was archived to `archive/game-prototype/` afte
 
 **Use for**: Authorization logic that needs persistence and real constraints
 
-### Track 3: `demo/` - Commerce Demo (Narrow Application)
+### Track 3: `hub/` - A Running Web4 Society (Reference Deployment)
 
-**What it is**: A working demo showing one use case (AI agent purchasing).
+**What it is**: The current best demonstration — a Web4 society *running on the real stack*: LCT-pinned membership, sealed end-to-end member channels, a witnessed hash-chained ledger as the society's collective memory, hub-law (Law Dataset) gating consequential acts, governance-driven role assignment, and the RWOA-gradient operator gate. Operated in production by the fleet for actual multi-agent coordination. Paired with [hestia](https://github.com/dp-web4/hestia) at the individual-agent boundary.
 
-**Status**: Functional demo, not production deployment
-- Delegation UI for setting agent limits
-- Demo store for testing purchases
-- In-memory (no real payments)
+**Use for**: Seeing the architecture *running*, not mocked.
 
-**Use for**: Demonstrations and presentations
+*(The earlier standalone Python commerce-delegation demo — a mock of one narrow use-case, not built on the shipped crates — is archived at [`archive/demo/`](archive/demo/), superseded by the hub.)*
 
 ### Track 4: `web4-standard/implementation/reference/` - Coordination Framework (Active Development)
 
@@ -418,23 +415,18 @@ Example: Agent purchasing with constraints
 
 ## 🚀 Quick Start
 
-### Run the Demo
+### Run a Web4 Society (the hub)
 
 ```bash
-# Terminal 1: Start the demo store
-cd demo/store
-pip install -r requirements.txt
-python app.py
-# Visit: http://localhost:8000
-
-# Terminal 2: Start the delegation UI
-cd demo/delegation-ui
-pip install -r requirements.txt
-python app.py
-# Visit: http://localhost:8001
+cd hub
+hub init <name> --sovereign-lct <path>   # found a society: charter + genesis
+hub init-law                             # write a starter hub-law template
+hub serve <hub-dir>                      # run the daemon: witnessed ledger, sealed channels, law gate
+# or, turnkey: hub up ./hub --profile public-tunnel --domain hub.4-gov.org
 ```
 
-See [`demo/DEMO_SCRIPT.md`](demo/DEMO_SCRIPT.md) for walkthrough.
+See [`hub/README.md`](hub/README.md) for the deployment archetypes and the operator surface.
+*(The archived Python commerce demo is at [`archive/demo/`](archive/demo/).)*
 
 ### Run Simulations
 
