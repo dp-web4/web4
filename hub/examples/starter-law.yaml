@@ -1,14 +1,30 @@
 # Starter hub law — sensible defaults for a new Web4 community.
 #
+# ACCOUNTABILITY INVARIANT (RWOA + S + V — ratified hub-law, 2026-07-12).
+# Every consequential act is authorized by a contextual preponderance of evidence
+# scaled to the act's stakes and irreversibility (S), decided before side effects
+# (O), committed atomically with its evidence-basis (A); reachability is weak
+# evidence, not authority (R); witnessed identity+authority is strong (W);
+# irreversible / high-consequence acts pass a catastrophic-risk veto (V) that may
+# require a quorum of signatures by law; unclassified surfaces default to
+# high-consequence. Genesis acts run in a bounded, self-witnessing bootstrap
+# window that cannot be re-entered once witnessed authority exists.
+#   Norm: private-context `accountability-invariant` thread.
+#   Write-time self-audit every surface-changing PR runs: web4/CLAUDE.md
+#   "Accountability self-audit (run before shipping a surface)".
+#
+# THE GRADIENT, NOT A FLIP. The defaults stay PERMISSIVE for low-stakes REVERSIBLE
+# acts (DEFAULT-ALLOW below); CONSEQUENTIAL acts are gated at their stakes
+# (escalate / deny). Keeping the base permissive is deliberate — a too-strict-
+# everywhere gate breeds unsafe-override escape hatches that become the next
+# reachability-is-authority holes. Tighten specific norms as your chapter matures.
+#
 # This file is a template. Edit it, then apply with:
 #   hub set-law <chapter-dir> ./hub-law.yaml
 #   curl -X POST http://localhost:8770/v1/admin/reload-law   # if serve is running
 #
 # Full schema: web4-standard/core-spec/hub-law-schema.md
 # Hub interpreter: web4/hub/hub-lib/src/law.rs
-#
-# The starter defaults below are PERMISSIVE — most acts are allowed.
-# Tighten the norms (decision: deny / escalate) as your chapter matures.
 
 version: "1.0.0"
 
@@ -29,7 +45,25 @@ norms:
     value: __never_match__
     decision: allow
     priority: 0
-    description: "Default-allow base policy. Specific norms override."
+    description: "Default-allow base policy for low-stakes reversible acts. Specific norms override."
+
+  # S conservative default (RWOA gradient): the KNOWN consequential governance
+  # actions the law gate actually receives escalate by default — above
+  # DEFAULT-ALLOW (0), below the specific named norms (50-100) so a more-specific
+  # decision still wins. These are the present-tense R6 action names the daemon
+  # evaluates (add_member, assign_role; see hub check_governance) — distinct from
+  # the past-tense EVENT names the named norms below match (role_assigned etc.).
+  # Low-stakes/reversible actions (a join *request*, reads) ride DEFAULT-ALLOW.
+  # Extend this list as new consequential action-kinds land.
+  - id: ESCALATE-CONSEQUENTIAL-DEFAULT
+    selector: r6.request.action
+    operator: in
+    value:
+      - add_member
+      - assign_role
+    decision: escalate
+    priority: 10
+    description: "Consequential governance mutations escalate unless a more-specific norm decides them (RWOA S default)."
 
   # Charter amendments are high-impact; escalate to the Sovereign.
   - id: ESCALATE-CHARTER-AMEND
@@ -69,7 +103,7 @@ procedures:
   - id: WITNESS-3
     requires_witnesses: 3
     applies_to: "consequential_actions"
-    description: "Consequential acts should accumulate 3 independent witnesses."
+    description: "Consequential acts should accumulate 3 independent witnesses. Target (enforced as gating lands): the authority decision is a PREFLIGHT that dominates every side effect (O), and the act commits ATOMICALLY with its signed hash-chained record AND the evidence relied upon (A)."
 
 # -----------------------------------------------------------------------------
 # Delegation — when role-fillers can delegate to AI agents.
@@ -91,6 +125,14 @@ escalation:
   - condition: "r6.resource.atp > 100"
     escalate_to: sovereign
     description: "High-ATP acts (over 100) need Sovereign review."
+  # V — catastrophic-risk veto on the irreversible tail. ATP magnitude above is
+  # one stakes proxy; the ratified norm additionally vetoes/escalates IRREVERSIBLE
+  # or high-consequence acts (a secret RELEASE — a read has no undo; an
+  # irreversible law change; an operator-set change that could lock out)
+  # regardless of any allow norm, and such escalation MAY require a quorum of
+  # signatures by law. Reversible acts are risk-managed on preponderance; the
+  # irreversible tail gets the conservative veto. (Enforced daemon-side as the
+  # stakes classifier lands; stated here so the law carries the posture.)
 
 # -----------------------------------------------------------------------------
 # Admission — how new members join.
@@ -102,7 +144,7 @@ admission:
   open: true
   requires_sponsor: false
   min_trust_score: 0.0
-  description: "Open membership for the starter law. Tighten for closed communities."
+  description: "Open membership for the starter law. Tighten for closed communities. NOTE: genesis acts (founding the society, minting the first authority) run in a bounded, self-witnessing bootstrap window that ratchets shut once witnessed authority exists — a fresh install is not a permanent open door."
 
 # -----------------------------------------------------------------------------
 # ATP issuance — how the chapter mints internal currency.

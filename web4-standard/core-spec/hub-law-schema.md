@@ -1,6 +1,6 @@
 # Hub Law Schema — YAML Surface + RDF Canonical
 
-**Status:** Draft • **Last Updated:** 2026-06-07 • **Track:** U3
+**Status:** Draft • **Last Updated:** 2026-07-13 • **Track:** U3
 
 This document defines the **YAML ergonomic surface** for hub law and its
 mapping to the canonical RDF representation (`ontology/hub-law.ttl`).
@@ -8,6 +8,48 @@ mapping to the canonical RDF representation (`ontology/hub-law.ttl`).
 Chapter operators edit YAML. The hub validates, compiles to RDF, signs, and
 stores the RDF graph. Both formats are valid for exchange; RDF is canonical
 for verification.
+
+---
+
+## 0. Governing invariant (RWOA + S + V)
+
+Hub law operates under the ratified accountability invariant (RWOA + S + V,
+2026-07-12). Every consequential act is authorized by a **contextual preponderance
+of evidence scaled to the act's stakes and irreversibility** (S), decided before
+side effects (O), committed atomically with its evidence-basis (A); reachability is
+weak evidence, not authority (R); witnessed identity + authority is strong (W);
+irreversible / high-consequence acts pass a **catastrophic-risk veto** (V) that MAY
+require a quorum of signatures by law. Unclassified surfaces default to
+high-consequence. This is a **gradient, not a binary** — the same non-boolean model
+as T3/V3 and MRH — so law should *not* flip to default-deny.
+
+How the invariant is expressed in the YAML surface (see the starter law,
+`web4/hub/examples/starter-law.yaml`, for a worked example):
+
+- **Permissive base, stakes-gated exceptions.** A `DEFAULT-ALLOW` norm (priority 0)
+  covers low-stakes reversible acts; specific `deny`/`escalate` norms gate the
+  consequential ones at higher priority. Keeping the base permissive is deliberate —
+  a too-strict-everywhere gate breeds unsafe-override escape hatches that become the
+  next reachability-is-authority holes.
+- **S conservative default (a norm).** An `escalate` norm whose `selector` is
+  `r6.request.action` with `operator: in` over the set of **consequential
+  action-kinds** (priority above `DEFAULT-ALLOW`, below the specific named norms), so
+  a consequential act that no specific norm decides escalates rather than riding the
+  permissive base. Extend the list as new consequential action-kinds land.
+- **V catastrophic-risk veto (escalation).** An escalation trigger that fires on the
+  **irreversible / high-consequence tail** regardless of any allow norm (a secret
+  *release* has no undo; an irreversible law change; a lockout-risking operator-set
+  change), and MAY demand a quorum of operator signatures. Reversible acts are
+  risk-managed on preponderance; the irreversible tail gets the conservative veto.
+- **O + A in procedures.** Consequential-action procedures carry the target the
+  daemon enforces as gating lands: the authority decision is a **preflight** that
+  dominates every side effect (O), and the act commits **atomically** with its signed
+  hash-chained record and the evidence relied upon (A).
+- **Bounded bootstrap.** Genesis acts run in a bounded, self-witnessing bootstrap
+  window that ratchets shut once witnessed authority exists — no re-entry.
+
+Full norm + write-time self-audit: the `accountability-invariant` thread and
+`web4/CLAUDE.md` "Accountability self-audit (run before shipping a surface)."
 
 ---
 

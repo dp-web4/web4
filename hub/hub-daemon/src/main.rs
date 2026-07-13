@@ -1859,6 +1859,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn starter_law_folds_rwoa_gradient() {
+        use hub_lib::law::{Decision, Law, R6Request};
+        let law: Law = Law::parse_and_validate(STARTER_LAW_YAML).expect("embedded starter law validates");
+        let req = |action: &str| R6Request {
+            role: "citizen".into(),
+            action: action.into(),
+            payload: Default::default(),
+            resource: Default::default(),
+        };
+        // S conservative default: the consequential governance actions the gate
+        // actually receives escalate (RWOA gradient), not ride DEFAULT-ALLOW.
+        assert_eq!(law.evaluate(&req("assign_role")), Decision::Escalate);
+        assert_eq!(law.evaluate(&req("add_member")), Decision::Escalate);
+        // Low-stakes / unlisted reversible acts still ride the permissive base.
+        assert_eq!(law.evaluate(&req("member_join_request")), Decision::Allow);
+        assert_eq!(law.evaluate(&req("some_read")), Decision::Allow);
+    }
+
+    #[test]
     fn hub_up_public_archetypes_are_fail_closed() {
         assert!(find_archetype("nope").is_none());
         assert_eq!(find_archetype("dev").unwrap().operator_auth, "loopback");
