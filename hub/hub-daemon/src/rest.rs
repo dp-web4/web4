@@ -1350,6 +1350,9 @@ pub fn router(state: RestState) -> Router {
         // PAIRED-CHANNELS Sprint C: LCT pair lifecycle endpoints.
         // Request / confirm / revoke are signed-envelope acts; list /
         // detail are public reads (hub law gates later).
+        .route("/v1/hubs/:hub_id/lcts/publish", post(publish_lct))
+        .route("/v1/hubs/:hub_id/lcts", get(list_lcts))
+        .route("/v1/hubs/:hub_id/lcts/:lct_id", get(get_lct))
         .route("/v1/hubs/:hub_id/pairs/request", post(submit_pair_request))
         .route("/v1/hubs/:hub_id/pairs/:pair_id/confirm", post(submit_pair_confirm))
         .route("/v1/hubs/:hub_id/pairs/:pair_id/revoke", post(submit_pair_revoke))
@@ -5200,6 +5203,245 @@ async fn get_pair_messages(
 /// hub signs the ledger entry; the pair's authorization is in the
 /// envelope (verified above) + the event's fields (initiator_lct_id,
 /// confirmed_by, revoked_by). Auditors correlate.
+// ---------- LCT REGISTRY: publish ingest + resolution ----------
+//
+// A society publishes its LCTs upward and the hub serves their presence.
+// Contract (both halves agreed before either was built):
+//   shared-context/forum/hub-to-legion-lct-published-event-spec-registry-projection-2026-07-10.md
+//
+// Ingest is fail-closed: every check below must hold or the publish is
+// 4xx-rejected. An LCT is never stored-as-unverified, and an unknown id
+// resolves 404 rather than a fabricated stub — absence stays the closed pole.
+// The registry serves presence and mints no trust: provenance is carried
+// through to the reader, never laundered into a trust signal.
+
+use hub_lib::events::LctProvenance;
+use web4_core::lct::{derive_lct_id, EntityType, Lct};
+
+#[derive(Deserialize)]
+struct LctPublishPayload {
+    /// Discriminator. Optional on this route alone: the contract Legion built
+    /// their emitter against carries no `action`, and their wire shape is locked
+    /// by test. Requiring it now would break the seam after they built to it —
+    /// the one thing the pre-agreed contract existed to prevent. Accepted if
+    /// sent, and it must then read `lct_publish`.
+    #[serde(default)]
+    action: Option<String>,
+    lct_id: String,
+    document: Lct,
+    published_by: Uuid,
+    provenance: LctProvenance,
+    published_at: chrono::DateTime<Utc>,
+}
+
+#[derive(Serialize, Debug)]
+struct LctPublishAccepted {
+    lct_id: String,
+    /// The version this publish lands as (1 on first publish of a key).
+    version: u32,
+    entry_index: u64,
+    entry_hash: String,
+}
+
+#[derive(Serialize, Debug)]
+struct RegistryEntryView {
+    lct_id: String,
+    document: Lct,
+    provenance: LctProvenance,
+    published_by: Uuid,
+    published_at: chrono::DateTime<Utc>,
+    version: u32,
+}
+
+#[derive(Serialize, Debug)]
+struct RegistrySummary {
+    lct_id: String,
+    entity_type: EntityType,
+    provenance: LctProvenance,
+    published_at: chrono::DateTime<Utc>,
+    version: u32,
+}
+
+async fn publish_lct(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<LctPublishAccepted>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    // Check 1 — envelope signs against a pinned key and the signer is a current
+    // member or the Sovereign. Same council gate as every other governed write.
+    let projected = pair_endpoint_preamble(&s, &envelope).await?;
+
+    let payload: LctPublishPayload = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("payload not an lct_publish: {}", e)))?;
+    if let Some(action) = &payload.action {
+        if action != "lct_publish" {
+            return Err(ApiError::bad_request(format!(
+                "expected action=lct_publish, got {}", action
+            )));
+        }
+    }
+
+    // `published_by` names the member relaying the publish — bind it to the
+    // authenticated signer. Without this the field is self-asserted: any member
+    // could attribute a publish to any other, and "who relayed this" would be a
+    // claim rather than something the ledger witnessed.
+    if payload.published_by != envelope.signer_lct_id {
+        return Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: format!(
+                "published_by {} does not match the envelope signer {}; a publish is \
+                 attributed to whoever signed it",
+                payload.published_by, envelope.signer_lct_id
+            ),
+        });
+    }
+
+    // Check 2 — the document answers for its own key: binding_proof present and
+    // signing binding_message() under document.public_key. web4-core is
+    // fail-closed on an absent proof; we lean on that rather than restating it.
+    if !payload.document.verify_binding() {
+        return Err(ApiError::bad_request(String::from(
+            "document.verify_binding() failed: binding_proof is absent, or does not sign \
+             binding_message() under document.public_key",
+        )));
+    }
+
+    // Check 3 — the claimed canonical id re-derives from the pubkey. The
+    // publisher's label is never trusted; the key is the identity.
+    let derived = derive_lct_id(&payload.document.public_key);
+    if derived != payload.lct_id {
+        return Err(ApiError::bad_request(format!(
+            "lct_id {} does not re-derive from document.public_key (derived {})",
+            payload.lct_id, derived
+        )));
+    }
+
+    // Check 4 — a legacy alias must recompute byte-identical from its own
+    // recorded inputs. Check, don't trust; the inputs make this local.
+    if let Some(alias) = &payload.document.legacy_alias {
+        if !alias.verify() {
+            return Err(ApiError::bad_request(String::from(
+                "document.legacy_alias does not recompute from its recorded derivation inputs",
+            )));
+        }
+    }
+
+    // Check 5 — provenance gate. `society_conferred` is birth-certificate-class
+    // and presupposes the >=3 Witness-daemon quorum, which does not exist yet.
+    // Rejected rather than accepted-and-flagged: there is no path that launders a
+    // Phase-1 bootstrap into a conferred identity before the quorum can check it.
+    if payload.provenance == LctProvenance::SocietyConferred {
+        return Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: "provenance=society_conferred requires the Phase-2 witness quorum, which \
+                      does not exist yet; only self_issued publishes are accepted"
+                .into(),
+        });
+    }
+
+    let lct_id = payload.lct_id.clone();
+    // Republishing a key (same pubkey-derived id) overwrites in place and bumps.
+    // A key *rotation* moves the id instead, so it lands as a fresh v1 carrying a
+    // `rotated_from` MRH edge — identity is never mutated in place.
+    let version = projected.registry.get(&lct_id).map_or(1, |e| e.version + 1);
+
+    let event = HubEvent::LctPublished {
+        lct_id: lct_id.clone(),
+        document: payload.document,
+        published_by: payload.published_by,
+        provenance: payload.provenance,
+        published_at: payload.published_at,
+    };
+
+    // PolicyEntity gate: hub law can pattern-match this act like any other
+    // consequential write (e.g. gate publishes by entity_type or by publisher).
+    let law_guard = s.law.read().await;
+    if let Some(law) = law_guard.as_ref() {
+        let req = build_r6_request(&envelope, &event, s.sovereign_lct_id)
+            .map_err(ApiError::internal)?;
+        match law.evaluate_outcome(&req).decision {
+            Decision::Allow => {}
+            Decision::Warn => {
+                tracing::warn!("lct_publish flagged by hub law (proceeding)");
+            }
+            Decision::Deny => {
+                return Err(ApiError {
+                    status: StatusCode::FORBIDDEN,
+                    message: "lct_publish denied by hub law".into(),
+                });
+            }
+            Decision::Escalate => {
+                return Err(ApiError {
+                    status: StatusCode::ACCEPTED,
+                    message: "lct_publish escalated to council; use propose/sign".into(),
+                });
+            }
+        }
+    }
+    drop(law_guard);
+
+    let (entry_index, entry_hash) = commit_pair_event(&s, event).await?;
+    Ok(Json(LctPublishAccepted { lct_id, version, entry_index, entry_hash }))
+}
+
+/// Resolve one published LCT. Unknown id → 404, nothing fabricated.
+async fn get_lct(
+    State(s): State<RestState>,
+    Path((hub_id, lct_id)): Path<(Uuid, String)>,
+) -> Result<Json<RegistryEntryView>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::state::HubState::project(&*ledger)
+    };
+    let entry = projected.registry.get(&lct_id)
+        .ok_or_else(|| ApiError::not_found(format!("lct {} is not published here", lct_id)))?;
+    Ok(Json(RegistryEntryView {
+        lct_id,
+        document: entry.document.clone(),
+        provenance: entry.provenance,
+        published_by: entry.published_by,
+        published_at: entry.published_at,
+        version: entry.version,
+    }))
+}
+
+/// List published LCTs — ids + provenance + entity_type, per the contract §3.
+async fn list_lcts(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+) -> Result<Json<Vec<RegistrySummary>>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::state::HubState::project(&*ledger)
+    };
+    // BTreeMap iteration is already stable (canonical id order).
+    let out: Vec<RegistrySummary> = projected.registry.iter()
+        .map(|(lct_id, e)| RegistrySummary {
+            lct_id: lct_id.clone(),
+            entity_type: e.document.entity_type.clone(),
+            provenance: e.provenance,
+            published_at: e.published_at,
+            version: e.version,
+        })
+        .collect();
+    Ok(Json(out))
+}
+
 async fn commit_pair_event(s: &RestState, event: HubEvent) -> Result<(u64, String), ApiError> {
     // HUB-001: pair lifecycle events are governed writes — refuse on law mismatch.
     s.ensure_law_integrity_for_write().await?;
@@ -5303,6 +5545,246 @@ norms:
 /// the member side (hestia) uses. Exercises the full path — channel_open (authn)
 /// → tier resolution → PolicyEntity → dispatch → seal response — that the unit
 /// tests can't reach. The first RestState integration harness in this crate.
+#[cfg(test)]
+mod lct_registry_tests {
+    use super::*;
+    use axum::extract::{Json, Path, State};
+    use hub_lib::envelope::build_envelope;
+    use hub_lib::identity::IdentityFile;
+    use hub_lib::init::{init_hub, InitArgs};
+    use hub_lib::ledger::HubLedger;
+    use hub_lib::store::open_hub_store;
+    use tokio::sync::RwLock;
+    use web4_core::crypto::KeyPair;
+    use web4_core::lct::{derive_lct_id, EntityType, Lct};
+
+    /// Throwaway Local-mode hub + RestState, returning the Sovereign's identity
+    /// so tests can sign envelopes as a known member.
+    async fn fresh_state() -> (tempfile::TempDir, RestState, IdentityFile) {
+        let tmp = tempfile::tempdir().unwrap();
+        let sov_path = tmp.path().join("sovereign.json");
+        let sov = IdentityFile::generate(EntityType::Human);
+        sov.save(&sov_path).unwrap();
+        let hub_dir = tmp.path().join("hub");
+        init_hub(InitArgs {
+            hub_name: "Registry Test Hub".into(),
+            hub_dir: hub_dir.clone(),
+            sovereign_lct_path: sov_path,
+            storage: None,
+        })
+        .await
+        .unwrap();
+        let law = Arc::new(RwLock::new(None));
+        let store = open_hub_store(&hub_dir).unwrap();
+        let ledger = Arc::new(Mutex::new(HubLedger::open(store).await.unwrap()));
+        let state = RestState::open_with_law_and_ledger(hub_dir, law, ledger)
+            .await
+            .unwrap();
+        (tmp, state, sov)
+    }
+
+    /// A publishable LCT: real key, real self-signed binding_proof.
+    fn publishable_lct(entity_type: EntityType) -> (Lct, KeyPair, String) {
+        let (mut doc, kp) = Lct::new(entity_type, None);
+        doc.sign_binding(&kp);
+        let lct_id = derive_lct_id(&doc.public_key);
+        (doc, kp, lct_id)
+    }
+
+    /// Seal a publish payload into an envelope signed by `signer`.
+    fn publish_envelope(
+        state: &RestState,
+        signer: &IdentityFile,
+        payload: serde_json::Value,
+    ) -> SignedEnvelope {
+        let challenge = state.nonces.issue(signer.lct.id, Utc::now());
+        build_envelope(signer.lct.id, &signer.keypair().unwrap(), &challenge, payload).unwrap()
+    }
+
+    fn payload_for(doc: &Lct, lct_id: &str, published_by: Uuid, provenance: &str) -> serde_json::Value {
+        serde_json::json!({
+            "lct_id": lct_id,
+            "document": serde_json::to_value(doc).unwrap(),
+            "published_by": published_by,
+            "provenance": provenance,
+            "published_at": Utc::now().to_rfc3339(),
+        })
+    }
+
+    #[tokio::test]
+    async fn publishes_a_self_issued_lct_then_resolves_it() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (doc, _kp, lct_id) = publishable_lct(EntityType::Organization);
+        let env = publish_envelope(
+            &state,
+            &sov,
+            payload_for(&doc, &lct_id, sov.lct.id, "self_issued"),
+        );
+
+        let accepted = publish_lct(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .expect("well-formed self_issued publish must be accepted");
+        assert_eq!(accepted.lct_id, lct_id);
+        assert_eq!(accepted.version, 1);
+
+        // Resolution serves it back, document intact.
+        let got = get_lct(State(state.clone()), Path((state.hub_id, lct_id.clone())))
+            .await
+            .expect("published lct must resolve");
+        assert_eq!(got.lct_id, lct_id);
+        assert_eq!(got.document.public_key, doc.public_key);
+        assert_eq!(got.published_by, sov.lct.id);
+        assert_eq!(got.version, 1);
+
+        // And it lists.
+        let listed = list_lcts(State(state.clone()), Path(state.hub_id)).await.unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].lct_id, lct_id);
+    }
+
+    #[tokio::test]
+    async fn unknown_lct_is_404_never_fabricated() {
+        let (_tmp, state, _sov) = fresh_state().await;
+        let err = get_lct(State(state.clone()), Path((state.hub_id, "lct:web4:mb32:nope".into())))
+            .await
+            .expect_err("unknown id must not resolve");
+        assert_eq!(err.status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn rejects_lct_id_that_does_not_rederive_from_the_key() {
+        // Check 3: the publisher relabels a validly-bound document with someone
+        // else's canonical id. The key is the identity; the label is not trusted.
+        let (_tmp, state, sov) = fresh_state().await;
+        let (doc, _kp, _real_id) = publishable_lct(EntityType::Organization);
+        let (_other, _okp, other_id) = publishable_lct(EntityType::Organization);
+        let env = publish_envelope(
+            &state,
+            &sov,
+            payload_for(&doc, &other_id, sov.lct.id, "self_issued"),
+        );
+        let err = publish_lct(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .expect_err("mismatched lct_id must be rejected");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("does not re-derive"), "got: {}", err.message);
+    }
+
+    #[tokio::test]
+    async fn rejects_document_with_no_binding_proof() {
+        // Check 2: an LCT that never answered for its own key. Fail-closed on
+        // absence — the unsigned document is refused, not stored-as-unverified.
+        let (_tmp, state, sov) = fresh_state().await;
+        let (doc, _kp) = Lct::new(EntityType::Organization, None); // never sign_binding'd
+        let lct_id = derive_lct_id(&doc.public_key);
+        let env = publish_envelope(
+            &state,
+            &sov,
+            payload_for(&doc, &lct_id, sov.lct.id, "self_issued"),
+        );
+        let err = publish_lct(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .expect_err("unbound document must be rejected");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("verify_binding"), "got: {}", err.message);
+    }
+
+    #[tokio::test]
+    async fn rejects_published_by_that_is_not_the_signer() {
+        // A publish is attributed to whoever signed it. Without this bind,
+        // `published_by` is a self-asserted claim and one member can attribute a
+        // publish to another. (This is the check that catches a miswired emitter
+        // sourcing published_by from a stale connection record.)
+        let (_tmp, state, sov) = fresh_state().await;
+        let (doc, _kp, lct_id) = publishable_lct(EntityType::Organization);
+        let someone_else = Uuid::new_v4();
+        let env = publish_envelope(
+            &state,
+            &sov,
+            payload_for(&doc, &lct_id, someone_else, "self_issued"),
+        );
+        let err = publish_lct(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .expect_err("published_by must be bound to the envelope signer");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("does not match the envelope signer"), "got: {}", err.message);
+    }
+
+    #[tokio::test]
+    async fn rejects_society_conferred_until_phase_2() {
+        // Check 5: birth-certificate-class provenance presupposes a witness quorum
+        // that does not exist. Rejected, not accepted-and-flagged — otherwise a
+        // Phase-1 bootstrap launders itself into a conferred identity.
+        let (_tmp, state, sov) = fresh_state().await;
+        let (doc, _kp, lct_id) = publishable_lct(EntityType::Organization);
+        let env = publish_envelope(
+            &state,
+            &sov,
+            payload_for(&doc, &lct_id, sov.lct.id, "society_conferred"),
+        );
+        let err = publish_lct(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .expect_err("society_conferred must be rejected in Phase 1");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("Phase-2 witness quorum"), "got: {}", err.message);
+    }
+
+    #[tokio::test]
+    async fn republish_of_the_same_key_bumps_version_and_serves_the_latest() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (mut doc, kp, lct_id) = publishable_lct(EntityType::Organization);
+        let env = publish_envelope(&state, &sov, payload_for(&doc, &lct_id, sov.lct.id, "self_issued"));
+        publish_lct(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap();
+
+        // Same key, updated document: an MRH bound edge appears. Re-sign the
+        // binding since binding_message() covers the document.
+        doc.mrh.bound.push(web4_core::lct::MrhEdge {
+            lct_id: "lct:web4:mb32:parent".into(),
+            edge_type: "parent".into(),
+            ts: Utc::now(),
+        });
+        doc.sign_binding(&kp);
+        let env2 = publish_envelope(&state, &sov, payload_for(&doc, &lct_id, sov.lct.id, "self_issued"));
+        let accepted = publish_lct(State(state.clone()), Path(state.hub_id), Json(env2))
+            .await
+            .expect("republish of the same key must be accepted");
+        assert_eq!(accepted.version, 2, "same pubkey-derived id → in-place version bump");
+
+        let got = get_lct(State(state.clone()), Path((state.hub_id, lct_id.clone()))).await.unwrap();
+        assert_eq!(got.version, 2);
+        assert_eq!(got.document.mrh.bound.len(), 1, "latest document is served");
+        // Still one entry — a republish is not a second identity.
+        let listed = list_lcts(State(state.clone()), Path(state.hub_id)).await.unwrap();
+        assert_eq!(listed.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn rotated_key_lands_as_a_distinct_identity_not_a_version_bump() {
+        // The id is pubkey-derived, so rotation MOVES it. The old entry stays
+        // resolvable; identity is never mutated in place.
+        let (_tmp, state, sov) = fresh_state().await;
+        let (old_doc, _okp, old_id) = publishable_lct(EntityType::Organization);
+        let env = publish_envelope(&state, &sov, payload_for(&old_doc, &old_id, sov.lct.id, "self_issued"));
+        publish_lct(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap();
+
+        let (mut new_doc, new_kp) = Lct::new(EntityType::Organization, None);
+        new_doc.mrh.bound.push(web4_core::lct::MrhEdge {
+            lct_id: old_id.clone(),
+            edge_type: "rotated_from".into(),
+            ts: Utc::now(),
+        });
+        new_doc.sign_binding(&new_kp);
+        let new_id = derive_lct_id(&new_doc.public_key);
+        let env2 = publish_envelope(&state, &sov, payload_for(&new_doc, &new_id, sov.lct.id, "self_issued"));
+        let accepted = publish_lct(State(state.clone()), Path(state.hub_id), Json(env2)).await.unwrap();
+
+        assert_ne!(new_id, old_id);
+        assert_eq!(accepted.version, 1, "a rotation is a new identity, not v2 of the old one");
+        let listed = list_lcts(State(state.clone()), Path(state.hub_id)).await.unwrap();
+        assert_eq!(listed.len(), 2, "both the old and rotated identity remain resolvable");
+    }
+}
+
 #[cfg(test)]
 mod channel_e2e_tests {
     use super::*;

@@ -21,6 +21,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use web4_core::act::Act;
+use web4_core::lct::Lct;
 use web4_core::role::SocietyRole;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -435,6 +436,47 @@ pub enum HubEvent {
         resolved_by: Option<Uuid>,
         resolved_at: DateTime<Utc>,
     },
+
+    /// A society published one of its LCTs upward so the hub registry can serve
+    /// its presence. Publication is itself a witnessed act (the ledger entry IS
+    /// the witness — canon genesis step 7); the registry is a projection over
+    /// these events, replayed like members/pairs/law. Ingest is fail-closed: the
+    /// publish is rejected unless binding + id-derivation (+ legacy alias, if
+    /// any) all verify — never stored-as-unverified. Serves presence, mints no
+    /// trust: provenance is carried, never laundered.
+    ///
+    /// Contract: `shared-context/forum/hub-to-legion-lct-published-event-spec-registry-projection-2026-07-10.md` §1.
+    LctPublished {
+        /// Canonical reachable id — the mb32 string, re-derived from the
+        /// document's public key and checked on ingest. Never trusted as a label.
+        lct_id: String,
+        /// The LCT document, `web4_core::Lct` VERBATIM — same convergence
+        /// discipline as `ReferencedAct`: producer and every witness serialize
+        /// byte-identical.
+        document: Lct,
+        /// The pinned hub member relaying the publish (the society's hub
+        /// identity), bound to the envelope signer at ingest. Authorship of the
+        /// LCT itself lives in `document` (self-issued → `created_by` None).
+        published_by: Uuid,
+        /// Presence-only provenance. Never a trust grant.
+        provenance: LctProvenance,
+        published_at: DateTime<Utc>,
+    },
+}
+
+/// How a published LCT came to exist. Carried on the registry entry so a
+/// consumer can tell a bootstrap from a conferred identity — never summed into
+/// trust.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LctProvenance {
+    /// §3.2 bootstrap: the entity signed its own binding. The Phase-1 path.
+    SelfIssued,
+    /// Birth-certificate-class: a society conferred the LCT. Requires the ≥3
+    /// Witness-daemon quorum, which does not exist yet — so ingest rejects this
+    /// until Phase 2, closing the path that would launder a bootstrap into a
+    /// birth certificate before the quorum machinery can check it.
+    SocietyConferred,
 }
 
 /// Why a pair ended. Captures audit-relevant intent so V3 trust
@@ -493,6 +535,7 @@ impl HubEvent {
             Self::ReputationRecorded { .. } => "reputation_recorded",
             Self::ObligationOpened { .. } => "obligation_opened",
             Self::ObligationResolved { .. } => "obligation_resolved",
+            Self::LctPublished { .. } => "lct_published",
         }
     }
 }
