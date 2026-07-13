@@ -189,9 +189,10 @@ pub fn t3_apply_decay(t3: &mut T3, days_inactive: f64, decay_rate: f64) -> bool 
     let new_temperament = decay_value(old_temperament, 0.98);
     t3.apply_delta(TrustDimension::Temperament, new_temperament - old_temperament);
 
-    let old_talent = t3.score(TrustDimension::Talent);
-    let new_talent = decay_value(old_talent, 0.995);
-    t3.apply_delta(TrustDimension::Talent, new_talent - old_talent);
+    // PROTOCOL INVARIANT (spec §2.3, t3v3-012): Talent MUST NOT decay through
+    // inactivity. The previous `decay_value(old_talent, 0.995)` was the LITERAL
+    // value spec §10.4 pre-emptively names as violating ("any decay value
+    // violates the spec"). Talent passes through untouched (audit C192-N1).
 
     (old_training - new_training).abs() > 0.001
 }

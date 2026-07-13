@@ -349,6 +349,14 @@ impl T3 {
     /// The decay_factor should be in (0, 1), where smaller = faster decay.
     pub fn decay(&mut self, decay_factor: f64) {
         for i in 0..T3_DIMENSIONS {
+            // PROTOCOL INVARIANT (spec §2.3, conformance t3v3-012): Talent MUST
+            // NOT decay through inactivity — aptitude is stable; only Training
+            // (skills fade) and Temperament move with time. The Python SDK
+            // (`trust.py::decay`) is the correct reference: talent passes
+            // through untouched. Found live by audit C192-N1.
+            if i == TrustDimension::Talent as usize {
+                continue;
+            }
             // Move score toward neutral (0.5)
             let distance_from_neutral = self.dimensions[i] - 0.5;
             self.dimensions[i] = 0.5 + distance_from_neutral * decay_factor;
@@ -357,8 +365,12 @@ impl T3 {
             self.weights[i] *= decay_factor;
         }
 
-        // Decay sub-dimensions too
+        // Decay sub-dimensions too — except Talent's (they roll up to a root
+        // that must not decay; `parent` attributes them).
         for sub in self.sub_dimensions.values_mut() {
+            if sub.parent == TrustDimension::Talent {
+                continue;
+            }
             let distance = sub.score - 0.5;
             sub.score = 0.5 + distance * decay_factor;
             sub.weight *= decay_factor;
@@ -514,15 +526,36 @@ mod tests {
     }
 
     #[test]
-    fn test_decay_moves_toward_neutral() {
+    fn test_decay_moves_toward_neutral_except_talent() {
         let mut t3 = T3::with_scores([0.9, 0.9, 0.9]).unwrap();
+        let talent_weight_before = t3.weight(TrustDimension::Talent);
         t3.decay(0.5);
 
-        for dim in TrustDimension::all() {
+        // PROTOCOL INVARIANT (spec §2.3, t3v3-012): Talent MUST NOT decay
+        // through inactivity — score AND weight untouched (C192-N1).
+        assert_eq!(t3.score(TrustDimension::Talent), 0.9);
+        assert_eq!(t3.weight(TrustDimension::Talent), talent_weight_before);
+
+        for dim in [TrustDimension::Training, TrustDimension::Temperament] {
             // Score should be closer to 0.5
             assert!(t3.score(dim) < 0.9);
             assert!(t3.score(dim) > 0.5);
         }
+    }
+
+    #[test]
+    fn test_decay_exempts_talent_sub_dimensions() {
+        let mut t3 = T3::with_scores([0.9, 0.9, 0.9]).unwrap();
+        t3.observe_sub_dimension("analytical_reasoning", TrustDimension::Talent, 0.4)
+            .unwrap();
+        t3.observe_sub_dimension("rust_expertise", TrustDimension::Training, 0.4)
+            .unwrap();
+        let talent_sub_before = t3.sub_dimensions()["analytical_reasoning"].score;
+        let training_sub_before = t3.sub_dimensions()["rust_expertise"].score;
+        t3.decay(0.5);
+        // Talent's sub-dimensions roll up to a root that must not decay.
+        assert_eq!(t3.sub_dimensions()["analytical_reasoning"].score, talent_sub_before);
+        assert_ne!(t3.sub_dimensions()["rust_expertise"].score, training_sub_before);
     }
 
     #[test]

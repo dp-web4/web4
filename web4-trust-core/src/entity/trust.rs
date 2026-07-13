@@ -665,7 +665,8 @@ mod tests {
             };
             self.training = dv(self.training, 1.0);
             self.temperament = dv(self.temperament, 0.98);
-            self.talent = dv(self.talent, 0.995);
+            // Talent passes through: spec §2.3 / t3v3-012 (C192-N1). The Oracle
+            // models the intended semantics, which are now the spec's.
         }
     }
 
