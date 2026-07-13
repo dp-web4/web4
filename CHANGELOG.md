@@ -10,6 +10,14 @@ The Web4 package family currently consists of:
 
 ## web4-core Unreleased (0.4.0)
 
+- **FIX (spec conformance, audit C192-N1): Talent no longer decays through inactivity.**
+  `T3::decay` (web4-core) and `t3_apply_decay` (web4-trust-core) both violated protocol
+  invariant t3v3-012 ("Talent MUST NOT decay") — trust-core used the LITERAL `0.995` value
+  spec §10.4 names as violating. Talent score, weight, and Talent-parented sub-dimensions
+  now pass through untouched (matching the Python SDK reference). Live via public
+  `EntityTrust::apply_decay`; no known production caller in the fleet, so no stored trust
+  needs repair.
+
 - **BREAKING (Rust + JS/wasm): `compute_reputation` signature** — now takes the subject's real
   tensor baselines: `compute_reputation(quality, t3_from, v3_from, rule, reason, factors)`
   (wasm: `computeReputation(quality, t3From, v3From, rule, reason)`). Previously `from_value`
