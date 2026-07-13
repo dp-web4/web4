@@ -283,6 +283,7 @@ pub fn coherence_threshold_for_entity(entity_type: &EntityType) -> f64 {
         EntityType::AiEmbodied => 0.6,   // Hardware binding helps
         EntityType::AiSoftware => 0.7,   // Higher bar due to copyability
         EntityType::Organization => 0.5,
+        EntityType::Society => 0.5, // same prior as Organization — no reorder
         EntityType::Role => 0.5,
         EntityType::Task => 0.3,
         EntityType::Resource => 0.3,
