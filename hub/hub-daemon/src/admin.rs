@@ -752,6 +752,13 @@ fn event_summary(event: &HubEvent) -> String {
             html_escape(request_id),
             html_escape(outcome),
         ),
+        HubEvent::LctPublished { lct_id, document, published_by, provenance, .. } => format!(
+            "🪪 LCT published: {:?} <code>{}</code> by {} <span class=\"muted\">({:?})</span>",
+            document.entity_type,
+            html_escape(lct_id),
+            short(published_by),
+            provenance,
+        ),
         HubEvent::MemberJoinRequested { member_lct_id, name, .. } => format!(
             "🚪 join requested by {} {} <span class=\"muted\">[escalated → review]</span>",
             short(member_lct_id),
