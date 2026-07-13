@@ -10,6 +10,13 @@ The Web4 package family currently consists of:
 
 ## web4-core Unreleased (0.4.0)
 
+- **FIX (spec conformance, audit C192-N1): Talent no longer decays through inactivity.**
+  `T3::decay` (web4-core) and `t3_apply_decay` (web4-trust-core) both violated protocol
+  invariant t3v3-012 ("Talent MUST NOT decay") — trust-core used the LITERAL `0.995` value
+  spec §10.4 names as violating. Talent score, weight, and Talent-parented sub-dimensions
+  now pass through untouched (matching the Python SDK reference). Live via public
+  `EntityTrust::apply_decay`; no known production caller in the fleet, so no stored trust
+  needs repair.
 - **`EntityType::Society`** — new variant for law-bearing collectives (canon §2.3). For
   *discrimination*, not trust (same 0.5 coherence prior as Organization): Phase-2
   `society_conferred` provenance must check the conferring entity is a society. Python
