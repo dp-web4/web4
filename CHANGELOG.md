@@ -17,6 +17,14 @@ The Web4 package family currently consists of:
   now pass through untouched (matching the Python SDK reference). Live via public
   `EntityTrust::apply_decay`; no known production caller in the fleet, so no stored trust
   needs repair.
+- **`EntityType::Society`** — new variant for law-bearing collectives (canon §2.3). For
+  *discrimination*, not trust (same 0.5 coherence prior as Organization): Phase-2
+  `society_conferred` provenance must check the conferring entity is a society. Python
+  bindings mirror the variant. **Serde note:** documents carrying `"society"` fail to
+  deserialize on pre-0.4.0 readers (additive enum variant — standard minor-version rule).
+- **Version bump 0.3.0 → 0.4.0 is REQUIRED before the next publish:** crates.io `0.3.0`
+  was taken by the 2026-07-10 04:42Z publish, which predates the merged
+  `compute_reputation` signature fix — main's content has moved past the published 0.3.0.
 
 - **BREAKING (Rust + JS/wasm): `compute_reputation` signature** — now takes the subject's real
   tensor baselines: `compute_reputation(quality, t3_from, v3_from, rule, reason, factors)`

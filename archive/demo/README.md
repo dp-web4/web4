@@ -1,3 +1,9 @@
+> **ARCHIVED 2026-07-13.** This is an early, standalone Python/FastAPI *illustration* of one
+> use-case (agent commerce delegation) — a mock, not built on the shipped `web4-core` crates,
+> and it predates the current architecture (societies, hub-law/SAL, witnessed ledger, RWOA).
+> **The current reference deployment is the running Web4 society: [`web4/hub`](../../hub/) +
+> [hestia](https://github.com/dp-web4/hestia).** Kept for history; not a current demo.
+
 # Web4 Commerce Demo: Agent Authorization with T3 Trust Tracking
 
 A complete, self-contained demonstration of Web4's agent authorization system for commerce applications.

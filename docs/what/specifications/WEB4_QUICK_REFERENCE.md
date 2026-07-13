@@ -60,7 +60,7 @@ Last Commit: Dec 22, 2025 (Session 84)
 |-----------|------|-------|--------|
 | `/reference/` | 276 KB | Original concepts | LEGACY |
 | `/forum/` | 1.4 MB | Design discussions | SEMI-ACTIVE |
-| `/demo/` | 224 KB | Working UI prototype | REFERENCE |
+| `/archive/demo/` | 224 KB | Early commerce-delegation mock (Python) | ARCHIVED — superseded by `/hub/` |
 
 ### TIER 4: Archive & Build (Properly Ignored)
 | Directory | Size | Focus | Status |
@@ -147,7 +147,7 @@ COLD (Nov 29):        competitive-landscape/ (stalled)
 
 ### Monitor
 - 🔄 `/reference/` - Add deprecation notice pointing to `/docs/`
-- 🔄 `/demo/` - Add notice "Maintained as reference implementation"
+- ✅ `/demo/` - ARCHIVED to `/archive/demo/` (2026-07-13); current reference deployment is `/hub/` (running Web4 society)
 
 ---
 

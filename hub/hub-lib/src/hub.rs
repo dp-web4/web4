@@ -129,6 +129,17 @@ pub fn hestia_sovereign_lct(lct_id: Uuid, pubkey_hex: &str) -> Result<Lct> {
         hardware_binding: HardwareBinding::default(),
         parent_id: None,
         lineage_depth: 0,
+        // The canonical-schema fields (#499/#504) are deliberately empty here.
+        // This is a *synthesis* from a bare pubkey, not a published identity: in
+        // Hestia mode the hub holds no IdentityFile, so it cannot hold a
+        // binding_proof either, and claiming one would be a forgery. Only `id`
+        // and `public_key` are read (by verify_signature). `verify_binding()`
+        // therefore returns false for this Lct — correctly, and by design: it is
+        // never routed through the registry ingest path, which demands a real
+        // proof and would fail-closed on exactly this absence.
+        binding_proof: None,
+        mrh: web4_core::lct::Mrh::default(),
+        legacy_alias: None,
     })
 }
 

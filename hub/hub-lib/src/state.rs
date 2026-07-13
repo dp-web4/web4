@@ -99,8 +99,31 @@ pub struct HubState {
     /// so serialization-safe. The timeout sweep (P2) reads this to debit misses.
     pub obligations: BTreeMap<String, Obligation>,
 
+    /// The LCT registry: published presence, keyed by canonical (pubkey-derived)
+    /// `lct_id`. Folded from `LctPublished`, which ingest has already verified —
+    /// an entry here means binding + id-derivation checked out at the door, so
+    /// the projection stores rather than re-verifies. Serves presence, mints no
+    /// trust. Absence is the closed pole: an unknown id resolves 404, never a
+    /// fabricated stub.
+    pub registry: BTreeMap<String, RegistryEntry>,
+
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
+}
+
+/// One published LCT as the registry serves it. `version` counts republishes of
+/// the *same* key (updated MRH edges, status change) — the latest document is
+/// served, and full history stays reachable by ledger replay. A key rotation is
+/// NOT a version bump: the id is pubkey-derived, so it moves, and the new entry
+/// carries an MRH `rotated_from` edge to its predecessor. Identity is never
+/// mutated in place.
+#[derive(Clone, Debug, Serialize)]
+pub struct RegistryEntry {
+    pub document: web4_core::lct::Lct,
+    pub provenance: crate::events::LctProvenance,
+    pub published_by: Uuid,
+    pub published_at: DateTime<Utc>,
+    pub version: u32,
 }
 
 /// An open R7 obligation: the subject committed to `request_id` due by `due_at`,
@@ -640,6 +663,18 @@ impl HubState {
             }
             HubEvent::ObligationResolved { request_id, .. } => {
                 self.obligations.remove(request_id);
+            }
+            HubEvent::LctPublished { lct_id, document, published_by, provenance, published_at } => {
+                // Republish of the same key overwrites in place and bumps
+                // version; the id is pubkey-derived, so "same id" IS "same key".
+                let version = self.registry.get(lct_id).map_or(1, |e| e.version + 1);
+                self.registry.insert(lct_id.clone(), RegistryEntry {
+                    document: document.clone(),
+                    provenance: *provenance,
+                    published_by: *published_by,
+                    published_at: *published_at,
+                    version,
+                });
             }
             HubEvent::CouncilMemberAdded { member_lct_id, member_pubkey_hex, member_name, .. } => {
                 self.council_holders.insert(*member_lct_id);
