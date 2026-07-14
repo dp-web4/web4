@@ -230,6 +230,15 @@ def audit_adjust(t3, v3, evidence, law):
     return t3_new, v3_new, deltas
 ```
 
+### 5.6 Effector
+- Invokable role with scope-limited authority to **enact** the society's graded responses (`hub-law-schema.md` response vocabulary: `notice | quarantine | correct | rehabilitate` + the kinetic class) against targets with witnessed recognition evidence — the Auditor's (§5.5) response-side sibling (role shape: `entity-types.md` §4.8).
+- Acts **only via R7**: each enactment's Reference **MUST** bind recognition evidence (Coercive/Extractive Behavior Rules deltas, `reputation-computation.md` §4); the gate is **RWOA + S + V + F** per `hub-law-schema.md`.
+- **MUST** emit an **Enactment Transcript** with: target, rung, ConsequenceClass, evidence links (hashes, witnesses), licensing law rule, proportionality basis, and dissent (if any).
+- **MUST** write all enactments to the **immutable record** with witness quorum.
+- Kinetic rungs (`slash | suspend | revoke | terminate | halt`) are **parse-don't-enact** (`hub-law-schema.md`): an Effector **MUST NOT** enact them until each rung's enactment is individually ratified and implemented.
+- Reversible rungs **MUST** include **appeal path** and adjudication/cool-down bounds (a containment that cannot be lifted is not `quarantine` — it MUST be declared under the kinetic class).
+- **Rate limits** and **caps** defined by Law Oracle to prevent punitive abuse; fractally delegable via the standard delegation machinery (`web4:delegatesTo`, §3.3).
+
 
 ---
 
@@ -261,11 +270,13 @@ Implementations **MUST** maintain triples for:
 - `web4:hash` (law dataset → content hash)
 - `web4:scope` (sub‑authority → scope domain)
 
-### 7.1.1 Additional Required Triples (Witness/Auditor/Ledger)
+### 7.1.1 Additional Required Triples (Witness/Auditor/Effector/Ledger)
 - `web4:hasWitness` (society → witness role)
 - `web4:hasAuditor` (society → auditor role)
+- `web4:hasEffector` (society → effector role, where the role is defined)
 - `web4:recordsOn` (society → immutableRecord)
 - `web4:adjustedBy` (entity → auditor action)
+- `web4:respondedBy` (entity → effector enactment)
 - `web4:attestedBy` (event → witness set)
 
 ### 7.2 SPARQL Examples
