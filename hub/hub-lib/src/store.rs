@@ -201,6 +201,44 @@ pub trait HubStore: Send + Sync {
     ) -> Result<Vec<crate::pair_message::PairMessage>> {
         anyhow::bail!("this backend does not yet support pair messages")
     }
+
+    // ----- Mailbox (durable per-recipient sealed-notice queue) -----
+    //
+    // The hub→citizen delivery floor. Each recipient LCT has one serialized
+    // queue of sealed notices; the daemon owns the notice codec, so the store
+    // persists **opaque bytes** (no cross-crate type dependency). The queue is
+    // written at rest inside the SQLCipher-encrypted state DB — extraction- and
+    // tamper-resistant under the same in-memory key as society/ledger — and each
+    // notice body inside the blob is *additionally* channel-sealed to the
+    // recipient (defense in depth). Persistence is a write-through of the working
+    // in-memory map; witness-on-completion accounting is unchanged (the mailbox
+    // is durable delivery state, NOT the ledger).
+
+    /// Whether this backend durably persists the mailbox. Non-durable backends
+    /// keep the in-memory queue only (pre-P1 behavior, lost on restart); the
+    /// daemon logs once at startup so the operator knows delivery is best-effort
+    /// across a restart rather than silently non-durable.
+    fn mailbox_is_durable(&self) -> bool {
+        false
+    }
+
+    /// Load every persisted per-recipient mailbox blob (recipient LCT →
+    /// serialized queue) for startup hydration. Default: nothing persisted.
+    async fn mailbox_load_all(&self) -> Result<Vec<(uuid::Uuid, Vec<u8>)>> {
+        Ok(Vec::new())
+    }
+
+    /// Persist (insert-or-replace) one recipient's whole serialized queue. The
+    /// daemon write-throughs after each enqueue. Default: no-op (in-memory only).
+    async fn mailbox_put(&mut self, _recipient: uuid::Uuid, _blob: &[u8]) -> Result<()> {
+        Ok(())
+    }
+
+    /// Drop a recipient's persisted queue (on drain). Idempotent so a redundant
+    /// delete after an already-empty mailbox is a harmless no-op. Default: no-op.
+    async fn mailbox_delete(&mut self, _recipient: uuid::Uuid) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// Default SQLite filename inside a hub dir.
@@ -800,6 +838,10 @@ impl SqliteBackend {
              CREATE TABLE IF NOT EXISTS ledger_entries (
                  idx        INTEGER PRIMARY KEY,
                  entry_json TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS mailbox (
+                 recipient TEXT PRIMARY KEY,
+                 blob      BLOB NOT NULL
              );",
         ).context("initializing sqlite schema")?;
         Ok(Self { conn: std::sync::Mutex::new(conn), db_path })
@@ -1077,6 +1119,51 @@ impl HubStore for SqliteBackend {
     async fn write_law(&mut self, yaml: &str) -> Result<()> {
         self.write_meta("law", yaml)
     }
+
+    fn mailbox_is_durable(&self) -> bool {
+        true
+    }
+
+    async fn mailbox_load_all(&self) -> Result<Vec<(uuid::Uuid, Vec<u8>)>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn
+            .prepare("SELECT recipient, blob FROM mailbox")
+            .context("preparing mailbox SELECT")?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+            })
+            .context("querying mailbox")?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (recipient, blob) = row.context("reading mailbox row")?;
+            let recipient = uuid::Uuid::parse_str(&recipient)
+                .context("parsing mailbox recipient uuid")?;
+            out.push((recipient, blob));
+        }
+        Ok(out)
+    }
+
+    async fn mailbox_put(&mut self, recipient: uuid::Uuid, blob: &[u8]) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO mailbox (recipient, blob) VALUES (?1, ?2)
+             ON CONFLICT(recipient) DO UPDATE SET blob = excluded.blob",
+            rusqlite::params![recipient.to_string(), blob],
+        )
+        .with_context(|| format!("writing mailbox blob for {recipient}"))?;
+        Ok(())
+    }
+
+    async fn mailbox_delete(&mut self, recipient: uuid::Uuid) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "DELETE FROM mailbox WHERE recipient = ?1",
+            rusqlite::params![recipient.to_string()],
+        )
+        .with_context(|| format!("deleting mailbox blob for {recipient}"))?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1151,6 +1238,46 @@ mod tests {
         let loaded = b.read_charter().await.unwrap().expect("charter present");
         assert_eq!(loaded.hub_name, charter.hub_name);
         assert_eq!(loaded.founding_sovereign_lct_id, founder);
+    }
+
+    #[tokio::test]
+    async fn sqlite_mailbox_round_trips_and_is_durable() {
+        let (_tmp, mut b) = fresh_sqlite_backend();
+        assert!(b.mailbox_is_durable(), "sqlcipher backend persists the mailbox");
+        assert!(b.mailbox_load_all().await.unwrap().is_empty(), "starts empty");
+
+        let alice = Uuid::new_v4();
+        let bob = Uuid::new_v4();
+        // Opaque blobs — the store never parses the notice codec.
+        b.mailbox_put(alice, b"alice-queue-v1").await.unwrap();
+        b.mailbox_put(bob, b"bob-queue-v1").await.unwrap();
+
+        let mut loaded = b.mailbox_load_all().await.unwrap();
+        loaded.sort_by_key(|(id, _)| *id);
+        let mut expected = vec![(alice, b"alice-queue-v1".to_vec()), (bob, b"bob-queue-v1".to_vec())];
+        expected.sort_by_key(|(id, _)| *id);
+        assert_eq!(loaded, expected);
+
+        // Overwrite semantics (write-through of the whole queue).
+        b.mailbox_put(alice, b"alice-queue-v2").await.unwrap();
+        let alice_blob = b.mailbox_load_all().await.unwrap()
+            .into_iter().find(|(id, _)| *id == alice).unwrap().1;
+        assert_eq!(alice_blob, b"alice-queue-v2".to_vec());
+
+        // Drain deletes; idempotent on a second call.
+        b.mailbox_delete(alice).await.unwrap();
+        b.mailbox_delete(alice).await.unwrap();
+        let remaining = b.mailbox_load_all().await.unwrap();
+        assert_eq!(remaining, vec![(bob, b"bob-queue-v1".to_vec())]);
+    }
+
+    #[tokio::test]
+    async fn file_backend_mailbox_defaults_nondurable() {
+        let (_tmp, mut b) = fresh_file_backend();
+        assert!(!b.mailbox_is_durable(), "file backend keeps mailbox in-memory only");
+        // Default no-ops don't error, load stays empty (graceful degrade).
+        b.mailbox_put(Uuid::new_v4(), b"x").await.unwrap();
+        assert!(b.mailbox_load_all().await.unwrap().is_empty());
     }
 
     #[tokio::test]

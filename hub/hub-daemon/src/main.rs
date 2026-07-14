@@ -1251,6 +1251,9 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             Ok(false) => {}
             Err(e) => tracing::warn!("law-default hydration skipped: {e}"),
         }
+        // Re-deliver hub→citizen notices persisted before the last shutdown.
+        // (Locked boots hydrate post-ignition in the unlock handler instead.)
+        rest_state.hydrate_mailbox().await;
     }
     // Admin UI reuses RestState (read-only; shares ledger + law snapshot).
     let admin_state = rest_state.clone();

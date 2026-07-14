@@ -178,7 +178,7 @@ pub struct RestState {
 /// The hestia notify wire (`forum/hub-to-hestia-witness-notify-wire-confirmed`):
 /// `pair_id` + cleartext `kind` + sealed body. These are *delivery* concerns —
 /// they ride the mailbox envelope, never the witnessed `Act` on the ledger.
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SealedNotice {
     pub pair_id: Uuid,
     /// Sender LCT, in the clear on the envelope so the recipient can address a
@@ -401,6 +401,94 @@ impl RestState {
         hub_lib::store::open_hub_store_with_key(&self.paths.root, key)
     }
 
+    /// Load the durable mailbox from the (encrypted) state store into the
+    /// in-memory working map. Called once the store key is live — at normal boot
+    /// and again at ignition (`try_unlock`) — so a hub restart re-delivers
+    /// notices that were queued before it went down instead of silently dropping
+    /// them (the in-memory-only mailbox lost them pre-P1). Notices whose bodies
+    /// stay channel-sealed to the recipient; the store held them AEAD-encrypted
+    /// at rest under the same key as society/ledger. Best-effort: a hydration
+    /// failure logs and leaves the in-memory map as-is (empty), never blocking
+    /// boot. A backend that doesn't persist the mailbox is announced once so the
+    /// operator knows delivery is non-durable across restarts, not silently so.
+    pub async fn hydrate_mailbox(&self) {
+        let store = match self.open_store().await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!("mailbox hydrate: cannot open store ({e}); starting empty");
+                return;
+            }
+        };
+        if !store.mailbox_is_durable() {
+            tracing::warn!(
+                "mailbox is NON-DURABLE on this backend ({:?}): queued hub→citizen notices \
+                 are lost on restart. Use the SQLCipher backend for durable delivery.",
+                store.backend_kind()
+            );
+            return;
+        }
+        let rows = match store.mailbox_load_all().await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!("mailbox hydrate: load failed ({e}); starting empty");
+                return;
+            }
+        };
+        let mut restored = 0usize;
+        let mut mailbox = self.notifications.lock().await;
+        for (recipient, blob) in rows {
+            match serde_json::from_slice::<Vec<SealedNotice>>(&blob) {
+                Ok(queue) if !queue.is_empty() => {
+                    restored += queue.len();
+                    mailbox.insert(recipient, queue);
+                }
+                Ok(_) => {}
+                Err(e) => tracing::warn!("mailbox hydrate: corrupt blob for {recipient} ({e}); skipped"),
+            }
+        }
+        if restored > 0 {
+            tracing::info!("mailbox hydrated: {restored} notice(s) restored across {} recipient(s)", mailbox.len());
+        }
+    }
+
+    /// Write-through one recipient's whole queue to the durable store after an
+    /// in-memory mutation. Best-effort: a persistence failure logs but never
+    /// fails the enqueue (the in-memory copy is authoritative for this run;
+    /// durability is the resilience layer). Serialization happens off the mailbox
+    /// lock — the caller passes an already-cloned queue.
+    async fn persist_mailbox(&self, recipient: Uuid, queue: &[SealedNotice]) {
+        let blob = match serde_json::to_vec(queue) {
+            Ok(b) => b,
+            Err(e) => {
+                tracing::warn!("mailbox persist: serialize failed for {recipient} ({e})");
+                return;
+            }
+        };
+        match self.open_store().await {
+            Ok(mut store) => {
+                if let Err(e) = store.mailbox_put(recipient, &blob).await {
+                    tracing::warn!("mailbox persist: write failed for {recipient} ({e})");
+                }
+            }
+            Err(e) => tracing::warn!("mailbox persist: cannot open store for {recipient} ({e})"),
+        }
+    }
+
+    /// Drop a recipient's durable queue after a drain. Best-effort; on failure the
+    /// notices remain persisted and re-hydrate on the next restart — at-least-once
+    /// (possible redelivery) is the deliberately-safer failure mode than losing a
+    /// notice that was never confirmed received.
+    async fn depersist_mailbox(&self, recipient: Uuid) {
+        match self.open_store().await {
+            Ok(mut store) => {
+                if let Err(e) = store.mailbox_delete(recipient).await {
+                    tracing::warn!("mailbox depersist: delete failed for {recipient} ({e})");
+                }
+            }
+            Err(e) => tracing::warn!("mailbox depersist: cannot open store for {recipient} ({e})"),
+        }
+    }
+
     /// Read the society via the **in-memory-keyed** store. Unlike
     /// `init::load_society` (which re-opens the store from disk with no key and
     /// thus fails on an ignited *encrypted* hub), this uses the runtime store key,
@@ -593,6 +681,9 @@ impl RestState {
                 if let Err(e) = self.reload_law().await {
                     tracing::warn!("ignition: law reload failed (continuing): {e}");
                 }
+                // Re-deliver notices that were queued before this hub went down —
+                // the durable mailbox opens with the same now-live key.
+                self.hydrate_mailbox().await;
                 self.unlock_gate.record_success();
                 // Refresh the clear public-identity tier-0 file so a future locked-shell
                 // boot knows who this hub is (to serve well-known + accept `hub unlock`).
@@ -884,23 +975,29 @@ async fn queue_sealed_notice(
     };
     let now = Utc::now();
     let cutoff = now - chrono::Duration::seconds(NOTICE_TTL_SECS);
-    let mut mailbox = s.notifications.lock().await;
-    let queue = mailbox.entry(recipient).or_default();
-    queue.retain(|n| n.queued_at >= cutoff); // TTL prune
-    while queue.len() >= MAX_NOTICES_PER_MEMBER {
-        queue.remove(0); // at cap: drop oldest to make room
-        tracing::warn!(
-            "mailbox for {recipient} at cap ({MAX_NOTICES_PER_MEMBER}); dropped oldest notice"
-        );
-    }
-    queue.push(SealedNotice {
-        pair_id,
-        from,
-        sealed,
-        kind: kind.to_string(),
-        pointer_uri: pointer_uri.to_string(),
-        queued_at: now,
-    });
+    let snapshot = {
+        let mut mailbox = s.notifications.lock().await;
+        let queue = mailbox.entry(recipient).or_default();
+        queue.retain(|n| n.queued_at >= cutoff); // TTL prune
+        while queue.len() >= MAX_NOTICES_PER_MEMBER {
+            queue.remove(0); // at cap: drop oldest to make room
+            tracing::warn!(
+                "mailbox for {recipient} at cap ({MAX_NOTICES_PER_MEMBER}); dropped oldest notice"
+            );
+        }
+        queue.push(SealedNotice {
+            pair_id,
+            from,
+            sealed,
+            kind: kind.to_string(),
+            pointer_uri: pointer_uri.to_string(),
+            queued_at: now,
+        });
+        queue.clone() // snapshot for durable write-through, off the lock
+    };
+    // Write-through to the durable (encrypted) mailbox so a restart re-delivers
+    // this notice. Best-effort — the in-memory copy above already took effect.
+    s.persist_mailbox(recipient, &snapshot).await;
 }
 
 /// Hub-originated notification: witness a thin `notify:<event>` act AND queue the
@@ -2907,6 +3004,10 @@ async fn dispatch_channel(
             let cutoff = Utc::now() - chrono::Duration::seconds(NOTICE_TTL_SECS);
             let mut notices = s.notifications.lock().await.remove(&caller_lct_id).unwrap_or_default();
             notices.retain(|n| n.queued_at >= cutoff); // don't deliver expired notices
+            // Drop the durable copy now that the working set has been handed over.
+            // Best-effort + ordered-after: a failure here re-hydrates on restart
+            // (at-least-once), which is safer than deleting before delivery.
+            s.depersist_mailbox(caller_lct_id).await;
             Ok(serde_json::json!({ "total": notices.len(), "notifications": notices }))
         }
         "referenced_act" => {
@@ -5581,6 +5682,83 @@ mod lct_registry_tests {
             .await
             .unwrap();
         (tmp, state, sov)
+    }
+
+    /// A SQLite-backed hub + RestState (the mailbox is only durable on a
+    /// persistent backend; the default `fresh_state` is File-backed).
+    async fn fresh_sqlite_state() -> (tempfile::TempDir, std::path::PathBuf, RestState) {
+        let tmp = tempfile::tempdir().unwrap();
+        let sov_path = tmp.path().join("sovereign.json");
+        IdentityFile::generate(EntityType::Human).save(&sov_path).unwrap();
+        let hub_dir = tmp.path().join("hub");
+        init_hub(InitArgs {
+            hub_name: "Mailbox Test Hub".into(),
+            hub_dir: hub_dir.clone(),
+            sovereign_lct_path: sov_path,
+            storage: Some(hub_lib::store::BackendKind::Sqlite),
+        })
+        .await
+        .unwrap();
+        let law = Arc::new(RwLock::new(None));
+        let store = open_hub_store(&hub_dir).unwrap();
+        let ledger = Arc::new(Mutex::new(HubLedger::open(store).await.unwrap()));
+        let state = RestState::open_with_law_and_ledger(hub_dir.clone(), law, ledger)
+            .await
+            .unwrap();
+        (tmp, hub_dir, state)
+    }
+
+    /// Reopen a RestState on an existing hub dir (simulates a daemon restart:
+    /// fresh, empty in-memory mailbox).
+    async fn reopen_state(hub_dir: &std::path::Path) -> RestState {
+        let law = Arc::new(RwLock::new(None));
+        let store = open_hub_store(hub_dir).unwrap();
+        let ledger = Arc::new(Mutex::new(HubLedger::open(store).await.unwrap()));
+        RestState::open_with_law_and_ledger(hub_dir.to_path_buf(), law, ledger)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn mailbox_survives_restart_and_drain_clears_it() {
+        let (_tmp, hub_dir, state) = fresh_sqlite_state().await;
+        let recipient = Uuid::new_v4();
+        let notice = SealedNotice {
+            pair_id: Uuid::new_v4(),
+            from: Uuid::new_v4(),
+            sealed: "ciphertext-sealed-to-recipient".into(),
+            kind: "referenced_act".into(),
+            pointer_uri: "hub://act/xyz".into(),
+            queued_at: Utc::now(),
+        };
+        // Mirror queue_sealed_notice's write-through: mutate in-memory, then persist.
+        state.notifications.lock().await.insert(recipient, vec![notice.clone()]);
+        state.persist_mailbox(recipient, &[notice.clone()]).await;
+
+        // Restart: a fresh state starts empty, then hydrates from the durable store.
+        let restarted = reopen_state(&hub_dir).await;
+        assert!(
+            restarted.notifications.lock().await.is_empty(),
+            "a fresh RestState has no in-memory notices before hydration"
+        );
+        restarted.hydrate_mailbox().await;
+        {
+            let mb = restarted.notifications.lock().await;
+            let q = mb.get(&recipient).expect("notice restored across restart");
+            assert_eq!(q.len(), 1);
+            assert_eq!(q[0].sealed, "ciphertext-sealed-to-recipient");
+            assert_eq!(q[0].kind, "referenced_act");
+            assert_eq!(q[0].pair_id, notice.pair_id);
+        }
+
+        // Drain depersists → a subsequent restart hydrates empty (no redelivery).
+        restarted.depersist_mailbox(recipient).await;
+        let after_drain = reopen_state(&hub_dir).await;
+        after_drain.hydrate_mailbox().await;
+        assert!(
+            after_drain.notifications.lock().await.is_empty(),
+            "drained mailbox stays empty after restart"
+        );
     }
 
     /// A publishable LCT: real key, real self-signed binding_proof.
