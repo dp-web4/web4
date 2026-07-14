@@ -120,13 +120,38 @@ atp_issuance:
   description: "Treasurer mints up to 1000 ATP per cycle, distributed by V3 contribution score"
 ```
 
+### Decision semantics
+
+The four `decision` values and the evaluation order below transcribe the live
+engine (`web4-policy/src/lib.rs`, `Decision` + `Law::evaluate_outcome`) — this
+section is a sync surface, not a design surface; if it disagrees with the
+engine, one of the two is a defect.
+
+- `allow` — proceed silently.
+- `warn` — proceed, but flag the action as noteworthy. A **non-blocking
+  flagged-allow**: a genuine fourth outcome, not a flag on `allow`. The
+  advisory text rides the winning norm's `description`.
+- `deny` — block the action (terminal).
+- `escalate` — block pending a higher authority's decision (default
+  `escalate_to: sovereign` when no escalation trigger names one).
+
+Evaluation order:
+
+1. Walk norms; among those that fire, **highest `priority` number wins**
+   (ties → first declared).
+2. A winning `deny` is terminal (a winning `warn` is NOT — it proceeds,
+   like `allow`).
+3. Otherwise walk `escalation` triggers; first match → `escalate`.
+4. Otherwise the winning norm's decision applies.
+5. No firing norm and no trigger → default `allow`.
+
 ## 2. Validation Rules
 
 A law file is valid if:
 
 1. `version` is a semver string.
 2. Every norm has `id`, `selector`, `operator`, `value`, `decision`.
-3. `decision` is one of: `allow`, `deny`, `escalate`.
+3. `decision` is one of: `allow`, `warn`, `deny`, `escalate`.
 4. `operator` is one of: `<=`, `>=`, `==`, `!=`, `<`, `>`, `in`, `not_in`, `matches`.
 5. Norm `id` values are unique within the file.
 6. `delegation.max_depth` >= 0.

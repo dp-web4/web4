@@ -33,7 +33,7 @@ version: "1.0.0"
 #   selector  : path into the R6 request (r6.role / r6.request.action /
 #               r6.request.payload.<field> / r6.resource.<field>)
 #   operator  : <= >= == != < > in not_in matches
-#   decision  : allow | deny | escalate
+#   decision  : allow | warn | deny | escalate
 #   priority  : higher wins (default 0)
 # -----------------------------------------------------------------------------
 norms:
