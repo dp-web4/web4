@@ -705,6 +705,62 @@ The Oracle's own T3 trust governs how much weight is placed on the reference. Or
 | Acceptance valuation differs from proposal | `409 web4_rate_valuation_mismatch` | Counter-offer with corrected valuation |
 | Oracle reference unavailable | `502 web4_rate_oracle_unreachable` | Use different oracle or direct negotiation |
 
+### 7.8 The Asynchronous Mailbox (accept-and-defer)
+
+Cross-society actions are asynchronous by nature: the receiving entity may be
+busy, gated on law evaluation, or simply not running when a request arrives.
+The **mailbox** is the queue at an entity's MCP surface that absorbs this
+asymmetry. It is the entity's boundary interface: inbound work parks there
+until the entity processes it, and every crossing is gated on receipt (§7.2)
+rather than trusted on reachability.
+
+Reference implementations: the hub's per-member notice mailbox
+([web4/hub](https://github.com/dp-web4/web4)) and hestia's deferred inbox
+([hestia](https://github.com/dp-web4/hestia)) — both sides of one wire.
+
+#### 7.8.1 Accept-and-defer
+
+A server that cannot (or should not) complete an inbound action synchronously
+MUST be able to **accept and defer**: durably enqueue the request and return
+`202 Accepted` instead of a result. Acceptance is a delivery event, not a
+completion — the R6/R7 outcome is witnessed when the action **completes**
+(where timeout, termination, and refusal all count as completions), never at
+admission. Admission MAY be tracked entity-locally but is not a ledger act.
+
+#### 7.8.2 Queue conformance requirements
+
+An entity's inbound mailbox:
+
+- **MUST be durable** across process restarts. A crash between acknowledgment
+  and processing MUST NOT lose the work item. (The queue is durable
+  *operational* state; it is NOT the ledger — completions project into the
+  ledger, queue contents never do.)
+- **MUST order the durable park before the delivery acknowledgment.** An ACK
+  tells the sender to stop retaining its copy; acknowledging before the park
+  is durable converts a crash into silent work loss. If the park fails, the
+  server MUST NOT acknowledge (the sender retains and redelivers —
+  at-least-once is the mandated failure bias).
+- **MUST drain consume-once** (an item delivered to the consumer is atomically
+  removed), with the same at-least-once bias: a failed drain leaves items
+  queued for redelivery rather than risking loss.
+- **MUST be encrypted at rest and tamper-evident** when it holds sealed or
+  personal content. Payloads sealed end-to-end to the recipient's LCT key
+  SHOULD be stored still-sealed (the queue encryption and the channel seal are
+  independent layers; plaintext never rests on disk).
+- **SHOULD bound retention** (TTL) and **MUST bound size**; at the size bound
+  the entity chooses a documented policy (drop-oldest is the reference
+  behavior). Overflow is a load/stakes signal an entity MAY escalate on.
+- **MUST key entries by the recipient's LCT** (a shared surface serving many
+  entities keeps one logical mailbox per LCT), and deliver only to that
+  authenticated LCT.
+
+#### 7.8.3 Push and poll are the same mailbox
+
+Delivery to a registered LCT-MCP endpoint (push) and client-initiated drain
+(poll) are two access paths to one queue. Poll is the floor every
+implementation MUST provide; push is an optimization that MUST NOT bypass the
+durability or gating requirements above.
+
 ## 8. MCP Discovery and Advertisement
 
 ### 8.1 Capability Broadcasting
