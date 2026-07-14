@@ -28,7 +28,7 @@ The equation writes the pair as **T3/V3** — trust *verified by* value. Claimed
 
 **Bound to entity-role pairs, never to entities alone.** There is no "Alice's trust score." There is Alice-as-surgeon, Alice-as-reviewer, Alice-as-citizen — each accumulating its own tensor from its own witnessed history. Trust is a *relationship*, not a property; competence in one capacity is evidence of nothing in another.
 
-**Earned through witnessed history, changed by outcomes.** Tensor values move when witnessed interactions complete: delivered-as-promised raises the relevant dimensions, failures lower them, and unexercised trust decays. The inputs are the LCT's witness fabric — which is what makes the tensors *computable from the record* rather than declared.
+**Earned through witnessed history, changed by outcomes.** Tensor values move when witnessed interactions complete: delivered-as-promised raises the relevant dimensions, failures lower them, and unexercised Training and Temperament decay. **Talent does not** — inherent aptitude is not spent by disuse, and the standard makes its stability a protocol invariant. The inputs are the LCT's witness fabric — which is what makes the tensors *computable from the record* rather than declared.
 
 Because the tensors route real decisions (who gets the role, whose output is accepted, where value flows), and because they are always role- and context-scoped, they resist the two classic reputation failures: the global score that follows you where it shouldn't, and the purchased reputation that was never earned.
 
