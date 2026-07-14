@@ -40,7 +40,7 @@ Likewise the mechanism plumbing already exists: every act (including a response)
 
 ## N3 — Response verbs in law (ADD: `hub-law-schema.md`; touch `SOCIETY_SPECIFICATION.md §7.3`)
 
-**Gap.** Hub law's `decision` vocabulary is `allow | deny | escalate` — gate verbs for *my own* acts. A society's law cannot yet *express* a graded response to another's act. `SOCIETY_SPECIFICATION.md §7.3` still lists "Enforcement mechanisms" as unspecified.
+**Gap.** Hub law's `decision` vocabulary is `allow | warn | deny | escalate` — gate verbs for *my own* acts. A society's law cannot yet *express* a graded response to another's act. `SOCIETY_SPECIFICATION.md §7.3` still lists "Enforcement mechanisms" as unspecified.
 
 **Change.** Extend `decision` (or add a parallel `response`) with the graded ladder: `warn | quarantine | correct | rehabilitate` (+ the kinetic class per N1's definition, unifying the scattered existing primitives: `slash`, `suspend`, `terminate`, `revoke`, CRISIS-`halt`). Each rung is an R7 act whose required evidence and veto scale by ConsequenceClass — i.e. the ladder *is* S and V applied to responses; nothing new to gate. Write the short **Correction & Enforcement** section at `SOCIETY_SPECIFICATION.md §7.3` naming this composition.
 
