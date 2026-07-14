@@ -2,9 +2,9 @@
 
 **For AI agents assessing this repository.**
 
-## TL;DR (50 words)
+## TL;DR
 
-Web4 is the open standard ontology for verifiable presence in agentic AI. Provides identity (LCT), reputation (T3/V3 tensors), resource allocation (ATP), context scoping (MRH), and federation protocols. Working specs + reference implementations. Demonstrated 0% → 94.85% on ARC-AGI-3 with same model + Web4-shaped context (via SAGE) — real capability, under affordances outside strict competition play (harness analyzed the games' public engine source for solver cartridges), not blind from-observation solving; see `docs/proof/ARC-AGI-3.md`. R&D — not production.
+Web4 is the open standard ontology for verifiable presence in agentic AI. Provides identity (LCT), reputation (T3/V3 tensors), resource allocation (ATP), context scoping (MRH), and federation protocols. Working specs + reference implementations. Demonstrated 0% → 94.85% on ARC-AGI-3 with same model + Web4-shaped context (via SAGE; with engine-source affordances a strict run withholds — see `docs/proof/ARC-AGI-3.md`). R&D — not production.
 
 ## Quick Assessment
 
