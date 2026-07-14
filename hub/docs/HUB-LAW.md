@@ -39,7 +39,7 @@ norms:
     selector: r6.resource.atp     # what to look at on the request
     operator: ">"                 # how to compare
     value: 100                    # what to compare against
-    decision: deny                # allow | deny | escalate
+    decision: deny                # allow | warn | deny | escalate
     priority: 10                  # higher wins on conflict (default 0)
     description: "No single action may spend more than 100 ATP"
 ```
@@ -55,7 +55,10 @@ fire.
 `==`/`!=` use deep value equality. `in`/`not_in` expect a list. (`matches` —
 regex — is reserved and currently a no-op.)
 
-**Decisions**: `allow`, `deny`, `escalate`.
+**Decisions**: `allow`, `warn`, `deny`, `escalate`. `allow` and `warn` are
+non-blocking (the action proceeds; `warn` flags it as noteworthy — a
+flagged-allow whose advisory text rides the winning norm's `description`);
+`deny` and `escalate` block.
 
 ### Evaluation semantics
 
@@ -65,7 +68,7 @@ regex — is reserved and currently a no-op.)
 2. Among firing norms, the **highest `priority` wins** (ties broken by
    first-defined).
 3. **`Deny` is terminal** — a winning Deny short-circuits; no escalation can
-   override it.
+   override it. (A winning `Warn` is NOT terminal — it proceeds, like `Allow`.)
 4. Otherwise, any matching `escalation` trigger produces `Escalate` (with its
    `escalate_to` role). A norm that resolves to `Escalate` but has no explicit
    target defaults to `sovereign`.

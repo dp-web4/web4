@@ -129,12 +129,12 @@ law:value a rdf:Property ;
 law:decision a rdf:Property ;
     rdfs:domain law:Norm ;
     rdfs:range xsd:string ;
-    rdfs:comment "allow | deny | escalate" .
+    rdfs:comment "allow | warn | deny | escalate (warn = non-blocking flagged-allow)" .
 
 law:priority a rdf:Property ;
     rdfs:domain law:Norm ;
     rdfs:range xsd:integer ;
-    rdfs:comment "Lower number = higher priority. Conflicts resolve by priority." .
+    rdfs:comment "Higher number = higher priority; among firing norms the highest priority wins (ties: first declared). Conflicts resolve by priority." .
 
 # --- Properties on Procedure ---
 

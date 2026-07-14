@@ -336,6 +336,62 @@ Triggered when unethical behavior is detected.
 
 **Note**: Ethical violations have **severe** reputation penalties.
 
+#### Coercive/Extractive Behavior Rules
+
+Triggered when a witnessed act **interferes with another entity's ability to
+act, regardless of that entity's consent** — a *kinetic act* (descriptor).
+Ethical Violation Rules recognize dishonesty about value delivered; this
+category recognizes **non-consensual interference with agency**, which
+dishonesty need not involve. Signatures are role-contextual (what counts as
+interference depends on the actor's role and the society's law — content,
+not mechanism) and witnessed: a delta under this category asserts a fact
+about the target's conduct *toward others*, so rules in this category SHOULD
+set `witnesses_required` at least as high as their Ethical Violation
+counterparts, scaled with the severity of any response the delta may later
+be cited to license.
+
+Recognized signature classes:
+
+- **Agency-override** — substituting one's own decision for a target's
+  within the target's authority: executing an act the target explicitly
+  refused, bypassing a required consent step, forging or replaying the
+  target's authorization.
+- **Resource extraction without consent** — draining ATP, data, or capacity
+  from a target outside any agreed exchange. Distinct from the ATP
+  anti-patterns' *economic* rent-seeking: the signature here is the absence
+  of consent, not merely the absence of delivered value.
+- **Boundary intrusion** — causing effects inside another entity's or
+  society's MRH without standing there (the cross-boundary case; its
+  adjudication protocol is proposed separately, see the informative note
+  below).
+- **Bad-faith emergency claim** — invoking an emergency ("no reasonable
+  expectation of timely assistance") to bypass a society's delegation or
+  adjudication path, where the shared/external MRH subsequently finds the
+  claim unreasonable. The invocation is itself agency-override of the
+  adjudication path and accrues under this category.
+
+**Example**: Entity re-submits an action the resource owner explicitly refused, with forged authorization
+- `temperament`: -0.15 (non-consensual interference — beyond dishonesty)
+- `veracity`: -0.10 (misrepresented authorization)
+- `validity`: -0.10 (transfer was never consented to)
+
+**Asymmetric accrual (principle)**: violation costs MUST be large relative
+to success gains — an entity cannot offset coercive conduct with volume of
+routine successful work. The asymmetry already present in this section's
+example magnitudes (success rules move tensors by +0.005 to +0.02; violation
+rules by -0.10 to -0.20) is hereby stated as an explicit design principle,
+not an unexplained convention: reputation is not a currency that can launder
+coercion.
+
+**Evidence-basis role (informative)**: deltas accrued under this category
+are the recognition-evidence that any *response* to a coercive act must
+cite — a response is itself a consequential act and references the witnessed
+recognition that licenses it. The response side (effector roles, response
+verbs, cross-boundary adjudication) is proposed in
+`proposals/W4IP-DRAFT-2026-07-13-governance-immune-enforcement.md` and is
+not normative until ratified; this category is the recognition input it
+consumes.
+
 ## 5. Multi-Factor Computation
 
 Reputation deltas are computed from **multiple contributing factors** with explicit weights.
