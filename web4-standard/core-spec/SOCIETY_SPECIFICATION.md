@@ -471,11 +471,28 @@ Constituent secession and federation dissolution — including treasury distribu
 
 ### 7.3 Dispute Resolution
 
-Intra-society dispute resolution is carried by the Mediator role (`society-roles.md` §4.1; context-mandatory for Court/Arbitration societies per its §3), and ISP §5.1 provides for charter-specified mediation during secession notice periods. The bullets below enumerate what remains unspecified:
+Intra-society dispute resolution is carried by the Mediator role (`society-roles.md` §4.1; context-mandatory for Court/Arbitration societies per its §3), and ISP §5.1 provides for charter-specified mediation during secession notice periods.
+
+**Correction & Enforcement.** A society's law *expresses* graded responses to
+witnessed violations through the response vocabulary of `hub-law-schema.md`
+(`notice | quarantine | correct | rehabilitate` plus the parse-don't-enact
+kinetic class unifying `slash`/`suspend`/`revoke`/`terminate`/`halt`). Each
+rung is an R7 act gated by the ratified accountability invariant plus
+forfeiture (RWOA + S + V + F): its Reference binds the recognition evidence
+that licenses it (the Coercive/Extractive Behavior Rules category,
+`reputation-computation.md` §4), and its required evidence and veto scale with
+the rung's ConsequenceClass — the ladder *is* S and V applied to responses;
+there is no separate enforcement principle to legislate. Enactment beyond the
+reversible rungs is phased: kinetic verbs parse but remain law-inert until
+individually ratified and implemented.
+
+The bullets below enumerate what remains unspecified:
 
 - Inter-society courts
 - Arbitration protocols
-- Enforcement mechanisms
+- Cross-boundary (inter-society) enforcement and intrusion adjudication —
+  proposed in `proposals/W4IP-DRAFT-2026-07-13-governance-immune-enforcement.md`
+  (informative; not normative until ratified)
 
 ---
 
