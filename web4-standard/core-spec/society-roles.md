@@ -231,6 +231,12 @@ The following are commonly defined when needed. The list is illustrative, not ex
 
 **Example filling entities**: AI, Service, Society, Oracle
 
+#### Effector
+
+**Function**: Enacts the society's graded responses to witnessed violations — the response vocabulary of `hub-law-schema.md` (`notice | quarantine | correct | rehabilitate` + the parse-don't-enact kinetic class). Second-person and post-recognition: distinct from Validator (gates one's *own* act pre-act), Witness (attests events), and Auditor (reviews and adjusts trust tensors — the Effector's recognition-side sibling). Every enactment is an R7 act whose Reference binds the recognition evidence that licenses it, gated by RWOA+S+V+F. Role shape in `entity-types.md` §4.8; SAL registration in `web4-society-authority-law.md` §5.6. Who fills it, its thresholds, and when it acts are society law.
+
+**Example filling entities**: Human, AI, Society (an enforcement-services society), Hybrid
+
 ### 4.2 Inter-Society
 
 #### Diplomat / Federation-Representative
@@ -369,7 +375,7 @@ T3 trust scores for the society as a whole (in inter-society contexts) are deriv
 | `entity-types.md` | Lists entity types with example roles each can fill; this spec lists roles with example entities each can be filled by (the symmetric dual) |
 | `inter-society-protocol.md` | Inter-society interactions reference the Diplomat role (`inter-society-protocol.md` §2.2 federation genesis). That spec's §6.2 defines semantic viability criteria that constrain role composition. ATP measurement witnessing (`inter-society-protocol.md` §4.6) involves the Witness role at the resource attestation layer. Bidirectional dependency. |
 | `mcp-protocol.md` | MCP actions consume the role taxonomy directly: Policy-Entity signs action decisions (§7.3), Witness co-signs high-consequence actions (§7.3; selection governed by §7.5), Archivist persists audit bundles (§7.3), Treasurer negotiates exchange rates (§7.7, WIP v0.1.0-draft). |
-| `web4-society-authority-law.md` | The SAL spec defines Citizen, Authority, Law Oracle, Witness, and Auditor from the Society–Authority–Law perspective with detailed normative requirements (birth certificates, delegation chains, ledger interfaces, audit transcripts). This spec provides the role taxonomy; SAL provides the operational protocol for a subset of those roles. |
+| `web4-society-authority-law.md` | The SAL spec defines Citizen, Authority, Law Oracle, Witness, Auditor, and Effector from the Society–Authority–Law perspective with detailed normative requirements (birth certificates, delegation chains, ledger interfaces, audit transcripts). This spec provides the role taxonomy; SAL provides the operational protocol for a subset of those roles. |
 | `r6-framework.md` | R6 actions are dispatched through Administrator, evaluated by Policy-Entity, witnessed by Witness, recorded by Archivist |
 | `r7-framework.md` | R7 actions add Reputation back-propagation through the same role chain |
 | `LCT-linked-context-token.md` | Each role has its own role-LCT; filling entities are paired with the role-LCT |

@@ -278,7 +278,7 @@ For the role-LCT pairing mechanics see §3.4, "Role-Agent Pairing," above; for t
 
 > **See also**: `society-roles.md` for the full society-roles taxonomy (base-mandatory, context-mandatory, optional) with fractal-composability semantics. The roles enumerated below are the SAL-specific subset; the broader taxonomy in `society-roles.md` includes additional functional roles (Policy-Entity, Treasurer, Administrator, Archivist, etc.) that are base-mandatory for every Web4 society.
 >
-> **Note (subsection count vs role count; SAL roles vs base-mandatory roles)**: §4 has seven subsections, but §4.1 (Society) describes an *entity-type context* (§2.1), **not** a role an entity fills — so there are **six** SAL-specific roles below (Authority, Law Oracle, Witness, Auditor, Agent, Client) plus the Society context that hosts them. These six roles are a *different set* from the **base-mandatory** roles defined in `society-roles.md` §2 (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen) — the two sets overlap only on **Law Oracle**. The canonical home of the base-mandatory role list is **`society-roles.md` §2** (resolved per `SOCIETY_SPECIFICATION.md` §1.2.5 / C51, which attributes the base-mandatory roles to that section); the remaining open item is only the role-*name* reconciliation (SAL "Authority Role" vs society-roles "Sovereign"), not the list's home.
+> **Note (subsection count vs role count; SAL roles vs base-mandatory roles)**: §4 has eight subsections, but §4.1 (Society) describes an *entity-type context* (§2.1), **not** a role an entity fills — so there are **seven** SAL-specific roles below (Authority, Law Oracle, Witness, Auditor, Agent, Client, Effector) plus the Society context that hosts them. These seven roles are a *different set* from the **base-mandatory** roles defined in `society-roles.md` §2 (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen) — the two sets overlap only on **Law Oracle**. The canonical home of the base-mandatory role list is **`society-roles.md` §2** (resolved per `SOCIETY_SPECIFICATION.md` §1.2.5 / C51, which attributes the base-mandatory roles to that section); the remaining open item is only the role-*name* reconciliation (SAL "Authority Role" vs society-roles "Sovereign"), not the list's home.
 
 ### 4.1 Society (entity-type capabilities)
 **Society** is an *entity type* (§2.1), not a role an entity fills — it is included here because the SAL-specific roles below are hosted *within* a society and depend on these capabilities. A **Society** is a delegative entity with:
@@ -395,6 +395,69 @@ Principal entity in agency delegation:
   "signatures": [...]
 }
 ```
+
+### 4.8 Effector Role
+
+The **Effector** is the Auditor's (§4.5) response-side sibling. Where the
+Auditor operates on the *recognition* side — validating and adjusting T3/V3
+tensors — the Effector operates on the *response* side: it enacts the
+society's graded responses to witnessed violations, acts that interfere with a
+target's ability to act. It is the named role dp's ratified framing requires:
+*kinetic authority is a defined role within society, filled by actor entities
+in accordance with law; it is always R7, and R7 is definitive as to all the
+particulars.*
+
+*Provenance (informative):* this role lands W4IP N2
+(`proposals/W4IP-DRAFT-2026-07-13-governance-immune-enforcement.md`) against
+the response vocabulary ratified in `hub-law-schema.md` ("Response
+vocabulary", web4 `87377c3`). The W4IP draft itself remains non-normative;
+this section is the normative expression of its N2 item.
+
+Invokable role with special powers:
+- Enacts only the ratified response vocabulary of `hub-law-schema.md`:
+  `notice | quarantine | correct | rehabilitate`, plus the kinetic class
+  (`slash | suspend | revoke | terminate | halt`) — which remains
+  **parse-don't-enact** per that section: an Effector MUST NOT enact a
+  kinetic rung until that rung's enactment is individually ratified and
+  implemented
+- Acts **only via R7**: every enactment's Reference binds the recognition
+  evidence that licenses it — witnessed deltas under the Coercive/Extractive
+  Behavior Rules category (`reputation-computation.md` §4). No recognition
+  evidence, no act.
+- Its own acts pass the same gate as anyone's — **RWOA + S + V + F** as
+  specified in `hub-law-schema.md` (F-a forfeiture predicate, F-b
+  proportionality bound). An effector acting without evidence fails its own
+  gate; autoimmunity is unauthorized action, already prohibited.
+- Reputation-bearing: accrues own T3/V3 for enactment quality
+- Enactments written to immutable ledger with witness quorum
+- Reversible rungs carry appeal path and adjudication/cool-down bounds
+  (`appealPath: defined_by_law`)
+- Fractally delegable through the SAL delegation tree
+  (`web4-society-authority-law.md` §3.3, §5.6)
+
+Web4 defines the role's *shape*; who fills it, its thresholds, and when it
+acts are each society's law — content, not mechanism.
+
+#### Effector Enactment Request
+```json
+{
+  "type": "Web4EffectorEnactment",
+  "society": "lct:web4:society:...",
+  "target": "lct:web4:citizen:...",
+  "response": "quarantine",
+  "consequenceClass": "reversible",
+  "recognitionEvidence": ["hash:delta1", "hash:delta2"],
+  "lawRule": "QUARANTINE-ON-AGENCY-OVERRIDE",
+  "proportionalityBasis": "hash:violation-magnitude-assessment",
+  "witnesses": ["lct:web4:witness:A"],
+  "rateLimits": "per_law_oracle",
+  "appealPath": "defined_by_law"
+}
+```
+
+`recognitionEvidence` satisfies F-a (the R7 Reference binding);
+`proportionalityBasis` records the F-b bound; `lawRule` cites the `responses:`
+rule (`hub-law-schema.md` YAML surface) licensing the enactment.
 
 ## 5. Entity Lifecycle
 
