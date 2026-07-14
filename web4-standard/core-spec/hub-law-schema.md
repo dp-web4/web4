@@ -145,6 +145,126 @@ Evaluation order:
 4. Otherwise the winning norm's decision applies.
 5. No firing norm and no trigger → default `allow`.
 
+### Response vocabulary (W4IP N3 — prescriptive)
+
+> **Sync direction — inverse of the Decision-semantics section.** The section
+> above *transcribes* the live engine; this section *prescribes* schema that
+> does not yet exist. Until the Phase 2 schema+parse extension lands
+> (hub-track PR against `web4-policy`/`hub-lib`), the engine neither parses
+> nor enacts responses. If code and this section later disagree, adjudicate in
+> that PR's review — do not let either drift silently. Field-level YAML shape
+> below is a minimal contract the implementing PR MAY reshape; the normative
+> content of this section is the **verb set, the ladder semantics, and
+> parse-don't-enact on the kinetic class**.
+
+*Provenance (informative):* this section lands W4IP N3
+(`proposals/W4IP-DRAFT-2026-07-13-governance-immune-enforcement.md`) per the
+review-ratified Phase 2 sequencing; the F clause below is that proposal's R-1
+as hardened two-part in review. The W4IP draft itself remains non-normative;
+this section is the normative expression of its N3 item.
+
+Decisions and responses answer different questions. A `decision` is
+**first-person and pre-act**: *may this act I am requesting proceed?* A
+`response` is **second-person and post-recognition**: *what does the society
+do about a target's witnessed act?* Overloading `decision` with response verbs
+would invite gate rules that silently emit responses — exactly the
+first-person/second-person conflation the response side exists to prevent — so
+the vocabularies are parallel and disjoint.
+
+#### The graded ladder
+
+Every enacted response is an **R7 act** whose required evidence and veto scale
+with the rung's `ConsequenceClass` (`referenced-acts.md` §4) — the ladder *is*
+S and V applied to responses; there is no separate enforcement principle.
+
+| rung | ConsequenceClass | semantics |
+|------|------------------|-----------|
+| `notice` | Reversible | Formal, witnessed notification to the target that a recognition delta has accrued against it. Does not interfere with the target's ability to act. Maps to existing machinery (the witnessed reputation delta plus an advisory record). |
+| `quarantine` | Reversible *(by construction)* | Reversible containment of the target's interaction surface within the society (e.g. pairing, channel, or resource access paused) pending adjudication. MUST be liftable by the same authority that imposed it — a containment that cannot be lifted is not `quarantine` and MUST be declared under the kinetic class instead. First genuinely new rung. |
+| `correct` | Costly | Restorative: undo or compensate the violation's effects (e.g. return of extracted ATP). Undoable at a cost. |
+| `rehabilitate` | Reversible | The return path: earned restoration of standing against a rehab-bound. (N5 ports the bound into `reputation-computation.md` §7; this rung is its verb.) |
+| kinetic class — `slash`, `suspend`, `revoke`, `terminate`, `halt` | Costly / Irreversible | Interferes with the target's ability to act — the response side's own kinetic acts. **Parse-don't-enact** (below). |
+
+#### The kinetic class — unification, not new authority
+
+The five kinetic verbs *name existing scattered primitives* so law can cite
+them uniformly; naming them here creates **no new enactment authority**:
+
+- `slash` — ATP stake slashing, `atp-adp-cycle.md` (`slash_atp`, already
+  evidence- and witness-shaped).
+- `suspend` — citizenship lifecycle event, `SOCIETY_SPECIFICATION.md` §4.2
+  (`suspend` → Suspended).
+- `revoke` — LCT/credential revocation, `LCT-linked-context-token.md`
+  (revocation record, `status = "revoked"`).
+- `terminate` — citizenship lifecycle event, `SOCIETY_SPECIFICATION.md` §4.2
+  (`terminate` → Terminated).
+- `halt` — CRISIS motor-halt, `entity-types.md` ("halt effectors").
+
+**Parse-don't-enact:** the validator MUST accept a law file whose response
+rules use kinetic verbs; the engine MUST NOT enact them (they are law-inert)
+until each rung's enactment is individually ratified and implemented. This
+mirrors how V gates the irreversible tail: the vocabulary exists so law can be
+drafted and reviewed against it before any machinery can act on it.
+
+#### Gating — RWOA + S + V + F
+
+A response is itself a consequential act under the ratified invariant (§0),
+plus one clause specific to responses (W4IP R-1 as hardened in review):
+
+- **F-a — forfeiture predicate.** Enactment requires bound recognition
+  evidence that *the target's own act was kinetic toward others* — witnessed
+  deltas under the Coercive/Extractive Behavior Rules category
+  (`reputation-computation.md` §4). The enacted response's R7 Reference MUST
+  bind this evidence. The evidence-quality bar scales with the response's
+  ConsequenceClass: `notice` may rest on preponderance; the kinetic tail
+  requires bound, witnessed attribution.
+- **F-b — proportionality bound.** The response's magnitude is bounded by the
+  target's violation. F-b is *ontic* (about the target's act); S stays
+  *epistemic* (evidence scaled to the response's own stakes). A
+  fully-evidenced, carefully-vetoed response can satisfy S perfectly and still
+  violate F-b — which is why F is a distinct clause and not folded into R/W:
+  "I was authorized" ≠ "they forfeited".
+
+#### YAML surface (minimal contract)
+
+Response rules live under a top-level `responses:` key, deliberately parallel
+in shape to `norms:` — same rule anatomy, different verb field, selectors over
+recognition evidence rather than the pre-act R6 request:
+
+```yaml
+responses:
+  - id: QUARANTINE-ON-AGENCY-OVERRIDE
+    selector: reputation.delta.category
+    operator: "=="
+    value: coercive_extractive
+    response: quarantine
+    priority: 10
+    description: "Witnessed agency-override delta → reversible containment pending adjudication"
+```
+
+Prescriptive validation (folds into §2 when the implementing PR lands): every
+response rule has `id`, `selector`, `operator`, `value`, `response`;
+`response` is one of `notice`, `quarantine`, `correct`, `rehabilitate`,
+`slash`, `suspend`, `revoke`, `terminate`, `halt`; kinetic verbs are valid to
+parse. Prescriptive RDF mapping: `responses[]` compiles parallel to `norms[]`
+(`law:hasResponse` → `law:responseId` / `law:selector` / `law:operator` /
+`law:value` / `law:response` / `law:priority`); the `hub-law.ttl` ontology
+extension lands with the same PR.
+
+#### Decision point — first-rung name (`notice` vs `warn` vs `caution`)
+
+W4IP N3 and the review sequencing name the first rung `warn`. The gate
+vocabulary above already has `warn` (a non-blocking flagged-allow on one's
+*own* act). Same token, two persons and two tenses — precisely the conflation
+this section exists to prevent. This spec therefore proposes **`notice`**:
+inherently second-person (a notice is *served on* a party), and distinct from
+gate register, where `caution` still reads as advisory-to-self. (ISP §5.1's
+secession "notice period" is a duration, not a verb — no collision.) Keeping
+`warn` would maximize continuity with the W4IP text at the cost of importing
+the collision into the schema permanently. **This is the N3 spec-review
+decision; a one-token substitution (`notice` → `warn` or `caution`) reverts
+the choice without touching the rest of the section.**
+
 ## 2. Validation Rules
 
 A law file is valid if:
