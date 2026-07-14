@@ -115,7 +115,7 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the rationale on why Web4 is implem
 
 ## Status
 
-Working ontology with growing proof points. Demonstrated 0% → 94.85% on ARC-AGI-3 (same Claude Opus 4.6, structured around Web4 patterns via the SAGE harness). Public scorecard: <https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4>.
+Working ontology with growing proof points. Demonstrated 0% → 94.85% on ARC-AGI-3 (same Claude Opus 4.6, structured around Web4 patterns via the SAGE harness) — real, verifiable capability achieved with affordances outside strict competition play (the harness analyzed the games' public engine source to build solver cartridges), not blind from-observation solving. Public scorecard: <https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4>. Honest breakdown: <https://github.com/dp-web4/web4/blob/main/docs/proof/ARC-AGI-3.md>.
 
 R&D — not production. See parent repo [STATUS.md](https://github.com/dp-web4/web4/blob/main/STATUS.md) for honest assessment.
 

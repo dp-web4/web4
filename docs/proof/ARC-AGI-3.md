@@ -4,6 +4,8 @@
 
 **Public scorecard**: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4
 
+**Read the delta precisely — it is real capability, under affordances a strict competition run would not grant.** The score is genuine and publicly verifiable. But the harness earned it using affordances *outside strict, from-observation play*: it analyzed the games' (public) engine source and built per-game solver cartridges the model could draw on. So 94.85% demonstrates what the model does **given engine-level context and tooling** — not blind from-observation solving, and not "structure alone substituting for the model." The capability is real; the affordances that unlocked it are ones strict competition rules withhold. We state this up front because the honest version is the more interesting claim, and because eliding it would be exactly the over-reach this project tries to avoid.
+
 **Methodology**: No fine-tuning. No reinforcement learning. No additional training. The model weights are unchanged. What changed is the structure of context, identity, memory, and accountability around the model.
 
 ---

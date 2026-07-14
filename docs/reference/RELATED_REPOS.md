@@ -12,7 +12,7 @@ This is the single source of truth for the public-facing Web4 ecosystem. If a do
 License: AGPL-3.0-or-later (with `web4-core/` MIT for ARIA grant compatibility).
 
 ### [dp-web4/SAGE](https://github.com/dp-web4/SAGE)
-**The cognition harness.** Wraps an LLM with Web4-shaped context — typed world models, skill registry, trust-calibrated dispatch, structured perception. Produced the 94.85% on ARC-AGI-3 with same Claude Opus 4.6.
+**The cognition harness.** Wraps an LLM with Web4-shaped context — typed world models, skill registry, trust-calibrated dispatch, structured perception. Produced the 94.85% on ARC-AGI-3 with same Claude Opus 4.6 — real, verifiable capability, earned with affordances outside strict competition play (the harness analyzed the games' public engine source to build solver cartridges), not blind from-observation solving. See [docs/proof/ARC-AGI-3.md](../proof/ARC-AGI-3.md).
 
 Use when: building agents that need to reason over complex, novel state with verifiable structure.
 

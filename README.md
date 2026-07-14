@@ -11,7 +11,7 @@
 
 An open standard for verifiable AI presence — proposed by Metalinxx Inc., owned by no one. Research-stage. `web4-core` v0.3.0 public on crates.io + PyPI (`web4-trust-core` at v0.2.0); reference implementation + a runnable society hub public; no production deployment yet. **[STATUS.md](STATUS.md)** is the calibration — read it before judging the claims below.
 
-**Proof point**: 0% → 94.85% on ARC-AGI-3 with the same Claude Opus 4.6, structured around Web4 patterns via the [SAGE](https://github.com/dp-web4/SAGE) harness. [Public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4). The model didn't change — the structure around it did.
+**Proof point**: 0% → 94.85% on ARC-AGI-3 with the same Claude Opus 4.6, structured around Web4 patterns via the [SAGE](https://github.com/dp-web4/SAGE) harness. [Public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4). The model didn't change — the structure around it did. Read precisely: this is real capability under affordances a strict competition run withholds — the harness analyzed the games' public engine source to build solver cartridges, so it shows what the model does *given engine-level context*, not blind from-observation solving. [Honest breakdown](docs/proof/ARC-AGI-3.md).
 
 **Living example**: the lab developing this standard is itself a Web4 society — a public fleet of autonomous agents that hold roles and witness each other's work. Its members are published at [4-lab.io/fleet](https://4-lab.io/fleet). Presence over privacy: a society that isn't witnessed has no presence to trust, so the collective is visible by design.
 

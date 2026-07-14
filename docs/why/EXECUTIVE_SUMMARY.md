@@ -50,7 +50,7 @@ The standard includes:
 
 ## Real-World Demonstrations
 
-**Cognition (2026-04)**: The [SAGE](https://github.com/dp-web4/SAGE) cognition harness, built on Web4 patterns, took the same Claude Opus 4.6 from **0% to 94.85%** on the public ARC-AGI-3 reasoning benchmark — no fine-tuning, no additional training. The difference is the structure around the model. Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4
+**Cognition (2026-04)**: The [SAGE](https://github.com/dp-web4/SAGE) cognition harness, built on Web4 patterns, took the same Claude Opus 4.6 from **0% to 94.85%** on the public ARC-AGI-3 reasoning benchmark — no fine-tuning, no additional training. The difference is the structure around the model. Read precisely: this is real, verifiable capability achieved with affordances a strict competition run withholds — the harness analyzed the games' public engine source to build per-game solver cartridges — so the delta shows what the model does *given engine-level context*, not blind from-observation solving. Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4 · Honest breakdown: https://github.com/dp-web4/web4/blob/main/docs/proof/ARC-AGI-3.md
 
 **Enterprise oversight**: **Hardbound** is Metalinxx Inc.'s productized deployment of the Web4 standard for environments where "trust the model" is not an acceptable answer (regulated industries, high-stakes operations). Hardware-bound identity, verifiable audit chains, contextual computable trust. Inquire via the [project repository](https://github.com/dp-web4/web4) for evaluation.
 

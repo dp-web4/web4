@@ -15,7 +15,7 @@ Web4 is a **working ontology** with **real proof points** and **real gaps**. R&D
 
 The Web4 anti-hierarchical-by-design property is now stated normatively in spec rather than inferred from the ontology.
 
-The strongest single proof point: **the same Claude Opus 4.6 you can use today scores 0% on ARC-AGI-3 by default and 94.85% with a Web4-shaped harness around it**. The model didn't change. The structure around the model did.
+The strongest single proof point: **the same Claude Opus 4.6 you can use today scores 0% on ARC-AGI-3 by default and 94.85% with a Web4-shaped harness around it**. The model didn't change. The structure around the model did. Honest characterization: this is real, verifiable capability achieved with affordances *outside strict competition play* — the harness analyzed the games' public engine source to build per-game solver cartridges the model could draw on. Read the delta as "what the model does given engine-level context and tooling," not blind from-observation solving or structure-alone-replacing-the-model. Full breakdown: `docs/proof/ARC-AGI-3.md`.
 
 Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4
 

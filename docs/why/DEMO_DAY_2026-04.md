@@ -30,7 +30,7 @@ It's an open standard, proposed by Metalinxx Inc., owned by no one. Anyone can b
 Same Claude Opus 4.6 that you can sign up for today.
 
 - Default setup on ARC-AGI-3 (the hardest public reasoning benchmark): **0%**.
-- Same model, structured around Web4 patterns via the SAGE cognition harness: **94.85%**.
+- Same model, structured around Web4 patterns via the SAGE cognition harness: **94.85%** — real, verifiable capability, earned with affordances a strict competition run withholds (the harness analyzed the games' public engine source to build solver cartridges), not blind from-observation solving.
 
 No fine-tuning. No additional training. The model didn't change. The structure around it did.
 

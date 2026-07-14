@@ -47,7 +47,7 @@ Web4 is research into **trust-native distributed intelligence**. Instead of plat
 ## Current Status
 
 Web4 is a working ontology with growing proof points:
-- **0% → 94.85% on ARC-AGI-3** — same Claude Opus 4.6, structured around Web4 patterns via the [SAGE](https://github.com/dp-web4/SAGE) cognition harness. Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4
+- **0% → 94.85% on ARC-AGI-3** — same Claude Opus 4.6, structured around Web4 patterns via the [SAGE](https://github.com/dp-web4/SAGE) cognition harness. Real, verifiable capability — under affordances outside strict competition play (the harness analyzed the games' public engine source to build solver cartridges), not blind from-observation solving. Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4 · [Honest breakdown](proof/ARC-AGI-3.md)
 - **2,627 tests** in the reference Python SDK (mypy --strict clean)
 - **424 attack-vector simulation suite** with ~85% detection rate
 - **Demo Day 4** (April 26, 2026) — Web4 presented as "verifiable presence"; archived at https://4-gov.org/demo
