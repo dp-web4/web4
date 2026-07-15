@@ -23,10 +23,15 @@ See: [`docs/proof/ARC-AGI-3.md`](../proof/ARC-AGI-3.md) for the headline result.
 
 Use when: introducing Web4 trust evolution to a non-technical audience, or sanity-checking that the spec doesn't assume too much (visitor-friction logs surface invisible assumptions back to the spec).
 
-### [dp-web4/4-gov](https://github.com/dp-web4/4-gov)
-**Public-facing site for governance content + AI Demo Day 4 deck.** The site at https://4-gov.org hosts the long-form talk on AI accountability + the elevator-pitch demo deck at /demo.
+### 4-gov — https://4-gov.org
+**Public-facing site for governance content + AI Demo Day 4 deck.** The live site hosts the long-form talk on AI accountability + the elevator-pitch demo deck at /demo. (The site's source repo is currently private; the deployed site is the public artifact.)
 
 Use when: needing the audience-tested public framing rather than the technical spec.
+
+### [dp-web4/4-hub](https://github.com/dp-web4/4-hub)
+**The Web4 Community Hub, standalone.** A read-only mirror of this monorepo's [`hub/`](../../hub/) directory plus the core crates it builds on (`web4-core`, `web4-policy`, `web4-trust-core`), monorepo layout preserved so a fresh clone builds with plain `cargo build`. Single-binary Rust daemon: signed machine-readable law, witnessed ledger, sealed member channels, MCP + REST surfaces. Published by `scripts/publish-4-hub.sh`; development and issues stay in **this repo**.
+
+Use when: you want to run or read just the hub without cloning the full standard.
 
 ### [dp-web4/Synchronism](https://github.com/dp-web4/Synchronism)
 **Theoretical foundation.** Coherence equations, MRH, phase transitions, compatibility lens. Web4's MRH primitive is grounded here; the math underlying trust formation (Hill function, p_crit ∝ 1/⟨C⟩) lives here.
@@ -36,11 +41,15 @@ Use when: reasoning about why MRH is fractal, how trust thresholds emerge, and t
 ### [dp-web4/ACT](https://github.com/dp-web4/ACT)
 **Distributed ledger for ATP tokens and LCT presence registry.** Cosmos SDK implementation. Use when: persistence and consensus around ATP economics or LCT registration is required.
 
-### [dp-web4/Memory](https://github.com/dp-web4/memory)
-**Distributed memory paradigms.** Lightchains, blockchain alternatives for edge devices, memory-as-temporal-sensor research. Use when: designing memory architectures for resource-constrained agentic deployments.
+### HRM → SAGE
+The former **dp-web4/HRM** (edge AI kernel research: MoE expert selection, trust-based routing, the synthon framing and insights archive) was the lineage that became **SAGE** — the old HRM URL redirects there. Use the [SAGE](https://github.com/dp-web4/SAGE) entry above.
 
-### [dp-web4/HRM](https://github.com/dp-web4/HRM)
-**Edge AI kernel research.** MoE expert selection, trust-based routing. Active forum and insights archive (synthon framing, identity portability findings). Use when: studying how Web4 trust composes with neural architecture choices.
+---
+
+## Currently private (research in progress)
+
+### Memory
+**Distributed memory paradigms.** Lightchains, blockchain alternatives for edge devices, memory-as-temporal-sensor research. The repo is currently private while the research matures; findings inform Web4's memory-as-temporal-sensor framing. Contact via [this repo](https://github.com/dp-web4/web4) if it's relevant to your work.
 
 ---
 
@@ -66,3 +75,4 @@ Built on the open Web4 ontology — Hardbound is the deployment, Web4 is the sub
 | Deploy in a regulated environment | Contact Metalinxx Inc. via the [project repository](https://github.com/dp-web4/web4) about Hardbound |
 | Study the formal foundations | [Synchronism](https://github.com/dp-web4/Synchronism) |
 | Persist ATP/LCT state | [ACT](https://github.com/dp-web4/ACT) |
+| Run or read just the community hub | [4-hub](https://github.com/dp-web4/4-hub) |
