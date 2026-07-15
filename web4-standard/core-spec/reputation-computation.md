@@ -413,7 +413,7 @@ def compute_reputation_delta(action, result, rules):
 
     if not triggered_rules:
         # No rules triggered = no reputation change
-        return empty_reputation_delta()
+        return None  # no delta emitted
 
     # 2. Compute contributing factors (rule-independent signals from the
     #    action outcome — computed once, as in the SDK)
@@ -521,8 +521,7 @@ def analyze_factors(action, result):
     if quality is not None and quality > 0.5:
         factors.append({
             'factor': 'high_accuracy',
-            'weight': 0.4,
-            'value': quality
+            'weight': 0.4
         })
 
     # Time-based factors (SDK parity — `reputation.py` reads pre-resolved
@@ -534,15 +533,13 @@ def analyze_factors(action, result):
     if action.request.constraints.get('deadline_met'):
         factors.append({
             'factor': 'deadline_met',
-            'weight': 0.3,
-            'value': True
+            'weight': 0.3
         })
 
     if action.request.constraints.get('early_completion'):
         factors.append({
             'factor': 'early_completion',
-            'weight': 0.2,
-            'value': True
+            'weight': 0.2
         })
 
     # Resource efficiency factor (SDK parity — `reputation.py` reads
@@ -555,8 +552,7 @@ def analyze_factors(action, result):
         efficiency = 1.0 - (consumed / required)
         factors.append({
             'factor': 'resource_efficiency',
-            'weight': round(efficiency * 0.2, 4),
-            'value': efficiency
+            'weight': round(efficiency * 0.2, 4)
         })
 
     return factors
