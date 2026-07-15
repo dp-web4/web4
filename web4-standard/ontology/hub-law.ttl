@@ -24,9 +24,19 @@ law:LawDataset a rdfs:Class ;
     rdfs:label "Law Dataset" ;
     rdfs:comment "A versioned set of rules governing a chapter. Published by the Law Oracle." .
 
+law:Rule a rdfs:Class ;
+    rdfs:label "Rule" ;
+    rdfs:comment "Abstract shared anatomy of a law rule: selector, operator, value, priority. Norm (first-person, pre-act) and ResponseRule (second-person, post-recognition) specialize it with disjoint verb fields." .
+
 law:Norm a rdfs:Class ;
+    rdfs:subClassOf law:Rule ;
     rdfs:label "Norm" ;
     rdfs:comment "A single allow/deny rule with selector, operator, and value." .
+
+law:ResponseRule a rdfs:Class ;
+    rdfs:subClassOf law:Rule ;
+    rdfs:label "Response Rule" ;
+    rdfs:comment "A second-person, post-recognition rule (W4IP N3): what the society does about a target's witnessed act. Parallel in shape to Norm; selectors range over recognition evidence, not the pre-act R6 request. Parsed and validated by the engine but NOT enacted (parse-don't-enact) until each rung's enactment is individually ratified." .
 
 law:Procedure a rdfs:Class ;
     rdfs:label "Procedure" ;
@@ -58,6 +68,11 @@ law:hasNorm a rdf:Property ;
     rdfs:domain law:LawDataset ;
     rdfs:range law:Norm ;
     rdfs:label "has norm" .
+
+law:hasResponse a rdf:Property ;
+    rdfs:domain law:LawDataset ;
+    rdfs:range law:ResponseRule ;
+    rdfs:label "has response rule" .
 
 law:hasProcedure a rdf:Property ;
     rdfs:domain law:LawDataset ;
@@ -106,35 +121,48 @@ law:r6Binding a rdf:Property ;
     rdfs:label "R6 binding" ;
     rdfs:comment "URI of the R6 rules schema this law dataset binds to." .
 
+# --- Properties on Rule (shared by Norm and ResponseRule) ---
+
+law:selector a rdf:Property ;
+    rdfs:domain law:Rule ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Field path this rule applies to. Norms select over the pre-act R6 request (e.g., 'r6.resource.atp'); response rules select over recognition evidence (e.g., 'reputation.delta.category') — the namespaces are deliberately disjoint." .
+
+law:operator a rdf:Property ;
+    rdfs:domain law:Rule ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Comparison operator: <=, >=, ==, !=, in, not_in, matches." .
+
+law:value a rdf:Property ;
+    rdfs:domain law:Rule ;
+    rdfs:range rdfs:Literal .
+
+law:priority a rdf:Property ;
+    rdfs:domain law:Rule ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Higher number = higher priority; among firing rules the highest priority wins (ties: first declared). Conflicts resolve by priority." .
+
 # --- Properties on Norm ---
 
 law:normId a rdf:Property ;
     rdfs:domain law:Norm ;
     rdfs:range xsd:string .
 
-law:selector a rdf:Property ;
-    rdfs:domain law:Norm ;
-    rdfs:range xsd:string ;
-    rdfs:comment "R6 field path this norm applies to (e.g., 'r6.resource.atp')." .
-
-law:operator a rdf:Property ;
-    rdfs:domain law:Norm ;
-    rdfs:range xsd:string ;
-    rdfs:comment "Comparison operator: <=, >=, ==, !=, in, not_in, matches." .
-
-law:value a rdf:Property ;
-    rdfs:domain law:Norm ;
-    rdfs:range rdfs:Literal .
-
 law:decision a rdf:Property ;
     rdfs:domain law:Norm ;
     rdfs:range xsd:string ;
     rdfs:comment "allow | warn | deny | escalate (warn = non-blocking flagged-allow)" .
 
-law:priority a rdf:Property ;
-    rdfs:domain law:Norm ;
-    rdfs:range xsd:integer ;
-    rdfs:comment "Higher number = higher priority; among firing norms the highest priority wins (ties: first declared). Conflicts resolve by priority." .
+# --- Properties on ResponseRule (W4IP N3) ---
+
+law:responseId a rdf:Property ;
+    rdfs:domain law:ResponseRule ;
+    rdfs:range xsd:string .
+
+law:response a rdf:Property ;
+    rdfs:domain law:ResponseRule ;
+    rdfs:range xsd:string ;
+    rdfs:comment "notice | quarantine | correct | rehabilitate (graded ladder) or slash | suspend | revoke | terminate | halt (kinetic class — valid to parse, law-inert until each rung's enactment is individually ratified)." .
 
 # --- Properties on Procedure ---
 

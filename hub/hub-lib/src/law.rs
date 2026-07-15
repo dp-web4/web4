@@ -26,7 +26,7 @@ use web4_policy::PolicyExtension;
 // Re-export the generic engine surface so `crate::law::*` consumers are unchanged.
 pub use web4_policy::{
     Condition, CustomPredicate, Decision, DecisionOutcome, EscalationTrigger, Norm, Operator,
-    Procedure, R6Request,
+    Procedure, R6Request, Response, ResponseRule,
 };
 
 /// The hub's law: the generic policy engine specialized with [`HubPolicy`].
@@ -457,6 +457,37 @@ mod tests {
             "role:constellation:mesh-worker"
         );
         assert!(is_known_constellation_role(DEFAULT_CONSTELLATION_ROLE));
+    }
+
+    #[test]
+    fn hub_law_parses_response_rules_and_stays_inert() {
+        // W4IP N3 Phase 2: the hub's Law<HubPolicy> parses the `responses:` key
+        // (canonical example from hub-law-schema.md "Response vocabulary"),
+        // validates it, and the R6 gate remains blind to it (parse-don't-enact).
+        let yaml = r#"
+version: "1.0.0"
+responses:
+  - id: QUARANTINE-ON-AGENCY-OVERRIDE
+    selector: reputation.delta.category
+    operator: "=="
+    value: coercive_extractive
+    response: quarantine
+    priority: 10
+    description: "Witnessed agency-override delta -> reversible containment pending adjudication"
+"#;
+        let law = Law::parse_and_validate(yaml).expect("hub law with responses parses");
+        assert_eq!(law.responses.len(), 1);
+        assert_eq!(law.responses[0].response, Response::Quarantine);
+        assert!(!law.responses[0].response.is_kinetic());
+        // The society gate is unaffected: no norms -> default allow, and the
+        // response rule is invisible to R6 evaluation.
+        let out = law.evaluate_outcome(&R6Request {
+            role: "citizen".into(),
+            action: "member_added".into(),
+            ..Default::default()
+        });
+        assert_eq!(out.decision, Decision::Allow);
+        assert_eq!(out.winning_norm, None);
     }
 
     /// The canonical example from hub-law-schema.md §1.

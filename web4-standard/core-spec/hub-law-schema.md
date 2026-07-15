@@ -147,15 +147,18 @@ Evaluation order:
 
 ### Response vocabulary (W4IP N3 — prescriptive)
 
-> **Sync direction — inverse of the Decision-semantics section.** The section
-> above *transcribes* the live engine; this section *prescribes* schema that
-> does not yet exist. Until the Phase 2 schema+parse extension lands
-> (hub-track PR against `web4-policy`/`hub-lib`), the engine neither parses
-> nor enacts responses. If code and this section later disagree, adjudicate in
-> that PR's review — do not let either drift silently. Field-level YAML shape
-> below is a minimal contract the implementing PR MAY reshape; the normative
-> content of this section is the **verb set, the ladder semantics, and
-> parse-don't-enact on the kinetic class**.
+> **Sync direction — split as of the Phase 2 code half.** The **schema and
+> parse** below now *transcribe* the live engine (`web4-policy/src/lib.rs`,
+> `ResponseRule` + `Response` + `Law::validate` — the Phase 2 implementing
+> PR): the engine parses and validates `responses:`, and `Law::evaluate*`
+> never reads them. **Enactment** remains *prescribed*: no rung is enacted
+> until individually ratified and implemented (parse-don't-enact holds in
+> code — verified by the `law-inert` regression tests). If code and this
+> section disagree, one of the two is a defect. The normative content stays
+> the **verb set, the ladder semantics, and parse-don't-enact on the kinetic
+> class**. One implementing hardening beyond the minimal contract: the
+> validator REJECTS a response rule whose selector ranges over the pre-act
+> `r6.*` namespace (the vocabularies are disjoint both ways).
 
 *Provenance (informative):* this section lands W4IP N3
 (`proposals/W4IP-DRAFT-2026-07-13-governance-immune-enforcement.md`) per the
@@ -242,14 +245,13 @@ responses:
     description: "Witnessed agency-override delta → reversible containment pending adjudication"
 ```
 
-Prescriptive validation (folds into §2 when the implementing PR lands): every
-response rule has `id`, `selector`, `operator`, `value`, `response`;
-`response` is one of `notice`, `quarantine`, `correct`, `rehabilitate`,
-`slash`, `suspend`, `revoke`, `terminate`, `halt`; kinetic verbs are valid to
-parse. Prescriptive RDF mapping: `responses[]` compiles parallel to `norms[]`
+Validation now lives in §2 (rules 11–13, transcribing the engine). RDF
+mapping lives in §3: `responses[]` compiles parallel to `norms[]`
 (`law:hasResponse` → `law:responseId` / `law:selector` / `law:operator` /
-`law:value` / `law:response` / `law:priority`); the `hub-law.ttl` ontology
-extension lands with the same PR.
+`law:value` / `law:response` / `law:priority`); `hub-law.ttl` defines
+`law:ResponseRule` under the shared `law:Rule` superclass (the shared rule
+anatomy — selector/operator/value/priority — is domained on `law:Rule` so a
+response is never typed as a Norm).
 
 #### Decision point — first-rung name (`notice` vs `warn` vs `caution`)
 
@@ -279,6 +281,16 @@ A law file is valid if:
 8. `escalation[].escalate_to` is a valid role name.
 9. `admission.sponsor_role` is a valid role name.
 10. `atp_issuance.mint_authority` is a valid role name.
+11. Every response rule has `id`, `selector`, `operator`, `value`, `response`;
+    `response` is one of `notice`, `quarantine`, `correct`, `rehabilitate`,
+    `slash`, `suspend`, `revoke`, `terminate`, `halt`. Kinetic verbs are
+    **valid to parse** (parse-don't-enact — see §1 Response vocabulary).
+12. Response rule `id` values are unique among response rules (their own
+    namespace, parallel to rule 5).
+13. A response rule's `selector` MUST NOT range over the pre-act `r6.*`
+    namespace — response selectors range over recognition evidence (e.g.
+    `reputation.delta.category`). The decision and response vocabularies are
+    disjoint both ways.
 
 ## 3. YAML → RDF Compilation
 
@@ -292,6 +304,12 @@ Each YAML key maps to the `hub-law.ttl` ontology:
 | `norms[].value` | `law:value` |
 | `norms[].decision` | `law:decision` |
 | `norms[].priority` | `law:priority` |
+| `responses[].id` | `law:responseId` |
+| `responses[].selector` | `law:selector` |
+| `responses[].operator` | `law:operator` |
+| `responses[].value` | `law:value` |
+| `responses[].response` | `law:response` |
+| `responses[].priority` | `law:priority` |
 | `procedures[].id` | `law:procedureId` |
 | `procedures[].requires_witnesses` | `law:requiresWitnesses` |
 | `procedures[].requires_quorum` | `law:requiresQuorum` |
@@ -303,7 +321,7 @@ Each YAML key maps to the `hub-law.ttl` ontology:
 | `escalation[].escalate_to` | `law:escalateTo` |
 
 The compiled RDF graph is a `law:LawDataset` node with `law:hasNorm`,
-`law:hasProcedure`, etc. edges to typed child nodes.
+`law:hasResponse`, `law:hasProcedure`, etc. edges to typed child nodes.
 
 ## 4. Extension Mechanism
 
