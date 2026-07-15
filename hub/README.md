@@ -2,6 +2,14 @@
 
 > Minimum-viable Web4 society for a community chapter.
 
+> **Where development happens.** The canonical home of this code is the
+> [`hub/`](https://github.com/dp-web4/web4/tree/main/hub) directory of the
+> [dp-web4/web4](https://github.com/dp-web4/web4) monorepo —
+> [4-hub](https://github.com/dp-web4/4-hub) is a standalone mirror published
+> from it (`git subtree split --prefix=hub`), for people who want just the
+> hub. File issues and PRs against **web4**. In the mirror, relative links
+> that climb out of this directory (`../...`) refer to the monorepo.
+
 > **Status — reference proof-of-concept.** This crate is the open reference POC.
 > Production and advanced development continue in a separate private repository;
 > features may land here later behind stable plugin interfaces.
