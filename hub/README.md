@@ -5,10 +5,10 @@
 > **Where development happens.** The canonical home of this code is the
 > [`hub/`](https://github.com/dp-web4/web4/tree/main/hub) directory of the
 > [dp-web4/web4](https://github.com/dp-web4/web4) monorepo —
-> [4-hub](https://github.com/dp-web4/4-hub) is a standalone mirror published
-> from it (`git subtree split --prefix=hub`), for people who want just the
-> hub. File issues and PRs against **web4**. In the mirror, relative links
-> that climb out of this directory (`../...`) refer to the monorepo.
+> [4-hub](https://github.com/dp-web4/4-hub) is a standalone read-only mirror
+> published from it by `scripts/publish-4-hub.sh` (filtered history of `hub/`
+> + `web4-core/`, layout preserved so it builds out of the box). File issues
+> and PRs against **web4**.
 
 > **Status — reference proof-of-concept.** This crate is the open reference POC.
 > Production and advanced development continue in a separate private repository;
