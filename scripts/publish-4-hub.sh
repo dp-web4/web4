@@ -22,10 +22,15 @@ echo "[4-hub] fresh clone of monorepo..."
 git clone --no-local -q "$MONOREPO" "$WORK/mirror"
 cd "$WORK/mirror"
 
-echo "[4-hub] filtering history to hub/ + web4-core/ (+ root license/patents)..."
+# The kept set is hub/ plus the transitive closure of its monorepo path
+# dependencies. Recompute when deps change:
+#   cd hub && cargo metadata --format-version 1 | <extract manifest dirs under the monorepo root>
+echo "[4-hub] filtering history to hub/ + its web4 path dependencies..."
 git filter-repo --quiet \
   --path hub \
   --path web4-core \
+  --path web4-policy \
+  --path web4-trust-core \
   --path LICENSE \
   --path PATENTS.md
 
@@ -46,6 +51,8 @@ witnessed ledger, sealed member<->hub channels, and a multi-surface API
 |---|---|
 | [`hub/`](hub/) | The hub itself: `hub-daemon`, `hub-lib`, `hub-plugin`, docs, examples |
 | [`web4-core/`](web4-core/) | The Web4 core library the hub builds on (MIT-licensed) |
+| [`web4-policy/`](web4-policy/) | Policy evaluation (the law gate) |
+| [`web4-trust-core/`](web4-trust-core/) | T3/V3 trust tensor primitives |
 
 ## Build
 
