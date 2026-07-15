@@ -85,6 +85,13 @@ pub struct Law<E: PolicyExtension = NoExtension> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub norms: Vec<Norm>,
 
+    /// Response rules (W4IP N3) — the second-person, post-recognition side.
+    /// Parsed and validated; NOT evaluated or enacted by this engine (see
+    /// [`ResponseRule`]). `skip_serializing_if` keeps existing signed laws
+    /// byte-identical on round-trip (wire-neutral addition).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub responses: Vec<ResponseRule>,
+
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub procedures: Vec<Procedure>,
 
@@ -117,6 +124,103 @@ pub struct Norm {
     pub priority: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+}
+
+/// A single response rule — the response side's parallel to [`Norm`]
+/// (W4IP N3, hub-law-schema.md "Response vocabulary"). Same rule anatomy,
+/// different verb field: where a norm's `decision` answers the first-person,
+/// pre-act question (*may this act I am requesting proceed?*), a response
+/// rule's `response` names the second-person, post-recognition act (*what does
+/// the society do about a target's witnessed act?*). Selectors range over
+/// recognition evidence (e.g. `reputation.delta.category`), NOT the pre-act
+/// `r6.*` namespace — deliberately disjoint vocabularies so gate rules cannot
+/// silently emit responses.
+///
+/// **Parse-don't-enact:** this engine parses and validates response rules; it
+/// does NOT evaluate or enact them. [`Law::evaluate_outcome`] never reads
+/// `responses` — every rung's enactment is individually ratified and lands as
+/// its own reviewed surface. The vocabulary exists so law can be drafted and
+/// reviewed against it before any machinery can act on it.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ResponseRule {
+    pub id: String,
+    pub selector: String,
+    pub operator: Operator,
+    pub value: serde_yaml::Value,
+    pub response: Response,
+    #[serde(default)]
+    pub priority: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// The response vocabulary (W4IP N3): the graded ladder plus the kinetic
+/// class. Every enacted response is an R7 act whose required evidence and veto
+/// scale with the rung's `ConsequenceClass` — the ladder IS S and V applied to
+/// responses. The kinetic verbs name existing scattered primitives (slash_atp,
+/// citizenship suspend/terminate, LCT revocation, CRISIS halt) so law can cite
+/// them uniformly; naming them creates no new enactment authority.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Response {
+    /// Formal, witnessed notification to the target that a recognition delta
+    /// has accrued against it. Does not interfere with the target's ability
+    /// to act. (Ratified first-rung name — `notice` is second-person by
+    /// construction; gate `warn` is first-person pre-act and stays disjoint.)
+    Notice,
+    /// Reversible containment of the target's interaction surface pending
+    /// adjudication. MUST be liftable by the same authority that imposed it —
+    /// an unliftable containment is not quarantine and belongs to the kinetic
+    /// class instead.
+    Quarantine,
+    /// Restorative: undo or compensate the violation's effects.
+    Correct,
+    /// The return path: earned restoration of standing against a rehab-bound.
+    Rehabilitate,
+    /// Kinetic: ATP stake slashing (`atp-adp-cycle.md` slash_atp).
+    Slash,
+    /// Kinetic: citizenship suspension (SOCIETY_SPECIFICATION §4.2).
+    Suspend,
+    /// Kinetic: LCT/credential revocation (LCT spec revocation record).
+    Revoke,
+    /// Kinetic: citizenship termination (SOCIETY_SPECIFICATION §4.2).
+    Terminate,
+    /// Kinetic: CRISIS motor-halt (entity-types.md "halt effectors").
+    Halt,
+}
+
+impl Response {
+    /// Whether this verb belongs to the kinetic class — responses that
+    /// interfere with the target's ability to act. Kinetic verbs are valid to
+    /// PARSE but law-inert: nothing in this crate (or its consumers, until a
+    /// rung's enactment is individually ratified) may enact them.
+    pub fn is_kinetic(self) -> bool {
+        matches!(
+            self,
+            Response::Slash
+                | Response::Suspend
+                | Response::Revoke
+                | Response::Terminate
+                | Response::Halt
+        )
+    }
+
+    /// The ladder rung's `ConsequenceClass` (referenced-acts §4), which scales
+    /// the required evidence and veto for enactment. `None` for the kinetic
+    /// class: those verbs cite primitives whose consequence semantics live
+    /// with their source specs, and per the governing invariant an
+    /// unclassified consequential surface defaults to high-consequence —
+    /// callers MUST NOT read `None` as "unclassified therefore mild".
+    pub fn consequence_class(self) -> Option<web4_core::ConsequenceClass> {
+        use web4_core::ConsequenceClass::*;
+        match self {
+            Response::Notice => Some(Reversible),
+            Response::Quarantine => Some(Reversible),
+            Response::Correct => Some(Costly),
+            Response::Rehabilitate => Some(Reversible),
+            _ => None,
+        }
+    }
 }
 
 /// The outcome of policy evaluation. `Allow` and `Warn` are non-blocking (the
@@ -234,6 +338,31 @@ impl<E: PolicyExtension> Law<E> {
             }
             if !seen_ids.insert(norm.id.clone()) {
                 return Err(anyhow!("duplicate norm id '{}'", norm.id));
+            }
+        }
+
+        // Response rules (W4IP N3): same shape rules as norms, own id
+        // namespace. Kinetic verbs are valid to parse (parse-don't-enact);
+        // there is deliberately NO verb-level rejection here.
+        let mut response_ids = HashSet::new();
+        for rule in &self.responses {
+            if rule.id.is_empty() {
+                return Err(anyhow!("response rule has empty id"));
+            }
+            if rule.selector.is_empty() {
+                return Err(anyhow!("response rule '{}' has empty selector", rule.id));
+            }
+            if rule.selector.starts_with("r6.") || rule.selector == "r6" {
+                return Err(anyhow!(
+                    "response rule '{}' selects over the pre-act r6 namespace — \
+                     response selectors range over recognition evidence \
+                     (e.g. reputation.delta.category); the vocabularies are \
+                     deliberately disjoint",
+                    rule.id
+                ));
+            }
+            if !response_ids.insert(rule.id.clone()) {
+                return Err(anyhow!("duplicate response rule id '{}'", rule.id));
             }
         }
 
@@ -727,6 +856,109 @@ norms:
         assert!(y.contains("version"));
         let back: Law = Law::from_yaml(&y).unwrap();
         assert_eq!(back.version, "1.0.0");
+    }
+
+    #[test]
+    fn responses_parse_all_nine_verbs_including_kinetic() {
+        // Parse-don't-enact: the validator MUST accept a law whose response
+        // rules use kinetic verbs (they are law-inert, not law-invalid).
+        let yaml = r#"
+version: "1.0.0"
+responses:
+  - id: NOTICE-ON-DELTA
+    selector: reputation.delta.category
+    operator: "=="
+    value: coercive_extractive
+    response: notice
+    priority: 1
+  - {id: R-QUARANTINE, selector: reputation.delta.category, operator: "==", value: x, response: quarantine}
+  - {id: R-CORRECT,    selector: reputation.delta.category, operator: "==", value: x, response: correct}
+  - {id: R-REHAB,      selector: reputation.delta.category, operator: "==", value: x, response: rehabilitate}
+  - {id: R-SLASH,      selector: reputation.delta.category, operator: "==", value: x, response: slash}
+  - {id: R-SUSPEND,    selector: reputation.delta.category, operator: "==", value: x, response: suspend}
+  - {id: R-REVOKE,     selector: reputation.delta.category, operator: "==", value: x, response: revoke}
+  - {id: R-TERMINATE,  selector: reputation.delta.category, operator: "==", value: x, response: terminate}
+  - {id: R-HALT,       selector: reputation.delta.category, operator: "==", value: x, response: halt}
+"#;
+        let law: Law = Law::parse_and_validate(yaml).unwrap();
+        assert_eq!(law.responses.len(), 9);
+        assert_eq!(law.responses[0].response, Response::Notice);
+        assert_eq!(law.responses[0].priority, 1);
+        // Ladder vs kinetic split + consequence classes (referenced-acts §4).
+        use web4_core::ConsequenceClass::*;
+        assert!(!Response::Notice.is_kinetic());
+        assert!(!Response::Quarantine.is_kinetic());
+        assert!(!Response::Correct.is_kinetic());
+        assert!(!Response::Rehabilitate.is_kinetic());
+        for k in [Response::Slash, Response::Suspend, Response::Revoke, Response::Terminate, Response::Halt] {
+            assert!(k.is_kinetic());
+            assert_eq!(k.consequence_class(), None, "kinetic class defers to source primitives");
+        }
+        assert_eq!(Response::Notice.consequence_class(), Some(Reversible));
+        assert_eq!(Response::Quarantine.consequence_class(), Some(Reversible));
+        assert_eq!(Response::Correct.consequence_class(), Some(Costly));
+        assert_eq!(Response::Rehabilitate.consequence_class(), Some(Reversible));
+    }
+
+    #[test]
+    fn responses_validation_rejects_bad_shapes() {
+        // Unknown verb fails at parse (typed enum), not at validate.
+        let bad_verb = r#"
+version: "1.0.0"
+responses:
+  - {id: R1, selector: reputation.delta.category, operator: "==", value: x, response: obliterate}
+"#;
+        assert!(Law::<NoExtension>::from_yaml(bad_verb).is_err());
+
+        // Duplicate response ids rejected.
+        let dup = r#"
+version: "1.0.0"
+responses:
+  - {id: R1, selector: reputation.delta.category, operator: "==", value: x, response: notice}
+  - {id: R1, selector: reputation.delta.category, operator: "==", value: y, response: notice}
+"#;
+        let law: Law = Law::from_yaml(dup).unwrap();
+        assert!(law.validate().is_err());
+
+        // The vocabularies are disjoint: a response selecting over the
+        // pre-act r6 namespace is exactly the first-person/second-person
+        // conflation the response side exists to prevent.
+        let conflated = r#"
+version: "1.0.0"
+responses:
+  - {id: R1, selector: r6.request.action, operator: "==", value: x, response: notice}
+"#;
+        let law: Law = Law::from_yaml(conflated).unwrap();
+        let err = law.validate().unwrap_err().to_string();
+        assert!(err.contains("r6"), "error names the namespace violation: {err}");
+    }
+
+    #[test]
+    fn responses_are_wire_neutral_and_law_inert() {
+        // Wire-neutral: a law without responses round-trips byte-identically
+        // (signed, hash-chained laws on disk are unaffected by the new field).
+        let old = "version: \"1.0.0\"\nnorms:\n- id: a\n  selector: r6.role\n  operator: ==\n  value: x\n  decision: allow\n";
+        let law: Law = Law::from_yaml(old).unwrap();
+        assert!(law.responses.is_empty());
+        assert!(!law.to_yaml().unwrap().contains("responses"), "absent responses stay absent");
+
+        // Law-inert (parse-don't-enact): the R6 evaluator is blind to response
+        // rules — identical laws ± responses produce identical outcomes, even
+        // when a response rule's selector text coincides with request fields.
+        let with_responses = r#"
+version: "1.0.0"
+norms:
+  - {id: deny_it, selector: r6.request.action, operator: "==", value: risky, decision: deny, priority: 1}
+responses:
+  - {id: R-HALT, selector: reputation.delta.category, operator: "==", value: anything, response: halt, priority: 999}
+"#;
+        let law2: Law = Law::parse_and_validate(with_responses).unwrap();
+        let r = R6Request { role: "citizen".into(), action: "risky".into(), ..Default::default() };
+        let out = law2.evaluate_outcome(&r);
+        assert_eq!(out.decision, Decision::Deny);
+        assert_eq!(out.winning_norm.as_deref(), Some("deny_it"));
+        let allowed = law2.evaluate_outcome(&R6Request { role: "citizen".into(), action: "benign".into(), ..Default::default() });
+        assert_eq!(allowed.decision, Decision::Allow, "responses never leak into R6 evaluation");
     }
 
     #[test]
