@@ -63,6 +63,7 @@ pub mod did;
 pub mod error;
 pub mod event;
 pub mod attestation;
+pub mod ratchet;
 pub mod lct;
 pub mod ledger;
 pub mod pair_channel;
@@ -89,6 +90,7 @@ pub use coherence::{
 pub use crypto::{sha256, sha256_hex, KeyPair, PublicKey, SignatureBytes};
 pub use error::{Result, Web4Error};
 pub use attestation::{Attestation, AttestationType, BirthCertificate, BirthContext, BIRTH_WITNESS_QUORUM};
+pub use ratchet::{FactorClass, RatchetRequirement, SovereignStructureProof};
 pub use lct::{derive_lct_id, EntityType, HardwareBinding, LegacyAlias, LegacyDerivation, Lct, LctBuilder, LctStatus, Mrh, MrhEdge};
 pub use ledger::{
     InMemoryLedger, Ledger, LedgerEntry, LedgerEvent, LedgerProof, LocalLedger, MintReceipt,
