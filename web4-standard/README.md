@@ -162,13 +162,13 @@ Every interaction builds or erodes trust, creating an antifragile system that st
 ### 9. Inspectable Evidence, Not Prescribed Trust
 Web4 makes evidence about entities unforgeable and inspectable; it never states who or when should be trusted. Every verifiable structure — bindings, quorums, device assurance, tensors, a society's authority ratchet — is evidence a relying party weighs, contextual and scaled to stakes. Low assurance is higher risk, not exclusion; the one hard invariant is that an entity cannot prove evidence its structure does not support. See LCT spec §1.2.
 
-### 9. Value as Energy (ATP/ADP)
+### 10. Value as Energy (ATP/ADP)
 A revolutionary economic system where value flows like biological energy—tokens exist in charged/discharged states, cannot be hoarded, and reward productive work over accumulation.
 
-### 10. Semantic Interoperability (Dictionaries)
+### 11. Semantic Interoperability (Dictionaries)
 Living entities that manage the compression-trust relationship fundamental to all communication, enabling seamless translation between domains while tracking confidence and degradation.
 
-### 11. Spatial Web Integration
+### 12. Spatial Web Integration
 Web4 integrates with emerging semantic protocols (HSML, HSTP, Active Inference) to combine rich semantic understanding with trust-native execution. While Spatial Web frameworks handle the "how" of agent communication, Web4 provides the critical "why trust" and "what value" layers. [See detailed integration strategy](./SPATIAL_WEB_INTEGRATION.md)
 
 ## Development Status
