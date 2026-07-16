@@ -140,6 +140,8 @@ pub fn hestia_sovereign_lct(lct_id: Uuid, pubkey_hex: &str) -> Result<Lct> {
         binding_proof: None,
         mrh: web4_core::lct::Mrh::default(),
         legacy_alias: None,
+        attestations: Vec::new(),
+        birth_certificate: None,
     })
 }
 

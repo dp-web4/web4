@@ -145,6 +145,18 @@ pub struct Lct {
     /// rather than trusting the publisher (F1). See [`LegacyAlias`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legacy_alias: Option<LegacyAlias>,
+
+    /// `attestations` (canon §2.3): signed witness statements about this LCT —
+    /// the collection the birth-certificate validator consults. Default empty
+    /// (an un-witnessed §3.2 bootstrap). See [`crate::attestation`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attestations: Vec<crate::attestation::Attestation>,
+
+    /// `birth_certificate` (canon §2.3/§4): present iff a society conferred
+    /// citizenship on this entity. `None` = a Regular self-issued LCT (the honest
+    /// default — society-conferred presence is proven, never assumed).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub birth_certificate: Option<crate::attestation::BirthCertificate>,
 }
 
 /// The Markov Relevancy Horizon carried on an LCT (canon §5): `bound` (permanent
@@ -362,6 +374,68 @@ impl Lct {
         }
     }
 
+    /// `true` iff this LCT is a valid **birth certificate** (canon §4.2 / §11.2) —
+    /// a society-conferred citizen, COSE-verified. Fail-closed on every clause:
+    ///
+    /// 1. a `birth_certificate` section is present,
+    /// 2. ≥3 **distinct** birth witnesses (structural quorum),
+    /// 3. exactly one **permanent** `birth_certificate` pairing in `mrh.paired`,
+    /// 4. every birth witness has an `Existence` attestation in `attestations`
+    ///    whose signature verifies against that witness's bound public key.
+    ///
+    /// `resolve_witness_pubkey` maps a witness LCT id → its bound key (the
+    /// verifier's registry lookup). A witness whose key does not resolve, or
+    /// whose signature fails, fails the whole certificate — a quorum you cannot
+    /// verify is not a quorum. `None` from the resolver ⇒ reject (never skip).
+    ///
+    /// Absence of a `birth_certificate` returns `false` (a Regular LCT is not a
+    /// birth certificate); use [`Lct::is_self_issued`] to distinguish "no cert"
+    /// from "invalid cert".
+    pub fn verify_birth_certificate<F>(&self, resolve_witness_pubkey: F) -> bool
+    where
+        F: Fn(&str) -> Option<PublicKey>,
+    {
+        let Some(bc) = &self.birth_certificate else {
+            return false;
+        };
+        if !bc.quorum_structurally_ok() {
+            return false;
+        }
+        // Exactly one permanent birth_certificate pairing (§4.2 clause 2).
+        let citizen_pairings = self
+            .mrh
+            .paired
+            .iter()
+            .filter(|e| e.edge_type == "birth_certificate")
+            .count();
+        if citizen_pairings != 1 {
+            return false;
+        }
+        // Every distinct witness must have a signature-valid Existence attestation.
+        let subject = self.lct_id();
+        let mut seen = std::collections::BTreeSet::new();
+        for witness in bc.birth_witnesses.iter().filter(|w| seen.insert(*w)) {
+            let Some(pubkey) = resolve_witness_pubkey(witness) else {
+                return false; // unresolvable witness → cannot verify → reject
+            };
+            let attested = self.attestations.iter().any(|a| {
+                a.witness == *witness
+                    && a.attestation_type == crate::attestation::AttestationType::Existence
+                    && a.verify(&subject, &pubkey)
+            });
+            if !attested {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// `true` for a Regular self-issued LCT — no birth certificate (canon §4.3).
+    /// The honest default state; the complement of "carries a (valid) birth cert".
+    pub fn is_self_issued(&self) -> bool {
+        self.birth_certificate.is_none()
+    }
+
     /// Create a new LCT
     ///
     /// Returns both the LCT and the keypair (which should be securely stored)
@@ -382,6 +456,8 @@ impl Lct {
             binding_proof: None,
             mrh: Mrh::default(),
             legacy_alias: None,
+            attestations: Vec::new(),
+            birth_certificate: None,
         };
 
         (lct, keypair)
@@ -405,6 +481,8 @@ impl Lct {
             binding_proof: None,
             mrh: Mrh::default(),
             legacy_alias: None,
+            attestations: Vec::new(),
+            birth_certificate: None,
         };
 
         (lct, keypair)
@@ -536,6 +614,8 @@ impl LctBuilder {
             binding_proof: None,
             mrh: Mrh::default(),
             legacy_alias: None,
+            attestations: Vec::new(),
+            birth_certificate: None,
         };
 
         (lct, keypair)
@@ -724,6 +804,61 @@ mod tests {
             restored.verify_binding(),
             "signed LCT must verify after a JSON roundtrip (message == wire bytes)"
         );
+    }
+
+    #[test]
+    fn birth_certificate_validates_fail_closed_end_to_end() {
+        use crate::attestation::{Attestation, AttestationType, BirthCertificate, BirthContext};
+        let (mut lct, kp) = Lct::new(EntityType::AiSoftware, None);
+        lct.sign_binding(&kp);
+        let subject = lct.lct_id();
+
+        // Three distinct witnesses, each signs an Existence attestation.
+        let w: Vec<_> = (0..3).map(|_| KeyPair::generate()).collect();
+        let wid: Vec<String> = (0..3).map(|i| format!("lct:web4:witness:{i}")).collect();
+        let ts = lct.created_at;
+        for i in 0..3 {
+            lct.attestations.push(Attestation::sign(&subject, wid[i].clone(), AttestationType::Existence, ts, &w[i]));
+        }
+        lct.birth_certificate = Some(BirthCertificate {
+            issuing_society: "lct:web4:society:hub".into(),
+            citizen_role: "lct:web4:role:citizen".into(),
+            birth_witnesses: wid.clone(),
+            birth_timestamp: ts,
+            birth_context: Some(BirthContext::Ecosystem),
+            genesis_block_hash: None,
+        });
+        // The permanent citizen pairing (§4.2 clause 2).
+        lct.mrh.paired.push(MrhEdge {
+            lct_id: "lct:web4:role:citizen".into(),
+            edge_type: "birth_certificate".into(),
+            ts,
+        });
+
+        let resolver = |id: &str| wid.iter().position(|x| x == id).map(|i| w[i].verifying_key());
+        assert!(lct.verify_birth_certificate(resolver), "well-formed cert verifies");
+        assert!(!lct.is_self_issued());
+
+        // Fail-closed mutations, each independently:
+        // (a) a witness key that doesn't resolve → reject
+        assert!(!lct.verify_birth_certificate(|_| None));
+        // (b) drop below quorum
+        let mut two = lct.clone();
+        two.birth_certificate.as_mut().unwrap().birth_witnesses.truncate(2);
+        assert!(!two.verify_birth_certificate(resolver));
+        // (c) tamper an attestation ts → its signature no longer verifies
+        let mut tampered = lct.clone();
+        tampered.attestations[0].ts = ts + chrono::Duration::seconds(1);
+        assert!(!tampered.verify_birth_certificate(resolver));
+        // (d) missing the permanent pairing → reject
+        let mut nopair = lct.clone();
+        nopair.mrh.paired.clear();
+        assert!(!nopair.verify_birth_certificate(resolver));
+        // (e) no birth_certificate at all → false AND is_self_issued true
+        let mut regular = lct.clone();
+        regular.birth_certificate = None;
+        assert!(!regular.verify_birth_certificate(resolver));
+        assert!(regular.is_self_issued());
     }
 
     #[test]
