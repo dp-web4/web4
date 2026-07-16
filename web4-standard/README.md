@@ -159,6 +159,9 @@ Precise authority transfer with scope, caps, and temporal bounds, enabling safe 
 ### 8. Trust-Aware Communication (MCP)
 Every interaction builds or erodes trust, creating an antifragile system that strengthens through use.
 
+### 9. Inspectable Evidence, Not Prescribed Trust
+Web4 makes evidence about entities unforgeable and inspectable; it never states who or when should be trusted. Every verifiable structure — bindings, quorums, device assurance, tensors, a society's authority ratchet — is evidence a relying party weighs, contextual and scaled to stakes. Low assurance is higher risk, not exclusion; the one hard invariant is that an entity cannot prove evidence its structure does not support. See LCT spec §1.2.
+
 ### 9. Value as Energy (ATP/ADP)
 A revolutionary economic system where value flows like biological energy—tokens exist in charged/discharged states, cannot be hoarded, and reward productive work over accumulation.
 

@@ -23,7 +23,36 @@ LCTs solve the fundamental problem of contextual presence in distributed systems
 - **Trust Propagation**: Trust flows through witnessed connections in the Markov Relevancy Horizon (MRH)
 - **Birth Certificates**: Societies issue LCTs as foundational presence documents
 
-### 1.2 Terminology
+### 1.2 Design Principle: Inspectable Evidence, Not Prescribed Trust
+
+Web4 specifies how to make evidence about an entity — its identity, relationships,
+attestations, reputation, and authority structure — **unforgeable and inspectable**.
+It does **not** specify *who* should be trusted, *when*, or *how much*.
+
+Every verifiable structure in this standard — a signed binding proof, a witness
+quorum, a constellation's device assurance, a T3/V3 tensor, a society's authority
+ratchet — is **evidence a relying party weighs**, contextually and scaled to the
+stakes of the specific act. It is never a verdict the protocol renders. Two
+consequences follow, and conforming implementations MUST honor both:
+
+1. **Low assurance is higher risk, not exclusion.** An entity that can present only
+   weak evidence (e.g. single-device, reachability-as-proof) MUST NOT be excluded by
+   the protocol. It is rightly weighed as riskier than one presenting strong evidence
+   (e.g. a multi-device, biometric, richly-witnessed constellation). A relying party
+   MAY accept weak evidence for a low-stakes reversible act and require more for a
+   high-stakes irreversible one — the required strength of evidence rises with
+   consequence and irreversibility. Trust is a contextual preponderance of evidence
+   scaled to stakes, not a boolean.
+
+2. **Evidence is unforgeable; interpretation is free.** The one hard invariant the
+   protocol enforces is that an entity cannot *prove* evidence its structure does not
+   support (identifiers are key-derived, proofs are signature-checked, quorums and
+   assurance levels are recomputed from structure — never trusted from a claimed
+   field). A conforming surface produces verifiable evidence and MUST NOT encode a
+   universal trust threshold: stating who or when to trust is the relying party's,
+   not the standard's.
+
+### 1.3 Terminology
 
 - **Entity**: Any participant in Web4 (human, AI, society, organization, role, task, resource, device, service, oracle, accumulator, dictionary, hybrid, policy, infrastructure — see `entity-types.md` §2.1 for the canonical 15-type taxonomy)
 - **Binding**: Permanent, verifiable cryptographic link between entity and LCT

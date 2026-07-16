@@ -189,6 +189,12 @@ Trust is a contextual preponderance of evidence scaled to stakes, not a boolean:
 acts may pass on weak evidence (recorded); the required strength of evidence rises with consequence and
 irreversibility.
 
+**Inspectable evidence, not prescribed trust (LCT spec §1.2).** A surface's job is to make the
+evidence unforgeable and inspectable — never to encode a universal trust threshold. Failing an
+assurance bar is *higher risk, not exclusion*; who/when/how-much to trust is the relying party's,
+scaled to stakes. When building a verification surface, produce checkable evidence and let the caller
+decide; do not smuggle in an exclude/admit verdict (the ratchet `satisfied_by` bug, 2026-07-16).
+
 **Gate question:** *Can this path cause a consequential act while, for that act's stakes, R / W / S / O /
 A / V is not satisfied?* If yes for any clause at the act's stakes, the surface FAILS: fix before
 shipping, or escalate with the recorded FAIL (writing the block after the fact to match what was built

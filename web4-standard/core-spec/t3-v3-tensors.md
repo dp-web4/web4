@@ -13,6 +13,8 @@ Traditional reputation systems reduce complex behaviors to simple scores. Web4's
 
 **T3/V3 tensors are not absolute properties - they exist only within role contexts.** An entity trusted as a surgeon has no inherent trust as a mechanic. Trust and value are always qualified by the role being performed. RDF triples in the MRH explicitly bind tensors to entity-role pairs, ensuring trust assessments remain contextually appropriate.
 
+Tensors are **evidence, not verdicts**: a T3/V3 score is inspectable input a relying party weighs, scaled to the stakes of the act — the standard never prescribes a trust threshold. See the LCT spec §1.2, *Inspectable Evidence, Not Prescribed Trust*.
+
 ## 2. T3 Tensor: Trust Through Capability
 
 The T3 Tensor measures an entity's trustworthiness through three capability dimensions:
