@@ -19,15 +19,35 @@
 //! window "cannot be re-entered once witnessed authority exists" — the ratchet
 //! makes that continuous and provable).
 //!
+//! **Whose bar? — web4 makes the evidence inspectable; it does NOT state the
+//! threshold.** The structure earns *some* level of trust, but *how much* is the
+//! **relying party's** contextual call, scaled to the stakes of the specific act.
+//! Web4 states neither who nor when should be trusted; it provides the tools to
+//! make the evidence unforgeable and inspectable. So there is no universal gate
+//! here and no exclusion: an entity presenting one-device-reachability-as-proof
+//! is **not barred** — it is rightly weighed as **higher risk** than a full
+//! constellation with rich witnessed reputation, and the evaluator decides what
+//! that risk buys for *this* act. A [`RatchetRequirement`] is therefore a *bar an
+//! evaluator holds*, used two ways with the same type:
+//! - a society checking its OWN structure against its OWN committed law
+//!   (self-governance — the monotone ratchet of its own sovereign acts), and
+//! - a relying party checking a *presented* society against the relying party's
+//!   OWN risk policy for a given act (federation trust).
+//!
+//! A society's own committed requirement is itself inspectable evidence ("this
+//! society holds its sovereign to a 2-device + biometric bar" is a trust signal).
+//!
 //! **Two provable things, both fail-closed:**
-//! - [`RatchetRequirement`] — the committed society law. Monotone: an amendment
-//!   is legal only if it [`RatchetRequirement::is_legal_advance`] of the prior
-//!   (the ratchet cannot reverse). Its `level()` is a derived ordinal summary.
-//! - [`RatchetRequirement::satisfied_by`] — whether the society's CURRENT
-//!   structure ([`SovereignStructureProof`], recomputed from constellation
-//!   co-signatures + sovereign-role occupancy, never claimed) meets the
-//!   requirement. A society cannot prove authority stronger than its structure
-//!   supports.
+//! - [`RatchetRequirement`] — a bar; when it is a society's own committed law it
+//!   is monotone: an amendment is legal only if it
+//!   [`RatchetRequirement::is_legal_advance`] of the prior (a society's ratchet
+//!   over its own acts cannot reverse). `level()` is a derived ordinal summary.
+//! - [`RatchetRequirement::satisfied_by`] — whether a presented
+//!   [`SovereignStructureProof`] (recomputed from constellation co-signatures +
+//!   sovereign-role occupancy, never claimed) clears the evaluator's bar. An
+//!   entity cannot *prove* authority stronger than its structure supports; a
+//!   `false` is "below this evaluator's bar for these stakes" (higher risk), not
+//!   a protocol verdict of exclusion.
 //!
 //! T3/V3 weighting of occupant assurance is deliberately DEFERRED (a separate
 //! calibrated step, so the ratchet does not silently move the trust surface).
@@ -52,9 +72,13 @@ pub enum FactorClass {
     DistinctOccupant,
 }
 
-/// A society's COMMITTED requirement for exercising sovereign authority — the
-/// ratchet. Lives in the `role:sovereign` extension (witnessed society law).
-/// MONOTONE: every field only tightens; see [`is_legal_advance`].
+/// A **bar** an evaluator holds against sovereign-authority evidence — read the
+/// module docs on *whose* bar. When it is a society's OWN committed law (in the
+/// `role:sovereign` extension, witnessed) it is MONOTONE — every field only
+/// tightens; see [`is_legal_advance`]. When it is a relying party's risk policy
+/// for a given act, monotonicity does not apply (the relying party sets whatever
+/// bar the stakes warrant). The struct is the same; the two uses differ only in
+/// who authors it and whether the ratchet (self-law) constrains its evolution.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RatchetRequirement {
     /// Distinct devices whose possession must be proven (≥1).
@@ -110,10 +134,20 @@ impl RatchetRequirement {
             + self.operator_sole_fill_barred as u8
     }
 
-    /// **Fail-closed** satisfaction: does the society's current structure prove
-    /// enough to exercise sovereign authority under this committed requirement?
-    /// This is the act gate — sovereign authority is exercisable only when `true`.
-    /// Every check reads recomputed-from-structure evidence, never a claim.
+    /// **Fail-closed** predicate: does the presented structure clear the bar in
+    /// `self`? The bar belongs to whoever is EVALUATING — a society against its
+    /// own committed law (self-governance), or a relying party against its own
+    /// risk policy for a specific act's stakes. Web4 ships the inspectable
+    /// evidence and this predicate; it never states a universal threshold.
+    ///
+    /// `false` means "below THIS evaluator's bar for these stakes" — **higher
+    /// risk, not exclusion**. A low-assurance entity is not barred from asking;
+    /// it is rightly weighed as riskier, and the evaluator scales its bar to the
+    /// act (RWOA: trust is a contextual preponderance of evidence scaled to
+    /// stakes, not a boolean — low-stakes reversible acts may clear a low bar).
+    /// The one hard invariant web4 does enforce: an entity cannot *prove*
+    /// authority its structure does not support (every axis is recomputed from
+    /// structure, never a claim).
     pub fn satisfied_by(&self, s: &SovereignStructureProof) -> bool {
         s.verified_devices >= self.min_devices
             && (!self.require_hardware_backed || s.hardware_backed)
@@ -222,6 +256,34 @@ mod tests {
         ] {
             assert!(!req.satisfied_by(&weaken), "one missing axis must fail closed");
         }
+    }
+
+    #[test]
+    fn low_assurance_is_evidence_not_exclusion_relying_party_decides() {
+        // The SAME weak structure (one-device, access-as-proof) clears a lenient
+        // evaluator's bar and misses a strict one. Web4 states no universal
+        // threshold — the bar is the relying party's, scaled to the act's stakes.
+        let weak = SovereignStructureProof {
+            verified_devices: 1,
+            hardware_backed: false,
+            present_factors: BTreeSet::new(),
+            distinct_sovereign_occupants: 1,
+        };
+        // A relying party admitting a LOW-stakes reversible act accepts genesis.
+        let lenient = RatchetRequirement::genesis();
+        assert!(lenient.satisfied_by(&weak), "weak structure clears a low bar");
+        // A relying party gating a HIGH-stakes irreversible act sets a high bar;
+        // the same entity is not EXCLUDED — it is simply below THIS bar (riskier).
+        let strict = RatchetRequirement {
+            min_devices: 2,
+            require_hardware_backed: true,
+            required_factors: factors(&[FactorClass::Biometric]),
+            min_sovereign_occupants: 2,
+            operator_sole_fill_barred: true,
+        };
+        assert!(!strict.satisfied_by(&weak), "same structure, higher bar → below bar (not barred)");
+        // The distinction is the EVALUATOR's, not the entity's: one structure,
+        // two verdicts, because trust is contextual and scaled to stakes.
     }
 
     #[test]
