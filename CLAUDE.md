@@ -45,7 +45,7 @@ Built on this foundation: Societies, SAL, AGY, ACP, Dictionaries, R6/R7 Action F
 | **ATP/ADP** | Allocation Transfer/Discharge Packets | `web4-standard/core-spec/atp-adp-cycle.md` |
 | **R6** | Rules/Role/Request/Reference/Resource/Result | `web4-standard/core-spec/r6-framework.md` |
 
-Before creating new identity/trust systems: check glossary (`whitepaper/sections/02-glossary/index.md`), check if existing infrastructure extends, NEVER redefine established acronyms.
+Before creating new identity/trust systems: check glossary (`whitepaper/sections/13-glossary/index.md`), check if existing infrastructure extends, NEVER redefine established acronyms.
 
 ## MRH-Specific Policy — Phase-Aware Governance
 
