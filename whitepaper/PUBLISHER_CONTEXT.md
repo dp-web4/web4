@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-07-14
+**Last Updated**: 2026-07-17
 **Whitepaper Status**: Active Development
 
 ---
@@ -225,6 +225,13 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-07-17: Publisher Maintenance — No-Change Verification (manual pass; all standing triggers unfired; window is exactly two C-series audit reports — zero mutation repo-wide)
+- **Zero whitepaper-scope commits — zero commits of any other kind, in fact.** `git log 4693e46..HEAD` is exactly two commits: `bde06e7` (C202 SOCIETY_SPECIFICATION 5th delta) and `53d8f03` (C204 dictionary-entities 5th delta), each adding a single audit-report file. Both report clean/no-drift outcomes ("0 autonomous spec defects", "zero mutation"); no spec, section, or artifact file touched. Source ↔ published in sync by construction — all four web surfaces (monolith, index.html, PDF, assets/navigation.js) still dated 2026-07-14 04:39, and the T3 no-decay fix re-verified live in all four ("Talent does not"). No rebuild performed (would yield only CRLF/timestamp churn).
+- **Standing triggers all UNFIRED (evidence, not assumption).** `core-spec/core-protocol.md` still `Status: Draft` (Last-Updated 2026-06-02); `core-spec/did-web4-method.md` still `Status: Draft — Phase 0`; `ontology/role-extension-schema.md` `role:driftMark` still PROVISIONAL pending HUB naming confirmation; W4IP ratification and the birth-certificate conferral flow cannot have advanced — the two audit reports are the window's only commits.
+- **No term drift.** Drift-grep over live `sections/` (excl. archive) for all documented wrong ATP/LCT/T3/V3/ADP expansions: zero hits.
+- **Cross-repo note:** the Synchronism autonomous Publisher persisted a report today (`e22aa90e`, SIGNAL — REC-036 readiness 0.60→0.68, MOND-Shared class law) via a recovery run after a "Starting"-only cron line; the 07-16 report gap is confirmed real (no log, no report — the never-started signature). Synchronism whitepaper checked independently in this same manual pass: sections (`e9c51080`, 07-16 11:32) ↔ artifacts (07-16 13:00, build == docs byte-identical) in sync, §7 grep clean → no rebuild, no change. See Synchronism `whitepaper/PUBLISHER_CONTEXT.md` §6.
+- **Verdict:** clean no-change pass; no integration, no commit beyond this log entry. Triggers carried forward unchanged: core-protocol → Normative; did:web4 Phase 0 → Phase 2; `driftMark` PROVISIONAL → confirmed; W4IP draft → ratified; birth-certificate conferral flow → end-to-end exercisable.
 
 ### 2026-07-16: Publisher Maintenance — No-Change Verification (manual pass; all standing triggers unfired; two new items evaluated — birth-certificate schema (Phase-2 groundwork, deferred with watch) and the canonized "Inspectable Evidence, Not Prescribed Trust" principle (whitepaper checked, aligned))
 - **Zero whitepaper-scope commits.** `git log d63fffb..HEAD -- whitepaper/ docs/whitepaper-web/` is empty; the window is the established out-of-scope profile — C194–C200 5th-delta spec audits, W4IP Phase-2/3 code halves (#523/#525), the 4-hub mirror work — plus three substantive spec/code events evaluated below. Source ↔ published in sync by construction (whitepaper last touched `3ec132d`/`d63fffb`, 2026-07-14; all four web surfaces — monolith, index.html, PDF, assets/navigation.js — dated 2026-07-14 04:39); T3 no-decay fix spot-verified live in the monolith ("Talent does not — inherent aptitude is not spent by disuse"). No rebuild performed (would yield only CRLF/timestamp churn).
