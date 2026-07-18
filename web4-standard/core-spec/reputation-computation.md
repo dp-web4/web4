@@ -386,11 +386,15 @@ coercion.
 **Evidence-basis role (informative)**: deltas accrued under this category
 are the recognition-evidence that any *response* to a coercive act must
 cite — a response is itself a consequential act and references the witnessed
-recognition that licenses it. The response side (effector roles, response
-verbs, cross-boundary adjudication) is proposed in
-`proposals/W4IP-DRAFT-2026-07-13-governance-immune-enforcement.md` and is
-not normative until ratified; this category is the recognition input it
-consumes.
+recognition that licenses it. The response side has since been partially
+ratified: the **response vocabulary** (`notice | quarantine | correct |
+rehabilitate` + the parse-don't-enact kinetic class) in `hub-law-schema.md`
+("Response vocabulary", W4IP N3) and the **Effector role** that enacts it in
+`entity-types.md` §4.8 / `society-roles.md` §4.1 / `web4-society-authority-law.md`
+§5.6 (W4IP N2). Cross-boundary adjudication remains proposed in
+`proposals/W4IP-DRAFT-2026-07-13-governance-immune-enforcement.md` and is not
+normative until ratified. This category is the recognition input the response
+side consumes.
 
 ## 5. Multi-Factor Computation
 
