@@ -142,6 +142,7 @@ pub fn hestia_sovereign_lct(lct_id: Uuid, pubkey_hex: &str) -> Result<Lct> {
         legacy_alias: None,
         attestations: Vec::new(),
         citizenships: Vec::new(),
+        operational_keys: Vec::new(),
     })
 }
 
