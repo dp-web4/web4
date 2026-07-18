@@ -162,6 +162,13 @@ pub struct Lct {
     /// asserted copy). See [`crate::BirthCertificateRef`].
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub citizenships: Vec<crate::attestation::BirthCertificateRef>,
+
+    /// `operational_keys` (dp ruling (b), 2026-07-18): operational signing keys this
+    /// entity vouches for with its binding key — published so a verifier resolves a
+    /// witness's/actor's signing key from the registry and checks the vouching
+    /// offline (no hub-private roster). Default empty. See [`OperationalKey`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub operational_keys: Vec<OperationalKey>,
 }
 
 /// The Markov Relevancy Horizon carried on an LCT (canon §5): `bound` (permanent
@@ -195,6 +202,40 @@ pub struct MrhEdge {
     pub edge_type: String,
     /// When the edge was established.
     pub ts: DateTime<Utc>,
+}
+
+/// An operational signing key an entity **vouches for with its binding key** — the
+/// key it signs autonomous acts with (e.g. witness attestations), distinct from
+/// its binding key (which may be vault-sealed / offline and unusable autonomously).
+///
+/// Published ON the entity's LCT so any verifier resolves it from the registry and
+/// checks the vouching **independently and offline** — the binding key authorizes
+/// the operational key, so no hub-private roster is needed to know which key a
+/// witness signs with (dp's ruling (b), 2026-07-18). This is what makes the witness
+/// tree independently traversable (inspectable-evidence, LCT spec §1.2).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OperationalKey {
+    /// The operational public key.
+    pub pubkey: PublicKey,
+    /// What the key is authorized for (e.g. `"witness"`). An entity may vouch a
+    /// distinct operational key per purpose; one active key per purpose.
+    pub purpose: String,
+    /// The binding key's signature over the vouching message — binds `pubkey` +
+    /// `purpose` to THIS LCT, verifiable against the LCT's own `public_key`.
+    pub proof: SignatureBytes,
+}
+
+/// The canonical vouching message a binding key signs to authorize an operational
+/// key: `"web4:lct:opkey:v1\n" + lct_id + "\n" + purpose + "\n" + pubkey_hex`.
+/// Domain-separated + reconstructible from the document, the binding-proof discipline.
+fn opkey_message(lct_id: &str, purpose: &str, operational_pubkey: &PublicKey) -> Vec<u8> {
+    format!(
+        "web4:lct:opkey:v1\n{}\n{}\n{}",
+        lct_id,
+        purpose,
+        operational_pubkey.to_hex()
+    )
+    .into_bytes()
 }
 
 /// A canonical legacy-id derivation scheme (canon lineage §2.3, migration case).
@@ -425,6 +466,46 @@ impl Lct {
         self.citizenships.is_empty()
     }
 
+    /// Vouch an operational signing key for `purpose`, signed by this LCT's binding
+    /// keypair (dp ruling (b)). Replaces any existing key for the same purpose
+    /// (rotation). Debug-asserts the keypair is this LCT's own binding key — a
+    /// vouching signed by a foreign key would never resolve.
+    pub fn authorize_operational_key(
+        &mut self,
+        purpose: impl Into<String>,
+        operational_pubkey: PublicKey,
+        binding_keypair: &KeyPair,
+    ) {
+        debug_assert_eq!(
+            binding_keypair.verifying_key(),
+            self.public_key,
+            "authorize_operational_key: must sign with this LCT's own binding key"
+        );
+        let purpose = purpose.into();
+        let proof = binding_keypair.sign(&opkey_message(&self.lct_id(), &purpose, &operational_pubkey));
+        self.operational_keys.retain(|k| k.purpose != purpose);
+        self.operational_keys.push(OperationalKey { pubkey: operational_pubkey, purpose, proof });
+    }
+
+    /// The vouched operational public key for `purpose`, **iff** its vouching
+    /// signature verifies against this LCT's binding key. Fail-closed: a key whose
+    /// proof does not verify (tampered, or vouched by a foreign key) is not
+    /// returned. This is what a witness-attestation verifier resolves for a witness
+    /// — independently, from the registry, no hub round-trip.
+    pub fn operational_key_for(&self, purpose: &str) -> Option<PublicKey> {
+        let lct_id = self.lct_id();
+        self.operational_keys
+            .iter()
+            .find(|k| {
+                k.purpose == purpose
+                    && self
+                        .public_key
+                        .verify(&opkey_message(&lct_id, &k.purpose, &k.pubkey), &k.proof)
+                        .is_ok()
+            })
+            .map(|k| k.pubkey.clone())
+    }
+
     /// Create a new LCT
     ///
     /// Returns both the LCT and the keypair (which should be securely stored)
@@ -447,6 +528,7 @@ impl Lct {
             legacy_alias: None,
             attestations: Vec::new(),
             citizenships: Vec::new(),
+            operational_keys: Vec::new(),
         };
 
         (lct, keypair)
@@ -472,6 +554,7 @@ impl Lct {
             legacy_alias: None,
             attestations: Vec::new(),
             citizenships: Vec::new(),
+            operational_keys: Vec::new(),
         };
 
         (lct, keypair)
@@ -605,6 +688,7 @@ impl LctBuilder {
             legacy_alias: None,
             attestations: Vec::new(),
             citizenships: Vec::new(),
+            operational_keys: Vec::new(),
         };
 
         (lct, keypair)
@@ -740,6 +824,49 @@ mod tests {
         });
         let restored: Lct = serde_json::from_str(&serde_json::to_string(&lct).unwrap()).unwrap();
         assert!(restored.legacy_alias.as_ref().unwrap().verify());
+    }
+
+    #[test]
+    fn operational_key_vouching_resolves_and_is_fail_closed() {
+        // A member vouches its OPERATIONAL (witness) key with its binding key, so a
+        // verifier resolves it from the LCT alone — no hub roster (dp ruling (b)).
+        let (mut member, binding_kp) = Lct::new(EntityType::AiSoftware, None);
+        member.sign_binding(&binding_kp);
+        let operational = KeyPair::generate(); // the channel key it witnesses with
+        member.authorize_operational_key("witness", operational.verifying_key(), &binding_kp);
+
+        // resolves to exactly the vouched operational key
+        assert_eq!(member.operational_key_for("witness"), Some(operational.verifying_key()));
+        // a purpose that was never vouched → None
+        assert_eq!(member.operational_key_for("treasurer"), None);
+
+        // fail-closed: tamper the stored proof → no longer resolves
+        let mut tampered = member.clone();
+        tampered.operational_keys[0].proof = binding_kp.sign(b"different message");
+        assert_eq!(tampered.operational_key_for("witness"), None, "tampered vouch does not resolve");
+
+        // fail-closed: a vouch whose proof was signed by a FOREIGN key → not resolved
+        let mut forged = member.clone();
+        let foreign = KeyPair::generate();
+        forged.operational_keys[0].proof =
+            foreign.sign(&super::opkey_message(&forged.lct_id(), "witness", &operational.verifying_key()));
+        assert_eq!(forged.operational_key_for("witness"), None, "foreign-signed vouch does not resolve");
+
+        // rotation: vouching a new key for the same purpose replaces the old one
+        let rotated = KeyPair::generate();
+        member.authorize_operational_key("witness", rotated.verifying_key(), &binding_kp);
+        assert_eq!(member.operational_keys.len(), 1, "one active key per purpose");
+        assert_eq!(member.operational_key_for("witness"), Some(rotated.verifying_key()));
+    }
+
+    #[test]
+    fn operational_key_survives_json_roundtrip() {
+        let (mut member, binding_kp) = Lct::new(EntityType::AiSoftware, None);
+        member.sign_binding(&binding_kp);
+        let op = KeyPair::generate();
+        member.authorize_operational_key("witness", op.verifying_key(), &binding_kp);
+        let restored: Lct = serde_json::from_str(&serde_json::to_string(&member).unwrap()).unwrap();
+        assert_eq!(restored.operational_key_for("witness"), Some(op.verifying_key()));
     }
 
     #[test]
