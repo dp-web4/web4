@@ -89,7 +89,7 @@ pub use coherence::{
 };
 pub use crypto::{sha256, sha256_hex, KeyPair, PublicKey, SignatureBytes};
 pub use error::{Result, Web4Error};
-pub use attestation::{Attestation, AttestationType, BirthCertificate, BirthContext, BIRTH_WITNESS_QUORUM};
+pub use attestation::{Attestation, AttestationType, BirthCertificate, BirthCertificateRef, BirthContext, CitizenshipRecord, BIRTH_WITNESS_QUORUM};
 pub use ratchet::{FactorClass, RatchetRequirement, SovereignStructureProof};
 pub use lct::{derive_lct_id, EntityType, HardwareBinding, LegacyAlias, LegacyDerivation, Lct, LctBuilder, LctStatus, Mrh, MrhEdge};
 pub use ledger::{
