@@ -188,6 +188,15 @@ pub struct SealedNotice {
     pub kind: String,
     pub pointer_uri: String,
     pub queued_at: chrono::DateTime<Utc>,
+    /// Which LCT's key SEALED the body — the key the recipient opens against.
+    /// `None` (the default, and every legacy notice) = hub-sealed: open with the
+    /// hub pubkey. `Some(sender)` = a MEMBER pre-sealed it (member→member secret
+    /// send): the hub is content-blind and only relayed it; the recipient resolves
+    /// `sealed_by`'s operational key (registry, ruling B) to open. Distinct from
+    /// `from` because a hub-sealed `referenced_act` to a peer has `from` = the
+    /// peer actor but was sealed by the hub.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sealed_by: Option<Uuid>,
 }
 
 /// An in-flight tier-2 unlock: the minted challenge + the roster/threshold
@@ -973,8 +982,25 @@ async fn queue_sealed_notice(
         Ok(c) => c,
         Err(e) => { tracing::warn!("queue_sealed_notice: seal failed: {e}"); return; }
     };
-    let now = Utc::now();
-    let cutoff = now - chrono::Duration::seconds(NOTICE_TTL_SECS);
+    // Hub-sealed: sealed_by = None (recipient opens with the hub pubkey).
+    enqueue_notice(s, recipient, SealedNotice {
+        pair_id,
+        from,
+        sealed,
+        kind: kind.to_string(),
+        pointer_uri: pointer_uri.to_string(),
+        queued_at: Utc::now(),
+        sealed_by: None,
+    }).await;
+}
+
+/// Enqueue an already-built [`SealedNotice`] into `recipient`'s durable mailbox
+/// (TTL prune + cap + write-through). Shared by the hub-sealed path
+/// ([`queue_sealed_notice`]) and the member-pre-sealed relay (`send_secret`); the
+/// hub never inspects `notice.sealed` here, so a peer-sealed body rides the mailbox
+/// identically to a hub-sealed one.
+async fn enqueue_notice(s: &RestState, recipient: Uuid, notice: SealedNotice) {
+    let cutoff = Utc::now() - chrono::Duration::seconds(NOTICE_TTL_SECS);
     let snapshot = {
         let mut mailbox = s.notifications.lock().await;
         let queue = mailbox.entry(recipient).or_default();
@@ -985,14 +1011,7 @@ async fn queue_sealed_notice(
                 "mailbox for {recipient} at cap ({MAX_NOTICES_PER_MEMBER}); dropped oldest notice"
             );
         }
-        queue.push(SealedNotice {
-            pair_id,
-            from,
-            sealed,
-            kind: kind.to_string(),
-            pointer_uri: pointer_uri.to_string(),
-            queued_at: now,
-        });
+        queue.push(notice);
         queue.clone() // snapshot for durable write-through, off the lock
     };
     // Write-through to the durable (encrypted) mailbox so a restart re-delivers
@@ -2381,6 +2400,7 @@ fn channel_tool_requires_freshness(tool: &str) -> bool {
             | "request_intro"
             | "respond_intro"
             | "referenced_act"
+            | "send_secret"
             | "constellation_challenge"
             | "present_constellation"
     )
@@ -3178,6 +3198,70 @@ async fn dispatch_channel(
                 resp.as_object_mut().unwrap().extend(r7_out);
             }
             Ok(resp)
+        }
+        // ---- member→member sealed-secret relay (content-blind) ----
+        // The SENDER seals a secret to the RECIPIENT's operational key (off-hub,
+        // `pair_channel::seal`) and hands the hub the ciphertext + its own pair_id.
+        // The hub is CONTENT-BLIND: it never sees plaintext, never re-seals, and
+        // only relays the pre-sealed body into the recipient's durable mailbox.
+        // Accountability rides the ledger as a thin witnessed act (who→whom, a
+        // content-hash of the SEALED body), never the secret. The recipient drains
+        // it and opens with `sealed_by`'s (= the sender's) operational key.
+        //   Client: hestia `hub-sendsecret`; PRD 2026-07-18 (CBP/Legion).
+        "send_secret" => {
+            let to: Uuid = inner.args.get("to").and_then(|v| v.as_str())
+                .and_then(|s| Uuid::parse_str(s).ok())
+                .ok_or_else(|| ApiError::bad_request("send_secret requires 'to' (recipient LCT uuid)".to_string()))?;
+            let sealed = inner.args.get("sealed").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request("send_secret requires 'sealed' (pre-sealed ciphertext)".to_string()))?
+                .to_string();
+            let sender_pair_id: Uuid = inner.args.get("pair_id").and_then(|v| v.as_str())
+                .and_then(|s| Uuid::parse_str(s).ok())
+                .ok_or_else(|| ApiError::bad_request("send_secret requires 'pair_id' (the sender's channel pair_id)".to_string()))?;
+            let pointer_uri = inner.args.get("pointer_uri").and_then(|v| v.as_str())
+                .unwrap_or("secret").to_string();
+            // Accountability: a scheme-tagged hash of the SEALED body (never the
+            // plaintext). Reuse the referenced_act H-008 contract.
+            let content_hash = inner.args.get("content_hash").and_then(|v| v.as_str())
+                .unwrap_or("").to_string();
+            const CH_SCHEMES: [&str; 3] = ["git-sha:", "sha256-content:", "sha256-pointer:"];
+            if !CH_SCHEMES.iter().any(|p| content_hash.len() > p.len() && content_hash.starts_with(p)) {
+                return Err(ApiError::bad_request(
+                    "send_secret requires a scheme-tagged 'content_hash' over the sealed body \
+                     (git-sha:|sha256-content:|sha256-pointer:)".to_string()));
+            }
+            // The recipient must be a known member (has a pinned resolver identity),
+            // else there is no mailbox to deliver to. The hub does NOT verify the
+            // seal target — it is content-blind; a mis-sealed body simply won't open
+            // for the recipient (the sender's error, not the hub's).
+            let known = { s.resolver.read().await.lookup(to).is_some() };
+            if !known {
+                return Err(ApiError::bad_request(format!("recipient {to} is not a known member")));
+            }
+            // Witness a thin act: actor = the AUTHENTICATED sender (caller_lct_id),
+            // to = Citizen{recipient}, substance = a hash of the SEALED body. The
+            // secret itself never touches the ledger.
+            let act = web4_core::act::Act::addressed(
+                caller_lct_id,
+                web4_core::act::ActAddress::Citizen { lct_id: to },
+                "secret",
+                web4_core::act::SubstanceRef::new(
+                    &pointer_uri, content_hash, web4_core::act::SubstanceMedium::Message),
+                Utc::now(),
+            );
+            let index = witness_event(s, HubEvent::ReferencedAct { act }).await?;
+            // Relay the PRE-SEALED body: sealed_by = the sender, so the recipient
+            // opens against the sender's operational key (not the hub's).
+            enqueue_notice(s, to, SealedNotice {
+                pair_id: sender_pair_id,
+                from: caller_lct_id,
+                sealed,
+                kind: "secret".to_string(),
+                pointer_uri,
+                queued_at: Utc::now(),
+                sealed_by: Some(caller_lct_id),
+            }).await;
+            Ok(serde_json::json!({ "delivered": true, "entry_index": index }))
         }
         // ---- constellation attestation (challenge-response MFA, assurance tiers) ----
         // Wire contract: forum/legion-constellation-attestation-wire-shape-2026-06-11.md.
@@ -5730,6 +5814,7 @@ mod lct_registry_tests {
             kind: "referenced_act".into(),
             pointer_uri: "hub://act/xyz".into(),
             queued_at: Utc::now(),
+            sealed_by: None,
         };
         // Mirror queue_sealed_notice's write-through: mutate in-memory, then persist.
         state.notifications.lock().await.insert(recipient, vec![notice.clone()]);
@@ -6124,6 +6209,77 @@ mod channel_e2e_tests {
         assert_eq!(out3["notifications"][0]["pointer_uri"], serde_json::json!("pr/423#thread=t1"));
         assert_eq!(out3["notifications"][0]["from"], serde_json::json!(member_lct),
             "sender LCT rides the envelope in the clear so the recipient can reply");
+    }
+
+    #[tokio::test]
+    async fn send_secret_relays_a_peer_sealed_body_content_blind() {
+        // Member→member secret: the SENDER seals to the RECIPIENT's key off-hub;
+        // the hub relays the ciphertext into the recipient's mailbox WITHOUT
+        // re-sealing (content-blind) and stamps sealed_by=sender so the recipient
+        // opens with the sender's key. The plaintext never reaches the hub.
+        let (_tmp, state) = fresh_rest_state(None).await; // open admission pins on join
+        let hub_pub = state.signer.public_key().unwrap();
+
+        // Admit two members: sender + recipient (each pins its key on join).
+        let sender = KeyPair::generate();
+        let sender_lct = Uuid::new_v4();
+        let recipient = KeyPair::generate();
+        let recipient_lct = Uuid::new_v4();
+        for (kp, lct, name) in [(&sender, sender_lct, "Sender"), (&recipient, recipient_lct, "Recipient")] {
+            let pid = Uuid::new_v4();
+            let sealed = seal_req(kp, &hub_pub, pid, "request_citizenship", serde_json::json!({ "name": name }));
+            channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+                caller_lct_id: lct, pair_id: pid, sealed,
+                caller_pubkey_hex: Some(kp.verifying_key().to_hex()),
+            })).await.expect("admitted + pinned");
+        }
+
+        // Sender pre-seals a secret to the recipient's key (off-hub, own pair_id).
+        const SECRET: &[u8] = b"kaggle-token-abc123-do-not-log";
+        let secret_pair = Uuid::new_v4();
+        let recipient_pub = PublicKey::from_bytes(&recipient.verifying_key().to_bytes()).unwrap();
+        let sealed_secret = pair_channel::seal(&sender, &recipient_pub, secret_pair, SECRET)
+            .unwrap().to_base64();
+        let ch = format!("sha256-content:{}", web4_core::sha256_hex(sealed_secret.as_bytes()));
+
+        // Send it via the hub (content-blind relay).
+        let pid = Uuid::new_v4();
+        let req = seal_req(&sender, &hub_pub, pid, "send_secret", serde_json::json!({
+            "to": recipient_lct.to_string(),
+            "sealed": sealed_secret,
+            "pair_id": secret_pair.to_string(),
+            "pointer_uri": "secret:kaggle",
+            "content_hash": ch,
+        }));
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: sender_lct, pair_id: pid, sealed: req, caller_pubkey_hex: None,
+        })).await.expect("send_secret delivered");
+        assert_eq!(open_resp(&sender, &hub_pub, pid, &resp.0.sealed)["delivered"], serde_json::json!(true));
+
+        // Recipient drains: exactly one notice, kind=secret, sealed_by=sender,
+        // and the sealed body is VERBATIM (the hub did not re-seal).
+        let dp = Uuid::new_v4();
+        let ds = seal_req(&recipient, &hub_pub, dp, "notifications", serde_json::json!({}));
+        let dr = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: recipient_lct, pair_id: dp, sealed: ds, caller_pubkey_hex: None,
+        })).await.expect("drain");
+        let out = open_resp(&recipient, &hub_pub, dp, &dr.0.sealed);
+        assert_eq!(out["total"], serde_json::json!(1));
+        let n = &out["notifications"][0];
+        assert_eq!(n["kind"], serde_json::json!("secret"));
+        assert_eq!(n["from"], serde_json::json!(sender_lct));
+        assert_eq!(n["sealed_by"], serde_json::json!(sender_lct), "recipient opens against the SENDER's key");
+        assert_eq!(n["sealed"].as_str().unwrap(), sealed_secret, "hub relayed the body verbatim — no re-seal");
+
+        // The recipient can actually OPEN it with the sender's key + the sender's
+        // pair_id — end-to-end content-blind delivery works.
+        let opened = pair_channel::open(
+            &recipient,
+            &PublicKey::from_bytes(&sender.verifying_key().to_bytes()).unwrap(),
+            secret_pair,
+            &Sealed::from_base64(n["sealed"].as_str().unwrap()).unwrap(),
+        ).unwrap();
+        assert_eq!(opened, SECRET, "recipient recovers the plaintext the hub never saw");
     }
 
     #[tokio::test]
