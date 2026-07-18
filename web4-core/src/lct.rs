@@ -169,6 +169,15 @@ pub struct Lct {
     /// offline (no hub-private roster). Default empty. See [`OperationalKey`].
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub operational_keys: Vec<OperationalKey>,
+
+    /// `authority_ratchet` (dp, 2026-07-18): the sovereign-authority requirement a
+    /// SOCIETY commits to — carried on its `role:sovereign` LCT so the society's
+    /// **ratchet level is a provable part of the LCT**, resolvable from the registry
+    /// (not a claimed field: it is the sovereign role's monotone admission law, and
+    /// `RatchetRequirement::level()` derives the ordinal). `None` on every non-
+    /// sovereign-role LCT. Inspectable evidence (LCT spec §1.2), never a verdict.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authority_ratchet: Option<crate::ratchet::RatchetRequirement>,
 }
 
 /// The Markov Relevancy Horizon carried on an LCT (canon §5): `bound` (permanent
@@ -529,6 +538,7 @@ impl Lct {
             attestations: Vec::new(),
             citizenships: Vec::new(),
             operational_keys: Vec::new(),
+            authority_ratchet: None,
         };
 
         (lct, keypair)
@@ -555,6 +565,7 @@ impl Lct {
             attestations: Vec::new(),
             citizenships: Vec::new(),
             operational_keys: Vec::new(),
+            authority_ratchet: None,
         };
 
         (lct, keypair)
@@ -689,6 +700,7 @@ impl LctBuilder {
             attestations: Vec::new(),
             citizenships: Vec::new(),
             operational_keys: Vec::new(),
+            authority_ratchet: None,
         };
 
         (lct, keypair)
@@ -857,6 +869,20 @@ mod tests {
         member.authorize_operational_key("witness", rotated.verifying_key(), &binding_kp);
         assert_eq!(member.operational_keys.len(), 1, "one active key per purpose");
         assert_eq!(member.operational_key_for("witness"), Some(rotated.verifying_key()));
+    }
+
+    #[test]
+    fn authority_ratchet_is_carried_and_derives_a_provable_level() {
+        use crate::ratchet::RatchetRequirement;
+        let (mut role, kp) = Lct::new(EntityType::Role, None);
+        role.sign_binding(&kp);
+        assert!(role.authority_ratchet.is_none(), "non-sovereign LCTs carry none");
+        role.authority_ratchet = Some(RatchetRequirement::genesis());
+        // provable from the LCT: resolve the ratchet, derive the level
+        assert_eq!(role.authority_ratchet.as_ref().unwrap().level(), 0, "genesis L0");
+        // survives the wire (registry-resolvable)
+        let restored: Lct = serde_json::from_str(&serde_json::to_string(&role).unwrap()).unwrap();
+        assert_eq!(restored.authority_ratchet.as_ref().unwrap().level(), 0);
     }
 
     #[test]
