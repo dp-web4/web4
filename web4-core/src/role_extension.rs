@@ -85,6 +85,25 @@ pub struct Scope {
     /// the MRH. Empty = no MRH (fail-closed: the window is the epistemic horizon).
     #[serde(default)]
     pub ranges_over: Vec<String>,
+    /// `role:oracleConsultSet` — the oracle LCTs this role may CONSULT (read
+    /// membrane): the R6 GATE is pure, static set membership on this frozen-at-grant
+    /// list — `check_oracle(oracle_lct, consult_set)`, reputation-BLIND. R7 discovery
+    /// (`find_oracles`, reputation) may reorder *within* this set but MUST NEVER
+    /// expand it, or the enforced party farms reputation to self-grant scope (the
+    /// hop-5 manifest-trust / hop-6 command-scope hole, one plane over). Oracle LCTs
+    /// are already canonical (`lct:web4:oracle:*`), so the check needs no path
+    /// resolution. Empty = no oracle read access (fail-closed).
+    ///   Design: forum/legion-to-cbp-oracle-scope-folds-keep-r6-gate-off-r7-ranking.
+    #[serde(default)]
+    pub oracle_consult_set: Vec<String>,
+    /// `role:oracleWriteSet` — the oracle LCTs this role may STORE-TO (write
+    /// membrane): the write half of oracle-scope, sibling of the read set. A foreign
+    /// role gets a sandboxed named write-oracle exactly as it gets a sandboxed
+    /// scratch dir. Same frozen-at-grant, reputation-blind set-membership gate.
+    /// Empty = read-only (no store-to; fail-closed — a read-only write-membrane is
+    /// not "no write", it is "the write predicate denies every oracle").
+    #[serde(default)]
+    pub oracle_write_set: Vec<String>,
     /// `role:atpBudget` — fail-closed to `Limited(0.0)` when absent.
     #[serde(default)]
     pub atp_budget: AtpBudget,
@@ -293,7 +312,7 @@ mod tests {
                 cadence: Some("event".into()),
                 reports_to: None,
             }],
-            scope: Scope { ranges_over: vec!["repo:web4".into()], atp_budget: AtpBudget::Limited(100.0) },
+            scope: Scope { ranges_over: vec!["repo:web4".into()], atp_budget: AtpBudget::Limited(100.0), ..Default::default() },
             default_verdict: ExtensionVerdict::Allow,
             folds_under: vec!["law:constellation".into()],
             authored_under: lint.map(|_| "lawsnap:2026-07-08".into()),
@@ -382,6 +401,37 @@ mod tests {
         let json = serde_json::to_string(&e).unwrap();
         let back: RoleExtension = serde_json::from_str(&json).unwrap();
         assert_eq!(e, back);
+    }
+
+    #[test]
+    fn oracle_scope_round_trips_and_defaults_fail_closed() {
+        // Piece B: oracle consult/write sets ride the Scope, siblings of ranges_over.
+        let mut e = ext(None);
+        e.scope.oracle_consult_set = vec!["lct:web4:oracle:mem-a".into(), "lct:web4:oracle:mem-b".into()];
+        e.scope.oracle_write_set = vec!["lct:web4:oracle:scratch".into()];
+        let back: RoleExtension = serde_json::from_str(&serde_json::to_string(&e).unwrap()).unwrap();
+        assert_eq!(e, back);
+        assert_eq!(back.scope.oracle_consult_set.len(), 2);
+        assert_eq!(back.scope.oracle_write_set, vec!["lct:web4:oracle:scratch".to_string()]);
+
+        // Absent in the wire form → empty (fail-closed: no oracle access), never a
+        // silent grant — the same discipline as ranges_over / atp_budget.
+        let minimal = r#"{"bound_to_role_lct":"00000000-0000-0000-0000-000000000000",
+            "scope":{"ranges_over":["repo:web4"]},
+            "default_verdict":"deny","folds_under":["society"]}"#;
+        let m: RoleExtension = serde_json::from_str(minimal).unwrap();
+        assert!(m.scope.oracle_consult_set.is_empty(), "absent consult-set = no read access");
+        assert!(m.scope.oracle_write_set.is_empty(), "absent write-set = read-only");
+    }
+
+    #[test]
+    fn oracle_scope_predicates_present_in_merged_ontology() {
+        // Code↔ttl concord (same F2 discipline as the driftMark test): the Scope
+        // fields have their RDF predicates so descriptors round-trip against the
+        // ontology and the audit-series mirror stays honest.
+        let ttl = include_str!("../../web4-standard/ontology/role-extension.ttl");
+        assert!(ttl.contains("role:oracleConsultSet"), "ontology missing role:oracleConsultSet");
+        assert!(ttl.contains("role:oracleWriteSet"), "ontology missing role:oracleWriteSet");
     }
 
     /// F2: bind the Rust `driftMark` enum to its SOURCE OF TRUTH — the merged ttl —
