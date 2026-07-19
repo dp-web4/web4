@@ -135,6 +135,16 @@ role:rangesOver a rdf:Property ;
     rdfs:range rdfs:Resource ;
     rdfs:comment "A resource (repo, machine, channel, data class) inside the role's MRH." .
 
+role:oracleConsultSet a rdf:Property ;
+    rdfs:domain role:Scope ;
+    rdfs:range rdfs:Resource ;
+    rdfs:comment "An oracle LCT this role may CONSULT (read membrane). The R6 gate is static set membership on this frozen-at-grant set, reputation-blind; R7 discovery may reorder within it but never expand it. Empty = no oracle read access (fail-closed)." .
+
+role:oracleWriteSet a rdf:Property ;
+    rdfs:domain role:Scope ;
+    rdfs:range rdfs:Resource ;
+    rdfs:comment "An oracle LCT this role may STORE-TO (write membrane), the write half of oracle-scope. Same frozen-at-grant, reputation-blind set-membership gate. Empty = read-only (fail-closed)." .
+
 # --- Composition / fold properties (eval-time invariant) ---
 
 role:foldsUnder a rdf:Property ;
