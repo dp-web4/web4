@@ -842,6 +842,16 @@ impl SqliteBackend {
              CREATE TABLE IF NOT EXISTS mailbox (
                  recipient TEXT PRIMARY KEY,
                  blob      BLOB NOT NULL
+             );
+             -- PAIRED-CHANNELS Sprint D sidecar. The composite PRIMARY KEY is
+             -- load-bearing: it's the atomic-append primitive that makes two
+             -- writers racing on the same seq a loud constraint violation
+             -- rather than a silently clobbered message.
+             CREATE TABLE IF NOT EXISTS pair_messages (
+                 pair_id  TEXT NOT NULL,
+                 seq      INTEGER NOT NULL,
+                 msg_json TEXT NOT NULL,
+                 PRIMARY KEY (pair_id, seq)
              );",
         ).context("initializing sqlite schema")?;
         Ok(Self { conn: std::sync::Mutex::new(conn), db_path })
@@ -1164,6 +1174,80 @@ impl HubStore for SqliteBackend {
         .with_context(|| format!("deleting mailbox blob for {recipient}"))?;
         Ok(())
     }
+
+    // ----- PAIRED-CHANNELS Sprint D: pair message sidecar -----
+
+    async fn append_pair_message(
+        &mut self,
+        msg: &crate::pair_message::PairMessage,
+    ) -> Result<()> {
+        let json = serde_json::to_string(msg).context("serializing pair message")?;
+        let conn = self.conn.lock().unwrap();
+        // Plain INSERT (no upsert): the (pair_id, seq) PRIMARY KEY must
+        // reject a duplicate seq. Silently overwriting would drop a
+        // message whose PairMessagePosted event is already in the ledger,
+        // leaving a payload_hash an auditor can never satisfy.
+        let result = conn.execute(
+            "INSERT INTO pair_messages (pair_id, seq, msg_json) VALUES (?1, ?2, ?3)",
+            rusqlite::params![msg.pair_id.to_string(), msg.seq as i64, json],
+        );
+        match result {
+            Ok(_) => Ok(()),
+            Err(rusqlite::Error::SqliteFailure(e, _))
+                if e.code == rusqlite::ErrorCode::ConstraintViolation =>
+            {
+                Err(anyhow::anyhow!(
+                    "sqlite append_pair_message: message at pair={} seq={} already \
+                     exists (concurrent append — caller should re-read message_count \
+                     and retry)",
+                    msg.pair_id, msg.seq
+                ))
+            }
+            Err(e) => Err(anyhow::Error::new(e).context(format!(
+                "writing pair message pair={} seq={}", msg.pair_id, msg.seq))),
+        }
+    }
+
+    async fn list_pair_messages(
+        &self,
+        pair_id: uuid::Uuid,
+        since_seq: Option<u64>,
+    ) -> Result<Vec<crate::pair_message::PairMessage>> {
+        let conn = self.conn.lock().unwrap();
+        // Filter in SQL rather than after the fact — the index behind the
+        // PRIMARY KEY makes it a range scan. `since_seq` is exclusive, and
+        // ORDER BY seq satisfies the trait's ascending-order contract.
+        //
+        // The floor is -1, NOT 0, when `since_seq` is None: the first message
+        // on a pair gets seq 0 (`seq = pair.message_count`), so a 0 floor
+        // would hide it from every unfiltered drain.
+        let floor: i64 = match since_seq {
+            Some(s) => s as i64,
+            None => -1,
+        };
+        let mut stmt = conn
+            .prepare(
+                "SELECT msg_json FROM pair_messages
+                 WHERE pair_id = ?1 AND seq > ?2
+                 ORDER BY seq ASC",
+            )
+            .context("preparing pair_messages SELECT")?;
+        let rows = stmt
+            .query_map(
+                rusqlite::params![pair_id.to_string(), floor],
+                |row| row.get::<_, String>(0),
+            )
+            .with_context(|| format!("querying pair messages for {pair_id}"))?;
+        let mut out = Vec::new();
+        for row in rows {
+            let json = row.with_context(|| format!("reading pair message row for {pair_id}"))?;
+            out.push(
+                serde_json::from_str(&json)
+                    .with_context(|| format!("parsing pair message for {pair_id}"))?,
+            );
+        }
+        Ok(out)
+    }
 }
 
 #[cfg(test)]
@@ -1405,6 +1489,70 @@ mod tests {
         // Re-keying with a wrong "old" key fails (and doesn't corrupt — new key still works).
         assert!(rekey_store(hub_dir, [1u8; 32], [2u8; 32]).is_err());
         assert!(SqliteBackend::open(&db_path, Some(new_key)).is_ok());
+    }
+
+    fn make_pair_msg(pair_id: Uuid, seq: u64, payload: &str) -> crate::pair_message::PairMessage {
+        crate::pair_message::PairMessage {
+            pair_id,
+            seq,
+            from: Uuid::new_v4(),
+            posted_at: chrono::Utc::now(),
+            payload: payload.into(),
+            ephemeral_pub_hex: None,
+        }
+    }
+
+    /// The regression that would have shipped: the first message on a pair
+    /// gets seq 0 (`seq = pair.message_count`), so an unfiltered drain must
+    /// return it. A `seq > 0` floor silently swallows the first message.
+    #[tokio::test]
+    async fn sqlite_pair_messages_round_trip_including_seq_zero() {
+        let (_tmp, mut b) = fresh_sqlite_backend();
+        let pair = Uuid::new_v4();
+        b.append_pair_message(&make_pair_msg(pair, 0, "first")).await.unwrap();
+        b.append_pair_message(&make_pair_msg(pair, 1, "second")).await.unwrap();
+
+        let all = b.list_pair_messages(pair, None).await.unwrap();
+        assert_eq!(all.len(), 2, "unfiltered drain must include seq 0");
+        assert_eq!(all[0].payload, "first");
+        assert_eq!(all[1].payload, "second");
+
+        // since_seq is exclusive.
+        let after0 = b.list_pair_messages(pair, Some(0)).await.unwrap();
+        assert_eq!(after0.len(), 1);
+        assert_eq!(after0[0].seq, 1);
+
+        assert!(b.list_pair_messages(pair, Some(1)).await.unwrap().is_empty());
+        // Unknown pair drains empty, not an error.
+        assert!(b.list_pair_messages(Uuid::new_v4(), None).await.unwrap().is_empty());
+    }
+
+    /// Two writers racing on a seq must produce a loud error, not a silent
+    /// overwrite — the ledger already holds a payload_hash for the message
+    /// that would be clobbered.
+    #[tokio::test]
+    async fn sqlite_pair_message_duplicate_seq_errors() {
+        let (_tmp, mut b) = fresh_sqlite_backend();
+        let pair = Uuid::new_v4();
+        b.append_pair_message(&make_pair_msg(pair, 0, "original")).await.unwrap();
+        assert!(b.append_pair_message(&make_pair_msg(pair, 0, "clobber")).await.is_err());
+
+        let all = b.list_pair_messages(pair, None).await.unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].payload, "original", "loser must not overwrite the winner");
+    }
+
+    /// One pair's drain must not leak another pair's messages.
+    #[tokio::test]
+    async fn sqlite_pair_messages_isolated_per_pair() {
+        let (_tmp, mut b) = fresh_sqlite_backend();
+        let (a, c) = (Uuid::new_v4(), Uuid::new_v4());
+        b.append_pair_message(&make_pair_msg(a, 0, "for-a")).await.unwrap();
+        b.append_pair_message(&make_pair_msg(c, 0, "for-c")).await.unwrap();
+
+        let drained = b.list_pair_messages(a, None).await.unwrap();
+        assert_eq!(drained.len(), 1);
+        assert_eq!(drained[0].payload, "for-a");
     }
 
     #[tokio::test]

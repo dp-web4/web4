@@ -22,9 +22,11 @@
 //! | `HUB#<hub_id>`  | `LAW`              | law YAML bytes        |
 //! | `HUB#<hub_id>`  | `LEDGER#<idx20>`   | ledger entry JSON     |
 //! | `HUB#<hub_id>`  | `PROPOSAL#<uuid>`  | proposal JSON         |
+//! | `HUB#<hub_id>`  | `PAIRMSG#<pair>#<seq20>` | pair message JSON |
 //!
-//! `<idx20>` is the 20-digit zero-padded entry index so DynamoDB's
-//! lexicographic Sort Key ordering matches numeric ledger order.
+//! `<idx20>` / `<seq20>` are the 20-digit zero-padded entry index and
+//! per-pair message seq, so DynamoDB's lexicographic Sort Key ordering
+//! matches numeric ledger / seq order.
 //!
 //! ## Atomic ledger append
 //!
@@ -111,6 +113,18 @@ impl DynamoDbBackend {
 
     fn proposal_sk(id: Uuid) -> String {
         format!("PROPOSAL#{}", id)
+    }
+
+    /// Sort key for one message in a pair's sidecar log. Same
+    /// 20-digit zero-pad trick as the ledger so lexicographic SK
+    /// order == numeric seq order, and every message for a pair
+    /// shares the [`Self::pair_msg_sk_prefix`] prefix.
+    fn pair_msg_sk(pair_id: Uuid, seq: u64) -> String {
+        format!("PAIRMSG#{}#{:020}", pair_id, seq)
+    }
+
+    fn pair_msg_sk_prefix(pair_id: Uuid) -> String {
+        format!("PAIRMSG#{}#", pair_id)
     }
 
     fn key_for(&self, sk: &str) -> HashMap<String, AttributeValue> {
@@ -299,6 +313,65 @@ impl HubStore for DynamoDbBackend {
             .with_context(|| format!("dynamodb delete_item PK={} SK=PROPOSAL#{}", self.pk(), id))?;
         Ok(())
     }
+
+    // ----- PAIRED-CHANNELS Sprint D: pair message sidecar -----
+
+    async fn append_pair_message(
+        &mut self,
+        msg: &crate::pair_message::PairMessage,
+    ) -> Result<()> {
+        let json = serde_json::to_string(msg).context("serializing pair message")?;
+        let sk = Self::pair_msg_sk(msg.pair_id, msg.seq);
+        // Conditional put, same primitive as ledger_append: two
+        // appenders racing on the same seq must not silently clobber
+        // each other — the trait contract calls that a chain-integrity
+        // bug, so surface it instead of losing a message.
+        let result = self.client.put_item()
+            .table_name(&self.table)
+            .set_item(Some(self.item(&sk, &json)))
+            .condition_expression("attribute_not_exists(SK)")
+            .send().await;
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                if let Some(svc) = e.as_service_error() {
+                    if svc.is_conditional_check_failed_exception() {
+                        return Err(anyhow::anyhow!(
+                            "dynamodb append_pair_message: message at pair={} seq={} \
+                             already exists (concurrent append — caller should re-read \
+                             message_count and retry)",
+                            msg.pair_id, msg.seq
+                        ));
+                    }
+                }
+                Err(anyhow::Error::new(e).context(format!(
+                    "dynamodb put_item PK={} SK={}", self.pk(), sk)))
+            }
+        }
+    }
+
+    async fn list_pair_messages(
+        &self,
+        pair_id: Uuid,
+        since_seq: Option<u64>,
+    ) -> Result<Vec<crate::pair_message::PairMessage>> {
+        // Query returns SK-ascending == seq-ascending by construction
+        // of pair_msg_sk, which is the order the trait requires.
+        let bodies = self.query_by_sk_prefix(&Self::pair_msg_sk_prefix(pair_id)).await?;
+        let mut out = Vec::with_capacity(bodies.len());
+        for body in bodies {
+            let msg: crate::pair_message::PairMessage = serde_json::from_str(&body)
+                .with_context(|| format!("parsing pair message for pair {}", pair_id))?;
+            // Filter on the read path to match FileBackend. A pair's
+            // log is small, so the wasted read is cheaper than the
+            // extra key-condition complexity.
+            if let Some(s) = since_seq {
+                if msg.seq <= s { continue; }
+            }
+            out.push(msg);
+        }
+        Ok(out)
+    }
 }
 
 /// Convenience constructor: load AWS config from the environment
@@ -378,5 +451,32 @@ mod tests {
             DynamoDbBackend::proposal_sk(id),
             "PROPOSAL#550e8400-e29b-41d4-a716-446655440000"
         );
+    }
+
+    /// Sidecar SKs must sort by seq within a pair, and every SK for a
+    /// pair must sit under the prefix `list_pair_messages` queries on
+    /// — otherwise a drain silently returns nothing.
+    #[test]
+    fn pair_msg_sk_orders_by_seq_under_prefix() {
+        let pair = uuid::Uuid::parse_str("6907b489-2372-485c-a91b-2ec05139104c").unwrap();
+        assert!(DynamoDbBackend::pair_msg_sk(pair, 9) < DynamoDbBackend::pair_msg_sk(pair, 10));
+        assert!(DynamoDbBackend::pair_msg_sk(pair, u64::MAX - 1)
+            < DynamoDbBackend::pair_msg_sk(pair, u64::MAX));
+        let prefix = DynamoDbBackend::pair_msg_sk_prefix(pair);
+        assert!(DynamoDbBackend::pair_msg_sk(pair, 0).starts_with(&prefix));
+        assert_eq!(
+            DynamoDbBackend::pair_msg_sk(pair, 1),
+            "PAIRMSG#6907b489-2372-485c-a91b-2ec05139104c#00000000000000000001"
+        );
+    }
+
+    /// A prefix query for one pair must not pick up another pair's
+    /// messages — the `#` terminator is what makes that true.
+    #[test]
+    fn pair_msg_prefix_does_not_straddle_pairs() {
+        let a = uuid::Uuid::parse_str("6907b489-2372-485c-a91b-2ec05139104c").unwrap();
+        let b = uuid::Uuid::parse_str("6907b489-2372-485c-a91b-2ec05139104d").unwrap();
+        assert!(!DynamoDbBackend::pair_msg_sk(b, 0)
+            .starts_with(&DynamoDbBackend::pair_msg_sk_prefix(a)));
     }
 }
