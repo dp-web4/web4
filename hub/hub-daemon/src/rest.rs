@@ -1469,6 +1469,12 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/lcts/publish", post(publish_lct))
         .route("/v1/hubs/:hub_id/lcts", get(list_lcts))
         .route("/v1/hubs/:hub_id/lcts/:lct_id", get(get_lct))
+        // A member's pinned pairing pubkey, keyed by member uuid — the value the
+        // membership gate already authorizes. Sources the v2 sealed-channel
+        // static key for pair-request/confirm, replacing the doc.id registry
+        // scan that could never match (member uuid is `published_by`, never a
+        // doc.id). 404 when the member is unpinned (sovereign, not yet admitted).
+        .route("/v1/hubs/:hub_id/members/:member_uuid/pubkey", get(get_member_pubkey))
         .route("/v1/hubs/:hub_id/pairs/request", post(submit_pair_request))
         .route("/v1/hubs/:hub_id/pairs/:pair_id/confirm", post(submit_pair_confirm))
         .route("/v1/hubs/:hub_id/pairs/:pair_id/revoke", post(submit_pair_revoke))
@@ -5575,6 +5581,43 @@ async fn publish_lct(
 }
 
 /// Resolve one published LCT. Unknown id → 404, nothing fabricated.
+/// The pinned pairing pubkey for a member, keyed by member uuid.
+#[derive(serde::Serialize)]
+struct MemberPubkeyView {
+    member_uuid: Uuid,
+    /// The member's pinned public key (hex) — the v2 sealed-channel static key.
+    pubkey_hex: String,
+}
+
+/// `GET /v1/hubs/:hub_id/members/:member_uuid/pubkey` — return the member's
+/// pinned pairing pubkey from the authoritative pin map (`member_pubkeys`),
+/// keyed by the member uuid the membership gate already authorizes. This is the
+/// single, unambiguous source for a peer's static key at pair time; the old
+/// registry scan (`document.id == member_uuid`) was structurally unsatisfiable.
+/// Fail-closed: an unpinned member (sovereign, not yet admitted) is a 404, never
+/// a guess.
+async fn get_member_pubkey(
+    State(s): State<RestState>,
+    Path((hub_id, member_uuid)): Path<(Uuid, Uuid)>,
+) -> Result<Json<MemberPubkeyView>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let pubkey_hex = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::state::HubState::project(&*ledger)
+            .member_pubkeys
+            .get(&member_uuid)
+            .cloned()
+    };
+    let pubkey_hex = pubkey_hex.ok_or_else(|| ApiError::not_found(format!(
+        "member {member_uuid} has no pinned pubkey — not an admitted member?"
+    )))?;
+    Ok(Json(MemberPubkeyView { member_uuid, pubkey_hex }))
+}
+
 async fn get_lct(
     State(s): State<RestState>,
     Path((hub_id, lct_id)): Path<(Uuid, String)>,
