@@ -49,6 +49,16 @@ defaults; law-integrity **fail-closed** on mismatch; issuer URLs from `HUB_PUBLI
 header; unlock-verifier timeout. Plus the **`hub up`** turnkey deploy kit (see *Deployment models*) and
 the start of role-based launch orchestration (roles as LCT entities).
 
+**Durable member messaging (2026-07).** The per-citizen sealed mailbox is now **durable and
+crash-safe**: a `SealedNotice` is persisted before it is acknowledged (**park-before-ACK, at-least-once**)
+and the mailbox **rehydrates on ignition**, so a queued notice survives a relight
+(*accept-and-defer*, mcp-protocol §7.8). Two message paths ride this: **`send_secret`** — a
+**content-blind** member→member relay where the sender pre-seals the body and the hub stores and forwards
+a ciphertext it cannot read (only a known member may be addressed; the relay is anti-replay-gated like
+every write) — and a **durable pair-message sidecar** that persists paired-channel messages across all
+backends (`file` / `sqlite` / `dynamodb`) so a member↔member conversation survives restart. A member's
+pinned channel key is resolvable by UUID at **`GET /v1/hubs/:id/members/:uuid/pubkey`**.
+
 ## Deployment models (in process)
 
 > **Status: in process.** The hub runs today as a single binary + config file (see [Quick start](#quick-start)). The map below is the target set of turnkey deployment postures — and the `hub up` installer that selects them — so an operator with no IT background can stand a hub up in one command.
@@ -232,6 +242,7 @@ GET  /v1/hubs/:id/law                                 Public hub law (readable w
 POST /v1/auth/challenge                               Mint an envelope-signing nonce
 POST /v1/hubs/:id/events                              Submit a signed, law-gated act
 GET  /v1/hubs/:id/state                               Projected state (tier-scoped)
+GET  /v1/hubs/:id/members/:uuid/pubkey                Resolve a member's pinned channel pubkey by UUID
 POST /v1/hubs/:id/unlock                              Tier-1 passphrase ignition (127.0.0.1)
 POST /v1/hubs/:id/unlock/challenge | /unlock/attest   Tier-2 M-of-N unlock seam (501 w/o verifier)
 POST /v1/hubs/:id/members/join                        Member admission request → law gate → queue
@@ -259,7 +270,8 @@ Admits or Denies it live from `/admin/joins`.
 
 `POST /v1/hubs/:id/channel` carries a sealed, authenticated request whose inner tool is
 one of: `find_members`, `request_intro` / `list_intros` / `respond_intro`,
-`notifications` (drains the per-citizen sealed mailbox), `referenced_act`, and
+`notifications` (drains the per-citizen **durable** sealed mailbox — survives relight),
+`send_secret` (content-blind member→member relay of a pre-sealed body), `referenced_act`, and
 `constellation_challenge` / `present_constellation` (assurance-tier bindings). The same
 `gate → handle → scope` contract as the [plugin seam](#extending-the-hub-plugin-seam)
 applies to every channel tool.
@@ -267,8 +279,9 @@ applies to every channel tool.
 ### Paired channels, Council & EUDI
 
 - **Paired member↔member channels** — request / confirm / revoke pairs and exchange
-  end-to-end-sealed messages (X25519 + ChaCha20-Poly1305, optional forward secrecy).
-  See [`docs/PAIRED-CHANNELS.md`](docs/PAIRED-CHANNELS.md).
+  end-to-end-sealed messages (X25519 + ChaCha20-Poly1305, optional forward secrecy),
+  **durably persisted** across `file` / `sqlite` / `dynamodb` backends so a conversation
+  survives restart. See [`docs/PAIRED-CHANNELS.md`](docs/PAIRED-CHANNELS.md).
 - **Sovereign Council** — propose / sign / threshold M-of-N governance over council-gated
   acts (data model + management ship now; threshold enforcement is Phase 2).
 - **EUDI / OID4VC** — the hub issues membership credentials (OID4VCI, SD-JWT-VC) and

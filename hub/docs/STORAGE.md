@@ -1,8 +1,9 @@
 # Storage Backends
 
-**Status:** V2-2 shipped (file + sqlite). Postgres is V2-15.
+**Status:** V2-2 shipped (`file` + `sqlite`, operator-selectable). The `dynamodb` backend is
+**implemented** (`hub_lib::dynamodb_store`) but not yet CLI-wired — see the [`dynamodb`](#dynamodb-v2-sprint2-opt-in-via-dynamodb-feature) section. All three carry the durable per-pair message sidecar (`append_pair_message` / `list_pair_messages`). Postgres is V2-15.
 
-The hub stores chapter state — charter, society, ledger — behind a `HubStore` trait. Two backends ship today; more are planned. Operators choose at `hub init` time, and `hub migrate` moves an existing chapter between backends without re-signing anything.
+The hub stores chapter state — charter, society, ledger, pinned member keys, pairings, and per-pair messages — behind a `HubStore` trait. Operators choose the backend at `hub init` time, and `hub migrate` moves an existing chapter between backends without re-signing anything.
 
 ---
 

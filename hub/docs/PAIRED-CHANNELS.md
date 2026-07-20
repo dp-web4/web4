@@ -292,6 +292,11 @@ Each sprint is sized for one focused work session. Sprints land in the order lis
 
 ### Sprint D — In-channel messages (relay, no encryption yet)
 
+**Status:** *Durable message persistence SHIPPED (#553).* The per-pair message store is now
+implemented across all three backends (`file` / `sqlite` / `dynamodb`) via
+`HubStore::append_pair_message` / `list_pair_messages`, so a paired conversation survives a daemon
+restart. The `send_secret` channel verb additionally relays a member-pre-sealed body content-blind.
+
 - `POST /v1/hubs/{id}/pairs/{pair_id}/messages` — signed envelope, opaque payload (string at this stage)
 - `GET .../messages?since=<msg_id>` — poll
 - Per-pair message store in HubStore (extend trait with `write_pair_message`, `list_pair_messages`)
