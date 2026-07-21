@@ -190,6 +190,27 @@ pub enum HubEvent {
         pinned_by: Uuid,
     },
 
+    /// The owner (a member) commits — or rotates — a device into their
+    /// constellation: the device's pubkey + class become AUTHORITATIVE state the
+    /// constellation verifier resolves against, established before any challenge
+    /// (GPT enrollment-registry fix, 2026-07-21). Self-attested: signer == owner.
+    DeviceEnrolled {
+        owner_lct_id: Uuid,
+        device_lct_id: Uuid,
+        /// Hex-encoded 32-byte Ed25519 public key the device signs with.
+        device_pubkey_hex: String,
+        device_class: crate::constellation::DeviceType,
+        enrolled_at: DateTime<Utc>,
+        enrollment_version: u64,
+    },
+
+    /// The owner revokes a device: its key stops contributing assurance
+    /// immediately, even if it can still produce valid signatures.
+    DeviceRevoked {
+        owner_lct_id: Uuid,
+        device_lct_id: Uuid,
+    },
+
     /// A member updated their profile — free-text fields (e.g. `skills`,
     /// `interests`, and arbitrary expandable keys) used for semantic member
     /// discovery (`find_members`). Self-attested, same authorization as
@@ -517,6 +538,8 @@ impl HubEvent {
             Self::CharterAmended { .. } => "charter_amended",
             Self::MemberSkillDeclared { .. } => "member_skill_declared",
             Self::MemberKeyPinned { .. } => "member_key_pinned",
+            Self::DeviceEnrolled { .. } => "device_enrolled",
+            Self::DeviceRevoked { .. } => "device_revoked",
             Self::IntroRequested { .. } => "intro_requested",
             Self::IntroResponded { .. } => "intro_responded",
             Self::MemberProfileUpdated { .. } => "member_profile_updated",

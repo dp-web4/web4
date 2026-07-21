@@ -39,6 +39,14 @@ pub struct HubState {
     /// envelopes until re-added with a pubkey.
     pub member_pubkeys: BTreeMap<Uuid, String>,
 
+    /// Authoritative constellation enrollment: `owner_lct → device_lct →`
+    /// [`EnrolledDevice`]. The record (pubkey, class, status) the constellation
+    /// verifier resolves against — established by owner-signed `DeviceEnrolled`
+    /// before any challenge, so a presented attestation can't self-authenticate
+    /// its device facts (GPT enrollment-registry fix, 2026-07-21). Nested (not a
+    /// `(Uuid,Uuid)` tuple key) so it serializes as a JSON object.
+    pub enrolled_devices: BTreeMap<Uuid, BTreeMap<Uuid, crate::constellation::EnrolledDevice>>,
+
     /// Member↔member introductions (the consent half of discovery).
     /// Projected from IntroRequested/IntroResponded.
     pub intros: BTreeMap<Uuid, Intro>,
@@ -568,6 +576,34 @@ impl HubState {
                     self.member_pubkeys.insert(*member_lct_id, member_pubkey_hex.clone());
                 }
             }
+            HubEvent::DeviceEnrolled {
+                owner_lct_id, device_lct_id, device_pubkey_hex, device_class,
+                enrolled_at, enrollment_version,
+            } => {
+                // Only an admitted member may enroll devices into a constellation.
+                // Insert or rotate — last write wins; a re-enroll reactivates.
+                if self.members.contains_key(owner_lct_id) {
+                    self.enrolled_devices
+                        .entry(*owner_lct_id)
+                        .or_default()
+                        .insert(*device_lct_id, crate::constellation::EnrolledDevice {
+                            owner_lct_id: *owner_lct_id,
+                            device_lct_id: *device_lct_id,
+                            pubkey_hex: device_pubkey_hex.clone(),
+                            device_class: device_class.clone(),
+                            status: crate::constellation::DeviceStatus::Active,
+                            enrolled_at: *enrolled_at,
+                            enrollment_version: *enrollment_version,
+                        });
+                }
+            }
+            HubEvent::DeviceRevoked { owner_lct_id, device_lct_id } => {
+                if let Some(devs) = self.enrolled_devices.get_mut(owner_lct_id) {
+                    if let Some(d) = devs.get_mut(device_lct_id) {
+                        d.status = crate::constellation::DeviceStatus::Revoked;
+                    }
+                }
+            }
             HubEvent::IntroRequested { intro_id, from_lct, to_lct, purpose } => {
                 self.intros.entry(*intro_id).or_insert(Intro {
                     id: *intro_id,
@@ -862,6 +898,43 @@ mod tests {
         let state = HubState::project(&ledger);
         assert_eq!(state.member_count(), 1);
         assert!(state.members.contains_key(&sov.lct.id));
+    }
+
+    #[tokio::test]
+    async fn device_enrollment_projects_and_revoke_flips_status() {
+        use crate::constellation::{DeviceStatus, DeviceType};
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let owner = sov.lct.id;
+        let dev = Uuid::new_v4();
+        let pk_hex = "aa".repeat(32); // 32-byte hex; projection stores verbatim
+        let genesis = HubEvent::Genesis {
+            hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+            founding_sovereign_lct_id: owner, created_at: Utc::now(),
+        };
+        let enroll = HubEvent::DeviceEnrolled {
+            owner_lct_id: owner, device_lct_id: dev, device_pubkey_hex: pk_hex.clone(),
+            device_class: DeviceType::Hardware, enrolled_at: Utc::now(), enrollment_version: 1,
+        };
+
+        // Enrolled → Active, class from the record.
+        let (_t, ledger) = make_ledger_with(vec![
+            (owner, &kp, genesis.clone()), (owner, &kp, enroll.clone()),
+        ]).await;
+        let state = HubState::project(&ledger);
+        let rec = state.enrolled_devices.get(&owner).and_then(|d| d.get(&dev)).unwrap();
+        assert_eq!(rec.device_class, DeviceType::Hardware);
+        assert_eq!(rec.status, DeviceStatus::Active);
+        assert_eq!(rec.pubkey_hex, pk_hex);
+
+        // Revoke flips status; the record stays (auditable), just doesn't count.
+        let (_t2, ledger2) = make_ledger_with(vec![
+            (owner, &kp, genesis), (owner, &kp, enroll),
+            (owner, &kp, HubEvent::DeviceRevoked { owner_lct_id: owner, device_lct_id: dev }),
+        ]).await;
+        let state2 = HubState::project(&ledger2);
+        assert_eq!(
+            state2.enrolled_devices[&owner][&dev].status, DeviceStatus::Revoked);
     }
 
     #[tokio::test]

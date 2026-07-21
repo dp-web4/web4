@@ -1475,6 +1475,9 @@ pub fn router(state: RestState) -> Router {
         // scan that could never match (member uuid is `published_by`, never a
         // doc.id). 404 when the member is unpinned (sovereign, not yet admitted).
         .route("/v1/hubs/:hub_id/members/:member_uuid/pubkey", get(get_member_pubkey))
+        .route("/v1/hubs/:hub_id/constellation/enroll", post(submit_device_enroll))
+        .route("/v1/hubs/:hub_id/constellation/revoke", post(submit_device_revoke))
+        .route("/v1/hubs/:hub_id/constellation/:owner_uuid/devices", get(list_enrolled_devices))
         .route("/v1/hubs/:hub_id/pairs/request", post(submit_pair_request))
         .route("/v1/hubs/:hub_id/pairs/:pair_id/confirm", post(submit_pair_confirm))
         .route("/v1/hubs/:hub_id/pairs/:pair_id/revoke", post(submit_pair_revoke))
@@ -3296,9 +3299,25 @@ async fn dispatch_channel(
                     message: "no pinned key for this member — enroll a key before presenting a constellation".to_string(),
                 });
             };
+            // Build the AUTHORITATIVE enrollment set from the projected ledger —
+            // the verifier resolves device key/class/status from here, never from
+            // the presented attestation (GPT self-authentication fix).
+            let enrolled = {
+                let projected = {
+                    let ledger = s.ledger.lock().await;
+                    hub_lib::state::HubState::project(&*ledger)
+                };
+                let mut set = hub_lib::constellation::EnrolledDeviceSet::new();
+                for devs in projected.enrolled_devices.values() {
+                    for d in devs.values() {
+                        set.insert(d.clone());
+                    }
+                }
+                set
+            };
             use hub_lib::constellation::VerifyError;
             let binding = s.constellations
-                .present(pair_id, &att, &pinned, chrono::Utc::now())
+                .present(pair_id, &att, &pinned, &enrolled, chrono::Utc::now())
                 .map_err(|e| match e {
                     // A foreign owner key on an authenticated channel is an
                     // authorization failure (memo rule 3: reject, not warn).
@@ -4967,6 +4986,164 @@ async fn pair_endpoint_preamble(
     }
 
     Ok(projected)
+}
+
+// ---------------------------------------------------------------------------
+// Constellation device enrollment (GPT self-authentication fix, Phase 2).
+// A member commits their OWN devices' pubkey + class as authoritative state the
+// constellation verifier resolves against — established before any challenge, so
+// a presented attestation can't self-authenticate its device facts.
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct DeviceEnrollPayload {
+    action: String, // "device_enroll"
+    device_lct_id: Uuid,
+    /// Hex-encoded 32-byte Ed25519 public key the device signs challenges with.
+    device_pubkey_hex: String,
+    device_class: hub_lib::constellation::DeviceType,
+}
+
+#[derive(Deserialize)]
+struct DeviceRevokePayload {
+    action: String, // "device_revoke"
+    device_lct_id: Uuid,
+}
+
+#[derive(Serialize)]
+struct DeviceEnrollAccepted {
+    owner_lct_id: Uuid,
+    device_lct_id: Uuid,
+    enrollment_version: u64,
+    entry_index: u64,
+    entry_hash: String,
+}
+
+/// `POST /constellation/enroll` — the owner (envelope signer, a member) enrolls
+/// one of their devices. Self-attested: the signer IS the owner. Re-enrolling the
+/// same device rotates its key/class and bumps the enrollment version.
+async fn submit_device_enroll(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<DeviceEnrollAccepted>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    // Same signed-member-write preamble the pair endpoints use (verify + member).
+    let projected = pair_endpoint_preamble(&s, &envelope).await?;
+    let payload: DeviceEnrollPayload = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("payload not a device_enroll: {e}")))?;
+    if payload.action != "device_enroll" {
+        return Err(ApiError::bad_request(format!(
+            "expected action=device_enroll, got {}", payload.action
+        )));
+    }
+    // Validate the device pubkey is well-formed 32-byte hex (fail-closed on junk).
+    let pk_bytes = hex::decode(&payload.device_pubkey_hex).ok()
+        .filter(|b| b.len() == 32)
+        .ok_or_else(|| ApiError::bad_request("device_pubkey_hex must be 32-byte hex".to_string()))?;
+    let _ = pk_bytes;
+    // Can't enroll a device as itself the owner (self-loop is meaningless).
+    if payload.device_lct_id == envelope.signer_lct_id {
+        return Err(ApiError::bad_request(
+            "a member cannot enroll itself as its own device".to_string()));
+    }
+    let owner = envelope.signer_lct_id;
+    // Next enrollment version = prior + 1 (monotone per device).
+    let next_version = projected
+        .enrolled_devices
+        .get(&owner)
+        .and_then(|d| d.get(&payload.device_lct_id))
+        .map(|d| d.enrollment_version + 1)
+        .unwrap_or(1);
+
+    let event = HubEvent::DeviceEnrolled {
+        owner_lct_id: owner,
+        device_lct_id: payload.device_lct_id,
+        device_pubkey_hex: payload.device_pubkey_hex,
+        device_class: payload.device_class,
+        enrolled_at: Utc::now(),
+        enrollment_version: next_version,
+    };
+    let (entry_index, entry_hash) = commit_pair_event(&s, event).await?;
+    Ok(Json(DeviceEnrollAccepted {
+        owner_lct_id: owner,
+        device_lct_id: payload.device_lct_id,
+        enrollment_version: next_version,
+        entry_index,
+        entry_hash,
+    }))
+}
+
+/// `POST /constellation/revoke` — the owner revokes one of their devices; its key
+/// stops contributing assurance immediately.
+async fn submit_device_revoke(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let projected = pair_endpoint_preamble(&s, &envelope).await?;
+    let payload: DeviceRevokePayload = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("payload not a device_revoke: {e}")))?;
+    if payload.action != "device_revoke" {
+        return Err(ApiError::bad_request(format!(
+            "expected action=device_revoke, got {}", payload.action
+        )));
+    }
+    let owner = envelope.signer_lct_id;
+    let is_enrolled = projected
+        .enrolled_devices
+        .get(&owner)
+        .map(|d| d.contains_key(&payload.device_lct_id))
+        .unwrap_or(false);
+    if !is_enrolled {
+        return Err(ApiError::bad_request(format!(
+            "device {} is not enrolled by {owner}", payload.device_lct_id
+        )));
+    }
+    let event = HubEvent::DeviceRevoked {
+        owner_lct_id: owner,
+        device_lct_id: payload.device_lct_id,
+    };
+    let (entry_index, entry_hash) = commit_pair_event(&s, event).await?;
+    Ok(Json(serde_json::json!({
+        "owner_lct_id": owner,
+        "device_lct_id": payload.device_lct_id,
+        "revoked": true,
+        "entry_index": entry_index,
+        "entry_hash": entry_hash,
+    })))
+}
+
+/// `GET /constellation/:owner_uuid/devices` — the owner's enrolled devices
+/// (read-only; the authoritative set the verifier resolves against).
+async fn list_enrolled_devices(
+    State(s): State<RestState>,
+    Path((hub_id, owner_uuid)): Path<(Uuid, Uuid)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let devices = {
+        let ledger = s.ledger.lock().await;
+        let projected = hub_lib::state::HubState::project(&*ledger);
+        projected
+            .enrolled_devices
+            .get(&owner_uuid)
+            .map(|d| d.values().cloned().collect::<Vec<_>>())
+            .unwrap_or_default()
+    };
+    Ok(Json(serde_json::json!({ "owner_lct_id": owner_uuid, "devices": devices })))
 }
 
 async fn submit_pair_request(
@@ -7484,11 +7661,43 @@ norms:
         Ok(open_resp(me, &hub_pub, pid, &resp.0.sealed))
     }
 
-    /// Review criterion 5: all three tiers derived over the live channel —
-    /// the tier comes from verified co-signs (memo rule 5), and each present
-    /// burns its challenge so each tier needs a fresh challenge.
+    /// Like `make_att` but with EXPLICIT device lct_ids (so the same devices can
+    /// be enrolled first). Post-enrollment-fix, the tier comes from the enrolled
+    /// record, so the presented device_type is cosmetic — set to Desktop.
+    fn make_att_devs(
+        owner_kp: &KeyPair,
+        owner_lct: Uuid,
+        devices: &[(Uuid, &KeyPair)],
+        nonce: &str,
+        issued_at: chrono::DateTime<chrono::Utc>,
+    ) -> ConstellationAttestation {
+        let roster: Vec<Uuid> = devices.iter().map(|(id, _)| *id).collect();
+        let payload = signing_payload(owner_lct, &roster, nonce, &issued_at);
+        ConstellationAttestation {
+            owner_lct_id: owner_lct,
+            owner_pubkey_hex: owner_kp.verifying_key().to_hex(),
+            member_lcts: roster.clone(),
+            challenge_nonce: nonce.to_string(),
+            issued_at,
+            claimed_assurance: AssuranceLevel::SingleDevice,
+            owner_signature: owner_kp.sign(&payload).to_hex(),
+            device_signatures: devices.iter().map(|(id, kp)| DeviceSignature {
+                lct_id: *id,
+                device_type: DeviceType::Desktop, // ignored — class comes from enrollment
+                pubkey_hex: kp.verifying_key().to_hex(),
+                signature: kp.sign(&payload).to_hex(),
+            }).collect(),
+        }
+    }
+
+    /// Review criterion 5, post-enrollment-fix: the tier is derived from the
+    /// AUTHORITATIVE enrollment registry, not the presented device facts. A device
+    /// only raises the tier if the owner ENROLLED it first; Hardware comes from the
+    /// enrolled class, never a presented label. Each present burns its challenge.
     #[tokio::test]
     async fn constellation_three_tiers_over_channel() {
+        use hub_lib::events::HubEvent;
+        use hub_lib::constellation::DeviceType as DT;
         let (_tmp, state) = fresh_rest_state(None).await; // open admission
         let hub_pub = state.signer.public_key().unwrap();
         let (me, my_lct) = (KeyPair::generate(), Uuid::new_v4());
@@ -7501,23 +7710,42 @@ norms:
         })).await.expect("admitted");
 
         let (k1, k2, khw) = (KeyPair::generate(), KeyPair::generate(), KeyPair::generate());
+        let (d1, d2, dhw) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        // Enroll the devices FIRST — this is the authoritative commitment the
+        // verifier resolves against. dhw is enrolled as Hardware.
+        for (dev, class, kp) in [
+            (d1, DT::Desktop, &k1), (d2, DT::Mobile, &k2), (dhw, DT::Hardware, &khw),
+        ] {
+            commit_pair_event(&state, HubEvent::DeviceEnrolled {
+                owner_lct_id: my_lct, device_lct_id: dev,
+                device_pubkey_hex: kp.verifying_key().to_hex(),
+                device_class: class, enrolled_at: chrono::Utc::now(), enrollment_version: 1,
+            }).await.unwrap();
+        }
 
         // No co-signs → single_device.
         let out = challenge_and_present(&state, &me, my_lct, Uuid::new_v4(), |n|
-            make_att(&me, my_lct, &[], &n, chrono::Utc::now())).await.unwrap();
+            make_att_devs(&me, my_lct, &[], &n, chrono::Utc::now())).await.unwrap();
         assert_eq!(out["assurance"], serde_json::json!("single_device"));
         assert!(out["valid_until"].is_string(), "binding carries its validity window");
 
-        // Two device co-signs → multi_device.
+        // Two ENROLLED device co-signs → multi_device.
         let out = challenge_and_present(&state, &me, my_lct, Uuid::new_v4(), |n|
-            make_att(&me, my_lct,
-                &[(DeviceType::Desktop, &k1), (DeviceType::Mobile, &k2)], &n, chrono::Utc::now())).await.unwrap();
+            make_att_devs(&me, my_lct, &[(d1, &k1), (d2, &k2)], &n, chrono::Utc::now())).await.unwrap();
         assert_eq!(out["assurance"], serde_json::json!("multi_device"));
 
-        // A hardware co-sign → hardware_backed.
+        // The ENROLLED-Hardware device co-signs → hardware_backed.
         let out = challenge_and_present(&state, &me, my_lct, Uuid::new_v4(), |n|
-            make_att(&me, my_lct, &[(DeviceType::Hardware, &khw)], &n, chrono::Utc::now())).await.unwrap();
+            make_att_devs(&me, my_lct, &[(dhw, &khw)], &n, chrono::Utc::now())).await.unwrap();
         assert_eq!(out["assurance"], serde_json::json!("hardware_backed"));
+
+        // The FORGE that used to work: an UNENROLLED device presented as Hardware
+        // with a fresh key must NOT raise the tier — now single_device.
+        let (kforge, dforge) = (KeyPair::generate(), Uuid::new_v4());
+        let out = challenge_and_present(&state, &me, my_lct, Uuid::new_v4(), |n|
+            make_att_devs(&me, my_lct, &[(dforge, &kforge)], &n, chrono::Utc::now())).await.unwrap();
+        assert_eq!(out["assurance"], serde_json::json!("single_device"),
+            "unenrolled device cannot forge a tier — the network hole is closed");
     }
 
     /// Review criteria 1–3: replay (burned nonce), bad nonce, stale issued_at,
