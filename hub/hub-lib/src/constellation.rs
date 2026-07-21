@@ -186,9 +186,17 @@ pub fn signing_payload(
 }
 
 impl ConstellationAttestation {
-    /// Rules 2–5: max-age, pinned-owner-key match, owner signature, device
-    /// co-signs (silent drop), derived tier. Rule 1 (nonce) and rule 6
-    /// (binding) live in [`ConstellationGate`], which owns the per-pair state.
+    /// The original presented-key verifier (device sigs checked against the
+    /// attestation's OWN `pubkey_hex`, class from its OWN `device_type`).
+    ///
+    /// **RETIRED from the API (2026-07-21): `#[cfg(test)]`-only.** It was the
+    /// network self-authentication hole — an owner-key holder could mint fresh
+    /// keys, label them `Hardware`, and forge a tier (GPT report). Every path now
+    /// uses [`Self::verify_enrolled`], which resolves device facts from the
+    /// authoritative enrollment registry. This is kept only so the historical
+    /// presented-key behavior tests still document what changed; a production
+    /// caller can't name it.
+    #[cfg(test)]
     pub fn verify(
         &self,
         pinned_owner_pubkey_hex: &str,
