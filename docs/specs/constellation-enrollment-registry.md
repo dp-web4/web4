@@ -46,10 +46,17 @@ possession) upgrades the tier to *verified* hardware; out of scope here, noted.
   breaks. Tests: every GPT exploit scenario (forged hardware, unenrolled device, revoked
   device, foreign key, duplicate sig, wrong owner, future-dated) now fails. Also fixes the
   future-dated `issued_at` gap (GPT #5).
-- **Phase 2 — hub-daemon.** `DeviceEnrolled`/`DeviceRevoked` events + `enrolled_devices`
-  projection + `POST /v1/hubs/:id/constellation/enroll` (owner-signed) +
-  `GET .../constellation/:owner/devices`. Switch `ConstellationGate::present` to
-  `verify_enrolled` against the projected set.
+- **Phase 2 (DONE) — hub-daemon.** `DeviceEnrolled`/`DeviceRevoked` events +
+  `enrolled_devices` projection (nested owner→device map, JSON-safe) +
+  `POST /constellation/enroll` + `POST /constellation/revoke` (owner-signed via the
+  pair preamble) + `GET /constellation/:owner/devices`. `ConstellationGate::present`
+  now builds the `EnrolledDeviceSet` from the projected ledger and calls
+  `verify_enrolled` — **the network hole is closed.** The e2e channel test enrolls
+  devices then presents, and asserts an UNENROLLED device presented as Hardware
+  yields `single_device`. **Behavior change:** members must ENROLL devices before
+  they raise the tier (previously presented keys sufficed) — intended; constellation
+  attestation isn't yet load-bearing, so this is the right time. 189 hub-lib + 67
+  hub-daemon tests pass.
 - **Phase 3 — hestia driver.** `hestia constellation enroll <device>` (owner-signs +
   submits) + retire the old presented-key `verify` once both sides resolve from enrollment.
 

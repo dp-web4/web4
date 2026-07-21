@@ -157,8 +157,6 @@ pub enum VerifyError {
     Stale,
     #[error("attestation is future-dated beyond allowed skew")]
     FutureDated,
-    #[error("device {0} is not an active enrolled device of this owner")]
-    DeviceNotEnrolled(Uuid),
     #[error("owner_pubkey_hex does not match this member's pinned key")]
     ForeignOwnerKey,
     #[error("owner signature does not verify")]
@@ -404,14 +402,23 @@ impl ConstellationGate {
         nonce
     }
 
+    /// Clock skew tolerated on `issued_at` before an attestation is rejected as
+    /// future-dated (GPT #5). Small — enough for honest cross-host drift.
+    pub const FUTURE_SKEW_SECS: i64 = 120;
+
     /// Rule 1 then rules 2–5 then rule 6. The outstanding challenge is burned
     /// on ANY presentation attempt — a failed verify forces a re-challenge
     /// rather than leaving the nonce open to further tries.
+    ///
+    /// Verifies against the AUTHORITATIVE enrollment registry (`enrolled`), not
+    /// the presented device facts — the GPT self-authentication fix. `enrolled`
+    /// is the hub's projected `enrolled_devices` (owner-committed pre-challenge).
     pub fn present(
         &self,
         pair_id: Uuid,
         att: &ConstellationAttestation,
         pinned_owner_pubkey_hex: &str,
+        enrolled: &EnrolledDeviceSet,
         now: DateTime<Utc>,
     ) -> Result<TierBinding, VerifyError> {
         let expected = self
@@ -424,7 +431,13 @@ impl ConstellationGate {
         if att.challenge_nonce != expected {
             return Err(VerifyError::NonceMismatch);
         }
-        let assurance = att.verify(pinned_owner_pubkey_hex, self.max_age, now)?;
+        let assurance = att.verify_enrolled(
+            pinned_owner_pubkey_hex,
+            enrolled,
+            self.max_age,
+            Duration::seconds(Self::FUTURE_SKEW_SECS),
+            now,
+        )?;
         let binding = TierBinding {
             assurance,
             bound_at: now,
@@ -649,26 +662,26 @@ mod tests {
 
         // No challenge yet → refused.
         let att = make_att(&owner_kp, owner, &[], &[], "whatever", now);
-        assert_eq!(gate.present(pair, &att, &pinned, now), Err(VerifyError::NoChallenge));
+        assert_eq!(gate.present(pair, &att, &pinned, &EnrolledDeviceSet::new(), now), Err(VerifyError::NoChallenge));
 
         // Mint → present → bound.
         let nonce = gate.mint_challenge(pair);
         let att = make_att(&owner_kp, owner, &[], &[], &nonce, now);
-        let binding = gate.present(pair, &att, &pinned, now).unwrap();
+        let binding = gate.present(pair, &att, &pinned, &EnrolledDeviceSet::new(), now).unwrap();
         assert_eq!(binding.assurance, AssuranceLevel::SingleDevice);
         assert_eq!(binding.valid_until, now + Duration::hours(1));
 
         // Replay of the same attestation → nonce already burned.
-        assert_eq!(gate.present(pair, &att, &pinned, now), Err(VerifyError::NoChallenge));
+        assert_eq!(gate.present(pair, &att, &pinned, &EnrolledDeviceSet::new(), now), Err(VerifyError::NoChallenge));
 
         // Wrong nonce burns the outstanding challenge too: present with a
         // stale nonce fails AND a follow-up with the right one now finds
         // nothing pending.
         let fresh = gate.mint_challenge(pair);
         let stale_att = make_att(&owner_kp, owner, &[], &[], "not-the-nonce", now);
-        assert_eq!(gate.present(pair, &stale_att, &pinned, now), Err(VerifyError::NonceMismatch));
+        assert_eq!(gate.present(pair, &stale_att, &pinned, &EnrolledDeviceSet::new(), now), Err(VerifyError::NonceMismatch));
         let right_att = make_att(&owner_kp, owner, &[], &[], &fresh, now);
-        assert_eq!(gate.present(pair, &right_att, &pinned, now), Err(VerifyError::NoChallenge));
+        assert_eq!(gate.present(pair, &right_att, &pinned, &EnrolledDeviceSet::new(), now), Err(VerifyError::NoChallenge));
     }
 
     // ---- verify_enrolled: the network self-authentication hole, closed ----
@@ -827,7 +840,7 @@ mod tests {
 
         let nonce = gate.mint_challenge(pair);
         let att = make_att(&owner_kp, owner, &[], &[], &nonce, now);
-        gate.present(pair, &att, &pinned, now).unwrap();
+        gate.present(pair, &att, &pinned, &EnrolledDeviceSet::new(), now).unwrap();
 
         assert!(gate.assurance(pair, now + Duration::minutes(59)).is_some());
         // Past valid_until → gone, never silently extended.

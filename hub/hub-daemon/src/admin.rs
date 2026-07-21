@@ -617,6 +617,13 @@ fn event_summary(event: &HubEvent) -> String {
         HubEvent::MemberKeyPinned { member_lct_id, .. } => {
             format!("Channel key pinned for {}", short(member_lct_id))
         }
+        HubEvent::DeviceEnrolled { owner_lct_id, device_lct_id, device_class, .. } => format!(
+            "Device {} ({:?}) enrolled by {}",
+            short(device_lct_id), device_class, short(owner_lct_id)
+        ),
+        HubEvent::DeviceRevoked { owner_lct_id, device_lct_id } => format!(
+            "Device {} revoked by {}", short(device_lct_id), short(owner_lct_id)
+        ),
         HubEvent::IntroRequested { from_lct, to_lct, .. } => {
             format!("Intro requested {} → {}", short(from_lct), short(to_lct))
         }
