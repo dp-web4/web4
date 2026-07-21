@@ -52,6 +52,72 @@ pub enum DeviceType {
     Hardware,
 }
 
+/// Whether an enrolled device's key is currently authorized to contribute
+/// assurance. A `Revoked`/`Suspended` device counts for NOTHING even if its key
+/// can still produce a valid signature. `#[serde(default)]` sites migrate to Active.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeviceStatus {
+    #[default]
+    Active,
+    Suspended,
+    Revoked,
+}
+
+/// The AUTHORITATIVE per-device record — the owner committed it (signed) BEFORE
+/// the challenge, and the hub resolves the verifier's device facts from here, not
+/// from the presented attestation (GPT constellation-assurance report, 2026-07-21).
+/// The presenter identifies a device and proves possession; it is never
+/// authoritative for that device's key or class.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnrolledDevice {
+    pub owner_lct_id: Uuid,
+    pub device_lct_id: Uuid,
+    /// The device's enrolled Ed25519 public key (hex) — signatures verify against
+    /// THIS, never against a key carried in the attestation.
+    pub pubkey_hex: String,
+    /// Owner-committed class. `Hardware` here means "the owner committed this as a
+    /// hardware device pre-challenge" — strictly stronger than a presenter label,
+    /// and a future `hardware_evidence` layer (TPM/Secure-Enclave) upgrades it to
+    /// *verified* hardware.
+    pub device_class: DeviceType,
+    #[serde(default)]
+    pub status: DeviceStatus,
+    pub enrolled_at: DateTime<Utc>,
+    #[serde(default)]
+    pub enrollment_version: u64,
+}
+
+/// The set of enrolled devices the verifier resolves against, keyed by
+/// `(owner_lct, device_lct)`. In the hub this is projected from the ledger's
+/// `DeviceEnrolled`/`DeviceRevoked` events (Phase 2); tests build it directly.
+#[derive(Clone, Debug, Default)]
+pub struct EnrolledDeviceSet {
+    devices: HashMap<(Uuid, Uuid), EnrolledDevice>,
+}
+
+impl EnrolledDeviceSet {
+    pub fn new() -> Self {
+        Self { devices: HashMap::new() }
+    }
+
+    pub fn insert(&mut self, d: EnrolledDevice) {
+        self.devices.insert((d.owner_lct_id, d.device_lct_id), d);
+    }
+
+    pub fn get(&self, owner: Uuid, device: Uuid) -> Option<&EnrolledDevice> {
+        self.devices.get(&(owner, device))
+    }
+
+    pub fn len(&self) -> usize {
+        self.devices.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.devices.is_empty()
+    }
+}
+
 /// A device co-signature over the same signing payload the owner signed —
 /// co-signing binds the device to the exact roster + nonce it vouched for.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -89,6 +155,10 @@ pub enum VerifyError {
     NonceMismatch,
     #[error("attestation expired — issued_at exceeds the max age window")]
     Stale,
+    #[error("attestation is future-dated beyond allowed skew")]
+    FutureDated,
+    #[error("device {0} is not an active enrolled device of this owner")]
+    DeviceNotEnrolled(Uuid),
     #[error("owner_pubkey_hex does not match this member's pinned key")]
     ForeignOwnerKey,
     #[error("owner signature does not verify")]
@@ -172,6 +242,89 @@ impl ConstellationAttestation {
         Ok(if has_hardware {
             AssuranceLevel::HardwareBacked
         } else if verified.len() >= 2 {
+            AssuranceLevel::MultiDevice
+        } else {
+            AssuranceLevel::SingleDevice
+        })
+    }
+
+    /// **The authoritative verifier** (GPT constellation-assurance fix, 2026-07-21).
+    /// Resolves every device fact — public key, class, status — from `enrolled`
+    /// (owner-committed BEFORE the challenge), NOT from the presented attestation.
+    /// The presented `pubkey_hex`/`device_type` are ignored entirely. Closes the
+    /// network self-authentication hole: an owner-key holder can no longer mint
+    /// fresh keys, label them `Hardware`, and inflate the tier.
+    ///
+    /// Differences from [`Self::verify`] (retained until Phase 3):
+    /// - each device signature is checked against the ENROLLED pubkey;
+    /// - device class (`Hardware`) comes from the ENROLLED record;
+    /// - only `Active` enrolled devices count; unenrolled/revoked add nothing;
+    /// - `issued_at` must be fresh AND not future-dated beyond `future_skew`
+    ///   (GPT #5 — a future timestamp yields a negative age that slips `> max_age`).
+    pub fn verify_enrolled(
+        &self,
+        pinned_owner_pubkey_hex: &str,
+        enrolled: &EnrolledDeviceSet,
+        max_age: Duration,
+        future_skew: Duration,
+        now: DateTime<Utc>,
+    ) -> Result<AssuranceLevel, VerifyError> {
+        let age = now - self.issued_at;
+        if age > max_age {
+            return Err(VerifyError::Stale);
+        }
+        if age < -future_skew {
+            return Err(VerifyError::FutureDated);
+        }
+        if !self.owner_pubkey_hex.eq_ignore_ascii_case(pinned_owner_pubkey_hex) {
+            return Err(VerifyError::ForeignOwnerKey);
+        }
+
+        let payload = signing_payload(
+            self.owner_lct_id,
+            &self.member_lcts,
+            &self.challenge_nonce,
+            &self.issued_at,
+        );
+
+        // Owner: verify against the PINNED (trusted) key.
+        let owner_pk = pubkey_from_hex(&self.owner_pubkey_hex)
+            .map_err(|e| VerifyError::Malformed(format!("owner pubkey: {e}")))?;
+        let owner_sig = sig_from_hex(&self.owner_signature)
+            .map_err(|e| VerifyError::Malformed(format!("owner signature: {e}")))?;
+        owner_pk
+            .verify(&payload, &owner_sig)
+            .map_err(|_| VerifyError::OwnerSignatureInvalid)?;
+
+        // Devices: resolve every fact from the enrollment registry. Collapse
+        // duplicate lct_ids so one device signed twice is still one. A signature
+        // whose device is unenrolled, revoked, or signed with a key other than its
+        // ENROLLED key contributes nothing (silent drop — rule 4 stays).
+        let mut counted: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
+        let mut classes: Vec<DeviceType> = Vec::new();
+        for ds in &self.device_signatures {
+            if !counted.insert(ds.lct_id) {
+                continue;
+            }
+            let Some(rec) = enrolled.get(self.owner_lct_id, ds.lct_id) else {
+                continue; // not an enrolled device of this owner — presenter can't invent one
+            };
+            if rec.status != DeviceStatus::Active {
+                continue; // revoked/suspended keys never count
+            }
+            let ok = pubkey_from_hex(&rec.pubkey_hex) // the ENROLLED key, not ds.pubkey_hex
+                .ok()
+                .zip(sig_from_hex(&ds.signature).ok())
+                .map(|(pk, sig)| pk.verify(&payload, &sig).is_ok())
+                .unwrap_or(false);
+            if ok {
+                classes.push(rec.device_class.clone()); // the ENROLLED class, not ds.device_type
+            }
+        }
+
+        Ok(if classes.iter().any(|c| *c == DeviceType::Hardware) {
+            AssuranceLevel::HardwareBacked
+        } else if classes.len() >= 2 {
             AssuranceLevel::MultiDevice
         } else {
             AssuranceLevel::SingleDevice
@@ -516,6 +669,151 @@ mod tests {
         assert_eq!(gate.present(pair, &stale_att, &pinned, now), Err(VerifyError::NonceMismatch));
         let right_att = make_att(&owner_kp, owner, &[], &[], &fresh, now);
         assert_eq!(gate.present(pair, &right_att, &pinned, now), Err(VerifyError::NoChallenge));
+    }
+
+    // ---- verify_enrolled: the network self-authentication hole, closed ----
+
+    const SKEW: Duration = Duration::minutes(2);
+    fn enroll(owner: Uuid, device: Uuid, class: DeviceType, status: DeviceStatus, kp: &KeyPair, at: DateTime<Utc>) -> EnrolledDevice {
+        EnrolledDevice {
+            owner_lct_id: owner, device_lct_id: device,
+            pubkey_hex: kp.verifying_key().to_hex(),
+            device_class: class, status, enrolled_at: at, enrollment_version: 1,
+        }
+    }
+
+    /// Baseline: two ACTIVE enrolled devices, both co-sign → MultiDevice from the
+    /// REGISTRY, not from anything presented.
+    #[test]
+    fn enrolled_verifier_accepts_two_active_devices() {
+        let owner_kp = KeyPair::generate();
+        let owner = Uuid::new_v4();
+        let (d1, d2) = (Uuid::new_v4(), Uuid::new_v4());
+        let (k1, k2) = (KeyPair::generate(), KeyPair::generate());
+        let now = Utc::now();
+        let mut reg = EnrolledDeviceSet::new();
+        reg.insert(enroll(owner, d1, DeviceType::Desktop, DeviceStatus::Active, &k1, now));
+        reg.insert(enroll(owner, d2, DeviceType::Mobile, DeviceStatus::Active, &k2, now));
+        let att = make_att(&owner_kp, owner, &[d1, d2],
+            &[(d1, DeviceType::Desktop, &k1), (d2, DeviceType::Mobile, &k2)], "n", now);
+        assert_eq!(
+            att.verify_enrolled(&owner_kp.verifying_key().to_hex(), &reg, Duration::minutes(5), SKEW, now).unwrap(),
+            AssuranceLevel::MultiDevice);
+    }
+
+    /// GPT #1: forged hardware. The enrolled device is Desktop; the attacker
+    /// appends a phantom "Hardware" co-sign with a fresh key + made-up device id.
+    /// It's unenrolled → ignored; the tier comes from the enrolled Desktop.
+    #[test]
+    fn enrolled_verifier_rejects_forged_hardware() {
+        let owner_kp = KeyPair::generate();
+        let owner = Uuid::new_v4();
+        let d1 = Uuid::new_v4();
+        let k1 = KeyPair::generate();
+        let now = Utc::now();
+        let mut reg = EnrolledDeviceSet::new();
+        reg.insert(enroll(owner, d1, DeviceType::Desktop, DeviceStatus::Active, &k1, now));
+        // Attacker appends a phantom Hardware device signed by a brand-new key.
+        let phantom = Uuid::new_v4();
+        let pk = KeyPair::generate();
+        let att = make_att(&owner_kp, owner, &[d1, phantom],
+            &[(d1, DeviceType::Desktop, &k1), (phantom, DeviceType::Hardware, &pk)], "n", now);
+        assert_eq!(
+            att.verify_enrolled(&owner_kp.verifying_key().to_hex(), &reg, Duration::minutes(5), SKEW, now).unwrap(),
+            AssuranceLevel::SingleDevice, "phantom Hardware is unenrolled → must not count");
+    }
+
+    /// Class comes from the ENROLLED record: a device enrolled as Desktop but
+    /// PRESENTED as Hardware does not yield HardwareBacked.
+    #[test]
+    fn enrolled_verifier_takes_class_from_registry_not_attestation() {
+        let owner_kp = KeyPair::generate();
+        let owner = Uuid::new_v4();
+        let d1 = Uuid::new_v4();
+        let k1 = KeyPair::generate();
+        let now = Utc::now();
+        let mut reg = EnrolledDeviceSet::new();
+        reg.insert(enroll(owner, d1, DeviceType::Desktop, DeviceStatus::Active, &k1, now));
+        // Present the real device but LIE that it's Hardware.
+        let att = make_att(&owner_kp, owner, &[d1],
+            &[(d1, DeviceType::Hardware, &k1)], "n", now);
+        assert_eq!(
+            att.verify_enrolled(&owner_kp.verifying_key().to_hex(), &reg, Duration::minutes(5), SKEW, now).unwrap(),
+            AssuranceLevel::SingleDevice, "enrolled class (Desktop) wins over presented (Hardware)");
+    }
+
+    /// A revoked device contributes nothing even though its key still signs.
+    #[test]
+    fn enrolled_verifier_excludes_revoked() {
+        let owner_kp = KeyPair::generate();
+        let owner = Uuid::new_v4();
+        let (d1, d2) = (Uuid::new_v4(), Uuid::new_v4());
+        let (k1, k2) = (KeyPair::generate(), KeyPair::generate());
+        let now = Utc::now();
+        let mut reg = EnrolledDeviceSet::new();
+        reg.insert(enroll(owner, d1, DeviceType::Desktop, DeviceStatus::Active, &k1, now));
+        reg.insert(enroll(owner, d2, DeviceType::Mobile, DeviceStatus::Revoked, &k2, now)); // revoked
+        let att = make_att(&owner_kp, owner, &[d1, d2],
+            &[(d1, DeviceType::Desktop, &k1), (d2, DeviceType::Mobile, &k2)], "n", now);
+        assert_eq!(
+            att.verify_enrolled(&owner_kp.verifying_key().to_hex(), &reg, Duration::minutes(5), SKEW, now).unwrap(),
+            AssuranceLevel::SingleDevice, "a revoked device must not count");
+    }
+
+    /// A device signing with a key OTHER than its enrolled key is not counted.
+    #[test]
+    fn enrolled_verifier_rejects_foreign_device_key() {
+        let owner_kp = KeyPair::generate();
+        let owner = Uuid::new_v4();
+        let d1 = Uuid::new_v4();
+        let enrolled_key = KeyPair::generate();
+        let foreign = KeyPair::generate();
+        let now = Utc::now();
+        let mut reg = EnrolledDeviceSet::new();
+        reg.insert(enroll(owner, d1, DeviceType::Desktop, DeviceStatus::Active, &enrolled_key, now));
+        // The attestation co-signs d1 with a FOREIGN key (not the enrolled one).
+        let att = make_att(&owner_kp, owner, &[d1], &[(d1, DeviceType::Desktop, &foreign)], "n", now);
+        assert_eq!(
+            att.verify_enrolled(&owner_kp.verifying_key().to_hex(), &reg, Duration::minutes(5), SKEW, now).unwrap(),
+            AssuranceLevel::SingleDevice, "foreign key fails against the enrolled key");
+    }
+
+    /// GPT #3: duplicate signature entries never inflate the count.
+    #[test]
+    fn enrolled_verifier_collapses_duplicates() {
+        let owner_kp = KeyPair::generate();
+        let owner = Uuid::new_v4();
+        let d1 = Uuid::new_v4();
+        let k1 = KeyPair::generate();
+        let now = Utc::now();
+        let mut reg = EnrolledDeviceSet::new();
+        reg.insert(enroll(owner, d1, DeviceType::Desktop, DeviceStatus::Active, &k1, now));
+        let att = make_att(&owner_kp, owner, &[d1],
+            &[(d1, DeviceType::Desktop, &k1), (d1, DeviceType::Desktop, &k1)], "n", now);
+        assert_eq!(
+            att.verify_enrolled(&owner_kp.verifying_key().to_hex(), &reg, Duration::minutes(5), SKEW, now).unwrap(),
+            AssuranceLevel::SingleDevice, "one device, duplicated, is still one");
+    }
+
+    /// GPT #4 + #5: wrong owner key rejected; future-dated rejected.
+    #[test]
+    fn enrolled_verifier_rejects_wrong_owner_and_future_dated() {
+        let owner_kp = KeyPair::generate();
+        let owner = Uuid::new_v4();
+        let now = Utc::now();
+        let reg = EnrolledDeviceSet::new();
+
+        let att = make_att(&owner_kp, owner, &[], &[], "n", now);
+        let foreign = KeyPair::generate().verifying_key().to_hex();
+        assert_eq!(
+            att.verify_enrolled(&foreign, &reg, Duration::minutes(5), SKEW, now),
+            Err(VerifyError::ForeignOwnerKey));
+
+        // issued_at an hour in the future → FutureDated (negative age slips > max_age).
+        let att = make_att(&owner_kp, owner, &[], &[], "n", now + Duration::hours(1));
+        assert_eq!(
+            att.verify_enrolled(&owner_kp.verifying_key().to_hex(), &reg, Duration::minutes(5), SKEW, now),
+            Err(VerifyError::FutureDated));
     }
 
     #[test]
