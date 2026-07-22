@@ -2322,7 +2322,10 @@ async fn read_state(
     }
     let ledger = s.ledger.lock().await;
     let state = HubState::project(&ledger);
-    let society = load_society(s.paths.root.clone()).await
+    // Via the in-memory-keyed store, NOT the free `init::load_society`: the
+    // passphrase is dropped at ignition, so re-opening from disk keyless fails
+    // closed on an encrypted hub and 500s this read for the whole fleet.
+    let society = s.society().await
         .map_err(ApiError::internal)?;
     let filled_roles: Vec<RoleSnapshot> = society.roles.iter()
         .map(|(name, ra)| RoleSnapshot {
@@ -6063,6 +6066,38 @@ mod lct_registry_tests {
         assert!(
             after_drain.notifications.lock().await.is_empty(),
             "drained mailbox stays empty after restart"
+        );
+    }
+
+    /// Regression: `GET /v1/hubs/{id}/state` on an **ignited but encrypted** hub.
+    /// `read_state` used to call the free `init::load_society`, which re-opens the
+    /// store from disk keyless — but the passphrase is dropped at ignition, so the
+    /// endpoint failed closed with a 500 on every post-encryption hub (observed live
+    /// on the Web4 Fleet hub, 2026-07-22). It must read through the in-memory-keyed
+    /// `RestState::society()`, the same seam `open_store` gives every other handler.
+    #[tokio::test]
+    async fn read_state_serves_an_ignited_encrypted_hub() {
+        let (_tmp, hub_dir, state) = fresh_sqlite_state().await;
+
+        // Encrypt the state store at rest (first keyed open migrates it in place),
+        // then hand the daemon the derived key the way ignition does: in memory,
+        // with no HUB_PASSPHRASE in the environment. The already-open ledger is a
+        // pure in-memory projection, so it is unaffected by the migration.
+        let key = hub_lib::store::derive_store_key(&hub_dir, "correct horse battery staple").unwrap();
+        drop(hub_lib::store::open_hub_store_with_key(&hub_dir, Some(key)).unwrap());
+        assert!(
+            load_society(&hub_dir).await.is_err(),
+            "precondition: the keyless disk re-open must fail on an encrypted store"
+        );
+        *state.store_key.write().await = Some(zeroize::Zeroizing::new(key));
+
+        let out = read_state(State(state.clone()), Path(state.hub_id))
+            .await
+            .expect("an ignited hub must serve /state even though its store is encrypted");
+        assert_eq!(out.0.hub_id, state.hub_id);
+        assert!(
+            out.0.filled_roles.iter().any(|r| r.role == "sovereign"),
+            "roles come from the society read — the part that used to fail"
         );
     }
 
