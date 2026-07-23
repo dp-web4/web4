@@ -1540,6 +1540,7 @@ pub async fn lock_gate(
     if s.is_locked() {
         let path = req.uri().path();
         let allowed = path == "/.well-known/web4-hub.json"
+            || path == "/"                                             // landing page: its locked branch explains 🔒 status
             || path.ends_with("/unlock")                              // tier-1 ignition only
             || path.ends_with("/law")                                  // signed law is tier-0
             || path.ends_with("/.well-known/openid-credential-issuer"); // public issuer metadata
@@ -1566,10 +1567,22 @@ pub async fn lock_gate(
 /// authorization seam, many installation-selected factors.
 #[derive(Clone)]
 pub struct OperatorAuth {
-    /// `Some(token)` in token mode; `None` in loopback-only mode.
-    token: Option<String>,
-    /// Hub directory, needed to check token TTL sidecar file.
+    /// True in token mode (HUB_OPERATOR_AUTH=token); false = loopback-only.
+    token_mode: bool,
+    /// Token cache keyed by file mtime. The FILE is canonical: rotation
+    /// rewrites the file and a running daemon picks the new token up on the
+    /// next request — the original in-memory-once design kept accepting the
+    /// OLD token (and rejecting the new one) until restart, and rotation
+    /// under TTL then EXTENDED the old token's life (review 2026-07-23).
+    cache: std::sync::Arc<std::sync::RwLock<TokenCache>>,
+    /// Hub directory, needed to locate the token + TTL sidecar files.
     hub_dir: std::path::PathBuf,
+}
+
+#[derive(Default)]
+struct TokenCache {
+    token: String,
+    mtime: Option<std::time::SystemTime>,
 }
 
 impl OperatorAuth {
@@ -1582,41 +1595,89 @@ impl OperatorAuth {
     /// file or generate one (0600) under `hub_dir`. Fail-closed: an unreadable
     /// token file is an error, not a silent downgrade to loopback-only.
     pub fn from_env(hub_dir: &std::path::Path) -> anyhow::Result<Self> {
-        use anyhow::Context;
         match std::env::var("HUB_OPERATOR_AUTH").ok().as_deref() {
             Some("token") => {
                 let path = hub_dir.join(Self::TOKEN_FILE);
-                let token = if path.exists() {
-                    std::fs::read_to_string(&path)
-                        .with_context(|| format!("reading operator token {}", path.display()))?
-                        .trim()
-                        .to_string()
-                } else {
-                    Self::generate_and_write(&path)?
-                };
-                if token.is_empty() {
-                    anyhow::bail!("operator token file {} is empty", path.display());
+                if !path.exists() {
+                    Self::generate_and_write(&path)?;
                 }
-                Ok(Self { token: Some(token), hub_dir: hub_dir.to_path_buf() })
+                let auth = Self {
+                    token_mode: true,
+                    cache: Default::default(),
+                    hub_dir: hub_dir.to_path_buf(),
+                };
+                // Prime the cache now so a bad token file fails at startup,
+                // not on the first operator request.
+                if auth.current_token().is_none() {
+                    anyhow::bail!(
+                        "operator token file {} is empty or unreadable",
+                        path.display()
+                    );
+                }
+                Ok(auth)
             }
             // Default (unset or "loopback"): loopback-only.
-            _ => Ok(Self { token: None, hub_dir: hub_dir.to_path_buf() }),
+            _ => Ok(Self {
+                token_mode: false,
+                cache: Default::default(),
+                hub_dir: hub_dir.to_path_buf(),
+            }),
         }
     }
 
-    /// Generate a fresh 256-bit hex token, write it to `path` with 0600
-    /// permissions, record its creation time, and return the token. Prints a
-    /// masked summary — the full secret is never emitted to stdout.
+    /// True when a bearer token is required (token mode).
+    pub fn token_mode(&self) -> bool {
+        self.token_mode
+    }
+
+    /// The current token, re-read from the file when its mtime changes so
+    /// rotation takes effect on a running daemon. Fail-closed: an unreadable
+    /// or empty file yields `None` (every request rejected), never a stale
+    /// cached token.
+    fn current_token(&self) -> Option<String> {
+        if !self.token_mode {
+            return None;
+        }
+        let path = self.hub_dir.join(Self::TOKEN_FILE);
+        let mtime = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
+        {
+            let cache = self.cache.read().ok()?;
+            if cache.mtime.is_some() && cache.mtime == mtime && !cache.token.is_empty() {
+                return Some(cache.token.clone());
+            }
+        }
+        // Cache miss or file changed: re-read. mtime captured BEFORE the read
+        // so a write racing the read at worst causes one extra re-read.
+        let token = std::fs::read_to_string(&path).ok()?.trim().to_string();
+        if token.is_empty() {
+            tracing::warn!("operator token file {} is empty — rejecting", path.display());
+            return None;
+        }
+        if let Ok(mut cache) = self.cache.write() {
+            cache.token = token.clone();
+            cache.mtime = mtime;
+        }
+        Some(token)
+    }
+
+    /// Generate a fresh 256-bit hex token, write it to `path` atomically
+    /// (0600 tmp + rename — no 0644 window, no truncated-file crash state),
+    /// record its creation time, and return the token. THIS function prints
+    /// only the fingerprint; the caller decides whether to display the full
+    /// secret (e.g. one-time rotation output).
     pub fn generate_and_write(path: &std::path::Path) -> anyhow::Result<String> {
         use anyhow::Context;
         let t = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-        std::fs::write(path, &t)
-            .with_context(|| format!("writing operator token {}", path.display()))?;
+        let tmp = path.with_extension("tmp");
+        std::fs::write(&tmp, &t)
+            .with_context(|| format!("writing operator token {}", tmp.display()))?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+            std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
         }
+        std::fs::rename(&tmp, path)
+            .with_context(|| format!("installing operator token {}", path.display()))?;
         // Record creation time so a TTL can be enforced later.
         if let Some(parent) = path.parent() {
             let created_path = parent.join(Self::TOKEN_CREATED_FILE);
@@ -1700,18 +1761,21 @@ impl OperatorAuth {
 
     /// Constant-time token check (no early-exit timing oracle on the header compare).
     fn token_ok(&self, provided: Option<&str>) -> bool {
-        match (&self.token, provided) {
-            (Some(expected), Some(got)) => {
-                let (a, b) = (expected.as_bytes(), got.as_bytes());
-                let mut diff = a.len() ^ b.len();
-                for i in 0..a.len().max(b.len()) {
-                    diff |= (*a.get(i).unwrap_or(&0) ^ *b.get(i).unwrap_or(&0)) as usize;
-                }
-                diff == 0
-            }
+        match (self.current_token(), provided) {
+            (Some(expected), Some(got)) => constant_time_eq(expected.as_bytes(), got.as_bytes()),
             _ => false,
         }
     }
+}
+
+/// Constant-time byte equality — length differences and content differences
+/// accumulate into one flag with no early exit.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    let mut diff = a.len() ^ b.len();
+    for i in 0..a.len().max(b.len()) {
+        diff |= (*a.get(i).unwrap_or(&0) ^ *b.get(i).unwrap_or(&0)) as usize;
+    }
+    diff == 0
 }
 
 /// H-004 operator-plane auth middleware — runs on the loopback operator listener.
@@ -1727,7 +1791,7 @@ pub async fn operator_auth_gate(
     if !peer.ip().is_loopback() {
         return (StatusCode::FORBIDDEN, "operator plane is local-only").into_response();
     }
-    if auth.token.is_some() {
+    if auth.token_mode() {
         // P0: optional operator-token TTL. Checked here so an expired token is
         // rejected before any handler runs, with a clear rotate instruction.
         if let Some(reason) = OperatorAuth::ttl_expired(&auth.hub_dir) {
@@ -1802,14 +1866,55 @@ mod operator_auth_tests {
 
     #[test]
     fn token_ok_is_constant_time_and_length_safe() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(OperatorAuth::TOKEN_FILE), "exact").unwrap();
         let auth = OperatorAuth {
-            token: Some("exact".to_string()),
-            hub_dir: std::path::PathBuf::from("."),
+            token_mode: true,
+            cache: Default::default(),
+            hub_dir: tmp.path().to_path_buf(),
         };
         assert!(auth.token_ok(Some("exact")));
         assert!(!auth.token_ok(Some("exac")));
         assert!(!auth.token_ok(Some("exact!")));
         assert!(!auth.token_ok(None));
+        // The compare primitive itself, directly:
+        assert!(constant_time_eq(b"abc", b"abc"));
+        assert!(!constant_time_eq(b"abc", b"ab"));
+        assert!(!constant_time_eq(b"abc", b"abd"));
+    }
+
+    #[test]
+    fn rotation_takes_effect_on_a_running_auth_no_restart() {
+        // The review finding (2026-07-23): the original design cached the
+        // token in memory once, so a rotated file left the daemon accepting
+        // the OLD token and rejecting the NEW one until restart. The file is
+        // now canonical (mtime-cached) — this test drives that contract.
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join(OperatorAuth::TOKEN_FILE);
+        std::fs::write(&path, "first-token").unwrap();
+        let auth = OperatorAuth {
+            token_mode: true,
+            cache: Default::default(),
+            hub_dir: tmp.path().to_path_buf(),
+        };
+        assert!(auth.token_ok(Some("first-token")), "initial token accepted");
+
+        // Rotate out-of-process (what `hub rotate-operator-token` does).
+        // Ensure the mtime actually changes even on coarse-timestamp
+        // filesystems by nudging it explicitly.
+        let (new_token, _fp) = OperatorAuth::rotate(tmp.path()).unwrap();
+        let f = std::fs::OpenOptions::new().append(true).open(&path).unwrap();
+        f.set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(2))
+            .unwrap();
+
+        assert!(
+            !auth.token_ok(Some("first-token")),
+            "old token stops working as soon as the file changes"
+        );
+        assert!(
+            auth.token_ok(Some(&new_token)),
+            "new token accepted by the SAME running auth — no restart"
+        );
     }
 }
 
@@ -8517,9 +8622,12 @@ norms:
 
     #[test]
     fn operator_auth_token_check_exact_and_length_safe() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(OperatorAuth::TOKEN_FILE), "s3cret-token").unwrap();
         let auth = OperatorAuth {
-            token: Some("s3cret-token".to_string()),
-            hub_dir: std::path::PathBuf::from("."),
+            token_mode: true,
+            cache: Default::default(),
+            hub_dir: tmp.path().to_path_buf(),
         };
         assert!(auth.token_ok(Some("s3cret-token")));
         assert!(!auth.token_ok(Some("s3cret-toke")), "shorter rejected");
@@ -8527,8 +8635,12 @@ norms:
         assert!(!auth.token_ok(Some("wrong")), "wrong rejected");
         assert!(!auth.token_ok(None), "missing header rejected");
         assert!(
-            !OperatorAuth { token: None, hub_dir: std::path::PathBuf::from(".") }
-                .token_ok(Some("x")),
+            !OperatorAuth {
+                token_mode: false,
+                cache: Default::default(),
+                hub_dir: tmp.path().to_path_buf(),
+            }
+            .token_ok(Some("x")),
             "loopback mode has no token"
         );
     }
@@ -8537,7 +8649,7 @@ norms:
     fn operator_auth_defaults_to_loopback() {
         std::env::remove_var("HUB_OPERATOR_AUTH");
         let tmp = tempfile::tempdir().unwrap();
-        assert!(OperatorAuth::from_env(tmp.path()).unwrap().token.is_none(),
+        assert!(!OperatorAuth::from_env(tmp.path()).unwrap().token_mode(),
             "unset HUB_OPERATOR_AUTH → loopback-only");
     }
 

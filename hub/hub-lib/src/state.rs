@@ -727,7 +727,18 @@ impl HubState {
                         if v.is_empty() {
                             member.profile.remove(k);
                         } else {
-                            let visibility = visibilities.get(k).copied().unwrap_or_default();
+                            // A value-only update PRESERVES the field's existing
+                            // tier (the documented contract) — defaulting an
+                            // omitted tier to Members silently disclosed a
+                            // SelfOnly field to all members (review 2026-07-23).
+                            // Only a brand-new field defaults to Members.
+                            let visibility = visibilities.get(k).copied().unwrap_or_else(|| {
+                                member
+                                    .profile
+                                    .get(k)
+                                    .map(|f| f.visibility)
+                                    .unwrap_or_default()
+                            });
                             member.profile.insert(k.clone(), ProfileField {
                                 value: v.clone(),
                                 visibility,
@@ -1562,6 +1573,60 @@ mod tests {
             }
             _ => panic!("expected PairingRevoked"),
         }
+    }
+
+    #[tokio::test]
+    async fn value_only_profile_update_preserves_visibility_tier() {
+        // Review 2026-07-23: a value update that omits the tier used to reset
+        // a SelfOnly field to Members — silent re-disclosure. The contract:
+        // omitted tier on an EXISTING field preserves it; a NEW field
+        // defaults to Members.
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let owner = sov.lct.id;
+        let genesis = HubEvent::Genesis {
+            hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+            founding_sovereign_lct_id: owner, created_at: Utc::now(),
+        };
+        let mut set_secret = BTreeMap::new();
+        set_secret.insert("phone".to_string(), "555-0100".to_string());
+        let mut set_secret_vis = BTreeMap::new();
+        set_secret_vis.insert("phone".to_string(), ProfileVisibility::SelfOnly);
+        let create = HubEvent::MemberProfileUpdated {
+            member_lct_id: owner,
+            fields: set_secret,
+            visibilities: set_secret_vis,
+            updated_by: owner,
+        };
+        // Value-only update: NO visibilities map (what a client that doesn't
+        // resend tiers produces).
+        let mut new_value = BTreeMap::new();
+        new_value.insert("phone".to_string(), "555-0199".to_string());
+        let mut brand_new = new_value.clone();
+        brand_new.insert("website".to_string(), "example.org".to_string());
+        let update = HubEvent::MemberProfileUpdated {
+            member_lct_id: owner,
+            fields: brand_new,
+            visibilities: BTreeMap::new(),
+            updated_by: owner,
+        };
+        let (_t, ledger) = make_ledger_with(vec![
+            (owner, &kp, genesis), (owner, &kp, create), (owner, &kp, update),
+        ]).await;
+        let state = HubState::project(&ledger);
+        let member = state.members.get(&owner).unwrap();
+        let phone = member.profile.get("phone").unwrap();
+        assert_eq!(phone.value, "555-0199", "value updated");
+        assert_eq!(
+            phone.visibility,
+            ProfileVisibility::SelfOnly,
+            "omitted tier PRESERVES the existing SelfOnly — no silent re-disclosure"
+        );
+        assert_eq!(
+            member.profile.get("website").unwrap().visibility,
+            ProfileVisibility::Members,
+            "brand-new field defaults to Members"
+        );
     }
 
     #[test]

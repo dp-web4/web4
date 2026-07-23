@@ -174,6 +174,9 @@ impl ApiError {
     fn forbidden(msg: impl Into<String>) -> Self {
         Self { status: StatusCode::FORBIDDEN, message: msg.into() }
     }
+    fn bad_request(msg: impl Into<String>) -> Self {
+        Self { status: StatusCode::BAD_REQUEST, message: msg.into() }
+    }
     fn accepted_escalation(msg: impl Into<String>) -> Self {
         Self { status: StatusCode::ACCEPTED, message: msg.into() }
     }
@@ -285,7 +288,9 @@ async fn find_skill(
 ) -> Result<Json<FindSkillResponse>, ApiError> {
     const MAX_QUERY_LEN: usize = 256;
     if q.q.len() > MAX_QUERY_LEN {
-        return Err(ApiError::forbidden(format!(
+        // 400, not 403: an over-long query is malformed input, not a
+        // permissions failure (matches the rest.rs channel-side check).
+        return Err(ApiError::bad_request(format!(
             "skill query too long (max {} chars)",
             MAX_QUERY_LEN
         )));

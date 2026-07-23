@@ -980,19 +980,16 @@ async fn run_up(
     }
 
     // 4. Operator token for token archetypes (0600; reuse an existing one).
+    // Minted via OperatorAuth::generate_and_write — the ONE code path that
+    // also records `operator.token.created_at`, so a hub provisioned here can
+    // later enable HUB_OPERATOR_TOKEN_TTL_SECONDS without being locked out
+    // (the TTL check fail-closes on a missing creation timestamp).
     let token: Option<String> = if arch.operator_auth == "token" {
         let tpath = hub_dir.join("operator.token");
         if tpath.exists() {
             Some(std::fs::read_to_string(&tpath)?.trim().to_string())
         } else {
-            let t = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-            std::fs::write(&tpath, &t).with_context(|| format!("writing {}", tpath.display()))?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                std::fs::set_permissions(&tpath, std::fs::Permissions::from_mode(0o600))?;
-            }
-            Some(t)
+            Some(crate::rest::OperatorAuth::generate_and_write(&tpath)?)
         }
     } else {
         None
@@ -1359,8 +1356,14 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         .merge(rest_router(rest_state))
         .merge(admin::router(admin_state));
     if let Some(limiter) = &rate_limiter {
-        app = app.layer(axum::Extension(limiter.clone()))
-            .layer(axum::middleware::from_fn(crate::rate_limit::layer));
+        // State-based wiring (NOT an Extension): the original extension-based
+        // stack layered the middleware outside the Extension layer, so the
+        // lookup always missed and the limiter silently never ran (review
+        // 2026-07-23). With state, the limiter's presence is structural.
+        app = app.layer(axum::middleware::from_fn_with_state(
+            limiter.clone(),
+            crate::rate_limit::layer,
+        ));
     }
     // Fail-closed lock-gate over the whole surface: while locked, only the
     // tier-0 allowlist (unlock / well-known / law / issuer metadata) is served.
@@ -1398,8 +1401,13 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             // never proxied) — residual-review P0.
             .merge(mcp_write_router(mcp_state));
         if let Some(limiter) = &rate_limiter {
-            operator_app = operator_app.layer(axum::Extension(limiter.clone()))
-                .layer(axum::middleware::from_fn(crate::rate_limit::layer));
+            // Same state-based wiring as the public plane. Loopback callers
+            // (which is all of this plane) get the loopback rate multiplier,
+            // so operator automation is advantaged but still bounded.
+            operator_app = operator_app.layer(axum::middleware::from_fn_with_state(
+                limiter.clone(),
+                crate::rate_limit::layer,
+            ));
         }
         let operator_app = operator_app
             .layer(axum::middleware::from_fn_with_state(operator_gate, crate::rest::lock_gate))
@@ -1694,7 +1702,11 @@ async fn run_rotate_operator_token(hub_dir: PathBuf) -> Result<()> {
     println!("  Fingerprint: {fingerprint}");
     println!("  New token:   {new_token}");
     println!();
-    println!("The old token is invalid immediately. Restart `hub serve` to load the new token.");
+    println!(
+        "A running `hub serve` picks the new token up on its next operator request \
+         (the token file is canonical, cached by mtime) — the old token stops \
+         working from that moment; no restart needed."
+    );
     Ok(())
 }
 
@@ -1706,7 +1718,7 @@ async fn run_export_public_identity(hub_dir: PathBuf) -> Result<()> {
     let config = HubConfig::load(HubPaths::new(&hub_dir).config())?;
 
     let (hub_id, hub_name, founding, pubkey_hex): (Uuid, String, Uuid, Option<String>) =
-        if config.storage.is_dynamodb() {
+        if config.storage.as_ref().is_some_and(|s| s.is_dynamodb()) {
             let hub_id = config.hub.id.ok_or_else(|| anyhow::anyhow!(
                 "dynamodb backend requires hub.id in config.toml"
             ))?;

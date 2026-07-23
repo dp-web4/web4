@@ -36,8 +36,14 @@ pub struct HubConfig {
     pub hub: HubSection,
     pub daemon: DaemonSection,
     pub sovereign: SovereignSection,
-    #[serde(default)]
-    pub storage: StorageSection,
+    /// `None` = no `[storage]` section in config.toml. This MUST stay an
+    /// `Option`: every hub initialized before the section existed has a
+    /// config without it, and defaulting the absent case to `file` silently
+    /// ignores an existing sqlite `hub.db` — the store resolves empty and
+    /// init's idempotency probe can then approve a re-genesis over a live
+    /// society (review 2026-07-23). Absent → disk-based auto-detection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage: Option<StorageSection>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -255,7 +261,7 @@ impl HubConfig {
                 lct_path: Some(sovereign_lct_path),
                 ..Default::default()
             },
-            storage: StorageSection::default(),
+            storage: None,
         }
     }
 
@@ -275,7 +281,7 @@ impl HubConfig {
                 lct_id: Some(lct_id),
                 pubkey_hex: Some(pubkey_hex),
             },
-            storage: StorageSection::default(),
+            storage: None,
         }
     }
 
@@ -338,8 +344,7 @@ mod tests {
         assert_eq!(loaded.hub.id, None);
         assert_eq!(loaded.daemon.mcp_port, DEFAULT_MCP_PORT);
         assert_eq!(loaded.sovereign.lct_path, Some(PathBuf::from("../sovereign.json")));
-        assert_eq!(loaded.storage.backend, "file");
-        assert!(loaded.storage.dynamodb_table.is_none());
+        assert!(loaded.storage.is_none(), "no [storage] section -> None (disk auto-detection)");
     }
 
     #[tokio::test]
@@ -365,10 +370,11 @@ dynamodb_endpoint = "http://localhost:8000"
 "#).unwrap();
         let loaded = HubConfig::load(&cfg_path).unwrap();
         assert_eq!(loaded.hub.id, Some(Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap()));
-        assert_eq!(loaded.storage.backend, "dynamodb");
-        assert_eq!(loaded.storage.dynamodb_table.as_deref(), Some("web4-hubs"));
-        assert_eq!(loaded.storage.dynamodb_region.as_deref(), Some("us-east-1"));
-        assert_eq!(loaded.storage.dynamodb_endpoint.as_deref(), Some("http://localhost:8000"));
+        let storage = loaded.storage.expect("[storage] present -> Some");
+        assert_eq!(storage.backend, "dynamodb");
+        assert_eq!(storage.dynamodb_table.as_deref(), Some("web4-hubs"));
+        assert_eq!(storage.dynamodb_region.as_deref(), Some("us-east-1"));
+        assert_eq!(storage.dynamodb_endpoint.as_deref(), Some("http://localhost:8000"));
     }
 
     #[tokio::test]

@@ -279,7 +279,7 @@ pub async fn init_hub(args: InitArgs) -> Result<InitResult> {
             lct_path: Some(sovereign_abs),
             ..Default::default()
         },
-        storage: storage_section,
+        storage: Some(storage_section),
     };
     config.save(paths.config())
         .with_context(|| format!("writing config to {}", paths.config().display()))?;
@@ -407,7 +407,7 @@ pub async fn init_hub_hestia(args: HestiaInitArgs) -> Result<InitResult> {
             lct_id: Some(args.sovereign_lct_id),
             pubkey_hex: Some(args.sovereign_pubkey_hex.clone()),
         },
-        storage: storage_section,
+        storage: Some(storage_section),
     };
     config.save(paths.config())
         .with_context(|| format!("writing config to {}", paths.config().display()))?;

@@ -463,8 +463,13 @@ pub fn open_hub_store_with(
 }
 
 /// Load `<hub-dir>/config.toml` and return the storage section plus the
-/// hub id (if recorded). Returns `None` if the config file is missing so
-/// fresh hubs and legacy callers can fall back to disk-based detection.
+/// hub id (if recorded). Returns `None` when the config file is missing OR
+/// when it has no `[storage]` section — both mean "fall back to disk-based
+/// auto-detection". The absent-section case is load-bearing: every hub
+/// initialized before `[storage]` existed has a config without it, and
+/// defaulting that to `file` ignores an existing sqlite `hub.db` (empty
+/// society reads → init's idempotency probe can approve a re-genesis over
+/// a live hub — review 2026-07-23).
 fn read_storage_config(hub_dir: &Path) -> Result<Option<(crate::hub::StorageSection, Option<uuid::Uuid>)>> {
     let paths = HubPaths::new(hub_dir.to_path_buf());
     if !paths.config().exists() {
@@ -472,7 +477,10 @@ fn read_storage_config(hub_dir: &Path) -> Result<Option<(crate::hub::StorageSect
     }
     let config = crate::hub::HubConfig::load(paths.config())
         .with_context(|| format!("loading config at {}", paths.config().display()))?;
-    Ok(Some((config.storage, config.hub.id)))
+    match config.storage {
+        Some(storage) => Ok(Some((storage, config.hub.id))),
+        None => Ok(None),
+    }
 }
 
 /// Async variant of [`open_hub_store`] that supports network-backed
@@ -1758,15 +1766,56 @@ mod tests {
                 lct_path: Some(hub_dir.join("sov.json")),
                 ..Default::default()
             },
-            storage: crate::hub::StorageSection {
+            storage: Some(crate::hub::StorageSection {
                 backend: "sqlite".into(),
                 ..Default::default()
-            },
+            }),
         };
         config.save(hub_dir.join("config.toml")).unwrap();
 
         let store = open_hub_store_async(&hub_dir).await.unwrap();
         assert_eq!(store.backend_kind(), BackendKind::Sqlite);
+    }
+
+    #[tokio::test]
+    async fn config_without_storage_section_falls_back_to_disk_detection() {
+        // THE pre-change-hub regression (review 2026-07-23): every hub
+        // initialized before `[storage]` existed has a config.toml WITHOUT
+        // that section, and many of them have a live sqlite `hub.db`.
+        // Defaulting the absent section to `file` ignored the db — society
+        // reads came back empty and init's idempotency probe could approve a
+        // re-genesis over a live hub. Absent section MUST mean disk
+        // auto-detection.
+        let tmp = tempdir().unwrap();
+        let hub_dir = tmp.path().join("pre-change-sqlite-hub");
+        std::fs::create_dir_all(&hub_dir).unwrap();
+        // config.toml with NO [storage] section (what a pre-change init wrote).
+        let config = crate::hub::HubConfig {
+            hub: crate::hub::HubSection { name: "Legacy".into(), id: None },
+            daemon: crate::hub::DaemonSection { mcp_port: 8770 },
+            sovereign: crate::hub::SovereignSection {
+                lct_path: Some(hub_dir.join("sov.json")),
+                ..Default::default()
+            },
+            storage: None,
+        };
+        config.save(hub_dir.join("config.toml")).unwrap();
+        let toml_text = std::fs::read_to_string(hub_dir.join("config.toml")).unwrap();
+        assert!(
+            !toml_text.contains("[storage]"),
+            "None must serialize to NO [storage] section, got:\n{toml_text}"
+        );
+        // A live sqlite db on disk (created the real way, then closed)...
+        drop(SqliteBackend::open(hub_dir.join(SQLITE_DB_FILENAME), None).unwrap());
+        // ...must be auto-detected despite the section-less config.
+        let store = open_hub_store_with_key(&hub_dir, None).unwrap();
+        assert_eq!(
+            store.backend_kind(),
+            BackendKind::Sqlite,
+            "sqlite hub with a section-less config must resolve to sqlite, not file"
+        );
+        let store = open_hub_store_with_key_async(&hub_dir, None).await.unwrap();
+        assert_eq!(store.backend_kind(), BackendKind::Sqlite, "async path too");
     }
 
     #[tokio::test]
@@ -1782,11 +1831,11 @@ mod tests {
                 lct_path: Some(hub_dir.join("sov.json")),
                 ..Default::default()
             },
-            storage: crate::hub::StorageSection {
+            storage: Some(crate::hub::StorageSection {
                 backend: "dynamodb".into(),
                 dynamodb_table: Some("web4-hubs".into()),
                 ..Default::default()
-            },
+            }),
         };
         config.save(hub_dir.join("config.toml")).unwrap();
 

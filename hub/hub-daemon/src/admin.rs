@@ -73,6 +73,9 @@ fn layout(s: &RestState, title: &str, body: &str) -> Html<String> {
     // that would 404 or expose member data to anonymous public visitors.
     let operator_nav = if s.operator_plane {
         r#"
+      <a href="/admin">Overview</a>
+      <a href="/admin/ledger">Ledger</a>
+      <a href="/admin/pairs">Pairs</a>
       <a href="/admin/members">Members</a>
       <a href="/admin/joins">Joins ⚙</a>
       <a href="/admin/manage">Manage ⚙</a>"#
@@ -82,12 +85,9 @@ fn layout(s: &RestState, title: &str, body: &str) -> Html<String> {
     let nav = format!(
         r#"<nav>
       <a href="/">Home</a>
-      <a href="/admin">Overview</a>
       <a href="/admin/roles">Roles</a>
-      <a href="/admin/ledger">Ledger</a>
       <a href="/admin/law">Law</a>
-      <a href="/admin/council">Council</a>
-      <a href="/admin/pairs">Pairs</a>{operator_nav}
+      <a href="/admin/council">Council</a>{operator_nav}
     </nav>"#
     );
     Html(format!(
@@ -123,16 +123,20 @@ fn html_escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+/// PUBLIC admin surfaces: deliberate transparency only — the landing page,
+/// the society's law, the council roster, and role fill (same info as public
+/// `/v1/state`). The ledger browser does NOT belong here: `ledger_detail`
+/// renders full event payloads, and `MemberAdded`/`MemberProfileUpdated`/
+/// `MemberSkillDeclared` events carry names, pubkeys, skills, and profile
+/// values (including self-tier fields) — a public ledger page lets an
+/// anonymous visitor reconstruct the entire roster, bypassing the MCP
+/// read-tool gating AND the profile visibility tiers (review 2026-07-23).
 pub fn router(state: RestState) -> Router {
     Router::new()
         .route("/", get(landing_page))
-        .route("/admin", get(overview))
         .route("/admin/roles", get(roles))
-        .route("/admin/ledger", get(ledger_list))
-        .route("/admin/ledger/:index", get(ledger_detail))
         .route("/admin/law", get(law))
         .route("/admin/council", get(council))
-        .route("/admin/pairs", get(pairs))
         .with_state(state)
 }
 
@@ -174,11 +178,24 @@ async fn landing_page(State(s): State<RestState>) -> Result<Html<String>, AdminE
         .as_ref()
         .map(|l| l.version.clone())
         .unwrap_or_else(|| "(none set)".to_string());
-    let admission_open = law_guard
+    // Truthful by construction: evaluate the SAME synthetic R6 the join path
+    // runs (rest.rs submit_join), instead of the advisory `admission.open`
+    // display knob — the knob is consumed by no gate, and rendering it let
+    // the page claim "closed admission" while the law auto-admitted
+    // (review 2026-07-23).
+    let admission_decision = law_guard
         .as_ref()
-        .and_then(|l| l.ext.admission.as_ref())
-        .map(|a| a.open)
-        .unwrap_or(false);
+        .map(|law| {
+            law.evaluate_outcome(&hub_lib::law::R6Request {
+                role: "applicant".to_string(),
+                action: "member_join_request".to_string(),
+                payload: serde_yaml::Value::Null,
+                resource: Default::default(),
+            })
+            .decision
+        })
+        // No law loaded → the join path allows (open-by-default): say so.
+        .unwrap_or(hub_lib::law::Decision::Allow);
     drop(law_guard);
 
     let status = if locked {
@@ -187,10 +204,16 @@ async fn landing_page(State(s): State<RestState>) -> Result<Html<String>, AdminE
         r#"<span class="pill">unlocked</span> — the hub is active and accepting sealed requests."#
     };
 
-    let admission_note = if admission_open {
-        "This chapter currently allows open admission: anyone with a Web4 LCT can request citizenship."
-    } else {
-        "This chapter uses closed admission: membership requests are reviewed by the operator."
+    let admission_note = match admission_decision {
+        hub_lib::law::Decision::Allow | hub_lib::law::Decision::Warn => {
+            "This chapter currently allows open admission: anyone with a Web4 LCT can request citizenship."
+        }
+        hub_lib::law::Decision::Escalate => {
+            "This chapter uses closed admission: membership requests queue for operator review."
+        }
+        hub_lib::law::Decision::Deny => {
+            "This chapter is not accepting membership requests right now."
+        }
     };
 
     let body = format!(
@@ -219,7 +242,7 @@ async fn landing_page(State(s): State<RestState>) -> Result<Html<String>, AdminE
   <li><a href="/v1/hubs/{hub_id}/law">Current hub law</a> (version {law_version})</li>
 </ul>
 
-<p class="muted">Operator dashboard: <a href="/admin">/admin</a> (loopback-only write access)</p>
+<p class="muted">Operators: the dashboard lives on the loopback operator plane (<code>/admin</code> on the operator port).</p>
 </div>"#,
         hub_name = html_escape(&s.hub_name),
         hub_id = s.hub_id,
@@ -1135,9 +1158,17 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
 /// dashboard router.
 pub fn operator_router(state: RestState) -> Router {
     Router::new()
+        .route("/admin", get(overview))
         .route("/admin/members", get(members))
         .route("/admin/joins", get(joins_page))
         .route("/admin/manage", get(manage_page))
+        // Moved off the public plane (review 2026-07-23): these render act
+        // payloads / relationship data — roster, skills, profile values (all
+        // tiers), pair metadata. Public transparency = law + roles + council;
+        // history browsing is an operator affordance.
+        .route("/admin/ledger", get(ledger_list))
+        .route("/admin/ledger/:index", get(ledger_detail))
+        .route("/admin/pairs", get(pairs))
         .with_state(state)
 }
 

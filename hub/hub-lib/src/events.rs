@@ -254,9 +254,11 @@ pub enum HubEvent {
     /// member's profile; an empty value clears that field. Plain-language by
     /// design — not schematized.
     ///
-    /// `visibilities` maps field names to a disclosure tier. Fields not listed
-    /// inherit the chapter default (currently `members`). This keeps old
-    /// ledgers without per-field visibility readable.
+    /// `visibilities` maps field names to a disclosure tier. A field not
+    /// listed KEEPS its existing tier (a value-only update must not silently
+    /// re-disclose a `self`-tier field — review 2026-07-23); a brand-new
+    /// field defaults to the chapter default (currently `members`). Old
+    /// ledgers without per-field visibility stay readable.
     MemberProfileUpdated {
         member_lct_id: Uuid,
         fields: std::collections::BTreeMap<String, String>,
