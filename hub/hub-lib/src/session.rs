@@ -24,7 +24,7 @@ use crate::identity::IdentityFile;
 use crate::init::load_society;
 use crate::ledger::{HubLedger, LedgerEntry};
 use crate::state::{HubState, Member};
-use crate::store::open_hub_store;
+use crate::store::open_hub_store_async;
 
 /// One open chapter, ready for ops. Drop to close.
 pub struct HubSession {
@@ -64,7 +64,7 @@ impl HubSession {
                 "loading Sovereign identity from {}", lct_path.display()
             ))?;
         let keypair = sovereign.keypair()?;
-        let store = open_hub_store(hub_dir)
+        let store = open_hub_store_async(hub_dir).await
             .context("opening hub store for session")?;
         let ledger = HubLedger::open(store).await
             .context("opening ledger via hub store")?;
@@ -113,7 +113,7 @@ impl HubSession {
     /// `assign_role_fills_role_in_society`. PR #292 fixed the inverse bug
     /// (event-only, state forgotten).
     pub async fn assign_role(&mut self, role: SocietyRole, member_lct_id: Uuid) -> Result<&LedgerEntry> {
-        let mut store = open_hub_store(&self.paths.root)
+        let mut store = open_hub_store_async(&self.paths.root).await
             .context("opening hub store to update role-fill")?;
         let mut society = store.read_society().await
             .context("reading society state")?
@@ -226,14 +226,18 @@ impl HubSession {
     /// Update a member's free-text profile fields (skills, interests, +
     /// expandable keys) — the inputs to semantic member discovery. Fields
     /// merge into the existing profile; an empty value clears that field.
+    /// `visibilities` sets the disclosure tier per field; omitted fields keep
+    /// their previous tier or default to `members`.
     pub async fn update_profile(
         &mut self,
         member_lct_id: Uuid,
         fields: std::collections::BTreeMap<String, String>,
+        visibilities: std::collections::BTreeMap<String, crate::events::ProfileVisibility>,
     ) -> Result<&LedgerEntry> {
         let event = HubEvent::MemberProfileUpdated {
             member_lct_id,
             fields,
+            visibilities,
             updated_by: self.sovereign_lct_id,
         };
         self.append(event).await
@@ -414,6 +418,7 @@ mod tests {
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
+            dynamodb: None,
         }).await.unwrap();
         (tmp, hub_dir)
     }
@@ -548,16 +553,16 @@ mod tests {
             let mut f = std::collections::BTreeMap::new();
             f.insert("skills".to_string(), "diffusion fine-tuning, eval harness design".to_string());
             f.insert("interests".to_string(), "mechanistic interpretability".to_string());
-            session.update_profile(alice, f).await.unwrap();
+            session.update_profile(alice, f, std::collections::BTreeMap::new()).await.unwrap();
             // Second update merges + clears: change interests, drop skills.
             let mut f2 = std::collections::BTreeMap::new();
             f2.insert("interests".to_string(), "lowering inference cost".to_string());
             f2.insert("skills".to_string(), String::new()); // empty clears
-            session.update_profile(alice, f2).await.unwrap();
+            session.update_profile(alice, f2, std::collections::BTreeMap::new()).await.unwrap();
         }
         let st = HubState::project(&HubSession::open(&dir).await.unwrap().ledger);
         let m = st.members.get(&alice).expect("alice present");
-        assert_eq!(m.profile.get("interests").map(String::as_str), Some("lowering inference cost"));
+        assert_eq!(m.profile.get("interests").map(|f| f.value.as_str()), Some("lowering inference cost"));
         assert!(!m.profile.contains_key("skills"), "empty value should clear the field");
     }
 

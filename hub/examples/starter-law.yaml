@@ -55,7 +55,7 @@ norms:
   # role_assigned / charter_amended / law_amended are covered by the named norms
   # below; this catches the other membership- and authority-mutating kinds.
   # Low-stakes / reversible / informational kinds (event_recorded,
-  # member_profile_updated, member_join_requested, reputation_recorded, reads, ...)
+  # member_profile_updated, reputation_recorded, reads, ...)
   # ride DEFAULT-ALLOW. Extend this list as new consequential kinds land.
   - id: ESCALATE-CONSEQUENTIAL-DEFAULT
     selector: r6.request.action
@@ -71,6 +71,20 @@ norms:
     decision: escalate
     priority: 10
     description: "Consequential governance mutations escalate unless a more-specific norm decides them (RWOA S default)."
+
+  # Admission is CLOSED by default (public-release P0, 2026-07-23): join
+  # requests ESCALATE to the operator's admission queue instead of
+  # auto-admitting. This norm — not the `admission.open` flag below, which is
+  # advisory display metadata — is what the join gate actually evaluates
+  # (`r6.request.action == member_join_request`, see rest.rs submit_join).
+  # To opt into open admission, change this norm's decision to `allow`.
+  - id: ESCALATE-MEMBER-JOIN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 90
+    description: "Closed admission: join requests queue for operator review (change to allow for open admission)."
 
   # Charter amendments are high-impact; escalate to the Sovereign.
   - id: ESCALATE-CHARTER-AMEND
@@ -145,13 +159,14 @@ escalation:
 # Admission — how new members join.
 # -----------------------------------------------------------------------------
 admission:
-  # Open admission: anyone with a Web4 LCT can request membership.
-  # Set `open: false` and use `requires_sponsor: true` for closed
-  # communities where existing members must vouch.
-  open: true
-  requires_sponsor: false
+  # Closed admission by default: every membership request escalates to the
+  # operator admission queue. Set `open: true` only if you want anyone with a
+  # Web4 LCT to be auto-admitted. For most public chapters, leave this closed
+  # and use `requires_sponsor: true` so existing members vouch for newcomers.
+  open: false
+  requires_sponsor: true
   min_trust_score: 0.0
-  description: "Open membership for the starter law. Tighten for closed communities. NOTE: genesis acts (founding the society, minting the first authority) run in a bounded, self-witnessing bootstrap window that ratchets shut once witnessed authority exists — a fresh install is not a permanent open door."
+  description: "Closed membership by default. Every join request is queued for operator review. Set open: true explicitly if you want auto-admission; use requires_sponsor: true for vouch-based chapters. NOTE: genesis acts (founding the society, minting the first authority) run in a bounded, self-witnessing bootstrap window that ratchets shut once witnessed authority exists — a fresh install is not a permanent open door."
 
 # -----------------------------------------------------------------------------
 # ATP issuance — how the chapter mints internal currency.

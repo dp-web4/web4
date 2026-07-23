@@ -24,6 +24,42 @@ use web4_core::act::Act;
 use web4_core::lct::Lct;
 use web4_core::role::SocietyRole;
 
+/// Visibility tier for a profile field. Determines who can read the field
+/// when a member directory or skill search is returned.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProfileVisibility {
+    /// Visible only to the member themselves and hub operators.
+    SelfOnly,
+    /// Visible to admitted hub members (authenticated via sealed channel
+    /// or member credential), but not to anonymous/public callers.
+    Members,
+    /// Visible to anyone who can reach the hub, including anonymous
+    /// public callers.
+    Public,
+}
+
+impl Default for ProfileVisibility {
+    fn default() -> Self {
+        // Conservative default: member-only disclosure.
+        ProfileVisibility::Members
+    }
+}
+
+impl std::str::FromStr for ProfileVisibility {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "self" | "self_only" | "self-only" => Ok(ProfileVisibility::SelfOnly),
+            "members" | "member" | "hub" => Ok(ProfileVisibility::Members),
+            "public" | "pub" | "open" => Ok(ProfileVisibility::Public),
+            other => Err(anyhow::anyhow!(
+                "unknown profile visibility '{}'; expected 'self', 'members', or 'public'", other
+            )),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum HubEvent {
@@ -217,9 +253,17 @@ pub enum HubEvent {
     /// MemberSkillDeclared (signer == subject). `fields` are merged into the
     /// member's profile; an empty value clears that field. Plain-language by
     /// design — not schematized.
+    ///
+    /// `visibilities` maps field names to a disclosure tier. A field not
+    /// listed KEEPS its existing tier (a value-only update must not silently
+    /// re-disclose a `self`-tier field — review 2026-07-23); a brand-new
+    /// field defaults to the chapter default (currently `members`). Old
+    /// ledgers without per-field visibility stay readable.
     MemberProfileUpdated {
         member_lct_id: Uuid,
         fields: std::collections::BTreeMap<String, String>,
+        #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+        visibilities: std::collections::BTreeMap<String, ProfileVisibility>,
         updated_by: Uuid,
     },
 

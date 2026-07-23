@@ -21,11 +21,11 @@ use web4_core::society::Society;
 use web4_core::role::SocietyRole;
 use uuid::Uuid;
 
-use crate::hub::{HubConfig, HubPaths};
+use crate::hub::{HubConfig, HubPaths, StorageSection};
 use crate::charter::Charter;
 use crate::identity::IdentityFile;
 use crate::ledger::{build_lookup, HubLedger};
-use crate::store::{open_hub_store, open_hub_store_with, BackendKind};
+use crate::store::{open_hub_store_with, BackendKind};
 
 /// Roles the founder fills at genesis per V2-1 architecture.
 ///
@@ -93,6 +93,14 @@ pub enum InitResult {
     },
 }
 
+/// DynamoDB-specific init parameters.
+#[derive(Clone, Debug, Default)]
+pub struct DynamoDbInitArgs {
+    pub table: String,
+    pub region: Option<String>,
+    pub endpoint: Option<String>,
+}
+
 /// Parameters for chapter initialization.
 pub struct InitArgs {
     /// Human-readable hub name (e.g. "Lisbon Chapter").
@@ -109,6 +117,9 @@ pub struct InitArgs {
     /// Which storage backend to use. `None` = file-backed (MVP-compatible default).
     /// V2-2 added SQLite as an option; future backends slot here.
     pub storage: Option<BackendKind>,
+
+    /// DynamoDB configuration when `storage` is `Some(BackendKind::Dynamodb)`.
+    pub dynamodb: Option<DynamoDbInitArgs>,
 }
 
 /// Hestia-mode init parameters. Distinct from [`InitArgs`] because the
@@ -124,6 +135,54 @@ pub struct HestiaInitArgs {
     /// URL where the hub POSTs SignRequest for Sovereign signatures.
     pub hestia_callback_url: String,
     pub storage: Option<BackendKind>,
+    /// DynamoDB configuration when `storage` is `Some(BackendKind::Dynamodb)`.
+    pub dynamodb: Option<DynamoDbInitArgs>,
+}
+
+/// Build the `[storage]` section for config.toml from CLI/init args.
+fn build_storage_section(
+    backend: BackendKind,
+    dynamodb: Option<DynamoDbInitArgs>,
+) -> StorageSection {
+    StorageSection {
+        backend: backend.as_str().to_string(),
+        dynamodb_table: dynamodb.as_ref().map(|d| d.table.clone()),
+        dynamodb_region: dynamodb.as_ref().and_then(|d| d.region.clone()),
+        dynamodb_endpoint: dynamodb.as_ref().and_then(|d| d.endpoint.clone()),
+    }
+}
+
+/// Build a DynamoDB backend handle for init/runtime. Ensures the table
+/// exists (idempotent). Gated by the `dynamodb` feature; returns a clear
+/// error otherwise.
+async fn open_dynamodb_backend(
+    hub_id: Uuid,
+    dynamodb: &DynamoDbInitArgs,
+) -> Result<Box<dyn crate::store::HubStore>> {
+    #[cfg(feature = "dynamodb")]
+    {
+        use crate::dynamodb_store::{ensure_table, DynamoDbBackend};
+        use aws_config::BehaviorVersion;
+        use aws_sdk_dynamodb::config::Region;
+
+        let mut aws_cfg = aws_config::defaults(BehaviorVersion::latest());
+        if let Some(region) = dynamodb.region.clone() {
+            aws_cfg = aws_cfg.region(Region::new(region));
+        }
+        if let Some(endpoint) = dynamodb.endpoint.clone() {
+            aws_cfg = aws_cfg.endpoint_url(endpoint);
+        }
+        let cfg = aws_cfg.load().await;
+        let client = aws_sdk_dynamodb::Client::new(&cfg);
+        ensure_table(&client, &dynamodb.table).await
+            .with_context(|| format!("ensuring dynamodb table {}", dynamodb.table))?;
+        Ok(Box::new(DynamoDbBackend::open(client, dynamodb.table.clone(), hub_id)))
+    }
+    #[cfg(not(feature = "dynamodb"))]
+    {
+        let _ = (hub_id, dynamodb);
+        anyhow::bail!("dynamodb backend selected but hub-lib was built without the `dynamodb` feature")
+    }
 }
 
 /// Run the init flow.
@@ -131,10 +190,10 @@ pub async fn init_hub(args: InitArgs) -> Result<InitResult> {
     let paths = HubPaths::new(&args.hub_dir);
 
     // 1. Idempotency check — through the store, not the filesystem directly.
-    // open_hub_store auto-detects existing backend (sqlite if chapter.db
-    // present, else file).
+    // open_hub_store_async auto-detects existing backend (dynamodb from
+    // config, sqlite if hub.db present, else file).
     if args.hub_dir.exists() {
-        let probe_store = open_hub_store(&args.hub_dir)
+        let probe_store = crate::store::open_hub_store_async(&args.hub_dir).await
             .context("opening hub store for idempotency probe")?;
         if let Some(existing) = probe_store.read_society().await
             .context("probing for existing society")? {
@@ -166,46 +225,62 @@ pub async fn init_hub(args: InitArgs) -> Result<InitResult> {
         "loaded Sovereign identity"
     );
 
-    // Open the real store for the requested backend (default: file).
-    let backend = args.storage.unwrap_or(BackendKind::File);
-    let mut store = open_hub_store_with(&args.hub_dir, backend)
-        .with_context(|| format!("opening hub store with backend {:?}", backend))?;
-    tracing::info!(backend = backend.as_str(), "chapter storage backend selected");
-
-    // 3. Compose + hash founding charter; write through store.
+    // 3. Compose + hash founding charter; bootstrap society so we know the
+    //    hub_id (society LCT id) before opening network-backed backends.
     let charter = Charter::found(args.hub_name.clone(), sovereign_lct_id);
     let charter_hash = charter.hash().context("hashing charter")?;
-    store.write_charter(&charter).await.context("writing charter via store")?;
-
-    // 4. Bootstrap the society, then V2-1 unfill: founder fills only
-    // Sovereign + Citizen at genesis. The other 5 base-mandatory roles
-    // (LawOracle, PolicyEntity, Treasurer, Administrator, Archivist) start
-    // unfilled and are assigned later via `hub assign-role` per hub law.
-    //
-    // This is a hub-side workaround until web4-core upstream PR U1 lands a
-    // proper "fill which roles at bootstrap" API. Tracked at
-    // `web4/hub/docs/V2-V3-ARCHITECTURE.md` §Track U.
     let (mut society, all_role_lcts) = Society::bootstrap(
         args.hub_name.clone(),
         charter_hash,
         sovereign_lct_id,
     );
     let role_lcts = v2_unfill_non_founder_roles(&mut society, all_role_lcts);
-
     let society_lct_id = society.lct_id;
 
-    // 5. Persist society state via store.
+    // 4. Open the real store for the requested backend (default: file).
+    //    For DynamoDB we now have society_lct_id, so the partition key is
+    //    the real hub id from the start.
+    let backend = args.storage.unwrap_or(BackendKind::File);
+    let mut store: Box<dyn crate::store::HubStore> = match backend {
+        BackendKind::Dynamodb => {
+            let dynamodb = args.dynamodb.as_ref().ok_or_else(|| anyhow::anyhow!(
+                "dynamodb backend requires --dynamodb-table"
+            ))?;
+            open_dynamodb_backend(society_lct_id, dynamodb).await
+                .with_context(|| "opening dynamodb backend")?
+        }
+        _ => open_hub_store_with(&args.hub_dir, backend)
+            .with_context(|| format!("opening hub store with backend {:?}", backend))?,
+    };
+    tracing::info!(backend = backend.as_str(), "chapter storage backend selected");
+
+    // 5. Persist charter + society state via store.
+    store.write_charter(&charter).await.context("writing charter via store")?;
     store.write_society(&society).await.context("writing society via store")?;
 
     // 6. Persist config.toml (operator-owned; file-based by design — not
     // part of the storage backend abstraction). Canonicalize the Sovereign
-    // path so it survives `cd` between init and later commands.
+    // path so it survives `cd` between init and later commands. Record the
+    // hub id and storage backend so runtime paths can open the store without
+    // inferring from disk.
     let sovereign_abs = std::fs::canonicalize(&args.sovereign_lct_path)
         .with_context(|| format!(
             "canonicalizing Sovereign LCT path {}",
             args.sovereign_lct_path.display()
         ))?;
-    let config = HubConfig::new(args.hub_name.clone(), sovereign_abs);
+    let storage_section = build_storage_section(backend, args.dynamodb);
+    let config = HubConfig {
+        hub: crate::hub::HubSection {
+            name: args.hub_name.clone(),
+            id: Some(society_lct_id),
+        },
+        daemon: crate::hub::DaemonSection { mcp_port: crate::hub::DEFAULT_MCP_PORT },
+        sovereign: crate::hub::SovereignSection {
+            lct_path: Some(sovereign_abs),
+            ..Default::default()
+        },
+        storage: Some(storage_section),
+    };
     config.save(paths.config())
         .with_context(|| format!("writing config to {}", paths.config().display()))?;
 
@@ -242,7 +317,7 @@ pub async fn init_hub(args: InitArgs) -> Result<InitResult> {
 /// Load an already-initialized chapter's society state. Routes through
 /// the storage backend abstraction, so works against any backend.
 pub async fn load_society(hub_dir: impl AsRef<Path>) -> Result<Society> {
-    let store = open_hub_store(hub_dir.as_ref())
+    let store = crate::store::open_hub_store_async(hub_dir.as_ref()).await
         .context("opening hub store")?;
     store.read_society().await
         .context("reading society via store")?
@@ -262,7 +337,7 @@ pub async fn init_hub_hestia(args: HestiaInitArgs) -> Result<InitResult> {
 
     // 1. Idempotency check.
     if args.hub_dir.exists() {
-        let probe_store = open_hub_store(&args.hub_dir)
+        let probe_store = crate::store::open_hub_store_async(&args.hub_dir).await
             .context("opening hub store for idempotency probe")?;
         if let Some(existing) = probe_store.read_society().await
             .context("probing for existing society")? {
@@ -289,17 +364,10 @@ pub async fn init_hub_hestia(args: HestiaInitArgs) -> Result<InitResult> {
         "Hestia-mode init: Sovereign LCT synthesized from pubkey",
     );
 
-    // 3. Open store.
-    let backend = args.storage.unwrap_or(BackendKind::File);
-    let mut store = open_hub_store_with(&args.hub_dir, backend)
-        .with_context(|| format!("opening hub store with backend {:?}", backend))?;
-
-    // 4. Charter.
+    // 3. Charter + society first so we know the real hub_id before opening
+    //    network-backed storage.
     let charter = Charter::found(args.hub_name.clone(), args.sovereign_lct_id);
     let charter_hash = charter.hash().context("hashing charter")?;
-    store.write_charter(&charter).await.context("writing charter via store")?;
-
-    // 5. Bootstrap society + V2-1 unfill.
     let (mut society, all_role_lcts) = Society::bootstrap(
         args.hub_name.clone(),
         charter_hash,
@@ -308,15 +376,39 @@ pub async fn init_hub_hestia(args: HestiaInitArgs) -> Result<InitResult> {
     let role_lcts = v2_unfill_non_founder_roles(&mut society, all_role_lcts);
     let society_lct_id = society.lct_id;
     let society_charter_hash = society.charter_hash.clone();
+
+    // 4. Open store.
+    let backend = args.storage.unwrap_or(BackendKind::File);
+    let mut store: Box<dyn crate::store::HubStore> = match backend {
+        BackendKind::Dynamodb => {
+            let dynamodb = args.dynamodb.as_ref().ok_or_else(|| anyhow::anyhow!(
+                "dynamodb backend requires --dynamodb-table"
+            ))?;
+            open_dynamodb_backend(society_lct_id, dynamodb).await
+                .with_context(|| "opening dynamodb backend")?
+        }
+        _ => open_hub_store_with(&args.hub_dir, backend)
+            .with_context(|| format!("opening hub store with backend {:?}", backend))?,
+    };
+    store.write_charter(&charter).await.context("writing charter via store")?;
     store.write_society(&society).await.context("writing society via store")?;
 
-    // 6. Persist Hestia-mode config.
-    let config = HubConfig::new_hestia(
-        args.hub_name.clone(),
-        args.hestia_callback_url.clone(),
-        args.sovereign_lct_id,
-        args.sovereign_pubkey_hex.clone(),
-    );
+    // 5. Persist Hestia-mode config.
+    let storage_section = build_storage_section(backend, args.dynamodb);
+    let config = HubConfig {
+        hub: crate::hub::HubSection {
+            name: args.hub_name.clone(),
+            id: Some(society_lct_id),
+        },
+        daemon: crate::hub::DaemonSection { mcp_port: crate::hub::DEFAULT_MCP_PORT },
+        sovereign: crate::hub::SovereignSection {
+            lct_path: None,
+            hestia_callback_url: Some(args.hestia_callback_url.clone()),
+            lct_id: Some(args.sovereign_lct_id),
+            pubkey_hex: Some(args.sovereign_pubkey_hex.clone()),
+        },
+        storage: Some(storage_section),
+    };
     config.save(paths.config())
         .with_context(|| format!("writing config to {}", paths.config().display()))?;
 
@@ -415,7 +507,7 @@ pub async fn verify_hub(hub_dir: impl AsRef<Path>) -> Result<VerifyResult> {
     };
 
     let society = load_society(hub_dir).await.context("loading society")?;
-    let store = open_hub_store(hub_dir)
+    let store = crate::store::open_hub_store_async(hub_dir).await
         .context("opening hub store for verify")?;
     let ledger = HubLedger::open(store).await
         .context("opening ledger via store")?;
@@ -464,6 +556,7 @@ mod tests {
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
+            dynamodb: None,
         }).await.unwrap();
 
         let role_lcts = match result {
@@ -507,6 +600,7 @@ mod tests {
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
+            dynamodb: None,
         }).await.unwrap();
 
         let society = load_society(&hub_dir).await.unwrap();
@@ -528,6 +622,7 @@ mod tests {
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
+            dynamodb: None,
         }).await.unwrap();
 
         let paths = HubPaths::new(&hub_dir);
@@ -537,7 +632,7 @@ mod tests {
         assert!(paths.ledger().exists(), "ledger.jsonl missing");
 
         // Sprint 2: ledger now starts with Genesis entry (not empty)
-        let store = open_hub_store(&hub_dir).unwrap();
+        let store = crate::store::open_hub_store(&hub_dir).unwrap();
         let ledger = crate::ledger::HubLedger::open(store).await.unwrap();
         assert_eq!(ledger.len(), 1, "expected single Genesis entry after init");
     }
@@ -553,6 +648,7 @@ mod tests {
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
+            dynamodb: None,
         }).await.unwrap();
 
         // verify_hub does end-to-end: config → identity → society → ledger
@@ -574,6 +670,7 @@ mod tests {
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path.clone(),
             storage: None,
+            dynamodb: None,
         }).await.unwrap();
         let first_id = match first {
             InitResult::Initialized { society_lct_id, .. } => society_lct_id,
@@ -590,6 +687,7 @@ mod tests {
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
+            dynamodb: None,
         }).await.unwrap();
 
         match second {
@@ -619,6 +717,7 @@ mod tests {
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sovereign_path,
             storage: None,
+            dynamodb: None,
         }).await.unwrap();
 
         // Re-read charter, hash it, compare against society.charter_hash
@@ -644,6 +743,7 @@ mod tests {
             hub_dir,
             sovereign_lct_path: sovereign_path.clone(),
             storage: None,
+            dynamodb: None,
         }).await.unwrap();
 
         let sovereign = IdentityFile::load(&sovereign_path).unwrap();

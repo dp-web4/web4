@@ -67,11 +67,16 @@ const STYLE: &str = r#"
 
 fn layout(s: &RestState, title: &str, body: &str) -> Html<String> {
     let hub_name = &s.hub_name;
-    // The Joins/Manage write pages exist ONLY on the loopback operator plane.
-    // Show their nav links there; omit them on the read-only fleet plane so we
-    // don't advertise links that would 404.
+    // The Members page lists full rosters + skills, and the Joins/Manage write
+    // pages exist ONLY on the loopback operator plane. Show their nav links
+    // there; omit them on the read-only fleet plane so we don't advertise links
+    // that would 404 or expose member data to anonymous public visitors.
     let operator_nav = if s.operator_plane {
         r#"
+      <a href="/admin">Overview</a>
+      <a href="/admin/ledger">Ledger</a>
+      <a href="/admin/pairs">Pairs</a>
+      <a href="/admin/members">Members</a>
       <a href="/admin/joins">Joins ⚙</a>
       <a href="/admin/manage">Manage ⚙</a>"#
     } else {
@@ -79,13 +84,10 @@ fn layout(s: &RestState, title: &str, body: &str) -> Html<String> {
     };
     let nav = format!(
         r#"<nav>
-      <a href="/admin">Overview</a>
-      <a href="/admin/members">Members</a>
+      <a href="/">Home</a>
       <a href="/admin/roles">Roles</a>
-      <a href="/admin/ledger">Ledger</a>
       <a href="/admin/law">Law</a>
-      <a href="/admin/council">Council</a>
-      <a href="/admin/pairs">Pairs</a>{operator_nav}
+      <a href="/admin/council">Council</a>{operator_nav}
     </nav>"#
     );
     Html(format!(
@@ -99,6 +101,21 @@ fn layout(s: &RestState, title: &str, body: &str) -> Html<String> {
     ))
 }
 
+/// Simple public layout for the fleet-plane landing page (no admin nav).
+fn public_layout(hub_name: &str, hub_id: &str, body: &str) -> Html<String> {
+    Html(format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\">\
+         <title>{hub_name}</title>{STYLE}<style>.button {{ display:inline-block; padding:0.4rem 0.9rem; \
+         background:#509982; color:#fff; border-radius:4px; text-decoration:none; margin:0.3rem 0; }}\
+         code {{ background:#383838; padding:0.15rem 0.4rem; border-radius:3px; }}</style></head>\
+         <body><h1>{hub_name}</h1>{body}\
+         <footer>Web4 hub · <a href=\"/.well-known/web4-hub.json\">descriptor</a> · <a href=\"/v1/hubs/{hub_id}/law\">law</a></footer>\
+         </body></html>",
+        hub_name = html_escape(hub_name),
+        hub_id = html_escape(hub_id),
+    ))
+}
+
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -106,18 +123,26 @@ fn html_escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+/// PUBLIC admin surfaces: deliberate transparency only — the landing page,
+/// the society's law, the council roster, and role fill (same info as public
+/// `/v1/state`). The ledger browser does NOT belong here: `ledger_detail`
+/// renders full event payloads, and `MemberAdded`/`MemberProfileUpdated`/
+/// `MemberSkillDeclared` events carry names, pubkeys, skills, and profile
+/// values (including self-tier fields) — a public ledger page lets an
+/// anonymous visitor reconstruct the entire roster, bypassing the MCP
+/// read-tool gating AND the profile visibility tiers (review 2026-07-23).
 pub fn router(state: RestState) -> Router {
     Router::new()
-        .route("/admin", get(overview))
-        .route("/admin/members", get(members))
+        .route("/", get(landing_page))
         .route("/admin/roles", get(roles))
-        .route("/admin/ledger", get(ledger_list))
-        .route("/admin/ledger/:index", get(ledger_detail))
         .route("/admin/law", get(law))
         .route("/admin/council", get(council))
-        .route("/admin/pairs", get(pairs))
         .with_state(state)
 }
+
+/// Operator-plane admin pages. These expose member rosters, skills, and
+/// admission/management actions, so they live ONLY on the loopback operator
+/// listener behind operator auth.
 
 // ---------- error ----------
 
@@ -142,6 +167,90 @@ impl From<anyhow::Error> for AdminError {
 }
 
 // ---------- handlers ----------
+
+/// Public landing page for the hub. This is the first thing an external visitor
+/// sees; it explains what the hub is, how to install Hestia, and how to request
+/// membership, without exposing member rosters or skills.
+async fn landing_page(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
+    let locked = s.is_locked();
+    let law_guard = s.law.read().await;
+    let law_version = law_guard
+        .as_ref()
+        .map(|l| l.version.clone())
+        .unwrap_or_else(|| "(none set)".to_string());
+    // Truthful by construction: evaluate the SAME synthetic R6 the join path
+    // runs (rest.rs submit_join), instead of the advisory `admission.open`
+    // display knob — the knob is consumed by no gate, and rendering it let
+    // the page claim "closed admission" while the law auto-admitted
+    // (review 2026-07-23).
+    let admission_decision = law_guard
+        .as_ref()
+        .map(|law| {
+            law.evaluate_outcome(&hub_lib::law::R6Request {
+                role: "applicant".to_string(),
+                action: "member_join_request".to_string(),
+                payload: serde_yaml::Value::Null,
+                resource: Default::default(),
+            })
+            .decision
+        })
+        // No law loaded → the join path allows (open-by-default): say so.
+        .unwrap_or(hub_lib::law::Decision::Allow);
+    drop(law_guard);
+
+    let status = if locked {
+        r#"<span class="pill pill-warn">🔒 locked</span> — the hub vault is locked. Only the operator can unlock it."#
+    } else {
+        r#"<span class="pill">unlocked</span> — the hub is active and accepting sealed requests."#
+    };
+
+    let admission_note = match admission_decision {
+        hub_lib::law::Decision::Allow | hub_lib::law::Decision::Warn => {
+            "This chapter currently allows open admission: anyone with a Web4 LCT can request citizenship."
+        }
+        hub_lib::law::Decision::Escalate => {
+            "This chapter uses closed admission: membership requests queue for operator review."
+        }
+        hub_lib::law::Decision::Deny => {
+            "This chapter is not accepting membership requests right now."
+        }
+    };
+
+    let body = format!(
+        r#"<div style="max-width:700px">
+<h2>Welcome to {hub_name}</h2>
+<p>This is a <strong>Web4 community hub</strong> — a self-sovereign society server. Members join with a Web4 LCT, communicate through end-to-end encrypted channels, declare skills, and build reputation.</p>
+
+<h3>Status</h3>
+<p>{status}</p>
+
+<h3>Membership</h3>
+<p>{admission_note}</p>
+
+<h3>Get started</h3>
+<ol>
+  <li><strong>Install Hestia</strong> — the local app that holds your identity and talks to this hub.<br>
+      <a class="button" href="https://github.com/dp-web4/hestia/releases">Download Hestia</a></li>
+  <li><strong>Request citizenship</strong> — from Hestia, run:<br>
+      <code>hestia connect-hub https://&lt;this-host&gt;</code></li>
+  <li><strong>Wait for review</strong> — the operator will admit or decline your request.</li>
+</ol>
+
+<h3>Transparency</h3>
+<ul>
+  <li><a href="/.well-known/web4-hub.json">Machine-readable hub descriptor</a></li>
+  <li><a href="/v1/hubs/{hub_id}/law">Current hub law</a> (version {law_version})</li>
+</ul>
+
+<p class="muted">Operators: the dashboard lives on the loopback operator plane (<code>/admin</code> on the operator port).</p>
+</div>"#,
+        hub_name = html_escape(&s.hub_name),
+        hub_id = s.hub_id,
+        law_version = html_escape(&law_version),
+    );
+
+    Ok(public_layout(&s.hub_name, &s.hub_id.to_string(), &body))
+}
 
 async fn overview(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
     let ledger = s.ledger.lock().await;
@@ -1044,12 +1153,22 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
     Ok(layout(&s, "Manage members", &body))
 }
 
-/// Operator-plane GUI pages (admit/deny + member management). Mounted ONLY on
-/// the loopback operator listener, alongside the read-only dashboard router.
+/// Operator-plane GUI pages (member roster, admit/deny + member management).
+/// Mounted ONLY on the loopback operator listener, alongside the read-only
+/// dashboard router.
 pub fn operator_router(state: RestState) -> Router {
     Router::new()
+        .route("/admin", get(overview))
+        .route("/admin/members", get(members))
         .route("/admin/joins", get(joins_page))
         .route("/admin/manage", get(manage_page))
+        // Moved off the public plane (review 2026-07-23): these render act
+        // payloads / relationship data — roster, skills, profile values (all
+        // tiers), pair metadata. Public transparency = law + roles + council;
+        // history browsing is an operator affordance.
+        .route("/admin/ledger", get(ledger_list))
+        .route("/admin/ledger/:index", get(ledger_detail))
+        .route("/admin/pairs", get(pairs))
         .with_state(state)
 }
 

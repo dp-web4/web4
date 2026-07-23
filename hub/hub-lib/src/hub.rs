@@ -36,18 +36,57 @@ pub struct HubConfig {
     pub hub: HubSection,
     pub daemon: DaemonSection,
     pub sovereign: SovereignSection,
+    /// `None` = no `[storage]` section in config.toml. This MUST stay an
+    /// `Option`: every hub initialized before the section existed has a
+    /// config without it, and defaulting the absent case to `file` silently
+    /// ignores an existing sqlite `hub.db` — the store resolves empty and
+    /// init's idempotency probe can then approve a re-genesis over a live
+    /// society (review 2026-07-23). Absent → disk-based auto-detection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage: Option<StorageSection>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HubSection {
     /// Human-readable hub name.
     pub name: String,
+
+    /// The hub's canonical id — the society LCT id. Persisted here so
+    /// storage backends that partition by hub_id (e.g. DynamoDB) can be
+    /// opened without first reading the society state. Written at init
+    /// time; older hubs without it are back-stopped by loading society.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<Uuid>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DaemonSection {
     /// MCP server port.
     pub mcp_port: u16,
+}
+
+/// Storage backend configuration. Determines where charter, society,
+/// ledger, law, and sidecar state live. File/SQLite backends use the
+/// hub directory directly; DynamoDB backends use the configured table
+/// and AWS credentials.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StorageSection {
+    /// Backend identifier: `file` (default), `sqlite`, or `dynamodb`.
+    #[serde(default = "StorageSection::default_backend")]
+    pub backend: String,
+
+    /// DynamoDB table name (required when backend is `dynamodb`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dynamodb_table: Option<String>,
+
+    /// Optional AWS region override. Omitted → AWS SDK default chain.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dynamodb_region: Option<String>,
+
+    /// Optional DynamoDB endpoint override, e.g. `http://localhost:8000`
+    /// for DynamoDB Local. Omitted → AWS SDK default endpoint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dynamodb_endpoint: Option<String>,
 }
 
 /// Sovereign config: either local-file mode (MVP, deprecated) OR
@@ -182,16 +221,47 @@ impl SovereignSection {
     }
 }
 
+impl Default for StorageSection {
+    fn default() -> Self {
+        Self {
+            backend: Self::default_backend(),
+            dynamodb_table: None,
+            dynamodb_region: None,
+            dynamodb_endpoint: None,
+        }
+    }
+}
+
+impl StorageSection {
+    fn default_backend() -> String {
+        "file".to_string()
+    }
+
+    /// Parse `backend` into a [`BackendKind`].
+    pub fn backend_kind(&self) -> anyhow::Result<crate::store::BackendKind> {
+        use std::str::FromStr;
+        crate::store::BackendKind::from_str(&self.backend)
+    }
+
+    /// True when the configured backend is `dynamodb`.
+    pub fn is_dynamodb(&self) -> bool {
+        self.backend.eq_ignore_ascii_case("dynamodb")
+            || self.backend.eq_ignore_ascii_case("dynamo")
+            || self.backend.eq_ignore_ascii_case("ddb")
+    }
+}
+
 impl HubConfig {
     /// Local-mode constructor (MVP-compat).
     pub fn new(name: String, sovereign_lct_path: PathBuf) -> Self {
         Self {
-            hub: HubSection { name },
+            hub: HubSection { name, id: None },
             daemon: DaemonSection { mcp_port: DEFAULT_MCP_PORT },
             sovereign: SovereignSection {
                 lct_path: Some(sovereign_lct_path),
                 ..Default::default()
             },
+            storage: None,
         }
     }
 
@@ -203,7 +273,7 @@ impl HubConfig {
         pubkey_hex: String,
     ) -> Self {
         Self {
-            hub: HubSection { name },
+            hub: HubSection { name, id: None },
             daemon: DaemonSection { mcp_port: DEFAULT_MCP_PORT },
             sovereign: SovereignSection {
                 lct_path: None,
@@ -211,6 +281,7 @@ impl HubConfig {
                 lct_id: Some(lct_id),
                 pubkey_hex: Some(pubkey_hex),
             },
+            storage: None,
         }
     }
 
@@ -270,8 +341,40 @@ mod tests {
         cfg.save(&cfg_path).unwrap();
         let loaded = HubConfig::load(&cfg_path).unwrap();
         assert_eq!(loaded.hub.name, "Test Chapter");
+        assert_eq!(loaded.hub.id, None);
         assert_eq!(loaded.daemon.mcp_port, DEFAULT_MCP_PORT);
         assert_eq!(loaded.sovereign.lct_path, Some(PathBuf::from("../sovereign.json")));
+        assert!(loaded.storage.is_none(), "no [storage] section -> None (disk auto-detection)");
+    }
+
+    #[tokio::test]
+    async fn config_storage_parses_dynamodb() {
+        let dir = tempdir().unwrap();
+        let cfg_path = dir.path().join("config.toml");
+        std::fs::write(&cfg_path, r#"
+[hub]
+name = "Cloud Chapter"
+id = "550e8400-e29b-41d4-a716-446655440000"
+
+[daemon]
+mcp_port = 8770
+
+[sovereign]
+lct_path = "../sovereign.json"
+
+[storage]
+backend = "dynamodb"
+dynamodb_table = "web4-hubs"
+dynamodb_region = "us-east-1"
+dynamodb_endpoint = "http://localhost:8000"
+"#).unwrap();
+        let loaded = HubConfig::load(&cfg_path).unwrap();
+        assert_eq!(loaded.hub.id, Some(Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap()));
+        let storage = loaded.storage.expect("[storage] present -> Some");
+        assert_eq!(storage.backend, "dynamodb");
+        assert_eq!(storage.dynamodb_table.as_deref(), Some("web4-hubs"));
+        assert_eq!(storage.dynamodb_region.as_deref(), Some("us-east-1"));
+        assert_eq!(storage.dynamodb_endpoint.as_deref(), Some("http://localhost:8000"));
     }
 
     #[tokio::test]

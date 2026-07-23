@@ -10,6 +10,7 @@
 
 mod admin;
 mod mcp;
+mod rate_limit;
 mod rest;
 
 use anyhow::{Context, Result};
@@ -25,7 +26,7 @@ use uuid::Uuid;
 use web4_core::lct::EntityType;
 use web4_core::role::SocietyRole;
 
-use crate::mcp::{read_router as mcp_read_router, write_router as mcp_write_router, McpState};
+use crate::mcp::{read_router as mcp_read_router, operator_read_router as mcp_operator_read_router, write_router as mcp_write_router, McpState};
 use crate::rest::{router as rest_router, RestState};
 
 /// Web4 Community Hub — minimum-viable Web4 society for a community chapter.
@@ -78,9 +79,22 @@ enum Command {
 
         /// Storage backend for chapter state. Defaults to `file` (MVP-
         /// compatible JSON/JSONL). `sqlite` uses a single chapter.db file
-        /// for better query performance + simpler ops.
+        /// for better query performance + simpler ops. `dynamodb` stores
+        /// state in a single DynamoDB table; requires --dynamodb-table.
         #[arg(long, default_value = "file")]
         storage: String,
+
+        /// DynamoDB table name (required when --storage dynamodb).
+        #[arg(long, required_if_eq("storage", "dynamodb"))]
+        dynamodb_table: Option<String>,
+
+        /// Optional AWS region for DynamoDB (default: SDK default chain).
+        #[arg(long)]
+        dynamodb_region: Option<String>,
+
+        /// Optional DynamoDB endpoint override, e.g. http://localhost:8000.
+        #[arg(long)]
+        dynamodb_endpoint: Option<String>,
     },
 
     /// Generate a fresh LCT + keypair, save to a JSON file.
@@ -132,6 +146,15 @@ enum Command {
     /// state store, and the protected tier from the current passphrase to a new
     /// one. Stop the hub first; ignite with the new phrase via `hub unlock` after.
     RotatePassphrase {
+        /// The hub data directory.
+        hub_dir: PathBuf,
+    },
+
+    /// Rotate the operator-plane bearer token. Generates a new 256-bit token,
+    /// writes it to `<hub-dir>/operator.token` (0600), and prints the new
+    /// fingerprint. The old token is invalidated immediately; any clients using
+    /// it must be reconfigured. Requires `HUB_OPERATOR_AUTH=token`.
+    RotateOperatorToken {
         /// The hub data directory.
         hub_dir: PathBuf,
     },
@@ -324,13 +347,15 @@ enum Command {
     },
 
     /// Update a member's profile fields (for semantic discovery). Pass one or
-    /// more `key=value` pairs, e.g. `skills="..." interests="..."`. An empty
-    /// value clears that field.
+    /// more `key=value` or `key@visibility=value` pairs, e.g.
+    /// `skills="..." interests@public="..."`. Visibility is `self`, `members`,
+    /// or `public`; omitted defaults to `members`. An empty value clears that
+    /// field.
     SetProfile {
         hub_dir: PathBuf,
         member_lct_id: Uuid,
-        /// `key=value` pairs (repeatable).
-        #[arg(value_name = "KEY=VALUE", required = true)]
+        /// `key=value` or `key@visibility=value` pairs (repeatable).
+        #[arg(value_name = "KEY[@VISIBILITY]=VALUE", required = true)]
         fields: Vec<String>,
     },
 
@@ -534,10 +559,11 @@ async fn main() -> Result<()> {
         }
         Some(Command::Init {
             name, sovereign_lct, sovereign_hestia, sovereign_lct_id, sovereign_pubkey,
-            hub_dir, storage,
+            hub_dir, storage, dynamodb_table, dynamodb_region, dynamodb_endpoint,
         }) => {
             run_init(name, sovereign_lct, sovereign_hestia, sovereign_lct_id,
-                     sovereign_pubkey, hub_dir, storage).await
+                     sovereign_pubkey, hub_dir, storage,
+                     dynamodb_table, dynamodb_region, dynamodb_endpoint).await
         }
         Some(Command::GenLct { output, entity_type }) => {
             run_gen_lct(output, entity_type.into()).await
@@ -546,6 +572,7 @@ async fn main() -> Result<()> {
         Some(Command::Unlock { port }) => run_unlock(port).await,
         Some(Command::ExportPublicIdentity { hub_dir }) => run_export_public_identity(hub_dir).await,
         Some(Command::RotatePassphrase { hub_dir }) => run_rotate_passphrase(hub_dir).await,
+        Some(Command::RotateOperatorToken { hub_dir }) => run_rotate_operator_token(hub_dir).await,
         Some(Command::EnvelopeSign { identity, nonce, payload }) => {
             run_envelope_sign(identity, nonce, payload).await
         }
@@ -953,19 +980,16 @@ async fn run_up(
     }
 
     // 4. Operator token for token archetypes (0600; reuse an existing one).
+    // Minted via OperatorAuth::generate_and_write — the ONE code path that
+    // also records `operator.token.created_at`, so a hub provisioned here can
+    // later enable HUB_OPERATOR_TOKEN_TTL_SECONDS without being locked out
+    // (the TTL check fail-closes on a missing creation timestamp).
     let token: Option<String> = if arch.operator_auth == "token" {
         let tpath = hub_dir.join("operator.token");
         if tpath.exists() {
             Some(std::fs::read_to_string(&tpath)?.trim().to_string())
         } else {
-            let t = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-            std::fs::write(&tpath, &t).with_context(|| format!("writing {}", tpath.display()))?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                std::fs::set_permissions(&tpath, std::fs::Permissions::from_mode(0o600))?;
-            }
-            Some(t)
+            Some(crate::rest::OperatorAuth::generate_and_write(&tpath)?)
         }
     } else {
         None
@@ -1023,8 +1047,11 @@ async fn run_up(
     println!("  {n}. hub unlock                          # ignite the vault (passphrase — never stored)", );
     println!();
     if let Some(t) = &token {
-        println!("Operator token (send as the X-Operator-Token header for admin/API):");
-        println!("  {t}");
+        println!(
+            "Operator token: {} (send as the X-Operator-Token header for admin/API)",
+            crate::rest::OperatorAuth::fingerprint(t)
+        );
+        println!("  Full token is in {} — treat it as a secret.", hub_dir.join("operator.token").display());
         println!();
     }
     match &base_url {
@@ -1053,16 +1080,30 @@ async fn run_declare_skill(hub_dir: PathBuf, member_lct_id: Uuid, skill: String)
 }
 
 async fn run_set_profile(hub_dir: PathBuf, member_lct_id: Uuid, fields: Vec<String>) -> Result<()> {
-    let mut map = std::collections::BTreeMap::new();
+    use std::collections::BTreeMap;
+    use std::str::FromStr;
+
+    let mut values = BTreeMap::new();
+    let mut visibilities = BTreeMap::new();
     for pair in &fields {
-        let (k, v) = pair.split_once('=').ok_or_else(|| {
-            anyhow::anyhow!("field {:?} must be key=value", pair)
+        let (lhs, v) = pair.split_once('=').ok_or_else(|| {
+            anyhow::anyhow!("field {:?} must be key=value or key@visibility=value", pair)
         })?;
-        map.insert(k.trim().to_string(), v.to_string());
+        let (k, visibility) = if let Some((k, tier)) = lhs.split_once('@') {
+            let tier = hub_lib::events::ProfileVisibility::from_str(tier.trim())
+                .with_context(|| format!("parsing visibility for field {:?}", lhs))?;
+            (k.trim().to_string(), Some(tier))
+        } else {
+            (lhs.trim().to_string(), None)
+        };
+        values.insert(k.clone(), v.to_string());
+        if let Some(tier) = visibility {
+            visibilities.insert(k, tier);
+        }
     }
-    let keys: Vec<String> = map.keys().cloned().collect();
+    let keys: Vec<String> = values.keys().cloned().collect();
     let mut session = HubSession::open(&hub_dir).await?;
-    let entry = session.update_profile(member_lct_id, map).await?;
+    let entry = session.update_profile(member_lct_id, values, visibilities).await?;
     println!("Profile updated.");
     println!("  Member LCT:   {}", member_lct_id);
     println!("  Fields:       {}", keys.join(", "));
@@ -1177,12 +1218,12 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     // (plaintext / NULL-keyed / fresh hub), boot normally. If it fails closed (encrypted,
     // no key), boot a LOCKED SHELL that serves only the unlock path; `hub unlock` ignites it
     // at runtime. The passphrase is never read from the environment.
-    let store_opens = hub_lib::store::open_hub_store(&hub_dir).is_ok();
+    let store_opens = hub_lib::store::open_hub_store_async(&hub_dir).await.is_ok();
 
     let (rest_state, mcp_state) = if store_opens {
         // ── normal boot (store readable without a held key) ──
         let initial_law = {
-            let store = hub_lib::store::open_hub_store(&hub_dir)?;
+            let store = hub_lib::store::open_hub_store_async(&hub_dir).await?;
             match store.read_law().await? {
                 Some(yaml) => Some(hub_lib::law::Law::parse_and_validate(&yaml)?),
                 None => None,
@@ -1190,7 +1231,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         };
         let shared_law = std::sync::Arc::new(tokio::sync::RwLock::new(initial_law));
         let shared_ledger = {
-            let store = hub_lib::store::open_hub_store(&hub_dir)?;
+            let store = hub_lib::store::open_hub_store_async(&hub_dir).await?;
             std::sync::Arc::new(tokio::sync::Mutex::new(
                 hub_lib::ledger::HubLedger::open(store).await?,
             ))
@@ -1262,6 +1303,9 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     let mut operator_state = rest_state.clone();
     operator_state.operator_plane = true; // this clone serves the write pages → show their nav links
     let operator_gate = rest_state.clone();
+    // P0 (public-release): per-IP rate limiting. In-memory; production public hubs
+    // should still use an edge/reverse-proxy layer for global limits.
+    let rate_limiter = crate::rate_limit::RateLimiter::from_env();
     // H-003: make the no-law posture loud at startup — a hub with no law gates
     // nothing (acts/admissions run permissive). Production must serve a signed law.
     if rest_state.law.read().await.is_none() {
@@ -1308,12 +1352,22 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     // Sovereign-signing MCP WRITE tools are NOT here — they're mounted on the
     // loopback operator plane below (residual-review P0: a same-host proxy makes
     // ConnectInfo read as loopback, so the public listener can't safely carry them).
-    let app = mcp_read_router(mcp_state.clone())
+    let mut app = mcp_read_router(mcp_state.clone())
         .merge(rest_router(rest_state))
-        .merge(admin::router(admin_state))
-        // Fail-closed lock-gate over the whole surface: while locked, only the
-        // tier-0 allowlist (unlock / well-known / law / issuer metadata) is served.
-        .layer(axum::middleware::from_fn_with_state(gate_state, crate::rest::lock_gate));
+        .merge(admin::router(admin_state));
+    if let Some(limiter) = &rate_limiter {
+        // State-based wiring (NOT an Extension): the original extension-based
+        // stack layered the middleware outside the Extension layer, so the
+        // lookup always missed and the limiter silently never ran (review
+        // 2026-07-23). With state, the limiter's presence is structural.
+        app = app.layer(axum::middleware::from_fn_with_state(
+            limiter.clone(),
+            crate::rate_limit::layer,
+        ));
+    }
+    // Fail-closed lock-gate over the whole surface: while locked, only the
+    // tier-0 allowlist (unlock / well-known / law / issuer metadata) is served.
+    let app = app.layer(axum::middleware::from_fn_with_state(gate_state, crate::rest::lock_gate));
 
     tracing::info!(
         hub = %config.hub.name,
@@ -1337,12 +1391,25 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         // from HUB_OPERATOR_AUTH; applied as the OUTERMOST layer so an
         // unauthorized caller is rejected before the lock gate and any handler.
         let op_auth = crate::rest::OperatorAuth::from_env(&hub_dir)?;
-        let operator_app = admin::router(operator_state.clone())
+        let mut operator_app = admin::router(operator_state.clone())
             .merge(admin::operator_router(operator_state.clone()))
             .merge(crate::rest::admin_api_router(operator_state))
+            // Member/skill read tools live ONLY here (loopback-only, never
+            // proxied) so anonymous internet clients cannot enumerate members.
+            .merge(mcp_operator_read_router(mcp_state.clone()))
             // Sovereign-signing MCP write tools live ONLY here (loopback-only,
             // never proxied) — residual-review P0.
-            .merge(mcp_write_router(mcp_state))
+            .merge(mcp_write_router(mcp_state));
+        if let Some(limiter) = &rate_limiter {
+            // Same state-based wiring as the public plane. Loopback callers
+            // (which is all of this plane) get the loopback rate multiplier,
+            // so operator automation is advantaged but still bounded.
+            operator_app = operator_app.layer(axum::middleware::from_fn_with_state(
+                limiter.clone(),
+                crate::rate_limit::layer,
+            ));
+        }
+        let operator_app = operator_app
             .layer(axum::middleware::from_fn_with_state(operator_gate, crate::rest::lock_gate))
             .layer(axum::middleware::from_fn_with_state(op_auth, crate::rest::operator_auth_gate));
         match tokio::net::TcpListener::bind(op_addr).await {
@@ -1434,11 +1501,26 @@ async fn run_init(
     sovereign_pubkey: Option<String>,
     hub_dir: Option<PathBuf>,
     storage: String,
+    dynamodb_table: Option<String>,
+    dynamodb_region: Option<String>,
+    dynamodb_endpoint: Option<String>,
 ) -> Result<()> {
     use std::str::FromStr;
     let hub_dir = hub_dir.unwrap_or_else(|| PathBuf::from(slugify(&name)));
     let backend = hub_lib::store::BackendKind::from_str(&storage)
         .context("parsing --storage")?;
+
+    let dynamodb = if backend == hub_lib::store::BackendKind::Dynamodb {
+        Some(hub_lib::init::DynamoDbInitArgs {
+            table: dynamodb_table.ok_or_else(|| anyhow::anyhow!(
+                "--storage dynamodb requires --dynamodb-table"
+            ))?,
+            region: dynamodb_region,
+            endpoint: dynamodb_endpoint,
+        })
+    } else {
+        None
+    };
 
     let result = match (sovereign_lct, sovereign_hestia) {
         (Some(path), None) => {
@@ -1448,6 +1530,7 @@ async fn run_init(
                 hub_dir,
                 sovereign_lct_path: path,
                 storage: Some(backend),
+                dynamodb,
             }).await?
         }
         (None, Some(callback_url)) => {
@@ -1462,6 +1545,7 @@ async fn run_init(
                 sovereign_pubkey_hex: pubkey_hex,
                 hestia_callback_url: callback_url,
                 storage: Some(backend),
+                dynamodb,
             }).await?
         }
         (None, None) => {
@@ -1601,36 +1685,84 @@ async fn run_rotate_passphrase(hub_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// Rotate the operator-plane bearer token. Generates a new 256-bit token,
+/// writes it to `operator.token`, and prints the fingerprint.
+async fn run_rotate_operator_token(hub_dir: PathBuf) -> Result<()> {
+    let path = crate::rest::OperatorAuth::token_path(&hub_dir);
+    if !path.exists() {
+        anyhow::bail!(
+            "no operator token file found at {}. \
+             This command only works when HUB_OPERATOR_AUTH=token (run `hub up` with a public archetype first).",
+            path.display()
+        );
+    }
+    let (new_token, fingerprint) = crate::rest::OperatorAuth::rotate(&hub_dir)?;
+    println!("Operator token rotated.");
+    println!("  File:        {}", path.display());
+    println!("  Fingerprint: {fingerprint}");
+    println!("  New token:   {new_token}");
+    println!();
+    println!(
+        "A running `hub serve` picks the new token up on its next operator request \
+         (the token file is canonical, cached by mtime) — the old token stops \
+         working from that moment; no restart needed."
+    );
+    Ok(())
+}
+
 /// Seed the clear tier-0 `public-identity.json` from the encrypted store + identity.
+/// For DynamoDB-backed hubs there is no on-disk encrypted store, so the public
+/// identity is derived directly from config.toml (no passphrase required).
 async fn run_export_public_identity(hub_dir: PathBuf) -> Result<()> {
     use hub_lib::hub::{HubConfig, HubPaths, SovereignMode};
-    let pass = require_passphrase("the hub vault (to read its public identity)")?;
-    let key = hub_lib::store::derive_store_key(&hub_dir, &pass)?;
-    let store = hub_lib::store::open_hub_store_with_key(&hub_dir, Some(key))
-        .context("opening the encrypted hub store")?;
-    let society = store
-        .read_society()
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("no society in the hub store"))?;
     let config = HubConfig::load(HubPaths::new(&hub_dir).config())?;
-    let (founding, pubkey_hex) = match config.sovereign.mode()? {
-        SovereignMode::Local { lct_path } => {
-            let id = IdentityFile::load_encrypted(&lct_path, &pass)
-                .context("opening the encrypted identity")?;
-            let pk = id.keypair()?.verifying_key().to_hex();
-            (id.lct.id, Some(pk))
-        }
-        SovereignMode::Hestia { lct_id, pubkey_hex, .. } => (lct_id, Some(pubkey_hex)),
-    };
+
+    let (hub_id, hub_name, founding, pubkey_hex): (Uuid, String, Uuid, Option<String>) =
+        if config.storage.as_ref().is_some_and(|s| s.is_dynamodb()) {
+            let hub_id = config.hub.id.ok_or_else(|| anyhow::anyhow!(
+                "dynamodb backend requires hub.id in config.toml"
+            ))?;
+            let (founding, pubkey_hex) = match config.sovereign.mode()? {
+                SovereignMode::Local { lct_path } => {
+                    let pass = require_passphrase("the Sovereign identity")?;
+                    let id = IdentityFile::load_encrypted(&lct_path, &pass)
+                        .context("opening the encrypted identity")?;
+                    let pk = id.keypair()?.verifying_key().to_hex();
+                    (id.lct.id, Some(pk))
+                }
+                SovereignMode::Hestia { lct_id, pubkey_hex, .. } => (lct_id, Some(pubkey_hex)),
+            };
+            (hub_id, config.hub.name.clone(), founding, pubkey_hex)
+        } else {
+            let pass = require_passphrase("the hub vault (to read its public identity)")?;
+            let key = hub_lib::store::derive_store_key(&hub_dir, &pass)?;
+            let store = hub_lib::store::open_hub_store_with_key(&hub_dir, Some(key))
+                .context("opening the encrypted hub store")?;
+            let society = store
+                .read_society()
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("no society in the hub store"))?;
+            let (founding, pubkey_hex) = match config.sovereign.mode()? {
+                SovereignMode::Local { lct_path } => {
+                    let id = IdentityFile::load_encrypted(&lct_path, &pass)
+                        .context("opening the encrypted identity")?;
+                    let pk = id.keypair()?.verifying_key().to_hex();
+                    (id.lct.id, Some(pk))
+                }
+                SovereignMode::Hestia { lct_id, pubkey_hex, .. } => (lct_id, Some(pubkey_hex)),
+            };
+            (society.lct_id, society.name.clone(), founding, pubkey_hex)
+        };
+
     let pid = crate::rest::PublicIdentity {
-        hub_id: society.lct_id,
-        hub_name: society.name.clone(),
+        hub_id,
+        hub_name: hub_name.clone(),
         founding_sovereign_lct_id: founding,
         sovereign_pubkey_hex: pubkey_hex,
     };
     pid.write(&hub_dir)?;
     println!("Wrote {}/public-identity.json", hub_dir.display());
-    println!("  hub:       {} ({})", society.name, society.lct_id);
+    println!("  hub:       {} ({})", hub_name, hub_id);
     println!("  sovereign: {}", founding);
     println!("  → the hub can now boot as a locked shell and be ignited with `hub unlock`.");
     Ok(())
