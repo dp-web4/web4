@@ -145,13 +145,14 @@ escalation:
 # Admission — how new members join.
 # -----------------------------------------------------------------------------
 admission:
-  # Open admission: anyone with a Web4 LCT can request membership.
-  # Set `open: false` and use `requires_sponsor: true` for closed
-  # communities where existing members must vouch.
-  open: true
-  requires_sponsor: false
+  # Closed admission by default: every membership request escalates to the
+  # operator admission queue. Set `open: true` only if you want anyone with a
+  # Web4 LCT to be auto-admitted. For most public chapters, leave this closed
+  # and use `requires_sponsor: true` so existing members vouch for newcomers.
+  open: false
+  requires_sponsor: true
   min_trust_score: 0.0
-  description: "Open membership for the starter law. Tighten for closed communities. NOTE: genesis acts (founding the society, minting the first authority) run in a bounded, self-witnessing bootstrap window that ratchets shut once witnessed authority exists — a fresh install is not a permanent open door."
+  description: "Closed membership by default. Every join request is queued for operator review. Set open: true explicitly if you want auto-admission; use requires_sponsor: true for vouch-based chapters. NOTE: genesis acts (founding the society, minting the first authority) run in a bounded, self-witnessing bootstrap window that ratchets shut once witnessed authority exists — a fresh install is not a permanent open door."
 
 # -----------------------------------------------------------------------------
 # ATP issuance — how the chapter mints internal currency.

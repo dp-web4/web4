@@ -267,19 +267,54 @@ pub fn open_hub_store(hub_dir: impl AsRef<Path>) -> Result<Box<dyn HubStore>> {
 /// ignition and passes it here for runtime store re-opens, so the passphrase is
 /// never read from the environment. `None` opens a plaintext/fresh store and
 /// fails closed on an encrypted one.
+///
+/// **DynamoDB:** this synchronous factory cannot load AWS config. If
+/// `config.toml` selects the `dynamodb` backend, use
+/// [`open_hub_store_with_key_async`] instead.
 pub fn open_hub_store_with_key(
     hub_dir: impl AsRef<Path>,
     key: Option<[u8; 32]>,
 ) -> Result<Box<dyn HubStore>> {
     let hub_dir = hub_dir.as_ref();
+    if let Some((storage, _hub_id)) = read_storage_config(hub_dir)
+        .with_context(|| format!("reading storage config for {}", hub_dir.display()))?
+    {
+        let kind = storage.backend_kind()
+            .with_context(|| format!("parsing configured storage backend '{}'", storage.backend))?;
+        return match kind {
+            BackendKind::File => {
+                let paths = HubPaths::new(hub_dir.to_path_buf());
+                Ok(Box::new(FileBackend::new(paths)))
+            }
+            BackendKind::Sqlite => {
+                let db_path = hub_dir.join(SQLITE_DB_FILENAME);
+                let legacy_db_path = hub_dir.join(SQLITE_DB_FILENAME_LEGACY);
+                if db_path.exists() {
+                    Ok(Box::new(SqliteBackend::open(&db_path, key)?))
+                } else if legacy_db_path.exists() {
+                    // Pre-rename hub dir — open the legacy chapter.db in place.
+                    Ok(Box::new(SqliteBackend::open(&legacy_db_path, key)?))
+                } else {
+                    Ok(Box::new(SqliteBackend::open(&db_path, key)?))
+                }
+            }
+            BackendKind::Dynamodb => {
+                let _ = key;
+                anyhow::bail!(
+                    "dynamodb backend selected in config.toml but open_hub_store_with_key is sync; \
+                     use open_hub_store_with_key_async"
+                )
+            }
+        };
+    }
+
+    // No config.toml yet — fall back to legacy disk-based auto-detection.
     let paths = HubPaths::new(hub_dir.to_path_buf());
     let db_path = hub_dir.join(SQLITE_DB_FILENAME);
     let legacy_db_path = hub_dir.join(SQLITE_DB_FILENAME_LEGACY);
-
     if db_path.exists() {
         Ok(Box::new(SqliteBackend::open(&db_path, key)?))
     } else if legacy_db_path.exists() {
-        // Pre-rename hub dir — open the legacy chapter.db in place.
         Ok(Box::new(SqliteBackend::open(&legacy_db_path, key)?))
     } else {
         Ok(Box::new(FileBackend::new(paths)))
@@ -416,17 +451,111 @@ pub fn open_hub_store_with(
         }
         BackendKind::Dynamodb => {
             // DynamoDB needs out-of-band config (table name, AWS region,
-            // hub_id) that doesn't live in the hub_dir. The dir-based
-            // factory can't construct it; callers must use
-            // `crate::dynamodb_store::DynamoDbBackend::open` directly
-            // and pass the constructed Box<dyn HubStore> into
-            // HubLedger::open.
+            // hub_id) that doesn't live in the hub_dir. The synchronous
+            // factory cannot build it; use `open_hub_store_async` or
+            // construct `dynamodb_store::DynamoDbBackend` directly.
             anyhow::bail!(
-                "dynamodb backend cannot be opened from hub_dir alone; \
-                 construct via dynamodb_store::DynamoDbBackend::open and \
-                 pass the Box<dyn HubStore> to HubLedger::open directly"
+                "dynamodb backend requires async construction; \
+                 use open_hub_store_async or dynamodb_store::DynamoDbBackend::open"
             )
         }
+    }
+}
+
+/// Load `<hub-dir>/config.toml` and return the storage section plus the
+/// hub id (if recorded). Returns `None` if the config file is missing so
+/// fresh hubs and legacy callers can fall back to disk-based detection.
+fn read_storage_config(hub_dir: &Path) -> Result<Option<(crate::hub::StorageSection, Option<uuid::Uuid>)>> {
+    let paths = HubPaths::new(hub_dir.to_path_buf());
+    if !paths.config().exists() {
+        return Ok(None);
+    }
+    let config = crate::hub::HubConfig::load(paths.config())
+        .with_context(|| format!("loading config at {}", paths.config().display()))?;
+    Ok(Some((config.storage, config.hub.id)))
+}
+
+/// Async variant of [`open_hub_store`] that supports network-backed
+/// backends (DynamoDB). File/SQLite backends complete synchronously
+/// inside the async body; DynamoDB loads AWS config and constructs a
+/// client. This is the runtime entry point for `hub serve`, `HubSession`,
+/// and any other async caller.
+pub async fn open_hub_store_async(hub_dir: impl AsRef<Path>) -> Result<Box<dyn HubStore>> {
+    let hub_dir = hub_dir.as_ref();
+    let key = store_key(hub_dir)?;
+    open_hub_store_with_key_async(hub_dir, key).await
+}
+
+/// Async variant of [`open_hub_store_with_key`]. Handles DynamoDB in
+/// addition to file/SQLite.
+pub async fn open_hub_store_with_key_async(
+    hub_dir: impl AsRef<Path>,
+    key: Option<[u8; 32]>,
+) -> Result<Box<dyn HubStore>> {
+    let hub_dir = hub_dir.as_ref();
+    if let Some((storage, _hub_id)) = read_storage_config(hub_dir)? {
+        let kind = storage.backend_kind()
+            .with_context(|| format!("parsing configured storage backend '{}'", storage.backend))?;
+
+        return match kind {
+            BackendKind::File => {
+                let paths = HubPaths::new(hub_dir.to_path_buf());
+                Ok(Box::new(FileBackend::new(paths)))
+            }
+            BackendKind::Sqlite => {
+                let db_path = hub_dir.join(SQLITE_DB_FILENAME);
+                let legacy_db_path = hub_dir.join(SQLITE_DB_FILENAME_LEGACY);
+                if db_path.exists() {
+                    Ok(Box::new(SqliteBackend::open(&db_path, key)?))
+                } else if legacy_db_path.exists() {
+                    Ok(Box::new(SqliteBackend::open(&legacy_db_path, key)?))
+                } else {
+                    Ok(Box::new(SqliteBackend::open(&db_path, key)?))
+                }
+            }
+            BackendKind::Dynamodb => {
+                #[cfg(feature = "dynamodb")]
+                {
+                    let table = storage.dynamodb_table.ok_or_else(|| anyhow::anyhow!(
+                        "dynamodb backend requires storage.dynamodb_table in config.toml"
+                    ))?;
+                    let hub_id = _hub_id.ok_or_else(|| anyhow::anyhow!(
+                        "dynamodb backend requires hub.id in config.toml"
+                    ))?;
+                    let _ = key;
+
+                    let mut aws_cfg = aws_config::defaults(aws_config::BehaviorVersion::latest());
+                    if let Some(region) = storage.dynamodb_region {
+                        aws_cfg = aws_cfg.region(aws_sdk_dynamodb::config::Region::new(region));
+                    }
+                    if let Some(endpoint) = storage.dynamodb_endpoint {
+                        aws_cfg = aws_cfg.endpoint_url(endpoint);
+                    }
+                    let cfg = aws_cfg.load().await;
+                    let client = aws_sdk_dynamodb::Client::new(&cfg);
+                    Ok(Box::new(crate::dynamodb_store::DynamoDbBackend::open(client, table, hub_id)))
+                }
+                #[cfg(not(feature = "dynamodb"))]
+                {
+                    let _ = key;
+                    anyhow::bail!(
+                        "dynamodb backend selected but hub-lib was built without the `dynamodb` feature"
+                    )
+                }
+            }
+        };
+    }
+
+    // No config.toml yet — fall back to legacy disk-based auto-detection.
+    let paths = HubPaths::new(hub_dir.to_path_buf());
+    let db_path = hub_dir.join(SQLITE_DB_FILENAME);
+    let legacy_db_path = hub_dir.join(SQLITE_DB_FILENAME_LEGACY);
+    if db_path.exists() {
+        Ok(Box::new(SqliteBackend::open(&db_path, key)?))
+    } else if legacy_db_path.exists() {
+        Ok(Box::new(SqliteBackend::open(&legacy_db_path, key)?))
+    } else {
+        Ok(Box::new(FileBackend::new(paths)))
     }
 }
 
@@ -1613,6 +1742,63 @@ mod tests {
         std::fs::create_dir_all(&hub_dir).unwrap();
         let store = open_hub_store(&hub_dir).unwrap();
         assert_eq!(store.backend_kind(), BackendKind::File);
+    }
+
+    #[tokio::test]
+    async fn open_hub_store_async_reads_config_backend() {
+        let tmp = tempdir().unwrap();
+        let hub_dir = tmp.path().join("cfg-backed");
+        std::fs::create_dir_all(&hub_dir).unwrap();
+        // Write a config that selects sqlite even though no db exists yet.
+        let hub_id = Uuid::new_v4();
+        let config = crate::hub::HubConfig {
+            hub: crate::hub::HubSection { name: "Cfg".into(), id: Some(hub_id) },
+            daemon: crate::hub::DaemonSection { mcp_port: 8770 },
+            sovereign: crate::hub::SovereignSection {
+                lct_path: Some(hub_dir.join("sov.json")),
+                ..Default::default()
+            },
+            storage: crate::hub::StorageSection {
+                backend: "sqlite".into(),
+                ..Default::default()
+            },
+        };
+        config.save(hub_dir.join("config.toml")).unwrap();
+
+        let store = open_hub_store_async(&hub_dir).await.unwrap();
+        assert_eq!(store.backend_kind(), BackendKind::Sqlite);
+    }
+
+    #[tokio::test]
+    async fn open_hub_store_async_dynamodb_errors_without_feature() {
+        let tmp = tempdir().unwrap();
+        let hub_dir = tmp.path().join("ddb-backed");
+        std::fs::create_dir_all(&hub_dir).unwrap();
+        let hub_id = Uuid::new_v4();
+        let config = crate::hub::HubConfig {
+            hub: crate::hub::HubSection { name: "DDB".into(), id: Some(hub_id) },
+            daemon: crate::hub::DaemonSection { mcp_port: 8770 },
+            sovereign: crate::hub::SovereignSection {
+                lct_path: Some(hub_dir.join("sov.json")),
+                ..Default::default()
+            },
+            storage: crate::hub::StorageSection {
+                backend: "dynamodb".into(),
+                dynamodb_table: Some("web4-hubs".into()),
+                ..Default::default()
+            },
+        };
+        config.save(hub_dir.join("config.toml")).unwrap();
+
+        let result = open_hub_store_async(&hub_dir).await;
+        let msg = match result {
+            Err(e) => format!("{}", e),
+            Ok(_) => panic!("expected dynamodb feature-gated error"),
+        };
+        assert!(
+            msg.contains("dynamodb") && msg.contains("feature"),
+            "expected feature-gated dynamodb error, got: {}", msg
+        );
     }
 
     #[tokio::test]

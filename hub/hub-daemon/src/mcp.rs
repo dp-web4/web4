@@ -10,7 +10,7 @@
 //!
 //! Tools:
 //! - GET  /tools                 → list available tools + descriptions
-//! - GET  /tools/query_hub      → hub identity + role-fill snapshot + recent events
+//! - GET  /tools/query_hub       → hub identity + role-fill snapshot + recent events
 //! - GET  /tools/list_members    → all current members (projected from ledger)
 //! - GET  /tools/find_skill      → ?q=...  case-insensitive skill search
 //! - POST /tools/add_member      → {member_lct_id, name?} — records MemberAdded
@@ -21,6 +21,12 @@
 //! Authentication: MVP runs locally on a port the chapter operator
 //! controls. Act-recording endpoints sign ledger entries with the Sovereign
 //! keypair loaded from config.toml. Per-client signed envelopes are V2.
+//!
+//! P0 (public-release): /tools/list_members and /tools/find_skill are NOT
+//! exposed on the public fleet plane. They live on the operator plane only,
+//! behind operator auth, because a public hub bound to 0.0.0.0 must not let
+//! anonymous internet clients enumerate members or search skills. Members can
+//! still query these via the sealed REST channel or the operator plane.
 
 use anyhow::Result;
 use axum::{
@@ -111,17 +117,26 @@ impl McpState {
     /// De-env'd runtime store open (mirrors `RestState::open_store`).
     pub async fn open_store(&self) -> Result<Box<dyn hub_lib::store::HubStore>> {
         let key = self.store_key.read().await.as_ref().map(|z| **z);
-        hub_lib::store::open_hub_store_with_key(&self.paths.root, key)
+        hub_lib::store::open_hub_store_with_key_async(&self.paths.root, key).await
     }
 }
 
-/// Read-only MCP tools — safe on the public listener.
+/// Public, read-only MCP tools — safe on the public fleet listener.
+/// P0 (public-release): member/skill enumeration is NOT here; see
+/// [`operator_read_router`] for those.
 pub fn read_router(state: McpState) -> Router {
     Router::new()
         .route("/tools", get(list_tools))
         .route("/tools/query_hub", get(query_hub))
         // Back-compat alias for pre-rename clients (was query_chapter).
         .route("/tools/query_chapter", get(query_hub))
+        .with_state(state)
+}
+
+/// Operator-plane read tools. These expose member rosters and skill graphs and
+/// therefore live ONLY on the loopback operator listener, behind operator auth.
+pub fn operator_read_router(state: McpState) -> Router {
+    Router::new()
         .route("/tools/list_members", get(list_members))
         .route("/tools/find_skill", get(find_skill))
         .with_state(state)
@@ -187,8 +202,8 @@ struct ToolDescriptor {
 async fn list_tools() -> Json<Vec<ToolDescriptor>> {
     Json(vec![
         ToolDescriptor { name: "query_hub",       method: "GET",  description: "Hub identity + role-fill + recent events" },
-        ToolDescriptor { name: "list_members",   method: "GET",  description: "Current hub members" },
-        ToolDescriptor { name: "find_skill",     method: "GET",  description: "Find members by skill (substring, case-insensitive). ?q=..." },
+        // Member/skill enumeration is operator-plane only (public-release P0).
+        // They are not advertised on the public listener.
         // Write tools (add_member/assign_role/record_event/declare_skill) sign as
         // the Sovereign and are served ONLY on the loopback operator plane — not
         // advertised here (they 404 on the public listener by design).
@@ -239,15 +254,18 @@ async fn query_hub(State(s): State<McpState>) -> Result<Json<QueryHubResponse>, 
 
 #[derive(Serialize)]
 struct ListMembersResponse {
-    members: Vec<hub_lib::state::Member>,
+    members: Vec<hub_lib::state::MemberView>,
 }
 
 async fn list_members(State(s): State<McpState>) -> Result<Json<ListMembersResponse>, ApiError> {
     let ledger = s.ledger.lock().await;
     let state = HubState::project(&ledger);
-    Ok(Json(ListMembersResponse {
-        members: state.members.values().cloned().collect(),
-    }))
+    // Operator-plane callers see all fields (the operator listener is bound to
+    // loopback and authenticated as the chapter operator).
+    let members = state.members.values()
+        .map(|m| m.to_view(None, true, true))
+        .collect();
+    Ok(Json(ListMembersResponse { members }))
 }
 
 // ---------- GET /tools/find_skill ----------
@@ -258,16 +276,26 @@ struct FindSkillQuery { q: String }
 #[derive(Serialize)]
 struct FindSkillResponse {
     query: String,
-    matches: Vec<hub_lib::state::Member>,
+    matches: Vec<hub_lib::state::MemberView>,
 }
 
 async fn find_skill(
     State(s): State<McpState>,
     Query(q): Query<FindSkillQuery>,
 ) -> Result<Json<FindSkillResponse>, ApiError> {
+    const MAX_QUERY_LEN: usize = 256;
+    if q.q.len() > MAX_QUERY_LEN {
+        return Err(ApiError::forbidden(format!(
+            "skill query too long (max {} chars)",
+            MAX_QUERY_LEN
+        )));
+    }
     let ledger = s.ledger.lock().await;
     let state = HubState::project(&ledger);
-    let matches = state.find_skill(&q.q).into_iter().cloned().collect();
+    let matches = state.find_skill(&q.q)
+        .into_iter()
+        .map(|m| m.to_view(None, true, true))
+        .collect();
     Ok(Json(FindSkillResponse { query: q.q, matches }))
 }
 

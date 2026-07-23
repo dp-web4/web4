@@ -15,8 +15,51 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
-use crate::events::{HubEvent, PairRevocationKind};
+use crate::events::{HubEvent, PairRevocationKind, ProfileVisibility};
 use crate::ledger::HubLedger;
+
+/// One profile field with its disclosure tier. Stored inside
+/// [`Member::profile`] so each field carries its own visibility.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProfileField {
+    pub value: String,
+    #[serde(default)]
+    pub visibility: ProfileVisibility,
+}
+
+impl ProfileField {
+    pub fn new(value: impl Into<String>, visibility: ProfileVisibility) -> Self {
+        Self { value: value.into(), visibility }
+    }
+}
+
+/// Backward-compatible deserialization for `Member::profile`. Older ledgers
+/// stored the profile as `{"key": "value"}`; we load those as
+/// `ProfileVisibility::Members` (the pre-visibility behavior).
+fn deserialize_profile_legacy<'de, D>(deserializer: D) -> Result<BTreeMap<String, ProfileField>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+    let raw: serde_json::Value = Deserialize::deserialize(deserializer)?;
+    let mut out = BTreeMap::new();
+    let obj = raw.as_object().ok_or_else(|| D::Error::custom("profile must be an object"))?;
+    for (k, v) in obj {
+        let field = match v {
+            serde_json::Value::Object(m) => {
+                serde_json::from_value(serde_json::Value::Object(m.clone()))
+                    .map_err(D::Error::custom)?
+            }
+            serde_json::Value::String(s) => ProfileField {
+                value: s.clone(),
+                visibility: ProfileVisibility::default(),
+            },
+            _ => return Err(D::Error::custom("profile value must be a string or object")),
+        };
+        out.insert(k.clone(), field);
+    }
+    Ok(out)
+}
 
 /// Projected current state of a chapter, derived from ledger events.
 #[derive(Clone, Debug, Default, Serialize)]
@@ -394,7 +437,63 @@ pub struct Member {
     pub skills: BTreeSet<String>,
     /// Free-text profile fields (skills, interests, + expandable keys) for
     /// semantic member discovery. Populated by MemberProfileUpdated events.
-    #[serde(default)]
+    /// Each field carries a visibility tier; old ledgers without tiers load
+    /// as the default `Members` visibility.
+    #[serde(default, deserialize_with = "deserialize_profile_legacy")]
+    pub profile: BTreeMap<String, ProfileField>,
+}
+
+impl Member {
+    /// Profile fields visible to a given viewer category.
+    /// - `viewer == member.lct_id` → self, members, public fields.
+    /// - `viewer_is_operator == true` → all fields.
+    /// - `viewer_is_member == true` → members + public fields.
+    /// - otherwise → public fields only.
+    pub fn visible_profile(
+        &self,
+        viewer: Option<Uuid>,
+        viewer_is_member: bool,
+        viewer_is_operator: bool,
+    ) -> BTreeMap<String, String> {
+        self.profile
+            .iter()
+            .filter(|(_, f)| match f.visibility {
+                ProfileVisibility::Public => true,
+                ProfileVisibility::Members => viewer_is_member || viewer_is_operator,
+                ProfileVisibility::SelfOnly => {
+                    viewer.map(|v| v == self.lct_id).unwrap_or(false) || viewer_is_operator
+                }
+            })
+            .map(|(k, f)| (k.clone(), f.value.clone()))
+            .collect()
+    }
+
+    /// A serializable view of this member with the profile filtered to what the
+    /// viewer is allowed to see. Used by REST/MCP read paths so we never leak
+    /// `ProfileField` internals (visibility tiers or self-only values) to callers.
+    pub fn to_view(
+        &self,
+        viewer: Option<Uuid>,
+        viewer_is_member: bool,
+        viewer_is_operator: bool,
+    ) -> MemberView {
+        MemberView {
+            lct_id: self.lct_id,
+            name: self.name.clone(),
+            skills: self.skills.clone(),
+            profile: self.visible_profile(viewer, viewer_is_member, viewer_is_operator),
+        }
+    }
+}
+
+/// A filtered, serialization-ready view of a [`Member`]. The `profile` here is
+/// the already-resolved `key → value` map the viewer is allowed to see; the
+/// underlying visibility tier is not exposed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemberView {
+    pub lct_id: Uuid,
+    pub name: Option<String>,
+    pub skills: BTreeSet<String>,
     pub profile: BTreeMap<String, String>,
 }
 
@@ -622,13 +721,17 @@ impl HubState {
                     }
                 }
             }
-            HubEvent::MemberProfileUpdated { member_lct_id, fields, .. } => {
+            HubEvent::MemberProfileUpdated { member_lct_id, fields, visibilities, .. } => {
                 if let Some(member) = self.members.get_mut(member_lct_id) {
                     for (k, v) in fields {
                         if v.is_empty() {
                             member.profile.remove(k);
                         } else {
-                            member.profile.insert(k.clone(), v.clone());
+                            let visibility = visibilities.get(k).copied().unwrap_or_default();
+                            member.profile.insert(k.clone(), ProfileField {
+                                value: v.clone(),
+                                visibility,
+                            });
                         }
                     }
                 }
@@ -1459,5 +1562,61 @@ mod tests {
             }
             _ => panic!("expected PairingRevoked"),
         }
+    }
+
+    #[test]
+    fn visible_profile_respects_tiers() {
+        let alice = Uuid::new_v4();
+        let bob = Uuid::new_v4();
+        let mut profile = BTreeMap::new();
+        profile.insert("public".into(), ProfileField::new("pub", ProfileVisibility::Public));
+        profile.insert("members".into(), ProfileField::new("mem", ProfileVisibility::Members));
+        profile.insert("self".into(), ProfileField::new("secret", ProfileVisibility::SelfOnly));
+        let member = Member {
+            lct_id: alice,
+            name: Some("Alice".into()),
+            skills: BTreeSet::new(),
+            profile,
+        };
+
+        // Self sees all three.
+        let self_view = member.visible_profile(Some(alice), true, false);
+        assert_eq!(self_view.len(), 3);
+        assert_eq!(self_view.get("self"), Some(&"secret".to_string()));
+
+        // Another member sees public + members, not self.
+        let member_view = member.visible_profile(Some(bob), true, false);
+        assert_eq!(member_view.len(), 2);
+        assert!(member_view.contains_key("public"));
+        assert!(member_view.contains_key("members"));
+        assert!(!member_view.contains_key("self"));
+
+        // Operator sees everything.
+        let op_view = member.visible_profile(None, true, true);
+        assert_eq!(op_view.len(), 3);
+
+        // Anonymous/external sees only public.
+        let anon_view = member.visible_profile(None, false, false);
+        assert_eq!(anon_view.len(), 1);
+        assert_eq!(anon_view.get("public"), Some(&"pub".to_string()));
+    }
+
+    #[test]
+    fn to_view_serializes_filtered_profile_only() {
+        let alice = Uuid::new_v4();
+        let mut profile = BTreeMap::new();
+        profile.insert("bio".into(), ProfileField::new("hi", ProfileVisibility::Public));
+        profile.insert("phone".into(), ProfileField::new("555", ProfileVisibility::SelfOnly));
+        let member = Member {
+            lct_id: alice,
+            name: Some("Alice".into()),
+            skills: BTreeSet::from(["rust".into()]),
+            profile,
+        };
+        let view = member.to_view(Some(alice), true, false);
+        assert_eq!(view.lct_id, alice);
+        assert_eq!(view.profile.len(), 2);
+        assert!(!serde_json::to_string(&view).unwrap().contains("\"visibility\""),
+            "MemberView must not expose the visibility tier metadata");
     }
 }

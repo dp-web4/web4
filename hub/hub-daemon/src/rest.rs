@@ -407,7 +407,7 @@ impl RestState {
     /// environment.
     pub async fn open_store(&self) -> anyhow::Result<Box<dyn hub_lib::store::HubStore>> {
         let key = self.store_key.read().await.as_ref().map(|z| **z);
-        hub_lib::store::open_hub_store_with_key(&self.paths.root, key)
+        hub_lib::store::open_hub_store_with_key_async(&self.paths.root, key).await
     }
 
     /// Load the durable mailbox from the (encrypted) state store into the
@@ -1568,9 +1568,16 @@ pub async fn lock_gate(
 pub struct OperatorAuth {
     /// `Some(token)` in token mode; `None` in loopback-only mode.
     token: Option<String>,
+    /// Hub directory, needed to check token TTL sidecar file.
+    hub_dir: std::path::PathBuf,
 }
 
 impl OperatorAuth {
+    /// File name for the operator bearer token.
+    pub const TOKEN_FILE: &'static str = "operator.token";
+    /// Sidecar file recording when the current token was minted (Unix seconds).
+    pub const TOKEN_CREATED_FILE: &'static str = "operator.token.created_at";
+
     /// Resolve from `HUB_OPERATOR_AUTH`. In `token` mode, load an existing token
     /// file or generate one (0600) under `hub_dir`. Fail-closed: an unreadable
     /// token file is an error, not a silent downgrade to loopback-only.
@@ -1578,37 +1585,117 @@ impl OperatorAuth {
         use anyhow::Context;
         match std::env::var("HUB_OPERATOR_AUTH").ok().as_deref() {
             Some("token") => {
-                let path = hub_dir.join("operator.token");
+                let path = hub_dir.join(Self::TOKEN_FILE);
                 let token = if path.exists() {
                     std::fs::read_to_string(&path)
                         .with_context(|| format!("reading operator token {}", path.display()))?
                         .trim()
                         .to_string()
                 } else {
-                    // 2×UUIDv4 = 256 bits, hex — no extra dep, plenty for a bearer token.
-                    let t = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-                    std::fs::write(&path, &t)
-                        .with_context(|| format!("writing operator token {}", path.display()))?;
-                    #[cfg(unix)]
-                    {
-                        use std::os::unix::fs::PermissionsExt;
-                        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
-                    }
-                    println!(
-                        "  operator auth: TOKEN mode — new token written to {} (0600); \
-                         send it as the X-Operator-Token header",
-                        path.display()
-                    );
-                    t
+                    Self::generate_and_write(&path)?
                 };
                 if token.is_empty() {
                     anyhow::bail!("operator token file {} is empty", path.display());
                 }
-                Ok(Self { token: Some(token) })
+                Ok(Self { token: Some(token), hub_dir: hub_dir.to_path_buf() })
             }
             // Default (unset or "loopback"): loopback-only.
-            _ => Ok(Self { token: None }),
+            _ => Ok(Self { token: None, hub_dir: hub_dir.to_path_buf() }),
         }
+    }
+
+    /// Generate a fresh 256-bit hex token, write it to `path` with 0600
+    /// permissions, record its creation time, and return the token. Prints a
+    /// masked summary — the full secret is never emitted to stdout.
+    pub fn generate_and_write(path: &std::path::Path) -> anyhow::Result<String> {
+        use anyhow::Context;
+        let t = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+        std::fs::write(path, &t)
+            .with_context(|| format!("writing operator token {}", path.display()))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+        }
+        // Record creation time so a TTL can be enforced later.
+        if let Some(parent) = path.parent() {
+            let created_path = parent.join(Self::TOKEN_CREATED_FILE);
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let _ = std::fs::write(&created_path, now.to_string());
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&created_path, std::fs::Permissions::from_mode(0o600));
+            }
+        }
+        println!(
+            "  operator auth: TOKEN mode — new token written to {} (0600); \
+             send it as the X-Operator-Token header (fingerprint: {})",
+            path.display(),
+            Self::fingerprint(&t)
+        );
+        Ok(t)
+    }
+
+    /// Public path helper so the CLI rotation command can locate the token file.
+    pub fn token_path(hub_dir: &std::path::Path) -> std::path::PathBuf {
+        hub_dir.join(Self::TOKEN_FILE)
+    }
+
+    /// Rotate the operator token in place. Writes a new token to the file,
+    /// returns the new token and its fingerprint. The caller decides whether to
+    /// display the full token (one-time setup) or just the fingerprint.
+    pub fn rotate(hub_dir: &std::path::Path) -> anyhow::Result<(String, String)> {
+        let path = Self::token_path(hub_dir);
+        let t = Self::generate_and_write(&path)?;
+        let fp = Self::fingerprint(&t);
+        Ok((t, fp))
+    }
+
+    /// Optional TTL: if `HUB_OPERATOR_TOKEN_TTL_SECONDS` is set and the token is
+    /// older than the TTL, return the expiration reason. `None` means no TTL or
+    /// not expired.
+    pub fn ttl_expired(hub_dir: &std::path::Path) -> Option<String> {
+        let ttl: u64 = std::env::var("HUB_OPERATOR_TOKEN_TTL_SECONDS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .filter(|&n| n > 0)?;
+        let created_path = hub_dir.join(Self::TOKEN_CREATED_FILE);
+        let created: u64 = std::fs::read_to_string(&created_path)
+            .ok()
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        if created == 0 {
+            return Some(format!(
+                "token has no creation timestamp and HUB_OPERATOR_TOKEN_TTL_SECONDS={}; \
+                 rotate the token with `hub rotate-operator-token`",
+                ttl
+            ));
+        }
+        if now.saturating_sub(created) >= ttl {
+            Some(format!(
+                "operator token expired (TTL {}s); rotate with `hub rotate-operator-token`",
+                ttl
+            ))
+        } else {
+            None
+        }
+    }
+
+    /// Public fingerprint of a token: first 16 hex chars of SHA-256. Used for
+    /// logs and UI so operators can tell which token was used without leaking
+    /// the full bearer secret.
+    pub fn fingerprint(token: &str) -> String {
+        use sha2::{Digest, Sha256};
+        let hash = Sha256::digest(token.as_bytes());
+        format!("{:.16}", hex::encode(hash))
     }
 
     /// Constant-time token check (no early-exit timing oracle on the header compare).
@@ -1641,17 +1728,39 @@ pub async fn operator_auth_gate(
         return (StatusCode::FORBIDDEN, "operator plane is local-only").into_response();
     }
     if auth.token.is_some() {
+        // P0: optional operator-token TTL. Checked here so an expired token is
+        // rejected before any handler runs, with a clear rotate instruction.
+        if let Some(reason) = OperatorAuth::ttl_expired(&auth.hub_dir) {
+            tracing::warn!(peer = %peer, "operator-plane request rejected: {reason}");
+            return (StatusCode::UNAUTHORIZED, reason).into_response();
+        }
         let provided = req
             .headers()
             .get("x-operator-token")
             .and_then(|h| h.to_str().ok());
+        let fp = provided.map(OperatorAuth::fingerprint);
         if !auth.token_ok(provided) {
+            tracing::warn!(
+                peer = %peer,
+                token_fingerprint = fp.as_deref().unwrap_or("none"),
+                "operator-plane request rejected: invalid or missing token"
+            );
             return (
                 StatusCode::FORBIDDEN,
                 "operator token required or invalid (X-Operator-Token)",
             )
                 .into_response();
         }
+        tracing::info!(
+            peer = %peer,
+            token_fingerprint = fp.as_deref().unwrap_or("unknown"),
+            "operator-plane request authenticated"
+        );
+    } else {
+        tracing::info!(
+            peer = %peer,
+            "operator-plane request accepted (loopback-only mode)"
+        );
     }
     next.run(req).await
 }
@@ -1674,6 +1783,33 @@ impl From<VerifyError> for ApiError {
             VerifyError::BadSignature(_) => ApiError::unauthorized(e.to_string()),
             VerifyError::Internal(err) => ApiError::internal(err),
         }
+    }
+}
+
+#[cfg(test)]
+mod operator_auth_tests {
+    use super::*;
+
+    #[test]
+    fn fingerprint_is_stable_and_short() {
+        let t = "test-token-123";
+        let fp1 = OperatorAuth::fingerprint(t);
+        let fp2 = OperatorAuth::fingerprint(t);
+        assert_eq!(fp1, fp2);
+        assert_eq!(fp1.len(), 16, "fingerprint is 16 hex chars");
+        assert_ne!(fp1, t, "fingerprint does not leak the token");
+    }
+
+    #[test]
+    fn token_ok_is_constant_time_and_length_safe() {
+        let auth = OperatorAuth {
+            token: Some("exact".to_string()),
+            hub_dir: std::path::PathBuf::from("."),
+        };
+        assert!(auth.token_ok(Some("exact")));
+        assert!(!auth.token_ok(Some("exac")));
+        assert!(!auth.token_ok(Some("exact!")));
+        assert!(!auth.token_ok(None));
     }
 }
 
@@ -2048,6 +2184,8 @@ enum EnvelopeAction {
     UpdateProfile {
         member_lct_id: Uuid,
         fields: std::collections::BTreeMap<String, String>,
+        #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+        visibilities: std::collections::BTreeMap<String, hub_lib::events::ProfileVisibility>,
     },
 }
 
@@ -2164,7 +2302,7 @@ async fn submit_event(
                 declared_by: envelope.signer_lct_id,
             }
         }
-        EnvelopeAction::UpdateProfile { member_lct_id, fields } => {
+        EnvelopeAction::UpdateProfile { member_lct_id, fields, visibilities } => {
             // Same self-only rule as DeclareSkill: members update only their
             // own profile (signer == subject); Sovereign may update any
             // member's (operator convenience / seeding).
@@ -2177,6 +2315,7 @@ async fn submit_event(
             HubEvent::MemberProfileUpdated {
                 member_lct_id,
                 fields,
+                visibilities,
                 updated_by: envelope.signer_lct_id,
             }
         }
@@ -2540,15 +2679,25 @@ struct ReadScope {
     role: &'static str,
     /// None = unbounded (Sovereign); Some(n) = at most n records.
     max_results: Option<usize>,
+    /// The authenticated caller's LCT id, if known. `None` for unauthenticated
+    /// or operator-plane callers that are not tied to a single member identity.
+    caller_lct_id: Option<Uuid>,
+    /// Whether the caller is a member of this hub (citizen or sovereign).
+    viewer_is_member: bool,
+    /// Whether the caller is an operator (sovereign over the channel, or any
+    /// caller on the operator-plane MCP listener). Operators see all fields.
+    viewer_is_operator: bool,
 }
 
 impl ReadScope {
-    fn for_role(role: &'static str) -> Self {
+    fn for_role(role: &'static str, caller_lct_id: Uuid) -> Self {
         let max_results = match role {
             "sovereign" => None,
             _ => Some(CITIZEN_READ_LIMIT),
         };
-        ReadScope { role, max_results }
+        let viewer_is_operator = role == "sovereign";
+        let viewer_is_member = viewer_is_operator || role == "citizen";
+        ReadScope { role, max_results, caller_lct_id: Some(caller_lct_id), viewer_is_member, viewer_is_operator }
     }
 
     /// Effective record count: honor the caller's requested `limit` but never
@@ -2736,7 +2885,7 @@ async fn dispatch_channel(
     gate_read(s, role, inner.tool.as_str()).await?;
 
     // Scoping: bound how much this tier may see (MRH at the result layer).
-    let scope = ReadScope::for_role(role);
+    let scope = ReadScope::for_role(role, caller_lct_id);
     let requested = inner.args.get("limit").and_then(|v| v.as_u64()).map(|n| n as usize);
     let limit = scope.effective_limit(requested);
 
@@ -2869,9 +3018,11 @@ async fn dispatch_channel(
             Ok(serde_json::json!({ "recorded": true, "entry_index": index }))
         }
         "list_members" => {
-            let all: Vec<&hub_lib::state::Member> = state.members.values().collect();
+            let all: Vec<hub_lib::state::MemberView> = state.members.values()
+                .map(|m| m.to_view(scope.caller_lct_id, scope.viewer_is_member, scope.viewer_is_operator))
+                .collect();
             let total = all.len();
-            let shown: Vec<&hub_lib::state::Member> = match limit {
+            let shown: Vec<hub_lib::state::MemberView> = match limit {
                 Some(n) => all.into_iter().take(n).collect(),
                 None => all,
             };
@@ -2882,12 +3033,20 @@ async fn dispatch_channel(
             }))
         }
         "find_skill" => {
+            const MAX_QUERY_LEN: usize = 256;
             let q = inner.args.get("q").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
-            let matches: Vec<&hub_lib::state::Member> = state.members.values()
+            if q.len() > MAX_QUERY_LEN {
+                return Err(ApiError::bad_request(format!(
+                    "skill query too long (max {} chars)",
+                    MAX_QUERY_LEN
+                )));
+            }
+            let matches: Vec<hub_lib::state::MemberView> = state.members.values()
                 .filter(|m| m.skills.iter().any(|sk| sk.contains(&q)))
+                .map(|m| m.to_view(scope.caller_lct_id, scope.viewer_is_member, scope.viewer_is_operator))
                 .collect();
             let total = matches.len();
-            let shown: Vec<&hub_lib::state::Member> = match limit {
+            let shown: Vec<hub_lib::state::MemberView> = match limit {
                 Some(n) => matches.into_iter().take(n).collect(),
                 None => matches,
             };
@@ -2901,7 +3060,14 @@ async fn dispatch_channel(
             // Semantic member discovery. The hub is the front door (gating +
             // tier scoping happen here); membot is the engine (the sidecar does
             // the embedding + 3-signal search). top_k is bounded by the tier cap.
+            const MAX_QUERY_LEN: usize = 1024;
             let query = inner.args.get("query").and_then(|v| v.as_str()).unwrap_or("");
+            if query.len() > MAX_QUERY_LEN {
+                return Err(ApiError::bad_request(format!(
+                    "find_members query too long (max {} chars)",
+                    MAX_QUERY_LEN
+                )));
+            }
             if query.trim().is_empty() {
                 return Err(ApiError::bad_request("find_members requires a 'query'".to_string()));
             }
@@ -2910,9 +3076,10 @@ async fn dispatch_channel(
             let temperature = inner.args.get("temperature").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let mut hits = membox_find_members(query, effective, temperature).await?;
             // The cart is a pure index: the sidecar returns {member_lct, score}.
-            // Re-attach member name from the hub's authoritative (encrypted)
-            // registry here — member PII lives once, in the hub, not the cart.
-            enrich_member_hits(&mut hits, &state.members);
+            // Re-attach member display data (name + visible profile) from the
+            // hub's authoritative registry here — member PII lives once, in the
+            // hub, not the cart.
+            enrich_member_hits(&mut hits, &state.members, &scope);
             Ok(serde_json::json!({
                 "results": hits,
                 "total": hits.len(),
@@ -3339,13 +3506,15 @@ async fn dispatch_channel(
     }
 }
 
-/// Re-attach member display data (name) to the index-only hits returned by the
-/// membox cart, looked up from the authoritative registry. The cart holds no
-/// PII — just `member_lct` + embedding — so the hub is the single source of
-/// member identity; unknown/absent LCTs are left as-is (lct + score only).
+/// Re-attach member display data (name + visibility-filtered profile) to the
+/// index-only hits returned by the membox cart, looked up from the authoritative
+/// registry. The cart holds no PII — just `member_lct` + embedding — so the hub
+/// is the single source of member identity; unknown/absent LCTs are left as-is
+/// (lct + score only).
 fn enrich_member_hits(
     hits: &mut [serde_json::Value],
     members: &std::collections::BTreeMap<Uuid, hub_lib::state::Member>,
+    scope: &ReadScope,
 ) {
     for hit in hits.iter_mut() {
         if let Some(lct) = hit
@@ -3353,8 +3522,13 @@ fn enrich_member_hits(
             .and_then(|v| v.as_str())
             .and_then(|s| Uuid::parse_str(s).ok())
         {
-            if let Some(name) = members.get(&lct).and_then(|m| m.name.clone()) {
-                hit["name"] = serde_json::json!(name);
+            if let Some(member) = members.get(&lct) {
+                if let Some(name) = member.name.clone() {
+                    hit["name"] = serde_json::json!(name);
+                }
+                hit["profile"] = serde_json::to_value(
+                    member.visible_profile(scope.caller_lct_id, scope.viewer_is_member, scope.viewer_is_operator)
+                ).unwrap_or(serde_json::json!({}));
             }
         }
     }
@@ -5935,8 +6109,9 @@ norms:
 
     #[test]
     fn scope_bounds_citizens_and_not_the_sovereign() {
-        let citizen = ReadScope::for_role("citizen");
-        let sovereign = ReadScope::for_role("sovereign");
+        let dummy = Uuid::new_v4();
+        let citizen = ReadScope::for_role("citizen", dummy);
+        let sovereign = ReadScope::for_role("sovereign", dummy);
         // Citizen is capped; Sovereign is unbounded.
         assert_eq!(citizen.effective_limit(None), Some(CITIZEN_READ_LIMIT));
         assert_eq!(sovereign.effective_limit(None), None);
@@ -5979,6 +6154,7 @@ mod lct_registry_tests {
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sov_path,
             storage: None,
+            dynamodb: None,
         })
         .await
         .unwrap();
@@ -6003,6 +6179,7 @@ mod lct_registry_tests {
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sov_path,
             storage: Some(hub_lib::store::BackendKind::Sqlite),
+            dynamodb: None,
         })
         .await
         .unwrap();
@@ -6327,6 +6504,7 @@ mod channel_e2e_tests {
             hub_dir: hub_dir.clone(),
             sovereign_lct_path: sov,
             storage: None,
+            dynamodb: None,
         })
         .await
         .unwrap();
@@ -6419,6 +6597,156 @@ mod channel_e2e_tests {
             members.iter().any(|m| m["lct_id"] == serde_json::json!(applicant_lct)),
             "the admitted applicant should appear in list_members"
         );
+    }
+
+    #[tokio::test]
+    async fn profile_visibility_tiers_filter_channel_reads() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().expect("local signer exposes a pubkey");
+
+        // Admit Alice and Bob as citizens with pinned channel keys.
+        let alice = KeyPair::generate();
+        let alice_lct = Uuid::new_v4();
+        let pid_a = Uuid::new_v4();
+        let sealed_a = seal_req(&alice, &hub_pub, pid_a, "request_citizenship",
+            serde_json::json!({ "name": "Alice" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: alice_lct, pair_id: pid_a, sealed: sealed_a,
+            caller_pubkey_hex: Some(alice.verifying_key().to_hex()),
+        })).await.expect("alice admitted");
+
+        let bob = KeyPair::generate();
+        let bob_lct = Uuid::new_v4();
+        let pid_b = Uuid::new_v4();
+        let sealed_b = seal_req(&bob, &hub_pub, pid_b, "request_citizenship",
+            serde_json::json!({ "name": "Bob" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: bob_lct, pair_id: pid_b, sealed: sealed_b,
+            caller_pubkey_hex: Some(bob.verifying_key().to_hex()),
+        })).await.expect("bob admitted");
+
+        // Set profiles with mixed visibility tiers (sovereign-signed fixture).
+        let mut alice_fields = std::collections::BTreeMap::new();
+        alice_fields.insert("public".into(), "alice-public".into());
+        alice_fields.insert("members".into(), "alice-members".into());
+        alice_fields.insert("self".into(), "alice-self".into());
+        let mut alice_vis = std::collections::BTreeMap::new();
+        alice_vis.insert("public".into(), hub_lib::events::ProfileVisibility::Public);
+        alice_vis.insert("members".into(), hub_lib::events::ProfileVisibility::Members);
+        alice_vis.insert("self".into(), hub_lib::events::ProfileVisibility::SelfOnly);
+        witness_event(&state, HubEvent::MemberProfileUpdated {
+            member_lct_id: alice_lct,
+            fields: alice_fields,
+            visibilities: alice_vis,
+            updated_by: state.sovereign_lct_id,
+        }).await.expect("alice profile");
+
+        let mut bob_fields = std::collections::BTreeMap::new();
+        bob_fields.insert("public".into(), "bob-public".into());
+        bob_fields.insert("members".into(), "bob-members".into());
+        bob_fields.insert("self".into(), "bob-self".into());
+        let mut bob_vis = std::collections::BTreeMap::new();
+        bob_vis.insert("public".into(), hub_lib::events::ProfileVisibility::Public);
+        bob_vis.insert("members".into(), hub_lib::events::ProfileVisibility::Members);
+        bob_vis.insert("self".into(), hub_lib::events::ProfileVisibility::SelfOnly);
+        witness_event(&state, HubEvent::MemberProfileUpdated {
+            member_lct_id: bob_lct,
+            fields: bob_fields,
+            visibilities: bob_vis,
+            updated_by: state.sovereign_lct_id,
+        }).await.expect("bob profile");
+
+        // Alice calls list_members over the sealed channel.
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&alice, &hub_pub, pid, "list_members", serde_json::json!({}));
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: alice_lct, pair_id: pid, sealed, caller_pubkey_hex: None,
+        })).await.expect("alice list_members");
+        let out = open_resp(&alice, &hub_pub, pid, &resp.0.sealed);
+        let members = out["members"].as_array().expect("members array");
+
+        // Alice sees her own self field.
+        let alice_view = members.iter()
+            .find(|m| m["lct_id"] == serde_json::json!(alice_lct))
+            .expect("alice in list");
+        assert_eq!(alice_view["profile"]["public"], serde_json::json!("alice-public"));
+        assert_eq!(alice_view["profile"]["members"], serde_json::json!("alice-members"));
+        assert_eq!(alice_view["profile"]["self"], serde_json::json!("alice-self"));
+
+        // Alice sees Bob's public + members fields, but not his self field.
+        let bob_view = members.iter()
+            .find(|m| m["lct_id"] == serde_json::json!(bob_lct))
+            .expect("bob in list");
+        assert_eq!(bob_view["profile"]["public"], serde_json::json!("bob-public"));
+        assert_eq!(bob_view["profile"]["members"], serde_json::json!("bob-members"));
+        assert!(
+            bob_view["profile"].get("self").is_none(),
+            "alice must not see bob's self-only field"
+        );
+
+        // The response shape must not leak visibility metadata.
+        for m in members {
+            assert!(
+                !serde_json::to_string(&m["profile"]).unwrap().contains("\"visibility\""),
+                "profile view must not expose visibility tier metadata"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn profile_visibility_operator_sees_all_and_external_is_gated() {
+        let (tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().expect("local signer exposes a pubkey");
+
+        // Admit one citizen with a pinned key.
+        let citizen = KeyPair::generate();
+        let citizen_lct = Uuid::new_v4();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&citizen, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Citizen" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: citizen_lct, pair_id: pid, sealed,
+            caller_pubkey_hex: Some(citizen.verifying_key().to_hex()),
+        })).await.expect("citizen admitted");
+
+        // Set a self-only field on the citizen.
+        let mut fields = std::collections::BTreeMap::new();
+        fields.insert("secret".into(), "shh".into());
+        let mut vis = std::collections::BTreeMap::new();
+        vis.insert("secret".into(), hub_lib::events::ProfileVisibility::SelfOnly);
+        witness_event(&state, HubEvent::MemberProfileUpdated {
+            member_lct_id: citizen_lct,
+            fields,
+            visibilities: vis,
+            updated_by: state.sovereign_lct_id,
+        }).await.expect("profile");
+
+        // Sovereign channel read sees the self-only field (operator view).
+        let sov_id = IdentityFile::load(tmp.path().join("sovereign.json")).unwrap();
+        let sov_kp = sov_id.keypair().unwrap();
+        let pid2 = Uuid::new_v4();
+        let sealed2 = seal_req(&sov_kp, &hub_pub, pid2, "list_members", serde_json::json!({}));
+        let resp2 = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: state.sovereign_lct_id, pair_id: pid2, sealed: sealed2,
+            caller_pubkey_hex: None,
+        })).await.expect("sovereign list_members");
+        let out2 = open_resp(&sov_kp, &hub_pub, pid2, &resp2.0.sealed);
+        let member = out2["members"].as_array().unwrap()
+            .iter().find(|m| m["lct_id"] == serde_json::json!(citizen_lct))
+            .expect("citizen in sovereign view").clone();
+        assert_eq!(member["profile"]["secret"], serde_json::json!("shh"),
+            "operator/sovereign must see self-only fields");
+
+        // External callers are forbidden from list_members entirely.
+        let external = KeyPair::generate();
+        let external_lct = Uuid::new_v4();
+        let pid3 = Uuid::new_v4();
+        let sealed3 = seal_req(&external, &hub_pub, pid3, "list_members", serde_json::json!({}));
+        let resp3 = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: external_lct, pair_id: pid3, sealed: sealed3,
+            caller_pubkey_hex: Some(external.verifying_key().to_hex()),
+        })).await;
+        assert!(resp3.is_err(), "external LCT must not enumerate members");
     }
 
     #[tokio::test]
@@ -8071,7 +8399,8 @@ norms:
             serde_json::json!({ "member_lct": lct.to_string(), "score": 0.91 }),
             serde_json::json!({ "member_lct": unknown.to_string(), "score": 0.42 }),
         ];
-        enrich_member_hits(&mut hits, &members);
+        let scope = ReadScope::for_role("sovereign", lct);
+        enrich_member_hits(&mut hits, &members, &scope);
         // Known member: name re-attached from the registry; score preserved.
         assert_eq!(hits[0]["name"], serde_json::json!("Sprout"));
         assert_eq!(hits[0]["score"], serde_json::json!(0.91));
@@ -8188,13 +8517,20 @@ norms:
 
     #[test]
     fn operator_auth_token_check_exact_and_length_safe() {
-        let auth = OperatorAuth { token: Some("s3cret-token".to_string()) };
+        let auth = OperatorAuth {
+            token: Some("s3cret-token".to_string()),
+            hub_dir: std::path::PathBuf::from("."),
+        };
         assert!(auth.token_ok(Some("s3cret-token")));
         assert!(!auth.token_ok(Some("s3cret-toke")), "shorter rejected");
         assert!(!auth.token_ok(Some("s3cret-tokenX")), "longer rejected");
         assert!(!auth.token_ok(Some("wrong")), "wrong rejected");
         assert!(!auth.token_ok(None), "missing header rejected");
-        assert!(!OperatorAuth { token: None }.token_ok(Some("x")), "loopback mode has no token");
+        assert!(
+            !OperatorAuth { token: None, hub_dir: std::path::PathBuf::from(".") }
+                .token_ok(Some("x")),
+            "loopback mode has no token"
+        );
     }
 
     #[test]
