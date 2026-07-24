@@ -2647,19 +2647,82 @@ struct ChannelInner {
 /// constellation-MFA state. These REQUIRE freshness fields (non-empty `nonce`
 /// + `issued_at`); reads stay tolerant because they're idempotent — a replayed
 /// read leaks nothing new and older read-only callers keep working.
+/// Every tool `dispatch_channel` serves — keep in lockstep with the match
+/// arms (the classification guard test walks this list; adding a dispatch arm
+/// without registering it here fails the test, so a new tool cannot silently
+/// skip freshness classification). (#474)
+const CHANNEL_TOOLS: [&str; 18] = [
+    "constellation_challenge",
+    "find_members",
+    "find_skill",
+    "list_intros",
+    "list_members",
+    "notifications",
+    "presence",
+    "present_constellation",
+    "query_hub",
+    "record_reputation",
+    "referenced_act",
+    "reputation",
+    "request_admission_review",
+    "request_citizenship",
+    "request_intro",
+    "respond_intro",
+    "send_secret",
+    "walk_members",
+];
+
+/// The idempotent READ tools — the only ones exempt from H-007 freshness.
+/// This is deliberately the inverted classification (#474, Legion review of
+/// #472): the old form allowlisted the WRITES, so a future write-class tool
+/// added to `dispatch_channel` without touching the list silently inherited
+/// read tolerance — fail-open for new writes. Allowlisting the reads makes
+/// the default fail-closed: an unclassified new tool REQUIRES freshness.
+const CHANNEL_READ_TOOLS: [&str; 9] = [
+    "find_members",
+    "find_skill",
+    "list_intros",
+    "list_members",
+    "notifications",
+    "presence",
+    "query_hub",
+    "reputation",
+    "walk_members",
+];
+
 fn channel_tool_requires_freshness(tool: &str) -> bool {
-    matches!(
-        tool,
-        "request_citizenship"
-            | "request_admission_review"
-            | "record_reputation"
-            | "request_intro"
-            | "respond_intro"
-            | "referenced_act"
-            | "send_secret"
-            | "constellation_challenge"
-            | "present_constellation"
-    )
+    !CHANNEL_READ_TOOLS.contains(&tool)
+}
+
+/// H-008 Phase 3 (#476): a scheme-tagged `content_hash` must carry a
+/// meaningful VALUE after the tag — `git-sha:zzz` passed Phase 2's tag-only
+/// check. Hex-shape per scheme: `git-sha:` = 40 (sha1) or 64 (sha256 repos)
+/// lowercase hex; `sha256-content:` / `sha256-pointer:` = 64 lowercase hex.
+fn validate_content_hash(content_hash: &str) -> Result<(), String> {
+    const SCHEMES: [&str; 3] = ["git-sha:", "sha256-content:", "sha256-pointer:"];
+    let Some(scheme) = SCHEMES.iter().find(|p| content_hash.starts_with(*p)) else {
+        return Err(
+            "requires a scheme-tagged 'content_hash' \
+             (git-sha:|sha256-content:|sha256-pointer:) (H-008 Phase 2)"
+                .to_string(),
+        );
+    };
+    let value = &content_hash[scheme.len()..];
+    let hex_ok = |v: &str| v.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase());
+    let ok = match *scheme {
+        "git-sha:" => (value.len() == 40 || value.len() == 64) && hex_ok(value),
+        _ => value.len() == 64 && hex_ok(value),
+    };
+    if ok {
+        Ok(())
+    } else {
+        Err(format!(
+            "'content_hash' value after '{scheme}' must be lowercase hex \
+             ({} chars) — got {} chars (H-008 Phase 3)",
+            if *scheme == "git-sha:" { "40 or 64" } else { "64" },
+            value.len()
+        ))
+    }
 }
 
 async fn channel_request(
@@ -2720,12 +2783,22 @@ async fn channel_request(
     // witnessed act is therefore freshness-bounded and nonce-deduped, never
     // hash-fallback-deduped.
     if channel_tool_requires_freshness(&inner.tool) {
+        // #480: every H-007 rejection logs caller + tool. A stale fleet sender
+        // is otherwise a silent failure on BOTH ends — the peer never gets the
+        // event and the operator journal shows nothing (live incident,
+        // thread sec-mesh-freshness 2026-07-07: "mesh went quiet").
         if !inner.nonce.as_deref().is_some_and(|n| !n.trim().is_empty()) {
+            tracing::warn!(caller_lct = %req.caller_lct_id, tool = %inner.tool,
+                "H-007 reject: write-class channel request missing 'nonce' \
+                 (stale sender? rebuild channel_client)");
             return Err(ApiError::bad_request(
                 "write-class channel request requires a non-empty 'nonce' (H-007 Phase 2)".to_string(),
             ));
         }
         if inner.issued_at.is_none() {
+            tracing::warn!(caller_lct = %req.caller_lct_id, tool = %inner.tool,
+                "H-007 reject: write-class channel request missing 'issued_at' \
+                 (stale sender? rebuild channel_client)");
             return Err(ApiError::bad_request(
                 "write-class channel request requires 'issued_at' (H-007 Phase 2)".to_string(),
             ));
@@ -2735,6 +2808,9 @@ async fn channel_request(
     const CHANNEL_FRESHNESS_SECS: i64 = 120;
     if let Some(issued) = inner.issued_at {
         if (now - issued).num_seconds().abs() > CHANNEL_FRESHNESS_SECS {
+            tracing::warn!(caller_lct = %req.caller_lct_id, tool = %inner.tool,
+                skew_secs = (now - issued).num_seconds(),
+                "H-007 reject: outside freshness window (replay or clock skew)");
             return Err(ApiError::bad_request(
                 "channel request outside freshness window (replay or clock skew)".to_string(),
             ));
@@ -2749,6 +2825,8 @@ async fn channel_request(
         ),
     };
     if !s.replay.check_and_record(&replay_key, now) {
+        tracing::warn!(caller_lct = %req.caller_lct_id, tool = %inner.tool,
+            "H-007 reject: replay (nonce/blob already processed)");
         return Err(ApiError::conflict(
             "channel request replay rejected (already processed)".to_string(),
         ));
@@ -3336,17 +3414,11 @@ async fn dispatch_channel(
             // readable content, `sha256-pointer:` is the opaque-pointer
             // fallback. Untagged or missing → fail-closed reject (fleet
             // convention; emitters: hub-notify.sh + channel clients).
-            const CONTENT_HASH_SCHEMES: [&str; 3] =
-                ["git-sha:", "sha256-content:", "sha256-pointer:"];
             let content_hash = inner.args.get("content_hash").and_then(|v| v.as_str())
                 .unwrap_or("").to_string();
-            if !CONTENT_HASH_SCHEMES.iter()
-                .any(|s| content_hash.len() > s.len() && content_hash.starts_with(s))
-            {
-                return Err(ApiError::bad_request(
-                    "referenced_act requires a scheme-tagged 'content_hash' \
-                     (git-sha:|sha256-content:|sha256-pointer:) (H-008 Phase 2)".to_string(),
-                ));
+            // H-008 Phase 2 tag + Phase 3 value-shape (#476), one validator.
+            if let Err(why) = validate_content_hash(&content_hash) {
+                return Err(ApiError::bad_request(format!("referenced_act {why}")));
             }
             let medium: web4_core::act::SubstanceMedium = inner.args.get("medium")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())
@@ -3508,11 +3580,9 @@ async fn dispatch_channel(
             // plaintext). Reuse the referenced_act H-008 contract.
             let content_hash = inner.args.get("content_hash").and_then(|v| v.as_str())
                 .unwrap_or("").to_string();
-            const CH_SCHEMES: [&str; 3] = ["git-sha:", "sha256-content:", "sha256-pointer:"];
-            if !CH_SCHEMES.iter().any(|p| content_hash.len() > p.len() && content_hash.starts_with(p)) {
-                return Err(ApiError::bad_request(
-                    "send_secret requires a scheme-tagged 'content_hash' over the sealed body \
-                     (git-sha:|sha256-content:|sha256-pointer:)".to_string()));
+            // H-008 Phase 2 tag + Phase 3 value-shape (#476), one validator.
+            if let Err(why) = validate_content_hash(&content_hash) {
+                return Err(ApiError::bad_request(format!("send_secret {why}")));
             }
             // The recipient must be a known member (has a pinned resolver identity),
             // else there is no mailbox to deliver to. The hub does NOT verify the
@@ -7063,6 +7133,48 @@ mod channel_e2e_tests {
         channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
             caller_lct_id: lct, pair_id: pid, sealed, caller_pubkey_hex: None,
         })).await
+    }
+
+    #[test]
+    fn phase3_content_hash_value_shape_enforced() {
+        // #476: tag alone is not enough — the VALUE must be hex of the right
+        // length per scheme. git-sha: 40 (sha1) or 64 (sha256 repos); the
+        // sha256-* schemes: exactly 64. Lowercase only.
+        let sha40 = "0123456789abcdef0123456789abcdef01234567";
+        let sha64 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        assert!(validate_content_hash(&format!("git-sha:{sha40}")).is_ok());
+        assert!(validate_content_hash(&format!("git-sha:{sha64}")).is_ok());
+        assert!(validate_content_hash(&format!("sha256-content:{sha64}")).is_ok());
+        assert!(validate_content_hash(&format!("sha256-pointer:{sha64}")).is_ok());
+        // The Phase-2 gap, exactly as filed: garbage after the tag passed.
+        assert!(validate_content_hash("git-sha:zzz").is_err());
+        assert!(validate_content_hash("git-sha:").is_err());
+        assert!(validate_content_hash(&format!("sha256-content:{sha40}")).is_err(), "wrong length");
+        assert!(validate_content_hash(&format!("git-sha:{}", sha40.to_uppercase())).is_err(), "uppercase");
+        assert!(validate_content_hash(&format!("git-sha:{}x", &sha40[..39])).is_err(), "non-hex char");
+        assert!(validate_content_hash(sha64).is_err(), "untagged still rejected");
+        assert!(validate_content_hash("").is_err());
+    }
+
+    #[test]
+    fn channel_tool_classification_is_total_and_fail_closed() {
+        // #474: freshness classification is read-ALLOWLIST — an unclassified
+        // (future) tool defaults to freshness-REQUIRED. This test pins the
+        // inventory: adding a dispatch arm without registering it in
+        // CHANNEL_TOOLS (and, if a read, CHANNEL_READ_TOOLS) fails here.
+        for t in CHANNEL_READ_TOOLS {
+            assert!(CHANNEL_TOOLS.contains(&t), "read tool {t} missing from inventory");
+            assert!(!channel_tool_requires_freshness(t), "read tool {t} must stay tolerant");
+        }
+        let writes: Vec<&str> = CHANNEL_TOOLS.iter()
+            .filter(|t| !CHANNEL_READ_TOOLS.contains(t)).copied().collect();
+        assert_eq!(writes.len(), CHANNEL_TOOLS.len() - CHANNEL_READ_TOOLS.len());
+        for t in &writes {
+            assert!(channel_tool_requires_freshness(t), "write tool {t} must require freshness");
+        }
+        // The fail-closed default itself: a tool NOBODY classified.
+        assert!(channel_tool_requires_freshness("some_future_write_tool"),
+            "unclassified tools must default to freshness-required (fail-closed)");
     }
 
     #[tokio::test]
