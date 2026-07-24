@@ -93,3 +93,12 @@ This software implements technology covered by US Patents 11,477,027 and 12,278,
 ## License
 
 AGPL-3.0-or-later. See repo-root [LICENSE](../LICENSE).
+
+## Successor research track
+
+A derivation-as-law successor for this crate's update/decay arithmetic is being
+developed at [`dp-web4/web4-trust-core`](https://github.com/dp-web4/web4-trust-core)
+(a *repo*, distinct from this crate; nothing there is published to crates.io).
+When its merge gate passes — a DerivationSpec reproducing this crate's normative
+t3v3 vectors — that work ships as a new release **of this crate, under this name**.
+Until then, this crate is the enforced semantics.
