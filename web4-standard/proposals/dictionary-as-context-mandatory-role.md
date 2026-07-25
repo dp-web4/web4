@@ -109,8 +109,51 @@ of its duties — vocabulary publication for R6 formation — and assigns it a t
 2. **Who fills it in a small society?** §2 permits one entity to fill many roles. Presumably
    the Law Oracle or Administrator fills Dictionary in a solo society — worth stating, since
    most fleet societies are small.
-3. **Is discovery itself an R6 act?** If discovering the vocabulary requires forming a
-   request, the regress is obvious. Recommend: discovery is pre-R6 and unauthenticated.
+3. **Is discovery itself an R6 act? — RESOLVED, and better than the original recommendation.**
+   This doc first proposed carving discovery out as "pre-R6 and unauthenticated." dp's
+   reading is stronger and needs no exception:
+
+   > "pre-discovery is a lightweight form of r6, containing only request as input (per
+   > canon, all unspecified components revert to role defaults)." — dp, 2026-07-25
+
+   Discovery is *not* outside the framework; it is a **minimal R6** — the requester supplies
+   `request`, and everything else resolves from role defaults. The regress dissolves because
+   you never needed the vocabulary to form the other five components: **you were never the
+   one supplying them.**
+
+   The spec's own sourcing table (§ "R6 in a society") already reads this way — *Rules:
+   "Law Oracle provides norms and procedures"; Resource: "ATP caps and pricing from law";
+   Role: "Citizen role prerequisite, Authority scoping"*. Those components are **contributed
+   by the society's standing structures**, not carried in by the requester.
+
+   **Verification, and the gap it exposes.** Searched the standard for the defaulting rule
+   dp cites as canon. Two findings, and they only look contradictory:
+
+   - **No explicit defaulting clause exists anywhere in `web4-standard/`.** No "unspecified
+     components revert to role defaults", in r6-framework.md or elsewhere. The intuition is
+     sound and the prose is structured as though it were true, but it is **unwritten**.
+   - **`schemas/r7-action-jsonld.schema.json` requires all six**: `required: [@context,
+     @type, action_id, timestamp, rules, role, request, reference, resource, result]`. A
+     partial action is schema-invalid today.
+
+   These reconcile once you separate **input** from **record**. The schema constrains the
+   *recorded* action; dp's rule constrains what the *requester must supply*. The missing
+   piece is the **resolution step** between them:
+
+   ```
+   requester supplies a partial action (request, possibly little else)
+     → society resolves unspecified components from role defaults
+       → the resolved action is complete, schema-valid, and recorded
+   ```
+
+   So the recommendation becomes: **specify the resolution step.** It is implied by the
+   sourcing table, required by the schema, relied on by dp's reading, and written nowhere.
+   Writing it does more than settle discovery — it makes *every* minimal R6 action
+   well-defined, and it removes the need for this proposal to carve out an exception at all.
+
+   Worth noting what this means for failure 1 in §3: thor did not need a special discovery
+   channel. It needed a society that would resolve a minimal request — and a Dictionary to
+   answer it.
 4. **Fractal composition.** dp, 2026-07-24: *"kinds should themselves be fractal and
    composable, like everything."* If a society's vocabulary is a dotted namespace where a
    coarse entry subsumes its specializations, the Dictionary should publish the *roots* and
