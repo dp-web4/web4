@@ -957,6 +957,12 @@ const MAX_NOTICES_PER_MEMBER: usize = 1000;
 /// so a mailbox that's touched (or polled) doesn't accumulate stale entries. A
 /// fully-idle mailbox is bounded instead by [`MAX_NOTICES_PER_MEMBER`].
 const NOTICE_TTL_SECS: i64 = 7 * 24 * 3600;
+/// Kind stamped on the hub-generated alarm queued back to the *sender* when their
+/// notice is dropped at the hub (cap or TTL) before any receiver could observe it.
+/// The mesh is the only alarm channel that reaches the sender, so the drop rides
+/// it back. Self-regress is bounded: dropping a `notice-dropped` never emits
+/// another (see [`enqueue_notice`]).
+const NOTICE_DROPPED_KIND: &str = "notice-dropped";
 
 async fn queue_sealed_notice(
     s: &RestState, recipient: Uuid, from: Uuid, kind: &str, pointer_uri: &str, body: &[u8],
@@ -1001,15 +1007,23 @@ async fn queue_sealed_notice(
 /// identically to a hub-sealed one.
 async fn enqueue_notice(s: &RestState, recipient: Uuid, notice: SealedNotice) {
     let cutoff = Utc::now() - chrono::Duration::seconds(NOTICE_TTL_SECS);
+    // Notices removed here (TTL-expired or cap-evicted) die *upstream* of every
+    // receiver: they never fire, never hit a gate, never dead-letter, and the
+    // TTL path was previously fully silent. Capture them so the sender can be
+    // alarmed once the lock is released.
+    let mut dropped: Vec<SealedNotice> = Vec::new();
     let snapshot = {
         let mut mailbox = s.notifications.lock().await;
         let queue = mailbox.entry(recipient).or_default();
-        queue.retain(|n| n.queued_at >= cutoff); // TTL prune
+        // TTL prune — partition instead of silently retaining.
+        let mut kept = Vec::with_capacity(queue.len());
+        for n in queue.drain(..) {
+            if n.queued_at >= cutoff { kept.push(n); } else { dropped.push(n); }
+        }
+        *queue = kept;
+        // Cap — ring semantics; capture each evicted-oldest.
         while queue.len() >= MAX_NOTICES_PER_MEMBER {
-            queue.remove(0); // at cap: drop oldest to make room
-            tracing::warn!(
-                "mailbox for {recipient} at cap ({MAX_NOTICES_PER_MEMBER}); dropped oldest notice"
-            );
+            dropped.push(queue.remove(0));
         }
         queue.push(notice);
         queue.clone() // snapshot for durable write-through, off the lock
@@ -1017,6 +1031,37 @@ async fn enqueue_notice(s: &RestState, recipient: Uuid, notice: SealedNotice) {
     // Write-through to the durable (encrypted) mailbox so a restart re-delivers
     // this notice. Best-effort — the in-memory copy above already took effect.
     s.persist_mailbox(recipient, &snapshot).await;
+
+    // Alarm the sender of each dropped notice back over the mesh — the only
+    // channel that reaches them. Guards, all load-bearing:
+    //   * `notice-dropped` kind → never re-alarm (bounds regress to depth 1);
+    //   * `from == recipient`   → a self-flood needs no cross-machine alarm;
+    //   * `from == hub_id`       → don't alarm the hub about its own drops.
+    // The recursive `queue_sealed_notice` (→ enqueue_notice) is `Box::pin`'d
+    // because it's an async self-cycle; the kind guard makes it terminate.
+    for d in dropped {
+        tracing::warn!(
+            "notice for {recipient} dropped at hub (kind={}, from={}, pair_id={}); \
+             alarming sender over mesh",
+            d.kind, d.from, d.pair_id
+        );
+        if d.kind == NOTICE_DROPPED_KIND || d.from == recipient || d.from == s.hub_id {
+            continue;
+        }
+        let body = serde_json::json!({
+            "dropped_kind": d.kind,
+            "dropped_pointer": d.pointer_uri,
+            "dropped_pair_id": d.pair_id,
+            "recipient": recipient,
+            "reason": "mailbox cap or TTL prune — notice never reached the receiver",
+        })
+        .to_string();
+        let pointer = format!("web4:notice-dropped:{}", d.pair_id);
+        Box::pin(queue_sealed_notice(
+            s, d.from, s.hub_id, NOTICE_DROPPED_KIND, &pointer, body.as_bytes(),
+        ))
+        .await;
+    }
 }
 
 /// Hub-originated notification: witness a thin `notify:<event>` act AND queue the
@@ -7297,6 +7342,63 @@ mod channel_e2e_tests {
         // The first 5 (oldest) were dropped; the newest is the last enqueued.
         assert_eq!(queue.first().unwrap().pointer_uri, "pr/5", "oldest dropped");
         assert_eq!(queue.last().unwrap().pointer_uri, format!("pr/{}", overflow - 1));
+    }
+
+    #[tokio::test]
+    async fn cap_drop_alarms_the_sender_over_the_mesh() {
+        // A notice dropped at the hub (cap/TTL) dies upstream of every receiver —
+        // it never fires, gates, or dead-letters. The only channel that reaches
+        // the party who needs to know (the sender) is the mesh, so a drop queues
+        // a `notice-dropped` alarm back to the sender. Two distinct members here
+        // (unlike the self-flood cap test), so the alarm path is exercised.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+
+        // Pin both: the flooded recipient (notices land here) and the sender
+        // (alarms fire back here — queue_sealed_notice needs its pinned pubkey).
+        let mut pin = |name: &str| {
+            let kp = KeyPair::generate();
+            let lct = Uuid::new_v4();
+            let pid = Uuid::new_v4();
+            let sealed = seal_req(&kp, &hub_pub, pid, "request_citizenship",
+                serde_json::json!({ "name": name }));
+            (kp, lct, pid, sealed)
+        };
+        let (_rk, recipient, rpid, rsealed) = pin("Recipient");
+        let (sk, sender, spid, ssealed) = pin("Sender");
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: recipient, pair_id: rpid, sealed: rsealed,
+            caller_pubkey_hex: Some(_rk.verifying_key().to_hex()),
+        })).await.expect("recipient pinned");
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: sender, pair_id: spid, sealed: ssealed,
+            caller_pubkey_hex: Some(sk.verifying_key().to_hex()),
+        })).await.expect("sender pinned");
+
+        // Flood recipient past the cap with notices whose `from` is the sender.
+        let overflow = super::MAX_NOTICES_PER_MEMBER + 5;
+        for i in 0..overflow {
+            super::queue_sealed_notice(
+                &state, recipient, sender, "handoff",
+                &format!("pr/{i}"), b"body",
+            ).await;
+        }
+
+        let mailbox = state.notifications.lock().await;
+        // Recipient still capped, oldest dropped (ring semantics unchanged).
+        assert_eq!(mailbox.get(&recipient).unwrap().len(), super::MAX_NOTICES_PER_MEMBER);
+        // The 5 evicted-oldest each alarmed the sender — a landed-and-observable
+        // record, not a `tracing::warn!` nobody reads.
+        let alarms = mailbox.get(&sender).expect("sender got alarms");
+        assert_eq!(alarms.len(), 5, "one alarm per dropped notice");
+        assert!(alarms.iter().all(|n| n.kind == super::NOTICE_DROPPED_KIND),
+            "every alarm is a notice-dropped");
+        assert!(alarms.iter().all(|n| n.from == state.hub_id),
+            "the hub is the alarm's sender");
+        // Guard holds: a notice-dropped alarm never spawns another alarm, so the
+        // hub's own mailbox stays empty (no self-regress).
+        assert!(mailbox.get(&state.hub_id).map_or(true, |q| q.is_empty()),
+            "notice-dropped must not re-alarm");
     }
 
     #[tokio::test]
