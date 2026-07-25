@@ -122,10 +122,46 @@ pattern to generalize: absence is *represented*, not *imputed*.
 
 1. **Who decides materiality — law, role, or the Dictionary?** Suspicion: law states it,
    the Dictionary publishes it, the Policy-Entity enforces it. Needs the fleet's argument.
-2. **Recursion depth and termination.** A corrective R6 can itself be incomplete. What
-   bounds the recursion, and what happens at the bound? A depth cap that hard-fails
-   reintroduces the problem at depth N.
-3. **Does a suspended action hold resources?** If an action awaiting correction holds an ATP
+2. **Recursion depth and termination — RESOLVED.**
+
+   > "recipient's law bounds the number of retries. each entity can decide how many chances
+   > an external entity has to communicate its intent clearly." — dp, 2026-07-25
+
+   The bound is **local law, set by the recipient**, not a constant in the specification.
+   Three properties make this the right shape rather than merely a workable one:
+
+   - **The party bearing the cost sets the limit.** Correction cycles consume the
+     *recipient's* attention, compute and energy. A requester-set or spec-set bound would
+     let one party spend another's resources. This is the same asymmetry the ATP work
+     arrives at independently: allocation belongs to whoever supplies.
+   - **It is sovereign, so it needs no universal number.** A spec-wide retry constant would
+     be exactly the kind of constant-in-code this corpus keeps learning to distrust —
+     unable to distinguish a trusted peer's third clarification from a stranger's
+     hundredth. Each society decides.
+   - **It closes the DoS vector in open question 3.** An unbounded correction loop is a
+     resource attack; a recipient-bounded one caps the attacker's reach at a number the
+     recipient chose.
+
+   **Two requirements this imposes, and both matter:**
+
+   (a) **The bound MUST be discoverable, not merely enforced.** "How many chances do I get
+   to make myself clear?" is a question a requester must be able to answer *before* it
+   starts spending them. That makes the retry bound part of what the Dictionary publishes
+   (PR #579) — the two proposals meet here, and neither is complete without the other.
+
+   (b) **Exhaustion MUST be reported, with the gap named.** When the bound is reached the
+   action does not silently disappear. The recipient records a refusal stating *what
+   remained unclear after N attempts*. Otherwise the entire corpus's recurring defect
+   returns at the last possible moment: an exhausted correction loop that looks identical
+   to a request never sent.
+
+   **Permitted extension (not required):** the bound MAY be trust-scaled — an established
+   member afforded more attempts than an unknown one. That makes the retry budget an
+   expression of the relationship rather than a flat quota, and it is coherent with R7:
+   patience is a resource a society spends on those who have earned it. Note the incentive
+   this creates points the right way — clarity is cheaper than trust, so the fastest route
+   to more attempts is to need fewer.
+3. **Does a suspended action hold resources?** *(partly answered by (2) — a recipient-bounded loop caps the exposure; what remains is whether the reservation is held or released across the suspension.)* If an action awaiting correction holds an ATP
    reservation, incompleteness becomes a denial-of-service vector against the society's
    energy. (Interacts with the ATP metabolism exploration.)
 4. **Is "material" per-act or per-act-class?** Per-class is tractable and publishable;
