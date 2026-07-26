@@ -199,6 +199,52 @@ AI agents are increasingly autonomous—browsing, transacting, coordinating with
 
 Neither addresses the core question: **How do I know this agent will behave appropriately in this context?**
 
+### A worked example: why the *relying party* must compute trust
+
+The failure mode is easiest to see in a system that tried the other way first.
+[Hestia](https://github.com/dp-web4/hestia) governs AI agents with a local policy gate:
+the agent asks, the gate decides, the decision is recorded. Its maintainers documented the
+result honestly in
+**[hestia#49](https://github.com/dp-web4/hestia/issues/49)** — worth reading in full,
+because every failure in it is a failure of *declaration-based* trust, not of
+implementation quality.
+
+Three of them, all measured rather than theorised:
+
+- **The declaration can be redirected.** Two environment variables point the gate at a
+  different oracle. A forbidden command is permitted, exit 0, empty stderr. The relying
+  party is handed an "allowed" it has no way to distinguish from a real one.
+- **Silence is unreadable.** Because the record only contains what the gate was asked
+  about, an act that bypassed it leaves no trace — and *no trace* is exactly what a
+  well-behaved idle agent also produces. Absence of evidence is indistinguishable from
+  evidence of absence.
+- **Reputation is writable by third parties.** An agent that can invoke a peer's gate can
+  author denials against that peer's record. 22 such denials accrued to a well-behaved
+  member for acts it never performed. Nothing detected it; a human noticed the numbers
+  did not match the collaborator he knew.
+
+None of these required defeating a control. They required *using* the system as designed —
+which is why hardening the heuristics does not fix them. The gate is the originating side
+declaring a verdict, and **a declaration carries no evidence for the party that has to
+rely on it.**
+
+Web4 inverts that. The relying party is not handed a verdict; it is handed *evidence*, and
+computes trust itself, in its own context:
+
+| the declarative failure | what Web4 gives the relying party instead |
+|---|---|
+| "allowed" that can be forged or redirected | an act **signed by the policy entity**, verifiable against a witnessed LCT — an unsigned act is inert rather than merely disapproved of |
+| silence that could mean anything | **MRH** scopes what evidence *should* exist, so a gap is a detectable absence rather than an ambiguity |
+| a single authority's say-so | **T3/V3 folded from multiple witnesses** — convergence across heterogeneous observers, so one poisoned or blind source does not decide |
+| conduct attributed to whoever's gate processed it | **R6/R7** attributing an act to the entity that *initiated* it, with reputation flowing back along that chain |
+
+This is why the trust tensors are computed from witnessed history rather than asserted,
+and why the spec spends its effort on *what evidence an act carries* rather than on how
+strict any particular gate should be. Hestia's roadmap converges on the same point from
+the implementation side: relying parties demanding policy-signed actions, and ultimately
+enforcement below the process boundary. The two repositories are the same argument, one
+written as specification and one as scar tissue.
+
 ### How Web4 Differs from Web3
 
 | Aspect | Web3 | Web4 |
@@ -254,7 +300,19 @@ Web4 is investigating trust-native architectures for AI coordination. We have in
 
 ## 🏗️ Four Development Tracks
 
-Web4 contains **four development tracks** at different maturity levels:
+Web4 contains **four development tracks** at different maturity levels.
+
+Read against the [worked example](#a-worked-example-why-the-relying-party-must-compute-trust)
+above, these are the pieces that move trust from the originating party's *declaration* to
+evidence the relying party can *compute* over: **Track 2** makes authorization a query
+against witnessed state rather than a stored grant; **Track 3** is the running society
+where acts are witnessed by parties other than the actor, which is what makes convergence
+across observers possible at all; **Track 4** carries the R6/R7 action grammar that binds
+an act to the entity that *initiated* it. The remaining gap in all four — and the reason
+hestia#49 stays open — is that a relying party cannot yet **refuse an act for lacking a
+policy signature**. Until it can, evidence is available but not required, and "available
+but not required" is how declaration-based trust survives underneath a system that means
+to replace it.
 
 ### Track 1: 4-Life — Lifecycle and Trust-Evolution Explainer (Standalone)
 
