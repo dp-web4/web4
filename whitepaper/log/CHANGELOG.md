@@ -5,6 +5,50 @@ Entries are added chronologically, never modified or deleted.
 
 ---
 
+## 2026-07-26 - Correction: the PDF is not a CI-built artifact, and the CI deploy has never succeeded
+
+No whitepaper content changed. This entry corrects two factual claims made in the 2026-07-09 "Published"
+entry below. Per the append-only rule that entry is left intact; this one supersedes it.
+
+### Corrected — "the PDF is a CI-only artifact"
+**False.** No PDF in this repository has ever been produced by CI. Every published PDF was built locally:
+`6563186` (2026-07-09, titled "rebuild + publish PDF from revised sources (local pandoc/xelatex)" — committed
+about an hour *after* the claim that the local box lacks LaTeX), then `4bd36e8`, then `3ec132d` (2026-07-14),
+which is the PDF currently served. The dev box has `pandoc 3.1.3` and `xelatex` on PATH, verified this pass.
+
+### Corrected — the diagnosed CI failure mode
+The 07-09 entry describes the deploy step's `git push` as failing "non-fast-forward whenever a concurrent
+commit lands mid-run" — an intermittent race — and proposes a rebase-before-push fix requiring `workflow`
+token scope. **Both the diagnosis and the fix are wrong.** The actual failure, read from the run logs, is
+deterministic and unrelated to concurrency:
+
+```
+remote: error: GH006: Protected branch update failed for refs/heads/main.
+remote: - Changes must be made through a pull request.
+! [remote rejected]   main -> main (protected branch hook declined)
+```
+
+`main` is a protected branch requiring pull requests; the workflow's deploy step pushes to it directly.
+A rebase-before-push would have been rejected identically. **Run history: 46 runs, 45 failures, 1 success —
+and the single success was a manual `workflow_dispatch` on 2026-05-15. Every push-triggered run since
+2026-05-16 has failed**, i.e. the whitepaper CI deploy has been dead for ~70 days.
+
+### Scope of the harm — latent, not yet realized
+The build steps themselves succeed (markdown, PDF, web all build; the deploy step is the only failing one),
+and the published surfaces are content-correct because local manual builds have covered every content change:
+the `t3v3-012` Talent fix is verified present in the monolith, both `index.html` copies, and the PDF. The
+exposure is that the documented safety net does not exist — a future content change relying on CI to publish
+would ship stale artifacts silently. Rebuilding this pass would produce only timestamp churn (verified: the
+regenerated monolith differs from the committed one by exactly one line, the `*Generated:*` stamp), so no
+rebuild was performed.
+
+### Open — requires a maintainer decision, not a Publisher fix
+Restoring the deploy requires one of: granting the Actions bot a branch-protection bypass, converting the
+deploy to a pull request, or removing the deploy step and declaring the artifacts locally built. All three
+touch repository settings or credentials and are the operator's call. Flagged, not chosen.
+
+---
+
 ## 2026-07-09 (later) - Fresh Rewrite: Equation-Ordered Technical Introduction
 
 Full rewrite per dp: "the paper has drifted too far and needs a fresh rewrite." The whitepaper is now a
