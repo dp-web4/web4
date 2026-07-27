@@ -5,6 +5,50 @@ Entries are added chronologically, never modified or deleted.
 
 ---
 
+## 2026-07-27 - Correction: §11 credited hestia with a fail-closed default its own documentation refutes
+
+**Content change.** Section 11 (`11-standard-and-implementations`) described hestia as providing
+"fail-closed defaults for unattended operation". That claim is false, and hestia's own repository says so
+in as many words.
+
+### The contradiction
+`hestia/docs/GATE_BYPASS_CATALOG.md` §11 ("Standing acknowledgements — put these in front of anyone
+relying on hestia") states: *"Default posture is **fail-open**. Absent `HESTIA_PRE_FAIL_CLOSED=1`, an
+unreachable daemon means an ungoverned agent."* Confirmed in code, not inferred from prose —
+`plugins/claude-code/hooks/pre_tool_use.py:377` is `return os.environ.get("HESTIA_PRE_FAIL_CLOSED") == "1"`,
+so fail-closed is strictly opt-in. `plugins/agent-inventory/README.md:350` records the variable as **unset**
+on a live host. Unattended operation is precisely the case the whitepaper named and precisely the case where
+the default does not hold.
+
+### What was true, and kept
+Hestia *is* fail-closed on **invalid law**: `core/src/policy/law_gate.rs` denies every evaluation when the
+law file is present but unparseable ("fail-closed+warn default, dp-ratified"). That is a real, ratified
+invariant and it survives in the revised text — the closing paragraph's list of hardened normative
+requirements now reads "fail-closed evaluation on invalid law" rather than the unqualified "fail-closed
+policy defaults". Note that an *absent* law file is a third case again ("no third input"), neither of the
+above.
+
+### The edit
+The hestia paragraph now claims a witnessed record of every governed decision rather than a fail-closed
+default, and a second paragraph states the gate's published limits directly: it stops accidents rather than
+adversaries, its posture on no-verdict is fail-open unless configured closed, and the record covers governed
+activity only — so silence in it is not evidence that nothing happened. Linked to
+[hestia#49](https://github.com/dp-web4/hestia/issues/49), which the maintainers filed 2026-07-26 for exactly
+this purpose.
+
+This is a **re-level, not a dilution** (posture invariant #3): no truth claim was deleted, and the section
+gained a status marker it was missing. It also removes a self-contradiction — the paper argues that trust
+must be computed by the relying party from evidence rather than accepted as an originating party's
+declaration, while §11 was itself accepting a declared safety property about its own reference
+implementation.
+
+### Artifacts
+Rebuilt locally (`make-md.sh`, `make-pdf.sh`, `make-web.sh`; pandoc 3.1.3 + xelatex) because CI remains dead
+— see the 2026-07-26 entry. Correction verified by content in all four published surfaces: monolith,
+`index.html` (both copies), and the PDF text layer. PDF 112031 → 113225 bytes.
+
+---
+
 ## 2026-07-26 - Correction: the PDF is not a CI-built artifact, and the CI deploy has never succeeded
 
 No whitepaper content changed. This entry corrects two factual claims made in the 2026-07-09 "Published"
