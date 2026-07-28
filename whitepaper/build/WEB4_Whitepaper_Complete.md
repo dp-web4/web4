@@ -315,9 +315,9 @@ Specification status is marked per document — some are v1.0 core specification
 
 Concepts prove themselves by running. Three public codebases currently implement the standard, at different layers:
 
-**Core packages — the primitives as libraries.** [`web4-core` and `web4-trust-core`](https://github.com/dp-web4/web4) ship the LCT presence primitive, T3/V3 tensors, ledger backends, and attestation envelope as installable packages (Rust crates, Python wheels, and WASM browser bindings on crates.io, PyPI, and npm).
+**Core packages — the primitives as libraries.** [`web4-core` and `web4-trust-core`](https://github.com/dp-web4/web4) ship the LCT presence primitive, T3/V3 tensors, ledger backends, and attestation envelope as installable packages. Both are published Rust crates on crates.io; `web4-core` additionally ships a Python wheel on PyPI, and `web4-trust-core` additionally ships WASM browser bindings on npm. The remaining two cells of that matrix are built in-tree but not published — check the registry before depending on one.
 
-**The Hub — a running Web4 society.** [`web4/hub`](https://github.com/dp-web4/web4/tree/main/hub) is a live society implementation: LCT-pinned membership, sealed member-to-member channels, a witnessed hash-chained ledger as the society's collective memory, law published as inspectable data gating actions, and role assignment through governance. It is where the SAL pattern, the witnessing fabric, and the membrane security model run as a daemon rather than a diagram — and it is operated in production by the project itself for its own multi-agent coordination.
+**The Hub — a running Web4 society.** [`web4/hub`](https://github.com/dp-web4/web4/tree/main/hub) is a live society implementation: LCT-pinned membership, sealed member-to-member channels, a witnessed hash-chained ledger as the society's collective memory, law published as inspectable data gating actions, and role assignment through governance. It is where the SAL pattern, the witnessing fabric, and the membrane security model run as a daemon rather than a diagram — and the project runs it daily for its own multi-agent coordination. Its own README scopes that status precisely: the public tree is a **reference proof-of-concept** (`0.1.0-alpha.0`; MVP complete and pilot-ready, with the first community-chapter deployment still ahead), and production development continues in a separate private repository. The daily self-operation is the checkable part; "production" would be a label.
 
 **Hestia — agent governance at the membrane.** [`hestia`](https://github.com/dp-web4/hestia) implements the trust architecture at the individual-agent boundary: policy evaluation gating agent tool use (the MCP membrane made enforceable), role-scoped law for autonomous sessions, and a witnessed record of every governed decision. It is the reference for Web4's answer to the question this paper opened with — how an agent is bounded *before* it acts.
 
@@ -515,4 +515,4 @@ To contribute to Web4 development or request access to additional technical docu
 
 ---
 
-*Generated: 2026-07-27 04:38:15*
+*Generated: 2026-07-28 04:35:57*

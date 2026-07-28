@@ -5,6 +5,73 @@ Entries are added chronologically, never modified or deleted.
 
 ---
 
+## 2026-07-28 - Correction: §11's two remaining living-example declarations, audited against primary sources
+
+**Content change.** The 2026-07-27 pass closed with a watch item: *"§11's remaining living-example claims
+are unverified declarations — audit them against the implementations a few per pass, hub next."* This pass
+executed that audit. Two of the claims fail; the rest hold.
+
+### Claim 1 — the hub is "operated in production by the project itself"
+
+§11 pointed a reader at the public [`web4/hub`](https://github.com/dp-web4/web4/tree/main/hub) tree and
+attributed production operation to it. `hub/README.md:13-15` assigns that status to a **different artifact**:
+
+> *"**Status — reference proof-of-concept.** This crate is the open reference POC. Production and advanced
+> development continue in a separate private repository; features may land here later behind stable plugin
+> interfaces."*
+
+Corroborated in the same file rather than inferred from one line: `hub --version` → `hub 0.1.0-alpha.0`
+(README:159); "**MVP complete (Sprints 0-6)** … Pilot-ready" (README:32); "First deployment target: a pilot
+community chapter" (README:17) — i.e. the first chapter deployment is still ahead. The one occurrence of
+the word "production" elsewhere in the README is `HUB_PROFILE=production`, a **configuration profile name**
+(README:47), not an operational status.
+
+The claim also contradicted §11's own closing paragraph, which calls all three implementations
+"research-stage … not finished products". Two sentences of one section disagreed about the same artifact.
+
+**What was true, and kept.** The project *does* run a hub daily for its own multi-agent coordination —
+verified on a live host, not from prose: `private-context/hub-mesh/hub-watch.sh` running as pid 153660, and
+`~/.web4/` carrying `channel/`, `ledger.db`, and `governance/`. That is stronger evidence than the label it
+replaces, so the sentence now states the daily self-operation and the README's own POC scoping, and drops
+"production".
+
+### Claim 2 — the package matrix
+
+§11 read: *"`web4-core` and `web4-trust-core` ship … as installable packages (Rust crates, Python wheels, and
+WASM browser bindings on crates.io, PyPI, and npm)"* — grammatically a 2×3 matrix. Queried this pass:
+
+| package | crates.io | PyPI | npm |
+|---|---|---|---|
+| `web4-core` | ✅ 0.3.0 | ✅ 0.3.0 | ❌ 404 |
+| `web4-trust-core` | ✅ 0.2.0 | ❌ 404 | ✅ 0.2.0 |
+
+Two of six cells are empty. Both empty cells are *built* in-tree (`web4-trust-core/pyproject.toml` exists;
+the npm name for the WASM bindings is `web4-trust-core`, from `web4-trust-core/pkg/package.json`) — they are
+simply not published. A reader reaching for `web4-core` on npm, or `web4-trust-core` on PyPI, finds nothing.
+The sentence now states which package is on which registry and warns that the other two cells are unpublished.
+
+### Claims audited and HELD (no edit)
+
+- `web4-standard/profiles/` — all four named deployment profiles present (edge-device, cloud-service,
+  peer-to-peer, plus blockchain-bridge).
+- `web4-standard/test-vectors/` — present, organized by subsystem as described.
+- `web4-core` shipping "LCT presence primitive, T3/V3 tensors, ledger backends, and attestation envelope" —
+  `lct.rs`, `t3.rs`/`v3.rs`, `ledger.rs` + `ledger/`, `attestation.rs` all present in the crate source.
+- The hestia paragraph (corrected 2026-07-27) — re-verified unchanged and still accurate.
+
+Both edits are **re-levels, not dilutions** (posture invariant #3): no truth claim deleted, two status
+markers added where the text had asserted a status it had not checked. The pattern is the same one the
+07-27 pass found in the hestia sentence and that §11 itself argues against — a declared property about a
+reference implementation, accepted without computing on the evidence. Third instance in two passes, which
+is why the audit is being run a few claims per pass rather than declared complete.
+
+**Verification:** artifacts rebuilt locally and confirmed by content across all four surfaces (monolith,
+`docs/whitepaper-web/index.html`, `build/web/index.html`, PDF text layer); old strings confirmed absent.
+Whitepaper CI remains dead — day 72, protected-branch rejection at the deploy push — so this rebuild was
+manual, as every content-carrying rebuild has been for 72 days.
+
+---
+
 ## 2026-07-27 - Correction: §11 credited hestia with a fail-closed default its own documentation refutes
 
 **Content change.** Section 11 (`11-standard-and-implementations`) described hestia as providing
