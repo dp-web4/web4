@@ -1,0 +1,59 @@
+name: ci
+
+# The Rust test gate. Web4 has never had one: before this file, this directory held
+# only `sdk-test.yml` (the Python SDK under web4-standard, path-filtered so Rust
+# changes do not even trigger it) and `build_whitepaper.yml`. Every green the Rust
+# workspace has ever had was a person choosing to type the command. This is a
+# boundary being drawn for the first time, not a regression being restored —
+# transplanted from hestia#78 (2026-07-28), where the same boundary was drawn
+# with the same scope note.
+#
+# Four independent crate roots, no enclosing workspace: web4-policy, web4-core,
+# web4-trust-core, and hub/ (itself a workspace of hub-lib, hub-daemon,
+# hub-plugin). The matrix names them because cargo has no way to name them all at
+# once — but WITHIN each crate the invocation is deliberately unqualified
+# (`cargo test --locked`, no `--lib`, no target selection): which targets a green
+# covers must be a property of the repo, not a per-session choice. A new
+# `tests/` file enters the gate on the day it is written, by the person least
+# able to notice.
+#
+# `--locked` is not target selection. It fails if the build would rewrite
+# Cargo.lock, so a dependency bump arrives as a reviewable diff rather than as
+# CI drift.
+#
+# Verified green before arming (the hestia#78 discipline — switching on a check
+# that is already red is how a team learns to ignore a red): all four crates ran
+# `cargo test --locked` green on 2026-07-28 before this file was committed; the
+# counts are in the commit message of the commit that adds this workflow.
+#
+# NOTE ON SCOPE: this workflow makes green a machine property of the commit at PR
+# time. It does NOT make red block a merge — that is branch protection, which
+# lives in repo settings and cannot be self-applied by a workflow file. Until a
+# steward configures it, "CI exists" must not be read as "CI gates."
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: cargo test (${{ matrix.crate }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one crate's red must not hide the others' results
+      matrix:
+        crate: [web4-policy, web4-core, web4-trust-core, hub]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ matrix.crate }}
+
+      - name: Test
+        working-directory: ${{ matrix.crate }}
+        run: cargo test --locked
