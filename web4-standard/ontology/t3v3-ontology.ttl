@@ -22,10 +22,15 @@
 web4:Dimension a rdfs:Class ;
   rdfs:comment "A measurable facet of trust or value. Root dimensions are the T3/V3 bases; sub-dimensions refine them fractally via web4:subDimensionOf. The graph is open-ended." .
 
+web4:Tensor a rdfs:Class ;
+  rdfs:comment "A trust or value tensor bound to an entity-role pair. Superclass of web4:T3Tensor and web4:V3Tensor. It carries the SHARED binding edges (web4:entity, web4:role, web4:hasDimensionScore) so those edges may appear on either tensor kind without an rdfs:domain entailment forcing a V3Tensor to also be a T3Tensor (web4 issue #581)." .
+
 web4:T3Tensor a rdfs:Class ;
+  rdfs:subClassOf web4:Tensor ;
   rdfs:comment "Trust tensor bound to an entity-role pair. Contains scores for 3 root dimensions (Talent/Training/Temperament) and any number of sub-dimensions." .
 
 web4:V3Tensor a rdfs:Class ;
+  rdfs:subClassOf web4:Tensor ;
   rdfs:comment "Value tensor bound to an entity-role pair. Contains scores for 3 root dimensions (Valuation/Veracity/Validity) and any number of sub-dimensions." .
 
 web4:DimensionScore a rdfs:Class ;
@@ -60,20 +65,20 @@ web4:subDimensionOf a rdf:Property ;
   rdfs:range web4:Dimension ;
   rdfs:comment "Links a sub-dimension to its parent. Creates the open-ended fractal sub-graph. Anyone can extend the dimension tree without modifying this ontology. Analogous to skos:broader." .
 
-### Tensor Binding Properties
+### Tensor Binding Properties (shared by T3Tensor and V3Tensor via web4:Tensor)
 
 web4:entity a rdf:Property ;
-  rdfs:domain web4:T3Tensor ;
+  rdfs:domain web4:Tensor ;
   rdfs:range rdfs:Resource ;
   rdfs:comment "The LCT entity this tensor measures." .
 
 web4:role a rdf:Property ;
-  rdfs:domain web4:T3Tensor ;
+  rdfs:domain web4:Tensor ;
   rdfs:range rdfs:Resource ;
   rdfs:comment "The role context. Trust is always role-specific." .
 
 web4:hasDimensionScore a rdf:Property ;
-  rdfs:domain web4:T3Tensor ;
+  rdfs:domain web4:Tensor ;
   rdfs:range web4:DimensionScore ;
   rdfs:comment "Links a tensor to a scored dimension observation." .
 
@@ -98,6 +103,11 @@ web4:witnessedBy a rdf:Property ;
   rdfs:domain web4:DimensionScore ;
   rdfs:range rdfs:Resource ;
   rdfs:comment "LCT that witnessed this score." .
+
+web4:observationCount a rdf:Property ;
+  rdfs:domain web4:DimensionScore ;
+  rdfs:range xsd:integer ;
+  rdfs:comment "Number of witnessed observations backing this score. Load-bearing for sufficiency queries (how many observations, how fresh) — a relying party weighs a score by its evidence, not just its value." .
 
 ### Backward-Compatible Shorthand Properties
 #
