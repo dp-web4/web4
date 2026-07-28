@@ -70,6 +70,16 @@ is why the audit is being run a few claims per pass rather than declared complet
 Whitepaper CI remains dead — day 72, protected-branch rejection at the deploy push — so this rebuild was
 manual, as every content-carrying rebuild has been for 72 days.
 
+**POST-COMMIT — the bypass fired again (`97c9eb2`), which upgrades the 07-27 finding from an observation to
+a pattern.** Same hook report, same rule, same standing admin attribute, same absence of a recorded
+justification. The 07-27 entry analysed this in full and posed the open question for dp (*should the Actions
+bot hold the standing attribute this identity already holds, or should both go through PRs?*) — not
+re-litigated here. One new datum instead: **recording the bypass costs another bypass.** This paragraph can
+only reach `main` by the same privileged push it documents, so the remediation ritual is not
+self-terminating and each pass adds one unrecorded-then-recorded pair rather than closing the loop. Two
+consecutive content passes have now each cost two bypasses. That is a property of the arrangement, not of
+either pass, and it is the argument for answering the 07-27 question rather than continuing to log around it.
+
 ---
 
 ## 2026-07-27 - Correction: §11 credited hestia with a fail-closed default its own documentation refutes
