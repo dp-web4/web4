@@ -4547,11 +4547,27 @@ struct LedgerTailQuery {
 
 /// `GET /admin/api/ledger?since=N&limit=M` — operator-plane ledger tail.
 ///
-/// Returns the witnessed-act **envelope metadata** (index, actor, event kind,
-/// and for a `referenced_act` the recipient + act kind + pointer) straight from
-/// the daemon's in-memory ledger. This is the operator's view of the witnessed
-/// chain — e.g. observing the thor↔cbp channel flow — **without the vault
-/// passphrase** (the running daemon already holds the ledger decrypted).
+/// Returns the witnessed-act **envelope metadata** (index, signer, event kind,
+/// and for a `referenced_act` the sender + recipient + act kind + pointer +
+/// content hash) straight from the daemon's in-memory ledger. This is the
+/// operator's view of the witnessed chain — e.g. observing the thor↔cbp channel
+/// flow — **without the vault passphrase** (the running daemon already holds the
+/// ledger decrypted).
+///
+/// `actor` is the **entry signer**, which for every witnessed event is this
+/// hub's Sovereign — `witness_event` stamps `actor_lct_id: s.sovereign_lct_id`.
+/// It is NOT the sender. The sender rides in the payload as `act.actor_lct`
+/// (see `web4_core::act::Act::actor_lct`, "the ledger envelope's signer may
+/// differ"), and until 2026-07-29 this projection dropped it — so the one field
+/// an operator would read as attribution answered the same value 1225 times out
+/// of 1225 on the live fleet chapter, and "observing the thor↔cbp flow" was not
+/// something this endpoint could actually do. It is now projected as `from`.
+///
+/// `content_hash` is projected for the same reason: the act binds the pointer to
+/// a version of the substance, and whether a given send is *really* bound
+/// (`sha256-content:` / `git-sha:`) or only pins its own path string
+/// (`sha256-pointer:`) was measurable only by scraping the HTML detail page once
+/// per entry.
 ///
 /// It never exposes sealed notice **bodies**: those ride the mailbox encrypted
 /// to the recipient and are not on the ledger. Local-only (operator plane).
@@ -4584,6 +4600,9 @@ async fn admin_ledger_tail(
             });
             if let HubEvent::ReferencedAct { act } = &e.event {
                 use web4_core::act::ActAddress::*;
+                // The SENDER. `actor` above is the entry signer (always the
+                // Sovereign); this is the entity the act is from.
+                v["from"] = serde_json::json!(act.actor_lct);
                 let (to_kind, to): (&str, Option<Uuid>) = match &act.address {
                     Citizen { lct_id } => ("citizen", Some(*lct_id)),
                     Peer { lct_id } => ("peer", Some(*lct_id)),
@@ -4600,6 +4619,7 @@ async fn admin_ledger_tail(
                 }
                 v["act_kind"] = serde_json::json!(act.kind);
                 v["pointer"] = serde_json::json!(act.substance.uri);
+                v["content_hash"] = serde_json::json!(act.substance.content_hash);
             }
             v
         })
@@ -8807,6 +8827,57 @@ norms:
         assert_eq!(ra["to"], serde_json::json!(citizen));
         assert_eq!(ra["pointer"], "forum/x#thread=t1");
         assert!(resp["total"].as_u64().unwrap() >= 1);
+    }
+
+    /// The tail must distinguish WHO SIGNED the entry from WHO SENT the act.
+    ///
+    /// `witness_event` stamps every entry `actor_lct_id: sovereign_lct_id`, so
+    /// `actor` is a constant across the whole chain — on the live fleet chapter
+    /// it answered the same value for all 1225 referenced acts. The sender rides
+    /// in the payload (`act.actor_lct`) and the projection used to drop it, which
+    /// made per-member attribution — the endpoint's stated purpose, "observing
+    /// the thor↔cbp channel flow" — underivable from the API.
+    ///
+    /// The sender here is deliberately NOT the Sovereign: with `from == actor`
+    /// the assertion could not tell a correct projection from the broken one.
+    #[tokio::test]
+    async fn admin_ledger_tail_projects_the_sender_and_the_content_hash_not_just_the_signer() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let local: std::net::SocketAddr = "127.0.0.1:9".parse().unwrap();
+        let sender = Uuid::new_v4();
+        let recipient = Uuid::new_v4();
+        assert_ne!(sender, state.sovereign_lct_id, "the fixture must discriminate");
+
+        let act = web4_core::act::Act::addressed(
+            sender,
+            web4_core::act::ActAddress::Peer { lct_id: recipient },
+            "pr_changes",
+            web4_core::act::SubstanceRef::new(
+                "forum/some-post.md#thread=t9",
+                "sha256-content:deadbeef",
+                web4_core::act::SubstanceMedium::Other,
+            ),
+            Utc::now(),
+        );
+        witness_event(&state, HubEvent::ReferencedAct { act }).await.unwrap();
+
+        let resp = admin_ledger_tail(
+            State(state.clone()),
+            ConnectInfo(local),
+            axum::extract::Query(LedgerTailQuery { since: None, limit: Some(50) }),
+        ).await.unwrap().0;
+        let ra = resp["acts"].as_array().unwrap().iter().rev()
+            .find(|a| a["event"] == "referenced_act")
+            .expect("the referenced_act shows in the tail");
+
+        assert_eq!(ra["from"], serde_json::json!(sender), "the SENDER is projected");
+        assert_eq!(ra["actor"], serde_json::json!(state.sovereign_lct_id),
+                   "`actor` remains the entry SIGNER — the hub's Sovereign");
+        assert_ne!(ra["from"], ra["actor"],
+                   "sender and signer are different quantities and must not collapse");
+        assert_eq!(ra["content_hash"], "sha256-content:deadbeef",
+                   "whether a send is really bound is answerable from the API");
+        assert_eq!(ra["to"], serde_json::json!(recipient));
     }
 
     #[test]
