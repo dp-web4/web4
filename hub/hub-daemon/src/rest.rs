@@ -3717,10 +3717,46 @@ async fn dispatch_channel(
                     },
                     other => ApiError::bad_request(other.to_string()),
                 })?;
-            Ok(serde_json::json!({
-                "assurance": binding.assurance,
-                "valid_until": binding.valid_until,
-            }))
+            // A2 portable evidence (PRD_ASSURANCE): sign a receipt a relying party
+            // can verify with the hub's public key, WITHOUT running hestia. Bound to
+            // owner + roster + challenge so it can't be replayed. Best-effort — a
+            // gating/locked signer must not break the (already-verified) present.
+            let mut receipt = hub_lib::constellation::AssuranceReceipt {
+                owner_lct_id: att.owner_lct_id,
+                tier: binding.assurance.clone(),
+                pair_id,
+                challenge_nonce: att.challenge_nonce.clone(),
+                issued_at: att.issued_at,
+                bound_at: binding.bound_at,
+                valid_until: binding.valid_until,
+                hub_lct_id: s.hub_id,
+                hub_signer_pubkey_hex: s.signer.public_key().map(|pk| pk.to_hex()).unwrap_or_default(),
+                roster_hash: hub_lib::constellation::AssuranceReceipt::roster_hash(&att.member_lcts),
+                signature: String::new(),
+            };
+            let intent = SignIntent {
+                request_id: Uuid::new_v4(),
+                hub_id: s.hub_id,
+                hub_name: s.hub_name.clone(),
+                actor_lct_id: s.sovereign_lct_id,
+                ledger_index: 0,
+                event_kind: "assurance_receipt".into(),
+                event: serde_json::to_value(&receipt).unwrap_or_default(),
+            };
+            match s.signer.sign(s.sovereign_lct_id, &receipt.signing_bytes(), &intent).await {
+                Ok(sig) => {
+                    receipt.signature = sig.to_hex();
+                    Ok(serde_json::json!({
+                        "assurance": binding.assurance,
+                        "valid_until": binding.valid_until,
+                        "receipt": receipt,
+                    }))
+                }
+                Err(_) => Ok(serde_json::json!({
+                    "assurance": binding.assurance,
+                    "valid_until": binding.valid_until,
+                })),
+            }
         }
         other => Err(ApiError::bad_request(format!("unknown or non-channel tool: {other}"))),
     }
