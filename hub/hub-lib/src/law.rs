@@ -61,9 +61,25 @@ fn is_known_role(role: &str) -> bool {
 ///
 /// Published per thread `identity-p1-cospec` (HUB Concern 2): self-declared roles
 /// fragment the fold exactly like `plugin_id` does one level up (`mesh-worker` vs
-/// `mesh_worker`). Members validate their declared role at connect against this
-/// set and **fail closed to [`DEFAULT_CONSTELLATION_ROLE`]** on any unknown value
-/// — never minting a novel role subject. See [`normalize_constellation_role`].
+/// `mesh_worker`).
+///
+/// **This vocabulary is published, not enforced.** The hub reads `role_lct`
+/// verbatim off the caller's R7 body and folds it unnormalized; it never calls
+/// [`normalize_constellation_role`] or [`is_known_constellation_role`] on an
+/// inbound value, and as of 2026-07-29 neither helper has a caller outside this
+/// module's tests. A member that declares `role:constellation:mesh_worker` — or
+/// any novel string — mints a distinct reputation subject and the hub does not
+/// notice.
+///
+/// That is deliberate, per dp's ruling of 2026-07-28 (`git-manager-role` §8b:
+/// the hub should resist feature creep beyond the core role of being a hub).
+/// Gating a self-declaration is the member's half of the contract, at connect,
+/// with the member's own vocabulary check; the hub's half is publishing a
+/// canonical set to check against and carrying what it is given. What was wrong
+/// was this doc comment previously asserting the member's half as an enforced
+/// property — a contract with no construct behind it, which reads as a guarantee
+/// to anyone consuming the fold. Use [`normalize_constellation_role`] to hold up
+/// your end; nothing here will do it for you.
 pub const KNOWN_CONSTELLATION_ROLES: &[&str] = &[
     "role:constellation:interactive-dev", // a human-driven session
     "role:constellation:mesh-worker",     // a hub-mesh-fired autonomous session
@@ -84,10 +100,14 @@ pub fn is_known_constellation_role(role: &str) -> bool {
 }
 
 /// Validate a self-declared constellation role at connect, failing closed to
-/// [`DEFAULT_CONSTELLATION_ROLE`] on any unpublished value. This is the hub's
-/// half of the HUB Concern 2 contract: a member calls this with the role it
-/// declared, stamps the returned canonical string as its `role_lct`, and thereby
-/// cannot fragment the fold with a typo'd or novel capacity.
+/// [`DEFAULT_CONSTELLATION_ROLE`] on any unpublished value.
+///
+/// This is the **member's** half of the HUB Concern 2 contract, offered by the
+/// hub as a shared implementation: a member calls this with the role it declared
+/// and stamps the returned canonical string as its `role_lct`. A member that
+/// calls it cannot fragment the fold with a typo'd or novel capacity; a member
+/// that does not is unaffected, because no hub path invokes this on inbound
+/// values. See [`KNOWN_CONSTELLATION_ROLES`] for why the hub does not enforce it.
 pub fn normalize_constellation_role(declared: &str) -> &'static str {
     KNOWN_CONSTELLATION_ROLES
         .iter()
