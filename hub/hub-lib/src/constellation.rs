@@ -364,6 +364,77 @@ pub struct TierBinding {
     pub valid_until: DateTime<Utc>,
 }
 
+/// A **portable, hub-signed assurance receipt** (A2 evidence, 2026-07-29). The hub
+/// issues this after a verified `present_constellation`: it binds the derived tier
+/// to the exact owner + roster + challenge, and the hub SIGNS it. A relying party
+/// verifies the signature with the hub's public key and checks freshness —
+/// **without running Hestia or trusting the presenter** (PRD_ASSURANCE A2: "verify
+/// a signed decision before acting"). Trust in the hub identity itself is the
+/// relying party's to establish (pin `hub_signer_pubkey_hex`, or resolve the hub's
+/// published LCT) — inspectable evidence, not prescribed trust.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssuranceReceipt {
+    pub owner_lct_id: Uuid,
+    pub tier: AssuranceLevel,
+    pub pair_id: Uuid,
+    pub challenge_nonce: String,
+    /// The attestation's `issued_at` (binds the receipt to that specific challenge).
+    pub issued_at: DateTime<Utc>,
+    pub bound_at: DateTime<Utc>,
+    pub valid_until: DateTime<Utc>,
+    pub hub_lct_id: Uuid,
+    /// The hub key that signed this receipt — the relying party verifies against it
+    /// and confirms (out of band / via the hub's published LCT) it is the hub it trusts.
+    pub hub_signer_pubkey_hex: String,
+    /// `sha256` over the ordered device roster — binds the tier to the EXACT device
+    /// set, so a receipt can't be replayed for a different constellation.
+    pub roster_hash: String,
+    /// The hub's Ed25519 signature over [`Self::signing_bytes`], hex. Empty until signed.
+    pub signature: String,
+}
+
+impl AssuranceReceipt {
+    /// SHA-256 of the ordered roster — deterministic, cross-implementation.
+    pub fn roster_hash(roster: &[Uuid]) -> String {
+        let mut buf = Vec::with_capacity(16 * roster.len());
+        for r in roster {
+            buf.extend_from_slice(r.as_bytes());
+        }
+        hex::encode(sha256(&buf))
+    }
+
+    /// Canonical bytes the hub signs — every field EXCEPT the signature. A
+    /// version tag domains it; field order is fixed. Any drift breaks the sig.
+    pub fn signing_bytes(&self) -> Vec<u8> {
+        let mut b = Vec::with_capacity(256);
+        b.extend_from_slice(b"web4:assurance-receipt:v1:");
+        b.extend_from_slice(self.owner_lct_id.as_bytes());
+        b.extend_from_slice(format!("{:?}", self.tier).as_bytes());
+        b.extend_from_slice(self.pair_id.as_bytes());
+        b.extend_from_slice(self.challenge_nonce.as_bytes());
+        b.extend_from_slice(self.issued_at.to_rfc3339().as_bytes());
+        b.extend_from_slice(self.bound_at.to_rfc3339().as_bytes());
+        b.extend_from_slice(self.valid_until.to_rfc3339().as_bytes());
+        b.extend_from_slice(self.hub_lct_id.as_bytes());
+        b.extend_from_slice(self.roster_hash.as_bytes());
+        b
+    }
+
+    /// **The relying party's check — no Hestia required.** Verify the hub's
+    /// signature over the canonical bytes and confirm the receipt is unexpired.
+    /// The caller supplies the hub's public key (pinned or resolved) and `now`.
+    pub fn verify(&self, hub_pubkey: &PublicKey, now: DateTime<Utc>) -> Result<(), VerifyError> {
+        if now > self.valid_until {
+            return Err(VerifyError::Stale);
+        }
+        let sig = sig_from_hex(&self.signature)
+            .map_err(|e| VerifyError::Malformed(format!("receipt signature: {e}")))?;
+        hub_pubkey
+            .verify(&self.signing_bytes(), &sig)
+            .map_err(|_| VerifyError::OwnerSignatureInvalid)
+    }
+}
+
 #[derive(Default)]
 struct GateInner {
     /// Outstanding challenge nonce per pair — single-use, burned on present.
@@ -855,5 +926,43 @@ mod tests {
         assert!(gate.assurance(pair, now + Duration::minutes(61)).is_none());
         // And it stays gone until a new challenge/present cycle.
         assert!(gate.assurance(pair, now + Duration::minutes(59)).is_none());
+    }
+
+    #[test]
+    fn assurance_receipt_is_portably_verifiable_without_hestia() {
+        // A2: the hub signs a receipt; a relying party verifies it with the hub's
+        // PUBLIC key and a clock — nothing else. No hub, no hestia, no presenter.
+        let hub_kp = KeyPair::generate();
+        let now = Utc::now();
+        let roster = vec![Uuid::new_v4(), Uuid::new_v4()];
+        let mut r = AssuranceReceipt {
+            owner_lct_id: Uuid::new_v4(),
+            tier: AssuranceLevel::HardwareBacked,
+            pair_id: Uuid::new_v4(),
+            challenge_nonce: "hub-nonce".into(),
+            issued_at: now,
+            bound_at: now,
+            valid_until: now + Duration::hours(1),
+            hub_lct_id: Uuid::new_v4(),
+            hub_signer_pubkey_hex: hub_kp.verifying_key().to_hex(),
+            roster_hash: AssuranceReceipt::roster_hash(&roster),
+            signature: String::new(),
+        };
+        r.signature = hub_kp.sign(&r.signing_bytes()).to_hex();
+
+        // Relying party: verify with the hub key + now. PASS.
+        assert!(r.verify(&hub_kp.verifying_key(), now).is_ok());
+        // Tamper the tier → the signature no longer covers it.
+        let mut forged = r.clone();
+        forged.tier = AssuranceLevel::SingleDevice;
+        assert_eq!(forged.verify(&hub_kp.verifying_key(), now), Err(VerifyError::OwnerSignatureInvalid));
+        // Tamper the roster_hash (replay to another constellation) → fails.
+        let mut replayed = r.clone();
+        replayed.roster_hash = AssuranceReceipt::roster_hash(&[Uuid::new_v4()]);
+        assert!(replayed.verify(&hub_kp.verifying_key(), now).is_err());
+        // Expired → Stale.
+        assert_eq!(r.verify(&hub_kp.verifying_key(), now + Duration::hours(2)), Err(VerifyError::Stale));
+        // A different hub key → fails (relying party must pin the right hub).
+        assert!(r.verify(&KeyPair::generate().verifying_key(), now).is_err());
     }
 }
