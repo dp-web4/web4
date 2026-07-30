@@ -8,8 +8,17 @@
 //! Wire contract: `shared-context/forum/legion-constellation-attestation-wire-shape-2026-06-11.md`
 //! (greenlit in `hub-to-legion-constellation-pr-greenlight-2026-06-11.md`).
 //! The structs here mirror hestia's serde shape and the signing payload is
-//! byte-for-byte identical — `test_vector_payload_hash` is the mechanical
-//! anchor that keeps the two repos honest.
+//! byte-for-byte identical — `test_vector_payload_hash` pins THIS repo's
+//! construction to a fixed constant.
+//!
+//! **That constant is not a cross-repo gate, and this comment used to claim it
+//! was** (measured 2026-07-30): hestia contains no counterpart test — neither the
+//! vector nor the string `test-vector-nonce` appears anywhere in that repo — so
+//! drift in hestia's half fails nothing here. The two constructions *are*
+//! identical today, verified by re-deriving the constant from the wire memo
+//! independently of either implementation. What is missing is the gate, not the
+//! agreement. hestia owes the mirror-image vector; tracked in
+//! `hub-to-legion-the-constellation-attestation-signs-a-string-it-does-not-transmit-2026-07-30.md`.
 //!
 //! The verification rules (numbering from the wire-shape memo):
 //! 1. `challenge_nonce` matches the nonce minted for this `pair_id`;
@@ -151,6 +160,11 @@ pub struct ConstellationAttestation {
     pub owner_pubkey_hex: String,
     pub member_lcts: Vec<Uuid>,
     pub challenge_nonce: String,
+    /// Canonical on the wire (fixed-width nanoseconds, `Z`) so the transmitted
+    /// spelling is the one [`signing_payload_v2`] signs. The shim's deserializer
+    /// accepts any valid RFC3339, so v1 members — which emit chrono's `AutoSi`
+    /// default — parse unchanged.
+    #[serde(with = "canonical_ts")]
     pub issued_at: DateTime<Utc>,
     pub claimed_assurance: AssuranceLevel,
     /// Owner's Ed25519 signature over `signing_payload(...)`, hex.
@@ -183,20 +197,84 @@ pub enum VerifyError {
     Malformed(String),
 }
 
-/// Deterministic signing payload — byte-for-byte the hestia construction:
+/// Deterministic signing payload, **v1** — byte-for-byte the hestia construction:
 /// SHA-256 over `"web4:constellation-attest:v1:"` ‖ owner uuid (16 bytes) ‖
 /// nonce (utf8) ‖ issued_at (`to_rfc3339()`, utf8) ‖ each member uuid (16 bytes).
+///
+/// **Signs a string it does not transmit.** `to_rfc3339()` spells the instant
+/// `…+00:00`; the JSON that crosses the wire carries chrono's serde default,
+/// `…Z`. Those are different bytes and therefore a different SHA-256 — measured
+/// on the shipped test vector, the same inputs hash to `a30b8d41…` under the
+/// signed spelling and `7f051de2…` under the transmitted one. It works today only
+/// because both peers reconstruct the payload from the *parsed* `DateTime<Utc>`
+/// rather than from the string they received, so the divergence is invisible
+/// until someone verifies from the wire alone — exactly the defect
+/// `signing_bytes` v3 fixed for [`AssuranceReceipt`] (see [`canonical_timestamp`]).
+/// `AutoSi` also varies the fractional width with the value, so any hop that
+/// re-serializes at lower precision (a millisecond-resolution JS relying party, a
+/// microsecond DB column) silently changes the bytes the signature covers.
+///
+/// Retained because members still emit it, and accepted by
+/// [`ConstellationAttestation::verify_enrolled`] for exactly that reason.
+/// Prefer [`signing_payload_v2`]; this is scheduled for retirement once hestia
+/// emits v2 (receiver first, senders last — the #595 pattern).
 pub fn signing_payload(
     owner: Uuid,
     members: &[Uuid],
     nonce: &str,
     issued_at: &DateTime<Utc>,
 ) -> Vec<u8> {
+    signing_payload_parts(
+        b"web4:constellation-attest:v1:",
+        owner,
+        members,
+        nonce,
+        &issued_at.to_rfc3339(),
+    )
+}
+
+/// Deterministic signing payload, **v2** — identical field order to
+/// [`signing_payload`], with the two changes that make an attestation verifiable
+/// from its own JSON: the domain tag is bumped to `v2`, and `issued_at` is spelled
+/// by [`canonical_timestamp`] — the same function the serde shim writes to the
+/// wire. A relying party holding nothing but the attestation's JSON can rebuild
+/// these bytes using the transmitted strings verbatim.
+///
+/// The tag bump is what keeps that safe: v1 and v2 bytes can never collide, so
+/// accepting both is a strict superset of today's behaviour and not a
+/// cross-protocol confusion (a forger still needs a signature from the pinned
+/// owner key under one spelling or the other).
+pub fn signing_payload_v2(
+    owner: Uuid,
+    members: &[Uuid],
+    nonce: &str,
+    issued_at: &DateTime<Utc>,
+) -> Vec<u8> {
+    signing_payload_parts(
+        b"web4:constellation-attest:v2:",
+        owner,
+        members,
+        nonce,
+        &canonical_timestamp(issued_at),
+    )
+}
+
+/// The one construction both versions share — they differ only in the domain tag
+/// and how `issued_at` was spelled, so the field order cannot drift between them.
+/// Taking the timestamp as an already-formatted `&str` is deliberate: it is what
+/// lets a verifier feed in the string it received rather than one it re-derived.
+fn signing_payload_parts(
+    tag: &[u8],
+    owner: Uuid,
+    members: &[Uuid],
+    nonce: &str,
+    issued_at: &str,
+) -> Vec<u8> {
     let mut buf = Vec::with_capacity(128);
-    buf.extend_from_slice(b"web4:constellation-attest:v1:");
+    buf.extend_from_slice(tag);
     buf.extend_from_slice(owner.as_bytes());
     buf.extend_from_slice(nonce.as_bytes());
-    buf.extend_from_slice(issued_at.to_rfc3339().as_bytes());
+    buf.extend_from_slice(issued_at.as_bytes());
     for m in members {
         buf.extend_from_slice(m.as_bytes());
     }
@@ -304,21 +382,34 @@ impl ConstellationAttestation {
             return Err(VerifyError::ForeignOwnerKey);
         }
 
-        let payload = signing_payload(
-            self.owner_lct_id,
-            &self.member_lcts,
-            &self.challenge_nonce,
-            &self.issued_at,
-        );
-
         // Owner: verify against the PINNED (trusted) key.
         let owner_pk = pubkey_from_hex(&self.owner_pubkey_hex)
             .map_err(|e| VerifyError::Malformed(format!("owner pubkey: {e}")))?;
         let owner_sig = sig_from_hex(&self.owner_signature)
             .map_err(|e| VerifyError::Malformed(format!("owner signature: {e}")))?;
-        owner_pk
-            .verify(&payload, &owner_sig)
-            .map_err(|_| VerifyError::OwnerSignatureInvalid)?;
+
+        // Receiver first, senders last (#595): accept v2, still accept v1 while
+        // members emit it. The version the OWNER signed fixes the payload for the
+        // device signatures too — owner and devices sign the same bytes, so
+        // resolving each independently would let a v1 device co-sign ride on a v2
+        // owner signature and vice versa.
+        let payload = [
+            signing_payload_v2(
+                self.owner_lct_id,
+                &self.member_lcts,
+                &self.challenge_nonce,
+                &self.issued_at,
+            ),
+            signing_payload(
+                self.owner_lct_id,
+                &self.member_lcts,
+                &self.challenge_nonce,
+                &self.issued_at,
+            ),
+        ]
+        .into_iter()
+        .find(|p| owner_pk.verify(p, &owner_sig).is_ok())
+        .ok_or(VerifyError::OwnerSignatureInvalid)?;
 
         // Devices: resolve every fact from the enrollment registry. Collapse
         // duplicate lct_ids so one device signed twice is still one. A signature
@@ -695,7 +786,23 @@ mod tests {
         nonce: &str,
         issued_at: DateTime<Utc>,
     ) -> ConstellationAttestation {
-        let payload = signing_payload(owner_lct, roster, nonce, &issued_at);
+        make_att_with(signing_payload, owner_kp, owner_lct, roster, cosigners, nonce, issued_at)
+    }
+
+    /// Same, but the caller picks the payload version — so the migration tests can
+    /// mint a genuine v1 sender and a genuine v2 sender rather than asserting on
+    /// bytes they built by hand.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn make_att_with(
+        payload_fn: fn(Uuid, &[Uuid], &str, &DateTime<Utc>) -> Vec<u8>,
+        owner_kp: &KeyPair,
+        owner_lct: Uuid,
+        roster: &[Uuid],
+        cosigners: &[(Uuid, DeviceType, &KeyPair)],
+        nonce: &str,
+        issued_at: DateTime<Utc>,
+    ) -> ConstellationAttestation {
+        let payload = payload_fn(owner_lct, roster, nonce, &issued_at);
         ConstellationAttestation {
             owner_lct_id: owner_lct,
             owner_pubkey_hex: owner_kp.verifying_key().to_hex(),
@@ -736,6 +843,166 @@ mod tests {
         assert_eq!(
             hex::encode(&payload),
             "a30b8d41895709aae3bc2956922bcb434897383beb597af0bbe7ad28242fb31b",
+        );
+    }
+
+    /// The v2 half of the cross-repo anchor. Both constants were re-derived from
+    /// the wire memo's field order by a third implementation (Python, no chrono,
+    /// no `web4-core`) before being pinned here, so agreeing with them is evidence
+    /// about the *contract* and not about a shared dependency — hub-lib and hestia
+    /// both resolve `web4-core` from the same path, which means a shared-crate bug
+    /// would otherwise agree with itself.
+    #[test]
+    fn test_vector_payload_hash_v2() {
+        let owner = Uuid::parse_str("00000000-0000-4000-8000-000000000001").unwrap();
+        let members = [
+            Uuid::parse_str("00000000-0000-4000-8000-0000000000aa").unwrap(),
+            Uuid::parse_str("00000000-0000-4000-8000-0000000000bb").unwrap(),
+        ];
+        let issued_at = ts("2026-06-11T00:00:00+00:00");
+        // The same instant, spelled the way the wire spells it.
+        assert_eq!(canonical_timestamp(&issued_at), "2026-06-11T00:00:00.000000000Z");
+        let payload = signing_payload_v2(owner, &members, "test-vector-nonce", &issued_at);
+        assert_eq!(
+            hex::encode(&payload),
+            "003a19c58b76323f8438168950ad32c19a36f3dc32c126cf89a91e5fece1cf3b",
+        );
+        // The whole point of the bump, stated as an assertion: same inputs, same
+        // instant, different bytes. This is why v1 could not simply be respelled.
+        assert_ne!(
+            payload,
+            signing_payload(owner, &members, "test-vector-nonce", &issued_at)
+        );
+    }
+
+    /// THE v2 property, mirroring `signed_bytes_are_reconstructable_from_the_wire_alone`
+    /// for the attestation. A relying party holding only the JSON must be able to
+    /// rebuild the signed bytes from the transmitted strings verbatim.
+    #[test]
+    fn attestation_v2_bytes_are_reconstructable_from_the_wire_alone() {
+        let owner_kp = KeyPair::from_secret_bytes(&[9u8; 32]);
+        let owner = Uuid::new_v4();
+        let roster = vec![Uuid::new_v4(), Uuid::new_v4()];
+        // A live-clock-shaped instant: under AutoSi this is 9 fractional digits,
+        // whereas the v1 vector's whole second is zero — the width spread that
+        // makes the defect intermittent rather than total.
+        let issued = ts("2026-07-30T04:03:13.302191724Z");
+        let att = make_att_with(
+            signing_payload_v2, &owner_kp, owner, &roster, &[], "wire-nonce", issued,
+        );
+
+        let json = serde_json::to_string(&att).unwrap();
+        let wire: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let s = |k: &str| wire[k].as_str().unwrap_or_default().to_string();
+
+        // A standalone verifier's arithmetic: the strings as received, nothing
+        // re-formatted, no chrono.
+        let mut rebuilt = Vec::new();
+        rebuilt.extend_from_slice(b"web4:constellation-attest:v2:");
+        rebuilt.extend_from_slice(Uuid::parse_str(&s("owner_lct_id")).unwrap().as_bytes());
+        rebuilt.extend_from_slice(s("challenge_nonce").as_bytes());
+        rebuilt.extend_from_slice(s("issued_at").as_bytes());
+        for m in wire["member_lcts"].as_array().unwrap() {
+            rebuilt.extend_from_slice(Uuid::parse_str(m.as_str().unwrap()).unwrap().as_bytes());
+        }
+        let rebuilt = sha256(&rebuilt).to_vec();
+
+        assert_eq!(
+            rebuilt,
+            signing_payload_v2(owner, &roster, "wire-nonce", &issued),
+            "the transmitted strings no longer rebuild the signed payload"
+        );
+        // Internal equality alone could be two identical mistakes; this is the
+        // property a relying party actually depends on.
+        let sig = sig_from_hex(&att.owner_signature).unwrap();
+        assert!(
+            owner_kp.verifying_key().verify(&rebuilt, &sig).is_ok(),
+            "bytes rebuilt from the wire do not verify against the owner signature"
+        );
+        assert!(!json.contains("+00:00"), "wire regressed to an offset suffix: {json}");
+
+        // And the v1 construction must still NOT have this property — if it ever
+        // gains it, chrono changed underneath us and the rationale needs re-checking.
+        assert_ne!(canonical_timestamp(&issued), issued.to_rfc3339());
+    }
+
+    /// An owner's ACTIVE enrolled devices, built from the same `enroll` helper the
+    /// rest of the enrolled-verifier tests use.
+    fn enrolled_set(owner: Uuid, devices: &[(Uuid, &KeyPair, DeviceType)]) -> EnrolledDeviceSet {
+        let mut set = EnrolledDeviceSet::new();
+        for (id, kp, class) in devices {
+            set.insert(enroll(owner, *id, class.clone(), DeviceStatus::Active, kp, Utc::now()));
+        }
+        set
+    }
+
+    /// The migration guarantee: accepting v2 must not stop accepting v1, because
+    /// every member in the field still signs v1 (receiver first, senders last).
+    #[test]
+    fn verify_enrolled_accepts_both_payload_versions() {
+        let owner_kp = KeyPair::generate();
+        let owner = Uuid::new_v4();
+        let (d1, d2) = (Uuid::new_v4(), Uuid::new_v4());
+        let (k1, k2) = (KeyPair::generate(), KeyPair::generate());
+        let now = Utc::now();
+        let pinned = owner_kp.verifying_key().to_hex();
+        let enrolled = enrolled_set(
+            owner,
+            &[(d1, &k1, DeviceType::Desktop), (d2, &k2, DeviceType::Hardware)],
+        );
+        let cosigners: &[(Uuid, DeviceType, &KeyPair)] =
+            &[(d1, DeviceType::Desktop, &k1), (d2, DeviceType::Hardware, &k2)];
+
+        for (label, payload_fn) in [
+            ("v1", signing_payload as fn(Uuid, &[Uuid], &str, &DateTime<Utc>) -> Vec<u8>),
+            ("v2", signing_payload_v2),
+        ] {
+            let att = make_att_with(
+                payload_fn, &owner_kp, owner, &[d1, d2], cosigners, "n", now,
+            );
+            assert_eq!(
+                att.verify_enrolled(&pinned, &enrolled, Duration::minutes(5), Duration::minutes(2), now),
+                Ok(AssuranceLevel::HardwareBacked),
+                "{label} attestation must verify and derive its tier from enrolled devices",
+            );
+        }
+    }
+
+    /// A device co-sign under one version must not ride on an owner signature made
+    /// under the other: owner and devices sign the SAME bytes, and the owner's
+    /// version is what fixes them. The mismatched device contributes nothing, so
+    /// the tier degrades rather than the presentation being rejected — rule 4's
+    /// silent drop, unchanged.
+    #[test]
+    fn a_device_cosign_cannot_cross_payload_versions() {
+        let owner_kp = KeyPair::generate();
+        let owner = Uuid::new_v4();
+        let (d1, d2) = (Uuid::new_v4(), Uuid::new_v4());
+        let (k1, k2) = (KeyPair::generate(), KeyPair::generate());
+        let now = Utc::now();
+        let pinned = owner_kp.verifying_key().to_hex();
+        let enrolled = enrolled_set(
+            owner,
+            &[(d1, &k1, DeviceType::Desktop), (d2, &k2, DeviceType::Hardware)],
+        );
+
+        // Owner signs v2; the hardware device signs v1 and is spliced in.
+        let mut att = make_att_with(
+            signing_payload_v2, &owner_kp, owner, &[d1, d2],
+            &[(d1, DeviceType::Desktop, &k1)], "n", now,
+        );
+        let v1 = signing_payload(owner, &[d1, d2], "n", &now);
+        att.device_signatures.push(DeviceSignature {
+            lct_id: d2,
+            device_type: DeviceType::Hardware,
+            pubkey_hex: k2.verifying_key().to_hex(),
+            signature: k2.sign(&v1).to_hex(),
+        });
+
+        assert_eq!(
+            att.verify_enrolled(&pinned, &enrolled, Duration::minutes(5), Duration::minutes(2), now),
+            Ok(AssuranceLevel::SingleDevice),
+            "a v1 hardware co-sign must not inflate a v2 attestation to hardware_backed",
         );
     }
 
