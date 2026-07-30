@@ -3721,6 +3721,27 @@ async fn dispatch_channel(
             // can verify with the hub's public key, WITHOUT running hestia. Bound to
             // owner + roster + challenge so it can't be replayed. Best-effort — a
             // gating/locked signer must not break the (already-verified) present.
+            // The signer's key id is load-bearing, not decorative: a receipt without
+            // it is unattributable and `verify()` refuses it. If we cannot name the
+            // signing key we emit NO receipt rather than an unverifiable one — the
+            // same fail-closed shape as a locked signer below, and audible either way.
+            let signer_key_id = match s.signer.public_key() {
+                Some(pk) => Some(hub_lib::constellation::AssuranceReceipt::key_id(&pk)),
+                None => {
+                    tracing::warn!(
+                        pair_id = %pair_id,
+                        "present_constellation verified but the hub signer exposes no public key \
+                         (locked/remote signer?) — returning the unsigned shape, NO A2 receipt"
+                    );
+                    None
+                }
+            };
+            let Some(signer_key_id) = signer_key_id else {
+                return Ok(serde_json::json!({
+                    "assurance": binding.assurance,
+                    "valid_until": binding.valid_until,
+                }));
+            };
             let mut receipt = hub_lib::constellation::AssuranceReceipt {
                 owner_lct_id: att.owner_lct_id,
                 tier: binding.assurance.clone(),
@@ -3730,7 +3751,9 @@ async fn dispatch_channel(
                 bound_at: binding.bound_at,
                 valid_until: binding.valid_until,
                 hub_lct_id: s.hub_id,
-                hub_signer_pubkey_hex: s.signer.public_key().map(|pk| pk.to_hex()).unwrap_or_default(),
+                // The key that actually signs, named — `hub_id` is the society record.
+                hub_signer_lct_id: s.sovereign_lct_id,
+                hub_signer_key_id: signer_key_id,
                 roster_hash: hub_lib::constellation::AssuranceReceipt::roster_hash(&att.member_lcts),
                 signature: String::new(),
             };
@@ -3752,10 +3775,21 @@ async fn dispatch_channel(
                         "receipt": receipt,
                     }))
                 }
-                Err(_) => Ok(serde_json::json!({
-                    "assurance": binding.assurance,
-                    "valid_until": binding.valid_until,
-                })),
+                // Silent downgrade is a diagnosis hole: an A2 integration treating
+                // "no receipt" as fail-closed then fails with nothing in the log to
+                // say why. The present itself already verified, so we still answer.
+                Err(e) => {
+                    tracing::warn!(
+                        pair_id = %pair_id,
+                        error = %e,
+                        "present_constellation verified but signing the A2 receipt failed — \
+                         returning the unsigned shape, NO A2 receipt"
+                    );
+                    Ok(serde_json::json!({
+                        "assurance": binding.assurance,
+                        "valid_until": binding.valid_until,
+                    }))
+                }
             }
         }
         other => Err(ApiError::bad_request(format!("unknown or non-channel tool: {other}"))),
