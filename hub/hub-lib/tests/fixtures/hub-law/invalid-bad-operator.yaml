@@ -1,0 +1,12 @@
+# INVALID — norm uses unsupported operator 'LIKE'
+# Expected: validator returns error, exit code 1
+
+version: "1.0.0"
+
+norms:
+  - id: BAD-OP
+    selector: r6.request.action
+    operator: "LIKE"
+    value: "%admin%"
+    decision: deny
+    priority: 10

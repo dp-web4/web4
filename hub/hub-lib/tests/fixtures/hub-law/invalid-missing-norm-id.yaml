@@ -1,0 +1,12 @@
+# INVALID — norm is missing required 'id' field
+# Expected: validator returns error, exit code 1
+
+version: "1.0.0"
+
+norms:
+  - selector: r6.resource.atp
+    operator: "<="
+    value: 100
+    decision: deny
+    priority: 10
+    description: "This norm has no id — should fail validation"
