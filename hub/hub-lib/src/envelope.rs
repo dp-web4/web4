@@ -104,6 +104,42 @@ impl SignedEnvelope {
     /// without an explicit canonicalization pass. We still use an
     /// explicit canonicalizer here so the hub doesn't depend on
     /// upstream feature flags staying off.
+    ///
+    /// ## What the canonicalizer does and does not buy
+    ///
+    /// It removes the *hub's* dependence on its own feature flags. It
+    /// cannot remove the protocol's dependence on the **sender's**,
+    /// because the hub never sees the sender's bytes — only the parsed
+    /// [`serde_json::Value`]. So this is a requirement on senders, and
+    /// it is not stated anywhere else:
+    ///
+    /// > **The sender must serialize `payload` with object keys in
+    /// > ascending byte order.** A sender that emits any other key order
+    /// > signs different bytes than the hub verifies, and gets
+    /// > [`VerifyError::BadSignature`] — an error that names neither key
+    /// > order nor the payload.
+    ///
+    /// Hestia satisfies this by construction, not by intent:
+    /// `serde_json::Map` is a `BTreeMap` under default features, so
+    /// `to_string()` is sorted. A client in a language whose maps keep
+    /// insertion order (the `plugin-sdk/python` and `plugin-sdk/typescript`
+    /// trees are where one would appear) has to sort deliberately.
+    /// Pinned by `sender_key_order_is_a_requirement_the_hub_cannot_see`
+    /// and `canonical_form_equals_hestias_to_string`.
+    ///
+    /// The mirror image of that requirement is that the payload's **wire
+    /// spelling is not authenticated**: because the hub re-derives the
+    /// signing bytes from the parsed value, an intermediary can re-order
+    /// the keys, or re-spell a float (`1e2` → `100.0`), and the signature
+    /// still verifies. That is malleability, not forgery — the two
+    /// spellings parse to the same [`serde_json::Value`], and every
+    /// consumer downstream of [`verify_envelope`] reads that value, never
+    /// the received text. The property that keeps it safe is therefore
+    /// "nothing acts on the raw bytes," the same property that makes
+    /// `ledger::signing_payload` safe (see its docs). If a consumer ever
+    /// needs the exact bytes a signer saw, it must carry them explicitly;
+    /// it cannot recover them from a verified envelope.
+    /// Pinned by `wire_spelling_is_malleable_and_that_is_the_safe_case`.
     pub fn signing_bytes(&self) -> Result<Vec<u8>> {
         canonical_signing_bytes(&self.challenge_nonce, &self.payload)
     }
@@ -535,6 +571,13 @@ mod tests {
         // Lock-in test: our signing bytes MUST equal Hestia's algorithm
         // `nonce.as_bytes() ++ payload.to_string().as_bytes()`.
         // This test must keep passing or interop with Hestia breaks.
+        //
+        // It is necessary but NOT sufficient, and on its own it is a
+        // vacuous canary: this payload's insertion order is already its
+        // sorted order, so it keeps passing under `preserve_order` — the
+        // one condition that breaks the interop it guards (measured
+        // 2026-07-30). `canonical_form_equals_hestias_to_string` is the
+        // battery that actually fails there; keep both.
         let payload = json!({"a": 1, "b": "hello"});
         let nonce = "abc123";
 
@@ -575,5 +618,169 @@ mod tests {
         let dropped = nonces.prune_expired(now + Duration::seconds(5));
         assert_eq!(dropped, 2);
         assert_eq!(nonces.len(), 0);
+    }
+
+    /// The interop anchor. Hestia signs `payload.to_string()`
+    /// (`hestia core/src/hub.rs`, `SignedEnvelope::create`); the hub signs
+    /// `serialize_canonical(payload)`. Nothing forces those to agree — they
+    /// are two independently written serializers in two repositories — so
+    /// pin the equality over the shapes an envelope payload actually takes.
+    ///
+    /// If this ever fails, the hub has stopped accepting hestia's envelopes.
+    /// The most likely cause is `serde_json`'s `preserve_order` feature being
+    /// unified on in *this* workspace's graph, which turns `Map` into an
+    /// `IndexMap` and makes `to_string()` insertion-ordered.
+    #[test]
+    fn canonical_form_equals_hestias_to_string() {
+        let cases = vec![
+            json!({}),
+            json!(null),
+            json!(true),
+            json!("plain"),
+            // Escapes: both sides delegate to serde_json's escaper, but only
+            // one of them does so via a public API.
+            json!("quote\" backslash\\ newline\n tab\t control\u{1}"),
+            json!("unicode: é 日本語 \u{1F600}"),
+            // Numbers: Display-for-Number vs the serializer's f64/i64 paths.
+            json!({"u": u64::MAX, "i": i64::MIN, "z": 0, "neg_zero": -0.0}),
+            json!({"f": 0.1, "big": 1e300, "small": 1e-300, "exact": 2.0}),
+            // Key order: the hub sorts explicitly, hestia relies on BTreeMap.
+            json!({"b": 1, "a": 2, "C": 3, "_": 4, "": 5, "é": 6, "a1": 7, "a": 8}),
+            // Nesting, and empty containers inside it.
+            json!({"outer": {"inner": [1, {"deep": []}, {}], "sib": [[], [[]]]}}),
+            // The realistic one.
+            json!({"action": "add_member", "name": "Alice", "roles": ["citizen"]}),
+        ];
+        for v in cases {
+            assert_eq!(
+                serialize_canonical(&v).unwrap(),
+                v.to_string(),
+                "hub canonical form diverged from serde_json's Value::to_string() \
+                 (hestia's signing algorithm) for {v}"
+            );
+        }
+    }
+
+    /// The requirement the hub imposes on senders and cannot itself observe.
+    ///
+    /// The hub verifies against *sorted* keys. A sender that serializes in
+    /// any other order signs different bytes — and because the hub only ever
+    /// sees the parsed `Value`, the resulting error is a bare
+    /// `BadSignature` that names neither key order nor the payload. This
+    /// test exists so the requirement is written down somewhere executable.
+    #[tokio::test]
+    async fn sender_key_order_is_a_requirement_the_hub_cannot_see() {
+        let signer = fresh_identity();
+        let kp = signer.keypair().unwrap();
+        let mut resolver = MapResolver::new();
+        resolver.insert(signer.lct.clone());
+        let now = now_fixed();
+
+        // One payload, two serializations. Both are valid JSON for the same
+        // value; only the second is what the hub will re-derive.
+        let unsorted = r#"{"b":1,"a":2}"#;
+        let sorted = r#"{"a":2,"b":1}"#;
+        let payload: serde_json::Value = serde_json::from_str(unsorted).unwrap();
+        assert_eq!(
+            serialize_canonical(&payload).unwrap(),
+            sorted,
+            "precondition: the hub's canonical form is the sorted spelling"
+        );
+
+        // A sender whose map keeps insertion order signs `unsorted`.
+        let nonces = NonceStore::new();
+        let challenge = nonces.issue(signer.lct.id, now);
+        let mut signed_bytes = challenge.nonce.clone().into_bytes();
+        signed_bytes.extend_from_slice(unsorted.as_bytes());
+        let env = SignedEnvelope {
+            challenge_nonce: challenge.nonce.clone(),
+            payload: payload.clone(),
+            signature: hex::encode(kp.sign(&signed_bytes).bytes),
+            signer_lct_id: signer.lct.id,
+        };
+
+        match verify_envelope(&env, &nonces, &resolver, now) {
+            Err(VerifyError::BadSignature(msg)) => {
+                // The diagnostic gap is the point: nothing in the error
+                // points at key order. Assert that, so a future error
+                // message that *does* explain it fails here and gets read.
+                assert!(
+                    !msg.to_lowercase().contains("order")
+                        && !msg.to_lowercase().contains("payload"),
+                    "error text unexpectedly explains the cause: {msg}"
+                );
+            }
+            other => panic!("expected BadSignature from unsorted-key signing, got {other:?}"),
+        }
+
+        // Same key, same nonce-issuing store, same payload — sorted signing
+        // bytes verify. So order alone is the difference, not the setup.
+        let challenge2 = nonces.issue(signer.lct.id, now);
+        let mut ok_bytes = challenge2.nonce.clone().into_bytes();
+        ok_bytes.extend_from_slice(sorted.as_bytes());
+        let good = SignedEnvelope {
+            challenge_nonce: challenge2.nonce.clone(),
+            payload,
+            signature: hex::encode(kp.sign(&ok_bytes).bytes),
+            signer_lct_id: signer.lct.id,
+        };
+        assert!(verify_envelope(&good, &nonces, &resolver, now).is_ok());
+    }
+
+    /// The other side of re-deriving from the parsed value: the wire
+    /// spelling of `payload` is **not** covered by the signature.
+    ///
+    /// An intermediary may re-order keys or re-spell a float and the
+    /// envelope still verifies. That is safe only because every consumer
+    /// downstream of `verify_envelope` reads the parsed `Value`, never the
+    /// received text — the same safety property `ledger::signing_payload`
+    /// relies on. This test is what would fail if someone "fixed" the
+    /// canonicalizer into a received-bytes signer, and it is the reason a
+    /// consumer that needs the signer's exact bytes must carry them.
+    #[tokio::test]
+    async fn wire_spelling_is_malleable_and_that_is_the_safe_case() {
+        let signer = fresh_identity();
+        let kp = signer.keypair().unwrap();
+        let mut resolver = MapResolver::new();
+        resolver.insert(signer.lct.clone());
+        let now = now_fixed();
+        let nonces = NonceStore::new();
+        let challenge = nonces.issue(signer.lct.id, now);
+
+        // The signer's spelling.
+        let as_sent = r#"{"amount":1e2,"to":"treasury"}"#;
+        let value: serde_json::Value = serde_json::from_str(as_sent).unwrap();
+        let env = build_envelope(signer.lct.id, &kp, &challenge, value.clone()).unwrap();
+
+        // What an intermediary rewrites it to: keys swapped, float re-spelled.
+        let tampered = r#"{"to":"treasury","amount":100.0}"#;
+        assert_ne!(as_sent, tampered);
+        let tampered_value: serde_json::Value = serde_json::from_str(tampered).unwrap();
+        assert_eq!(
+            value, tampered_value,
+            "the two spellings must denote the same value — that is what makes \
+             this malleability rather than forgery"
+        );
+
+        let rewritten = SignedEnvelope { payload: tampered_value, ..env };
+        let redeemed = verify_envelope(&rewritten, &nonces, &resolver, now)
+            .expect("re-spelled payload still verifies — the signature covers the value");
+        assert_eq!(redeemed.nonce, challenge.nonce);
+
+        // Changing the *value* is still caught. Without this the assertion
+        // above would pass for a verifier that checks nothing.
+        let challenge2 = nonces.issue(signer.lct.id, now);
+        let mut forged = build_envelope(
+            signer.lct.id,
+            &kp,
+            &challenge2,
+            serde_json::from_str::<serde_json::Value>(as_sent).unwrap(),
+        )
+        .unwrap();
+        forged.payload = serde_json::from_str(r#"{"amount":101,"to":"treasury"}"#).unwrap();
+        assert!(matches!(
+            verify_envelope(&forged, &nonces, &resolver, now),
+            Err(VerifyError::BadSignature(_))
+        ));
     }
 }
