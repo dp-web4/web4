@@ -1115,24 +1115,48 @@ escalation:
         assert_eq!(outcome.decision, Decision::Escalate);
     }
 
-    // ----- Interop fixtures (shared-context/interop-fixtures/hub-law/) -----
+    // ----- Interop fixtures (hub-lib/tests/fixtures/hub-law/) -----
     //
     // Legion seeded shared fixtures so the hub parser + the web4-law-check
     // validator CLI assert against the same source-of-truth files. Catches
     // divergence early. If these fail after a pull, the schema has shifted
     // and the parser needs updating.
+    //
+    // These used to `include_str!` straight out of `../../../../shared-context/`
+    // — a sibling checkout, one directory ABOVE the repo root. That made a
+    // PUBLIC repo's test suite depend, at COMPILE time, on a PRIVATE one
+    // (dp-web4/shared-context). `include_str!` is not a soft dependency: a
+    // missing file is a hard compile error, so `cargo test -p hub-lib` could
+    // not build at all without the sibling. Consequences, both measured:
+    //   - `cargo test (hub)` in .github/workflows/ci.yml has been red since the
+    //     workflow was armed — the runner checks out dp-web4/web4 and nothing
+    //     else. Four `couldn't read ... No such file or directory` errors.
+    //   - Any clone of the public repo — an outside contributor, or one of our
+    //     own worktrees — hits the identical error. Reproduced 2026-07-30 in a
+    //     worktree with no sibling: byte-identical to the CI log.
+    // Fixing it CI-side (checking the private repo out into the runner) needs a
+    // secret in a public repo, and can't be the answer anyway: it would leave
+    // every external clone broken.
+    //
+    // So the compile-time source of truth is now IN-REPO and public. The shared
+    // copy under `shared-context/interop-fixtures/hub-law/` stays canonical for
+    // the fleet; `interop_fixtures_match_shared_context_canonical` below asserts
+    // the two are byte-identical on any machine that has both, which is every
+    // fleet machine. The drift check the shared fixture existed to provide is
+    // preserved — it just moved from "hard compile dependency" to "runtime
+    // equivalence assertion where observable."
 
     const FIXTURE_MINIMAL: &str = include_str!(
-        "../../../../shared-context/interop-fixtures/hub-law/minimal.yaml"
+        "../tests/fixtures/hub-law/minimal.yaml"
     );
     const FIXTURE_FULL: &str = include_str!(
-        "../../../../shared-context/interop-fixtures/hub-law/full-featured.yaml"
+        "../tests/fixtures/hub-law/full-featured.yaml"
     );
     const FIXTURE_INVALID_BAD_OPERATOR: &str = include_str!(
-        "../../../../shared-context/interop-fixtures/hub-law/invalid-bad-operator.yaml"
+        "../tests/fixtures/hub-law/invalid-bad-operator.yaml"
     );
     const FIXTURE_INVALID_MISSING_NORM_ID: &str = include_str!(
-        "../../../../shared-context/interop-fixtures/hub-law/invalid-missing-norm-id.yaml"
+        "../tests/fixtures/hub-law/invalid-missing-norm-id.yaml"
     );
 
     #[tokio::test]
@@ -1160,6 +1184,58 @@ escalation:
         let result = Law::parse_and_validate(FIXTURE_INVALID_MISSING_NORM_ID);
         assert!(result.is_err(),
             "fixture with norm missing id must be rejected by validator");
+    }
+
+    /// The in-repo fixtures above are a copy. This asserts the copy has not
+    /// drifted from the fleet-canonical originals in the `shared-context`
+    /// sibling checkout — the guarantee the old `include_str!` bought by
+    /// reading them directly, minus the hard compile dependency.
+    ///
+    /// Deliberately a RUNTIME read, not `include_str!`: the sibling is a
+    /// private repo that CI and outside clones do not have, and re-introducing
+    /// a compile-time reach out of the repo root is the exact defect this
+    /// replaced. Where the sibling is absent the check cannot run and the test
+    /// no-ops; where it is present — every fleet machine, including the one
+    /// that publishes the canonical copy — drift fails loudly.
+    #[test]
+    fn interop_fixtures_match_shared_context_canonical() {
+        use std::path::PathBuf;
+
+        // CARGO_MANIFEST_DIR = <repo>/hub/hub-lib → ../../.. = the directory
+        // holding the repo, where the shared-context checkout sits beside it.
+        let shared: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../shared-context/interop-fixtures/hub-law");
+        if !shared.is_dir() {
+            eprintln!(
+                "SKIP interop drift check: no shared-context sibling at {} \
+                 (expected on CI and on clones without the private repo)",
+                shared.display()
+            );
+            return;
+        }
+
+        let cases: [(&str, &str); 4] = [
+            ("minimal.yaml", FIXTURE_MINIMAL),
+            ("full-featured.yaml", FIXTURE_FULL),
+            ("invalid-bad-operator.yaml", FIXTURE_INVALID_BAD_OPERATOR),
+            ("invalid-missing-norm-id.yaml", FIXTURE_INVALID_MISSING_NORM_ID),
+        ];
+
+        let mut checked = 0;
+        for (name, in_repo) in cases {
+            let path = shared.join(name);
+            let canonical = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("shared-context sibling exists but {} is unreadable: {e}", path.display()));
+            assert_eq!(
+                canonical, in_repo,
+                "interop fixture `{name}` has DRIFTED from the fleet-canonical copy at {}.\n\
+                 The canonical file is the source of truth: re-copy it into \
+                 hub/hub-lib/tests/fixtures/hub-law/ and re-run.",
+                path.display()
+            );
+            checked += 1;
+        }
+        assert_eq!(checked, 4, "all four interop fixtures must be compared");
     }
 
     #[tokio::test]

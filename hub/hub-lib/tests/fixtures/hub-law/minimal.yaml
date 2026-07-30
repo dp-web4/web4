@@ -1,0 +1,10 @@
+version: "1.0.0"
+
+norms:
+  - id: PLACEHOLDER
+    selector: r6.request.action
+    operator: "!="
+    value: "__never_matches__"
+    decision: allow
+    priority: 100
+    description: "Default allow — minimal viable law"

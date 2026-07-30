@@ -1,0 +1,67 @@
+version: "1.0.0"
+
+norms:
+  - id: ATP-LIMIT
+    selector: r6.resource.atp
+    operator: "<="
+    value: 100
+    decision: deny
+    priority: 10
+    description: "No single action may consume more than 100 ATP"
+
+  - id: ADMIN-ONLY-ROLES
+    selector: r6.request.action
+    operator: "=="
+    value: assign_role
+    decision: escalate
+    priority: 20
+    description: "Role assignment escalates to Sovereign"
+
+  - id: OPEN-READ
+    selector: r6.request.action
+    operator: "in"
+    value: ["query", "list_members", "find_skill"]
+    decision: allow
+    priority: 50
+    description: "Read operations always allowed for members"
+
+procedures:
+  - id: WITNESS-3
+    requires_witnesses: 3
+    applies_to: "consequential_actions"
+    description: "Consequential actions require 3 independent witnesses"
+
+  - id: ADMISSION-VOTE
+    requires_quorum: 3
+    applies_to: "member_join"
+    description: "New member admission requires 3 existing members"
+
+delegation:
+  max_depth: 2
+  requires_approval: true
+  allowed_roles:
+    - administrator
+    - archivist
+    - witness
+
+escalation:
+  - condition: "r6.resource.atp > 50"
+    escalate_to: sovereign
+    description: "High-ATP actions escalate to Sovereign"
+
+  - condition: "r6.request.action == 'amend_charter'"
+    escalate_to: sovereign
+    description: "Charter amendments always go to Sovereign"
+
+admission:
+  open: false
+  requires_sponsor: true
+  sponsor_role: citizen
+  min_trust_score: 0.3
+  description: "Closed — citizen must sponsor, T3 >= 0.3"
+
+atp_issuance:
+  mint_authority: treasurer
+  max_mint_per_cycle: 1000
+  distribution: proportional_to_contribution
+  description: "Treasurer mints up to 1000 ATP/cycle"
