@@ -169,23 +169,64 @@ impl HubSession {
     /// `set_law_writes_both_ledger_and_law_store`. The proposal makes this
     /// conjunction a spec-level rule for state-mutating tools — neither half
     /// of the pair is "the contract" alone.
+    ///
+    /// ## The conjunction has an order, and a half-applied one is not benign
+    ///
+    /// "Both side effects must be observable after the call" leaves open what
+    /// happens when the second one fails. Here it is not a lost amendment: a
+    /// store holding a law that no `LawAmended` witnesses is the divergence the
+    /// daemon's H-009/HUB-001 gate refuses **every governed write** on, hub-wide
+    /// (`law_integrity_write_gate`) — and `hub set-law` is the operator's only
+    /// documented way out of it, so a half-applied recovery deepens the very
+    /// state it was run to clear.
+    ///
+    /// So the signature is taken *before* the store is touched (RWOA O: a denied
+    /// act leaves state bit-identical), and a failure of the append that follows
+    /// restores the prior law text. This actor signs with a local keypair, so the
+    /// signing step is not the realistic failure here the way it is on the daemon
+    /// path — the ordering is the same because the property is the same one, not
+    /// because the risk is. Restoring is compensation, not atomicity: if it also
+    /// fails the caller is told both errors rather than one.
     pub async fn set_law(
         &mut self,
         yaml: &str,
         version: String,
         diff_summary: Option<String>,
     ) -> Result<&LedgerEntry> {
-        let sha = crate::law::Law::sha256_hex_of(yaml);
-        self.ledger.store_mut()
-            .write_law(yaml).await
-            .context("writing law to hub store")?;
         let event = HubEvent::LawAmended {
-            new_law_sha256: sha,
+            new_law_sha256: crate::law::Law::sha256_hex_of(yaml),
             amended_by: self.sovereign_lct_id,
             version,
             diff_summary,
         };
-        self.append(event).await
+        let unsigned = self.ledger.build_entry(self.sovereign_lct_id, event, Utc::now())?;
+        let sig = self.sovereign_keypair.sign(&unsigned.signing_bytes);
+        let signature = web4_core::crypto::SignatureBytes::from_bytes(sig.bytes);
+
+        let prev = self.ledger.store().read_law().await.ok().flatten();
+        self.ledger.store_mut()
+            .write_law(yaml).await
+            .context("writing law to hub store")?;
+        match self.ledger.append_signed(unsigned, signature).await {
+            Ok(_) => Ok(self.ledger.entries().last().expect("just appended")),
+            Err(append_err) => {
+                let restore = match &prev {
+                    Some(prev_yaml) => self.ledger.store_mut().write_law(prev_yaml).await,
+                    // No prior law → nothing to restore, and nothing to diverge
+                    // from either (no witnessed LawAmended ⇒ verdict is
+                    // "unverifiable", which does not gate writes).
+                    None => Ok(()),
+                };
+                Err(match restore {
+                    Ok(()) => append_err.context("witnessing LawAmended (prior law restored)"),
+                    Err(restore_err) => append_err.context(format!(
+                        "witnessing LawAmended, AND the prior law could not be restored ({restore_err}) \
+                         — the served law now diverges from the witnessed head; governed writes will \
+                         be refused until re-witnessed"
+                    )),
+                })
+            }
+        }
     }
 
     pub async fn get_law(&self) -> Result<Option<String>> {
@@ -499,6 +540,59 @@ mod tests {
             admin.filling_entity_lct_id, alice,
             "Administrator should be filled by the assigned member"
         );
+    }
+
+    /// The conjunction's *failure* half. `set_law_writes_both_ledger_and_law_store`
+    /// pins that both side effects land on the happy path; this pins that neither
+    /// is left standing alone when the second one can't.
+    ///
+    /// Induced, not asserted: the ledger file is made read-only while the law
+    /// file stays writable, so `write_law` succeeds and `append_signed` fails —
+    /// the one ordering in which a law can end up persisted with no `LawAmended`
+    /// witnessing it. That is the state the daemon refuses every governed write
+    /// on, and `hub set-law` — this function — is the only way out of it, so a
+    /// half-applied `set_law` deepens what it was run to clear.
+    #[tokio::test]
+    async fn a_law_amendment_that_cannot_be_witnessed_restores_the_prior_law() {
+        let (_tmp, dir) = fresh_hub().await;
+        let first = "version: 1.0.0\nnorms: []\n";
+        {
+            let mut session = HubSession::open(&dir).await.unwrap();
+            session.set_law(first, "1.0.0".into(), None).await.unwrap();
+        }
+        let ledger_file = dir.join("ledger.jsonl");
+        let law_file = dir.join("hub-law.yaml");
+        let before = std::fs::read_to_string(&law_file).unwrap();
+        assert_eq!(before, first, "the first amendment is what's on disk");
+
+        // The induction: ledger unwritable, law writable.
+        let mut perms = std::fs::metadata(&ledger_file).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&ledger_file, perms).unwrap();
+
+        let err = {
+            let mut session = HubSession::open(&dir).await.unwrap();
+            session
+                .set_law("version: 2.0.0\nnorms: []\n", "2.0.0".into(), None)
+                .await
+                // If this ever returns Ok the induction stopped working and every
+                // assertion below would pass vacuously.
+                .expect_err("append must fail against a read-only ledger")
+        };
+        assert!(
+            format!("{err:#}").contains("prior law restored"),
+            "the error must say the store was put back, got: {err:#}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&law_file).unwrap(),
+            before,
+            "an amendment that could not be witnessed was left in the store"
+        );
+
+        let mut perms = std::fs::metadata(&ledger_file).unwrap().permissions();
+        #[allow(clippy::permissions_set_readonly_false)]
+        perms.set_readonly(false);
+        std::fs::set_permissions(&ledger_file, perms).unwrap();
     }
 
     #[tokio::test]
