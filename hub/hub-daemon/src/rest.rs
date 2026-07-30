@@ -985,6 +985,16 @@ async fn authorize_event(
 /// When there was no prior law, a failed restore is benign by construction: with
 /// no witnessed `LawAmended` to diverge from, [`law_integrity_verdict`] is
 /// `"unverifiable"` and the write gate does not fire.
+///
+/// ## Why not simply append first, as `assign_role` does
+///
+/// `HubSession::assign_role` — the other conjunction tool — witnesses *before*
+/// it persists, and that is correct there: the society is a projection the
+/// ledger can rebuild, so a persist that fails after the append re-materializes.
+/// The ledger holds only the law's **sha256**, never its text. Appending first
+/// and failing to write would witness an amendment whose content exists nowhere.
+/// Same principle, opposite order; the discriminator is re-derivability from the
+/// ledger, not the two tools' shared shape.
 async fn witness_law_amendment(
     s: &RestState,
     yaml: &str,

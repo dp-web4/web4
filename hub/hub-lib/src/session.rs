@@ -134,6 +134,14 @@ impl HubSession {
         // O/A gap the ratchet flags. A write_society failure after the record is
         // the safe direction: the ledger is authoritative and the projection
         // re-materializes from it.)
+        //
+        // Do NOT generalize this order to every conjunction tool. It is correct
+        // here *because* the society is a projection the ledger can rebuild.
+        // `set_law` is the counter-example a few lines below: the ledger holds
+        // only the law's sha256, never its text, so appending first and failing
+        // to write would witness an amendment whose content no longer exists
+        // anywhere. It orders sign → write → append instead. The discriminator
+        // is re-derivability from the ledger, not the tools' shared shape.
         let event = HubEvent::RoleAssigned {
             role,
             role_lct_id,
@@ -187,6 +195,17 @@ impl HubSession {
     /// path — the ordering is the same because the property is the same one, not
     /// because the risk is. Restoring is compensation, not atomicity: if it also
     /// fails the caller is told both errors rather than one.
+    ///
+    /// ## Why this is not `assign_role`'s order
+    ///
+    /// [`Self::assign_role`], the other conjunction tool, appends the witnessed
+    /// record *before* it persists — and that is right there, because the society
+    /// is a projection the ledger can rebuild, so a write that fails after the
+    /// append re-materializes. The ledger holds only this law's **sha256**, never
+    /// its text. Appending first and failing to write would witness an amendment
+    /// whose content exists nowhere, and no replay could recover it. Same
+    /// principle, opposite order; the discriminator is re-derivability from the
+    /// ledger, not the two tools' shared shape.
     pub async fn set_law(
         &mut self,
         yaml: &str,
