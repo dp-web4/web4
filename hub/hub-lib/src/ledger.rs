@@ -74,8 +74,36 @@ pub struct LedgerEntry {
 }
 
 /// The bytes that get signed: the entry's content with `signature` and
-/// `entry_hash` both cleared. Deterministic across builds because the
-/// serde struct field order is fixed.
+/// `entry_hash` both cleared.
+///
+/// ## What the determinism actually rests on
+///
+/// Two things, not one. The struct's serde field order is fixed — that
+/// part is local and obvious. The other is **chrono's serde spelling of
+/// `timestamp`**: this function writes whatever `DateTime<Utc>`'s
+/// `Serialize` impl produces, which is `to_rfc3339_opts(AutoSi, true)` —
+/// a `Z` suffix and a *variable-width* fractional part (0, 3, 6, or 9
+/// digits, chosen by the value). Nothing in this module states that, and
+/// it is load-bearing. Pinned by `ledger_timestamp_wire_spelling_is_pinned`
+/// so a chrono bump that changes it fails at upgrade time rather than in
+/// `verify-ledger`, where the symptom would read as "the ledger has been
+/// tampered with".
+///
+/// ## Consequence for auditors
+///
+/// The signed bytes are re-derived from the *parsed* entry, never read
+/// from the stored text. Within this implementation that is a safety
+/// property, and a deliberate one: re-spelling a persisted timestamp
+/// cannot invalidate a chain that is otherwise intact (pinned by
+/// `verification_re_derives_so_it_is_spelling_independent`). Across
+/// implementations it is a cost — an auditor recomputing these bytes in
+/// another language cannot hash the JSON it read; it must first normalise
+/// `timestamp` to chrono's `AutoSi`/`Z` form. [`crate::constellation::canonical_timestamp`]
+/// is the fixed-width spelling this repo adopted for exactly that reason
+/// (attestations, receipts). The ledger has **not** adopted it: doing so
+/// changes every entry's signing bytes and every `entry_hash`, i.e. a
+/// migration of the live chain, not a code change. Open question, not an
+/// oversight.
 fn signing_payload(entry: &LedgerEntry) -> Result<Vec<u8>> {
     let mut tmp = entry.clone();
     tmp.signature = String::new();
@@ -720,5 +748,112 @@ mod tests {
         );
         assert!(result.is_err(),
             "tampering with proposal_ref must invalidate signature");
+    }
+
+    /// `signing_payload` embeds `timestamp` in whatever spelling chrono's
+    /// serde impl chooses — `to_rfc3339_opts(AutoSi, true)`, whose
+    /// fractional width varies with the value. Every signature and every
+    /// `entry_hash` in the live chain was computed over that spelling, so
+    /// it is part of the ledger's on-disk format even though no type
+    /// declares it. Pin the exact output: a chrono upgrade that changes
+    /// the format fails here, at upgrade time, instead of surfacing as a
+    /// whole-chain verification failure during an audit.
+    #[test]
+    fn ledger_timestamp_wire_spelling_is_pinned() {
+        let cases = [
+            // (instant, exact bytes chrono writes into signing_payload)
+            ("2026-06-11T00:00:00Z",           "\"2026-06-11T00:00:00Z\""),
+            ("2026-06-11T00:00:00.100Z",       "\"2026-06-11T00:00:00.100Z\""),
+            ("2026-06-11T00:00:00.123456Z",    "\"2026-06-11T00:00:00.123456Z\""),
+            ("2026-06-11T00:00:00.123456789Z", "\"2026-06-11T00:00:00.123456789Z\""),
+        ];
+        for (input, expected) in cases {
+            let t = DateTime::parse_from_rfc3339(input).unwrap().with_timezone(&Utc);
+            assert_eq!(
+                serde_json::to_string(&t).unwrap(), expected,
+                "chrono's serde spelling changed for {input} — every existing \
+                 ledger signature and entry_hash was computed over the old one"
+            );
+        }
+        // The variable-width part, stated as the rule an auditor needs:
+        // equivalent RFC3339 spellings collapse to one canonical output.
+        for equivalent in [
+            "2026-06-11T00:00:00.000Z",
+            "2026-06-11T00:00:00+00:00",
+            "2026-06-10T17:00:00-07:00",
+        ] {
+            let t = DateTime::parse_from_rfc3339(equivalent).unwrap().with_timezone(&Utc);
+            assert_eq!(serde_json::to_string(&t).unwrap(), "\"2026-06-11T00:00:00Z\"");
+        }
+    }
+
+    /// The bytes verified are re-derived from the parsed entry, not read
+    /// from the stored text. Rewriting a persisted timestamp into a
+    /// different — but equivalent — RFC3339 spelling therefore leaves an
+    /// intact chain intact: the ledger is robust to re-spelling by a
+    /// migration, a backend, or an operator's editor.
+    ///
+    /// The second half is what keeps this from passing vacuously: changing
+    /// the *instant* rather than its spelling must still break the chain.
+    #[tokio::test]
+    async fn verification_re_derives_so_it_is_spelling_independent() {
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+        let keypair = sovereign.keypair().unwrap();
+        let (store, ledger_path) = fresh_store(&tmp);
+        let mut ledger = HubLedger::open(store).await.unwrap();
+        ledger.write_genesis(
+            sovereign.lct.id, &keypair,
+            "Test".into(), "sha256:0".into(),
+        ).await.unwrap();
+
+        // A zero-nanosecond instant, so the stored spelling is the bare
+        // `Z` form and the rewrite below is a pure spelling change.
+        let pinned = DateTime::parse_from_rfc3339("2026-06-11T00:00:00Z")
+            .unwrap().with_timezone(&Utc);
+        let unsigned = ledger.build_entry(
+            sovereign.lct.id,
+            HubEvent::MemberAdded {
+                member_lct_id: Uuid::new_v4(),
+                added_by: sovereign.lct.id,
+                member_name: Some("Dana".into()),
+                member_pubkey_hex: None,
+            },
+            pinned,
+        ).unwrap();
+        let sig = keypair.sign(&unsigned.signing_bytes);
+        ledger.append_signed(unsigned, SignatureBytes::from_bytes(sig.bytes)).await.unwrap();
+
+        let lookup = build_lookup([sovereign.lct.clone()]);
+        let on_disk = std::fs::read_to_string(&ledger_path).unwrap();
+        assert!(on_disk.contains("\"timestamp\":\"2026-06-11T00:00:00Z\""),
+            "expected the bare-Z spelling on disk, saw: {on_disk}");
+
+        // Same instant, different bytes.
+        let respelled = on_disk.replace(
+            "\"timestamp\":\"2026-06-11T00:00:00Z\"",
+            "\"timestamp\":\"2026-06-10T17:00:00-07:00\"",
+        );
+        assert_ne!(respelled, on_disk, "the rewrite must actually change the text");
+        std::fs::write(&ledger_path, &respelled).unwrap();
+
+        let reopened = HubLedger::open(reopen_file_backend(&tmp)).await.unwrap();
+        reopened.verify_chain(|id| lookup.get(&id).cloned()).expect(
+            "re-spelling a timestamp must not invalidate an intact chain — \
+             verification re-derives the signed bytes from the parsed entry"
+        );
+
+        // Not vacuous: a different instant is a different entry.
+        let moved = respelled.replace(
+            "\"timestamp\":\"2026-06-10T17:00:00-07:00\"",
+            "\"timestamp\":\"2026-06-11T00:00:01Z\"",
+        );
+        assert_ne!(moved, respelled);
+        std::fs::write(&ledger_path, &moved).unwrap();
+        let tampered = HubLedger::open(reopen_file_backend(&tmp)).await.unwrap();
+        assert!(
+            tampered.verify_chain(|id| lookup.get(&id).cloned()).is_err(),
+            "moving the instant must break the chain"
+        );
     }
 }
