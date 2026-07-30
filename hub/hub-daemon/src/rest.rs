@@ -892,6 +892,25 @@ pub(crate) async fn law_integrity_write_gate(
 /// HUB-001: refuses on law-integrity mismatch — except `LawAmended` itself,
 /// which is the recovery path (re-witnessing the law is how a mismatch clears).
 async fn witness_event(s: &RestState, event: HubEvent) -> Result<u64, ApiError> {
+    let (unsigned, signature) = authorize_event(s, event).await?;
+    let mut ledger = s.ledger.lock().await;
+    let entry = ledger
+        .append_signed(unsigned, signature)
+        .await
+        .map_err(ApiError::internal)?;
+    Ok(entry.index)
+}
+
+/// The authorization half of [`witness_event`]: gate, build the entry, and get
+/// the Sovereign's signature over it. Performs **no** side effect — no store
+/// write, no ledger append — so a caller that also mutates separately-persisted
+/// state can put this ahead of that mutation and satisfy RWOA's O clause
+/// ("a denied act must leave state bit-identical"). See
+/// [`witness_law_amendment`], the caller that needs it.
+async fn authorize_event(
+    s: &RestState,
+    event: HubEvent,
+) -> Result<(hub_lib::ledger::UnsignedEntry, web4_core::crypto::SignatureBytes), ApiError> {
     if !matches!(event, HubEvent::LawAmended { .. }) {
         s.ensure_law_integrity_for_write().await?;
     }
@@ -932,12 +951,86 @@ async fn witness_event(s: &RestState, event: HubEvent) -> Result<u64, ApiError> 
             }
             hub_lib::signer::SignError::Internal(err) => ApiError::internal(err),
         })?;
+    Ok((unsigned, signature))
+}
+
+/// Amend the hub law: persist the new YAML **and** witness the `LawAmended`
+/// that authorizes it — with the Sovereign signature obtained *before* the
+/// store is touched.
+///
+/// ## Why the order is the whole point
+///
+/// The store write and the ledger append are two side effects with no shared
+/// transaction. A store holding a law that no `LawAmended` witnesses is exactly
+/// the divergence [`law_integrity_write_gate`] refuses **every governed write**
+/// on, hub-wide, until an operator re-witnesses by hand (`hub set-law`). So the
+/// cost of getting the order wrong is not a lost amendment — it is a hub that
+/// stops accepting governed acts.
+///
+/// Signing first moves both modelled signer failures entirely ahead of the
+/// mutation: `SignError::Denied` (locked vault — the live posture of every hub
+/// between boot and ignition — or a remote signer's policy refusal) and
+/// `SignError::Transport` (remote signer unreachable). Pinned by
+/// `a_denied_law_amendment_leaves_the_store_bit_identical`.
+///
+/// ## What is compensated rather than prevented
+///
+/// `append_signed` failing *after* `write_law` succeeded — a local ledger/disk
+/// fault — still opens the window. That case restores the prior law text and is
+/// compensation, not atomicity: if the restore also fails the hub is left
+/// mismatched, and says so at `error!`. That is the honest outcome for a store
+/// failing writes in both directions, and it is a strictly narrower window than
+/// the signer one, which no longer exists.
+///
+/// When there was no prior law, a failed restore is benign by construction: with
+/// no witnessed `LawAmended` to diverge from, [`law_integrity_verdict`] is
+/// `"unverifiable"` and the write gate does not fire.
+async fn witness_law_amendment(
+    s: &RestState,
+    yaml: &str,
+    version: String,
+    diff_summary: Option<String>,
+) -> Result<u64, ApiError> {
+    let event = HubEvent::LawAmended {
+        new_law_sha256: hub_lib::law::Law::sha256_hex_of(yaml),
+        amended_by: s.sovereign_lct_id,
+        version,
+        diff_summary,
+    };
+    // Authorization dominates the side effects: nothing below this line runs
+    // unless the Sovereign has already signed the amendment.
+    let (unsigned, signature) = authorize_event(s, event).await?;
+
     let mut ledger = s.ledger.lock().await;
-    let entry = ledger
-        .append_signed(unsigned, signature)
-        .await
-        .map_err(ApiError::internal)?;
-    Ok(entry.index)
+    let prev = ledger.store().read_law().await.ok().flatten();
+    ledger.store_mut().write_law(yaml).await.map_err(ApiError::internal)?;
+    match ledger.append_signed(unsigned, signature).await {
+        Ok(entry) => Ok(entry.index),
+        Err(append_err) => {
+            match &prev {
+                Some(prev_yaml) => match ledger.store_mut().write_law(prev_yaml).await {
+                    Ok(()) => tracing::warn!(
+                        error = %append_err,
+                        "law amendment failed to witness after the store write; prior law restored \
+                         — the hub is unchanged"
+                    ),
+                    Err(restore_err) => tracing::error!(
+                        error = %append_err, restore_error = %restore_err,
+                        "law amendment failed to witness AND the prior law could not be restored — \
+                         the served law now diverges from the witnessed head; governed writes will \
+                         be refused until re-witnessed (`hub set-law`)"
+                    ),
+                },
+                None => tracing::warn!(
+                    error = %append_err,
+                    "law amendment failed to witness after the store write; there was no prior law \
+                     to restore (no witnessed LawAmended to diverge from, so the write gate does \
+                     not fire)"
+                ),
+            }
+            Err(ApiError::internal(append_err))
+        }
+    }
 }
 
 /// Hub→citizen notification (DRAFT): witness a `ReferencedAct{to: Citizen}` and queue a
@@ -4562,16 +4655,12 @@ pub(crate) async fn hydrate_law_defaults(s: &RestState) -> anyhow::Result<bool> 
     law.version = bump_law_version(&law.version);
     let yaml = serde_yaml::to_string(&law)?;
     hub_lib::law::Law::parse_and_validate(&yaml)?; // sanity — must still validate
-    {
-        let mut ledger = s.ledger.lock().await;
-        ledger.store_mut().write_law(&yaml).await?;
-    }
-    witness_event(s, HubEvent::LawAmended {
-        new_law_sha256: hub_lib::law::Law::sha256_hex_of(&yaml),
-        amended_by: s.sovereign_lct_id,
-        version: law.version.clone(),
-        diff_summary: Some("auto-hydrate law defaults".to_string()),
-    })
+    witness_law_amendment(
+        s,
+        &yaml,
+        law.version.clone(),
+        Some("auto-hydrate law defaults".to_string()),
+    )
     .await
     .map_err(|e| anyhow::anyhow!("witnessing law-default hydration: {}", e.message))?;
     *s.law.write().await = Some(law);
@@ -4604,16 +4693,12 @@ async fn admin_set_admission_limits(
     // Sanity: the amended law must still parse + validate.
     hub_lib::law::Law::parse_and_validate(&yaml)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("amended law invalid: {e}")))?;
-    {
-        let mut ledger = s.ledger.lock().await;
-        ledger.store_mut().write_law(&yaml).await.map_err(ApiError::internal)?;
-    }
-    let entry_index = witness_event(&s, HubEvent::LawAmended {
-        new_law_sha256: hub_lib::law::Law::sha256_hex_of(&yaml),
-        amended_by: s.sovereign_lct_id,
-        version: law.version.clone(),
-        diff_summary: Some("admission limits set via operator plane".to_string()),
-    }).await?;
+    let entry_index = witness_law_amendment(
+        &s,
+        &yaml,
+        law.version.clone(),
+        Some("admission limits set via operator plane".to_string()),
+    ).await?;
     let (repeat_limit, review_limit) = (law.admission_repeat_limit(), law.admission_review_limit());
     *s.law.write().await = Some(law);
     Ok(Json(serde_json::json!({
@@ -8257,6 +8342,112 @@ norms:
         let reparsed = hub_lib::law::Law::parse_and_validate(&persisted).unwrap();
         assert_eq!(reparsed.admission_repeat_limit(), 5);
         assert_eq!(reparsed.admission_review_limit(), 2);
+    }
+
+    /// RWOA **O**: "a denied act must leave state bit-identical."
+    ///
+    /// A law amendment persists the new YAML *before* it witnesses the
+    /// `LawAmended` that authorizes it. If the Sovereign signer denies (locked
+    /// vault) or is unreachable (`HestiaCallbackSigner` transport error), the
+    /// store already holds an amendment no ledger entry witnesses — which is
+    /// exactly the condition [`law_integrity_write_gate`] refuses every governed
+    /// write on, hub-wide, until an operator re-witnesses by hand.
+    ///
+    /// Induced with `LockedSigner` because that is the live posture of a hub
+    /// between boot and ignition, and it denies every `sign` call by
+    /// construction — the same `SignError::Denied` a remote signer returns on a
+    /// policy refusal.
+    #[tokio::test]
+    async fn a_denied_law_amendment_leaves_the_store_bit_identical() {
+        const BASE_LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(BASE_LAW)).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+
+        // A first amendment succeeds, so the hub has a *witnessed* law head to
+        // diverge from. Without this the ledger has no LawAmended at all and the
+        // integrity verdict is "unverifiable", which does not block.
+        admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
+            Json(AdmissionLimitsBody { repeat_limit: Some(5), review_limit: Some(2) }))
+            .await.unwrap();
+        let before = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
+        assert_eq!(state.verify_law_integrity().await, "ok", "witnessed == served going in");
+
+        // Now the signer denies — the vault re-locks, or a remote signer refuses.
+        state.signer.swap(Arc::new(LockedSigner::new(state.sovereign_lct_id)));
+
+        let err = admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
+            Json(AdmissionLimitsBody { repeat_limit: Some(9), review_limit: Some(9) }))
+            .await
+            .expect_err("a locked signer cannot witness a LawAmended");
+        assert_eq!(err.status, StatusCode::UNAUTHORIZED, "denied, not committed");
+
+        // The act was denied, so nothing it would have done may have happened.
+        let after = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
+        assert_eq!(
+            after, before,
+            "a denied amendment rewrote the persisted law: the store now holds an \
+             amendment no LawAmended witnesses"
+        );
+        assert_eq!(
+            state.verify_law_integrity().await, "ok",
+            "a denied amendment left the hub in law-integrity mismatch — every governed \
+             write is now refused until an operator re-witnesses by hand"
+        );
+        // And the in-memory law the hub actually evaluates is untouched.
+        let live = state.law.read().await.clone().unwrap();
+        assert_eq!(live.admission_repeat_limit(), 5);
+    }
+
+    /// The residual window signing-first cannot close: `append_signed` failing
+    /// *after* `write_law` succeeded. Compensated, not prevented — this pins the
+    /// compensation, which is otherwise the only untested branch of
+    /// [`witness_law_amendment`].
+    ///
+    /// Induced by making the ledger file read-only while the law file stays
+    /// writable — the file backend keeps them separate, so this is the exact
+    /// split the branch exists for.
+    #[tokio::test]
+    async fn a_law_amendment_that_cannot_be_appended_restores_the_prior_law() {
+        const BASE_LAW: &str = r#"
+version: "1.0.0"
+norms: []
+"#;
+        let (tmp, state) = fresh_rest_state(Some(BASE_LAW)).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
+            Json(AdmissionLimitsBody { repeat_limit: Some(5), review_limit: Some(2) }))
+            .await.unwrap();
+        let before = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
+        assert_eq!(state.verify_law_integrity().await, "ok");
+
+        let ledger_file = tmp.path().join("chapter").join("ledger.jsonl");
+        let mut perms = std::fs::metadata(&ledger_file).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&ledger_file, perms).unwrap();
+
+        // Ok here would make every assertion below vacuous.
+        admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
+            Json(AdmissionLimitsBody { repeat_limit: Some(9), review_limit: Some(9) }))
+            .await
+            .expect_err("append must fail against a read-only ledger");
+
+        let after = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
+        assert_eq!(after, before, "the unwitnessed amendment was left in the store");
+        assert_eq!(state.verify_law_integrity().await, "ok", "hub left in mismatch");
+
+        let mut perms = std::fs::metadata(&ledger_file).unwrap().permissions();
+        #[allow(clippy::permissions_set_readonly_false)]
+        perms.set_readonly(false);
+        std::fs::set_permissions(&ledger_file, perms).unwrap();
     }
 
     #[tokio::test]
