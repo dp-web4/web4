@@ -1,0 +1,14 @@
+{
+  "owner_lct_id": "33333333-3333-4333-8333-333333333333",
+  "tier": "hardware_backed",
+  "pair_id": "44444444-4444-4444-8444-444444444444",
+  "challenge_nonce": "hub-nonce-golden-fixture",
+  "issued_at": "2026-07-30T04:03:13.302191724Z",
+  "bound_at": "2026-07-30T04:03:13.302191724Z",
+  "valid_until": "2099-01-01T00:00:00Z",
+  "hub_lct_id": "55555555-5555-4555-8555-555555555555",
+  "hub_signer_lct_id": "66666666-6666-4666-8666-666666666666",
+  "hub_signer_key_id": "c9ff57ea5083f12c",
+  "roster_hash": "6b98298d7dd945af598b610aa8801c898a349ad3f6f8796a8b857e824637a2e3",
+  "signature": "b480902acde8562334c983cb50ae86000d12355fb960e1a6d4a64e9004080f1cba1390856f8a2c50083c081358cfa5acb3c58f68a8a3c0791ddf23cff7026b03"
+}
