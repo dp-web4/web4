@@ -6902,8 +6902,11 @@ mod lct_registry_tests {
     }
 }
 
+// `pub(crate)` so the admin-plane tests can drive a REAL chapter through the
+// real handlers instead of asserting on a hand-built string. Test-only: the
+// module is `#[cfg(test)]`, and no production visibility is widened.
 #[cfg(test)]
-mod channel_e2e_tests {
+pub(crate) mod channel_e2e_tests {
     use super::*;
     use axum::extract::{Json, Path, State};
     use hub_lib::identity::IdentityFile;
@@ -6915,8 +6918,15 @@ mod channel_e2e_tests {
     use web4_core::lct::EntityType;
     use web4_core::pair_channel::{self, Sealed};
 
+    /// Witness an event onto the chapter's real ledger (Sovereign-signed, same
+    /// path production uses). Lets sibling test modules build a chapter state
+    /// without reaching into `HubLedger` or widening `witness_event`.
+    pub(crate) async fn witness_for_test(s: &RestState, event: HubEvent) -> u64 {
+        witness_event(s, event).await.expect("witness_event")
+    }
+
     /// A throwaway Local-mode chapter + a RestState over it, optional law loaded.
-    async fn fresh_rest_state(law_yaml: Option<&str>) -> (tempfile::TempDir, RestState) {
+    pub(crate) async fn fresh_rest_state(law_yaml: Option<&str>) -> (tempfile::TempDir, RestState) {
         let tmp = tempfile::tempdir().unwrap();
         let sov = tmp.path().join("sovereign.json");
         IdentityFile::generate(EntityType::Human).save(&sov).unwrap();

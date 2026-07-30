@@ -315,10 +315,16 @@ pub(crate) async fn members(State(s): State<RestState>) -> Result<Html<String>, 
         body.push_str("<table><thead><tr><th>LCT</th><th>Name</th><th>Skills</th><th>Has pubkey</th></tr></thead><tbody>");
         for m in projected.members.values() {
             let name = m.name.as_deref().unwrap_or("(unnamed)");
+            // Skills are member-declared free text (`declare_skill` is a
+            // member-self act — rest.rs `EnvelopeAction::DeclareSkill`), and the
+            // projection only lowercases them. This page shares an origin with
+            // the Sovereign-signing `/admin/api/*` writes (both merged into the
+            // one operator app in main.rs), so an unescaped skill is a member →
+            // Sovereign escalation, not a cosmetic bug. Escape at render.
             let skills = if m.skills.is_empty() {
                 "<span class=\"muted\">none</span>".to_string()
             } else {
-                m.skills.iter().cloned().collect::<Vec<_>>().join(", ")
+                m.skills.iter().map(|s| html_escape(s)).collect::<Vec<_>>().join(", ")
             };
             let pk_pill = if projected.member_pubkeys.contains_key(&m.lct_id) {
                 "<span class=\"pill\">yes</span>"
@@ -705,7 +711,13 @@ fn event_summary(event: &HubEvent) -> String {
                 .unwrap_or_default(),
         ),
         HubEvent::RoleAssigned { role, assigned_to, .. } => {
-            format!("Role {:?} → {}", role, short(assigned_to))
+            // `SocietyRole::Custom(String)` carries free text, and `Debug`
+            // escapes `"` and `\` but not `<`/`>`/`&` — so escape the RENDERED
+            // form. Every other `{:?}` in this function is over a unit-only
+            // enum (audited 2026-07-30: DeviceType, RoleEventKind,
+            // PairRevocationKind, LctProvenance, EntityType, MetabolicState,
+            // SignerKind); this is the one that can carry a payload.
+            format!("Role {} → {}", html_escape(&format!("{:?}", role)), short(assigned_to))
         }
         HubEvent::EventRecorded { event_kind, title, attended_by, .. } => format!(
             "{}: \"{}\" · {} attendee(s)",
@@ -1034,7 +1046,14 @@ pub(crate) async fn joins_page(State(s): State<RestState>) -> Result<Html<String
                 let reason = j.reason.as_deref().map(|r| format!(" — {}", html_escape(r))).unwrap_or_default();
                 format!("<span class=\"muted\">by {}{}</span>", by, reason)
             };
-            let pk = &j.member_pubkey_hex[..j.member_pubkey_hex.len().min(12)];
+            // `chars()`, not a byte slice: `&s[..12]` panics on a non-ASCII
+            // string whose 12th byte is mid-codepoint, which would take the
+            // whole admission queue down. Today every writer of this field
+            // validates it as hex first (rest.rs `request_citizenship` →
+            // `hestia_sovereign_lct`, and `admin_add_member` → `admit_member`),
+            // so this is defence-in-depth on a page whose availability IS the
+            // admission path — not a live reachable panic.
+            let pk: String = j.member_pubkey_hex.chars().take(12).collect();
             body.push_str(&format!(
                 "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td><code>{}…</code></td><td>{}</td></tr>",
                 status,
@@ -1151,6 +1170,112 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
     }
     body.push_str(OPERATOR_JS);
     Ok(layout(&s, "Manage members", &body))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rest::channel_e2e_tests::{fresh_rest_state, witness_for_test};
+    use axum::extract::State;
+    use uuid::Uuid;
+
+    /// The page HTML, driven through the REAL route handler — not a helper.
+    /// Re-inlining the rendering cannot make these guards vacuous.
+    async fn render(h: Result<Html<String>, AdminError>) -> String {
+        h.map(|Html(s)| s).unwrap_or_else(|e| panic!("handler failed: {} {}", e.0, e.1))
+    }
+
+    async fn member_with_skill(s: &RestState, skill: &str, name: &str) -> Uuid {
+        let lct = Uuid::new_v4();
+        witness_for_test(s, HubEvent::MemberAdded {
+            member_lct_id: lct,
+            added_by: s.sovereign_lct_id,
+            member_name: Some(name.to_string()),
+            member_pubkey_hex: None,
+        }).await;
+        witness_for_test(s, HubEvent::MemberSkillDeclared {
+            member_lct_id: lct,
+            skill: skill.to_string(),
+            declared_by: lct, // a member-self act: the member IS the declarer
+        }).await;
+        lct
+    }
+
+    /// The escalation this fix closes. `declare_skill` is a member-self act, so
+    /// ANY citizen can write this string; `/admin/members` and the
+    /// Sovereign-signing `/admin/api/*` writes are merged into one app on one
+    /// origin (main.rs), so script in this cell runs same-origin with
+    /// add-member / remove / re-key / amend-law.
+    #[tokio::test]
+    async fn a_declared_skill_cannot_smuggle_script_onto_the_operators_page() {
+        let (_tmp, s) = fresh_rest_state(None).await;
+        let payload = r#"<img src=x onerror="fetch('/admin/api/members/add',{method:'POST'})">"#;
+        member_with_skill(&s, payload, "Mallory").await;
+
+        let html = render(members(State(s.clone())).await).await;
+        assert!(!html.contains("<img src=x"), "raw tag reached the operator page:\n{html}");
+        assert!(!html.contains("onerror=\""), "live event handler reached the operator page");
+        assert!(
+            html.contains("&lt;img src=x onerror=&quot;fetch("),
+            "the skill must still be SHOWN, escaped — got:\n{html}"
+        );
+    }
+
+    /// Escaping must not be achieved by dropping the content: this is the
+    /// baseline that stops "escape everything into nothing" from passing the
+    /// guard above, and it pins that the name cell is escaped in the same pass.
+    #[tokio::test]
+    async fn an_ordinary_skill_still_renders_readably_and_the_name_is_escaped_too() {
+        let (_tmp, s) = fresh_rest_state(None).await;
+        member_with_skill(&s, "Rust & Systems", "<b>Alice</b>").await;
+
+        let html = render(members(State(s.clone())).await).await;
+        // `rust & systems` — the projection lowercases skills; `&` is escaped.
+        assert!(html.contains("rust &amp; systems"), "skill lost or mangled:\n{html}");
+        assert!(!html.contains("<b>Alice</b>"), "member name is not escaped");
+        assert!(html.contains("&lt;b&gt;Alice&lt;/b&gt;"), "member name lost:\n{html}");
+    }
+
+    /// `SocietyRole::Custom(String)` is free text and `Debug` does not escape
+    /// HTML. Sovereign-supplied (role assignment is Sovereign-only), so this is
+    /// self-inflicted rather than an escalation — but it is the same defect,
+    /// and the ledger table renders on `/admin` and `/admin/ledger`.
+    #[tokio::test]
+    async fn a_custom_role_name_is_escaped_in_the_ledger_summary() {
+        use web4_core::role::SocietyRole;
+        let summary = event_summary(&HubEvent::RoleAssigned {
+            role: SocietyRole::Custom("<script>alert(1)</script>".into()),
+            role_lct_id: Uuid::new_v4(),
+            assigned_to: Uuid::new_v4(),
+            assigned_by: Uuid::new_v4(),
+        });
+        assert!(!summary.contains("<script>"), "raw script tag in ledger summary: {summary}");
+        assert!(summary.contains("&lt;script&gt;"), "role name lost: {summary}");
+    }
+
+    /// `&s[..12]` on a String is a BYTE slice and panics mid-codepoint. Every
+    /// writer validates this field as hex today, so this guard is against the
+    /// page's availability if that ever stops being true — the admission queue
+    /// going down IS admissions going down.
+    #[tokio::test]
+    async fn the_admission_queue_survives_a_pubkey_that_is_not_ascii() {
+        let (_tmp, s) = fresh_rest_state(None).await;
+        witness_for_test(&s, HubEvent::MemberJoinRequested {
+            request_id: Uuid::new_v4(),
+            member_lct_id: Uuid::new_v4(),
+            // Byte 12 must land INSIDE a codepoint, not merely past one — an
+            // all-`é` string puts a boundary exactly at 12 and the byte-slice
+            // mutant survives it (measured 2026-07-30). One ASCII byte first
+            // shifts every `é` odd, so byte 12 is the tail of the 6th.
+            member_pubkey_hex: "aéééééééééé".to_string(),
+            name: Some("Applicant".into()),
+            message: None,
+            requested_at: chrono::Utc::now(),
+        }).await;
+
+        let html = render(joins_page(State(s.clone())).await).await;
+        assert!(html.contains("Applicant"), "the queue must still render:\n{html}");
+    }
 }
 
 /// Operator-plane GUI pages (member roster, admit/deny + member management).
