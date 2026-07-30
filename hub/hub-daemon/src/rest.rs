@@ -2742,13 +2742,30 @@ fn channel_tool_requires_freshness(tool: &str) -> bool {
 /// H-008 Phase 3 (#476): a scheme-tagged `content_hash` must carry a
 /// meaningful VALUE after the tag — `git-sha:zzz` passed Phase 2's tag-only
 /// check. Hex-shape per scheme: `git-sha:` = 40 (sha1) or 64 (sha256 repos)
-/// lowercase hex; `sha256-content:` / `sha256-pointer:` = 64 lowercase hex.
+/// lowercase hex; `sha256-content:` / `sha256-pointer:` /
+/// `sha256-committed:` = 64 lowercase hex.
+///
+/// `sha256-committed:` (2026-07-30) admits the scheme hub-mesh wants for
+/// "the hash is over the committed git object, not the working checkout".
+/// **Receiver-first, on purpose.** This whitelist is fail-closed at
+/// admission, so a sender that starts emitting a scheme the daemon has not
+/// yet accepted takes a hard 400 on EVERY send, with no notice — the
+/// order is therefore daemon, then ignition, then senders, and never the
+/// reverse (want registered by Thor, `git-manager-role` thread,
+/// 2026-07-29). Admitting the tag makes no claim that the receive side
+/// *verifies* it; content_hash verification remains unimplemented and
+/// needs its own ruling.
 fn validate_content_hash(content_hash: &str) -> Result<(), String> {
-    const SCHEMES: [&str; 3] = ["git-sha:", "sha256-content:", "sha256-pointer:"];
+    const SCHEMES: [&str; 4] = [
+        "git-sha:",
+        "sha256-content:",
+        "sha256-pointer:",
+        "sha256-committed:",
+    ];
     let Some(scheme) = SCHEMES.iter().find(|p| content_hash.starts_with(*p)) else {
         return Err(
             "requires a scheme-tagged 'content_hash' \
-             (git-sha:|sha256-content:|sha256-pointer:) (H-008 Phase 2)"
+             (git-sha:|sha256-content:|sha256-pointer:|sha256-committed:) (H-008 Phase 2)"
                 .to_string(),
         );
     };
@@ -7281,6 +7298,7 @@ mod channel_e2e_tests {
         assert!(validate_content_hash(&format!("git-sha:{sha64}")).is_ok());
         assert!(validate_content_hash(&format!("sha256-content:{sha64}")).is_ok());
         assert!(validate_content_hash(&format!("sha256-pointer:{sha64}")).is_ok());
+        assert!(validate_content_hash(&format!("sha256-committed:{sha64}")).is_ok());
         // The Phase-2 gap, exactly as filed: garbage after the tag passed.
         assert!(validate_content_hash("git-sha:zzz").is_err());
         assert!(validate_content_hash("git-sha:").is_err());
@@ -7289,6 +7307,20 @@ mod channel_e2e_tests {
         assert!(validate_content_hash(&format!("git-sha:{}x", &sha40[..39])).is_err(), "non-hex char");
         assert!(validate_content_hash(sha64).is_err(), "untagged still rejected");
         assert!(validate_content_hash("").is_err());
+        // The newly-admitted scheme is held to the same VALUE shape — admitting
+        // a tag must not admit garbage carried under it.
+        assert!(
+            validate_content_hash(&format!("sha256-committed:{sha40}")).is_err(),
+            "sha256-committed: is 64, not 40"
+        );
+        assert!(validate_content_hash("sha256-committed:").is_err(), "tag alone");
+        assert!(
+            validate_content_hash(&format!("sha256-committed:{}", sha64.to_uppercase())).is_err(),
+            "uppercase"
+        );
+        // Prefix-collision guard: `sha256-commit:` is NOT the admitted scheme,
+        // and must not slip through on a partial match.
+        assert!(validate_content_hash(&format!("sha256-commit:{sha64}")).is_err());
     }
 
     #[test]
