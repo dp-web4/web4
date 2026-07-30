@@ -323,6 +323,44 @@ impl HubLedger {
     /// Verify the entire chain.
     /// `lct_lookup` maps an actor LCT id to its Lct (for signature verification).
     /// Returns Ok(()) if every entry's signature, hash, and prev-hash check out.
+    /// Verify every entry: index, prev_hash linkage, entry_hash, signature.
+    ///
+    /// ## What `Ok(())` proves — and the one thing it does not
+    ///
+    /// It proves the entries **present** are internally consistent and each was
+    /// signed by the LCT `lct_lookup` resolves for it. It does **not** prove
+    /// they are *all* the entries. The chain is anchored at its origin and open
+    /// at its head: entry 0's `prev_hash` is pinned to [`GENESIS_PREV_HASH`], so
+    /// removing entries from the front, from the middle, or reordering them all
+    /// fail here — but lopping entries off the **tail** leaves every surviving
+    /// index, link, hash and signature correct, and this function returns
+    /// `Ok(())` over a history that has had acts removed.
+    ///
+    /// That is a property of forward hash chains, not a defect in this
+    /// implementation, and closing it needs an anchor *outside* the store. The
+    /// material for one is already published unauthenticated: `query_hub` and
+    /// `GET /v1/hubs/{id}/state` both carry `head_hash` and the entry count, so
+    /// a peer that records them can detect a head that moved backwards. An
+    /// auditor relying on this function alone cannot.
+    ///
+    /// ## One guard per check
+    ///
+    /// The four checks below used to share two tamper tests between them, both
+    /// of which broke a hash *and* a signature at once. Neutering the
+    /// `entry_hash` comparison left the suite green; so did neutering
+    /// `verify_signature` outright. Each check now has a test that fails when
+    /// that check — and only that check — is removed, verified by mutation:
+    ///
+    /// | check | the tamper only it catches |
+    /// |---|---|
+    /// | `index` | a deleted middle entry, a swap, a dropped Genesis |
+    /// | `prev_hash` | a forked entry grafted at its own index |
+    /// | `entry_hash` | a rewritten head hash (signature still valid) |
+    /// | `signature` | a forged signature with the hash recomputed to match |
+    ///
+    /// Plus `a_truncated_tail_still_verifies_because_the_chain_only_proves_consistency`,
+    /// which asserts `Ok` deliberately so the limit above is pinned rather than
+    /// rediscovered during an incident.
     pub fn verify_chain(&self, lct_lookup: impl Fn(Uuid) -> Option<Lct>) -> Result<()> {
         let mut expected_prev = GENESIS_PREV_HASH.to_string();
         for (i, entry) in self.entries.iter().enumerate() {
@@ -500,7 +538,7 @@ mod tests {
 
         // Tamper directly at the file-backed layer: this test is
         // file-backend-specific (it knows where bytes live). SqliteBackend
-        // would need its own tamper test.
+        // gets its own tamper tests below.
         let content = std::fs::read_to_string(&ledger_path).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         let tampered_line = lines[1].replace("Original", "Tampered");
@@ -513,8 +551,360 @@ mod tests {
         let result = reopened.verify_chain(|id| lookup_map.get(&id).cloned());
         assert!(result.is_err(), "tampered entry must fail verification");
         let err = format!("{:?}", result.unwrap_err());
-        assert!(err.contains("entry_hash mismatch") || err.contains("signature verification failed"),
-            "expected hash/signature failure, got: {}", err);
+        // Asserted as the entry_hash check exactly, not `entry_hash ||
+        // signature`. The disjunction this replaces was vacuous for the hash
+        // check: neutering `entry.entry_hash != recomputed` left the whole
+        // ledger suite green, because a payload tamper also breaks the
+        // signature and the `||` accepted whichever check survived. Measured
+        // by mutation, 2026-07-30.
+        assert!(err.contains("entry_hash mismatch"),
+            "expected the entry_hash check, got: {}", err);
+    }
+
+    /// **The one attack `entry_hash` alone catches.**
+    ///
+    /// Rewriting an entry's *payload* breaks the hash and the signature both,
+    /// so it cannot show that the hash check works. Rewriting the stored
+    /// `entry_hash` field of the **last** entry can: the signature covers the
+    /// entry with `entry_hash` cleared, so it still verifies; the index is
+    /// untouched; and being last, no successor's `prev_hash` points at it.
+    /// Only the recomputation catches it.
+    ///
+    /// It matters because `entry_hash` is what the hub publishes as its head
+    /// (`query_hub`, `GET /v1/hubs/{id}/state`). An unchecked head field is a
+    /// forgeable anchor — and the anchor is the only detector for the one
+    /// tamper class the chain itself cannot see (see the truncation test).
+    #[tokio::test]
+    async fn a_rewritten_head_entry_hash_is_caught_only_by_the_hash_check() {
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+        let (path, lines) = chain_of(&tmp, &sovereign, 2).await;
+
+        let last = lines.last().unwrap();
+        let entry: LedgerEntry = serde_json::from_str(last).unwrap();
+        let forged = format!("{:0>64}", "beef");
+        assert_ne!(entry.entry_hash, forged);
+        let tampered = last.replace(&entry.entry_hash, &forged);
+        assert_ne!(&tampered, last, "the tamper must actually land");
+
+        let mut rewritten = lines.clone();
+        *rewritten.last_mut().unwrap() = tampered;
+        let err = verify_after_rewrite(&tmp, &sovereign, &path, &rewritten).await
+            .expect_err("a forged head hash must not verify");
+        let err = format!("{err:?}");
+        assert!(err.contains("entry_hash mismatch"),
+            "the hash recomputation must be what catches it, got: {err}");
+    }
+
+    /// **The one attack the signature check alone catches — and the check that
+    /// had no negative test at all until this one.**
+    ///
+    /// Measured 2026-07-30: replacing `actor.verify_signature(..)` with a
+    /// no-op left every test in this module green. Every tamper the suite
+    /// induced broke a hash first, so the check that makes the ledger
+    /// *unforgeable* rather than merely *self-consistent* was never exercised.
+    ///
+    /// `entry_hash` covers the signature field, so a forged signature normally
+    /// trips the hash check on the way past. A forger who recomputes the hash
+    /// afterwards — which costs nothing, it is a plain sha256 over public
+    /// bytes — produces an entry that is consistent in every respect except
+    /// the one that requires a key. That is the entry this builds.
+    #[tokio::test]
+    async fn a_forged_signature_with_a_recomputed_hash_is_caught_only_by_the_signature_check() {
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+        let (path, lines) = chain_of(&tmp, &sovereign, 2).await;
+
+        let mut entry: LedgerEntry = serde_json::from_str(lines.last().unwrap()).unwrap();
+        // Flip one hex digit of the signature, keeping it decodable and 64 bytes
+        // so the failure is verification and not a parse error.
+        let first = entry.signature.chars().next().unwrap();
+        let flipped = if first == '0' { '1' } else { '0' };
+        entry.signature = format!("{flipped}{}", &entry.signature[1..]);
+        // ...then repair the hash the way a forger would.
+        entry.entry_hash = compute_entry_hash(&entry).unwrap();
+
+        let mut rewritten = lines.clone();
+        *rewritten.last_mut().unwrap() = serde_json::to_string(&entry).unwrap();
+        assert_ne!(rewritten.last(), lines.last(), "the forgery must actually land");
+
+        let err = verify_after_rewrite(&tmp, &sovereign, &path, &rewritten).await
+            .expect_err("a forged signature must not verify");
+        let err = format!("{err:?}");
+        assert!(err.contains("signature verification failed"),
+            "the signature check must be what catches it, got: {err}");
+    }
+
+    /// Build Genesis + `n` MemberAdded entries on the file backend and hand
+    /// back the on-disk lines. The tamper tests below each rewrite this file
+    /// a different way — one structural attack per test, so a passing test
+    /// names exactly which check caught it.
+    async fn chain_of(
+        tmp: &tempfile::TempDir,
+        sovereign: &IdentityFile,
+        n: usize,
+    ) -> (std::path::PathBuf, Vec<String>) {
+        let keypair = sovereign.keypair().unwrap();
+        let (store, ledger_path) = fresh_store(tmp);
+        let mut ledger = HubLedger::open(store).await.unwrap();
+        ledger.write_genesis(
+            sovereign.lct.id, &keypair,
+            "X".into(), "sha256:0".into(),
+        ).await.unwrap();
+        for i in 0..n {
+            ledger.append(
+                sovereign.lct.id, &keypair,
+                HubEvent::MemberAdded {
+                    member_lct_id: Uuid::new_v4(),
+                    added_by: sovereign.lct.id,
+                    member_name: Some(format!("m{i}")),
+                    member_pubkey_hex: None,
+                },
+            ).await.unwrap();
+        }
+        drop(ledger);
+        let lines = std::fs::read_to_string(&ledger_path).unwrap()
+            .lines().map(str::to_string).collect();
+        (ledger_path, lines)
+    }
+
+    async fn verify_after_rewrite(
+        tmp: &tempfile::TempDir,
+        sovereign: &IdentityFile,
+        path: &std::path::Path,
+        lines: &[String],
+    ) -> Result<()> {
+        let mut body = lines.join("\n");
+        if !body.is_empty() { body.push('\n'); }
+        std::fs::write(path, body).unwrap();
+        let reopened = HubLedger::open(reopen_file_backend(tmp)).await.unwrap();
+        let lookup = build_lookup([sovereign.lct.clone()]);
+        reopened.verify_chain(|id| lookup.get(&id).cloned())
+    }
+
+    /// **The chain's limit, pinned as behaviour rather than left to be
+    /// discovered during an incident.**
+    ///
+    /// A forward hash chain proves that the entries present are internally
+    /// consistent. It cannot prove they are *all* the entries: lopping entries
+    /// off the tail leaves every remaining prev_hash, entry_hash, index and
+    /// signature correct, so `verify_chain` returns `Ok` and `hub verify-ledger`
+    /// prints "Ledger verified." over a chain that has had history removed.
+    /// Detecting that requires an anchor outside the file — the head hash
+    /// recorded independently. `query_hub` and `GET /v1/hubs/{id}/state`
+    /// publish `head_hash` + `last_ledger_index` unauthenticated precisely so
+    /// a peer can hold one.
+    ///
+    /// This test asserts `Ok` deliberately. If someone later teaches the
+    /// verifier to detect truncation, this test fails and points at the doc
+    /// comment that has to change with it.
+    #[tokio::test]
+    async fn a_truncated_tail_still_verifies_because_the_chain_only_proves_consistency() {
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+        let (path, lines) = chain_of(&tmp, &sovereign, 3).await;
+        assert_eq!(lines.len(), 4, "genesis + 3");
+        let head_before = HubLedger::open(reopen_file_backend(&tmp)).await.unwrap()
+            .head_hash().to_string();
+
+        // Drop the last two entries. Nothing else is touched.
+        let result = verify_after_rewrite(&tmp, &sovereign, &path, &lines[..2]).await;
+        assert!(result.is_ok(),
+            "a truncated tail is NOT detectable by the chain alone; got {:?}", result.err());
+
+        // The head the hub publishes moves with the truncation — which is what
+        // makes an externally-recorded head a sufficient detector for the case
+        // the chain cannot see on its own.
+        let reopened = HubLedger::open(reopen_file_backend(&tmp)).await.unwrap();
+        assert_eq!(reopened.len(), 2);
+        assert_ne!(reopened.head_hash(), head_before,
+            "the published head must change, or an external anchor would not detect this either");
+    }
+
+    /// Removing an entry from the *middle* is caught — by the index check,
+    /// not the hash chain. Worth its own test because it is the one structural
+    /// attack whose detector is the cheapest check in the function, and a
+    /// refactor that dropped the index check would still pass every other
+    /// tamper test in this module.
+    #[tokio::test]
+    async fn a_deleted_middle_entry_fails_the_index_check() {
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+        let (path, lines) = chain_of(&tmp, &sovereign, 3).await;
+
+        let kept: Vec<String> = [&lines[0], &lines[1], &lines[3]]
+            .into_iter().cloned().collect();
+        let err = verify_after_rewrite(&tmp, &sovereign, &path, &kept).await
+            .expect_err("a hole in the middle must not verify");
+        let err = format!("{err:?}");
+        assert!(err.contains("index field"), "expected the index check, got: {err}");
+    }
+
+    /// Reordering two entries in place. Both are genuine signed entries, so
+    /// only the position-dependent checks can catch it — and the one that
+    /// actually fires is the index check, asserted exactly rather than as a
+    /// disjunction with prev_hash. A disjunction here would pass whichever
+    /// check survived a refactor, which is the same vacuity `expect_err`
+    /// avoids one level up.
+    #[tokio::test]
+    async fn two_entries_swapped_in_place_fail_the_index_check() {
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+        let (path, lines) = chain_of(&tmp, &sovereign, 3).await;
+
+        let swapped: Vec<String> = [&lines[0], &lines[2], &lines[1], &lines[3]]
+            .into_iter().cloned().collect();
+        let err = verify_after_rewrite(&tmp, &sovereign, &path, &swapped).await
+            .expect_err("a reordered chain must not verify");
+        let err = format!("{err:?}");
+        assert!(err.contains("has index field 2; expected 1"),
+            "expected the index check at position 1, got: {err}");
+    }
+
+    /// Truncating from the *front* — dropping Genesis — is caught, unlike
+    /// truncating from the back. Measured: what catches it is the **index**
+    /// check (the survivors' `index` fields start at 1), not the Genesis
+    /// anchor. Recorded that way because the anchor's real job is different:
+    /// `prev_hash == GENESIS_PREV_HASH` at position 0 is what stops an
+    /// attacker *grafting a new origin* on, not what notices the old one is
+    /// gone. The graft is covered separately below.
+    #[tokio::test]
+    async fn dropping_genesis_fails_the_index_check_not_the_genesis_anchor() {
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+        let (path, lines) = chain_of(&tmp, &sovereign, 3).await;
+
+        let err = verify_after_rewrite(&tmp, &sovereign, &path, &lines[1..]).await
+            .expect_err("a chain with no Genesis must not verify");
+        let err = format!("{err:?}");
+        assert!(err.contains("entry 0 has index field 1"),
+            "expected the index check at position 0, got: {err}");
+    }
+
+    /// **The one attack `prev_hash` alone catches.**
+    ///
+    /// Every other structural tamper in this module is caught by the index
+    /// check, so nothing here exercised the linkage on its own — a refactor
+    /// that deleted the prev_hash comparison would have kept the whole suite
+    /// green. This induces the case it exists for: two chains from the same
+    /// Genesis, same signer, and an entry from the second grafted onto the
+    /// first *at its correct index*. Index matches, `entry_hash` recomputes,
+    /// the signature is genuine — the graft is only visible as a broken link.
+    ///
+    /// This is not hypothetical for a hub whose sovereign signer can be driven
+    /// twice: it is what a rollback-and-replay of the store produces.
+    #[tokio::test]
+    async fn a_forked_entry_grafted_at_its_own_index_fails_only_on_prev_hash() {
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+
+        // Chain A: G, a1, a2.
+        let (path, chain_a) = chain_of(&tmp, &sovereign, 2).await;
+        assert_eq!(chain_a.len(), 3);
+
+        // Chain B: rewind to Genesis, then append a *different* b1, b2 with the
+        // same key. b2.index == 2 and b2.prev_hash == hash(b1).
+        let chain_b = {
+            let mut body = chain_a[0].clone();
+            body.push('\n');
+            std::fs::write(&path, body).unwrap();
+            let keypair = sovereign.keypair().unwrap();
+            let mut ledger = HubLedger::open(reopen_file_backend(&tmp)).await.unwrap();
+            for i in 0..2 {
+                ledger.append(
+                    sovereign.lct.id, &keypair,
+                    HubEvent::MemberAdded {
+                        member_lct_id: Uuid::new_v4(),
+                        added_by: sovereign.lct.id,
+                        member_name: Some(format!("fork{i}")),
+                        member_pubkey_hex: None,
+                    },
+                ).await.unwrap();
+            }
+            drop(ledger);
+            std::fs::read_to_string(&path).unwrap()
+                .lines().map(str::to_string).collect::<Vec<_>>()
+        };
+        assert_ne!(chain_a[2], chain_b[2], "the two forks must actually differ");
+
+        let grafted: Vec<String> = vec![
+            chain_a[0].clone(), chain_a[1].clone(), chain_b[2].clone(),
+        ];
+        let err = verify_after_rewrite(&tmp, &sovereign, &path, &grafted).await
+            .expect_err("a grafted fork must not verify");
+        let err = format!("{err:?}");
+        assert!(err.contains("prev_hash mismatch"),
+            "prev_hash must be what catches a graft, got: {err}");
+    }
+
+    /// The file-backend tamper test above states its own gap: "SqliteBackend
+    /// would need its own tamper test." SQLite is what the live fleet chapter
+    /// actually runs on, and its ledger is one table — `DELETE FROM
+    /// ledger_entries WHERE idx >= ?` is a shorter attack than rewriting a
+    /// JSONL file. Both classes are induced here against the real backend.
+    #[tokio::test]
+    async fn the_sqlite_backend_catches_a_tampered_entry_and_not_a_truncated_tail() {
+        use crate::store::SqliteBackend;
+        let tmp = tempdir().unwrap();
+        let sovereign = fresh_sovereign();
+        let keypair = sovereign.keypair().unwrap();
+        let db_path = tmp.path().join("hub.db");
+
+        {
+            let store = Box::new(SqliteBackend::open(&db_path, None).unwrap());
+            let mut ledger = HubLedger::open(store).await.unwrap();
+            ledger.write_genesis(
+                sovereign.lct.id, &keypair, "X".into(), "sha256:0".into(),
+            ).await.unwrap();
+            for i in 0..3 {
+                ledger.append(
+                    sovereign.lct.id, &keypair,
+                    HubEvent::MemberAdded {
+                        member_lct_id: Uuid::new_v4(),
+                        added_by: sovereign.lct.id,
+                        member_name: Some(format!("m{i}")),
+                        member_pubkey_hex: None,
+                    },
+                ).await.unwrap();
+            }
+        }
+        let lookup = build_lookup([sovereign.lct.clone()]);
+        let reopen = |p: &std::path::Path| {
+            Box::new(SqliteBackend::open(p, None).unwrap()) as Box<dyn HubStore>
+        };
+
+        // Baseline: untampered, verifies. Without this the two assertions
+        // below could both be explained by a broken fixture.
+        HubLedger::open(reopen(&db_path)).await.unwrap()
+            .verify_chain(|id| lookup.get(&id).cloned())
+            .expect("the untampered sqlite chain verifies");
+
+        // (a) Edit an entry's payload in place — caught by the entry hash.
+        {
+            let conn = rusqlite::Connection::open(&db_path).unwrap();
+            let n = conn.execute(
+                "UPDATE ledger_entries SET entry_json = replace(entry_json, 'm1', 'HACKED') \
+                 WHERE idx = 2", [],
+            ).unwrap();
+            assert_eq!(n, 1, "the tamper must actually land or the assertion is vacuous");
+        }
+        let err = format!("{:?}", HubLedger::open(reopen(&db_path)).await.unwrap()
+            .verify_chain(|id| lookup.get(&id).cloned())
+            .expect_err("a tampered sqlite entry must not verify"));
+        assert!(err.contains("entry_hash mismatch"),
+            "expected the entry_hash check, got: {err}");
+
+        // (b) Truncate the tail — one DELETE, and the survivors verify. Same
+        // limit as the file backend, reached by a much shorter route.
+        {
+            let conn = rusqlite::Connection::open(&db_path).unwrap();
+            let n = conn.execute("DELETE FROM ledger_entries WHERE idx >= 2", []).unwrap();
+            assert_eq!(n, 2, "the truncation must actually land");
+        }
+        let ledger = HubLedger::open(reopen(&db_path)).await.unwrap();
+        assert_eq!(ledger.len(), 2);
+        ledger.verify_chain(|id| lookup.get(&id).cloned())
+            .expect("a truncated sqlite tail re-verifies — the chain cannot see removal");
     }
 
     #[tokio::test]

@@ -1460,6 +1460,18 @@ async fn run_verify_ledger(hub_dir: PathBuf) -> Result<()> {
     println!("  Chapter name:   {}", result.hub_name);
     println!("  Entries:        {}", result.entries);
     println!("  Head hash:      {}", result.head_hash);
+    // "Ledger verified." reads as "nothing was removed", and that is one
+    // tamper class wider than what the chain can show. A forward hash chain is
+    // anchored at Genesis and open at the head, so a truncated tail re-verifies
+    // (hub-lib: `a_truncated_tail_still_verifies_because_the_chain_only_proves_consistency`).
+    // Say so here rather than in a doc comment the operator reading this output
+    // is not reading.
+    println!();
+    println!("  Proven:   the {} entries above are linked, hashed and signed consistently.",
+             result.entries);
+    println!("  NOT proven: that they are ALL the entries. Removing entries from the tail");
+    println!("              leaves a chain that verifies. Compare the head hash against an");
+    println!("              independently-recorded value (query_hub publishes it) to detect it.");
     Ok(())
 }
 
