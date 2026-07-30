@@ -127,6 +127,37 @@ impl SignedEnvelope {
     /// Pinned by `sender_key_order_is_a_requirement_the_hub_cannot_see`
     /// and `canonical_form_equals_hestias_to_string`.
     ///
+    /// Key order is not the only such requirement, and it is the one that
+    /// gets written down because it is the one a Rust author thinks of.
+    /// **The sender must also spell numbers the way `serde_json` does**,
+    /// for the same reason and with the same symptom — a bare
+    /// [`VerifyError::BadSignature`]. Two divergences are measured, not
+    /// inferred (2026-07-30, `serde_json` 1.0.150, CPython 3.12, V8):
+    ///
+    /// - **Small floats, Python only.** Rust switches to exponential form
+    ///   below `1e-5` and never pads the exponent; Python's `json.dumps`
+    ///   switches below `1e-4` and pads to two digits. So `3.5e-5` signs as
+    ///   `0.000035` here and `3.5e-05` there, and `3.5e-6` signs as `3.5e-6`
+    ///   here and `3.5e-06` there. The divergent band is contiguous:
+    ///   **every non-zero float with magnitude in `[1e-9, 1e-4)`**. Below
+    ///   `1e-9` the exponent reaches two digits and the two agree again.
+    ///   That band is ordinary territory for a fraction — a T3/V3 weight or
+    ///   a per-unit rate lands in it without anyone choosing an odd value.
+    /// - **Integers above `u64::MAX`, every language.** `serde_json` (no
+    ///   `arbitrary_precision`) falls back to `f64`, so `18446744073709551616`
+    ///   signs as `1.8446744073709552e+19`. Python keeps it exact; JS spells
+    ///   the rounded double as `18446744073709552000`. All three differ.
+    ///   Note this one loses information *before* the signature check, so
+    ///   distinct large integers become the same value to the hub.
+    ///
+    /// TypeScript is otherwise safe: V8 and `serde_json` agree across the
+    /// whole float range tested, including the integral-valued floats
+    /// (`1e5` → `100000`) where they look like they should differ — the
+    /// sender's own spelling is what reaches the parser, so the two only
+    /// have to agree on the round trip, not on the literal.
+    ///
+    /// Pinned by `sender_number_spelling_is_a_requirement_the_hub_cannot_see`.
+    ///
     /// The mirror image of that requirement is that the payload's **wire
     /// spelling is not authenticated**: because the hub re-derives the
     /// signing bytes from the parsed value, an intermediary can re-order
@@ -659,6 +690,112 @@ mod tests {
                  (hestia's signing algorithm) for {v}"
             );
         }
+    }
+
+    /// The second requirement the hub imposes on senders and cannot observe:
+    /// **number spelling**. Companion to the key-order test below; see
+    /// `signing_bytes`' docs for the measurement this pins.
+    ///
+    /// Two halves, because they fail for different reasons:
+    ///
+    /// 1. A spelling table, locking in `serde_json`'s float `Display` at the
+    ///    two decade boundaries that matter. A `serde_json` bump that moves
+    ///    where exponential form starts, or that starts padding exponents,
+    ///    silently re-spells the bytes every sender must reproduce — and no
+    ///    other test in this file would notice, because both sides of
+    ///    `canonical_form_equals_hestias_to_string` would move together.
+    /// 2. An end-to-end sign-and-reject, so the table is anchored to the
+    ///    symptom rather than to a string comparison: a sender that spells
+    ///    `3.5e-6` the way CPython does gets `BadSignature`, from a payload
+    ///    the hub agrees is the same *value*.
+    #[tokio::test]
+    async fn sender_number_spelling_is_a_requirement_the_hub_cannot_see() {
+        // 1. The table. `given` is a valid JSON literal; `canonical` is the
+        // spelling every sender must reproduce to be verifiable here.
+        // Measured 2026-07-30 against serde_json 1.0.150.
+        let table = [
+            // Above the exponential threshold: plain decimal, both agree.
+            ("1e-4", "0.0001"),
+            ("3.5e-4", "0.00035"),
+            // The form-divergence decade: Rust decimal, Python `3.5e-05`.
+            ("1e-5", "0.00001"),
+            ("3.5e-5", "0.000035"),
+            // The padding-divergence decades: Rust `3.5e-6`, Python `3.5e-06`.
+            ("1e-6", "1e-6"),
+            ("3.5e-6", "3.5e-6"),
+            ("1e-9", "1e-9"),
+            // Two-digit exponent: the two agree again.
+            ("1e-10", "1e-10"),
+            ("1e-100", "1e-100"),
+            // Integers: exact through u64::MAX, f64 above it.
+            ("18446744073709551615", "18446744073709551615"),
+            ("18446744073709551616", "1.8446744073709552e+19"),
+        ];
+        for (given, expected) in table {
+            let v: serde_json::Value = serde_json::from_str(given).unwrap();
+            let canonical = serialize_canonical(&v).unwrap();
+            assert_eq!(
+                canonical, expected,
+                "canonical spelling of {given} moved — every sender's signing \
+                 bytes just changed, and only this test says so"
+            );
+            // The canonical form is a fixed point: re-parsing and
+            // re-canonicalizing must not move it again. Without this, a
+            // spelling could satisfy the table and still not be reproducible
+            // by a sender that round-trips its own output.
+            let reparsed: serde_json::Value = serde_json::from_str(&canonical).unwrap();
+            assert_eq!(
+                serialize_canonical(&reparsed).unwrap(),
+                canonical,
+                "canonical form of {given} is not a fixed point"
+            );
+        }
+
+        // 2. The symptom. Sign the CPython spelling, send the same value.
+        let signer = fresh_identity();
+        let kp = signer.keypair().unwrap();
+        let mut resolver = MapResolver::new();
+        resolver.insert(signer.lct.clone());
+        let now = now_fixed();
+        let nonces = NonceStore::new();
+        let challenge = nonces.issue(signer.lct.id, now);
+
+        // What `json.dumps({"rate": 3.5e-6}, sort_keys=True, separators=(",", ":"))`
+        // emits, transcribed. The hub's canonical form of the same value is
+        // `{"rate":3.5e-6}` — one character apart.
+        let python_spelling = r#"{"rate":3.5e-06}"#;
+        let payload: serde_json::Value = serde_json::from_str(python_spelling).unwrap();
+        assert_ne!(
+            serialize_canonical(&payload).unwrap(),
+            python_spelling,
+            "if these ever agree the divergence is gone and this test should be \
+             retired, not weakened"
+        );
+
+        let mut foreign_bytes = challenge.nonce.as_bytes().to_vec();
+        foreign_bytes.extend_from_slice(python_spelling.as_bytes());
+        let sig = kp.sign(&foreign_bytes);
+        let envelope = SignedEnvelope {
+            challenge_nonce: challenge.nonce.clone(),
+            payload: payload.clone(),
+            signature: hex::encode(sig.bytes),
+            signer_lct_id: signer.lct.id,
+        };
+        assert!(
+            matches!(
+                verify_envelope(&envelope, &nonces, &resolver, now),
+                Err(VerifyError::BadSignature(_))
+            ),
+            "a correctly-signed, correctly-keyed, correctly-valued payload is \
+             rejected purely on number spelling — that is the requirement"
+        );
+
+        // The control: the identical value spelled the hub's way verifies, so
+        // the rejection above is about spelling and nothing else.
+        let challenge2 = nonces.issue(signer.lct.id, now);
+        let ok = build_envelope(signer.lct.id, &kp, &challenge2, payload).unwrap();
+        verify_envelope(&ok, &nonces, &resolver, now)
+            .expect("same value, hub's spelling — must verify");
     }
 
     /// The requirement the hub imposes on senders and cannot itself observe.
