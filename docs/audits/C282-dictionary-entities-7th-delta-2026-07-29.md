@@ -74,11 +74,42 @@ it contains the token `dictionar`.
 |---|---|---|
 | `sdk/web4/dictionary.py` + `tests/` | implements 1–5 | **GENUINE** (byte-frozen; see §A) |
 | `protocols/web4-dictionary-entities.md` | sister spec | **GENUINE** (byte-frozen) |
-| **`hub/`** (35 files, incl. `law.rs`, `state.rs`, `events.rs`, `rest.rs`) | **v7 suspicion — the directory C280 found had never been gated in 7 society-spec passes** | **NEGATIVE** — 0 hits for `dictionar`, and 0 for the whole subject-matter cluster (`vocabular|semantic|translat|compress|codebook`). Hub publishes act kinds, event types and role vocabularies, but it performs **no cross-domain translation, no compression-trust accounting, and no dictionary selection**. It is not a mirror by analogy and is **not widened into one**. |
-| `web4-policy/`, `web4-trust-core/` | new crates since C242 | **NEGATIVE** — 0 hits each. |
+| **`hub/`** (31 tracked `.rs` files, incl. `law.rs`, `state.rs`, `events.rs`, `rest.rs`) | **v7 suspicion — the directory C280 found had never been gated in 7 society-spec passes** | **NEGATIVE on subject matter, not on token absence** — see the measured cluster below. Hub publishes act kinds, event types and role vocabularies, but it performs **no cross-domain translation, no compression-trust accounting, and no dictionary selection**. It is not a mirror by analogy and is **not widened into one**. |
+| `web4-policy/`, `web4-trust-core/` | new crates since C242 | **NEGATIVE** — 0 `dictionar` each (`git grep -io dictionar 8bc3ef39 -- <crate>/`). The wider cluster is **not** zero here either and is disambiguated deliberately: `web4-policy/` carries `vocabular` 13 / `semantic` 2, `web4-trust-core/` `vocabular` 0 / `semantic` 11 — all of it the crates' own role/response vocabularies (`lib.rs:9/26/47/130/157/546/923`) and tensor-update semantics (`tensor/mod.rs:1/13/102/209`, `entity/trust.rs:17`). Same subject-matter ruling as `hub/`. |
 | `web4-core/` (Rust `src/*.rs`) | 4 window commits (#538/#540/#544, `4f76f110`) | **NEGATIVE** — 0 `dictionar` in any `.rs`; the four commits are LCT-structure / oracle-scope faces already booked elsewhere (C248-N1/N2, SAL C246-N1). |
 | `web4-core/python/…/trust/attestation/` | 2 raw token hits | **FALSE MIRROR** — see I-1. |
 | `web4-standard/ontology/*.ttl` | method carry v6 (window touched `t3v3-ontology.ttl` at `01f410db`) | **NEGATIVE for net-new** — see the refuted candidate R-1. |
+
+#### The `hub/` cluster, measured — instrument published beside the number
+
+**Instrument:** `git grep -nio -e <token> 8bc3ef39 -- 'hub/**/*.rs'`. **Scope:** the 31 tracked `.rs`
+files under `hub/` at `8bc3ef39`; `hub/target/` is **untracked** at this commit, so it is outside the
+instrument by construction rather than by exclusion.
+
+| token | hits (`-i`) | case-sensitive | what they are |
+|---|---:|---:|---|
+| `dictionar` | **0** | 0 | — |
+| `vocabular` | **11** | 11 | hub's *own* role vocabularies (`law.rs:53/60/66/77/97/196/252/449/485`) and the `notify:*` sub-vocabulary (`events.rs:464`) |
+| `semantic` | **15** | 13 | ledger / ring-buffer / write-through **semantics** (`ledger.rs:17`, `rest.rs:954/1024/7408`, `store.rs:1482`), r7 semantics (`rest.rs:3480`), and "**semantic** member discovery" — profile/interest lookup (`main.rs:349`, `rest.rs:2031/3288/3766`, `events.rs:251`, `session.rs:227`, `state.rs:439`) |
+| `translat` | **1** | 1 | `rest.rs:1969`, prose: *"can deserialize without translation"* |
+| `compress` | **0** | 0 | — |
+| `codebook` | **0** | 0 | — |
+| **total** | **27** | 25 | |
+
+Two of the `semantic` hits are capitalized (`rest.rs:3288`, `rest.rs:3480`), so a plain `git grep -n`
+returns 13 and `-i` returns 15. Both figures are published so that a future auditor's re-grep lands
+whichever flag they use.
+
+**27 hits, not zero — and the verdict is unchanged.** Every one of the 27 is hub's own role/event
+vocabulary, its ledger and buffer semantics, its profile-based member discovery, or one line of
+serialization prose. **None** implements any of the five subject-matter faces: no cross-domain
+translation (the sole `translat` hit asserts the *absence* of translation), no compression-trust
+accounting, no codebook, no dictionary selection, no dictionary reputation economy.
+
+The NEGATIVE rests on that derivation — written in §B.1 **before** this gate was run — and never
+needed the zero. This cell originally published one, which was a reflex to token-counting under a
+method that is explicitly derivation-based, and token-counting is what produced the wrong number.
+Recorded as such in §F.
 
 **This answers goal (1) of the approved scope, and the answer is the negative one.** The
 `hub/`-shaped blind spot C280 found is **society-lineage-specific, not corpus-wide.** Hub is
@@ -332,6 +363,32 @@ Corollary for [[feedback_prose_is_not_ledger]]: N1 was reachable only by asking 
 this week's principle forbid?"* and then grepping the corpus for the forbidden **behaviour**
 — not for the principle's **vocabulary**. A vocabulary grep (`unmeasured`) returned zero and
 would have closed the question as "not applicable." The zero *was* the finding.
+
+**Second lesson, added under review — the number and the derivation were not held to the same
+standard.** §B.2's `hub/` cell originally published *"0 hits … for the whole subject-matter
+cluster."* Measured, the cluster is **27**. The verdict was never wrong — it rests on the §B.1
+subject-matter derivation, written before the gate ran — but the *count* was asserted from a grep
+run once, early, and not re-run as the cell was written around it. The cell then contradicted itself
+two clauses later, in its own prose (*"Hub publishes … role vocabularies"*), which is the tell.
+
+Three compounding failures, all in one cell: (1) the zero was doing gate-work the derivation already
+does better, under a method that is explicitly derivation-based; (2) the scope descriptor said
+"35 files" — that is `.rs` **+** `.toml`, while the instrument only ever read `.rs` (31), so the
+counts were published against a denominator the grep never used; (3) no instrument was published
+beside the number, and the case-sensitivity of the grep moves `semantic` between 13 and 15.
+
+**The rule this pass earns: publish the instrument next to the number, and re-run it *after* the
+finding is written, not before.** §B′ of this same document already does exactly that for its
+`.get(…, 1.0)` scope — the document held itself to a standard in one section that it did not carry
+into another. The cost is not cosmetic: §E issues a forward ruling (*"do not re-gate `hub/` on this
+lineage"*), and a future auditor cites the **cell**, not this thread — they would have re-grepped,
+found 27, and read a correct ruling as contradicted.
+
+The same sweep found the adjacent `web4-policy/` / `web4-trust-core/` row carrying an unqualified
+*"0 hits each"* — true of `dictionar`, but those crates hold 13 and 11 wider-cluster hits
+respectively. It was disambiguated in the same pass rather than left as the next instance of this,
+and its NEGATIVE likewise rests on subject matter. **Every published zero should name the token it
+is a zero of.**
 
 ---
 
