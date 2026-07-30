@@ -25,7 +25,7 @@
 //! 6. The derived tier is bound to the `pair_id` with a validity window
 //!    (default 1 h); expiry re-challenges, never silently extends.
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -382,6 +382,51 @@ pub struct TierBinding {
     pub valid_until: DateTime<Utc>,
 }
 
+/// The **one** spelling of a receipt timestamp: RFC3339, always exactly nine
+/// fractional digits, always `Z`.
+///
+/// This exists so the string the hub TRANSMITS and the string the hub SIGNS come
+/// out of the same function. Under `signing_bytes` v2 they did not: the signed
+/// form was `DateTime::to_rfc3339()` (`…+00:00`) while the wire form was chrono's
+/// serde default (`…Z`), so a relying party could not reconstruct the canonical
+/// bytes from the JSON it was handed without knowing a chrono-specific quirk —
+/// measured 2026-07-30 and worked around with a `Z` → `+00:00` shim in
+/// `tools/verify_assurance_receipt.py`.
+///
+/// [`SecondsFormat::Nanos`] rather than `AutoSi` because `AutoSi` varies the
+/// fractional digit count with the *value* (0, 3, or 9), so the field's width
+/// depended on whether the clock happened to land on a whole second — the fixture
+/// timestamp `2099-01-01T00:00:00Z` and a live `…13.302191724Z` were the same
+/// field in two shapes. `Nanos` is fixed-width AND lossless at
+/// `DateTime<Utc>`'s own resolution, so canonicalizing costs no precision and
+/// needs no truncation: `parse_from_rfc3339(canonical_timestamp(t)) == t`.
+pub fn canonical_timestamp(t: &DateTime<Utc>) -> String {
+    t.to_rfc3339_opts(SecondsFormat::Nanos, true)
+}
+
+/// Serde shim binding the wire form to [`canonical_timestamp`]. Applied to every
+/// timestamp `signing_bytes` covers, so "sign what you send" is enforced by
+/// construction instead of by two definitions agreeing by luck.
+mod canonical_ts {
+    use super::{canonical_timestamp, DateTime, Utc};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(t: &DateTime<Utc>, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&canonical_timestamp(t))
+    }
+
+    /// Accepts any valid RFC3339 instant, not just our own output: a verifier
+    /// must be able to hand back a receipt it received, and being strict here
+    /// would reject well-formed input for no integrity gain — the signature,
+    /// not the parser, is what detects tampering.
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<DateTime<Utc>, D::Error> {
+        let s = String::deserialize(d)?;
+        DateTime::parse_from_rfc3339(&s)
+            .map(|t| t.with_timezone(&Utc))
+            .map_err(serde::de::Error::custom)
+    }
+}
+
 /// A **portable, hub-signed assurance receipt** (A2 evidence, 2026-07-29). The hub
 /// issues this after a verified `present_constellation`: it binds the derived tier
 /// to the exact owner + roster + challenge, and the hub SIGNS it. A relying party
@@ -409,8 +454,11 @@ pub struct AssuranceReceipt {
     pub pair_id: Uuid,
     pub challenge_nonce: String,
     /// The attestation's `issued_at` (binds the receipt to that specific challenge).
+    #[serde(with = "canonical_ts")]
     pub issued_at: DateTime<Utc>,
+    #[serde(with = "canonical_ts")]
     pub bound_at: DateTime<Utc>,
+    #[serde(with = "canonical_ts")]
     pub valid_until: DateTime<Utc>,
     /// The hub **society** LCT — the hub record, NOT the signing identity.
     pub hub_lct_id: Uuid,
@@ -463,16 +511,30 @@ impl AssuranceReceipt {
     /// identity at all, and spelled the tier with Rust's `Debug` impl. The byte
     /// layout changed, so the tag had to; no `v1` receipt was ever issued (the
     /// primitive had not yet reached a running daemon), so nothing is stranded.
+    ///
+    /// `v3` (2026-07-30): **the hub now signs the string it transmits.** `v2` fed
+    /// `to_rfc3339()` (`…+00:00`) into these bytes while serialising `…Z` onto the
+    /// wire, so the canonical bytes were not reconstructable from a received
+    /// receipt — a standalone verifier had to guess a chrono spelling. Both sides
+    /// now go through [`canonical_timestamp`], and
+    /// `signed_bytes_are_reconstructable_from_the_wire_alone` asserts exactly that
+    /// by rebuilding these bytes from parsed JSON. The layout changed, so the tag
+    /// had to. **No `v2` receipt was ever issued either, and that is measured, not
+    /// assumed:** the receipt primitive landed 2026-07-29 16:06 PT (`d5bd10b`)
+    /// while the live daemon has been running since 2026-07-27 20:22 PT, and the
+    /// running image contains zero occurrences of the `assurance-receipt` domain
+    /// string (checked against `/proc/<pid>/exe`, with `query_hub` as the
+    /// positive control). Nothing is stranded because nothing was ever emitted.
     pub fn signing_bytes(&self) -> Vec<u8> {
         let mut b = Vec::with_capacity(256);
-        b.extend_from_slice(b"web4:assurance-receipt:v2:");
+        b.extend_from_slice(b"web4:assurance-receipt:v3:");
         b.extend_from_slice(self.owner_lct_id.as_bytes());
         b.extend_from_slice(self.tier.wire_tag().as_bytes());
         b.extend_from_slice(self.pair_id.as_bytes());
         b.extend_from_slice(self.challenge_nonce.as_bytes());
-        b.extend_from_slice(self.issued_at.to_rfc3339().as_bytes());
-        b.extend_from_slice(self.bound_at.to_rfc3339().as_bytes());
-        b.extend_from_slice(self.valid_until.to_rfc3339().as_bytes());
+        b.extend_from_slice(canonical_timestamp(&self.issued_at).as_bytes());
+        b.extend_from_slice(canonical_timestamp(&self.bound_at).as_bytes());
+        b.extend_from_slice(canonical_timestamp(&self.valid_until).as_bytes());
         b.extend_from_slice(self.hub_lct_id.as_bytes());
         b.extend_from_slice(self.hub_signer_lct_id.as_bytes());
         b.extend_from_slice(self.hub_signer_key_id.as_bytes());
@@ -1053,6 +1115,126 @@ mod tests {
             repointed.verify(&hub_kp.verifying_key(), now),
             Err(VerifyError::ReceiptSignatureInvalid)
         );
+    }
+
+    #[test]
+    fn canonical_timestamp_is_fixed_width_z_suffixed_and_lossless() {
+        // Fixed width is half the point: `AutoSi` (chrono's serde default, and what
+        // v2 shipped) varies the fraction with the VALUE, so a whole-second instant
+        // and a live-clock instant occupied the same field in different shapes.
+        for iso in [
+            "2099-01-01T00:00:00Z",             // whole second — AutoSi emits no fraction
+            "2026-07-30T04:03:13.000000001Z",   // one nanosecond
+            "2026-07-30T04:03:13.302000000Z",   // exactly milliseconds — AutoSi emits 3
+            "2026-07-30T04:03:13.302191724Z",   // live-clock shaped
+            "1970-01-01T00:00:00Z",
+        ] {
+            let t = DateTime::parse_from_rfc3339(iso).unwrap().with_timezone(&Utc);
+            let c = canonical_timestamp(&t);
+            assert!(c.ends_with('Z'), "{c}: must be Z-suffixed, never an offset");
+            assert!(!c.contains('+'), "{c}: must carry no numeric offset");
+            let frac = c.split('.').nth(1).expect("must always carry a fraction");
+            assert_eq!(
+                frac.trim_end_matches('Z').len(),
+                9,
+                "{c}: fractional digits must be fixed-width 9"
+            );
+            // Lossless at DateTime<Utc>'s own resolution — so canonicalizing costs
+            // no precision and the stored instant equals the transmitted one. (This
+            // is why Nanos, not Millis: Millis would be fixed-width too, but would
+            // silently round the value the signature covers.)
+            assert_eq!(
+                DateTime::parse_from_rfc3339(&c).unwrap().with_timezone(&Utc),
+                t,
+                "{c}: canonical form must round-trip exactly"
+            );
+        }
+    }
+
+    #[test]
+    fn signed_bytes_are_reconstructable_from_the_wire_alone() {
+        // THE v3 property, and the whole reason for the tag bump: a relying party
+        // holding nothing but the receipt's JSON must be able to rebuild the exact
+        // bytes the hub signed, using the transmitted strings VERBATIM. Under v2
+        // this test fails — the wire said `…Z` while the signature covered
+        // `…+00:00`, so `tools/verify_assurance_receipt.py` needed a shim that
+        // guessed a chrono spelling.
+        let hub_kp = KeyPair::generate();
+        let ts = |s: &str| DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc);
+        // Deliberately mixed widths under AutoSi: 9 digits, 1 nanosecond, and a
+        // whole second. If width leaked into the signature, this spread catches it.
+        let issued = ts("2026-07-30T04:03:13.302191724Z");
+        let bound = ts("2026-07-30T04:03:13.000000001Z");
+        let until = ts("2099-01-01T00:00:00Z");
+        let roster = vec![Uuid::new_v4(), Uuid::new_v4()];
+        let mut r = AssuranceReceipt {
+            owner_lct_id: Uuid::new_v4(),
+            tier: AssuranceLevel::HardwareBacked,
+            pair_id: Uuid::new_v4(),
+            challenge_nonce: "hub-nonce-wire".into(),
+            issued_at: issued,
+            bound_at: bound,
+            valid_until: until,
+            hub_lct_id: Uuid::new_v4(),
+            hub_signer_lct_id: Uuid::new_v4(),
+            hub_signer_key_id: AssuranceReceipt::key_id(&hub_kp.verifying_key()),
+            roster_hash: AssuranceReceipt::roster_hash(&roster),
+            signature: String::new(),
+        };
+        r.signature = hub_kp.sign(&r.signing_bytes()).to_hex();
+
+        let json = serde_json::to_string(&r).unwrap();
+        let wire: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let s = |k: &str| wire[k].as_str().unwrap_or_default().to_string();
+        let uuid = |k: &str| Uuid::parse_str(&s(k)).unwrap();
+
+        // A standalone verifier's arithmetic: no chrono, no re-formatting, nothing
+        // but the strings as received, in the documented field order.
+        let mut rebuilt = Vec::new();
+        rebuilt.extend_from_slice(b"web4:assurance-receipt:v3:");
+        rebuilt.extend_from_slice(uuid("owner_lct_id").as_bytes());
+        rebuilt.extend_from_slice(s("tier").as_bytes());
+        rebuilt.extend_from_slice(uuid("pair_id").as_bytes());
+        rebuilt.extend_from_slice(s("challenge_nonce").as_bytes());
+        rebuilt.extend_from_slice(s("issued_at").as_bytes());
+        rebuilt.extend_from_slice(s("bound_at").as_bytes());
+        rebuilt.extend_from_slice(s("valid_until").as_bytes());
+        rebuilt.extend_from_slice(uuid("hub_lct_id").as_bytes());
+        rebuilt.extend_from_slice(uuid("hub_signer_lct_id").as_bytes());
+        rebuilt.extend_from_slice(s("hub_signer_key_id").as_bytes());
+        rebuilt.extend_from_slice(s("roster_hash").as_bytes());
+        assert_eq!(
+            rebuilt,
+            r.signing_bytes(),
+            "the transmitted strings no longer rebuild the signed bytes — signing_bytes \
+             and the serde form have drifted apart, which is the v2 defect returning"
+        );
+
+        // And the rebuilt bytes must actually satisfy the signature. Internal
+        // equality alone could be two identical mistakes; this is the property a
+        // relying party depends on.
+        let sig = sig_from_hex(&r.signature).unwrap();
+        assert!(
+            hub_kp.verifying_key().verify(&rebuilt, &sig).is_ok(),
+            "bytes rebuilt from the wire do not verify against the receipt's signature"
+        );
+
+        // The v2 spelling must appear nowhere on the wire.
+        assert!(!json.contains("+00:00"), "wire regressed to an offset suffix: {json}");
+        // …and the divergence this bump fixes must still be real upstream. If chrono
+        // ever makes `to_rfc3339()` emit `Z`, the premise recorded in the v3 note
+        // changed and the note should be re-checked rather than trusted.
+        assert_ne!(
+            canonical_timestamp(&issued),
+            issued.to_rfc3339(),
+            "chrono's to_rfc3339() now agrees with the canonical form — re-check the v3 rationale"
+        );
+
+        // A receipt that has been through JSON is the same value and still verifies:
+        // losslessness is what makes that true.
+        let back: AssuranceReceipt = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, r, "round-trip changed the receipt");
+        assert!(back.verify(&hub_kp.verifying_key(), issued).is_ok());
     }
 
     #[test]
