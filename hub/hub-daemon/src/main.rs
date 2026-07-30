@@ -14,6 +14,7 @@ mod rate_limit;
 mod rest;
 
 use anyhow::{Context, Result};
+use axum::Router;
 use clap::{Parser, Subcommand};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -1208,6 +1209,40 @@ fn production_preflight(
     Ok(())
 }
 
+/// The **public plane's** route set — the network-reachable surface, assembled
+/// exactly as `run_serve` serves it (rate-limit and lock-gate layers are applied
+/// by the caller and do not add or remove routes).
+///
+/// Extracted from `run_serve` so the plane split is testable. That split — which
+/// router a route is declared in — is the hub's primary network boundary, and
+/// until now it was enforced only by reading the assembly by eye: `/admin/ledger`
+/// and `/admin/pairs` sat on the public plane until the 2026-07-23 review moved
+/// them, and `require_loopback` (the only automated guard on the write tools) is
+/// documented in `mcp.rs` as defeated behind a same-host reverse proxy. A route
+/// that reaches this router is anonymously reachable from the internet on a
+/// `--bind 0.0.0.0` hub; see `the_public_plane_serves_only_its_allowlist`.
+fn public_plane_router(mcp_state: McpState, rest_state: RestState, admin_state: RestState) -> Router {
+    mcp_read_router(mcp_state)
+        .merge(rest_router(rest_state))
+        .merge(admin::router(admin_state))
+}
+
+/// The **operator plane's** route set (127.0.0.1-only listener, never proxied).
+/// Carries the member/skill read tools, the Sovereign-signing MCP write tools and
+/// the `/admin/api/*` write API. `run_serve` layers operator auth and the lock
+/// gate over this; neither changes the route set.
+fn operator_plane_router(mcp_state: McpState, operator_state: RestState) -> Router {
+    admin::router(operator_state.clone())
+        .merge(admin::operator_router(operator_state.clone()))
+        .merge(crate::rest::admin_api_router(operator_state))
+        // Member/skill read tools live ONLY here (loopback-only, never
+        // proxied) so anonymous internet clients cannot enumerate members.
+        .merge(mcp_operator_read_router(mcp_state.clone()))
+        // Sovereign-signing MCP write tools live ONLY here (loopback-only,
+        // never proxied) — residual-review P0.
+        .merge(mcp_write_router(mcp_state))
+}
+
 async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, admin_port: u16) -> Result<()> {
     let config = HubConfig::load(hub_lib::hub::HubPaths::new(&hub_dir).config())?;
     let port = port_override.unwrap_or(config.daemon.mcp_port);
@@ -1352,9 +1387,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     // Sovereign-signing MCP WRITE tools are NOT here — they're mounted on the
     // loopback operator plane below (residual-review P0: a same-host proxy makes
     // ConnectInfo read as loopback, so the public listener can't safely carry them).
-    let mut app = mcp_read_router(mcp_state.clone())
-        .merge(rest_router(rest_state))
-        .merge(admin::router(admin_state));
+    let mut app = public_plane_router(mcp_state.clone(), rest_state, admin_state);
     if let Some(limiter) = &rate_limiter {
         // State-based wiring (NOT an Extension): the original extension-based
         // stack layered the middleware outside the Extension layer, so the
@@ -1391,15 +1424,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         // from HUB_OPERATOR_AUTH; applied as the OUTERMOST layer so an
         // unauthorized caller is rejected before the lock gate and any handler.
         let op_auth = crate::rest::OperatorAuth::from_env(&hub_dir)?;
-        let mut operator_app = admin::router(operator_state.clone())
-            .merge(admin::operator_router(operator_state.clone()))
-            .merge(crate::rest::admin_api_router(operator_state))
-            // Member/skill read tools live ONLY here (loopback-only, never
-            // proxied) so anonymous internet clients cannot enumerate members.
-            .merge(mcp_operator_read_router(mcp_state.clone()))
-            // Sovereign-signing MCP write tools live ONLY here (loopback-only,
-            // never proxied) — residual-review P0.
-            .merge(mcp_write_router(mcp_state));
+        let mut operator_app = operator_plane_router(mcp_state, operator_state);
         if let Some(limiter) = &rate_limiter {
             // Same state-based wiring as the public plane. Loopback callers
             // (which is all of this plane) get the loopback rate multiplier,
@@ -2078,5 +2103,144 @@ mod tests {
         assert_eq!(slugify("東京"), "東京");
         assert_eq!(slugify("   spaces   "), "spaces");
         assert_eq!(slugify(""), "");
+    }
+
+    /// The public/operator **plane split** — which router a route is declared in
+    /// — is the hub's primary network boundary, and nothing tested it. Until the
+    /// 2026-07-23 review, `/admin/ledger` and `/admin/pairs` were on the public
+    /// plane; the only automated guard on the Sovereign-signing write tools is
+    /// `mcp::require_loopback`, which `mcp.rs` itself documents as defeated by a
+    /// same-host reverse proxy — the public-deploy topology. A route that lands
+    /// in `public_plane_router` is anonymously reachable from the internet on a
+    /// `--bind 0.0.0.0` hub (this one).
+    ///
+    /// These drive the **assembled routers**, not a list of route strings, so
+    /// moving a route between `admin::router` / `admin::operator_router` /
+    /// `mcp::{read,operator_read,write}_router` is what the assertions see.
+    /// The layers `run_serve` puts over each plane (rate limit, lock gate,
+    /// operator auth) add and remove no routes, so omitting them here does not
+    /// weaken the guard — it isolates it to the split.
+    mod plane_split {
+        use super::*;
+        use crate::rest::channel_e2e_tests::fresh_rest_state;
+        use axum::body::Body;
+        use axum::http::{Request, StatusCode};
+        use tower::ServiceExt;
+
+        /// A real chapter, and the same `(rest, mcp)` state pair `run_serve`
+        /// builds (McpState sharing RestState's signer / ledger / law / key).
+        async fn planes() -> (tempfile::TempDir, Router, Router) {
+            let (tmp, rest) = fresh_rest_state(None).await;
+            let mcp = McpState::open_with_law_and_ledger(
+                rest.paths.root.clone(),
+                rest.law.clone(),
+                rest.ledger.clone(),
+                rest.signer.clone(),
+                rest.sovereign_lct_id,
+                rest.store_key.clone(),
+                rest.hub_id,
+                rest.hub_name.clone(),
+            )
+            .await
+            .unwrap();
+            let mut operator = rest.clone();
+            operator.operator_plane = true;
+            let public = public_plane_router(mcp.clone(), rest.clone(), rest.clone());
+            let op = operator_plane_router(mcp, operator);
+            (tmp, public, op)
+        }
+
+        async fn status(app: &Router, method: &str, path: &str) -> StatusCode {
+            let req = Request::builder()
+                .method(method)
+                .uri(path)
+                .body(Body::empty())
+                .unwrap();
+            app.clone().oneshot(req).await.unwrap().status()
+        }
+
+        /// Everything the operator plane carries and the public plane must not.
+        /// 404 is the exact assertion: a route that exists but rejects the caller
+        /// answers 405/500/403 — only an unrouted path answers 404, so this
+        /// cannot be satisfied by a handler-level check that a proxy defeats.
+        const OPERATOR_ONLY: &[(&str, &str)] = &[
+            // Rosters, skills, relationship data, act payloads.
+            ("GET", "/admin"),
+            ("GET", "/admin/members"),
+            ("GET", "/admin/joins"),
+            ("GET", "/admin/manage"),
+            ("GET", "/admin/ledger"),
+            // Index 0 (genesis) EXISTS on a fresh chapter — `ledger_detail`
+            // answers its own 404 for a missing index, so a nonexistent one
+            // would make both directions of this table unfalsifiable.
+            ("GET", "/admin/ledger/0"),
+            ("GET", "/admin/pairs"),
+            // MCP member/skill enumeration (public-release P0).
+            ("GET", "/tools/list_members"),
+            ("GET", "/tools/find_skill?q=rust"),
+            // MCP write tools — these sign as the Sovereign.
+            ("POST", "/tools/add_member"),
+            ("POST", "/tools/assign_role"),
+            ("POST", "/tools/record_event"),
+            ("POST", "/tools/declare_skill"),
+            // The admin write API — admit/deny/remove/re-key/limits.
+            ("POST", "/admin/api/members/add"),
+            ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/key"),
+            ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/remove"),
+            ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/admission-reset"),
+            ("POST", "/admin/api/admission-limits"),
+            ("POST", "/admin/api/joins/00000000-0000-0000-0000-000000000000/admit"),
+            ("POST", "/admin/api/joins/00000000-0000-0000-0000-000000000000/deny"),
+            ("POST", "/admin/api/reviews/00000000-0000-0000-0000-000000000000/grant"),
+            ("POST", "/admin/api/reviews/00000000-0000-0000-0000-000000000000/refuse"),
+            ("GET", "/admin/api/ledger"),
+            ("GET", "/admin/api/joins"),
+            ("GET", "/admin/api/reviews"),
+        ];
+
+        #[tokio::test]
+        async fn the_public_plane_serves_only_its_allowlist() {
+            let (_tmp, public, _op) = planes().await;
+            for (method, path) in OPERATOR_ONLY {
+                assert_eq!(
+                    status(&public, method, path).await,
+                    StatusCode::NOT_FOUND,
+                    "{method} {path} is REACHABLE on the public (network-facing) plane — \
+                     it belongs on the operator listener"
+                );
+            }
+        }
+
+        /// The other half: moving a route off the public plane must not be how
+        /// the guard above passes. Public transparency is law + roles + council
+        /// + the hub's own identity, and it has to keep working.
+        #[tokio::test]
+        async fn the_public_plane_still_serves_the_transparency_surface() {
+            let (_tmp, public, _op) = planes().await;
+            for path in ["/", "/admin/roles", "/admin/law", "/admin/council", "/tools", "/tools/query_hub"] {
+                assert_eq!(
+                    status(&public, "GET", path).await,
+                    StatusCode::OK,
+                    "{path} must stay served on the public plane"
+                );
+            }
+        }
+
+        /// And the operator plane must actually carry every route the first test
+        /// banished, or "not on the public plane" would be satisfiable by the
+        /// route existing nowhere at all. Not-404 rather than 200: these handlers
+        /// want `ConnectInfo`/bodies a bare `oneshot` doesn't supply, and *routed*
+        /// is the property under test.
+        #[tokio::test]
+        async fn the_operator_plane_carries_what_the_public_plane_refuses() {
+            let (_tmp, _public, op) = planes().await;
+            for (method, path) in OPERATOR_ONLY {
+                assert_ne!(
+                    status(&op, method, path).await,
+                    StatusCode::NOT_FOUND,
+                    "{method} {path} is on NEITHER plane — the operator lost it"
+                );
+            }
+        }
     }
 }
