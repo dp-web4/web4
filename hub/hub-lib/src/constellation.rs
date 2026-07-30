@@ -42,6 +42,20 @@ pub enum AssuranceLevel {
     HardwareBacked,
 }
 
+impl AssuranceLevel {
+    /// The tier's **wire tag** — the same snake_case string serde emits, pinned
+    /// here as an explicit contract. Signed payloads use this, never
+    /// `format!("{:?}")`: a `Debug` impl is a Rust convenience, and a portable
+    /// receipt a non-Rust verifier must reproduce cannot be anchored to one.
+    pub fn wire_tag(&self) -> &'static str {
+        match self {
+            Self::SingleDevice => "single_device",
+            Self::MultiDevice => "multi_device",
+            Self::HardwareBacked => "hardware_backed",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeviceType {
@@ -161,6 +175,10 @@ pub enum VerifyError {
     ForeignOwnerKey,
     #[error("owner signature does not verify")]
     OwnerSignatureInvalid,
+    #[error("hub signature on the assurance receipt does not verify")]
+    ReceiptSignatureInvalid,
+    #[error("the supplied hub key is not the key this receipt was signed by")]
+    SignerKeyMismatch,
     #[error("malformed attestation: {0}")]
     Malformed(String),
 }
@@ -370,8 +388,20 @@ pub struct TierBinding {
 /// verifies the signature with the hub's public key and checks freshness —
 /// **without running Hestia or trusting the presenter** (PRD_ASSURANCE A2: "verify
 /// a signed decision before acting"). Trust in the hub identity itself is the
-/// relying party's to establish (pin `hub_signer_pubkey_hex`, or resolve the hub's
-/// published LCT) — inspectable evidence, not prescribed trust.
+/// relying party's to establish — inspectable evidence, not prescribed trust.
+///
+/// **The receipt never carries a usable verification key.** It names its signer
+/// two ways the holder cannot forge into authority: `hub_signer_lct_id` (resolve
+/// it to a published LCT) and `hub_signer_key_id` (a truncated fingerprint —
+/// enough to *select* among keys you already trust, useless for verifying). The
+/// key itself must arrive out of band. Carrying the full pubkey would let a
+/// relying party do the natural-looking thing —
+/// `receipt.verify(&pubkey_from_hex(&receipt.<key>)?, now)` — and accept a wholly
+/// fabricated receipt signed by an attacker's keypair with `tier:
+/// HardwareBacked`. That is JWT `jwk`-header confusion, and it is the same
+/// self-authentication hole `verify_enrolled` guards with `ForeignOwnerKey`
+/// (see the `verify()` docs at rules 3/4 above). A fingerprint cannot be
+/// inflated into a key, so the trap does not exist to be walked into.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AssuranceReceipt {
     pub owner_lct_id: Uuid,
@@ -382,56 +412,102 @@ pub struct AssuranceReceipt {
     pub issued_at: DateTime<Utc>,
     pub bound_at: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
+    /// The hub **society** LCT — the hub record, NOT the signing identity.
     pub hub_lct_id: Uuid,
-    /// The hub key that signed this receipt — the relying party verifies against it
-    /// and confirms (out of band / via the hub's published LCT) it is the hub it trusts.
-    pub hub_signer_pubkey_hex: String,
-    /// `sha256` over the ordered device roster — binds the tier to the EXACT device
-    /// set, so a receipt can't be replayed for a different constellation.
+    /// The LCT whose key actually produced `signature`. On a live hub this differs
+    /// from `hub_lct_id` (society id `edf4d5ba-…` vs the sovereign LCT), so a
+    /// relying party resolving "the hub's published LCT" from `hub_lct_id` alone
+    /// resolves the wrong record and can never name the key holder.
+    pub hub_signer_lct_id: Uuid,
+    /// **Key selector, not a key**: the first 8 bytes of `sha256(pubkey)`, hex.
+    /// Lets a relying party pick the right key out of the set it already trusts,
+    /// and yields a precise [`VerifyError::SignerKeyMismatch`] when it picks
+    /// wrong. It is NOT sufficient to verify with — deliberately.
+    pub hub_signer_key_id: String,
+    /// `sha256` over the device roster in **sorted** order — binds the tier to the
+    /// EXACT device set, so a receipt can't be replayed for a different
+    /// constellation, and a relying party holding that set can recompute it
+    /// without knowing the order the presenter happened to use.
     pub roster_hash: String,
     /// The hub's Ed25519 signature over [`Self::signing_bytes`], hex. Empty until signed.
     pub signature: String,
 }
 
 impl AssuranceReceipt {
-    /// SHA-256 of the ordered roster — deterministic, cross-implementation.
+    /// The `hub_signer_key_id` for a key — first 8 bytes of `sha256(pubkey)`, hex.
+    /// A selector, deliberately too short and too one-way to serve as a key.
+    pub fn key_id(pubkey: &PublicKey) -> String {
+        hex::encode(&sha256(&pubkey.to_bytes())[..8])
+    }
+
+    /// SHA-256 over the roster in **sorted** order — deterministic and
+    /// cross-implementation, so any verifier holding the same device set computes
+    /// the same hash regardless of presentation order. (Roster order carries no
+    /// meaning here: the tier is derived from the enrolled set, not a sequence.)
     pub fn roster_hash(roster: &[Uuid]) -> String {
+        let mut sorted: Vec<&Uuid> = roster.iter().collect();
+        sorted.sort_unstable();
         let mut buf = Vec::with_capacity(16 * roster.len());
-        for r in roster {
+        for r in sorted {
             buf.extend_from_slice(r.as_bytes());
         }
         hex::encode(sha256(&buf))
     }
 
-    /// Canonical bytes the hub signs — every field EXCEPT the signature. A
-    /// version tag domains it; field order is fixed. Any drift breaks the sig.
+    /// Canonical bytes the hub signs — **every field except `signature`**, with
+    /// no exceptions: the signer's identity and key id are inside the tag, so a
+    /// holder cannot re-point a valid receipt at a different signer. A version
+    /// tag domains it; field order is fixed. Any drift breaks the sig.
+    ///
+    /// `v2` (2026-07-29): `v1` omitted the signer's key id, carried no signer
+    /// identity at all, and spelled the tier with Rust's `Debug` impl. The byte
+    /// layout changed, so the tag had to; no `v1` receipt was ever issued (the
+    /// primitive had not yet reached a running daemon), so nothing is stranded.
     pub fn signing_bytes(&self) -> Vec<u8> {
         let mut b = Vec::with_capacity(256);
-        b.extend_from_slice(b"web4:assurance-receipt:v1:");
+        b.extend_from_slice(b"web4:assurance-receipt:v2:");
         b.extend_from_slice(self.owner_lct_id.as_bytes());
-        b.extend_from_slice(format!("{:?}", self.tier).as_bytes());
+        b.extend_from_slice(self.tier.wire_tag().as_bytes());
         b.extend_from_slice(self.pair_id.as_bytes());
         b.extend_from_slice(self.challenge_nonce.as_bytes());
         b.extend_from_slice(self.issued_at.to_rfc3339().as_bytes());
         b.extend_from_slice(self.bound_at.to_rfc3339().as_bytes());
         b.extend_from_slice(self.valid_until.to_rfc3339().as_bytes());
         b.extend_from_slice(self.hub_lct_id.as_bytes());
+        b.extend_from_slice(self.hub_signer_lct_id.as_bytes());
+        b.extend_from_slice(self.hub_signer_key_id.as_bytes());
         b.extend_from_slice(self.roster_hash.as_bytes());
         b
     }
 
     /// **The relying party's check — no Hestia required.** Verify the hub's
     /// signature over the canonical bytes and confirm the receipt is unexpired.
-    /// The caller supplies the hub's public key (pinned or resolved) and `now`.
+    ///
+    /// `hub_pubkey` MUST come from outside the receipt — pinned, or resolved from
+    /// the LCT named by `hub_signer_lct_id`. The receipt cannot supply it (see the
+    /// struct docs); `hub_signer_key_id` only confirms the caller brought the key
+    /// this receipt was actually signed by, turning "wrong hub" from an opaque
+    /// signature failure into [`VerifyError::SignerKeyMismatch`].
     pub fn verify(&self, hub_pubkey: &PublicKey, now: DateTime<Utc>) -> Result<(), VerifyError> {
         if now > self.valid_until {
             return Err(VerifyError::Stale);
+        }
+        // Order matters: reject a key that isn't this receipt's signer BEFORE
+        // spending a signature verification on it, and never fall through to
+        // "well, the bytes verified" for a key the receipt doesn't claim.
+        if self.hub_signer_key_id.is_empty() {
+            return Err(VerifyError::Malformed(
+                "receipt carries no hub_signer_key_id — unattributable, refusing to verify".into(),
+            ));
+        }
+        if Self::key_id(hub_pubkey) != self.hub_signer_key_id {
+            return Err(VerifyError::SignerKeyMismatch);
         }
         let sig = sig_from_hex(&self.signature)
             .map_err(|e| VerifyError::Malformed(format!("receipt signature: {e}")))?;
         hub_pubkey
             .verify(&self.signing_bytes(), &sig)
-            .map_err(|_| VerifyError::OwnerSignatureInvalid)
+            .map_err(|_| VerifyError::ReceiptSignatureInvalid)
     }
 }
 
@@ -935,6 +1011,7 @@ mod tests {
         let hub_kp = KeyPair::generate();
         let now = Utc::now();
         let roster = vec![Uuid::new_v4(), Uuid::new_v4()];
+        let signer_lct = Uuid::new_v4();
         let mut r = AssuranceReceipt {
             owner_lct_id: Uuid::new_v4(),
             tier: AssuranceLevel::HardwareBacked,
@@ -944,7 +1021,8 @@ mod tests {
             bound_at: now,
             valid_until: now + Duration::hours(1),
             hub_lct_id: Uuid::new_v4(),
-            hub_signer_pubkey_hex: hub_kp.verifying_key().to_hex(),
+            hub_signer_lct_id: signer_lct,
+            hub_signer_key_id: AssuranceReceipt::key_id(&hub_kp.verifying_key()),
             roster_hash: AssuranceReceipt::roster_hash(&roster),
             signature: String::new(),
         };
@@ -955,14 +1033,99 @@ mod tests {
         // Tamper the tier → the signature no longer covers it.
         let mut forged = r.clone();
         forged.tier = AssuranceLevel::SingleDevice;
-        assert_eq!(forged.verify(&hub_kp.verifying_key(), now), Err(VerifyError::OwnerSignatureInvalid));
+        assert_eq!(forged.verify(&hub_kp.verifying_key(), now), Err(VerifyError::ReceiptSignatureInvalid));
         // Tamper the roster_hash (replay to another constellation) → fails.
         let mut replayed = r.clone();
         replayed.roster_hash = AssuranceReceipt::roster_hash(&[Uuid::new_v4()]);
         assert!(replayed.verify(&hub_kp.verifying_key(), now).is_err());
         // Expired → Stale.
         assert_eq!(r.verify(&hub_kp.verifying_key(), now + Duration::hours(2)), Err(VerifyError::Stale));
-        // A different hub key → fails (relying party must pin the right hub).
-        assert!(r.verify(&KeyPair::generate().verifying_key(), now).is_err());
+        // A different hub key → named as such, not an opaque sig failure.
+        assert_eq!(
+            r.verify(&KeyPair::generate().verifying_key(), now),
+            Err(VerifyError::SignerKeyMismatch)
+        );
+        // Re-pointing a valid receipt at another signer identity breaks the sig:
+        // hub_signer_lct_id is inside the signed bytes.
+        let mut repointed = r.clone();
+        repointed.hub_signer_lct_id = Uuid::new_v4();
+        assert_eq!(
+            repointed.verify(&hub_kp.verifying_key(), now),
+            Err(VerifyError::ReceiptSignatureInvalid)
+        );
+    }
+
+    #[test]
+    fn a_fabricated_receipt_cannot_self_authenticate_its_signer() {
+        // THE trap this shape exists to prevent (JWT `jwk`-header confusion). An
+        // attacker mints their own keypair, writes the highest tier and any owner
+        // they like, and signs it themselves. The receipt is internally perfect:
+        // its key id matches its signature, every field is covered.
+        let attacker = KeyPair::generate();
+        let now = Utc::now();
+        let mut forged = AssuranceReceipt {
+            owner_lct_id: Uuid::new_v4(),
+            tier: AssuranceLevel::HardwareBacked,
+            pair_id: Uuid::new_v4(),
+            challenge_nonce: "attacker-chosen".into(),
+            issued_at: now,
+            bound_at: now,
+            valid_until: now + Duration::hours(1),
+            hub_lct_id: Uuid::new_v4(),
+            hub_signer_lct_id: Uuid::new_v4(),
+            hub_signer_key_id: AssuranceReceipt::key_id(&attacker.verifying_key()),
+            roster_hash: AssuranceReceipt::roster_hash(&[Uuid::new_v4()]),
+            signature: String::new(),
+        };
+        forged.signature = attacker.sign(&forged.signing_bytes()).to_hex();
+
+        // Self-consistent, so it verifies against the attacker's OWN key — that is
+        // expected and harmless. The receipt is only evidence about a key.
+        assert!(forged.verify(&attacker.verifying_key(), now).is_ok());
+
+        // What must NOT be possible: the relying party deriving the verification
+        // key from the receipt. `hub_signer_key_id` is a one-way 8-byte selector,
+        // so there is no `pubkey_from_hex(receipt.<field>)` to write — the struct
+        // exposes no key material at all. The only key a relying party can bring
+        // is one it already trusts, and against the real hub's key the forgery is
+        // rejected by attribution before a signature is even checked.
+        let real_hub = KeyPair::generate();
+        assert_eq!(
+            forged.verify(&real_hub.verifying_key(), now),
+            Err(VerifyError::SignerKeyMismatch)
+        );
+    }
+
+    #[test]
+    fn roster_hash_is_order_independent_but_set_sensitive() {
+        // A relying party holding the device set recomputes the hash without
+        // knowing the order the presenter used...
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let c = Uuid::new_v4();
+        assert_eq!(
+            AssuranceReceipt::roster_hash(&[a, b, c]),
+            AssuranceReceipt::roster_hash(&[c, a, b])
+        );
+        // ...but a different SET is still a different constellation.
+        assert_ne!(
+            AssuranceReceipt::roster_hash(&[a, b, c]),
+            AssuranceReceipt::roster_hash(&[a, b])
+        );
+    }
+
+    #[test]
+    fn tier_wire_tag_matches_the_serde_wire_value() {
+        // The signed bytes spell the tier with `wire_tag()`; the JSON spells it
+        // with serde. If those two ever disagree, a non-Rust verifier reading the
+        // JSON reconstructs bytes the hub never signed.
+        for tier in [
+            AssuranceLevel::SingleDevice,
+            AssuranceLevel::MultiDevice,
+            AssuranceLevel::HardwareBacked,
+        ] {
+            let json = serde_json::to_string(&tier).expect("tier serializes");
+            assert_eq!(json, format!("\"{}\"", tier.wire_tag()));
+        }
     }
 }
