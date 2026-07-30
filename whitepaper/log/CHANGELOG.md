@@ -5,6 +5,78 @@ Entries are added chronologically, never modified or deleted.
 
 ---
 
+## 2026-07-30 - Correction: the 07-28 package-matrix audit queried the wrong package name, and the paper inherited the error
+
+**Content change. This entry supersedes the "Claim 2 — the package matrix" section of the 2026-07-28 entry
+below; that entry is left unedited, per this file's append-only rule.**
+
+The 07-28 pass corrected §11's package claim by querying the registries — the right method — and recorded
+this table:
+
+| package | crates.io | PyPI | npm |
+|---|---|---|---|
+| `web4-core` | ✅ | ✅ | ❌ 404 |
+| `web4-trust-core` | ✅ | ❌ 404 | ✅ |
+
+**The PyPI 404 was an artifact of the query, not a fact about the registry.** The trust crate's Python
+wheel is published under the distribution name **`web4-trust`**, not `web4-trust-core`. Verified against
+the live registries this pass:
+
+| package | crates.io | PyPI | npm |
+|---|---|---|---|
+| `web4-core` | ✅ 0.3.0 | ✅ `web4-core` 0.3.0 | ❌ 404 |
+| `web4-trust-core` | ✅ 0.2.0 | ✅ **`web4-trust`** 0.2.0 | ✅ `web4-trust-core` 0.2.0 |
+
+Five of six cells are filled, not four. `web4-trust` carries three releases on PyPI (0.1.0, 0.1.1, 0.2.0),
+so that cell has never been empty during any period the paper claimed it was.
+
+**The name was in the file the 07-28 entry cited as its evidence.** That entry proved the cell was "built
+in-tree" by pointing at `web4-trust-core/pyproject.toml` — whose line 6 reads `name = "web4-trust"`. The
+build config was read for its existence and not for the distribution name it declares, and the registry was
+then queried under the crate name. The correct fact was also already recorded in `PUBLISHER_CONTEXT.md`
+(§6, 2026-05-21 entry) as "`web4-trust` PyPI 0.2.0" — one of the package surfaces the v0.2.0 release note
+enumerates.
+
+**Both halves of the superseded sentence were wrong, in opposite directions.** §11 read: *"The remaining two
+cells of that matrix are built in-tree but not published."*
+
+1. `web4-trust-core` → PyPI: **published**, not unpublished.
+2. `web4-core` → npm: **not built in-tree.** `web4-core/Cargo.toml` has no `wasm` feature, no
+   `wasm-bindgen` dependency, and no `crate-type = ["cdylib"]`; there is no `package.json` anywhere under
+   `web4-core/`. Contrast `web4-trust-core/Cargo.toml:17` (`wasm` feature), `:38` (`wasm-bindgen`), and
+   `:60-61` (`cdylib`), which is what a crate with a browser build actually looks like.
+
+So the paper simultaneously understated what the project ships and overstated how close the one real gap is
+to shipping. The corrected sentence names the registry-name divergence explicitly, because that divergence
+is the reason a reader following the old text would have hit a 404 and concluded the package did not exist.
+
+**Provenance — this is the third pass to make the same query error.** The 2026-07-14 entry in
+`PUBLISHER_CONTEXT.md` §6 records "`web4-trust-core` = 0.2.0 and **not** on PyPI (404, expected — it is a
+Rust crate)" — the same wrong-name query, with a plausible-sounding rationale attached that made it look
+settled. 07-28 repeated it and promoted it into the paper. A 404 is evidence that *a name* is unclaimed; it
+is only evidence that *a package* is unpublished if the name was right, and nothing in either pass checked
+the name against the build config that declares it.
+
+**Also corrected: `PUBLISHER_CONTEXT.md` §6 had no 2026-07-28 entry at all.** The 07-28 content change was
+recorded here, in this changelog, and never in §6 — while §11 of that document instructs each pass to "read
+this entire document first — it's your complete context." A pass reading §6 would see 07-29 followed by
+07-27 and have no way to know §11 was edited in between. A 07-28 back-entry has been added, marked as such.
+
+**Claims re-verified and HELD this pass (no edit):** `web4-core` shipping the attestation envelope
+(`web4-core/src/attestation.rs` plus the Python `trust/attestation/` package with tpm2 / secure_enclave /
+fido2 / software anchors); the hub paragraph's README scoping (`0.1.0-alpha.0` at README:159, "reference
+proof-of-concept" at :13, private production repo at :14, "Pilot-ready" at :32, "First deployment target: a
+pilot community chapter" at :17 — all still accurate); the hestia paragraph (corrected 07-27) unchanged and
+still accurate; §11:21's "role assignment through governance" (raised and refuted 07-29 on the
+`law.rs` namespace split — not re-raised).
+
+**Verification:** artifacts rebuilt locally and confirmed by content across all four surfaces (monolith,
+`docs/whitepaper-web/index.html`, `build/web/index.html`, PDF text layer); the superseded string confirmed
+absent from all four. Whitepaper CI remains dead — day 75, protected-branch rejection at the deploy push —
+so this rebuild was manual, as every content-carrying rebuild has been since 2026-05-16.
+
+---
+
 ## 2026-07-28 - Correction: §11's two remaining living-example declarations, audited against primary sources
 
 **Content change.** The 2026-07-27 pass closed with a watch item: *"§11's remaining living-example claims
