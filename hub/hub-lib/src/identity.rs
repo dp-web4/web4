@@ -57,7 +57,7 @@ impl IdentityFile {
         }
         let json = serde_json::to_string_pretty(self)
             .context("serializing identity file")?;
-        std::fs::write(path, json)
+        crate::atomic_file::write_atomic(path, json)
             .with_context(|| format!("writing identity file {}", path.display()))?;
         Ok(())
     }

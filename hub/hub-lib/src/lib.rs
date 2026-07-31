@@ -23,6 +23,7 @@
 //! drift prevention.
 
 pub mod hub;
+pub mod atomic_file;
 pub mod charter;
 pub mod constellation;
 pub mod envelope;
