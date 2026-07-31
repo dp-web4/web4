@@ -162,7 +162,20 @@ impl IntoResponse for AdminError {
 
 impl From<anyhow::Error> for AdminError {
     fn from(e: anyhow::Error) -> Self {
-        AdminError(StatusCode::INTERNAL_SERVER_ERROR, format!("{:#}", e))
+        AdminError::internal(format!("{:#}", e))
+    }
+}
+
+impl AdminError {
+    /// Every internal failure an admin page can hit, redacted at the source
+    /// (see [`crate::rest::redact_internal`]). Four of these handlers —
+    /// `landing_page`, `roles`, `law`, `council` — are declared in [`router`],
+    /// which `main::public_plane_router` merges onto the anonymous listener.
+    pub(crate) fn internal(detail: String) -> Self {
+        AdminError(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            crate::rest::redact_internal(detail),
+        )
     }
 }
 
@@ -439,7 +452,7 @@ async fn ledger_detail(
     })?;
 
     let event_json = serde_json::to_string_pretty(&entry.event)
-        .map_err(|e| AdminError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(|e| AdminError::internal(e.to_string()))?;
 
     let proposal_ref_html = match entry.proposal_ref {
         Some(id) => format!(
@@ -482,9 +495,9 @@ async fn council(State(s): State<RestState>) -> Result<Html<String>, AdminError>
     drop(ledger);
     let proposals = {
         let store = s.open_store().await
-            .map_err(|e| AdminError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            .map_err(|e| AdminError::internal(e.to_string()))?;
         store.list_proposals().await
-            .map_err(|e| AdminError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .map_err(|e| AdminError::internal(e.to_string()))?
     };
 
     let mut body = String::from("<h2>Sovereign Council proposals</h2><dl class=\"grid\">");
