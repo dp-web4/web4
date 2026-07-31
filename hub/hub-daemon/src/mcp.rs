@@ -162,6 +162,7 @@ pub fn write_router(state: McpState) -> Router {
 
 /// Status-aware MCP error. Constructors set the right HTTP code so
 /// PolicyEntity gating (deny → 403, escalate → 202) mirrors REST.
+#[derive(Debug)]
 struct ApiError {
     status: StatusCode,
     message: String,
@@ -578,6 +579,8 @@ async fn append_with_sovereign(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rest::channel_e2e_tests::{fresh_rest_state, witness_for_test};
+    use crate::rest::RestState;
 
     /// H-001 gate: the Sovereign-signing MCP write tools are merged into the
     /// public listener, so they must refuse any non-loopback caller. (Read tools
@@ -594,5 +597,401 @@ mod tests {
         );
         assert!(require_loopback(&local4).is_ok(), "loopback v4 is allowed");
         assert!(require_loopback(&local6).is_ok(), "loopback v6 is allowed");
+    }
+
+    // ---------- harness ----------
+
+    /// An `McpState` over the SAME hub a `RestState` is serving — the sharing
+    /// `hub serve` actually builds (one signer, one ledger, one law slot, one
+    /// store key). Tests seed through REST's `witness_for_test` and then drive
+    /// the MCP handlers, so what they observe is one hub, not two.
+    async fn mcp_over(s: &RestState) -> McpState {
+        McpState::open_with_law_and_ledger(
+            s.paths.root.clone(),
+            s.law.clone(),
+            s.ledger.clone(),
+            s.signer.clone(),
+            s.sovereign_lct_id,
+            s.store_key.clone(),
+            s.hub_id,
+            s.hub_name.clone(),
+        )
+        .await
+        .expect("an McpState over an ignited local-mode hub")
+    }
+
+    fn loopback() -> ConnectInfo<SocketAddr> {
+        ConnectInfo("127.0.0.1:52000".parse().unwrap())
+    }
+
+    /// The witnessed head — `(last index, head hash)`. The pair is the ledger's
+    /// identity: an appended entry moves both, and a denied act must move neither.
+    async fn head(s: &McpState) -> (u64, String) {
+        let ledger = s.ledger.lock().await;
+        (
+            HubState::project(&ledger).last_index,
+            ledger.head_hash().to_string(),
+        )
+    }
+
+    /// Order-independent JSON rendering. `Society.roles` is a hash map, so two
+    /// serializations of the SAME society differ in key order — comparing raw
+    /// `to_string` output reports a difference that isn't one (and, worse,
+    /// reports a difference where a real one is required).
+    fn canonical(v: &serde_json::Value) -> String {
+        match v {
+            serde_json::Value::Object(m) => {
+                let sorted: std::collections::BTreeMap<_, _> =
+                    m.iter().map(|(k, v)| (k.as_str(), canonical(v))).collect();
+                let body: Vec<String> =
+                    sorted.iter().map(|(k, v)| format!("{k:?}:{v}")).collect();
+                format!("{{{}}}", body.join(","))
+            }
+            serde_json::Value::Array(a) => {
+                let body: Vec<String> = a.iter().map(canonical).collect();
+                format!("[{}]", body.join(","))
+            }
+            other => other.to_string(),
+        }
+    }
+
+    /// The persisted society, canonically rendered. `assign_role` mutates a
+    /// local copy before the gate runs, so "was anything written" is the
+    /// question that matters, and only the stored bytes answer it.
+    async fn stored_society(s: &McpState) -> String {
+        let store = s.open_store().await.expect("store opens");
+        let society = store
+            .read_society()
+            .await
+            .expect("society reads")
+            .expect("an initialized hub has a society");
+        canonical(&serde_json::to_value(&society).expect("society serializes"))
+    }
+
+    fn add_member_req() -> AddMemberRequest {
+        AddMemberRequest { member_lct_id: Uuid::new_v4(), name: Some("Probe".into()) }
+    }
+
+    /// A law that pins one `decision` onto one event kind. `check_governance`
+    /// builds its `R6Request` with `action = event.kind()`, so this is the
+    /// narrowest possible selector for a single tool.
+    fn law_for(action: &str, decision: &str) -> String {
+        format!(
+            "version: \"1.0.0\"\nnorms:\n  - id: MCP-TEST-NORM\n    \
+             selector: r6.request.action\n    operator: \"==\"\n    \
+             value: {action}\n    decision: {decision}\n    priority: 100\n"
+        )
+    }
+
+    // ---------- append_signed_event: what the caller is told ----------
+
+    /// The response is the receipt for the append, so its three fields must
+    /// describe the entry that actually landed — not the entry we intended.
+    /// Nothing checked that `entry_hash` is the new head, which is the one
+    /// field a caller can independently verify the chain against.
+    #[tokio::test]
+    async fn a_write_tools_receipt_names_the_entry_that_actually_landed() {
+        let (_tmp, rest) = fresh_rest_state(None).await;
+        let s = mcp_over(&rest).await;
+        let (before_index, before_hash) = head(&s).await;
+
+        let req = add_member_req();
+        let member = req.member_lct_id;
+        let resp = add_member(State(s.clone()), loopback(), Json(req))
+            .await
+            .expect("an unlawed hub admits a member add")
+            .0;
+
+        assert_eq!(resp.entry_index, before_index + 1, "the receipt must name the appended index");
+        assert_eq!(resp.event_kind, "member_added", "the receipt must name the event kind");
+        let (after_index, after_hash) = head(&s).await;
+        assert_eq!(after_index, resp.entry_index, "the ledger advanced to the receipted index");
+        assert_ne!(after_hash, before_hash, "an append moves the head");
+        assert_eq!(
+            resp.entry_hash, after_hash,
+            "entry_hash must be the new chain head — it is the caller's only handle on the chain"
+        );
+
+        // And the act is real: the projection sees the member.
+        let ledger = s.ledger.lock().await;
+        assert!(
+            HubState::project(&ledger).members.contains_key(&member),
+            "the appended MemberAdded must project into the member registry"
+        );
+    }
+
+    // ---------- check_governance: the council gate ----------
+
+    /// Seed an active council: one holder plus the Sovereign is N=2, then set
+    /// M. Returns after both events are witnessed.
+    async fn set_council(rest: &RestState, new_m: u32) {
+        witness_for_test(rest, HubEvent::CouncilMemberAdded {
+            member_lct_id: Uuid::new_v4(),
+            member_pubkey_hex: "00".repeat(32),
+            added_by: rest.sovereign_lct_id,
+            member_name: Some("Co-Sovereign".into()),
+        })
+        .await;
+        witness_for_test(rest, HubEvent::CouncilThresholdChanged {
+            new_m,
+            initiated_by: rest.sovereign_lct_id,
+        })
+        .await;
+    }
+
+    /// H-002: under an active 2-of-N council, a single-signer Sovereign commit
+    /// is not permitted — and the MCP write tools sign as the Sovereign with no
+    /// council aggregation at all. If this gate regresses, the MCP surface
+    /// becomes the way to commit governed acts *around* council mode.
+    #[tokio::test]
+    async fn council_mode_refuses_the_mcp_write_tools_and_appends_nothing() {
+        let (_tmp, rest) = fresh_rest_state(None).await;
+        let s = mcp_over(&rest).await;
+        set_council(&rest, 2).await;
+        let before = head(&s).await;
+
+        let err = add_member(State(s.clone()), loopback(), Json(add_member_req()))
+            .await
+            .err()
+            .expect("council mode must refuse a single-signer Sovereign commit");
+        assert_eq!(err.status, StatusCode::CONFLICT, "council refusal is a 409");
+        assert!(
+            err.message.contains("council/propose") || err.message.contains("council mode active"),
+            "the refusal must point at the council path, got: {}",
+            err.message
+        );
+        assert_eq!(before, head(&s).await, "a council-refused act must append nothing");
+    }
+
+    /// The boundary the gate is written on (`m >= 2`). A 1-of-N council is a
+    /// council with no aggregation requirement, so the Sovereign acting alone
+    /// IS the threshold — refusing here would brick single-holder hubs.
+    #[tokio::test]
+    async fn a_one_of_n_threshold_is_not_council_mode() {
+        let (_tmp, rest) = fresh_rest_state(None).await;
+        let s = mcp_over(&rest).await;
+        set_council(&rest, 1).await;
+        let (before_index, _) = head(&s).await;
+
+        let resp = add_member(State(s.clone()), loopback(), Json(add_member_req()))
+            .await
+            .expect("M=1 is not council mode — the write must proceed")
+            .0;
+        assert_eq!(resp.entry_index, before_index + 1, "the act committed");
+    }
+
+    // ---------- check_governance: the PolicyEntity gate ----------
+
+    /// Three law decisions, three distinct HTTP outcomes. `deny` and `escalate`
+    /// are both refusals but they are NOT interchangeable — 202 means "queued
+    /// for the Sovereign", 403 means "no". A regression that collapsed escalate
+    /// into deny would silently turn a review queue into a wall, and both
+    /// return an `Err`, so only the status distinguishes them.
+    #[tokio::test]
+    async fn law_deny_and_escalate_refuse_with_distinct_statuses_and_append_nothing() {
+        for (decision, expected) in
+            [("deny", StatusCode::FORBIDDEN), ("escalate", StatusCode::ACCEPTED)]
+        {
+            let (_tmp, rest) = fresh_rest_state(Some(&law_for("member_added", decision))).await;
+            let s = mcp_over(&rest).await;
+            let before = head(&s).await;
+
+            let err = add_member(State(s.clone()), loopback(), Json(add_member_req()))
+                .await
+                .err()
+                .unwrap_or_else(|| panic!("law decision `{decision}` must refuse the act"));
+            assert_eq!(err.status, expected, "law decision `{decision}` mapped to the wrong status");
+            assert_eq!(
+                before,
+                head(&s).await,
+                "a `{decision}` act must leave the ledger bit-identical"
+            );
+        }
+    }
+
+    /// `warn` is the third decision and the one that is easy to get wrong in the
+    /// other direction: it logs and **proceeds**. Pinning it stops a
+    /// fail-closed sweep from quietly reclassifying warn as deny.
+    #[tokio::test]
+    async fn law_warn_proceeds_to_the_ledger() {
+        let (_tmp, rest) = fresh_rest_state(Some(&law_for("member_added", "warn"))).await;
+        let s = mcp_over(&rest).await;
+        let (before_index, _) = head(&s).await;
+
+        let resp = add_member(State(s.clone()), loopback(), Json(add_member_req()))
+            .await
+            .expect("`warn` flags the act, it does not block it")
+            .0;
+        assert_eq!(resp.entry_index, before_index + 1, "a warned act still commits");
+    }
+
+    /// The law is selected on `event.kind()`, so a norm aimed at one tool must
+    /// not catch another. Without this, a law test passes just as well against a
+    /// gate that denies everything.
+    #[tokio::test]
+    async fn a_norm_aimed_at_one_tool_does_not_catch_another() {
+        let (_tmp, rest) = fresh_rest_state(Some(&law_for("role_assigned", "deny"))).await;
+        let s = mcp_over(&rest).await;
+        let (before_index, _) = head(&s).await;
+
+        add_member(State(s.clone()), loopback(), Json(add_member_req()))
+            .await
+            .expect("a role_assigned norm must not deny member_added");
+        assert_eq!(head(&s).await.0, before_index + 1, "the unrelated act committed");
+    }
+
+    // ---------- check_governance: the law-integrity gate (HUB-001 parity) ----------
+
+    /// `check_governance` opens with `law_integrity_write_gate` and the module
+    /// claims REST parity for it. Nothing verified that at this surface. A
+    /// mismatch is the rollback/tamper signal: the served law is not the law the
+    /// ledger witnessed, so the gate we are about to evaluate cannot be trusted.
+    #[tokio::test]
+    async fn a_law_that_diverges_from_the_witnessed_head_refuses_mcp_writes() {
+        let served = law_for("member_added", "allow");
+        let (_tmp, rest) = fresh_rest_state(Some(&served)).await;
+        let s = mcp_over(&rest).await;
+
+        // Serve one law, witness a different one's hash: a positive mismatch.
+        // (LawAmended is exempt from the integrity check — it is the recovery path.)
+        {
+            let mut store = rest.open_store().await.expect("store opens");
+            store.write_law(&served).await.expect("law persists");
+        }
+        witness_for_test(&rest, HubEvent::LawAmended {
+            new_law_sha256: hub_lib::law::Law::sha256_hex_of(&law_for("member_added", "deny")),
+            amended_by: rest.sovereign_lct_id,
+            version: "1.0.0".into(),
+            diff_summary: Some("a head the store does not match".into()),
+        })
+        .await;
+        let before = head(&s).await;
+
+        let err = add_member(State(s.clone()), loopback(), Json(add_member_req()))
+            .await
+            .err()
+            .expect("a law-integrity mismatch must refuse governed writes");
+        assert_eq!(err.status, StatusCode::CONFLICT, "a law-integrity refusal is a 409");
+        assert!(
+            err.message.contains("law integrity mismatch"),
+            "the refusal must name the mismatch, got: {}",
+            err.message
+        );
+        assert_eq!(before, head(&s).await, "a mismatch-refused act must append nothing");
+    }
+
+    // ---------- ordering: the gate must dominate the side effect ----------
+
+    /// RWOA's **O** clause for the one MCP handler that has a pre-append side
+    /// effect. `assign_role` mutates an in-memory society, then gates, then
+    /// persists — and the ordering of those last two lines is the whole
+    /// guarantee. Swap them and society state runs ahead of the witnessed
+    /// ledger: the role reads as filled while no entry attests it, and nothing
+    /// in the test suite noticed. A denied act must leave the store
+    /// bit-identical.
+    #[tokio::test]
+    async fn a_denied_role_assignment_leaves_the_persisted_society_bit_identical() {
+        let (_tmp, rest) = fresh_rest_state(Some(&law_for("role_assigned", "deny"))).await;
+        let s = mcp_over(&rest).await;
+        let before_society = stored_society(&s).await;
+        let before_head = head(&s).await;
+
+        let err = assign_role(
+            State(s.clone()),
+            loopback(),
+            Json(AssignRoleRequest {
+                role: SocietyRole::Archivist,
+                role_lct_id: None,
+                member_lct_id: Uuid::new_v4(),
+            }),
+        )
+        .await
+        .err()
+        .expect("the law denies role_assigned");
+        assert_eq!(err.status, StatusCode::FORBIDDEN, "a law denial is a 403");
+
+        assert_eq!(
+            before_society,
+            stored_society(&s).await,
+            "the denied assignment was persisted — the governance gate ran AFTER write_society"
+        );
+        assert_eq!(before_head, head(&s).await, "a denied assignment must append nothing");
+    }
+
+    /// The other half of the ordering claim: on the allow path the society
+    /// write and the ledger append BOTH happen, and the role LCT in the event is
+    /// the one the society recorded. Without this, "leaves state bit-identical"
+    /// is satisfiable by a handler that never persists anything.
+    #[tokio::test]
+    async fn an_allowed_role_assignment_persists_the_society_and_witnesses_the_same_role_lct() {
+        let (_tmp, rest) = fresh_rest_state(None).await;
+        let s = mcp_over(&rest).await;
+        let before_society = stored_society(&s).await;
+        let member = Uuid::new_v4();
+
+        let resp = assign_role(
+            State(s.clone()),
+            loopback(),
+            Json(AssignRoleRequest {
+                role: SocietyRole::Archivist,
+                role_lct_id: None,
+                member_lct_id: member,
+            }),
+        )
+        .await
+        .expect("an unlawed hub allows the Sovereign to assign a role")
+        .0;
+        assert_eq!(resp.event_kind, "role_assigned");
+        assert_ne!(
+            before_society,
+            stored_society(&s).await,
+            "an allowed assignment must be persisted"
+        );
+
+        // The witnessed event's role_lct_id is the society's, not a fresh one.
+        let ledger = s.ledger.lock().await;
+        let entry = ledger
+            .entries()
+            .iter()
+            .rev()
+            .find(|e| matches!(e.event, HubEvent::RoleAssigned { .. }))
+            .expect("a RoleAssigned entry was appended");
+        let HubEvent::RoleAssigned { role_lct_id, assigned_to, .. } = &entry.event else {
+            unreachable!()
+        };
+        assert_eq!(*assigned_to, member, "the event names the assignee");
+        let store = s.open_store().await.unwrap();
+        let society = store.read_society().await.unwrap().unwrap();
+        assert!(
+            society.roles.values().any(|r| r.role_lct_id == *role_lct_id
+                && r.filling_entity_lct_id == member),
+            "the witnessed role LCT must be the one the society persisted, not a fresh UUID"
+        );
+    }
+
+    // ---------- find_skill input bound ----------
+
+    /// An over-long skill query is malformed input (400), not a permissions
+    /// failure (403) — the distinction `find_skill` documents against the
+    /// channel-side check in rest.rs. Boundary: exactly MAX is accepted.
+    #[tokio::test]
+    async fn an_over_long_skill_query_is_a_400_and_the_bound_itself_is_allowed() {
+        let (_tmp, rest) = fresh_rest_state(None).await;
+        let s = mcp_over(&rest).await;
+
+        let at_bound = "r".repeat(256);
+        assert!(
+            find_skill(State(s.clone()), Query(FindSkillQuery { q: at_bound })).await.is_ok(),
+            "a query at exactly the bound is accepted"
+        );
+        let over = find_skill(State(s.clone()), Query(FindSkillQuery { q: "r".repeat(257) }))
+            .await
+            .err()
+            .expect("one char over the bound is rejected");
+        assert_eq!(
+            over.status,
+            StatusCode::BAD_REQUEST,
+            "an over-long query is malformed input, not a permissions failure"
+        );
     }
 }
