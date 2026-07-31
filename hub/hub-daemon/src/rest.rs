@@ -1773,7 +1773,9 @@ mod internal_error_redaction_tests {
         );
     }
 
-    /// End-to-end through a real public route on an **unlocked** hub.
+    /// End-to-end through a real public route on an **unlocked** hub: the
+    /// handler is reached, it answers 500 rather than 200, and the 500 carries
+    /// a correlation reference.
     ///
     /// Reachability is the point, and it is asserted rather than assumed. The
     /// locked-shell version of this state is already refused upstream by
@@ -1783,8 +1785,35 @@ mod internal_error_redaction_tests {
     /// underneath it — an unmounted volume, a removed directory, a permission
     /// change. The signer stays live, so `lock_gate` passes and the handler
     /// runs.
+    ///
+    /// **The `!body.contains(root)` assertion below is vacuous and is not a
+    /// guard on redaction.** This test was written under #614 with the name
+    /// `the_public_state_route_does_not_name_the_store_it_failed_to_open`, and
+    /// #616 measured that claim: mutating `redact_internal` to pass
+    /// its detail straight through leaves this test **green**. Every 500 this
+    /// fixture can produce carries the same detail-free sentence, `no society
+    /// found in hub store` — no path, no filename, no OS or sqlite reason — so
+    /// the absolute path was never a candidate substring in the first place.
+    /// The assertion is kept as a cheap regression floor against a future
+    /// handler that formats the root into this body directly; it is not
+    /// evidence that redaction works, and the old name said it was.
+    ///
+    /// What actually pins the disclosure property, each mutation-checked
+    /// against the mutation it is a guard on:
+    /// - `no_internal_constructor_publishes_its_detail` (this module) and
+    ///   `the_blanket_conversion_publishes_no_internal_detail` (`mcp.rs`) —
+    ///   the two tests, and the only two, that fail when `redact_internal`
+    ///   leaks. Re-derived at this commit: with the mutation applied, those two
+    ///   go red and the other 124 `hub-daemon` tests — this one included —
+    ///   stay green.
+    /// - `no_error_type_renders_a_response_without_a_redaction_test`
+    ///   (`main.rs`) — a *different* guard on a *different* mutation: it
+    ///   asserts the set of response-rendering error types is closed, so a
+    ///   fourth leak site fails the build. It does not fail when
+    ///   `redact_internal` leaks, and is not meant to.
     #[tokio::test]
-    async fn the_public_state_route_does_not_name_the_store_it_failed_to_open() {
+    async fn the_public_state_route_answers_500_with_a_correlation_reference_when_its_store_is_gone(
+    ) {
         let (_tmp, state) = crate::rest::channel_e2e_tests::fresh_rest_state(None).await;
         let root = state.paths.root.clone();
 

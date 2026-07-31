@@ -2323,10 +2323,13 @@ mod tests {
     /// re-running: every public-plane 500 the fixture can produce carries the
     /// same detail-free sentence, `no society found in hub store` — no path, no
     /// filename, no OS or sqlite reason. The leaking mutant survives the whole
-    /// 41-pair sweep. It also survives #614's own end-to-end test
-    /// (`the_public_state_route_does_not_name_the_store_it_failed_to_open`),
-    /// which asserts `!body.contains(root_path)` against that same sentence —
-    /// so that test is vacuous with respect to the disclosure it names, and was
+    /// 41-pair sweep. It also survives #614's own end-to-end test — then named
+    /// `the_public_state_route_does_not_name_the_store_it_failed_to_open`,
+    /// **renamed under #617** to
+    /// `the_public_state_route_answers_500_with_a_correlation_reference_when_its_store_is_gone`
+    /// once this finding was applied at its own site — which asserts
+    /// `!body.contains(root_path)` against that same sentence, so that test is
+    /// vacuous with respect to the disclosure the old name claimed, and was
     /// vacuous when it was written. Corrupting the db instead does not help
     /// (`society()` still returns `Ok` — the store handle is already open), and
     /// an encrypted-store fixture is refused upstream by `lock_gate` for
