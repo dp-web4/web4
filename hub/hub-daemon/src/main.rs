@@ -2300,6 +2300,461 @@ mod tests {
         }
     }
 
+    /// The residual #614 left open: "the three redaction sites are now correct;
+    /// nothing structurally prevents a fourth."
+    ///
+    /// #614 fixed three `internal(..)` constructors and its tests name each one.
+    /// That shape cannot see a *fourth* leak site: a handler added tomorrow with
+    /// its own error type and its own `From<anyhow::Error>` reintroduces the
+    /// leak and no existing test notices, because every existing test names a
+    /// constructor. `redact_internal` is a convention, and a convention is not a
+    /// constraint.
+    ///
+    /// #614 proposed closing this as a property over the **router** — drive
+    /// every public route to a 500 and assert on the bodies — and recorded the
+    /// blocker as "needs a way to force an arbitrary handler to fail, which does
+    /// not exist today." The forcing mechanism did exist: #614 built it for
+    /// `read_state` and used it once (**the storage goes away under a running,
+    /// unlocked hub** — the signer stays live, so `lock_gate` passes and the
+    /// handler runs).
+    ///
+    /// **That route-level property was built here and it does not work.**
+    /// Measured, by mutating `redact_internal` to pass its detail through and
+    /// re-running: every public-plane 500 the fixture can produce carries the
+    /// same detail-free sentence, `no society found in hub store` — no path, no
+    /// filename, no OS or sqlite reason. The leaking mutant survives the whole
+    /// 41-pair sweep. It also survives #614's own end-to-end test
+    /// (`the_public_state_route_does_not_name_the_store_it_failed_to_open`),
+    /// which asserts `!body.contains(root_path)` against that same sentence —
+    /// so that test is vacuous with respect to the disclosure it names, and was
+    /// vacuous when it was written. Corrupting the db instead does not help
+    /// (`society()` still returns `Ok` — the store handle is already open), and
+    /// an encrypted-store fixture is refused upstream by `lock_gate` for
+    /// everything outside tier-0.
+    ///
+    /// So the residual is closed **at the type level** instead, by
+    /// [`no_error_type_renders_a_response_without_a_redaction_test`]: the set of
+    /// types that can render a response is asserted closed, so a fourth one
+    /// fails the build until someone adds its redaction case. That guard was
+    /// mutation-checked — a fourth error type with a leaking
+    /// `From<anyhow::Error>` added to `mcp.rs` fails it.
+    ///
+    /// The route sweep is kept because it is a real net for a *different* leak —
+    /// a handler that formats a path into any response, at any status, rather
+    /// than through the `internal(..)` constructors — and because its route list
+    /// is parsed from the routers' own source, so a route added tomorrow is
+    /// covered without anyone remembering this module exists. It is **not** a
+    /// guard on `redact_internal`; nothing here is, and the sentence above says
+    /// why.
+    mod public_plane_redaction {
+        use super::*;
+        use crate::rest::channel_e2e_tests::fresh_rest_state;
+        use axum::body::Body;
+        use axum::extract::ConnectInfo;
+        use axum::http::{Request, StatusCode};
+        use std::net::SocketAddr;
+        use tower::ServiceExt;
+
+        /// A request the way the real listener presents it. `run_serve` serves
+        /// these routers through `into_make_service_with_connect_info`, so the
+        /// peer address is always present in production; a bare `oneshot`
+        /// without it is rejected by the `ConnectInfo` extractor *before the
+        /// handler runs*, which would silently exempt every peer-aware route
+        /// (`/unlock`, `/channel`, the join path) from this sweep — exactly the
+        /// routes with the most to leak.
+        fn request(method: &str, path: &str) -> Request<Body> {
+            let mut req = Request::builder()
+                .method(method)
+                .uri(path)
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
+                .unwrap();
+            req.extensions_mut().insert(ConnectInfo(
+                "203.0.113.7:54321".parse::<SocketAddr>().unwrap(),
+            ));
+            req
+        }
+
+        /// The route literals declared inside one router function, read from
+        /// that function's own source at compile time.
+        ///
+        /// Parsing the source instead of maintaining a list is the point: the
+        /// guard has to cover routes nobody thought about when writing it. The
+        /// parse is deliberately brittle in the safe direction — a signature it
+        /// cannot find, or a body with no routes in it, fails the test loudly
+        /// rather than silently covering nothing.
+        fn declared_routes(src: &str, marker: &str) -> Vec<String> {
+            let start = src.find(marker).unwrap_or_else(|| {
+                panic!(
+                    "router signature {marker:?} not found — this parser has drifted from \
+                     the source it guards; fix the marker, do not delete the test"
+                )
+            });
+            // Router fns are top-level, so the first column-0 `}` closes it.
+            let body = &src[start..];
+            let end = body
+                .find("\n}\n")
+                .unwrap_or_else(|| panic!("unterminated router fn at {marker:?}"));
+            let body = &body[..end];
+
+            let mut out = Vec::new();
+            let mut rest = body;
+            while let Some(i) = rest.find(".route(\"") {
+                rest = &rest[i + r#".route(""#.len()..];
+                let j = rest
+                    .find('"')
+                    .unwrap_or_else(|| panic!("unterminated route literal in {marker:?}"));
+                out.push(rest[..j].to_string());
+                rest = &rest[j..];
+            }
+            assert!(
+                !out.is_empty(),
+                "parsed zero routes out of {marker:?} — the parse broke and this test \
+                 would pass by covering nothing"
+            );
+            out
+        }
+
+        /// Every route on the public plane, from the three routers
+        /// `public_plane_router` merges. Kept in lockstep with that function by
+        /// `the_route_sources_match_the_assembled_public_plane` below.
+        fn public_plane_routes() -> Vec<String> {
+            let mut v = declared_routes(
+                include_str!("mcp.rs"),
+                "pub fn read_router(state: McpState) -> Router {",
+            );
+            v.extend(declared_routes(
+                include_str!("rest.rs"),
+                "pub fn router(state: RestState) -> Router {",
+            ));
+            v.extend(declared_routes(
+                include_str!("admin.rs"),
+                "pub fn router(state: RestState) -> Router {",
+            ));
+            v
+        }
+
+        /// `:param` → something a handler will accept far enough to reach the
+        /// store. `:hub_id` must be the real one or `lock_gate`/the hub-id check
+        /// short-circuits before the handler runs.
+        fn concrete(path: &str, hub_id: Uuid) -> String {
+            path.split('/')
+                .map(|seg| match seg.strip_prefix(':') {
+                    Some("hub_id") => hub_id.to_string(),
+                    Some(_) => Uuid::nil().to_string(),
+                    None => seg.to_string(),
+                })
+                .collect::<Vec<_>>()
+                .join("/")
+        }
+
+        /// What an internal failure must never tell an anonymous caller. These
+        /// are the substrings a real store failure carries on this hub, not
+        /// invented ones: the absolute society path, the db filename, the
+        /// passphrase sentence, and the raw OS/sqlite reason.
+        fn leak_needles(root: &str) -> Vec<String> {
+            vec![
+                root.to_string(),
+                "hub.db".into(),
+                "HUB_PASSPHRASE".into(),
+                "No such file".into(),
+                "os error".into(),
+                "SqliteFailure".into(),
+            ]
+        }
+
+        /// A status axum's own body extractor produces *before* the handler
+        /// runs. The sweep sends `{}` to every route, which is a valid body for
+        /// almost none of them, so these say "this route was checked as far as
+        /// its extractor and no further".
+        fn body_extractor_rejected(status: StatusCode) -> bool {
+            matches!(
+                status,
+                StatusCode::BAD_REQUEST
+                    | StatusCode::UNSUPPORTED_MEDIA_TYPE
+                    | StatusCode::UNPROCESSABLE_ENTITY
+            )
+        }
+
+        /// The declared limit of this sweep. A generic driver cannot construct
+        /// a valid body for a route it knows nothing about — a signed envelope,
+        /// a sealed channel request, an unlock attestation — so these routes
+        /// are exercised only up to their `Json<T>` extractor. They are listed,
+        /// not hidden, because a guard that quietly covers half its surface
+        /// reads as covering all of it.
+        const BODY_EXEMPT: &[&str] = &[
+            "/v1/auth/challenge",
+            "/v1/hubs/:hub_id/channel",
+            "/v1/hubs/:hub_id/constellation/enroll",
+            "/v1/hubs/:hub_id/constellation/revoke",
+            "/v1/hubs/:hub_id/council/propose",
+            "/v1/hubs/:hub_id/council/sign",
+            "/v1/hubs/:hub_id/credential",
+            "/v1/hubs/:hub_id/events",
+            "/v1/hubs/:hub_id/lcts/publish",
+            "/v1/hubs/:hub_id/members/join",
+            "/v1/hubs/:hub_id/pairs/:pair_id/confirm",
+            "/v1/hubs/:hub_id/pairs/:pair_id/messages",
+            "/v1/hubs/:hub_id/pairs/:pair_id/revoke",
+            "/v1/hubs/:hub_id/pairs/request",
+            "/v1/hubs/:hub_id/unlock",
+            "/v1/hubs/:hub_id/unlock/attest",
+            // NOT `/unlock/challenge`: it refuses (403) ahead of its body, so
+            // the sweep does reach its handler.
+            "/v1/hubs/:hub_id/vp/request",
+            "/v1/hubs/:hub_id/vp/response",
+        ];
+
+        /// Drives the whole declared public surface with the store removed and
+        /// asserts that no response, at any status, names the store.
+        ///
+        /// Scope, stated because it is narrower than the name suggests: this
+        /// catches a handler that puts a path or an OS reason into a response
+        /// body directly. It does **not** catch a regression in
+        /// `redact_internal` — see the module comment; the failure this fixture
+        /// induces carries no detail to leak, which was measured by mutation and
+        /// not assumed.
+        #[tokio::test]
+        async fn no_public_plane_route_names_the_store_when_it_fails() {
+            let (_tmp, rest) = fresh_rest_state(None).await;
+            let mcp = McpState::open_with_law_and_ledger(
+                rest.paths.root.clone(),
+                rest.law.clone(),
+                rest.ledger.clone(),
+                rest.signer.clone(),
+                rest.sovereign_lct_id,
+                rest.store_key.clone(),
+                rest.hub_id,
+                rest.hub_name.clone(),
+            )
+            .await
+            .unwrap();
+            let public = public_plane_router(mcp, rest.clone(), rest.clone());
+
+            let root = rest.paths.root.clone();
+            let root_s = root.display().to_string();
+            let needles = leak_needles(&root_s);
+
+            // The storage goes away under a running, unlocked hub.
+            std::fs::remove_dir_all(&root).unwrap();
+            assert!(
+                rest.society().await.is_err(),
+                "the fixture never reached the failure state — every route below would \
+                 answer from cache and this test would pass for the wrong reason"
+            );
+
+            let routes = public_plane_routes();
+            let mut server_errors = 0usize;
+            let mut reached = 0usize;
+            let mut exempt: std::collections::BTreeSet<String> = Default::default();
+
+            for route in &routes {
+                let path = concrete(route, rest.hub_id);
+                for method in ["GET", "POST"] {
+                    let resp = public.clone().oneshot(request(method, &path)).await.unwrap();
+                    let status = resp.status();
+                    // 405 = this route exists under the other method; not a case.
+                    if status == StatusCode::METHOD_NOT_ALLOWED {
+                        continue;
+                    }
+                    if body_extractor_rejected(status) {
+                        exempt.insert(route.clone());
+                    } else {
+                        reached += 1;
+                        if status.is_server_error() {
+                            server_errors += 1;
+                        }
+                    }
+                    // Asserted on every response, not only the 5xx: a 200 that
+                    // names the store is the same disclosure, and a rejection
+                    // body is written by the same code path.
+                    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+                        .await
+                        .unwrap();
+                    let body = String::from_utf8_lossy(&bytes);
+                    for needle in &needles {
+                        assert!(
+                            !body.contains(needle.as_str()),
+                            "{method} {path} answered {status} and published {needle:?} to an \
+                             anonymous caller on the network-facing plane:\n{body}"
+                        );
+                    }
+                }
+            }
+
+            // The coverage cap, declared rather than silent. Everything in
+            // BODY_EXEMPT is checked only as far as its body extractor; the
+            // handler behind it is NOT driven by this sweep. Exact equality
+            // both ways: a new POST route lands here and its author has to
+            // notice, and a route that stops being exempt has to be removed so
+            // the list never over-states the gap.
+            let exempt: Vec<&str> = exempt.iter().map(String::as_str).collect();
+            assert_eq!(
+                exempt, BODY_EXEMPT,
+                "the set of routes this sweep cannot drive past their body extractor has \
+                 changed. If you added a route, it is NOT covered end-to-end here — add it \
+                 to BODY_EXEMPT (and prefer a route-specific test that supplies a valid \
+                 body). If a route left the list, delete it from BODY_EXEMPT."
+            );
+
+            // Vacuity guards. Without these the test passes if the parse yields
+            // a short list, or if nothing actually failed.
+            assert!(
+                routes.len() >= 36,
+                "only {} public routes parsed — the source parse is under-reading",
+                routes.len()
+            );
+            assert!(
+                reached >= 20,
+                "only {reached} route/method pairs reached a handler"
+            );
+            assert!(
+                server_errors >= 4,
+                "removing the store drove only {server_errors} routes into 5xx — the fixture \
+                 is no longer inducing the failure this test is about, so a leak would not \
+                 be seen"
+            );
+        }
+
+        /// A 500 that says nothing and gives no way to find what happened is a
+        /// deletion, not a redaction. Asserted only on 500 — `locked_error`'s
+        /// curated 503 is the fleet's ignition instruction and must stay
+        /// un-redacted (see `a_curated_5xx_keeps_the_sentence_the_caller_must_act_on`).
+        #[tokio::test]
+        async fn every_internal_error_on_the_public_plane_is_traceable_to_the_log() {
+            let (_tmp, rest) = fresh_rest_state(None).await;
+            let mcp = McpState::open_with_law_and_ledger(
+                rest.paths.root.clone(),
+                rest.law.clone(),
+                rest.ledger.clone(),
+                rest.signer.clone(),
+                rest.sovereign_lct_id,
+                rest.store_key.clone(),
+                rest.hub_id,
+                rest.hub_name.clone(),
+            )
+            .await
+            .unwrap();
+            let public = public_plane_router(mcp, rest.clone(), rest.clone());
+            std::fs::remove_dir_all(&rest.paths.root).unwrap();
+
+            let mut checked = 0usize;
+            for route in &public_plane_routes() {
+                let path = concrete(route, rest.hub_id);
+                for method in ["GET", "POST"] {
+                    let resp = public.clone().oneshot(request(method, &path)).await.unwrap();
+                    if resp.status() != StatusCode::INTERNAL_SERVER_ERROR {
+                        continue;
+                    }
+                    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+                        .await
+                        .unwrap();
+                    let body = String::from_utf8_lossy(&bytes);
+                    assert!(
+                        body.contains("reference"),
+                        "{method} {path} answered 500 with no correlation reference — the \
+                         detail was deleted rather than moved to the hub log:\n{body}"
+                    );
+                    checked += 1;
+                }
+            }
+            assert!(
+                checked >= 4,
+                "only {checked} 500s seen — the store-removal fixture is no longer driving \
+                 the public plane into internal failure, so this asserts nothing"
+            );
+        }
+
+        /// The residual stated at the type level, which is where it actually
+        /// bites.
+        ///
+        /// #614's redaction tests each name a constructor, so they are blind to
+        /// a **new error type**: add one with its own `From<anyhow::Error>`, use
+        /// `?` in a public handler, and the anyhow chain renders to an anonymous
+        /// caller with no test failing. `redact_internal` is a convention and a
+        /// convention cannot see a type that does not use it.
+        ///
+        /// This does not try to prove a new type redacts — a source grep cannot
+        /// follow `AdminError::internal` to the `redact_internal` inside it. It
+        /// asserts the weaker thing that is actually checkable and actually
+        /// sufficient: the set of types that can render a response is closed.
+        /// A fourth one fails here, and the author has to come to
+        /// `internal_error_redaction_tests` and add its case before this test
+        /// goes green again.
+        #[test]
+        fn no_error_type_renders_a_response_without_a_redaction_test() {
+            /// Every type with a redaction case in
+            /// `rest::internal_error_redaction_tests`.
+            const COVERED: &[&str] = &[
+                "admin.rs::AdminError",
+                "mcp.rs::ApiError",
+                "rest.rs::ApiError",
+            ];
+
+            let mut found: Vec<String> = Vec::new();
+            for (file, src) in [
+                ("mcp.rs", include_str!("mcp.rs")),
+                ("admin.rs", include_str!("admin.rs")),
+                ("rest.rs", include_str!("rest.rs")),
+                ("main.rs", include_str!("main.rs")),
+                ("rate_limit.rs", include_str!("rate_limit.rs")),
+            ] {
+                for line in src.lines() {
+                    // Only real declarations: `impl IntoResponse for X {` at
+                    // column 0. Doc comments and prose mentioning the trait are
+                    // indented or lack the `impl` prefix.
+                    let Some(rest_of) = line.strip_prefix("impl IntoResponse for ") else {
+                        continue;
+                    };
+                    let ty = rest_of.trim_end_matches(" {").trim();
+                    found.push(format!("{file}::{ty}"));
+                }
+            }
+            found.sort();
+
+            assert_eq!(
+                found, COVERED,
+                "the set of error types that can render a response on the hub's planes has \
+                 changed. A type not listed here has no redaction test, and its \
+                 `From<anyhow::Error>` (if any) will publish the anyhow chain — the store's \
+                 absolute path, sqlite's reason, the passphrase sentence — to an anonymous \
+                 caller on a `--bind 0.0.0.0` hub. Add a case to \
+                 `rest::internal_error_redaction_tests` and then update COVERED."
+            );
+        }
+
+        /// The parse covers what `public_plane_router` actually merges. If a
+        /// fourth router joins that function, this fails and the two tests above
+        /// stop being a claim about "the public plane" they cannot back.
+        #[test]
+        fn the_route_sources_match_the_assembled_public_plane() {
+            let src = include_str!("main.rs");
+            let start = src
+                .find("fn public_plane_router(")
+                .expect("public_plane_router not found");
+            let body = &src[start..];
+            let body = &body[..body.find("\n}\n").expect("unterminated fn")];
+            // One base router plus N `.merge(` calls. `public_plane_routes()`
+            // parses exactly these three sources; a fourth would be invisible
+            // to it, and the two sweeps above would still claim to cover "the
+            // public plane".
+            let merged = body.matches(".merge(").count();
+            assert_eq!(
+                merged, 2,
+                "public_plane_router composes {} routers now, not 3; \
+                 public_plane_routes() must be updated to parse them all:\n{body}",
+                merged + 1
+            );
+            for source in ["mcp_read_router(", "rest_router(", "admin::router("] {
+                assert!(
+                    body.contains(source),
+                    "public_plane_router no longer merges {source} — the source that \
+                     public_plane_routes() parses is not the one being served:\n{body}"
+                );
+            }
+        }
+    }
+
     /// The other half of the plane boundary. `plane_split` pins **which router**
     /// a route is declared in; these pin **where each router is served** and
     /// **in what order its gates run**. Both are decided in `run_serve` and
