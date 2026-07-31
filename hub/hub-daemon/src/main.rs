@@ -1307,10 +1307,25 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     let (addr, operator_addr) = plane_addrs(&bind, port, admin_port)?;
 
     // Total enclosure, unlock-first: try to open the encrypted state store with whatever
-    // key is available (none — we keep no passphrase on disk or in env). If it opens
-    // (plaintext / NULL-keyed / fresh hub), boot normally. If it fails closed (encrypted,
-    // no key), boot a LOCKED SHELL that serves only the unlock path; `hub unlock` ignites it
-    // at runtime. The passphrase is never read from the environment.
+    // key is available. If it opens (plaintext / NULL-keyed / fresh hub), boot normally.
+    // If it fails closed (encrypted, no key), boot a LOCKED SHELL that serves only the
+    // unlock path; `hub unlock` ignites it at runtime.
+    //
+    // "Whatever key is available" INCLUDES `HUB_PASSPHRASE`: this is the env'd entry point
+    // (`open_hub_store_async` -> `store::store_key` -> `identity::env_passphrase`). A hub
+    // whose daemon environment carries the passphrase therefore boots UNLOCKED and never
+    // reaches the locked shell. That is a deployment property, not a code guarantee — what
+    // makes a hub boot locked is that nothing put a passphrase in the unit environment.
+    //
+    // The de-env'ing is partial and deliberate, not finished:
+    //   - runtime store re-opens ARE de-env'd — `RestState::open_store` passes the key held
+    //     in memory since ignition, and never re-reads the environment;
+    //   - construction is still env-fed — see the `store_key` / `protected` fields in
+    //     `RestState::open_with_law_and_ledger` (rest.rs), which say "env-fed at
+    //     construction for now ... increment 6".
+    // Until that increment lands, an operator CAN get an unattended-igniting hub by putting
+    // HUB_PASSPHRASE in the unit environment — at the cost of parking the passphrase at rest
+    // beside the ciphertext it protects, which is the whole reason increment 6 exists.
     let store_opens = hub_lib::store::open_hub_store_async(&hub_dir).await.is_ok();
 
     let (rest_state, mcp_state) = if store_opens {
