@@ -20,8 +20,9 @@ use web4_core::lct::{EntityType, Lct};
 
 /// On-disk representation of an LCT plus its signing keypair.
 ///
-/// Contains private key material — protect the file (mode 0600 on Unix
-/// recommended; not enforced in MVP).
+/// Contains private key material. [`save`](Self::save) creates the file 0600 on
+/// unix; a caller-side `chmod` does **not** persist across a save, because the
+/// write installs a fresh inode by rename.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct IdentityFile {
     /// Public LCT — serializes via web4-core's existing Serialize impl.
@@ -48,7 +49,14 @@ impl IdentityFile {
 
     /// Plaintext JSON save. **Bootstrap/tests only** — production goes through
     /// [`save_encrypted`] (the daemon never writes a plaintext private key; see
-    /// the vault doctrine). Caller owns filesystem permissions.
+    /// the vault doctrine).
+    ///
+    /// The file is created **0600** on unix, because it holds a plaintext
+    /// ed25519 secret key. The mode is an argument to the `open(2)`, so the key
+    /// bytes are never on disk at 0644 — and, unlike a caller-side `chmod`, it
+    /// survives a re-save: this path installs a fresh inode by rename, so any
+    /// mode the caller set on the old one is gone. Hardening from outside does
+    /// not work here; it has to be applied at the write.
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
         if let Some(parent) = path.parent() {
@@ -57,7 +65,7 @@ impl IdentityFile {
         }
         let json = serde_json::to_string_pretty(self)
             .context("serializing identity file")?;
-        crate::atomic_file::write_atomic(path, json)
+        crate::atomic_file::write_atomic_mode(path, json, 0o600)
             .with_context(|| format!("writing identity file {}", path.display()))?;
         Ok(())
     }
@@ -182,6 +190,47 @@ mod tests {
 
         let ai_identity = IdentityFile::generate(EntityType::AiSoftware);
         assert_eq!(ai_identity.lct.entity_type, EntityType::AiSoftware);
+    }
+
+    /// `save` writes a plaintext ed25519 secret key, and the struct's own doc
+    /// says the caller owns the permissions on it. Before this test the write
+    /// went through the un-moded `write_atomic`, which installs a **fresh
+    /// inode** carrying `open(2)`-plus-umask — so an operator who hardened the
+    /// file to 0600 had it silently reverted by the next `save()`, and the
+    /// documented remedy was inert. (`std::fs::write`, which this path used
+    /// before the atomic-write sweep, opens the *existing* inode with
+    /// `O_TRUNC` and leaves the mode alone, so the regression arrived with the
+    /// sweep — and the follow-up that built `write_atomic_mode` could not see
+    /// this site, because it greped for `std::fs::write` and this one had just
+    /// stopped being one. Reported by cbp, 2026-07-31.)
+    ///
+    /// Run against `write_atomic`, the second assertion FAILS with 644 (or
+    /// whatever the umask yields); it is the pre-existing-file arm that makes
+    /// the revert visible, so both arms are here deliberately.
+    #[cfg(unix)]
+    #[test]
+    fn save_lands_at_0600_and_does_not_revert_a_hardened_file() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("sovereign.json");
+        let id = IdentityFile::generate(EntityType::Human);
+
+        // Fresh create: the secret is never world-readable, not even briefly —
+        // the mode is on the `open(2)` of the temp file, not a later `chmod`.
+        id.save(&path).unwrap();
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "fresh save landed at {mode:o}, want 600");
+
+        // Re-save over a file the operator hardened: the mode must survive.
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        id.save(&path).unwrap();
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "re-save reverted 0600 to {mode:o}");
+
+        // And the thing being protected is in fact on disk in the clear here —
+        // otherwise this test could pass for the wrong reason.
+        let raw = std::fs::read_to_string(&path).unwrap();
+        assert!(raw.contains(&id.secret_key_hex), "plaintext save must contain the key");
     }
 
     #[test]

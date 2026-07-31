@@ -147,10 +147,19 @@ fn write_inner(path: &Path, contents: &[u8], mode: Option<u32>) -> Result<()> {
         .with_context(|| format!("installing {} -> {}", tmp.display(), path.display()))?;
     guard.disarm();
 
-    // The directory entry itself is not fsynced. That is deliberate: a crash
-    // between the rename and the directory flush leaves the OLD file intact,
-    // which is the safe direction to fail in, and config writes are frequent
-    // enough that a per-write directory sync is a poor trade.
+    // The directory entry itself is not fsynced. That is deliberate, and —
+    // unlike its neighbours in this module — the justification is *reasoned,
+    // not measured*, and it is filesystem-specific (ext4, `data=ordered`): a
+    // crash between the rename and the directory flush leaves the OLD file
+    // intact, which is the safe direction to fail in, and config writes are
+    // frequent enough that a per-write directory sync is a poor trade.
+    //
+    // Two limits on that argument, stated rather than assumed. It holds only
+    // where there IS an old file — on a *first* write there is nothing to fall
+    // back to, so a crash in that window loses the write entirely (`.store-salt`
+    // and `config.toml` both have a predecessor; a freshly provisioned identity
+    // does not). And "the rename is durable once the bytes are" is an ordering
+    // guarantee ext4 gives, not one POSIX does. Nobody has measured this.
     Ok(())
 }
 
