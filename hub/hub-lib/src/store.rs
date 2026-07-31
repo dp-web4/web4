@@ -674,7 +674,7 @@ impl HubStore for FileBackend {
         Self::ensure_parent(&path)?;
         let json = serde_json::to_string_pretty(society)
             .context("serializing society")?;
-        std::fs::write(&path, json)
+        crate::atomic_file::write_atomic(&path, json)
             .with_context(|| format!("writing society to {}", path.display()))?;
         Ok(())
     }
@@ -738,7 +738,7 @@ impl HubStore for FileBackend {
     async fn write_law(&mut self, yaml: &str) -> Result<()> {
         let path = self.law_path();
         Self::ensure_parent(&path)?;
-        std::fs::write(&path, yaml)
+        crate::atomic_file::write_atomic(&path, yaml)
             .with_context(|| format!("writing law to {}", path.display()))
     }
 
@@ -751,13 +751,13 @@ impl HubStore for FileBackend {
         let path = dir.join(format!("{}.json", proposal.id));
         // Atomic write: temp + rename. Avoids torn reads if another
         // request (admin UI, sign, list) reads concurrently.
-        let tmp = path.with_extension("json.tmp");
+        // Was hand-rolled here with a FIXED temp name (`{id}.json.tmp`), which
+        // two concurrent writers of the same proposal shared and spliced. The
+        // helper's temp name carries pid + sequence, so they cannot collide.
         let json = serde_json::to_string_pretty(proposal)
             .context("serializing proposal")?;
-        std::fs::write(&tmp, json)
-            .with_context(|| format!("writing temp proposal {}", tmp.display()))?;
-        std::fs::rename(&tmp, &path)
-            .with_context(|| format!("renaming {} -> {}", tmp.display(), path.display()))?;
+        crate::atomic_file::write_atomic(&path, json)
+            .with_context(|| format!("writing proposal to {}", path.display()))?;
         Ok(())
     }
 
