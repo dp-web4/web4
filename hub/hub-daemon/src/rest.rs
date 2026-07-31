@@ -1674,27 +1674,58 @@ fn locked_error() -> ApiError {
     }
 }
 
+/// The tier-0 allowlist, as **whole paths** rather than suffixes. The five
+/// entries are the routes named in [`lock_gate`]'s contract, spelled the way
+/// `rest_router` / `admin::router` declare them, with `:hub_id` resolved from
+/// the clear `public-identity.json` the locked shell booted on.
+///
+/// It reads paths and not suffixes because a suffix admits routes it never
+/// named. `ends_with("/law")` was written for the tier-0 `GET
+/// /v1/hubs/:hub_id/law`, which serves the in-memory clear law projection and
+/// needs no store — but it also matched `GET /admin/law`, the operator HTML
+/// page, which is on the **public** plane and whose handler opens the protected
+/// store and reads the ledger. On a locked hub that store cannot open by
+/// construction (`run_serve` boots the locked shell precisely *because*
+/// `open_hub_store_async` failed), so the page answered `500` with the store's
+/// error text — the absolute on-disk path of `hub.db` — to an unauthenticated
+/// caller on a `--bind 0.0.0.0` listener, while every sibling `/admin/*` page
+/// correctly answered the fail-closed `503`. Whole-path matching retires that
+/// whole class rather than the one instance of it: `/unlock` and the issuer
+/// metadata carried the same latent reach.
+fn locked_tier0_allows(hub_id: Uuid, path: &str) -> bool {
+    path == "/.well-known/web4-hub.json"
+        // Landing page: its locked branch renders the 🔒 status, and it reads
+        // only `is_locked()` + the in-memory law — never the store.
+        || path == "/"
+        // Tier-1 ignition. Not the tier-2 M-of-N routes (`/unlock/challenge`,
+        // `/unlock/attest`): those require an already-ignited hub, so they are
+        // outside the allowlist by design, exactly as they were under the
+        // suffix.
+        || path == format!("/v1/hubs/{hub_id}/unlock")
+        // The signed law is tier-0 — served from the clear in-memory
+        // projection. NOT `/admin/law`, which needs the protected store.
+        || path == format!("/v1/hubs/{hub_id}/law")
+        // Public issuer metadata (OID4VCI discovery).
+        || path == format!("/v1/hubs/{hub_id}/.well-known/openid-credential-issuer")
+}
+
 /// The fail-closed **lock-gate**: while the hub is locked, every request is
 /// refused (503) except the small tier-0 allowlist — the unlock path itself, the
 /// public discovery doc, the (clear) law, and the OID4VCI issuer metadata.
 /// Applied once to the merged app (covers MCP + REST + admin uniformly), so no
 /// handler runs against unpopulated state in a locked shell. A locked hub is
 /// unlocked, not operated.
+///
+/// The allowlist itself is [`locked_tier0_allows`] — a pure function of
+/// `(hub_id, path)`, so what a locked hub serves is decided in one place and
+/// testable without an assembled app.
 pub async fn lock_gate(
     State(s): State<RestState>,
     req: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    if s.is_locked() {
-        let path = req.uri().path();
-        let allowed = path == "/.well-known/web4-hub.json"
-            || path == "/"                                             // landing page: its locked branch explains 🔒 status
-            || path.ends_with("/unlock")                              // tier-1 ignition only
-            || path.ends_with("/law")                                  // signed law is tier-0
-            || path.ends_with("/.well-known/openid-credential-issuer"); // public issuer metadata
-        if !allowed {
-            return locked_error().into_response();
-        }
+    if s.is_locked() && !locked_tier0_allows(s.hub_id, req.uri().path()) {
+        return locked_error().into_response();
     }
     next.run(req).await
 }
@@ -1995,6 +2026,120 @@ impl From<VerifyError> for ApiError {
             VerifyError::BadSignature(_) => ApiError::unauthorized(e.to_string()),
             VerifyError::Internal(err) => ApiError::internal(err),
         }
+    }
+}
+
+/// What a **locked** hub serves. `lock_gate` is the daemon's fail-closed
+/// boundary and its allowlist had no test: the suffix form was written against
+/// four route names and silently covered a fifth (`/admin/law`), which is the
+/// one route in the set whose handler needs the store a locked hub cannot open.
+///
+/// These drive the predicate rather than an assembled app, so they can be
+/// exhaustive over the route table cheaply; `locked_tier0_surface` in `main.rs`
+/// pins the same boundary end-to-end through the real middleware stack.
+#[cfg(test)]
+mod lock_gate_tests {
+    use super::*;
+
+    fn hub() -> Uuid {
+        Uuid::parse_str("14982c04-b180-43a6-a949-f760f1a09270").unwrap()
+    }
+
+    /// The contract, positively: exactly the five tier-0 paths, and each one
+    /// spelled as its router declares it. Without this the gate is satisfiable
+    /// by refusing everything, which would brick ignition.
+    #[test]
+    fn the_five_tier0_paths_are_served_while_locked() {
+        let h = hub();
+        for p in [
+            "/".to_string(),
+            "/.well-known/web4-hub.json".to_string(),
+            format!("/v1/hubs/{h}/unlock"),
+            format!("/v1/hubs/{h}/law"),
+            format!("/v1/hubs/{h}/.well-known/openid-credential-issuer"),
+        ] {
+            assert!(
+                locked_tier0_allows(h, &p),
+                "{p} is tier-0 and must stay served while locked — a locked hub that \
+                 refuses its own unlock path cannot be ignited"
+            );
+        }
+    }
+
+    /// The regression this module exists for. `/admin/law` is declared on the
+    /// **public** plane (see `plane_split::the_public_plane_still_serves_the_
+    /// transparency_surface`), so this path is anonymously reachable from the
+    /// network on this hub's `--bind 0.0.0.0`. Its handler opens the protected
+    /// store, which on a locked hub cannot open by construction.
+    #[test]
+    fn the_operator_law_page_is_not_tier0() {
+        assert!(
+            !locked_tier0_allows(hub(), "/admin/law"),
+            "the operator HTML law page passed the lock gate — its handler opens the \
+             protected store and answers 500 with the store error (the on-disk path of \
+             hub.db) instead of the fail-closed 503"
+        );
+    }
+
+    /// The general form of the same defect: nothing is admitted for merely
+    /// *ending* in a tier-0 route's spelling. Each of these is a path a router
+    /// could plausibly grow, and every one of them passed the suffix allowlist.
+    #[test]
+    fn a_tier0_spelling_in_the_last_segment_does_not_admit_a_route() {
+        let h = hub();
+        for p in [
+            "/admin/law",
+            "/admin/api/law",
+            "/v1/admin/law",
+            "/v1/hubs/other/law",
+            "/v1/hubs/other/unlock",
+            "/admin/unlock",
+            "/v1/hubs/other/.well-known/openid-credential-issuer",
+        ] {
+            assert!(
+                !locked_tier0_allows(h, p),
+                "{p} was admitted by suffix, not by name — the allowlist must read \
+                 whole paths or it grows silently with the route table"
+            );
+        }
+    }
+
+    /// The tier-2 M-of-N unlock flow requires an already-ignited hub, so it is
+    /// outside the allowlist by design. It was outside under the suffix too
+    /// (neither path *ends* in `/unlock`) — pinned so the whole-path rewrite is
+    /// visibly not a behaviour change here.
+    #[test]
+    fn the_tier2_unlock_flow_stays_refused_while_locked() {
+        let h = hub();
+        for p in [
+            format!("/v1/hubs/{h}/unlock/challenge"),
+            format!("/v1/hubs/{h}/unlock/attest"),
+        ] {
+            assert!(
+                !locked_tier0_allows(h, &p),
+                "{p} is tier-2 and needs a tier-1-ignited hub; serving it while locked \
+                 would offer a quorum flow the hub cannot yet witness"
+            );
+        }
+    }
+
+    /// `reload-law` is a governed write. It never matched the suffix
+    /// (`-law` != `/law`) and must not start matching now — a locked hub
+    /// re-reading law from a store it cannot open is the exact shape of the
+    /// bug above.
+    #[test]
+    fn the_law_reload_write_is_not_tier0() {
+        assert!(!locked_tier0_allows(hub(), "/v1/admin/reload-law"));
+    }
+
+    /// The allowlist is keyed to *this* hub's id. A path built from a different
+    /// hub id is not tier-0 here — the locked shell reads its id from the clear
+    /// `public-identity.json`, so there is one correct spelling.
+    #[test]
+    fn another_hubs_law_path_is_not_this_hubs_tier0_surface() {
+        let other = Uuid::parse_str("00000000-0000-4000-8000-000000000001").unwrap();
+        assert!(!locked_tier0_allows(hub(), &format!("/v1/hubs/{other}/law")));
+        assert!(locked_tier0_allows(other, &format!("/v1/hubs/{other}/law")));
     }
 }
 
