@@ -939,8 +939,28 @@ impl SqliteBackend {
         let preexisting = db_path.exists();
 
         // One-time at-rest migration: re-encrypt a legacy plaintext hub.db.
+        //
+        // This conversion is IRREVERSIBLE without the key, and this function cannot tell
+        // whether `key` expresses an operator's intent for THIS hub dir (`hub seal`, which
+        // derives it explicitly) or merely the ambient process environment (the env'd entry
+        // points `open_hub_store` / `open_hub_store_async` derive it from HUB_PASSPHRASE).
+        // A shell that exported HUB_PASSPHRASE for one hub will silently seal any other
+        // plaintext hub it then opens, under a key nobody recorded for it.
+        //
+        // The warning below makes the conversion ATTRIBUTABLE; it does not make the surface
+        // accountable. An operator log line is not the signed, hash-chained record the
+        // accountability block's A clause asks for, and the trigger still rests on ambient
+        // environment (R). Narrowing it to an explicit act is a behaviour change to the
+        // upgrade path for every existing deployment, so it is escalated rather than taken
+        // here. Logged BEFORE the write, so an interrupted migration is still attributable.
         if let Some(k) = key {
             if preexisting && is_plaintext_sqlite(&db_path) {
+                tracing::warn!(
+                    db = %db_path.display(),
+                    "sealing a plaintext hub state DB in place under the supplied key — \
+                     IRREVERSIBLE without that key. If you did not mean to seal this hub, \
+                     the key came from HUB_PASSPHRASE in this process's environment."
+                );
                 migrate_plaintext_to_encrypted(&db_path, &hex::encode(k))
                     .with_context(|| format!("encrypting plaintext hub state at {}", db_path.display()))?;
             }
