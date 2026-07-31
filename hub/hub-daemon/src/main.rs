@@ -2497,4 +2497,158 @@ mod tests {
             );
         }
     }
+
+    /// What a **locked** hub actually answers on its network-facing plane,
+    /// driven end-to-end through the assembled public router with the real
+    /// `lock_gate` layered over it. `rest::lock_gate_tests` pins the allowlist
+    /// predicate; this pins that the predicate is the thing a caller meets, and
+    /// that the handlers behind it are never reached.
+    ///
+    /// This state is not hypothetical for this hub: `web4-fleet/config.toml`
+    /// carries no `[storage]` section and its `hub.db` is SQLCipher-encrypted,
+    /// so disk auto-detection resolves sqlite, `open_hub_store_async` fails
+    /// closed, and `run_serve` boots the locked shell on every restart until an
+    /// operator ignites it.
+    mod locked_tier0_surface {
+        use super::*;
+        use axum::body::Body;
+        use axum::http::{Request, StatusCode};
+        use tower::ServiceExt;
+
+        async fn locked_public_app() -> (tempfile::TempDir, Router, uuid::Uuid) {
+            let tmp = tempfile::tempdir().unwrap();
+            let sov = tmp.path().join("sovereign.json");
+            hub_lib::identity::IdentityFile::generate(web4_core::lct::EntityType::Human)
+                .save(&sov)
+                .unwrap();
+            let hub_dir = tmp.path().join("chapter");
+            hub_lib::init::init_hub(hub_lib::init::InitArgs {
+                hub_name: "E2E Test Hub".into(),
+                hub_dir: hub_dir.clone(),
+                sovereign_lct_path: sov,
+                storage: Some(hub_lib::store::BackendKind::Sqlite),
+                dynamodb: None,
+            })
+            .await
+            .unwrap();
+            let law = std::sync::Arc::new(tokio::sync::RwLock::new(None));
+            let store = hub_lib::store::open_hub_store(&hub_dir).unwrap();
+            let ledger = std::sync::Arc::new(tokio::sync::Mutex::new(
+                hub_lib::ledger::HubLedger::open(store).await.unwrap(),
+            ));
+            let rest = crate::rest::RestState::open_with_law_and_ledger(
+                hub_dir.clone(),
+                law.clone(),
+                ledger.clone(),
+            )
+            .await
+            .unwrap();
+            crate::rest::PublicIdentity {
+                hub_id: rest.hub_id,
+                hub_name: rest.hub_name.clone(),
+                founding_sovereign_lct_id: rest.sovereign_lct_id,
+                sovereign_pubkey_hex: None,
+            }
+            .write(&rest.paths.root)
+            .unwrap();
+            // Encrypt the state store in place, then hold no key — which is the
+            // ONLY way a locked shell is reached in `run_serve` (it boots the
+            // shell precisely because `open_hub_store_async` failed).
+            hub_lib::store::open_hub_store_with_key(&rest.paths.root, Some([7u8; 32])).unwrap();
+            assert!(
+                hub_lib::store::open_hub_store_async(&rest.paths.root).await.is_err(),
+                "fixture must have a store that fails to open, or the locked shell is unreachable"
+            );
+            let locked = crate::rest::RestState::open_locked_shell(
+                rest.paths.root.clone(),
+                rest.law.clone(),
+                rest.ledger.clone(),
+            )
+            .await
+            .unwrap();
+            assert!(locked.is_locked());
+            let mcp = McpState::open_with_law_and_ledger(
+                locked.paths.root.clone(),
+                locked.law.clone(),
+                locked.ledger.clone(),
+                locked.signer.clone(),
+                locked.sovereign_lct_id,
+                locked.store_key.clone(),
+                locked.hub_id,
+                locked.hub_name.clone(),
+            )
+            .await
+            .unwrap();
+            let id = locked.hub_id;
+            let app = public_plane_router(mcp, locked.clone(), locked.clone()).layer(
+                axum::middleware::from_fn_with_state(locked.clone(), crate::rest::lock_gate),
+            );
+            (tmp, app, id)
+        }
+
+        async fn status(app: &Router, path: &str) -> StatusCode {
+            app.clone()
+                .oneshot(Request::builder().method("GET").uri(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap()
+                .status()
+        }
+
+        /// The defect. `/admin/law` is on the public plane, so this is an
+        /// anonymous caller off the network hitting a locked hub. It answered
+        /// `500` with `format!("{:#}", e)` from the store layer — which names
+        /// the absolute path of `hub.db` — because the `ends_with("/law")`
+        /// allowlist admitted it and its handler then called `open_store()` on
+        /// a store that cannot open. The gate exists so that no handler runs
+        /// against unpopulated state in a locked shell.
+        #[tokio::test]
+        async fn the_operator_law_page_is_refused_by_the_lock_gate_not_by_its_handler() {
+            let (_tmp, app, _id) = locked_public_app().await;
+            assert_eq!(
+                status(&app, "/admin/law").await,
+                StatusCode::SERVICE_UNAVAILABLE,
+                "a locked hub let /admin/law reach its handler; a 500 here is the store \
+                 error text (including hub.db's on-disk path) disclosed to an \
+                 unauthenticated network caller"
+            );
+        }
+
+        /// The sibling pages this one should always have matched. They were
+        /// already correct — carried so that "law is refused" cannot be
+        /// satisfied by a gate that has stopped running at all.
+        #[tokio::test]
+        async fn the_other_operator_pages_stay_refused_while_locked() {
+            let (_tmp, app, _id) = locked_public_app().await;
+            for p in ["/admin/roles", "/admin/council", "/tools", "/tools/query_hub"] {
+                assert_eq!(
+                    status(&app, p).await,
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "{p} must be refused while locked"
+                );
+            }
+        }
+
+        /// And the tier-0 surface must keep working, or the fix is just a hub
+        /// that refuses everything — including the discovery doc an operator
+        /// reads to find the hub id that ignition needs.
+        #[tokio::test]
+        async fn the_tier0_surface_is_still_served_while_locked() {
+            let (_tmp, app, id) = locked_public_app().await;
+            for p in [
+                "/".to_string(),
+                "/.well-known/web4-hub.json".to_string(),
+                format!("/v1/hubs/{id}/law"),
+            ] {
+                assert_eq!(status(&app, &p).await, StatusCode::OK, "{p} is tier-0");
+            }
+            // `unlock` is POST-only: 405 proves the gate passed it through to
+            // the router (a refusal would be 503), without needing a body.
+            assert_eq!(
+                status(&app, &format!("/v1/hubs/{id}/unlock")).await,
+                StatusCode::METHOD_NOT_ALLOWED,
+                "the unlock path must reach the router while locked, or the hub \
+                 cannot be ignited"
+            );
+        }
+    }
 }
