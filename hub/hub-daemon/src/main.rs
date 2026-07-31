@@ -16,7 +16,7 @@ mod rest;
 use anyhow::{Context, Result};
 use axum::Router;
 use clap::{Parser, Subcommand};
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 
 use hub_lib::hub::HubConfig;
@@ -1243,10 +1243,68 @@ fn operator_plane_router(mcp_state: McpState, operator_state: RestState) -> Rout
         .merge(mcp_write_router(mcp_state))
 }
 
+/// The two listen **addresses** `run_serve` binds, decided in one place so the
+/// decision is testable. #609 pinned which router each route lands in; this pins
+/// the address each router is served on. They are the same boundary from two
+/// sides — a route correctly placed on `operator_plane_router` is still published
+/// to the network if the operator listener follows `--bind`.
+///
+/// The public plane binds whatever `--bind` says (this hub binds `0.0.0.0` for
+/// its tailnet; three of the four `hub up` archetypes bind it too). The operator
+/// plane — the `/admin/api/*` admit/deny/remove/re-key API and the
+/// Sovereign-signing MCP write tools — binds **127.0.0.1, always, whatever
+/// `bind` is**. `bind` is taken here and deliberately unused for the operator
+/// address, so making the operator listener follow it is a *failing test* rather
+/// than a signature change the compiler would catch instead.
+///
+/// `admin_port == 0` disables the operator plane: `None`, not port 0, which the
+/// OS would resolve to an arbitrary ephemeral port — a listener that is neither
+/// off nor findable.
+fn plane_addrs(bind: &str, port: u16, admin_port: u16) -> Result<(SocketAddr, Option<SocketAddr>)> {
+    let public: SocketAddr = format!("{}:{}", bind, port).parse().map_err(|e| {
+        anyhow::anyhow!(
+            "--bind {bind} is not an IP address ({e}). Accepted: an IPv4 literal \
+             (127.0.0.1, 0.0.0.0) or a BRACKETED IPv6 literal ([::1]). Host names \
+             (`localhost`) and unbracketed IPv6 (`::1`) are not resolved here."
+        )
+    })?;
+    let operator = (admin_port != 0).then(|| SocketAddr::from((Ipv4Addr::LOCALHOST, admin_port)));
+    Ok((public, operator))
+}
+
+/// Whether the public listener is unreachable from the network — read from the
+/// **parsed** address, not from the `--bind` spelling. This decides only whether
+/// the "public bind without HUB_PROFILE=production" warning prints, so the
+/// failure that matters is a network-reachable bind classified as loopback.
+/// The string match it replaced tested four literals, two of which (`localhost`,
+/// `::1`) `plane_addrs` rejects two lines earlier — dead arms advertising support
+/// that does not exist. Reading the parsed IP also gets `127.0.0.2` right.
+fn public_bind_is_loopback(addr: &SocketAddr) -> bool {
+    addr.ip().is_loopback()
+}
+
+/// `run_serve`'s operator-plane layer stack, in the order it applies them. Axum
+/// runs the **last** `.layer()` first, so operator auth is outermost and an
+/// unauthorized caller is refused before the lock gate and before any handler.
+/// Both gates run under either order — what the order decides is which one
+/// answers first, and with the lock gate outermost a locked hub tells an
+/// unauthenticated stranger `503 locked`, disclosing its lock state to someone
+/// with no standing to ask. Takes the router already rate-limited (that layer is
+/// conditional on the limiter's presence and neither adds routes nor rejects).
+fn operator_plane_app(
+    rate_limited: Router,
+    gate_state: RestState,
+    op_auth: crate::rest::OperatorAuth,
+) -> Router {
+    rate_limited
+        .layer(axum::middleware::from_fn_with_state(gate_state, crate::rest::lock_gate))
+        .layer(axum::middleware::from_fn_with_state(op_auth, crate::rest::operator_auth_gate))
+}
+
 async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, admin_port: u16) -> Result<()> {
     let config = HubConfig::load(hub_lib::hub::HubPaths::new(&hub_dir).config())?;
     let port = port_override.unwrap_or(config.daemon.mcp_port);
-    let addr: SocketAddr = format!("{}:{}", bind, port).parse()?;
+    let (addr, operator_addr) = plane_addrs(&bind, port, admin_port)?;
 
     // Total enclosure, unlock-first: try to open the encrypted state store with whatever
     // key is available (none — we keep no passphrase on disk or in env). If it opens
@@ -1363,7 +1421,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     // defaults GPT flagged unless explicitly overridden. Deliberately NOT auto-
     // derived from the bind address: this hub binds 0.0.0.0 for a *tailnet*, which
     // is not "public", so an off-by-default enforcement must be opt-in.
-    let loopback_bind = matches!(bind.as_str(), "127.0.0.1" | "localhost" | "::1" | "[::1]");
+    let loopback_bind = public_bind_is_loopback(&addr);
     if std::env::var("HUB_PROFILE").as_deref() == Ok("production") {
         let law_present = rest_state.law.read().await.is_some();
         production_preflight(
@@ -1418,11 +1476,11 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     // to the network, never reverse-proxied. Carries the admit/deny/remove/re-key
     // admin API (and the write GUI). Local-presence + an ignited hub is the
     // authorization; actions sign as the Sovereign and fail closed while locked.
-    if admin_port != 0 {
-        let op_addr: SocketAddr = format!("127.0.0.1:{}", admin_port).parse()?;
+    if let Some(op_addr) = operator_addr {
         // H-004: pluggable operator-plane auth (loopback default / token). Built
         // from HUB_OPERATOR_AUTH; applied as the OUTERMOST layer so an
-        // unauthorized caller is rejected before the lock gate and any handler.
+        // unauthorized caller is rejected before the lock gate and any handler
+        // (see `operator_plane_app`).
         let op_auth = crate::rest::OperatorAuth::from_env(&hub_dir)?;
         let mut operator_app = operator_plane_router(mcp_state, operator_state);
         if let Some(limiter) = &rate_limiter {
@@ -1434,9 +1492,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
                 crate::rate_limit::layer,
             ));
         }
-        let operator_app = operator_app
-            .layer(axum::middleware::from_fn_with_state(operator_gate, crate::rest::lock_gate))
-            .layer(axum::middleware::from_fn_with_state(op_auth, crate::rest::operator_auth_gate));
+        let operator_app = operator_plane_app(operator_app, operator_gate, op_auth);
         match tokio::net::TcpListener::bind(op_addr).await {
             Ok(op_listener) => {
                 println!("  Operator:     http://{}/admin (LOCAL-ONLY: admit/deny/remove/re-key)", op_addr);
@@ -2241,6 +2297,204 @@ mod tests {
                     "{method} {path} is on NEITHER plane — the operator lost it"
                 );
             }
+        }
+    }
+
+    /// The other half of the plane boundary. `plane_split` pins **which router**
+    /// a route is declared in; these pin **where each router is served** and
+    /// **in what order its gates run**. Both are decided in `run_serve` and
+    /// neither was tested: a route can sit correctly in `operator_plane_router`
+    /// and still be published to the internet if the operator listener follows
+    /// `--bind`, which on this hub is `0.0.0.0`.
+    mod listener_construction {
+        use super::*;
+        use std::net::SocketAddr;
+
+        /// Every bind this hub or the `hub up` archetype table can produce.
+        const BINDS: &[&str] = &[
+            "127.0.0.1",      // dev / public-tunnel archetypes
+            "0.0.0.0",        // this hub (tailnet) + private-vpn + both public archetypes
+            "100.65.206.122", // a concrete public/tailnet interface
+            "[::1]",          // IPv6 loopback, bracketed
+        ];
+
+        /// The one that matters. The operator plane carries the Sovereign-signing
+        /// write tools and the admit/deny/remove/re-key API; it must be on
+        /// loopback no matter what the public listener binds.
+        #[test]
+        fn the_operator_plane_stays_on_loopback_under_every_public_bind() {
+            for bind in BINDS {
+                let (_public, operator) = plane_addrs(bind, 8770, 8772).unwrap();
+                let op = operator.expect("operator plane must exist at admin_port 8772");
+                assert_eq!(
+                    op,
+                    "127.0.0.1:8772".parse::<SocketAddr>().unwrap(),
+                    "--bind {bind} moved the Sovereign-signing operator plane off loopback"
+                );
+                assert!(op.ip().is_loopback(), "--bind {bind} published the operator plane");
+            }
+        }
+
+        /// `admin_port 0` means *no operator plane*, not "port 0" — which the OS
+        /// resolves to an arbitrary ephemeral port, giving a Sovereign-signing
+        /// listener that is neither disabled nor findable.
+        #[test]
+        fn admin_port_zero_disables_the_operator_plane_rather_than_binding_an_ephemeral_port() {
+            let (_public, operator) = plane_addrs("0.0.0.0", 8770, 0).unwrap();
+            assert!(operator.is_none(), "admin_port 0 must disable the plane, got {operator:?}");
+        }
+
+        /// And the public listener must still bind exactly what it was told —
+        /// pinning the operator plane to loopback must not be achieved by
+        /// pinning both.
+        #[test]
+        fn the_public_plane_binds_exactly_what_it_was_told() {
+            for bind in BINDS {
+                let (public, _operator) = plane_addrs(bind, 8770, 8772).unwrap();
+                assert_eq!(public, format!("{bind}:8770").parse::<SocketAddr>().unwrap());
+            }
+        }
+
+        /// `--bind localhost` and `--bind ::1` do not work and never did: the
+        /// `SocketAddr` parse rejects both before anything else runs. That was
+        /// previously a bare `AddrParseError` with no hint, while the loopback
+        /// classifier a hundred lines down listed both as supported spellings.
+        /// The refusal is pinned here *and* made to name what it accepts.
+        #[test]
+        fn a_hostname_bind_is_refused_and_the_error_names_what_is_accepted() {
+            for bind in ["localhost", "::1"] {
+                let err = plane_addrs(bind, 8770, 8772).unwrap_err().to_string();
+                assert!(err.contains(bind), "error must name the rejected bind: {err}");
+                assert!(err.contains("[::1]"), "error must show the bracketed form: {err}");
+            }
+        }
+
+        /// The production-hardening warning fires on `!loopback`, so the failure
+        /// that matters is a network-reachable bind classified as loopback —
+        /// that silently drops the "hardening is NOT enforced" notice on a public
+        /// hub. Both directions are asserted; the unspecified addresses
+        /// (`0.0.0.0`, `[::]`) are the ones a `is_unspecified`-shaped mistake
+        /// would still get right, so the concrete interface IP carries the test.
+        #[test]
+        fn a_network_reachable_bind_is_never_classified_as_loopback() {
+            for bind in ["0.0.0.0", "[::]", "100.65.206.122", "192.168.1.10"] {
+                let (public, _) = plane_addrs(bind, 8770, 8772).unwrap();
+                assert!(
+                    !public_bind_is_loopback(&public),
+                    "--bind {bind} is network-reachable but was classified loopback — \
+                     the public-bind hardening warning would be suppressed"
+                );
+            }
+            // 127.0.0.2 is loopback too; the string match this replaced warned on it.
+            for bind in ["127.0.0.1", "127.0.0.2", "[::1]"] {
+                let (public, _) = plane_addrs(bind, 8770, 8772).unwrap();
+                assert!(public_bind_is_loopback(&public), "--bind {bind} is loopback");
+            }
+        }
+    }
+
+    /// Layer **order** on the operator plane. Both gates run under either order,
+    /// so this is not about whether the plane is guarded — it is about which gate
+    /// answers a caller who has no standing to ask anything at all.
+    mod operator_layer_order {
+        use super::*;
+        use crate::rest::channel_e2e_tests::fresh_rest_state;
+        use axum::body::Body;
+        use axum::extract::ConnectInfo;
+        use axum::http::{Request, StatusCode};
+        use std::net::SocketAddr;
+        use tower::ServiceExt;
+
+        /// A **locked** hub, which is the only state where the two gates disagree:
+        /// an unlocked hub's lock gate passes everything, making the order
+        /// unobservable. Built the way `run_serve` builds a locked boot — a clear
+        /// `public-identity.json` plus `open_locked_shell` (a locked-boot RestState
+        /// installs a `LockedSigner`, which is what `is_locked()` reads).
+        async fn locked_operator_app() -> (tempfile::TempDir, Router) {
+            let (tmp, rest) = fresh_rest_state(None).await;
+            crate::rest::PublicIdentity {
+                hub_id: rest.hub_id,
+                hub_name: rest.hub_name.clone(),
+                founding_sovereign_lct_id: rest.sovereign_lct_id,
+                sovereign_pubkey_hex: None,
+            }
+            .write(&rest.paths.root)
+            .unwrap();
+            let locked = crate::rest::RestState::open_locked_shell(
+                rest.paths.root.clone(),
+                rest.law.clone(),
+                rest.ledger.clone(),
+            )
+            .await
+            .unwrap();
+            assert!(locked.is_locked(), "fixture must be locked or the order is unobservable");
+            let mcp = McpState::open_with_law_and_ledger(
+                locked.paths.root.clone(),
+                locked.law.clone(),
+                locked.ledger.clone(),
+                locked.signer.clone(),
+                locked.sovereign_lct_id,
+                locked.store_key.clone(),
+                locked.hub_id,
+                locked.hub_name.clone(),
+            )
+            .await
+            .unwrap();
+            let mut operator = locked.clone();
+            operator.operator_plane = true;
+            // Default (no HUB_OPERATOR_AUTH) = loopback mode, so a non-loopback
+            // peer is the unauthorized caller — no env mutation, no token file.
+            let op_auth = crate::rest::OperatorAuth::from_env(&locked.paths.root).unwrap();
+            let app = operator_plane_app(
+                operator_plane_router(mcp, operator),
+                locked.clone(),
+                op_auth,
+            );
+            (tmp, app)
+        }
+
+        /// A stranger off the network, hitting a locked hub, on a path the lock
+        /// gate does not allowlist. Auth outermost → `403 operator plane is
+        /// local-only`. Lock gate outermost → `503 locked`, which hands the hub's
+        /// lock state to a caller the very next layer was about to refuse.
+        #[tokio::test]
+        async fn an_unauthorized_operator_caller_is_refused_before_the_lock_gate() {
+            let (_tmp, app) = locked_operator_app().await;
+            let mut req = Request::builder()
+                .method("GET")
+                .uri("/admin/members")
+                .body(Body::empty())
+                .unwrap();
+            req.extensions_mut()
+                .insert(ConnectInfo("203.0.113.7:44444".parse::<SocketAddr>().unwrap()));
+            let status = app.oneshot(req).await.unwrap().status();
+            assert_eq!(
+                status,
+                StatusCode::FORBIDDEN,
+                "expected the operator-auth gate to answer first; 503 means the lock gate is \
+                 outermost and discloses lock state to an unauthorized caller"
+            );
+        }
+
+        /// The other direction: an authorized (loopback) caller on a locked hub
+        /// must still be stopped by the lock gate. Without this, putting auth
+        /// outermost would be satisfiable by dropping the lock gate entirely.
+        #[tokio::test]
+        async fn an_authorized_caller_is_still_stopped_by_the_lock_gate() {
+            let (_tmp, app) = locked_operator_app().await;
+            let mut req = Request::builder()
+                .method("GET")
+                .uri("/admin/members")
+                .body(Body::empty())
+                .unwrap();
+            req.extensions_mut()
+                .insert(ConnectInfo("127.0.0.1:44444".parse::<SocketAddr>().unwrap()));
+            let status = app.oneshot(req).await.unwrap().status();
+            assert_ne!(
+                status,
+                StatusCode::OK,
+                "a locked hub served an operator write page — the lock gate is not applied"
+            );
         }
     }
 }
