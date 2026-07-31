@@ -873,7 +873,7 @@ async fn run_init_law(output: PathBuf, force: bool) -> Result<()> {
                 .with_context(|| format!("creating parent dir {}", parent.display()))?;
         }
     }
-    std::fs::write(&output, STARTER_LAW_YAML)
+    hub_lib::atomic_file::write_atomic(&output, STARTER_LAW_YAML)
         .with_context(|| format!("writing starter law to {}", output.display()))?;
 
     println!("Starter hub-law written to {}.", output.display());
@@ -976,7 +976,7 @@ async fn run_up(
     if !law_path.exists() {
         hub_lib::law::Law::parse_and_validate(STARTER_LAW_YAML)
             .context("embedded starter-law failed to validate (binary bug)")?;
-        std::fs::write(&law_path, STARTER_LAW_YAML)
+        hub_lib::atomic_file::write_atomic(&law_path, STARTER_LAW_YAML)
             .with_context(|| format!("writing {}", law_path.display()))?;
     }
 
@@ -1007,7 +1007,8 @@ async fn run_up(
     if let Some(u) = &base_url {
         env.push_str(&format!("HUB_PUBLIC_BASE_URL={u}\n"));
     }
-    std::fs::write(&env_path, &env).with_context(|| format!("writing {}", env_path.display()))?;
+    hub_lib::atomic_file::write_atomic(&env_path, &env)
+        .with_context(|| format!("writing {}", env_path.display()))?;
 
     // 6. Print the tailored go-live runbook.
     println!();
