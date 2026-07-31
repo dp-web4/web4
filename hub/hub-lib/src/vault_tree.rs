@@ -146,7 +146,17 @@ impl OpenVault {
         // could become visible before the bytes, leaving a sealed vault that
         // decrypts to nothing. This file is the identity store; a torn write
         // here does not heal on the next save.
-        crate::atomic_file::write_atomic(&self.path, &out)
+        //
+        // 0600, and for the same reason the identity file is: the seal's
+        // confidentiality is conditional on the passphrase, and an empty one is
+        // explicitly permitted as a deliberate operator choice (see
+        // `IdentityFile::save_encrypted` — "encrypted format with a publicly
+        // derivable key"). A hub provisioned that way has a `protected.hvlt`
+        // whose master key anyone can derive, holding the tier-2 sealing
+        // credential; at 0644 that is readable by every local account. The mode
+        // cannot be applied from outside — this rename installs a fresh inode
+        // every save — so it belongs on the `open(2)` here.
+        crate::atomic_file::write_atomic_mode(&self.path, &out, 0o600)
             .with_context(|| format!("installing {}", self.path.display()))?;
         Ok(())
     }
@@ -208,6 +218,29 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let p = d.path().join("t.hvlt");
         (d, p)
+    }
+
+    /// The vault file is the identity store, and its seal is only as
+    /// confidential as the passphrase — which is permitted to be empty. So the
+    /// file's mode is load-bearing, and it has to be set at the write: `save`
+    /// renames a fresh inode over the target, so an operator's `chmod` is
+    /// discarded by the next save. Both arms below; the second is the one that
+    /// catches a regression back to the un-moded helper on an existing vault.
+    #[cfg(unix)]
+    #[test]
+    fn save_lands_at_0600_and_does_not_revert_a_hardened_file() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_d, p) = tmp();
+        let mut v = OpenVault::create(&p, "m", "v1").unwrap();
+        v.put_master("g", ItemKind::Document, b"SECRET_MARKER_XYZ");
+        v.save().unwrap();
+        let mode = std::fs::metadata(&p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "fresh vault landed at {mode:o}, want 600");
+
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o600)).unwrap();
+        v.save().unwrap();
+        let mode = std::fs::metadata(&p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "re-save reverted 0600 to {mode:o}");
     }
 
     #[test]
