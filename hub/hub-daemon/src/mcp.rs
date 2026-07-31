@@ -169,8 +169,15 @@ struct ApiError {
 }
 
 impl ApiError {
+    /// Redacted at the source (see [`crate::rest::redact_internal`]). This is
+    /// the widest of the three instances: the blanket `From<E>` below routes
+    /// **every** `?` in an MCP handler here, and `mcp_read_router` is on the
+    /// public plane.
     fn internal(e: anyhow::Error) -> Self {
-        Self { status: StatusCode::INTERNAL_SERVER_ERROR, message: format!("{:#}", e) }
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: crate::rest::redact_internal(format!("{:#}", e)),
+        }
     }
     fn forbidden(msg: impl Into<String>) -> Self {
         Self { status: StatusCode::FORBIDDEN, message: msg.into() }
@@ -581,6 +588,29 @@ mod tests {
     use super::*;
     use crate::rest::channel_e2e_tests::{fresh_rest_state, witness_for_test};
     use crate::rest::RestState;
+
+    /// `mcp_read_router` is on the public plane and the blanket `From<E>` above
+    /// sends every `?` in every MCP handler through `internal`, so this is the
+    /// widest of the three surfaces that used to render `{:#}` to an anonymous
+    /// caller. Exercised through `?`'s own conversion, not the constructor, so
+    /// the blanket impl is what is under test.
+    #[tokio::test]
+    async fn the_blanket_conversion_publishes_no_internal_detail() {
+        fn via_question_mark() -> Result<(), ApiError> {
+            Err(anyhow::anyhow!(
+                "hub state at /home/dp/web4-hub/web4-fleet/hub.db is encrypted"
+            ))?;
+            Ok(())
+        }
+        let r = via_question_mark().unwrap_err().into_response();
+        assert_eq!(r.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let b = axum::body::to_bytes(r.into_body(), usize::MAX).await.unwrap();
+        let body = String::from_utf8_lossy(&b);
+        for needle in ["hub.db", "/home/dp", "encrypted"] {
+            assert!(!body.contains(needle), "MCP published {needle:?}:\n{body}");
+        }
+        assert!(body.contains("reference"), "no correlation reference:\n{body}");
+    }
 
     /// H-001 gate: the Sovereign-signing MCP write tools are merged into the
     /// public listener, so they must refuse any non-loopback caller. (Read tools

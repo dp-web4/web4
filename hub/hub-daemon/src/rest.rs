@@ -1657,10 +1657,161 @@ impl ApiError {
         Self { status: StatusCode::NOT_FOUND, message: msg.into() }
     }
     fn internal(e: anyhow::Error) -> Self {
-        Self { status: StatusCode::INTERNAL_SERVER_ERROR, message: format!("{:#}", e) }
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: redact_internal(format!("{:#}", e)),
+        }
     }
     fn conflict(msg: impl Into<String>) -> Self {
         Self { status: StatusCode::CONFLICT, message: msg.into() }
+    }
+}
+
+/// What an internal failure is allowed to tell the network.
+///
+/// The `anyhow` chains that reach the three `internal(..)` constructors are
+/// built from store/IO/serde failures and carry operational detail: `hub.db`'s
+/// absolute path, sqlite's reason, the passphrase-missing sentence. All three
+/// routers that use them publish to an anonymous caller on a `--bind 0.0.0.0`
+/// hub — [`router`] (the JSON API), `mcp_read_router`, and the `admin::router`
+/// transparency pages, where `/admin/council` opens the store directly. So the
+/// detail goes to the daemon log and the caller gets a fixed sentence plus a
+/// correlation reference that ties the two together.
+///
+/// This is deliberately **not** a blanket 5xx scrub layered over the public
+/// plane. The curated 5xx bodies are load-bearing: [`locked_error`]'s 503 is
+/// the sentence that tells the fleet to ignite the hub, and a response-level
+/// filter keyed on `is_server_error()` would have eaten it. Only the
+/// `anyhow`-fed constructors are redacted, and they are redacted at the source
+/// — which also means a handler added later inherits the behaviour by using
+/// `?`, rather than by someone remembering to route it through a layer.
+///
+/// The operator does not lose the detail; it moves to the channel that machine
+/// access already authenticates (`journalctl -u web4-hub`). The reference is
+/// what makes that a move rather than a deletion.
+pub(crate) fn redact_internal(detail: String) -> String {
+    let reference = Uuid::new_v4().simple().to_string()[..8].to_string();
+    tracing::error!(reference = %reference, "internal error: {detail}");
+    format!("internal error (reference {reference}); see the hub log for detail")
+}
+
+#[cfg(test)]
+mod internal_error_redaction_tests {
+    use super::*;
+    use axum::response::IntoResponse;
+
+    /// The detail a real failure carries. This is not invented: it is the
+    /// sentence `open_hub_store_with_key_async` produces on this hub, measured
+    /// against the live society directory.
+    const LEAKY: &str = "hub state at /home/dp/web4-hub/web4-fleet/hub.db is encrypted \
+                         but no HUB_PASSPHRASE is set — set the vault passphrase to open it";
+
+    async fn body_of(r: axum::response::Response) -> String {
+        let b = axum::body::to_bytes(r.into_body(), usize::MAX).await.unwrap();
+        String::from_utf8_lossy(&b).into_owned()
+    }
+
+    /// Nothing that identifies the hub's storage may cross to the caller.
+    /// Asserted on substrings rather than on the whole sentence so a reworded
+    /// error still fails the test if it carries the path.
+    fn assert_no_detail(where_: &str, body: &str) {
+        for needle in ["hub.db", "/home/dp", "HUB_PASSPHRASE", "encrypted"] {
+            assert!(
+                !body.contains(needle),
+                "{where_} published {needle:?} to the caller:\n{body}"
+            );
+        }
+        assert!(
+            body.contains("reference"),
+            "{where_} must carry the correlation reference, or the detail is \
+             deleted rather than moved to the log:\n{body}"
+        );
+    }
+
+    /// All three public-plane routers, each through its own constructor.
+    #[tokio::test]
+    async fn no_internal_constructor_publishes_its_detail() {
+        let rest = ApiError::internal(anyhow::anyhow!(LEAKY)).into_response();
+        assert_eq!(rest.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_no_detail("rest::ApiError::internal", &body_of(rest).await);
+
+        let admin = crate::admin::AdminError::internal(LEAKY.to_string()).into_response();
+        assert_eq!(admin.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_no_detail("admin::AdminError::internal", &body_of(admin).await);
+
+        // The `?`-driven path, which is how the four public admin pages reach it.
+        let via_q = crate::admin::AdminError::from(anyhow::anyhow!(LEAKY)).into_response();
+        assert_no_detail("admin::AdminError::from(anyhow)", &body_of(via_q).await);
+    }
+
+    /// The reference is per-occurrence. A constant would still hide the detail
+    /// but would make the log line unfindable, which is the difference between
+    /// moving the detail and dropping it.
+    #[tokio::test]
+    async fn each_internal_error_carries_its_own_reference() {
+        let a = body_of(ApiError::internal(anyhow::anyhow!("a")).into_response()).await;
+        let b = body_of(ApiError::internal(anyhow::anyhow!("b")).into_response()).await;
+        assert_ne!(a, b, "two failures shared one reference: {a}");
+    }
+
+    /// The regression guard for the design that was NOT taken. A blanket
+    /// `is_server_error()` scrub over the public plane would also have eaten
+    /// this body — and this body is the fleet's ignition instruction, the one
+    /// 5xx on the hub that a caller is *supposed* to read and act on.
+    #[tokio::test]
+    async fn a_curated_5xx_keeps_the_sentence_the_caller_must_act_on() {
+        let r = locked_error().into_response();
+        assert_eq!(r.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = body_of(r).await;
+        assert!(
+            body.contains("locked") && body.contains("unlock"),
+            "the locked-hub 503 must still tell the fleet how to ignite:\n{body}"
+        );
+        assert!(
+            !body.contains("reference"),
+            "a curated 5xx is not an internal error and must not be redacted:\n{body}"
+        );
+    }
+
+    /// End-to-end through a real public route on an **unlocked** hub.
+    ///
+    /// Reachability is the point, and it is asserted rather than assumed. The
+    /// locked-shell version of this state is already refused upstream by
+    /// `lock_gate` (`/state` is not tier-0), so an encrypted-store fixture
+    /// would prove nothing about this route. What reaches `read_state` in
+    /// production is a hub that booted fine and whose storage went away
+    /// underneath it — an unmounted volume, a removed directory, a permission
+    /// change. The signer stays live, so `lock_gate` passes and the handler
+    /// runs.
+    #[tokio::test]
+    async fn the_public_state_route_does_not_name_the_store_it_failed_to_open() {
+        let (_tmp, state) = crate::rest::channel_e2e_tests::fresh_rest_state(None).await;
+        let root = state.paths.root.clone();
+
+        // The storage goes away under a running, unlocked hub.
+        std::fs::remove_dir_all(&root).unwrap();
+
+        // Precondition: the state this test is about is actually reached.
+        assert!(
+            state.society().await.is_err(),
+            "fixture never reached the failure — the handler would have returned 200 \
+             and the assertions below would pass for the wrong reason"
+        );
+
+        // `PublicState` is not `Debug`, so match rather than `expect_err`.
+        let err = match read_state(State(state.clone()), Path(state.hub_id)).await {
+            Err(e) => e,
+            Ok(_) => panic!("a hub that cannot read its society must not answer 200"),
+        };
+        let r = err.into_response();
+        assert_eq!(r.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let body = body_of(r).await;
+        assert!(
+            !body.contains(&root.display().to_string()),
+            "the 500 named the store's absolute path to an anonymous caller:\n{body}"
+        );
+        assert!(body.contains("reference"), "no correlation reference:\n{body}");
     }
 }
 
