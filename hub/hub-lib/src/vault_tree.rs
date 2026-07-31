@@ -138,9 +138,16 @@ impl OpenVault {
         out.push(VERSION);
         out.extend_from_slice(&self.salt);
         out.extend_from_slice(&sealed);
-        let tmp = self.path.with_extension("hvlt-tmp");
-        std::fs::write(&tmp, &out).with_context(|| format!("writing {}", tmp.display()))?;
-        std::fs::rename(&tmp, &self.path).with_context(|| format!("installing {}", self.path.display()))?;
+        // Was hand-rolled here as tmp+rename with a FIXED temp name and no
+        // fsync — i.e. it carried both defects the helper exists to remove.
+        // Two savers shared `<name>.hvlt-tmp`, so one could rename the other's
+        // half-written temp into place, or find it already renamed away and
+        // fail with ENOENT (measured — see the test below). And the rename
+        // could become visible before the bytes, leaving a sealed vault that
+        // decrypts to nothing. This file is the identity store; a torn write
+        // here does not heal on the next save.
+        crate::atomic_file::write_atomic(&self.path, &out)
+            .with_context(|| format!("installing {}", self.path.display()))?;
         Ok(())
     }
 
@@ -216,6 +223,67 @@ mod tests {
         assert!(!raw.windows(17).any(|w| w == b"SECRET_MARKER_XYZ"));
         let v = OpenVault::open(&p, "m").unwrap();
         assert_eq!(&v.open_item("g", None).unwrap()[..], b"SECRET_MARKER_XYZ");
+    }
+
+    /// `save` used to hand-roll tmp+rename with a FIXED temp name
+    /// (`<name>.hvlt-tmp`), so concurrent savers shared one temp file. Run
+    /// against that version this test FAILS, in the way it actually breaks on
+    /// Linux: not a byte-level splice (a single `write(2)` holds the inode
+    /// lock, so the writes do not interleave) but
+    ///
+    ///     installing /tmp/.../t.hvlt: No such file or directory (os error 2)
+    ///
+    /// — one saver renamed the shared temp into place, and the next found
+    /// nothing to rename. The neighbouring failure, which the same window
+    /// permits, is worse and silent: rename the temp while another saver is
+    /// still filling it, and the installed vault is a truncated one.
+    ///
+    /// So the assertions are "it still decrypts" and "every save succeeded",
+    /// not "the bytes were not spliced". The payload is large and the race is
+    /// repeated because the window is short; key derivation happens before the
+    /// threads start so Argon2 does not stagger them out of contention.
+    #[test]
+    fn concurrent_saves_land_whole_and_leave_no_temp() {
+        let (d, p) = tmp();
+        let filler = vec![b'x'; 512 * 1024];
+
+        let vaults: Vec<OpenVault> = (0..4)
+            .map(|i| {
+                let mut v = OpenVault::create(&p, "m", "v1").unwrap();
+                v.put_master("filler", ItemKind::Document, &filler);
+                v.put_master("who", ItemKind::Document, format!("body-{i}").as_bytes());
+                v
+            })
+            .collect();
+
+        // No per-round decrypt probe: `open` runs Argon2id and would put this
+        // test in the minutes. Every save is checked instead — the shared-temp
+        // window surfaces there — and the file is decrypted once at the end.
+        for _ in 0..40 {
+            std::thread::scope(|s| {
+                for v in &vaults {
+                    s.spawn(move || {
+                        v.save().expect("a concurrent save failed to install");
+                    });
+                }
+            });
+        }
+
+        // Whichever writer won, the file on disk is a complete vault: it
+        // decrypts, and the marker is one writer's, not a mixture.
+        let v = OpenVault::open(&p, "m").unwrap();
+        let body = v.open_item("who", None).unwrap();
+        assert!(
+            body.starts_with(b"body-") && body.len() == 6,
+            "vault decrypted to a splice: {body:?}"
+        );
+
+        let strays: Vec<_> = std::fs::read_dir(d.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n != "t.hvlt")
+            .collect();
+        assert!(strays.is_empty(), "left behind: {strays:?}");
     }
 
     #[test]

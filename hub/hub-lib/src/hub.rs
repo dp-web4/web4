@@ -288,7 +288,7 @@ impl HubConfig {
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
         let toml = toml::to_string_pretty(self).context("serializing config.toml")?;
-        std::fs::write(path, toml)
+        crate::atomic_file::write_atomic(path, toml)
             .with_context(|| format!("writing {}", path.display()))?;
         Ok(())
     }

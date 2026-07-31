@@ -426,7 +426,16 @@ fn load_or_create_store_salt(hub_dir: &Path) -> Result<[u8; 16]> {
     } else {
         let s = web4_core::vault::crypto::generate_salt();
         std::fs::create_dir_all(hub_dir).ok();
-        std::fs::write(&salt_path, s)
+        // Atomic because a short read here is unrecoverable, not degraded: the
+        // reader above demands exactly 16 bytes, so a truncated salt is a store
+        // whose key can never be re-derived.
+        //
+        // Still not write-once. Two processes that both find the salt absent
+        // each generate one, and the second install wins — the first has by
+        // then derived a key from a salt no longer on disk. That race predates
+        // this call and is not what atomicity fixes; closing it needs an
+        // O_EXCL create plus a re-read of the winner's salt.
+        crate::atomic_file::write_atomic(&salt_path, s)
             .with_context(|| format!("writing store salt {}", salt_path.display()))?;
         Ok(s)
     }

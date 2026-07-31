@@ -75,7 +75,30 @@ impl Drop for TmpGuard {
 /// This serializes nothing; see the module docs before using it on a file that
 /// more than one process read-modify-writes.
 pub fn write_atomic(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> Result<()> {
-    let path = path.as_ref();
+    write_inner(path.as_ref(), contents.as_ref(), None)
+}
+
+/// [`write_atomic`], but the file is **created** with `mode` (unix only; the
+/// mode is ignored elsewhere).
+///
+/// Use this for anything secret. Writing first and `chmod`-ing after leaves the
+/// file world-readable for the interval in between, which is a window an
+/// attacker on the box can lose a race to but does not have to win twice — the
+/// operator token was written that way, under a doc comment claiming it was
+/// not. Here the mode is on the `open(2)`, so the bytes are never visible at
+/// 0644, and it is re-asserted after the write so a stale temp file left by a
+/// crashed predecessor cannot donate its permissions.
+pub fn write_atomic_mode(
+    path: impl AsRef<Path>,
+    contents: impl AsRef<[u8]>,
+    mode: u32,
+) -> Result<()> {
+    write_inner(path.as_ref(), contents.as_ref(), Some(mode))
+}
+
+fn write_inner(path: &Path, contents: &[u8], mode: Option<u32>) -> Result<()> {
+    #[cfg(not(unix))]
+    let _ = mode;
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
     std::fs::create_dir_all(dir)
         .with_context(|| format!("creating parent dir {}", dir.display()))?;
@@ -93,9 +116,26 @@ pub fn write_atomic(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> Resul
 
     let mut guard = TmpGuard(Some(tmp.clone()));
 
-    let mut f = std::fs::File::create(&tmp)
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    if let Some(m) = mode {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(m);
+    }
+    let mut f = opts
+        .open(&tmp)
         .with_context(|| format!("creating temp file {}", tmp.display()))?;
-    f.write_all(contents.as_ref())
+    #[cfg(unix)]
+    if let Some(m) = mode {
+        // `opts.mode()` only takes effect when the open actually creates the
+        // file. Re-assert it so a leftover temp from a crashed run with a
+        // recycled pid cannot hand us its looser permissions.
+        use std::os::unix::fs::PermissionsExt;
+        f.set_permissions(std::fs::Permissions::from_mode(m))
+            .with_context(|| format!("setting mode on temp file {}", tmp.display()))?;
+    }
+    f.write_all(contents)
         .with_context(|| format!("writing temp file {}", tmp.display()))?;
     // Without this the rename can become visible while the bytes are not, which
     // reintroduces exactly the durable-truncation failure we are here to remove.
@@ -179,6 +219,54 @@ mod tests {
                 got.matches('B').count()
             );
         }
+    }
+
+    /// A secret written with `write_atomic_mode` is 0600 when it lands, and the
+    /// temp file it came from was created 0600 too — the mode is an argument to
+    /// the `open(2)`, so unlike a write-then-`chmod` there is no interval in
+    /// which the bytes sit at 0644. This asserts the observable half (the final
+    /// mode); the absence of the window is structural, from where the mode is
+    /// applied, and is why the old `set_permissions`-after-write shape was
+    /// replaced rather than kept.
+    #[cfg(unix)]
+    #[test]
+    fn write_atomic_mode_lands_at_0600_and_leaves_no_stray() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path().join("operator.token");
+        write_atomic_mode(&p, b"s3cret", 0o600).unwrap();
+
+        assert_eq!(std::fs::read_to_string(&p).unwrap(), "s3cret");
+        let mode = std::fs::metadata(&p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "token landed at {mode:o}, want 600");
+
+        let strays: Vec<_> = std::fs::read_dir(d.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n != "operator.token")
+            .collect();
+        assert!(strays.is_empty(), "left behind: {strays:?}");
+    }
+
+    /// Overwriting an existing 0644 file with a 0600 write must not inherit the
+    /// old mode. It cannot here — the rename installs a *new* inode carrying
+    /// the temp file's permissions — but that is precisely the kind of thing
+    /// that silently regresses if someone "simplifies" this back to a write in
+    /// place.
+    #[cfg(unix)]
+    #[test]
+    fn write_atomic_mode_replaces_a_loose_existing_mode() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path().join("t");
+        std::fs::write(&p, b"old").unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        write_atomic_mode(&p, b"new", 0o600).unwrap();
+        assert_eq!(
+            std::fs::metadata(&p).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
     }
 
     /// Atomicity is not exclusion. This documents the limit in an executable

@@ -81,7 +81,7 @@ impl PublicIdentity {
     /// Write the clear public identity (idempotent; public info, 0644).
     pub fn write(&self, hub_dir: &std::path::Path) -> anyhow::Result<()> {
         let bytes = serde_json::to_vec_pretty(self)?;
-        std::fs::write(Self::path(hub_dir), bytes)?;
+        hub_lib::atomic_file::write_atomic(Self::path(hub_dir), bytes)?;
         Ok(())
     }
 }
@@ -2020,22 +2020,16 @@ impl OperatorAuth {
     }
 
     /// Generate a fresh 256-bit hex token, write it to `path` atomically
-    /// (0600 tmp + rename — no 0644 window, no truncated-file crash state),
-    /// record its creation time, and return the token. THIS function prints
-    /// only the fingerprint; the caller decides whether to display the full
-    /// secret (e.g. one-time rotation output).
+    /// (created 0600 — the mode is on the `open`, not a `chmod` after the
+    /// secret is already on disk — then fsync + rename, so there is no
+    /// truncated-file crash state either), record its creation time, and
+    /// return the token. THIS function prints only the fingerprint; the caller
+    /// decides whether to display the full secret (e.g. one-time rotation
+    /// output).
     pub fn generate_and_write(path: &std::path::Path) -> anyhow::Result<String> {
         use anyhow::Context;
         let t = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-        let tmp = path.with_extension("tmp");
-        std::fs::write(&tmp, &t)
-            .with_context(|| format!("writing operator token {}", tmp.display()))?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
-        }
-        std::fs::rename(&tmp, path)
+        hub_lib::atomic_file::write_atomic_mode(path, &t, 0o600)
             .with_context(|| format!("installing operator token {}", path.display()))?;
         // Record creation time so a TTL can be enforced later.
         if let Some(parent) = path.parent() {
@@ -2044,12 +2038,7 @@ impl OperatorAuth {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs();
-            let _ = std::fs::write(&created_path, now.to_string());
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let _ = std::fs::set_permissions(&created_path, std::fs::Permissions::from_mode(0o600));
-            }
+            let _ = hub_lib::atomic_file::write_atomic_mode(&created_path, now.to_string(), 0o600);
         }
         println!(
             "  operator auth: TOKEN mode — new token written to {} (0600); \
@@ -2354,6 +2343,36 @@ mod operator_auth_tests {
         assert!(constant_time_eq(b"abc", b"abc"));
         assert!(!constant_time_eq(b"abc", b"ab"));
         assert!(!constant_time_eq(b"abc", b"abd"));
+    }
+
+    /// The token is a bearer secret, so it must never exist at 0644 — not even
+    /// briefly. The old shape wrote the bytes with `std::fs::write` and
+    /// `chmod`-ed afterwards, under a doc comment that claimed "no 0644
+    /// window"; the mode is now on the `open` that creates the temp file. It
+    /// also left `operator.tmp` behind on any failure between write and
+    /// rename, and used a fixed temp name two rotations could share.
+    #[cfg(unix)]
+    #[test]
+    fn generated_operator_token_is_0600_and_leaves_no_temp() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join(OperatorAuth::TOKEN_FILE);
+        let token = OperatorAuth::generate_and_write(&path).unwrap();
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), token);
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "operator token is {mode:o}, want 600");
+
+        let created = tmp.path().join(OperatorAuth::TOKEN_CREATED_FILE);
+        let cmode = std::fs::metadata(&created).unwrap().permissions().mode() & 0o777;
+        assert_eq!(cmode, 0o600, "token-created stamp is {cmode:o}, want 600");
+
+        let strays: Vec<_> = std::fs::read_dir(tmp.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n.contains("tmp"))
+            .collect();
+        assert!(strays.is_empty(), "left behind: {strays:?}");
     }
 
     #[test]
