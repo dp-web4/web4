@@ -24,6 +24,7 @@
 
 pub mod hub;
 pub mod atomic_file;
+pub mod build_info;
 pub mod charter;
 pub mod constellation;
 pub mod envelope;
@@ -46,7 +47,13 @@ pub mod unlock_gate;
 pub mod vault_tree;
 
 /// Crate version, exposed for `hub --version`.
+///
+/// This is a *name*, not a build identity: it is hand-maintained in the
+/// workspace `Cargo.toml` and does not change when the code does. Use
+/// [`build_info::BUILD`] to identify a binary.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub use build_info::BUILD;
 
 #[cfg(test)]
 mod tests {

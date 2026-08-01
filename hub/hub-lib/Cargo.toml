@@ -37,6 +37,11 @@ aws-sdk-dynamodb = { version = "1", default-features = false, features = ["behav
 default = []
 dynamodb = ["dep:aws-config", "dep:aws-sdk-dynamodb"]
 
+[build-dependencies]
+# Only for the RFC-3339 build instant in build.rs. Already a normal dependency
+# of this crate, so it adds nothing to the lockfile or the download set.
+chrono = "0.4"
+
 [dev-dependencies]
 tempfile = "3"
 tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }

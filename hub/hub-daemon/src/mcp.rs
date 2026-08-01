@@ -232,6 +232,18 @@ struct QueryHubResponse {
     role_fill: HashMap<String, Uuid>,
     last_ledger_index: u64,
     head_hash: String,
+    /// What this daemon was built from. Published for the same reason
+    /// `head_hash` is (see `run_verify_ledger`'s closing note): so a party
+    /// holding an independent record can compare against it. Without it the
+    /// only way to answer "is the merged fix live?" is to reconstruct it from
+    /// outside the process — `/proc/<pid>/exe` inode identity and binary mtimes
+    /// against commit dates — which cannot be done remotely at all and has
+    /// already failed open locally.
+    ///
+    /// Public-plane safety: the repository is public and the SHA names a commit
+    /// in it. This adds no path, no host detail and no secret — it is the same
+    /// class of self-description as `hub_name` and `charter_hash`.
+    build: hub_lib::build_info::BuildInfo,
 }
 
 async fn query_hub(State(s): State<McpState>) -> Result<Json<QueryHubResponse>, ApiError> {
@@ -258,6 +270,7 @@ async fn query_hub(State(s): State<McpState>) -> Result<Json<QueryHubResponse>, 
         role_fill,
         last_ledger_index: state.last_index,
         head_hash: ledger.head_hash().to_string(),
+        build: hub_lib::BUILD,
     }))
 }
 
@@ -1022,6 +1035,60 @@ mod tests {
             over.status,
             StatusCode::BAD_REQUEST,
             "an over-long query is malformed input, not a permissions failure"
+        );
+    }
+
+    /// The hub answers "what are you built from?" over the wire.
+    ///
+    /// This is the whole point of the field: before it, the only records of a
+    /// running daemon's build were external to the process (binary mtime,
+    /// `/proc/<pid>/exe` inode identity) and unreachable from another machine.
+    /// The assertion that matters is not that a `build` key exists but that the
+    /// SHA it publishes is the one a peer can compare against `git rev-parse
+    /// HEAD` — so it is checked for shape, not merely for presence.
+    #[tokio::test]
+    async fn query_hub_publishes_the_build_a_peer_can_compare_against() {
+        let (_tmp, rest) = fresh_rest_state(None).await;
+        let s = mcp_over(&rest).await;
+
+        let body = query_hub(State(s)).await.expect("query_hub answers").0;
+        let j = serde_json::to_value(&body).unwrap();
+        let build = j.get("build").expect("query_hub publishes the build");
+
+        assert_eq!(build.get("git_sha").unwrap(), hub_lib::BUILD.git_sha);
+        let sha = build.get("git_sha").unwrap().as_str().unwrap();
+        assert_eq!(sha.len(), 40, "a full object id, comparable to rev-parse HEAD");
+        assert!(sha.chars().all(|c| c.is_ascii_hexdigit()));
+
+        // The tree state must be published alongside it. A SHA without it says
+        // "built from this commit" when the truth may be "built from this
+        // commit plus uncommitted edits", which is the same over-claim the
+        // version string made.
+        assert!(
+            matches!(
+                build.get("provenance").unwrap().as_str().unwrap(),
+                "clean" | "dirty" | "unknown"
+            ),
+            "provenance is one of the three defined states"
+        );
+        assert!(build.get("built_at").unwrap().as_str().unwrap().ends_with('Z'));
+    }
+
+    /// Two hubs on the same binary must publish the same build, and the value
+    /// must not be a function of hub state — otherwise it would be describing
+    /// the society rather than the artifact.
+    #[tokio::test]
+    async fn the_published_build_describes_the_binary_not_the_society() {
+        let (_tmp_a, rest_a) = fresh_rest_state(None).await;
+        let (_tmp_b, rest_b) = fresh_rest_state(None).await;
+        let a = query_hub(State(mcp_over(&rest_a).await)).await.unwrap().0;
+        let b = query_hub(State(mcp_over(&rest_b).await)).await.unwrap().0;
+
+        assert_ne!(a.hub_name.is_empty() && b.hub_name.is_empty(), true);
+        assert_eq!(
+            serde_json::to_value(a.build).unwrap(),
+            serde_json::to_value(b.build).unwrap(),
+            "the build stamp is a property of the artifact, identical across societies"
         );
     }
 }
