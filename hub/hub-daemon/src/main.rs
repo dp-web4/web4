@@ -32,7 +32,10 @@ use crate::rest::{router as rest_router, RestState};
 
 /// Web4 Community Hub — minimum-viable Web4 society for a community chapter.
 #[derive(Parser, Debug)]
-#[command(name = "hub", version = hub_lib::VERSION, about, long_about = None)]
+// `--version` reports the build, not the package name-string: the two binaries an
+// operator most needs to tell apart (before and after a merge) carry the same
+// `CARGO_PKG_VERSION` and always have.
+#[command(name = "hub", version = hub_lib::build_info::SUMMARY, about, long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -554,7 +557,7 @@ async fn main() -> Result<()> {
     match cli.command {
         None => {
             // No subcommand — print short usage hint and exit 0.
-            println!("hub {} — Web4 Community Hub", hub_lib::VERSION);
+            println!("hub {} — Web4 Community Hub", hub_lib::build_info::SUMMARY);
             println!("Run `hub --help` for available commands.");
             Ok(())
         }
