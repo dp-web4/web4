@@ -23,7 +23,7 @@ The hub does **not** dictate how a society runs — it makes *whatever law the s
 - **Signed, machine-readable law.** A society's rules — admission, role authority, thresholds, what escalates — are a law the PolicyEntity gate evaluates before every consequential act. It is **inspectable by anyone** (`GET /v1/hubs/:id/law`), *including while the hub's vault is locked*: the rules are public even when the hub can't yet act on them.
 - **Changeable only with authority, and witnessed.** Amending the law requires unlock + signing and lands as a `LawAmended` event on the **append-only, hash-chained, witnessed ledger** — alongside every membership, role, skill, and intro act. You cannot quietly change the rules.
 - **Fail-closed secrets.** The Sovereign key is encrypted at rest; the daemon never silently writes a plaintext key (an empty passphrase is allowed but must be *explicit*). A hub whose vault is locked **degrades to a read-only no-LCT surface** rather than running ungoverned.
-- **Governed startup (shipped).** Unlocking a hub is itself an auditable, governed act — automatable or human-gated per the society's own law, but always recorded. Locked-mode ships today, and so does the **generic tier-2 M-of-N unlock seam** (`POST /v1/hubs/:id/unlock/challenge` + `/unlock/attest`): the hub mints the challenge, ledgers every step, and defers the quorum decision to an optional private verifier (`HUB_UNLOCK_VERIFIER`). With no verifier installed, tier-2 unlock reports N/A (501) and the hub runs unaffected — the novel quorum logic is pluggable, the seam is public. *Convenience is policy; the audit trail is not.*
+- **Governed startup (shipped).** Unlocking a hub is itself an auditable, governed act — always recorded. Locked-mode ships today. **Ignition is tier-1 only: a human-supplied passphrase every boot** (`hub unlock`, or a loopback `POST /v1/hubs/:id/unlock`); hands-off ignition (hardware-bound / M-of-N-at-boot) is *not* shipped. What also ships is the **generic tier-2 M-of-N quorum seam** (`POST /v1/hubs/:id/unlock/challenge` + `/unlock/attest`), which **requires an already-ignited hub** — it is a witnessed quorum gate on *releasing the protected tier*, not a second way in. The hub mints the challenge, ledgers every step, and defers the quorum decision to an optional private verifier (`HUB_UNLOCK_VERIFIER`); on a grant it opens the Sealed protected item with a credential the hub has held since ignition. With no verifier installed, tier-2 reports N/A (501) and the hub runs unaffected — the novel quorum logic is pluggable, the seam is public. *Convenience is policy; the audit trail is not.*
 
 We don't mandate the policy. We insist that whatever the policy is, is followed verifiably.
 
@@ -265,7 +265,8 @@ POST /v1/hubs/:id/events                              Submit a signed, law-gated
 GET  /v1/hubs/:id/state                               Projected state (tier-scoped)
 GET  /v1/hubs/:id/members/:uuid/pubkey                Resolve a member's pinned channel pubkey by UUID
 POST /v1/hubs/:id/unlock                              Tier-1 passphrase ignition (127.0.0.1)
-POST /v1/hubs/:id/unlock/challenge | /unlock/attest   Tier-2 M-of-N unlock seam (501 w/o verifier)
+POST /v1/hubs/:id/unlock/challenge | /unlock/attest   Tier-2 M-of-N protected-tier release; needs an
+                                                      ignited hub (503 while locked; 501 w/o verifier)
 POST /v1/hubs/:id/members/join                        Member admission request → law gate → queue
 POST /v1/hubs/:id/channel                             Sealed member↔hub channel (see below)
 *    /v1/hubs/:id/council/{propose,sign,proposals}    Sovereign Council proposal flow

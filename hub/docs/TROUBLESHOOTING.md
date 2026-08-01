@@ -146,14 +146,30 @@ reasons it's not reachable:
 - **The hub is still locked.** The operator plane is behind the same lock-gate —
   it also returns 503 until you `hub unlock`.
 
-### tier-2 M-of-N unlock returns 501
+### tier-2 M-of-N is refused on a **locked** hub (503) — it is not an ignition path
 
-`POST .../unlock/challenge` (the Sovereign-Council M-of-N unlock) returns *"tier-2
-M-of-N unlock is not available on this hub (no unlock verifier plugin
-configured)"*. **This is expected, not a bug** — the M-of-N quorum logic lives in a
-separate verifier binary that isn't installed by default. It's N/A unless you set
-`HUB_UNLOCK_VERIFIER` to point at that verifier. Use the tier-1 passphrase path
-(`hub unlock`) instead.
+**Tier-2 cannot unlock a locked hub, whether or not the verifier plugin is
+installed.** `/unlock/challenge` and `/unlock/attest` are deliberately outside the
+locked-shell tier-0 allowlist (`locked_tier0_allows`, pinned by
+`the_tier2_unlock_flow_stays_refused_while_locked`), and `unlock_challenge` carries
+its own guard on top of it: *"ignite tier-1 first (passphrase / hardware) before a
+tier-2 M-of-N unlock"*. So on a locked hub you get the lock-gate **503**, and the
+501 below is unreachable.
+
+Tier-2 is a **quorum gate on releasing the protected tier of an already-ignited
+hub** — on a grant, `open_protected_tier` decrypts the Sealed item using a sealing
+credential the hub has held *since ignition*. The quorum authorizes; it does not
+supply key material. Setting `HUB_UNLOCK_VERIFIER` therefore does **not** give you
+hands-off boot: every boot still needs the tier-1 passphrase.
+
+### tier-2 M-of-N unlock returns 501 (on an ignited hub)
+
+`POST .../unlock/challenge` returns *"tier-2 M-of-N unlock is not available on this
+hub (no unlock verifier plugin configured)"*. **This is expected, not a bug** — the
+M-of-N quorum logic lives in a separate verifier binary that isn't installed by
+default. It's N/A unless you set `HUB_UNLOCK_VERIFIER` to point at that verifier
+(an absolute path). Ignite with the tier-1 passphrase path (`hub unlock`) first
+regardless.
 
 ---
 
