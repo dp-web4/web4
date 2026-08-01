@@ -1,7 +1,7 @@
 # C302 — 7th-Delta Re-Audit of `protocols/web4-lct.md` (the frozen LCT sister-doc)
 
-**Date**: 2026-07-31
-**Auditor**: Legion autonomous web4 track (slot `web4-20260731-180032`)
+**Date**: 2026-07-31 · **rev 1**: 2026-08-01 (review round 1 on `#625` — count layer only)
+**Auditor**: Legion autonomous web4 track (slot `web4-20260731-180032`; rev 1 by slot `web4-20260801-000032`)
 **Target**: `web4-standard/protocols/web4-lct.md` (278 lines)
 **Type**: **7th-delta re-audit**. Read-only — produces this audit doc, makes **no file edits** (the target is D0-gated).
 **Lineage**: C60-B13 → **C74** first audit (#363, 28 findings B1–B28) → **C75** `protocols/` cluster triage (#364) → **C114** 2nd (+N1) → **C146** 3rd (3.1 path correction) → **C186** 4th (C172-N1 scope-widening) → **C224** 5th (3.2 locus 689→718) → **C262** 6th (first empty corpus-delta) → **C302**.
@@ -23,6 +23,17 @@ The target is byte-identical to its C74→C262 snapshot. §A holds. §B is mater
 **The flagship candidate was killed before it was written.** Machine-validating the standard's five LCT test vectors against `lct.schema.json` produces four clean failures — and every one is **C288-N1**, filed *one day earlier* by the sibling canonical-LCT lineage (§E.1). Recorded as a kill, not a finding.
 
 **D0 remains operator-unanswered and gates all remediation. Nothing here edits any file, and nothing here re-decides D0 or the flagship B-D1.**
+
+> **Rev 1 (2026-08-01) — what changed and what did not.** The review of `#625` reproduced the target
+> freeze, all four N1 anchors, every N2 sub-claim, N3, the corpus window, the §E.1 kill, all 168
+> census cells and all 29 cited paths, and **withdrew no finding**. It blocked on the *count layer*.
+> Rev 1 therefore touches evidence cells only: §B′.1 is **republished under one stated matcher** and
+> gains four missing tree rulings (§F.7, §F.9), and six wrong cells are corrected (§F.5, §F.6, §F.8).
+> Every number was re-measured here rather than transcribed, which found a seventh wrong cell the
+> review had not flagged. **N1–N4 stand exactly as filed; §E.1 stays killed; D0 stays unanswered.**
+> The corrections that changed an existing finding's *reach* rather than a cell are folded into
+> **N2** (a third independent implementation, in `ledgers/`) and **N3** (its `peer` enumeration) —
+> as reach, never as truth.
 
 ---
 
@@ -60,7 +71,18 @@ Byte-frozen → holds by construction. §2.6 `:107-114` enumerates four attestat
 
 ### A.4 — C56 claim-vs-canonical re-read
 
-Every cited canonical source is frozen at or before the C262 baseline: canonical `LCT-linked-context-token.md` `d89595e8` (2026-07-16), `entity-types.md` `5baa160f`, SAL, `forum/nova/web4-witnessing.md` (2025-09-14). **No canonical doc moved in this window** → no B-line cross-doc *claim* went stale on the content axis this cycle. (The *anchors* were already stale before this cycle opened — that is N1, and it is a debt from the C224 window, not a C302-window event.)
+Every cited canonical source is frozen at or before the C262 baseline: canonical `LCT-linked-context-token.md` `d89595e8` (2026-07-16), `entity-types.md` **`1354e4c2` (2026-07-14)**, SAL, `forum/nova/web4-witnessing.md` **`58f39b68` (2025-09-13)**. **No canonical doc moved in this window** → no B-line cross-doc *claim* went stale on the content axis this cycle. (The *anchors* were already stale before this cycle opened — that is N1, and it is a debt from the C224 window, not a C302-window event.)
+
+> **Corrected 2026-08-01** (review round 1; see §F.6). This cell first published `entity-types.md`
+> as **`5baa160f`**, carried verbatim from `C262:34/:54/:66`. Measured:
+> `git log --oneline -2 origin/main -- web4-standard/core-spec/entity-types.md` →
+> **`1354e4c2`** (W4IP Phase 3, `#523`, 2026-07-14), then `5baa160f` (`#344`, 2026-06-16). **The
+> conclusion is unchanged** — 2026-07-14 still precedes the C262 baseline `6d3e0566` (2026-07-24),
+> so no canonical doc moved in this window and B7 is unaffected (§2.1 re-counted at HEAD: still 15).
+> The *provenance cell* was a stale carried pointer, in the section preceding the finding whose whole
+> subject is stale carried pointers. Corrected here precisely because the conclusion was obviously
+> right — that is where this class hides. `web4-witnessing.md`'s date is corrected in the same pass:
+> `58f39b68` is **2025-09-13** on both author and commit date, not 09-14.
 
 ---
 
@@ -121,7 +143,7 @@ C300 established that a clean streak can be a carry ledger silently *emptying*. 
 | File | Change | web4-lct relevance |
 |---|---|---|
 | `web4-standard/proposals/dictionary-as-context-mandatory-role.md` | +163 (new) | **none** — `lct_id` hits: 0 |
-| `web4-standard/proposals/resilience-to-incomplete-information.md` | +170 (new) | **none** — `lct_id` hits: 1, incidental |
+| `web4-standard/proposals/resilience-to-incomplete-information.md` | +170 (new) | **none** — `lct_id` hits: **0**; `grep -ci lct` over the whole file = **0** |
 | `web4-standard/ontology/t3v3-ontology.ttl` | +18/−4 | adds `web4:Tensor`, re-domains `web4:entity` ("The LCT entity this tensor measures") |
 
 **Tier check before charging anything (per [[feedback_read_the_specs_meta_structure]] and the C268/C270/C272 "canonized principle re-scopes a frozen file" pattern):** both movers are `proposals/` tier, fleet-review status. **They claim no authority over canon**, so the re-scoping pattern does **not** fire and no defect is charged against the frozen sister for either. Stated explicitly because the pattern's trigger is "what landed claiming authority over the target's subject matter" — and here the answer, checked, is *nothing*.
@@ -154,28 +176,91 @@ C262 tracked **six** artifacts: the target, canonical, `README.md`, `lct.rs`, `a
 
 ### B′.1 — Outward sweep: trees searched, with counts
 
-**Instrument:** `git grep -l <token> HEAD -- <tree> | wc -l` at HEAD `a6959a8c`. Tokens are the target's own §1 field names. Every tree searched is listed, including the ones that came back empty — a negative gate must publish its paths ([[feedback_gate_scoped_to_wrong_tree]]).
+> **REPUBLISHED 2026-08-01** (review round 1; see §F.7). The table below is a **re-measurement, not
+> an edit**: the whole 16 × 3 grid was re-run from ground truth under both matchers. The first
+> publication stated one instrument (`git grep -l`) and printed cells produced by **three** different
+> ones, in the section whose own claim is that a negative gate must publish its paths. That is the
+> single most load-bearing correction in this round and it is why the block was a block.
 
-| tree searched | `birth_certificate` | `entity_type` | `lct_id` | cites `protocols/web4-lct.md` | in C262 set? |
-|---|---|---|---|---|---|
-| `web4-standard/schemas/` | 4 | 6 | 8 | 0 | **NO** |
-| `web4-standard/test-vectors/` | 7 | 11 | 10 | 0 | **NO** |
-| `web4-standard/implementation/sdk/web4/` | 3 | 8 | 8 | 0 | **NO** |
-| `web4-standard/ontology/` | 1 | 0 | 0 | 0 | **NO** |
-| `core/` (`core/lct_binding/`, 13 files) | 5 | 8 | 8 | 0 | **NO** |
-| `hub/` | 0 | 6 | 17 | 0 | **NO** |
-| `web4-core/` | 2 | 5 | 13 | 0 | yes |
-| `mcp-server/` | 0 | 1 | 2 | 0 | no |
-| `mcp-servers/` | 0 | 0 | 1 | 0 | no |
-| `demos/` | 0 | 2 | 2 | 0 | no |
-| `integration/` | 0 | 0 | 0 | 0 | no |
-| `governance/` | 0 | 0 | 0 | 0 | no |
+**Instrument — one matcher, stated once:** `git grep -lw <token> a6959a8c -- <tree> | wc -l`.
+The `-w` is the correction; without it the grid over-counts by substring (`hub/ lct_id` = 27 bare
+vs **17** whole-word, because `hub/` also carries `lct_id_hint`-style compounds).
+
+The standard is **not uniform in field-naming convention**, so a second matcher is published as its
+own column rather than silently folded into the first: `git grep -lw <camelCaseToken> a6959a8c -- <tree>`
+over `birthCertificate` / `entityType` / `lctId`. Cells are given as `bc / et / lct_id`; the camelCase
+column is shown only where nonzero. Every tree searched is listed, including the ones that came back
+empty ([[feedback_gate_scoped_to_wrong_tree]]).
+
+| tree searched | `bc` | `et` | `lct_id` | camelCase (bc/et/lct) | cites `protocols/web4-lct.md` | in C262 set? | ruling |
+|---|---|---|---|---|---|---|---|
+| `web4-standard/schemas/` | 4 | 6 | 8 | 1 / 2 / 3 | 0 | **NO** | **ADMIT** |
+| `web4-standard/test-vectors/` | 7 | **10** | **9** | 0 / 1 / 1 | 0 | **NO** | **ADMIT** |
+| `web4-standard/implementation/sdk/web4/` | 3 | 8 | 8 | 0 / 1 / 1 | 0 | **NO** | **ADMIT** |
+| `web4-standard/implementation/sdk/tests/` | 10 | 19 | 19 | 0 / 1 / 1 | 0 | **NO — never listed** | **ADMIT** (derivative) |
+| `web4-standard/ontology/` | **0** | 0 | 0 | **1** / 0 / 0 | 0 | **NO — no ruling given** | **ADMIT** |
+| `web4-standard/demos/` | 4 | 4 | 4 | 0 / 0 / 0 | 0 | **NO — never listed** | M-DECLINE (non-normative) |
+| `ledgers/` | 3 | 4 | 12 | 0 / 2 / 1 | 0 | **NO — never listed** | **ADMIT** |
+| `core/` | 5 | 8 | 8 | 0 / 0 / 0 | 0 | **NO** | M-DECLINE, routed |
+| &nbsp;&nbsp;↳ `core/lct_binding/` (10 files) | 3 | 6 | 5 | 0 / 0 / 0 | 0 | — | M-DECLINE, routed |
+| `hub/` | 0 | 6 | 17 | 0 / 0 / 0 | 0 | **NO** | M-DECLINE |
+| `web4-core/` | 2 | 5 | 13 | 0 / 0 / 0 | 0 | yes | in set |
+| `mcp-server/` | 0 | 1 | 2 | 0 / 0 / 0 | 0 | no | M1-FAIL |
+| `mcp-servers/` | 0 | 0 | 1 | 0 / 0 / 1 | 0 | no | M1-FAIL |
+| `demos/` | 0 | 2 | 2 | 0 / 0 / 0 | 0 | no | M1-FAIL |
+| `integration/` | 0 | 0 | 0 | 0 / 0 / 0 | 0 | no | M1-FAIL |
+| `governance/` | 0 | 0 | 0 | 0 / 0 / 0 | 0 | no | M1-FAIL |
+
+**Cells that changed against the first publication, and why** — all three are the mixed-matcher
+artefact, none changes a ruling:
+
+| cell | first published | measured under `-lw` | reconciles as |
+|---|---|---|---|
+| `test-vectors/ entity_type` | 11 | **10** | 10 + `entityType`(1) = 11 |
+| `test-vectors/ lct_id` | 10 | **9** | 9 + `lctId`(1) = 10 &nbsp;*(not flagged in review; found by re-running the whole grid)* |
+| `ontology/ birth_certificate` | 1 | **0** | 0 + `birthCertificate`(1) = 1 |
+
+Six further cells (`hub/`, `web4-core/`, `core/`, `sdk/web4/` ×2, `ontology/ lct_id`) were correct as
+published under `-lw` and wrong under the bare `-l` the doc had named — i.e. the *numbers* were the
+right measurement and the *stated instrument* was the wrong one.
 
 **Gate rulings.**
-- `hub/` — **M-DECLINED on subject matter.** 0 `birth_certificate` hits; its `entity_type` surface is `hub-daemon/src/main.rs:517-541` `CliEntityType`, whose own comment declares it a *"Subset of `web4_core::EntityType` exposed via CLI"*. A declared subset of an already-audited enum is not an independent LCT definition. Re-run only if `hub/` gains its own birth-certificate or LCT-object construction.
-- `core/lct_binding/` — **M-DECLINED, routed.** Real LCT surface, but it is the **hardware-binding / TPM2** lane (`ek_attestation.py`, `tpm2_provider.py`, `trustzone_provider.py`), last touched `5ddbfd9b` 2026-04-27. Its subject is §2.2 `hardware_anchor`, not the §1 object. Routed to the AttestationEnvelope / hardware-binding track; **not annexed**.
-- `mcp-server*/`, `demos/`, `integration/`, `governance/` — **M1-FAIL**, below threshold.
+- `hub/` — **M-DECLINED on subject matter.** 0 `birth_certificate` hits; its `entity_type` surface is `hub-daemon/src/main.rs:517-529` `CliEntityType` (the `From<CliEntityType> for EntityType` conversion follows at `:531-544`), whose own doc-comment declares it a *"Subset of `web4_core::EntityType` exposed via CLI"*. A declared subset of an already-audited enum is not an independent LCT definition. Re-run only if `hub/` gains its own birth-certificate or LCT-object construction.
+- `core/lct_binding/` — **M-DECLINED, routed.** Real LCT surface, but it is the **hardware-binding / TPM2** lane (`ek_attestation.py`, `tpm2_provider.py`, `trustzone_provider.py`), **10 files, last touched `d9ab940e` 2026-02-20** (`git log -1 -- core/lct_binding/`). Its subject is §2.2 `hardware_anchor`, not the §1 object. Routed to the AttestationEnvelope / hardware-binding track; **not annexed**. *(Corrected: first published as "13 files, last touched `5ddbfd9b` 2026-04-27" — `5ddbfd9b` is `core/`'s last commit and it touched `core/pattern_source_identity.py`, a file this reasoning never names, and **13** is the count for `core/`, not `core/lct_binding/`. The row was labelled with one path and counted with another. The ruling itself is unchanged and stands on the subject-matter argument.)*
+- `mcp-server*/`, top-level `demos/`, `integration/`, `governance/` — **M1-FAIL**, below threshold.
 - `web4-standard/schemas/` + `test-vectors/` + `implementation/sdk/web4/` — **M-ADMITTED.** See B′.2.
+
+**Rulings for the four trees that had none.** The gate's published claim is that every path is
+listed, not that every path is admitted — so three of these were simply missing, and one was printed
+without a verdict:
+
+- **`web4-standard/implementation/sdk/tests/` (10/19/19) — M-ADMITTED (derivative arm).** Denser on
+  every token than any tree already admitted, and it was never listed. It defines no LCT object of
+  its own; it is the executable conformance arm of the already-admitted `sdk/web4/` + `test-vectors/`.
+  Admitted rather than declined because a definitional change surfaces *here* as a failing test —
+  demonstrated by §E.1's root cause `650518d9`, which renamed `context`→`birth_context` across
+  `lct.py`, **three test files** and all five vectors.
+- **`web4-standard/ontology/` (0/0/0 snake, `birthCertificate` 1) — M-ADMITTED.** Per C292
+  ([[feedback_ontology_is_a_spec_peer]]) a promoted `ontology/` artifact is a **peer inside the
+  standard**, not a lagging mirror, and that alone settles admission. The measurement is the
+  interesting part: the tree scores **zero on all three snake_case tokens** and is nonzero only on
+  `birthCertificate` (`web4-core-ontology.ttl:217`, `web4:birthCertificate a rdf:Property`) — plus
+  `lct_id` appears twice under bare `-l` (`role-extension.ttl:79`, `role-extension-schema.md:52`) as
+  the substring of `role_lct_id`. **A tree that specifies the subject matter can read as empty to a
+  gate purely because it uses a different naming convention.** Recorded as a §D guard, **not** as a
+  finding (§D.6) — it changes no verdict here and it does not reopen §E.1.
+- **`ledgers/` (3/4/12) — M-ADMITTED.** `ledgers/reference/typescript/lct-document.ts` (`a29e1052`,
+  2026-02-19) is a full LCT document model that names `web4-standard/schemas/lct.schema.json` as its
+  source of truth at `:4`/`:9`/`:226` and carries its own `validateLCT()` + `VALID_ENTITY_TYPES`.
+  That is an independent implementation surface, not a consumer. Its evidentiary weight belongs to
+  **N2** and is recorded there, per [[feedback_carry_gains_reach_not_truth]].
+- **`web4-standard/demos/` (4/4/4) — M-DECLINED (non-normative example code), but not silently.**
+  A sibling of the top-level `demos/` the sweep did admit-and-fail, which is `#615`'s shape exactly.
+  It holds **three of the four `peer` hits** underpinning N3, so it is named in N3's enumeration
+  rather than left in a table row.
+
+**The actual mirror comparison against the four newly admitted trees is NOT run in this pass** — that
+is a new audit, not a correction, and it is routed to the 8th delta by §D.7.
 
 ### B′.2 — The admitted set, and the measured zero that matters
 
@@ -209,7 +294,15 @@ And it is **live, not decorative**: `implementation/sdk/web4/validation.py:67` m
 
 ### N1 — MED (instrument, auditor-applicable). Three C74 canonical line-anchors have been stale since 2026-07-16; C224 fixed exactly one of the four and re-verified a second in the same pass without noticing
 
-Four C74/C75 rows carry a **line number into `core-spec/LCT-linked-context-token.md`**. `#531` (`d89595e8`, 2026-07-16) inserted §1.2 near line 23, growing the file 694→726 lines and shifting everything below by **+29**.
+Four C74/C75 rows carry a **line number into `core-spec/LCT-linked-context-token.md`**. `#531` (`d89595e8`, 2026-07-16) inserted §1.2 near line 23, growing the file **697→726** lines and shifting everything below by **+29**.
+
+> **Corrected 2026-08-01** (review round 1; see §F.5). This cell first published **694→726**, a
+> figure carried verbatim from `C224:52`. Measured: `git show d89595e8^:…| wc -l` = **697**,
+> `git show d89595e8:…| wc -l` = **726**, `git show --stat d89595e8` = **30 insertions, 1 deletion**.
+> Both readings give the shift as **29** (726−697; 30−1) — so the `+29` was right and it is the
+> `694` that never reconciled with it, which is exactly how the cell contradicted itself. The four
+> anchor corrections below are unaffected. Recorded because a finding *about* stale carried numbers
+> has to survive the instrument it imposes.
 
 | row | anchor as recorded | correct at `d89595e8^` | actual at HEAD | drift | corrected by |
 |---|---|---|---|---|---|
@@ -243,6 +336,33 @@ Per [[feedback_carry_gains_reach_not_truth]], a carry that acquires new consumer
 
 Three of the lineage's four HIGH/MED structural cross-doc rows are already decided, in canonical's favour, by an executable artifact **inside `web4-standard/` and wired into the SDK's validator**. The sister is not lagging a sibling prose document pending a design decision; it contradicts the standard's own conformance surface. That is a materially different posture for D0 — argued both ways below.
 
+**Second consumer surface, added 2026-08-01 (review round 1; reach-escalation, still NOT net-new).**
+The republished §B′.1 gate surfaced a tree the sweep had never listed: `ledgers/`. Inside it,
+`ledgers/reference/typescript/lct-document.ts` (`a29e1052`, 2026-02-19) is a **full LCT document
+model in a third language**, which names `web4-standard/schemas/lct.schema.json` as its source of
+truth in its own header (`:4` *"Full LCT document model matching lct.schema.json"*, `:9` `@see`,
+`:226`) and carries its own validator:
+
+| construct | value at HEAD | agrees with |
+|---|---|---|
+| `VALID_ENTITY_TYPES` (`:363-367`) | **15**, byte-identical membership to `lct.schema.json` | canonical + schema + SDK — **not** the sister's 12 |
+| `validateLCT()` required set (`:377-382`) | `lct_id`, `subject`, `binding`, `birth_certificate`, `mrh`, `policy` | `lct.schema.json` root `required`, exactly |
+
+So B7's `entity_type` divergence is now adjudicated in canonical's favour by **three independent
+implementations** — the JSON Schema, the Python SDK, and this TypeScript model — two of which cite
+the schema explicitly as normative. This is routed strictly as **reach-escalation on B7**, per
+[[feedback_carry_gains_reach_not_truth]]: a carry acquiring new consumer surfaces gains *reach*, not
+*truth*. B7 is C74's, its merits are not re-argued, and no new finding is opened.
+
+*Severity, argued both ways (v10).* **For raising N2:** it removes the last reading in which B7 is a
+two-document disagreement awaiting a design call — three implementations already shipped the
+canonical answer, and the count of surfaces a SUPERSEDE would have to reconcile is now known to be
+larger than the gate ever showed. **For leaving it:** it is the same fact N2 already states, one
+more instance of it; no implementation changed, and `ledgers/` was as unread on 2026-07-31 as on
+2026-02-19. **N2 stays MED** — the added surface widens the evidence base without changing what the
+operator must decide, and inflating severity on a self-caught gate miss would be the metric-optimising
+move. Noted here so the operator memo derived from N2 is not missing a corroborating implementation.
+
 **Argued both ways (per v10).**
 - *For MED:* it strengthens the SUPERSEDE case at zero cost to the MAINTAIN case, and it changes what a remediator must reconcile — three rows resolve by deletion rather than by adjudication.
 - *For LOW:* nothing is newly broken; the schema has been at 15 since `9bcfe598` (2026-02-22), five days after the sister froze. This is entirely an instrument failure. **MED is chosen** because the mis-scoped gate suppressed evidence bearing on an open operator decision for six passes, which is the same harm class as C298-N1.
@@ -260,7 +380,29 @@ Three of the lineage's four HIGH/MED structural cross-doc rows are already decid
 | `schemas/lct.schema.json` | the above 7 **+ `peer`** | **8** |
 | `forum/nova/web4-witnessing.md` §6 IANA `:101-104` | `time`, `audit-minimal`, `oracle` | 3 |
 
-The 3-vs-7 axis is **B6**; the `audit` vs `audit-minimal` axis is **B17**; both are C74's and are **not** re-opened. The net-new content is exactly one token: **`peer`**. It appears in the standard only in `lct.schema.json`, its `schema_registry.json` bundle, and three `demos/hello-web4/` files. **No prose spec in the corpus defines it** — and `web4-witnessing.md:17` states *"Roles are extensible; new roles MUST be registered in the Web4 Witness Role Registry."* `peer` is not in the registry's initial entries and has no registration record.
+The 3-vs-7 axis is **B6**; the `audit` vs `audit-minimal` axis is **B17**; both are C74's and are **not** re-opened. The net-new content is exactly one token: **`peer`**. **No prose spec in the corpus defines it** — and `web4-witnessing.md:17` states *"Roles are extensible; new roles MUST be registered in the Web4 Witness Role Registry."* `peer` is not in the registry's initial entries and has no registration record.
+
+**Enumeration, corrected and completed 2026-08-01** (review round 1; see §F.8). First published as
+*"only in `lct.schema.json`, its bundle, and three `demos/hello-web4/` files"* — under-enumerated,
+and ambiguous between the two `demos/` trees. Measured: `git grep -n '"peer"' a6959a8c -- web4-standard/`
+→ **7 hits in 6 files**:
+
+| file | line | sense |
+|---|---|---|
+| `web4-standard/schemas/lct.schema.json` | `:123` | **the enum** — `mrh.witnessing[].role` |
+| `web4-standard/implementation/sdk/web4/schema_registry.json` | `:2272` | the byte-identical bundle of the above |
+| `web4-standard/demos/hello-web4/demo_bob.json` | `:57` | `"role": "peer"` — witnessing role |
+| `web4-standard/demos/hello-web4/hello_web4.py` | `:181` | `"role": "peer"` — witnessing role |
+| `web4-standard/demos/hello-web4/hello_web4_simple.py` | `:148` | `"role": "peer"` — witnessing role |
+| `web4-standard/implementation/sdk/tests/test_security.py` | `:301`, `:306` | **different sense** — `derive_pairwise_w4id(b"secret", "peer")`, a pairwise-W4ID label, not a witnessing role |
+
+Two consequences, both narrowing rather than widening the finding. (1) The three role-sense uses live
+in **`web4-standard/demos/`** — a tree §B′.1 had never listed and has now M-DECLINED as non-normative;
+it is named here rather than left in a table row, so N3's evidence does not depend on an unlisted
+path. (2) The `sdk/tests/` pair is **not** evidence for N3 and is published so a re-runner of the
+same grep is not misled by it. **N3's prose-spec claim is unchanged and stays LOW.**
+`archive/reference-implementations/witness_enforcer.py`'s `WitnessRole.PEER` is outside
+`web4-standard/` and non-normative — correctly out of scope.
 
 **Prior-art refutation (published):** `grep -rln '"peer"' docs/audits/` → **0 files**. `grep -c -w peer` over C288 (the sibling canonical-LCT 7th delta, 2026-07-30) → **0**. No pass in any lineage has recorded this.
 
@@ -314,10 +456,55 @@ Both window movers are `proposals/` tier and claim no authority over canon. **No
 
 ## §F — Self-corrections made during this pass
 
+**Rounds 1–4 below were made before first publication. Rounds 5–9 were made on 2026-08-01 in
+response to the review block on `#625`, which withdrew no finding and asked only that the count layer
+reproduce.** Every corrected number was **re-measured here from ground truth**, not transcribed from
+the block (method carry v9: a number a reviewer hands you is not a measurement) — and that re-run
+found a wrong cell the block had not flagged (§F.7). Per v11, corrections are published **forward, in
+this document**; C224 and C262 are not rewritten. **No finding is withdrawn, added, or re-argued:
+N1–N4 stand exactly as first filed.**
+
 1. **The `peer` finding was initially drafted at MED** on the strength of the four-way enumeration table. Re-reading the table, three of the four axes are B6 and B17. Downgraded to **LOW** and the net-new claim narrowed to the single token `peer`.
 2. **The census was initially drafted as a C300-style "the ledger emptied" finding** on the strength of 10 zero-rows. Classifying internal vs cross-doc collapsed it to 2 rows, both of which HELD on re-verification. The census's yield was re-framed from *ledger emptying* to *anchor decay* — a different and smaller finding (N1). Publishing the deflation because the first draft was the more impressive claim and it was wrong.
 3. **`hub/` was initially admitted to the mirror set** on `entity_type`=6 / `lct_id`=17. Reading the hits showed `CliEntityType` self-declares as a subset of an already-audited enum. **M-DECLINED**, and the counts published anyway so the ruling is checkable.
 4. **The post-write verification pass caught three wrong cells in N1 and N3 — in the very finding that is *about* wrong line numbers.** Drafted: B12 pre-`#531` block "`:161-175`", B12 at HEAD "`:190-200`", registry "`:101-103`". Re-measured: **`:161-172`** (an *exact* match to C74's recorded L161-172, which strengthens N1 — C74's anchor was precisely right when written), **`:190-201`**, and **`:101-104`** (§6 IANA Considerations). Corrected above. The verifier was confirmed to have actually run (`exit=0`, four anchor values returned) before its agreement was accepted — per v10, a verification run that agrees with the draft has confirmed nothing until you confirm the verifier ran.
+
+### Round 2 — corrections made 2026-08-01 after review of `#625`
+
+5. **N1 published `694→726` for the `#531` insert — a number carried verbatim from `C224:52`, in the
+   finding whose subject is verbatim-carried stale numbers.** Measured **697→726** (30 insertions,
+   1 deletion). The tell was internal: the cell's own `+29` reconciles with 697 and not with 694.
+   This is the class the corpus already knows as *a faithful carry of someone else's number onto a
+   surface bearing more load*. **Anchor corrections unaffected.**
+6. **§A.4 published `entity-types.md` as `5baa160f`** — carried from `C262:34/:54/:66`, one commit
+   stale (`1354e4c2`, `#523`, 2026-07-14). **The conclusion survives** — 07-14 still precedes the
+   C262 baseline, so "no canonical doc moved in this window" holds and B7 is unaffected. Corrected
+   *because* the conclusion was right: a stale pointer under a correct conclusion is invisible.
+   `web4-witnessing.md`'s date corrected 2025-09-14 → **2025-09-13** in the same edit.
+7. **§B′.1 stated one instrument and printed cells from three.** The published
+   `git grep -l <token>` does not reproduce the published table; the true matcher for most cells was
+   `-lw`, with `entityType`/`birthCertificate` silently mixed in for three more. Re-running the
+   **whole 16 × 3 grid** under both matchers — rather than only the five cells the block named —
+   found a wrong cell the block did not flag: `test-vectors/ lct_id` published **10**, measures
+   **9** (+1 as `lctId`). Table republished under one stated matcher with camelCase as its own
+   column. **No ruling changed.** This is the correction that made the block a block rather than a
+   nit, because `§F.3` had defended publishing the `hub/` counts *"so the ruling is checkable"* —
+   and as published they did not check out.
+8. **Two wrong cells in the `core/lct_binding/` M-DECLINE** ("13 files", "last touched `5ddbfd9b`
+   2026-04-27") → **10 files**, **`d9ab940e` 2026-02-20**. `5ddbfd9b` is `core/`'s last commit and
+   touched a file the decline reasoning never names; **13** is `core/`'s file count. The row was
+   labelled with one path and counted with another. **The ruling stands** on its subject-matter
+   argument, which never depended on either cell. N3's `peer` enumeration was likewise
+   under-enumerated (6 files, not 4, one of them a different sense) and is corrected in place.
+9. **Three trees were never listed and one was printed with no ruling**, in the section that claims
+   *"a negative gate must publish its paths."* Added with rulings: `sdk/tests/` (10/19/19 — denser
+   than every admitted tree), `ledgers/` (3/4/12), `web4-standard/demos/` (4/4/4 — a sibling of a
+   tree the sweep did reach, which is `#615`'s shape), and a ruling for `ontology/`. **The gate miss
+   is recorded here as a self-correction, not promoted to a §C finding** — it was caught before
+   merge, and mixing a pre-merge draft error into N1's class (durable defects in the *record*, which
+   downstream passes inherited) would make that class meaningless. The one exception is where a
+   correction changes an existing finding's **reach** rather than a cell: `ledgers/`'s TypeScript
+   model is folded into **N2's evidence** and `web4-standard/demos/` into **N3's enumeration**.
 
 ---
 
@@ -336,6 +523,12 @@ Both window movers are `proposals/` tier and claim no authority over canon. **No
 | **D0** | DESIGN-Q | **operator-unanswered; gates all `protocols/` remediation** |
 | **B-D1** | flagship SSOT inversion | unanswered |
 
+**Rev 1 (2026-08-01) adds no ledger row.** N1–N4 are unchanged in count, severity, class and routing.
+The rev-1 work is entirely in §B′.1's instrument and four gate rulings; its only forward obligation
+is **§D.7** — the mirror comparison against the four newly admitted trees (`sdk/tests/`, `ontology/`,
+`ledgers/`, and a re-check of `web4-standard/demos/`), deliberately deferred to the 8th delta because
+running it inside a correction would have been a new audit.
+
 ---
 
 ## §D — Guards for the next delta
@@ -345,6 +538,8 @@ Both window movers are `proposals/` tier and claim no authority over canon. **No
 3. **Check C288's successor before writing §C.** The canonical-LCT lineage audits the same subject matter one slot ahead and beat this pass to its own flagship by one day (§E.1). Read the sibling's latest audit doc *first*.
 4. **`web4-core/` must be re-measured, not assumed.** It has been at 0 commits for one window; two consecutive zeros would make the SDK half of the gate a formality that should be stated as such rather than performed.
 5. **Do not mint a 5th D0=SUPERSEDE witness from N2.** N2 widens the *evidence base*; the witness count measures *code motion*. Conflating them would double-count.
+6. **Sweep BOTH naming conventions, and say which matcher produced each cell.** `web4-standard/ontology/` scores **0 on all three snake_case tokens** and is nonzero only on `birthCertificate` — a tree that *specifies* the subject matter reading as empty purely because it uses a different convention. The corpus is not uniform: `schemas/`, `test-vectors/`, `sdk/`, `ontology/`, `mcp-servers/` and `ledgers/` all carry camelCase variants. Run `birth_certificate|birthCertificate`, `entity_type|entityType`, `lct_id|lctId`, and publish the matcher per cell. **This is a guard, not a finding** — it changed no ruling at C302 and it does not reopen §E.1. Generalises [[feedback_mirror_set_derived_only_outward]]: *a zero is only as wide as its token, and a token is only as wide as its casing.*
+7. **Run the mirror comparison against the four trees admitted in review round 1 — it was NOT run here.** `sdk/tests/` (10/19/19), `ontology/` (a spec **peer** per C292), `ledgers/` (an independent TypeScript LCT model naming `lct.schema.json` as its source of truth), and re-check `web4-standard/demos/`. C302 admitted them and deliberately **deferred the comparison**, because running it would have been a new audit inside a correction. This is the largest known unmeasured surface on this lineage and it should be the 8th delta's first work, ahead of anything else in §D.
 
 **Cadence recommendation (feeds the open CADENCE design-Q).** This pass fully exercised the instrument on this lineage: the mirror set is now derived outward across 12 trees, the ledger has its first survival census, and every canonical anchor has been re-resolved. The target has been byte-frozen 5.5 months and `web4-core/` is at zero. **The 8th delta (C342) should be justified by an event trigger — motion in the target, the canonical, `web4-core/`, or `schemas/lct.schema.json` — rather than taken automatically by rotation.** If nothing in that set has moved by C342, a one-line no-motion attestation is the proportionate output. Recorded for the operator; **not self-applied** — the rotation stands until the operator rules.
 
@@ -358,7 +553,7 @@ S: low/reversible [construct: read-only doc; zero file mutations outside docs/au
 R: n/a [construct: no caller-driven path created]
 W: n/a [construct: no identity or authority asserted; findings route, do not decide]
 O: pass [construct: refutation checks (§E) precede §C authorship; the flagship was killed pre-write]
-A: pass [construct: every count carries its grep + tree + commit; every zero names its token; §F publishes the self-corrections]
+A: pass [construct: every count carries its grep + tree + commit; every zero names its token; §F publishes the self-corrections — rev 1 additionally binds §B′.1 to ONE named matcher, so every published cell reproduces under the instrument printed beside it]
 V: present [construct: §E kill-list + §D guard 5 — the pass can and did veto its own strongest finding]
 verdict: PASS
 ```
