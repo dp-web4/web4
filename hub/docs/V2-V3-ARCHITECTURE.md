@@ -285,7 +285,7 @@ Several subsystems were not in the original track structure above but have since
 - **Constellation attestation.** Hub-side verify + challenge/present channel tools.
 - **Member admission queue + operator plane.** Self-add via signed envelope plus a no-restart operator GUI (admit/deny/re-key/remove) on the operator plane (`127.0.0.1:8772`). (Realizes B7 + B9.)
 - **ReferencedAct + hub→citizen notifications.** Acts can reference prior acts; the hub notifies citizens. (Phase-0 Gap A.)
-- **Open-core plugin seam.** The generic `hub-plugin` seam — canonical `gate → handle → scope` dispatch path — is promoted to open core (public). Advanced role-fillers can plug in behind it.
+- **Open-core plugin seam.** The generic `hub-plugin` seam — canonical `gate → handle → scope` dispatch path — is promoted to open core (public). Advanced role-fillers can plug in behind it. **Partial:** the crate is public and `hestia/core` links it (shipping `ConstellationPlugin`), but `hub-daemon` does not depend on `hub-plugin` — its `dispatch_channel` re-implements the contract instead of calling `PluginRegistry::dispatch`. Plugging in behind the seam works on the hestia host only until that wiring lands.
 
 ---
 

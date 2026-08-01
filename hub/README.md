@@ -96,16 +96,37 @@ caller, gating by hub law, bounding results to the caller's tier, and sealing
 the response — and tools plug in behind that. The generic seam lives in the
 [`hub-plugin`](hub-plugin/) crate:
 
-- `ToolPlugin` — implement `name()` + `handle(ctx, args)`; the core runs your
+- `ToolPlugin` — implement `name()` + `handle(ctx, args)`; the host runs your
   handler only after `gate → handle → scope`.
-- `PluginCtx` — the capabilities the core *lends* a plugin (sign as the hub LCT,
+- `PluginCtx` — the capabilities the host *lends* a plugin (sign as the hub LCT,
   read projected state, send a sealed payload to a peer). Deliberately generic —
   the seam never names a specific tool.
 - `PluginRegistry::dispatch` — the canonical `gate → handle → scope` path, the
-  same contract as the daemon's channel dispatch.
+  same contract the daemon's channel dispatch implements independently.
 
-This is the keystone of the split: the public core ships the seam, and any
-operator can add their own (or proprietary) handlers without forking the hub.
+### Status — which host loads the seam today
+
+The crate is published and has one live host, and it is **not this daemon**:
+
+| host | links `hub-plugin` | shipped plugin |
+|---|---|---|
+| `hestia` (`hestia/core`) | **yes** — path dep, re-exported by `core/src/plugin.rs` | `ConstellationPlugin` |
+| `hub-daemon` | **no** — `hub-plugin` is a workspace *member* of `hub/Cargo.toml` but a *dependency* of neither `hub-daemon` nor `hub-lib` | — |
+
+`hub-daemon`'s `dispatch_channel` re-implements the same `gate → handle → scope`
+contract rather than calling `PluginRegistry::dispatch`; `PluginRegistry` and
+`hub_plugin` appear nowhere in `hub-daemon/src` or `hub-lib/src`. So a
+`ToolPlugin` written today compiles into hestia's binary, and nothing in the hub
+daemon will dispatch it.
+
+Registration is compile-time in either host — there is no dynamic loading, no
+plugin directory. Combined with the table above, that means adding a handler to
+*this* daemon today requires editing `hub-daemon`, i.e. forking. The intended
+end state — the public core ships the seam and an operator adds their own (or
+proprietary) handlers without forking the hub — needs `dispatch_channel` wired
+to the registry. That wiring is open work, not shipped, and until it lands the
+"impl `ToolPlugin` once and load on either side" property asserted in
+`hestia/core/src/plugin.rs` holds on one side.
 
 ## What this isn't (MVP scope)
 
