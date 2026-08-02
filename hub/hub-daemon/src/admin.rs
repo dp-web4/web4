@@ -339,10 +339,34 @@ pub(crate) async fn members(State(s): State<RestState>) -> Result<Html<String>, 
             } else {
                 m.skills.iter().map(|s| html_escape(s)).collect::<Vec<_>>().join(", ")
             };
+            // "Has pubkey" must answer "can this member's envelopes verify?",
+            // and `member_pubkeys` is only ONE of the three sources the resolver
+            // is seeded from at startup (rest.rs `RestState::new`). Two keyed
+            // classes are absent from it by construction:
+            //   - the Sovereign, whose key comes from the identity store/vault
+            //     and is inserted into the resolver directly; it is never a
+            //     MemberAdded pubkey, so it never lands in `member_pubkeys`.
+            //   - council holders, whose key lands in `council_pubkeys`
+            //     (state.rs `CouncilMemberAdded`) while the same handler adds
+            //     them to `members` — so they get a member row and no key.
+            // Reading the raw map warns on both forever. Ask the same question
+            // the resolver does.
             let pk_pill = if projected.member_pubkeys.contains_key(&m.lct_id) {
                 "<span class=\"pill\">yes</span>"
+            } else if m.lct_id == s.sovereign_lct_id {
+                "<span class=\"pill\">yes (sovereign key)</span>"
+            } else if projected.council_pubkeys.contains_key(&m.lct_id) {
+                "<span class=\"pill\">yes (council key)</span>"
             } else {
-                "<span class=\"pill pill-warn\">no (pre-V2-12)</span>"
+                // Genuinely unkeyed: this member cannot open a sealed channel
+                // and cannot self-repair — both self-service paths short-circuit
+                // on `already_member` before pinning anything (rest.rs
+                // `request_citizenship` / `/members/join`). Only an operator
+                // re-key clears it. NOT a legacy-only state: `/tools/add_member`
+                // and the Sovereign `AddMember` envelope action both still mint
+                // keyless members today, so the old "(pre-V2-12)" label told the
+                // operator this could not have been created recently.
+                "<span class=\"pill pill-warn\">no (operator re-key needed)</span>"
             };
             body.push_str(&format!(
                 "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
@@ -1198,6 +1222,15 @@ mod tests {
         h.map(|Html(s)| s).unwrap_or_else(|e| panic!("handler failed: {} {}", e.0, e.1))
     }
 
+    /// The single `<tr>` for one member. Asserting against the whole page
+    /// would let another member's pill satisfy the assertion.
+    fn member_row(html: &str, lct: Uuid) -> String {
+        html.split("<tr>")
+            .find(|row| row.contains(&lct.to_string()))
+            .unwrap_or_else(|| panic!("no row for {lct} in:\n{html}"))
+            .to_string()
+    }
+
     async fn member_with_skill(s: &RestState, skill: &str, name: &str) -> Uuid {
         let lct = Uuid::new_v4();
         witness_for_test(s, HubEvent::MemberAdded {
@@ -1247,6 +1280,89 @@ mod tests {
         assert!(html.contains("rust &amp; systems"), "skill lost or mangled:\n{html}");
         assert!(!html.contains("<b>Alice</b>"), "member name is not escaped");
         assert!(html.contains("&lt;b&gt;Alice&lt;/b&gt;"), "member name lost:\n{html}");
+    }
+
+    /// Measured on the live Web4 Fleet hub 2026-08-02: `/admin` reported
+    /// "Members 9 / Member pubkeys pinned 8", and the one warned row on
+    /// `/admin/members` was the founding Sovereign itself. The Sovereign's key
+    /// is loaded from the identity store and seeded into the resolver directly
+    /// (rest.rs `RestState::new`), so it is keyed and verifying every ledger
+    /// entry while `member_pubkeys` — which only ever holds MemberAdded
+    /// pubkeys — will never contain it. The pill read the raw map, so the one
+    /// identity that definitionally cannot be unkeyed was flagged forever.
+    #[tokio::test]
+    async fn the_sovereigns_own_member_row_is_not_reported_as_unkeyed() {
+        let (_tmp, s) = fresh_rest_state(None).await;
+        // Exactly the live shape: the Sovereign carries a member row, added
+        // without a MemberAdded pubkey.
+        witness_for_test(&s, HubEvent::MemberAdded {
+            member_lct_id: s.sovereign_lct_id,
+            added_by: s.sovereign_lct_id,
+            member_name: Some("Sovereign".to_string()),
+            member_pubkey_hex: None,
+        }).await;
+
+        let html = render(members(State(s.clone())).await).await;
+        let row = member_row(&html, s.sovereign_lct_id);
+        assert!(
+            !row.contains("pill-warn"),
+            "the Sovereign is keyed via the identity store and must not be warned as unkeyed:\n{row}"
+        );
+        assert!(row.contains("yes (sovereign key)"), "row did not name the key's source:\n{row}");
+    }
+
+    /// The same defect one handler away: `CouncilMemberAdded` puts the holder's
+    /// key in `council_pubkeys` and, in the same arm, adds them to `members`
+    /// (state.rs). It never touches `member_pubkeys`. So every co-Sovereign got
+    /// a member row that claimed it had no pubkey — while `RestState::new`
+    /// seeds the resolver from `council_pubkeys` and their envelopes verify.
+    #[tokio::test]
+    async fn a_council_holders_row_is_not_reported_as_unkeyed() {
+        let (_tmp, s) = fresh_rest_state(None).await;
+        let holder = Uuid::new_v4();
+        witness_for_test(&s, HubEvent::CouncilMemberAdded {
+            member_lct_id: holder,
+            member_pubkey_hex: "aa".repeat(32),
+            added_by: s.sovereign_lct_id,
+            member_name: Some("Holder".to_string()),
+        }).await;
+
+        let html = render(members(State(s.clone())).await).await;
+        let row = member_row(&html, holder);
+        assert!(
+            !row.contains("pill-warn"),
+            "a council holder is keyed via council_pubkeys and must not be warned:\n{row}"
+        );
+        assert!(row.contains("yes (council key)"), "row did not name the key's source:\n{row}");
+    }
+
+    /// The warning must still FIRE for the state it exists to report, or the
+    /// two fixes above would have been "stop warning" rather than "warn
+    /// accurately". An ordinary member added with no pubkey — which
+    /// `/tools/add_member` and the Sovereign `AddMember` envelope action both
+    /// still mint today — is genuinely unable to open a sealed channel.
+    #[tokio::test]
+    async fn an_ordinary_keyless_member_is_still_warned_and_the_label_does_not_claim_it_is_legacy() {
+        let (_tmp, s) = fresh_rest_state(None).await;
+        let ghost = Uuid::new_v4();
+        witness_for_test(&s, HubEvent::MemberAdded {
+            member_lct_id: ghost,
+            added_by: s.sovereign_lct_id,
+            member_name: Some("Ghost".to_string()),
+            member_pubkey_hex: None,
+        }).await;
+
+        let html = render(members(State(s.clone())).await).await;
+        let row = member_row(&html, ghost);
+        assert!(row.contains("pill-warn"), "a genuinely keyless member must still be warned:\n{row}");
+        // The old label asserted this state could only predate V2-12. It is
+        // reachable today, so the label named the wrong cause and pointed the
+        // operator at no remedy.
+        assert!(
+            !row.contains("pre-V2-12"),
+            "the label still claims a keyless member must be legacy:\n{row}"
+        );
+        assert!(row.contains("re-key"), "the warning must name the only repair:\n{row}");
     }
 
     /// `SocietyRole::Custom(String)` is free text and `Debug` does not escape
