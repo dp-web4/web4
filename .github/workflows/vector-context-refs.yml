@@ -1,0 +1,52 @@
+name: vector-context-refs
+
+# Context-reference integrity gate for the standard's published test vectors.
+#
+# Every `@context` URI of the form https://web4.io/contexts/<name>.jsonld
+# carried by any document under web4-standard/test-vectors/ must have a
+# backing file at web4-standard/schemas/contexts/<name>.jsonld. The schema
+# vector runner cannot see this error class — schemas type `@context` as
+# URI strings and never dereference them — so before this workflow the
+# class was found only by hand, at audit time (C310-N3, 2026-08-02: 36 of
+# 38 published t3v3 vectors cite a context retired on 2026-03-24).
+#
+# Armed GREEN per the ci.yml discipline (a check switched on red teaches
+# the team to ignore red): the one currently-missing context, t3v3.jsonld,
+# is carried explicitly as KNOWN_MISSING inside the script, with its audit
+# citation and fix routing. The check fails on any NEW missing reference,
+# and the carried entry can only be removed by actually adding the backing
+# file — the debt is enumerable, not silent.
+#
+# Path-filtered to the two trees the check reads plus this file; a change
+# anywhere else cannot affect the result.
+#
+# Stdlib-only Python — no pip install step, nothing to version-drift.
+
+on:
+  pull_request:
+    paths:
+      - 'web4-standard/test-vectors/**'
+      - 'web4-standard/schemas/contexts/**'
+      - '.github/workflows/vector-context-refs.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'web4-standard/test-vectors/**'
+      - 'web4-standard/schemas/contexts/**'
+      - '.github/workflows/vector-context-refs.yml'
+
+jobs:
+  check:
+    name: context references resolve to backing files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate context references
+        working-directory: web4-standard/test-vectors
+        run: python validate_context_refs.py --verbose
