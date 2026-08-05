@@ -163,17 +163,21 @@ Enumerated here so that a later pass cannot mistake nine consecutive silences fo
 
 **The published ACP JSON-LD context defines none of the 22 properties belonging to the six nested value objects the standard's own schema declares.**
 
-`schemas/acp-jsonld.schema.json` declares 10 `$defs`. Four are the top-level node types that carry `@context`; six are nested value objects. Measured with `contexts/acp.jsonld` (36 terms):
+`schemas/acp-jsonld.schema.json` declares 10 `$defs`. Four are the top-level node types that carry `@context`; six are nested value objects. Measured with `contexts/acp.jsonld` (36 non-`@` terms).
+
+**Counting convention, stated because the four top-level rows are the only place it bites:** the `props` column counts **declared properties whose name does not begin with `@`**. AgentPlan, Intent, Decision and ExecutionRecord each additionally declare `@context` and `@type`; those are JSON-LD keywords, not terms a context can define, and scoring them would make every context in the standard permanently incomplete. Including them the four rows read 11 / 12 / 9 / 12 and the table sums to 70. **Every figure in this section — the 62, the 22, the 35.5%, and every cell of the corpus baseline below — is on the non-`@` convention**, so the column is too:
 
 | `$def` | props | not in the context | of which schema-`required` |
 |---|---|---|---|
-| AgentPlan / Intent / Decision / ExecutionRecord | 11 / 12 / 9 / 12 | **0 / 0 / 0 / 0** | — |
+| AgentPlan / Intent / Decision / ExecutionRecord | 9 / 10 / 7 / 10 | **0 / 0 / 0 / 0** | — |
 | `Trigger` | 3 | 3 — `kind`, `expr`, `authorized` | `kind` |
 | `PlanStep` | 5 | 5 — `id`, `mcp`, `args`, `dependsOn`, `requiresApproval` | `id`, `mcp`, `args` |
 | `ResourceCaps` | 3 | 3 — `maxAtp`, `maxExecutions`, `rateLimit` | — |
 | `HumanApproval` | 4 | 4 — `mode`, `autoThreshold`, `timeout`, `fallback` | — |
 | `Guards` | 5 | 4 — `witnessLevel`, `resourceCaps`, `humanApproval`, `expiresAt` | — |
 | `ProofOfAgency` | 6 | 3 — `nonce`, `audience`, `expiresAt` | `nonce` |
+
+The column sums to 62 (36 top-level + 26 nested) and the undefined column to 22, so the headline is re-derivable from the table.
 
 **22 of 62 properties (35.5%) undefined.** The context maps `steps`/`guards`/`proofOfAgency` as opaque terms with no nested `@context` and no `@type`, so a conformant JSON-LD 1.1 processor expanding an SDK-emitted document resolves the children against the active context, finds nothing, and **drops them**.
 
@@ -188,12 +192,15 @@ What is dropped is not incidental: `guards` (`witnessLevel`, `maxAtp`, `maxExecu
 | **`dictionary.jsonld`** | **10** | **38** | **0** | **100%** |
 | `entity.jsonld` | 5 | 6 | 0 | 100% |
 | `r7-action.jsonld` | 6 | 31 | 2 | 93.5% |
+| `t3.jsonld` + `v3.jsonld` (via `t3v3-jsonld.schema.json`) | 3 | 18 | 2 | 88.9% |
 | `lct.jsonld` (via `lct-jsonld.schema.json`) | 2 | 14 | 6 | 57.1% |
 | **`acp.jsonld`** | **10** | **62** | **22** | **64.5%** |
 
-There are **9** schema→context pairings over 8 distinct contexts; **2 are vacuous and are excluded rather than scored as 100%** — `attestation-envelope.jsonld` (0 `$defs`) and the second `lct.jsonld` pairing via `lct.schema.json` (0 `$defs`). Counting a pair with no properties as fully covered was an error in this table's first draft, caught on the post-write re-run.
+There are **11** schema→context pairings over **10** distinct contexts; **3 are vacuous and are excluded rather than scored as 100%** — `attestation-envelope-jsonld.schema.json`, `lct.schema.json` and `t3v3.schema.json`, all 0 `$defs`. Counting a pair with no properties as fully covered was an error in this table's first draft, caught on the post-write re-run.
 
-**Not the corpus idiom: 4 of the 7 pairs that declare any nested properties are at 100%, and `dictionary.jsonld` — the closest structural comparator, also 10 `$defs` with nested value objects — defines all 38.** acp is the largest gap in the standard both absolutely (22) and as a share of a multi-`$def` context.
+**The t3v3 row was omitted from this table's first draft and is added here**, because the baseline claims to cover *every* schema/context pair and did not. It is the one pairing where a schema faces two contexts: `t3v3-jsonld.schema.json` declares `DimensionScore`, `T3Tensor`, `V3Tensor`, and the 2026-03-24 reconciliation split the retired shared `t3v3.jsonld` into `contexts/t3.jsonld` and `contexts/v3.jsonld` (both live; both referenced by `test-vectors/validate_context_refs.py` and by `sdk/web4/trust.py:106-107`). **Scored against the union: 2 undefined, 88.9%.** Against either context alone it is 5 / 72.2% — but that penalises T3Tensor for not being defined in V3's context and vice versa, which is not a real defect: the SDK emits each tensor type with its own context, so `T3Tensor` scores 0 undefined against `t3.jsonld` and `V3Tensor` 0 against `v3.jsonld`. The residual 2 under every treatment are `DimensionScore`'s `observed_at` and `witnessed_by`, undefined in both. Union is therefore the fair figure and is what the table carries.
+
+**Not the corpus idiom: 4 of the 8 pairs that declare any nested properties are at 100%** (`atp`, `capability`, `dictionary`, `entity`), **and `dictionary.jsonld` — the closest structural comparator, also 10 `$defs` with nested value objects — defines all 38.** acp is the largest gap in the standard both absolutely (22) and as a share of a multi-`$def` context. Adding the t3v3 row does not soften N1: t3v3 contributes at most 5 undefined and 2 on the fair treatment, against acp's 22.
 
 - **Severity LOW, bounded by the consumption mechanism** (v13): nothing in the repo expands ACP JSON-LD to RDF. `grep -rn "pyld|jsonld.expand|from rdflib" --include=*.py web4-standard/ archive/` returns only the two MRH scripts, neither of which touches acp. The SDK's `to_jsonld()`/`from_jsonld()` round-trip is plain-dict and never consults the context; `validate_context_refs.py`'s own docstring records that the schemas "type `@context` as an array of URI strings and never dereference it." **Latent, not a live failure.**
 - **Classification: net-new.** Distinct locus from carry M6 (which is about the `acp:` RDF *edge* predicates in §8, not JSON-LD terms) and from every other ledger row. The artifact has never been read.
@@ -232,7 +239,7 @@ It was put to an adversarial refuter with instructions to default to refuted. **
 
 | # | Severity | Class | Disposition |
 |---|---|---|---|
-| **N1** | **LOW** | **net-new** | `schemas/contexts/acp.jsonld` defines 0 of 22 nested-object properties the standard's own schema declares; 22/62 (35.5%) undefined, the largest gap in the standard, against a corpus where 5 of 8 pairs are at 100% and the closest comparator `dictionary.jsonld` is at 100%. Latent — nothing expands ACP JSON-LD. **Routed to author/SDK track; not applied.** The fix has three legitimate shapes and is corpus-shaped (`lct.jsonld` 6, `r7-action.jsonld` 2) |
+| **N1** | **LOW** | **net-new** | `schemas/contexts/acp.jsonld` defines 0 of 22 nested-object properties the standard's own schema declares; 22/62 (35.5%) undefined, the largest gap in the standard, against a corpus where **4 of the 8 non-vacuous pairs** are at 100% and the closest comparator `dictionary.jsonld` is at 100%. Latent — nothing expands ACP JSON-LD. **Routed to author/SDK track; not applied.** The fix has three legitimate shapes and is corpus-shaped (`lct.jsonld` 6, `r7-action.jsonld` 2) |
 | **I-1** | INFO | coverage row under `B-D1` / [[feedback_frozen_parallel_spec]] — **NOT net-new** | `forum/nova/ACP-bundle/` **DECLINED**: frozen 2025-09-15 inbound Nova proposal, superseded by canonical artifacts created 2026-03-21, internally self-inconsistent (two ExecutionRecord schemas disagreeing on `ledgerInclusion`), zero live consumers outside the excluded trees. Published so nine silences are not read as coverage |
 | **I-2** | INFO | instrument | Carry M6's count is **12**, not 11, at HEAD; the `acp:` namespace is declared in exactly 2 sites, both inside acp-framework.md. Premise unchanged |
 | **I-3** | INFO | instrument, **promoted to a ledger row** | `C37:126`'s secondary remediation (`ACP_INTEGRATION_SUMMARY.md:101` `ledgerInclusion`) lived in prose for 59 days, entered no ledger, and is still unfixed at HEAD. Routed, not applied |
@@ -248,7 +255,7 @@ It was put to an adversarial refuter with instructions to default to refuted. **
 
 1. **These artifacts are now IN acp's swept set and may not contract back out silently** (v8): `web4-standard/schemas/contexts/acp.jsonld`, `forum/nova/ACP-bundle/` (declined — cite §C.1, do not re-derive), `archive/reference-implementations/acp_{framework,executor,hardbound_e2e}.py` (excluded — cite §C.0, do not re-derive). A pass that does not name all three has contracted the set.
 2. **REFUTED-GUARD — do not resurrect** without first overturning the ruling that killed it: (a) "C37's `ledgerInclusion` corpus count is false" → killed by `C286-…:115` + the §C.0 standing rule; (b) "spec §2.x examples lack `@context`" → killed by the ratified `C37:264-266` adjudication applied at C87; (c) "`ns/` vs `ontology#` namespace split" → killed by `JSONLD-NAMESPACE-RECONCILIATION.md` (2026-03-24) and `C310-…:163`. C274's own REFUTED-GUARD (bare-string `witnesses`) also still stands and was not re-opened.
-3. **N1 regression check (one command):** re-run the schema/context coverage measurement. If `contexts/acp.jsonld` has gained terms, say which; if the schema has gained `$defs`, the gap may have widened without anyone touching the context.
+3. **N1 regression check:** re-run the schema/context coverage measurement over **all 11 pairings** (every `schemas/*.json` whose stem names a `schemas/contexts/*.jsonld`, plus the `t3v3-jsonld.schema.json` → `t3.jsonld`+`v3.jsonld` union pairing), on the **non-`@` convention** stated in §C.2, excluding the 3 vacuous pairs rather than scoring them 100%. If `contexts/acp.jsonld` has gained terms, say which; if the schema has gained `$defs`, the gap may have widened without anyone touching the context. **Instrument note:** this baseline is a new measurement born at C314 and its first draft got three cells wrong — a props column on a different convention from its own total, a summary row carrying a pre-correction denominator, and one whole pairing missing. Re-derive it; do not inherit these cells.
 4. **C274-N1 regression checks remain live** and were both answered NO this pass — re-run them (schema `witnesses` widening; acp↔r7 cross-refs).
 5. **Carry ledger is 9 rows + I-3 = 10.** Row survival this pass: 9/9. If a future pass reports fewer rows, check for an emptying ledger before certifying clean ([[feedback_ledger_emptied_not_closed]]).
 6. **Matcher guard, born this pass:** when the token contains a `.` or `-`, publish the count with `grep -F`. `acp.jsonld` vs `acp-jsonld` differ by one character, and an unanchored regex conflates the never-read context with the well-covered schema — 0 files becomes 11. Any coverage cell in this lineage stated without `-F` should be re-measured before it is relied on. And exclude the pass's own document: `docs/audits/` is a tree this lineage writes into, so every coverage grep collides with its own output.
