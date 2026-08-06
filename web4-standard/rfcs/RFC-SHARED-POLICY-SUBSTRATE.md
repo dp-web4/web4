@@ -162,7 +162,7 @@ These are the RFC #403 normative clauses, re-expressed as the crate's identity m
   hardbound: actor/agent LCTs).
 - **P2 — role-scoped *intrinsic* trust aggregation.** `web4-policy` exposes the role-scoped
   weighted combiner over component in-role T3/V3 — never averaging across roles
-  (`t3-v3 §8.2`, `mrh §246`). Weights are a domain-policy hook (not baked in). This is
+  (`t3-v3 §8.2`, `mrh §5.1`). Weights are a domain-policy hook (not baked in). This is
   **distinct from** the **relational** society↔society tensor already normative in
   `mcp-protocol §7.5`; the crate carries the intrinsic form, §7.5 stays the relational one.
   *(Their reconciliation is a hard gate for 2b — see Sequencing.)*

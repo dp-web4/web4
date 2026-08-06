@@ -51,7 +51,7 @@ of the missing closure. See `web4-standard/docs/FRACTAL_ROLE_IDENTITY.md`.
 - Reputation is **role-contextualized — there is no global reputation**
   (`r7-framework.md:252`); it back-propagates `action → role → entity → society`
   (`r7-framework.md:7`).
-- T3/V3 exist only within a role context (`mrh-tensors.md:246`).
+- T3/V3 exist only within a role context ([`mrh-tensors.md §5.1`](../core-spec/mrh-tensors.md#51-critical-principle-trust-is-role-specific)).
 
 **Gap:** the standard states neither (a) that the composed whole's identity is itself a
 fully-scoped LCT, nor (b) the **intrinsic** member-aggregation function as normative —
@@ -79,7 +79,7 @@ Two composite classes with **different** ownership semantics:
 For a composite entity acting in role `R`, its **intrinsic** collective T3/V3 in `R` **MUST**
 be computed **only** from its components' T3/V3 **in role `R`** (or in the sub-role each
 component fills within `R`). Aggregation **MUST NOT** average trust across different roles
-(`t3-v3-tensors.md` §8.2; `mrh-tensors.md:246`). The aggregation function is normative in
+(`t3-v3-tensors.md` §8.2; [`mrh-tensors.md §5.1`](../core-spec/mrh-tensors.md#51-critical-principle-trust-is-role-specific)). The aggregation function is normative in
 *form* — a role-scoped weighted combiner over component scores weighted by each component's
 in-role standing (`t3-v3 §8.2`); its exact weights remain society-policy (see §7). A composite
 that fills no component in role `R` has no derived trust in `R` (no inheritance across roles).
@@ -114,7 +114,7 @@ Cross-referenced against each dependent spec; no contradiction found:
 |---|---|---|
 | `inter-society §2.2` | composite = overlay, not owner | P1 restates as MUST NOT-own ✓ |
 | `r7-framework.md:252` | no global reputation; role-contextual | P2 forbids cross-role aggregation ✓ |
-| `mrh-tensors.md:246` | trust only within role context | P2/P3 are strictly per-role ✓ |
+| [`mrh-tensors.md §5.1`](../core-spec/mrh-tensors.md#51-critical-principle-trust-is-role-specific) | trust only within role context | P2/P3 are strictly per-role ✓ |
 | `society-roles.md:317` | authority binds to role-LCT | P1 composite acts via its role-LCT ✓ |
 | SAL §3.5 | society = entity (MUST); recursive citizen (MAY/MUST per governance) | P3 closure is the general form, uses MAY ✓ |
 | `t3-v3 §8.2` | composite trust = per-role weighted combine | P2 promotes its *form* to normative, leaves weights to policy ✓ |

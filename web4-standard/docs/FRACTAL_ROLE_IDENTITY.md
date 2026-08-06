@@ -34,7 +34,7 @@ The standard specifies fractal composable identity as MUSTs. The skeleton is sou
 - **Identity = scoped presence, not a label.** An LCT MUST carry `{binding, MRH, Policy,
   T3, V3}` (`core-spec/LCT-linked-context-token.md:40`). Scope is threefold: context
   (MRH), capability (Policy), and **role-contextual** trust —
-  `core-spec/mrh-tensors.md:246`: *"T3/V3 tensors are not absolute properties of entities
+  [`core-spec/mrh-tensors.md §5.1`](../core-spec/mrh-tensors.md#51-critical-principle-trust-is-role-specific): *"T3/V3 tensors are not absolute properties of entities
   — they only exist within the context of specific roles."*
 - **Roles are first-class LCT entities** (`core-spec/entity-types.md:518`, MUST), and
   **authority binds to the role-LCT, not the filling entity**
