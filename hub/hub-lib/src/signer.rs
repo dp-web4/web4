@@ -578,21 +578,46 @@ mod tests {
     // are the canonical hub-side proof that the wire works.
 
     use axum::{routing::post, Router};
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex as StdMutex};
     use tokio::sync::oneshot;
 
     /// Mock Hestia state: which keypair to sign with + a policy hook.
+    ///
+    /// Deliberately holds **no** `actor_lct_id`. Real Hestia's `CallbackState`
+    /// (hestia `core/src/callback.rs`) is `{ keypair, auto_approve,
+    /// approved_events }` — the vault has no notion of its own LCT id at the
+    /// signing site, so it cannot compare `intent.actor_lct_id` to the key it
+    /// signs with. A mock that carried an id and enforced it would assert a
+    /// guarantee production does not have. Instead we *record* what crossed the
+    /// wire, so tests can pin the seam's real behaviour.
     #[derive(Clone)]
     struct MockHestia {
-        actor_lct_id: Uuid,
         keypair: Arc<KeyPair>,
         deny_reason: Option<String>,
+        /// Every `intent.actor_lct_id` the vault was asked to sign for, in order.
+        /// This is the field real Hestia applies its policy to.
+        seen_actors: Arc<StdMutex<Vec<Uuid>>>,
+    }
+
+    impl MockHestia {
+        fn new(keypair: KeyPair) -> Self {
+            Self {
+                keypair: Arc::new(keypair),
+                deny_reason: None,
+                seen_actors: Arc::new(StdMutex::new(Vec::new())),
+            }
+        }
+
+        fn denying(keypair: KeyPair, reason: &str) -> Self {
+            Self { deny_reason: Some(reason.into()), ..Self::new(keypair) }
+        }
     }
 
     async fn mock_sign_handler(
         axum::extract::State(state): axum::extract::State<MockHestia>,
         axum::Json(req): axum::Json<SignRequest>,
     ) -> axum::Json<SignResponse> {
+        state.seen_actors.lock().unwrap().push(req.intent.actor_lct_id);
         if let Some(reason) = &state.deny_reason {
             return axum::Json(SignResponse::Denied {
                 request_id: req.intent.request_id,
@@ -631,11 +656,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn hestia_callback_signs_and_verifies() {
         let (id, kp) = fresh_actor();
-        let mock = MockHestia {
-            actor_lct_id: id.lct.id,
-            keypair: Arc::new(kp),
-            deny_reason: None,
-        };
+        let mock = MockHestia::new(kp);
         let (url, stop) = spawn_mock_hestia(mock).await;
 
         let signer = HestiaCallbackSigner::new(id.lct.id, url).unwrap();
@@ -653,11 +674,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn hestia_callback_denied_returns_denied() {
         let (id, kp) = fresh_actor();
-        let mock = MockHestia {
-            actor_lct_id: id.lct.id,
-            keypair: Arc::new(kp),
-            deny_reason: Some("policy: chapter not whitelisted".into()),
-        };
+        let mock = MockHestia::denying(kp, "policy: chapter not whitelisted");
         let (url, stop) = spawn_mock_hestia(mock).await;
 
         let signer = HestiaCallbackSigner::new(id.lct.id, url).unwrap();
@@ -686,6 +703,48 @@ mod tests {
         let other_actor = Uuid::new_v4();
         let result = signer.sign(other_actor, b"bytes", &intent(other_actor)).await;
         assert!(matches!(result, Err(SignError::Internal(_))));
+    }
+
+    /// The mis-routing guard checks the `actor_lct_id` **argument**, which never
+    /// leaves the process. `intent.actor_lct_id` — the field that actually
+    /// travels, and the one real Hestia applies its policy to — is forwarded
+    /// verbatim and compared to nothing, on either side of the wire.
+    ///
+    /// Today every production caller derives both from the same variable
+    /// (`s.sovereign_lct_id`), so the two agree by construction and no test
+    /// covered the case where they don't. This pins the seam's ACTUAL behaviour
+    /// so a future divergence fails loudly here instead of silently shipping a
+    /// mismatched attribution to the vault. It asserts what is, not what should
+    /// be: whether the hub should reject the mismatch, or Hestia should bind
+    /// the actor to its signing key, is an open cross-track question (raised to
+    /// Hestia/CBP 2026-08-06). Whichever way that is ruled, this test changes.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn hestia_mode_forwards_a_mismatched_intent_actor_unchecked() {
+        let (id, kp) = fresh_actor();
+        let mock = MockHestia::new(kp);
+        let seen = Arc::clone(&mock.seen_actors);
+        let (url, stop) = spawn_mock_hestia(mock).await;
+
+        // Bound to `id`, argument is `id` — the guard is satisfied. But the
+        // intent attributes the signature to a completely unrelated actor.
+        let signer = HestiaCallbackSigner::new(id.lct.id, url).unwrap();
+        let impostor = Uuid::new_v4();
+        let bytes = b"a ledger entry attributed to someone else";
+        let sig = signer
+            .sign(id.lct.id, bytes, &intent(impostor))
+            .await
+            .expect("nothing on the hub side rejects a mismatched intent actor");
+
+        // It signed, under the bound actor's key...
+        id.lct.verify_signature(bytes, &sig).unwrap();
+        // ...while telling the vault the act belongs to `impostor`.
+        assert_eq!(
+            seen.lock().unwrap().as_slice(),
+            &[impostor],
+            "the vault's policy input is the hub-supplied intent actor, forwarded unchecked"
+        );
+
+        let _ = stop.send(());
     }
 
     #[tokio::test]
