@@ -188,6 +188,12 @@ pub enum RoleEventKind {
     FillerEjected,
     FillerElected,
     ThresholdChanged,
+    /// The PRIMARY filler changed (`rotate`). Added because rotation was the one
+    /// mutator that recorded nothing: adding a *secondary* holder pushed a
+    /// `FillerAdded`, while replacing the entity the role's authority actually
+    /// binds to left no trace in `events` at all. The most consequential role
+    /// event was the only unrecorded one.
+    FillerRotated,
 }
 
 impl RoleAssignment {
@@ -214,10 +220,84 @@ impl RoleAssignment {
     }
 
     /// Rotate the entity filling this role. The role-LCT stays the same.
+    /// Rotating **preserves** `role_trust` / `role_value`. The role entity has
+    /// its own trust, accumulated across every entity that has ever filled it;
+    /// clearing it on rotation would destroy the one record that makes "how has
+    /// this role been performed, and by whom" answerable at all.
+    ///
+    /// The occupant is not lost inside that accumulation, because T3 is a
+    /// **tensor and not a scalar**. An observation of an occupant's conduct
+    /// accrues to `Temperament`, attributed to a sub-dimension named for that
+    /// occupant ([`RoleAssignment::occupant_dimension`]) — temperament *when
+    /// filled by* this entity. A role that has had five occupants carries five
+    /// such sub-dimensions side by side, none overwriting another. That is why
+    /// the answer to "which of these two entities performed better as Treasurer"
+    /// is a read, not a reconstruction.
+    ///
+    /// It composes fractally: the same shape holds at the personal MRH, the
+    /// society MRH, and a federation of societies, because the mechanism is the
+    /// open-ended sub-dimension tree (`web4:subDimensionOf`, "anyone can extend
+    /// the dimension tree without modifying the core") and not a fixed pair of
+    /// levels.
+    ///
+    /// Write through [`RoleAssignment::observe_occupant_trust`] rather than
+    /// touching the root dimension directly — the root carries no occupant
+    /// attribution, so an observation written there is unattributable the moment
+    /// the role rotates.
+    ///
+    /// What rotation *does* record is the boundary: a `FillerRotated` event, so
+    /// a reader can segment the accumulated tensor in time and tell which tenure
+    /// an observation window belongs to.
     pub fn rotate(&mut self, new_entity_lct_id: Uuid, rotated_by: Uuid) {
         self.filling_entity_lct_id = new_entity_lct_id;
         self.assigned_at = Utc::now();
         self.assigned_by = rotated_by;
+        self.events.push(RoleEvent {
+            timestamp: Utc::now(),
+            kind: RoleEventKind::FillerRotated,
+            entity_lct_id: new_entity_lct_id,
+            initiated_by: rotated_by,
+        });
+    }
+
+    /// The canonical sub-dimension name for an entity's conduct while filling
+    /// this role — "when filled by `entity_lct_id`".
+    ///
+    /// Canonical because **the key is the join**. Every implementer recording
+    /// occupant-attributed trust must spell it identically or the folds
+    /// fragment across members — the same failure mode the pinned role
+    /// vocabulary and its cross-repo drift guard exist to prevent. Deriving it
+    /// from one function means the spelling cannot drift without this function
+    /// changing.
+    pub fn occupant_dimension(entity_lct_id: Uuid) -> String {
+        format!("filled_by:{entity_lct_id}")
+    }
+
+    /// Record a trust observation about the entity **currently** filling this
+    /// role, attributed to that occupant.
+    ///
+    /// `parent` is normally [`crate::t3::TrustDimension::Temperament`] —
+    /// behavioural consistency and reliability is what a role occupant is
+    /// observed on. The role's tensor gains evidence without any previous
+    /// occupant's record being touched, and without a later reader having to
+    /// infer who earned what.
+    pub fn observe_occupant_trust(
+        &mut self,
+        parent: crate::t3::TrustDimension,
+        observed_score: f64,
+    ) -> crate::error::Result<()> {
+        let key = Self::occupant_dimension(self.filling_entity_lct_id);
+        self.role_trust.observe_sub_dimension(&key, parent, observed_score)
+    }
+
+    /// Value-side mirror of [`RoleAssignment::observe_occupant_trust`].
+    pub fn observe_occupant_value(
+        &mut self,
+        parent: crate::v3::ValueDimension,
+        observed_score: f64,
+    ) -> crate::error::Result<()> {
+        let key = Self::occupant_dimension(self.filling_entity_lct_id);
+        self.role_value.observe_sub_dimension(&key, parent, observed_score)
     }
 
     /// Add an additional holder (committee/federation pattern).
@@ -306,6 +386,8 @@ impl RoleAssignment {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::t3::TrustDimension;
+    use crate::v3::ValueDimension;
 
     #[test]
     fn test_base_mandatory_roles() {
@@ -340,6 +422,95 @@ mod tests {
         assert!(!assignment.is_authorized(entity_a));
         assert!(assignment.is_authorized(entity_b));
         assert_eq!(assignment.role_lct_id, role_lct); // unchanged
+    }
+
+    #[test]
+    fn each_occupants_conduct_accrues_to_its_own_sub_dimension_and_survives_rotation() {
+        let sovereign_id = Uuid::new_v4();
+        let entity_a = Uuid::new_v4();
+        let entity_b = Uuid::new_v4();
+
+        let mut assignment = RoleAssignment::new(
+            SocietyRole::Treasurer,
+            Uuid::new_v4(),
+            entity_a,
+            sovereign_id,
+        );
+
+        // entity_a's tenure: consistently good conduct.
+        for _ in 0..5 {
+            assignment.observe_occupant_trust(TrustDimension::Temperament, 0.95).unwrap();
+        }
+        let key_a = RoleAssignment::occupant_dimension(entity_a);
+        assert!(assignment.role_trust.sub_dimensions()[&key_a].score > 0.5);
+
+        assignment.rotate(entity_b, sovereign_id);
+
+        // entity_b's tenure: poor conduct, recorded against entity_b.
+        for _ in 0..5 {
+            assignment.observe_occupant_trust(TrustDimension::Temperament, 0.1).unwrap();
+        }
+        let key_b = RoleAssignment::occupant_dimension(entity_b);
+
+        let subs = assignment.role_trust.sub_dimensions();
+        assert_eq!(subs.len(), 2, "the role must carry one sub-dimension per occupant");
+
+        // The role remembers BOTH tenures, separately. This is the read that
+        // makes discovery-by-merit possible: not "how is this role doing" but
+        // "how did each entity do while filling it".
+        assert!(
+            subs[&key_a].score > subs[&key_b].score,
+            "entity_a's record ({}) must survive entity_b's tenure ({})",
+            subs[&key_a].score, subs[&key_b].score,
+        );
+        assert_eq!(subs[&key_a].observation_count, 5);
+        assert_eq!(subs[&key_b].observation_count, 5);
+
+        // And rotation did not wipe the accumulation.
+        assert!(
+            !assignment.role_trust.sub_dimensions().is_empty(),
+            "rotation cleared the role's accumulated trust",
+        );
+    }
+
+    #[test]
+    fn the_occupant_key_is_derived_not_spelled() {
+        // The key is the join across implementers; a drifting spelling
+        // fragments every fold that reads it.
+        let e = Uuid::new_v4();
+        assert_eq!(RoleAssignment::occupant_dimension(e), format!("filled_by:{e}"));
+
+        let mut a = RoleAssignment::new(SocietyRole::Witness, Uuid::new_v4(), e, Uuid::new_v4());
+        a.observe_occupant_value(ValueDimension::Validity, 0.8).unwrap();
+        assert!(
+            a.role_value.sub_dimensions().contains_key(&RoleAssignment::occupant_dimension(e)),
+            "observe_occupant_value must file under the canonical key",
+        );
+    }
+
+    #[test]
+    fn rotation_is_recorded_in_the_roles_own_event_history() {
+        let sovereign_id = Uuid::new_v4();
+        let entity_a = Uuid::new_v4();
+        let entity_b = Uuid::new_v4();
+
+        let mut assignment = RoleAssignment::new(
+            SocietyRole::Witness,
+            Uuid::new_v4(),
+            entity_a,
+            sovereign_id,
+        );
+        assert!(assignment.events.is_empty());
+
+        assignment.rotate(entity_b, sovereign_id);
+
+        // Adding a *secondary* holder was already recorded; replacing the
+        // primary one — the entity the role's authority binds to — was not.
+        assert_eq!(assignment.events.len(), 1, "rotation left no trace in events");
+        let ev = &assignment.events[0];
+        assert_eq!(ev.kind, RoleEventKind::FillerRotated);
+        assert_eq!(ev.entity_lct_id, entity_b, "the event must name the incoming occupant");
+        assert_eq!(ev.initiated_by, sovereign_id);
     }
 
     #[test]
