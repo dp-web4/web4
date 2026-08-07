@@ -664,6 +664,28 @@ impl RestState {
                         return UnlockOutcome::Unsupported(format!("state store did not open: {e}"));
                     }
                 };
+                // The production LAW gate, at the first moment the answer is real.
+                // On an encrypted hub the law is sealed in this store, so boot
+                // cannot see it (that check deadlocked production + sqlite; see
+                // `crate::production_law_gate`). Enforce it here — still BEFORE the
+                // signer swap, on the same fail-closed principle as the store open
+                // above: a production hub with no law must never reach a serving
+                // state, and a refusal here leaves it locked and re-ignitable.
+                if std::env::var("HUB_PROFILE").as_deref() == Ok("production") {
+                    let law_present = match store.read_law().await {
+                        Ok(l) => l.is_some(),
+                        Err(e) => {
+                            return UnlockOutcome::Unsupported(format!("reading law for the production gate: {e}"))
+                        }
+                    };
+                    if let Err(reason) = crate::production_law_gate(
+                        law_present,
+                        std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
+                    ) {
+                        tracing::error!("ignition REFUSED (HUB_PROFILE=production): {reason}");
+                        return UnlockOutcome::Refused(format!("HUB_PROFILE=production: {reason}"));
+                    }
+                }
                 let real_ledger = match hub_lib::ledger::HubLedger::open(store).await {
                     Ok(l) => l,
                     Err(e) => return UnlockOutcome::Unsupported(format!("opening ledger: {e}")),
@@ -728,6 +750,12 @@ pub enum UnlockOutcome {
     NotLocked,
     /// The passphrase didn't open the vault (counted against the rate limit).
     WrongPassphrase,
+    /// Refused by policy, not by the passphrase: the vault opened, but igniting
+    /// would violate the active deployment profile (today: `HUB_PROFILE=production`
+    /// with no hub law). Nothing was committed — the hub stays locked and can be
+    /// ignited again once the operator fixes the condition. Not a bad guess, so
+    /// it is never counted against the rate limit.
+    Refused(String),
     /// Refused by the rate limiter — wait `retry_after_secs`.
     RateLimited { retry_after_secs: i64 },
     /// This hub can't be unlocked by passphrase (e.g. Hestia-mode, or a
@@ -780,6 +808,12 @@ async fn unlock(
         UnlockOutcome::WrongPassphrase => Err(ApiError {
             status: StatusCode::UNAUTHORIZED,
             message: "unlock failed: wrong passphrase".to_string(),
+        }),
+        // The passphrase was right; the deployment profile forbids igniting into
+        // this state. 403, not 401 — retrying with a better passphrase won't help.
+        UnlockOutcome::Refused(m) => Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: format!("ignition refused: {m}"),
         }),
         UnlockOutcome::RateLimited { retry_after_secs } => Err(ApiError {
             status: StatusCode::TOO_MANY_REQUESTS,
