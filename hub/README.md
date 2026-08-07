@@ -45,9 +45,11 @@ We don't mandate the policy. We insist that whatever the policy is, is followed 
 hardening cycle, all landed: MCP write tools moved off the public listener onto the loopback operator
 plane; `assign_role` gates council/law *before* persisting; **pluggable operator-auth** (`HUB_OPERATOR_AUTH=token`);
 sealed-channel **freshness enforcement** on write tools; **`HUB_PROFILE=production`** refusing unsafe
-defaults; law-integrity **fail-closed** on mismatch; issuer URLs from `HUB_PUBLIC_BASE_URL` not the Host
-header; unlock-verifier timeout. Plus the **`hub up`** turnkey deploy kit (see *Deployment models*) and
-the start of role-based launch orchestration (roles as LCT entities).
+defaults (the law arm at whichever moment the law is actually readable — boot on a plaintext store,
+**ignition** on an encrypted one, where it is sealed in the vault); law-integrity **fail-closed** on
+mismatch; issuer URLs from `HUB_PUBLIC_BASE_URL` not the Host header; unlock-verifier timeout. Plus
+the **`hub up`** turnkey deploy kit (see *Deployment models*) and the start of role-based launch
+orchestration (roles as LCT entities).
 
 **Durable member messaging (2026-07).** The per-citizen sealed mailbox is now **durable and
 crash-safe**: a `SealedNotice` is persisted before it is acknowledged (**park-before-ACK, at-least-once**)
@@ -80,7 +82,7 @@ The same binary is meant to serve a spectrum of deployments — each a **fail-cl
 hub up ./hub --profile public-tunnel --domain hub.4-gov.org
 ```
 
-It writes `hub-up.env` (`HUB_PROFILE` / `HUB_OPERATOR_AUTH` / `HUB_PUBLIC_BASE_URL` / `HUB_BIND` for the archetype), a signed **starter law** (fail-closed default), and — for public archetypes — a `0600` **operator token**, then prints a tailored go-live runbook (`init → set-law → [tunnel/TLS] → serve → unlock`). Public archetypes are enforced fail-closed: `public-*` always uses token auth + the production profile + a domain, so a non-expert cannot accidentally stand up an open, unauthenticated, no-law public hub. *In process:* fully automating the TLS/tunnel/systemd steps the runbook currently prints.
+It writes `hub-up.env` (`HUB_PROFILE` / `HUB_OPERATOR_AUTH` / `HUB_PUBLIC_BASE_URL` / `HUB_BIND` for the archetype), a signed **starter law** (fail-closed default), and — for public archetypes — a `0600` **operator token**, then prints a tailored go-live runbook (`init → set-law → [tunnel/TLS] → serve → unlock`). Public archetypes are enforced fail-closed: `public-*` always uses token auth + the production profile + a domain, so a non-expert cannot accidentally stand up an open, unauthenticated, no-law public hub. On an encrypted (`sqlite`) hub the law is sealed in the vault and unreadable until ignition, so there the law check runs at `hub unlock` — which refuses — and the hub serves only the locked tier (well-known, unlock, law, issuer metadata) until it passes. *In process:* fully automating the TLS/tunnel/systemd steps the runbook currently prints.
 
 ## What this is
 

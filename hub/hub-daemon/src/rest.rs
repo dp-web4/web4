@@ -148,6 +148,18 @@ pub struct RestState {
     /// runs; `/unlock/challenge` returns 501). Set from `HUB_UNLOCK_VERIFIER`.
     /// The seam is generic + public; the verifier ships separately (open-core).
     pub unlock_verifier_cmd: Option<String>,
+    /// The deployment-profile inputs the **ignition-time production law gate**
+    /// needs (`HUB_PROFILE=production` and its `HUB_ALLOW_NO_LAW=1` escape
+    /// hatch), captured here at open like `unlock_verifier_cmd` above rather
+    /// than read from the process env at the decision point. Same value either
+    /// way for a real daemon — the profile is fixed for the process lifetime
+    /// (`hub up` writes it into the unit env; boot preflight reads it at
+    /// startup) — but a field is a per-instance seam, and the env is a global
+    /// that cargo's threaded test runner shares across every concurrent test.
+    pub production_profile: bool,
+    /// `HUB_ALLOW_NO_LAW=1` — the operator's explicit opt-out of the law arm
+    /// above. Captured with it; see that field's note.
+    pub allow_no_law: bool,
     /// Outstanding tier-2 unlock challenges (id → accumulating attestations).
     pub unlock_sessions: Arc<Mutex<std::collections::HashMap<Uuid, UnlockSession>>>,
     /// The **protected tier**: a `vault_tree` enclosure holding data that opens only on a
@@ -381,6 +393,8 @@ impl RestState {
             vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unlock_gate: Arc::new(UnlockGate::default_policy()),
             unlock_verifier_cmd: std::env::var("HUB_UNLOCK_VERIFIER").ok().filter(|s| !s.is_empty()),
+            production_profile: std::env::var("HUB_PROFILE").as_deref() == Ok("production"),
+            allow_no_law: std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
             unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
             protected: Arc::new(Mutex::new(
                 hub_lib::identity::env_passphrase().and_then(|p| open_protected_vault(&hub_dir, &p)),
@@ -546,6 +560,8 @@ impl RestState {
             vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unlock_gate: Arc::new(UnlockGate::default_policy()),
             unlock_verifier_cmd: std::env::var("HUB_UNLOCK_VERIFIER").ok().filter(|s| !s.is_empty()),
+            production_profile: std::env::var("HUB_PROFILE").as_deref() == Ok("production"),
+            allow_no_law: std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
             unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
             protected: Arc::new(Mutex::new(None)),
             store_key: Arc::new(tokio::sync::RwLock::new(None)),
@@ -671,17 +687,24 @@ impl RestState {
                 // signer swap, on the same fail-closed principle as the store open
                 // above: a production hub with no law must never reach a serving
                 // state, and a refusal here leaves it locked and re-ignitable.
-                if std::env::var("HUB_PROFILE").as_deref() == Ok("production") {
+                if self.production_profile {
+                    // Gate on *parses*, not on *bytes exist*. Boot's arm is
+                    // `Law::parse_and_validate` (`main.rs`), and byte-presence here
+                    // would let the two backends mean different things by "has a
+                    // law": a store holding an unparseable law would pass this gate,
+                    // swap the signer and ignite, while `reload_law()` below
+                    // propagates the parse error *before* assigning — leaving the
+                    // locked shell's `law = None` in place. That is a live hub in
+                    // exactly the PERMISSIVE state H-003 warns about, on the same
+                    // input the file backend refuses to boot on. Same predicate,
+                    // both ends.
                     let law_present = match store.read_law().await {
-                        Ok(l) => l.is_some(),
+                        Ok(l) => l.is_some_and(|y| Law::parse_and_validate(&y).is_ok()),
                         Err(e) => {
                             return UnlockOutcome::Unsupported(format!("reading law for the production gate: {e}"))
                         }
                     };
-                    if let Err(reason) = crate::production_law_gate(
-                        law_present,
-                        std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
-                    ) {
+                    if let Err(reason) = crate::production_law_gate(law_present, self.allow_no_law) {
                         tracing::error!("ignition REFUSED (HUB_PROFILE=production): {reason}");
                         return UnlockOutcome::Refused(format!("HUB_PROFILE=production: {reason}"));
                     }
@@ -9857,6 +9880,96 @@ norms: []
             state.try_unlock(pass, now + 10).await,
             UnlockOutcome::NotLocked
         ));
+    }
+
+    /// Put this hub under `HUB_PROFILE=production` with no `HUB_ALLOW_NO_LAW`
+    /// escape hatch — per-instance, so these tests neither serialize against the
+    /// rest of the suite nor leak a profile into it. The real daemon captures the
+    /// same two values from the env at `RestState::open` (see the fields).
+    fn under_production_profile(state: &mut RestState) {
+        state.production_profile = true;
+        state.allow_no_law = false;
+    }
+
+    /// Put `yaml` in the hub's store as the law, through the handle the locked
+    /// shell already holds (a second handle would contend on the sqlite file).
+    async fn put_law_in_store(state: &RestState, yaml: &str) {
+        state.ledger.lock().await.store_mut().write_law(yaml).await.unwrap();
+    }
+
+    const VALID_LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+
+    /// The runtime pin on the gate's *new* home. #656 moved the production law
+    /// check out of boot preflight and into ignition, because on an encrypted hub
+    /// the law is sealed in the store and boot cannot read it. Nothing else asserts
+    /// that `try_unlock` still enforces it: move this gate after the signer swap,
+    /// or drop the `HUB_PROFILE` arm entirely, and the rest of the suite stays green
+    /// while the production profile silently stops gating anything.
+    #[tokio::test]
+    async fn production_ignition_refuses_a_lawless_hub_and_leaves_it_locked() {
+        let pass = "correct horse battery staple";
+        let (_tmp, mut state) = locked_state_sealed_with(pass).await;
+        under_production_profile(&mut state);
+        let now = 1_700_000_000;
+
+        // The passphrase is RIGHT — the refusal is policy, not a bad guess.
+        match state.try_unlock(pass, now).await {
+            UnlockOutcome::Refused(reason) => assert!(
+                reason.contains("HUB_PROFILE=production"),
+                "the refusal must name the profile that caused it, got: {reason}"
+            ),
+            _ => panic!("a lawless production hub must refuse ignition"),
+        }
+        assert!(state.is_locked(), "a refusal commits nothing — the hub stays locked");
+        assert!(
+            state.signer.public_key().is_none(),
+            "the refusal landed before the signer swap"
+        );
+
+        // And the gate discriminates: with a law in the store the same passphrase
+        // ignites. This also shows the refusal never reached `record_failure` —
+        // a counted failure would have this attempt behind a lockout, not unlocked.
+        put_law_in_store(&state, VALID_LAW).await;
+        match state.try_unlock(pass, now + 5).await {
+            UnlockOutcome::Unlocked { sovereign_lct_id } => {
+                assert_eq!(sovereign_lct_id, state.sovereign_lct_id)
+            }
+            _ => panic!("with a law present, production ignition must succeed"),
+        }
+        assert!(!state.is_locked());
+    }
+
+    /// The gate asks whether the law *parses*, not whether bytes are present.
+    /// Boot's arm is `Law::parse_and_validate`, so presence-only here would let the
+    /// two backends disagree: a store holding an unparseable law would ignite live
+    /// with `law = None` (`reload_law` propagates the parse error before assigning),
+    /// which is the PERMISSIVE, un-gated state — on the same input the file backend
+    /// refuses to boot on.
+    #[tokio::test]
+    async fn production_ignition_refuses_a_law_that_does_not_parse() {
+        let pass = "correct horse battery staple";
+        let (_tmp, mut state) = locked_state_sealed_with(pass).await;
+        put_law_in_store(&state, "version: \"1.0.0\"\nnorms: [ this is not a law").await;
+        under_production_profile(&mut state);
+
+        match state.try_unlock(pass, 1_700_000_000).await {
+            UnlockOutcome::Refused(reason) => assert!(
+                reason.contains("HUB_PROFILE=production"),
+                "unparseable law must refuse through the production gate, got: {reason}"
+            ),
+            _ => panic!("bytes that do not parse are not a law — ignition must refuse"),
+        }
+        assert!(state.is_locked(), "the hub stays locked, exactly as with no law at all");
+        assert!(state.signer.public_key().is_none());
     }
 
     /// Write a tiny executable stub verifier that returns `granted` and exits 0.
