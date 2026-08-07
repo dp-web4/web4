@@ -5498,9 +5498,21 @@ async fn list_topics(
             s.hub_id
         )));
     }
-    // Readable while LOCKED. Reads need no Sovereign signer — only writes do —
-    // and a governance record that disappears when the vault locks would be
-    // exactly the kind of availability nobody can rely on.
+    // NOT readable while LOCKED, and that is deliberate — the original comment here
+    // claimed the opposite. Reads need no Sovereign signer, so the HANDLER would run
+    // fine on a locked hub; but `lock_gate` (layered on the merged app in main.rs)
+    // refuses every path outside the five-entry whole-path allowlist in
+    // `locked_tier0_allows`, and /topics is not one of them. A locked hub answers 503.
+    //
+    // Leaving it out of the allowlist is the correct call, because a locked shell boots
+    // on a PLACEHOLDER ledger (see `open_locked_shell`: "the ledger is an empty
+    // placeholder (replaced at ignition)"). Admitting these routes would therefore not
+    // serve a governance record that survives the lock — it would serve `{"topics":[]}`
+    // and a /discuss page reading "No topics yet." with a 200. On a governance forum,
+    // an empty 200 is indistinguishable from "nothing was ever said", which is a worse
+    // failure than an honest 503: it answers the question wrongly instead of declining
+    // to answer. Fail-closed is the fleet's standing rule for the unrecognized case and
+    // it is the right one here.
     let projected = {
         let ledger = s.ledger.lock().await;
         hub_lib::state::HubState::project(&*ledger)
