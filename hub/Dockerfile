@@ -4,8 +4,8 @@
 # AIC Hub — multi-stage Docker build.
 #
 # Build context must be the web4 repo root (not web4/hub), because the
-# workspace has path-dependencies on sibling crates web4-core and
-# web4-trust-core. From web4/:
+# workspace has path-dependencies on sibling crates web4-core,
+# web4-trust-core and web4-policy. From web4/:
 #
 #   docker build -t hub:0.1.0-alpha.0 -f hub/Dockerfile .
 #
