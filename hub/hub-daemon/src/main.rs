@@ -872,8 +872,11 @@ async fn run_get_law(hub_dir: PathBuf) -> Result<()> {
 /// looking at "their law" while `hub unlock` told them there was none.
 fn stored_law_warning(yaml: &str) -> Option<String> {
     let e = hub_lib::law::Law::parse_and_validate(yaml).err()?;
+    // `{e:#}` — see the note at the `Unparseable` capture in `rest.rs`: plain
+    // `{e}` prints only anyhow's outermost context ("parsing policy law YAML"),
+    // dropping the line/column/reason the operator needs to fix the file.
     Some(format!(
-        "WARNING: the stored bytes above do NOT parse/validate as a hub law: {e}\n\
+        "WARNING: the stored bytes above do NOT parse/validate as a hub law: {e:#}\n\
                   Under HUB_PROFILE=production this hub refuses to ignite until \
          `hub set-law` serves one that validates."
     ))
@@ -2313,6 +2316,15 @@ mod tests {
             w.contains("HUB_PROFILE=production"),
             "say what actually goes wrong, not just that it is invalid: {w}"
         );
+        // Rendering guard — this warning is half of the workflow the refusal
+        // prescribes ("`hub get-law` prints the stored bytes"), so it must not
+        // agree that something is wrong while declining to say what. `{e}` on the
+        // anyhow error printed only "parsing policy law YAML". (PUB review of #660.)
+        assert!(
+            w.contains("line 2 column") && w.contains("expected struct Norm"),
+            "the diagnosis must carry the underlying parse error, not just \
+             anyhow's outermost context: {w}"
+        );
     }
 
     /// A law that does not parse is not the no-law case, and the waiver does not
@@ -2321,6 +2333,14 @@ mod tests {
     /// `hub get-law`, the parse error was logged nowhere, and the remedy the
     /// message recommended — `HUB_ALLOW_NO_LAW=1` — ignited a live PERMISSIVE
     /// production hub, which is exactly what the gate exists to prevent.
+    ///
+    /// Scope note: this test builds its own `Unparseable(String)`, so it pins the
+    /// gate's *behaviour* and can say nothing about how the real error is
+    /// rendered — the assertion below is satisfied by the test's own literal. The
+    /// rendering guard is
+    /// `rest::channel_e2e_tests::production_ignition_refuses_a_law_that_does_not_parse`,
+    /// whose string comes out of `Law::parse_and_validate` through the shipped
+    /// capture. (PUB review of #660.)
     #[test]
     fn an_unparseable_law_refuses_with_its_own_reason_and_the_waiver_does_not_cover_it() {
         let broken = LawStatus::Unparseable("norms[0]: missing field `selector`".to_string());
