@@ -756,7 +756,11 @@ impl RestState {
                 *self.protected.lock().await = open_protected_vault(&self.paths.root, passphrase);
                 // Load the now-readable law (store opens with the held key).
                 if let Err(e) = self.reload_law().await {
-                    tracing::warn!("ignition: law reload failed (continuing): {e}");
+                    // `{e:#}`: `reload_law` flattens the *parse* chain into its own
+                    // message, but its other arm is a plain
+                    // `.context("opening store for law reload")`, which `{e}` would
+                    // reduce to exactly that phrase — the store error itself dropped.
+                    tracing::warn!("ignition: law reload failed (continuing): {e:#}");
                 }
                 // Re-deliver notices that were queued before this hub went down —
                 // the durable mailbox opens with the same now-live key.
@@ -836,7 +840,12 @@ async fn unlock(
             match hydrate_law_defaults(&s).await {
                 Ok(true) => tracing::info!("law defaults hydrated post-ignition"),
                 Ok(false) => {}
-                Err(e) => tracing::warn!("law-default hydration skipped: {e}"),
+                // `{e:#}`: the sanity re-parse inside `hydrate_law_defaults`
+                // propagates `parse_and_validate`'s contexted error with a bare
+                // `?`, so `{e}` prints "parsing policy law YAML" and drops the
+                // line/column. Warn-and-continue means this line is the only
+                // artifact the failure ever produces. (PUB review of #660.)
+                Err(e) => tracing::warn!("law-default hydration skipped: {e:#}"),
             }
             Ok(Json(UnlockResponse {
                 unlocked: true,
@@ -10052,6 +10061,71 @@ norms:
         }
         assert!(state.is_locked(), "the hub stays locked, exactly as with no law at all");
         assert!(state.signer.public_key().is_none());
+    }
+
+    /// Pins the **sweep**, not a site.
+    ///
+    /// `reload_law()` and `hydrate_law_defaults()` both return contexted
+    /// `anyhow::Error`s, so any caller that flattens one into a string must use
+    /// `{e:#}` — `{e}` keeps only the outermost context and drops the parse
+    /// error's line/column. Three review rounds each found *another* caller
+    /// still using `{e}`: #660 fixed two, PUB's review of #660 found a third
+    /// (post-ignition hydration), and this change a fourth (the normal-boot
+    /// hydration in `main.rs`). Each sweep missed the next one because each was
+    /// run from the error-*origin* side under a proxy rule — "`?` is fine, it
+    /// reaches `Debug`", then "`main.rs` is fine, it reaches `Debug`". Both
+    /// proxies are unsound for a caller that renders with `warn!`.
+    ///
+    /// So this scans from the *call-site* side, which is the side the defect
+    /// actually lives on, and is why it is a source scan rather than a runtime
+    /// assertion: both hydration sites are unreachable-by-construction sanity
+    /// re-parses (measured — see the PR notes), so no runtime test can reach
+    /// them, and a fifth caller would otherwise be added silently.
+    #[test]
+    fn no_caller_of_a_law_error_path_flattens_it_lossily() {
+        // Needles are built at runtime so this test does not match its own source.
+        let call_markers = [
+            format!("{}{}", "hydrate_law_", "defaults("),
+            format!("{}{}", "reload_law", "()"),
+        ];
+        let lossy = format!("{}{}{}", "{", "e", "}");
+        let lossy_positional = format!("{}{}", "{}\", ", "e");
+
+        let mut offenders = Vec::new();
+        for (file, src) in [
+            ("rest.rs", include_str!("rest.rs")),
+            ("main.rs", include_str!("main.rs")),
+        ] {
+            // Window over CODE lines, not raw lines: a comment block between the
+            // call and its `Err` arm must not push the render out of view. (It
+            // did — an eight-raw-line window silently stopped covering the
+            // post-ignition site as soon as this change commented it.)
+            let code: Vec<(usize, &str)> = src
+                .lines()
+                .enumerate()
+                .map(|(n, l)| (n + 1, l))
+                .filter(|(_, l)| !l.trim_start().starts_with("//"))
+                .collect();
+            for (i, (_, line)) in code.iter().enumerate() {
+                if !call_markers.iter().any(|m| line.contains(m.as_str())) {
+                    continue;
+                }
+                // The render, when there is one, sits in the match/if-let arms
+                // immediately below the call.
+                for (lineno, probe) in code.iter().skip(i).take(8) {
+                    if probe.contains(&lossy) || probe.contains(&lossy_positional) {
+                        offenders.push(format!("{file}:{lineno} — {}", probe.trim()));
+                    }
+                }
+            }
+        }
+        offenders.dedup(); // overlapping windows can report one line twice
+        assert!(
+            offenders.is_empty(),
+            "a caller of a law-error path flattens it with the lossy form, which \
+             drops the parse error's cause; render it with `{{e:#}}` instead:\n  {}",
+            offenders.join("\n  ")
+        );
     }
 
     /// The escape hatch is the *no-law* waiver, and it must not cover a law that
