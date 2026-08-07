@@ -5191,38 +5191,53 @@ fn bump_law_version(v: &str) -> String {
 /// ignition capture at the `Unparseable` arm is one, and it keeps its own
 /// runtime test. Widening this to `parse_and_validate` itself means changing a
 /// shared `web4-policy` signature across 66 call sites; not taken here.
-pub(crate) struct LawError(anyhow::Error);
+///
+/// The type lives in its own `mod` rather than directly here, and that module
+/// boundary — not the `pub(crate)` — is what makes the field unreachable. A
+/// private field is private to the module that *declares* it, so declaring it
+/// at file scope would leave `e.0` in scope throughout `rest.rs`, which is
+/// where 3 of the 4 historical lossy renders lived. PUB's review of head
+/// `60c9d60` measured exactly that: an intra-module render still produced
+/// `law reload failed: parsing policy law YAML`, the historical string. The
+/// inline module closes it — `e.0` from `rest.rs` is now E0616 — so the claim
+/// "a caller cannot select the lossy rendering" holds in every file including
+/// this one.
+mod law_error {
+    pub(crate) struct LawError(anyhow::Error);
 
-impl From<anyhow::Error> for LawError {
-    fn from(e: anyhow::Error) -> Self {
-        LawError(e)
+    impl From<anyhow::Error> for LawError {
+        fn from(e: anyhow::Error) -> Self {
+            LawError(e)
+        }
+    }
+
+    impl std::fmt::Display for LawError {
+        /// Always the alternate form. This is the whole point of the type: a
+        /// caller cannot select the lossy rendering, because the lossy
+        /// rendering is not reachable from anywhere outside these braces.
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{:#}", self.0)
+        }
+    }
+
+    impl std::fmt::Debug for LawError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            // `anyhow`'s own `Debug` is the multi-line chain — right for `unwrap()`.
+            std::fmt::Debug::fmt(&self.0, f)
+        }
+    }
+
+    impl std::error::Error for LawError {
+        /// `None`, deliberately: `Display` already carries the whole chain, so
+        /// reporting a source as well would make `{:#}` print it twice once
+        /// this is converted into an `anyhow::Error` by `?`.
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            None
+        }
     }
 }
 
-impl std::fmt::Display for LawError {
-    /// Always the alternate form. This is the whole point of the type: a caller
-    /// cannot select the lossy rendering, because the lossy rendering is not
-    /// reachable from outside this module.
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#}", self.0)
-    }
-}
-
-impl std::fmt::Debug for LawError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // `anyhow`'s own `Debug` is the multi-line chain — right for `unwrap()`.
-        std::fmt::Debug::fmt(&self.0, f)
-    }
-}
-
-impl std::error::Error for LawError {
-    /// `None`, deliberately: `Display` already carries the whole chain, so
-    /// reporting a source as well would make `{:#}` print it twice once this is
-    /// converted into an `anyhow::Error` by `?`.
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
-}
+pub(crate) use law_error::LawError;
 
 pub(crate) async fn hydrate_law_defaults(s: &RestState) -> Result<bool, LawError> {
     hydrate_law_defaults_inner(s).await.map_err(LawError::from)
