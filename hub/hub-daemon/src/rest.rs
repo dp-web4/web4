@@ -581,8 +581,12 @@ impl RestState {
         let store = self.open_store().await
             .context("opening store for law reload")?;
         let new_law: Option<Law> = match store.read_law().await? {
+            // `{:#}` for the same reason as the ignition gate's capture below:
+            // flattening an `anyhow::Error` with `{}` keeps only the outermost
+            // context. This is the `warn!`-and-`POST /admin/reload-law` render of
+            // the very same parse error, so it must not be the lossy one.
             Some(ref yaml) => Some(Law::parse_and_validate(yaml)
-                .map_err(|e| anyhow::anyhow!("law on disk failed to parse/validate: {}", e))?),
+                .map_err(|e| anyhow::anyhow!("law on disk failed to parse/validate: {:#}", e))?),
             None => None,
         };
         let version = new_law.as_ref()
@@ -698,13 +702,32 @@ impl RestState {
                     // exactly the PERMISSIVE state H-003 warns about, on the same
                     // input the file backend refuses to boot on. Same predicate,
                     // both ends.
-                    let law_present = match store.read_law().await {
-                        Ok(l) => l.is_some_and(|y| Law::parse_and_validate(&y).is_ok()),
+                    // Keep the parse *error*, don't collapse it to a bool. This is
+                    // the only point on the refuse path where it exists: the
+                    // `reload_law()` call below, whose `warn!` would otherwise
+                    // report it, never runs because the refusal returns first.
+                    // Carrying it in the refusal (rather than logging it here) is
+                    // deliberate — the refusal text is returned to the operator on
+                    // the 403 *and* logged by the `ignition REFUSED` line below, so
+                    // one assertable string does both jobs.
+                    // `{e:#}`, not `{e}`: `Law::from_yaml` wraps the `serde_yaml`
+                    // error in `.context("parsing policy law YAML")`, and
+                    // `Display`/`to_string()` on an `anyhow::Error` renders ONLY
+                    // the outermost context — so the line, column and reason were
+                    // dropped here and the refusal said "does not parse: parsing
+                    // policy law YAML", which just restates itself. The alternate
+                    // form renders the whole chain. (PUB review of #660.)
+                    let law_status = match store.read_law().await {
+                        Ok(None) => crate::LawStatus::Absent,
+                        Ok(Some(y)) => match Law::parse_and_validate(&y) {
+                            Ok(_) => crate::LawStatus::Parses,
+                            Err(e) => crate::LawStatus::Unparseable(format!("{e:#}")),
+                        },
                         Err(e) => {
                             return UnlockOutcome::Unsupported(format!("reading law for the production gate: {e}"))
                         }
                     };
-                    if let Err(reason) = crate::production_law_gate(law_present, self.allow_no_law) {
+                    if let Err(reason) = crate::production_law_gate(&law_status, self.allow_no_law) {
                         tracing::error!("ignition REFUSED (HUB_PROFILE=production): {reason}");
                         return UnlockOutcome::Refused(format!("HUB_PROFILE=production: {reason}"));
                     }
@@ -5181,7 +5204,7 @@ async fn admin_set_admission_limits(
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing law: {e}")))?;
     // Sanity: the amended law must still parse + validate.
     hub_lib::law::Law::parse_and_validate(&yaml)
-        .map_err(|e| ApiError::internal(anyhow::anyhow!("amended law invalid: {e}")))?;
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("amended law invalid: {e:#}")))?;
     let entry_index = witness_law_amendment(
         &s,
         &yaml,
@@ -9908,6 +9931,41 @@ norms:
     priority: 100
 "#;
 
+    /// The *other* render of the same parse error. `reload_law` is what the
+    /// ignition gate's comment calls the place the error would otherwise be
+    /// reported (`warn!` at the call site, and the body of `POST
+    /// /admin/reload-law`), so it had the identical `{}`-flattening defect: an
+    /// operator who fixed their law, reloaded, and got it wrong again was told
+    /// "law on disk failed to parse/validate: parsing policy law YAML".
+    ///
+    /// Not in PUB's finding, which named the ignition and `get-law` sites. Pinned
+    /// here so the third site is a tested change rather than a drive-by one.
+    #[tokio::test]
+    async fn reload_law_reports_why_the_law_on_disk_failed_not_just_that_it_did() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        put_law_in_store(&state, "version: \"1.0.0\"\nnorms: [ this is not a law").await;
+
+        let err = state
+            .reload_law()
+            .await
+            .expect_err("bytes that do not parse must fail the reload");
+        let rendered = format!("{err:#}");
+        assert!(
+            rendered.contains("law on disk failed to parse/validate"),
+            "the reload failure must still name itself: {rendered}"
+        );
+        assert!(
+            rendered.contains("line 2 column") && rendered.contains("expected struct Norm"),
+            "and carry the underlying parse error, not anyhow's outermost \
+             context alone: {rendered}"
+        );
+
+        // Control: the reload path is not simply broken — a law that parses
+        // reloads and reports its version.
+        put_law_in_store(&state, VALID_LAW).await;
+        assert_eq!(state.reload_law().await.unwrap(), "1.0.0");
+    }
+
     /// The runtime pin on the gate's *new* home. #656 moved the production law
     /// check out of boot preflight and into ignition, because on an encrypted hub
     /// the law is sealed in the store and boot cannot read it. Nothing else asserts
@@ -9962,14 +10020,92 @@ norms:
         under_production_profile(&mut state);
 
         match state.try_unlock(pass, 1_700_000_000).await {
-            UnlockOutcome::Refused(reason) => assert!(
-                reason.contains("HUB_PROFILE=production"),
-                "unparseable law must refuse through the production gate, got: {reason}"
-            ),
+            UnlockOutcome::Refused(reason) => {
+                assert!(
+                    reason.contains("HUB_PROFILE=production"),
+                    "unparseable law must refuse through the production gate, got: {reason}"
+                );
+                // The RENDERING guard, and it has to live here: the unit test on
+                // `production_law_gate` builds its own `Unparseable(String)`, so it
+                // asserts against its own literal and cannot see how the real error
+                // is formatted. This test is the only one whose string came out of
+                // `Law::parse_and_validate` through the shipped capture.
+                //
+                // `e.to_string()` there rendered only anyhow's outermost context —
+                // "parsing policy law YAML" — which merely restates the sentence it
+                // is embedded in. Since the refuse path returns before
+                // `reload_law()`'s `warn!`, that string is the ONLY copy of the
+                // error in existence, so an empty one leaves the operator with a
+                // hub that refuses to serve and nothing to fix. Assert on the
+                // cause, not the wrapper. (PUB review of #660.)
+                assert!(
+                    reason.contains("line 2 column"),
+                    "the refusal must locate the parse failure, not just name the \
+                     phase — `{{e}}` on an anyhow error drops the cause: {reason}"
+                );
+                assert!(
+                    reason.contains("expected struct Norm"),
+                    "and it must say what was actually wrong with the bytes: {reason}"
+                );
+            }
             _ => panic!("bytes that do not parse are not a law — ignition must refuse"),
         }
         assert!(state.is_locked(), "the hub stays locked, exactly as with no law at all");
         assert!(state.signer.public_key().is_none());
+    }
+
+    /// The escape hatch is the *no-law* waiver, and it must not cover a law that
+    /// is present but broken. It used to: `.is_ok()` collapsed both into
+    /// `law_present = false`, so `HUB_ALLOW_NO_LAW=1` ignited the hub, then
+    /// `reload_law()` failed and was warn-and-continue — leaving `law = None` on a
+    /// live production hub, the PERMISSIVE H-003 state. An operator reached it by
+    /// following the refusal's own suggested remedy.
+    #[tokio::test]
+    async fn the_no_law_waiver_does_not_ignite_a_hub_whose_law_does_not_parse() {
+        let pass = "correct horse battery staple";
+        let (_tmp, mut state) = locked_state_sealed_with(pass).await;
+        put_law_in_store(&state, "version: \"1.0.0\"\nnorms: [ this is not a law").await;
+        under_production_profile(&mut state);
+        state.allow_no_law = true; // the operator takes the documented escape hatch
+
+        match state.try_unlock(pass, 1_700_000_000).await {
+            UnlockOutcome::Refused(reason) => {
+                assert!(
+                    reason.contains("does not parse"),
+                    "the refusal must say the stored law is broken, not that there is \
+                     none — the operator can see it with `hub get-law`: {reason}"
+                );
+                assert!(
+                    !reason.contains("with NO hub law"),
+                    "a stored-but-broken law must not be reported as no law: {reason}"
+                );
+            }
+            _ => panic!(
+                "HUB_ALLOW_NO_LAW=1 must not ignite a hub whose law does not parse — \
+                 that is a live PERMISSIVE hub"
+            ),
+        }
+        assert!(state.is_locked(), "the waiver did not commit an ignition");
+        assert!(
+            state.signer.public_key().is_none(),
+            "the refusal landed before the signer swap"
+        );
+        assert!(
+            state.law.read().await.is_none(),
+            "and nothing hydrated a law — refusing is the whole point"
+        );
+
+        // The waiver still does what it is for: no law at all, and it ignites.
+        let (_tmp2, mut lawless) = locked_state_sealed_with(pass).await;
+        under_production_profile(&mut lawless);
+        lawless.allow_no_law = true;
+        assert!(
+            matches!(
+                lawless.try_unlock(pass, 1_700_000_000).await,
+                UnlockOutcome::Unlocked { .. }
+            ),
+            "the no-law waiver must still waive the no-law case"
+        );
     }
 
     /// Write a tiny executable stub verifier that returns `granted` and exits 0.

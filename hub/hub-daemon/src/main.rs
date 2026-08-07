@@ -847,10 +847,39 @@ async fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<
 async fn run_get_law(hub_dir: PathBuf) -> Result<()> {
     let session = HubSession::open(&hub_dir).await?;
     match session.get_law().await? {
-        Some(yaml) => print!("{}", yaml),
+        Some(yaml) => {
+            print!("{}", yaml);
+            // Don't contradict ignition. The production law gate asks whether the
+            // stored law *parses*, so bytes alone are not "a law" — printing them
+            // unvalidated showed an operator their law while `hub unlock` was
+            // telling them there was none. stdout stays byte-identical (it is
+            // routinely piped to a file); the diagnosis goes to stderr.
+            if let Some(w) = stored_law_warning(&yaml) {
+                eprintln!("{w}");
+            }
+        }
         None => println!("No hub law set."),
     }
     Ok(())
+}
+
+/// The stderr diagnosis `hub get-law` prints alongside stored bytes that do not
+/// parse — `None` when they do. Split out of [`run_get_law`] only so it is
+/// testable; the CLI wrapper is the untestable part (a session and a store).
+///
+/// Exists because `get-law` printing unvalidated bytes contradicted ignition:
+/// the production gate asks whether the law *parses*, so an operator could be
+/// looking at "their law" while `hub unlock` told them there was none.
+fn stored_law_warning(yaml: &str) -> Option<String> {
+    let e = hub_lib::law::Law::parse_and_validate(yaml).err()?;
+    // `{e:#}` — see the note at the `Unparseable` capture in `rest.rs`: plain
+    // `{e}` prints only anyhow's outermost context ("parsing policy law YAML"),
+    // dropping the line/column/reason the operator needs to fix the file.
+    Some(format!(
+        "WARNING: the stored bytes above do NOT parse/validate as a hub law: {e:#}\n\
+                  Under HUB_PROFILE=production this hub refuses to ignite until \
+         `hub set-law` serves one that validates."
+    ))
 }
 
 /// Starter hub-law template — embedded at compile time so the
@@ -1203,15 +1232,58 @@ async fn run_query(sub: QueryCommand) -> Result<()> {
 /// Serving *while locked* with no visible law is not the hazard this guards
 /// against: the lock-gate serves only the tier-0 allowlist (unlock / well-known
 /// / law / issuer metadata), so there are no acts or admissions to gate yet.
+///
+/// The input is [`LawStatus`] rather than a bool: #659 made the gate ask whether
+/// the law *parses*, but collapsed the answer with `.is_ok()`, so "a law that
+/// does not parse" arrived here indistinguishable from "no law". See the
+/// `Unparseable` arm for why that mattered.
 fn production_law_gate(
-    law_present: bool,
+    law: &LawStatus,
     allow_no_law: bool,
-) -> std::result::Result<(), &'static str> {
-    if !law_present && !allow_no_law {
-        return Err("refusing to serve with NO hub law (acts/admissions ungated). \
-                    Serve a signed law (hub set-law), or set HUB_ALLOW_NO_LAW=1");
+) -> std::result::Result<(), String> {
+    match law {
+        LawStatus::Parses => Ok(()),
+        // The documented meaning of the waiver: there is no law, and the operator
+        // is knowingly accepting an ungated hub.
+        LawStatus::Absent if allow_no_law => Ok(()),
+        LawStatus::Absent => Err(
+            "refusing to serve with NO hub law (acts/admissions ungated). \
+             Serve a signed law (hub set-law), or set HUB_ALLOW_NO_LAW=1"
+                .to_string(),
+        ),
+        // Present-but-broken is NOT the no-law case, and `HUB_ALLOW_NO_LAW=1`
+        // deliberately does not waive it (PUB review of #659, 2026-08-07). Waiving
+        // it would ignite, then `reload_law()` fails and is warn-and-continue, so
+        // `law` stays `None` — a live production hub in the PERMISSIVE H-003 state,
+        // reached by following the refusal's own advice. Refusing is recoverable
+        // (`hub set-law` works offline against the store, with the passphrase);
+        // igniting permissive is not detectable from the outside.
+        LawStatus::Unparseable(e) => Err(format!(
+            "refusing to serve: a hub law IS stored, but it does not parse/validate: {e}. \
+             Serve a law that validates (hub set-law); `hub get-law` prints the stored bytes. \
+             HUB_ALLOW_NO_LAW=1 does NOT waive this — it is the no-law waiver, and here it \
+             would ignite this hub with law = None, i.e. live and PERMISSIVE."
+        )),
     }
-    Ok(())
+}
+
+/// What the store says about the hub's law, as the production gate sees it.
+///
+/// `Absent` and `Unparseable` are kept apart because they are different operator
+/// problems with different remedies, and the refusal text is the only place the
+/// difference is ever visible: on the refuse path
+/// [`rest::RestState::reload_law`]'s `warn!` never runs (the refusal returns
+/// first), so if the parse error is dropped here it exists nowhere in the logs at
+/// all. The plaintext backend has never had this gap — an unlocked boot runs
+/// `Law::parse_and_validate(&yaml)?` and the operator gets the real error.
+#[derive(Debug)]
+enum LawStatus {
+    /// Bytes are present and `Law::parse_and_validate` accepted them.
+    Parses,
+    /// The store holds no law at all.
+    Absent,
+    /// Bytes are present and did not parse/validate; carries the error.
+    Unparseable(String),
 }
 
 /// P1 (residual review): production-profile preflight — pure + testable. Returns
@@ -1485,8 +1557,18 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         // "law is readable now" condition — on a locked boot the law is sealed in
         // the vault, so ignition enforces it instead (see `production_law_gate`).
         if store_opens {
+            // `Unparseable` is unreachable here and that is structural, not luck:
+            // this branch only runs when the store opened, and that path built
+            // `initial_law` with `Law::parse_and_validate(&yaml)?` — so boot has
+            // already failed with the real parse error before reaching the gate.
+            // A law that is `Some` here is a law that parsed.
+            let status = if rest_state.law.read().await.is_some() {
+                LawStatus::Parses
+            } else {
+                LawStatus::Absent
+            };
             production_law_gate(
-                rest_state.law.read().await.is_some(),
+                &status,
                 std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
             )
             .map_err(|e| anyhow::anyhow!("HUB_PROFILE=production: {e}"))?;
@@ -2212,9 +2294,80 @@ mod tests {
 
     #[test]
     fn production_law_gate_requires_a_law_unless_overridden() {
-        assert!(production_law_gate(true, false).is_ok());
-        assert!(production_law_gate(false, false).is_err());
-        assert!(production_law_gate(false, true).is_ok());
+        assert!(production_law_gate(&LawStatus::Parses, false).is_ok());
+        assert!(production_law_gate(&LawStatus::Absent, false).is_err());
+        assert!(production_law_gate(&LawStatus::Absent, true).is_ok());
+    }
+
+    /// `hub get-law` must not tell an operator they have a law that ignition is
+    /// simultaneously refusing to recognise. The embedded starter law is the
+    /// natural positive control: if it ever stops validating, this fires here as
+    /// well as in `run_init_law`.
+    #[test]
+    fn get_law_warns_only_when_the_stored_bytes_do_not_parse() {
+        assert!(
+            stored_law_warning(STARTER_LAW_YAML).is_none(),
+            "a law that validates must print no warning at all"
+        );
+        let w = stored_law_warning("version: \"1.0.0\"\nnorms: [ this is not a law")
+            .expect("bytes that do not parse must be called out");
+        assert!(w.contains("do NOT parse/validate"));
+        assert!(
+            w.contains("HUB_PROFILE=production"),
+            "say what actually goes wrong, not just that it is invalid: {w}"
+        );
+        // Rendering guard — this warning is half of the workflow the refusal
+        // prescribes ("`hub get-law` prints the stored bytes"), so it must not
+        // agree that something is wrong while declining to say what. `{e}` on the
+        // anyhow error printed only "parsing policy law YAML". (PUB review of #660.)
+        assert!(
+            w.contains("line 2 column") && w.contains("expected struct Norm"),
+            "the diagnosis must carry the underlying parse error, not just \
+             anyhow's outermost context: {w}"
+        );
+    }
+
+    /// A law that does not parse is not the no-law case, and the waiver does not
+    /// cover it (PUB review of #659). Before this, `.is_ok()` collapsed the two:
+    /// the operator was told "NO hub law" about a law they could see with
+    /// `hub get-law`, the parse error was logged nowhere, and the remedy the
+    /// message recommended — `HUB_ALLOW_NO_LAW=1` — ignited a live PERMISSIVE
+    /// production hub, which is exactly what the gate exists to prevent.
+    ///
+    /// Scope note: this test builds its own `Unparseable(String)`, so it pins the
+    /// gate's *behaviour* and can say nothing about how the real error is
+    /// rendered — the assertion below is satisfied by the test's own literal. The
+    /// rendering guard is
+    /// `rest::channel_e2e_tests::production_ignition_refuses_a_law_that_does_not_parse`,
+    /// whose string comes out of `Law::parse_and_validate` through the shipped
+    /// capture. (PUB review of #660.)
+    #[test]
+    fn an_unparseable_law_refuses_with_its_own_reason_and_the_waiver_does_not_cover_it() {
+        let broken = LawStatus::Unparseable("norms[0]: missing field `selector`".to_string());
+
+        for allow_no_law in [false, true] {
+            let err = production_law_gate(&broken, allow_no_law)
+                .expect_err("bytes that do not parse are not a law, waiver or not");
+            assert!(
+                err.contains("missing field `selector`"),
+                "the refusal must carry the parse error — it exists nowhere else \
+                 on this path: {err}"
+            );
+            assert!(
+                !err.contains("with NO hub law"),
+                "must not report a stored-but-broken law as no law: {err}"
+            );
+            assert!(
+                err.contains("does NOT waive"),
+                "must say the waiver is not the remedy here, since it names it: {err}"
+            );
+        }
+
+        // And the no-law refusal is still the no-law refusal — the two arms did
+        // not collapse in the other direction.
+        let absent = production_law_gate(&LawStatus::Absent, false).unwrap_err();
+        assert!(absent.contains("with NO hub law"));
+        assert!(!absent.contains("does not parse"));
     }
 
     /// The sqlite/production deadlock (PUB, 2026-08-07). The law arm must NOT be
@@ -2233,7 +2386,7 @@ mod tests {
              cannot report one, and `hub unlock` needs the hub already serving"
         );
         // The requirement is not dropped — it moved to ignition.
-        assert!(production_law_gate(false, false).is_err());
+        assert!(production_law_gate(&LawStatus::Absent, false).is_err());
     }
 
     #[test]
