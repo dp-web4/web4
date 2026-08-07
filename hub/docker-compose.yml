@@ -29,7 +29,7 @@
 services:
   hub:
     build:
-      context: ..   # web4 root — needs siblings web4-core + web4-trust-core
+      context: ..   # web4 root — needs siblings web4-core, web4-trust-core, web4-policy
       dockerfile: hub/Dockerfile
     image: hub:0.1.0-alpha.0
     container_name: aic-hub

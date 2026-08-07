@@ -17,7 +17,15 @@
 # - statically link nothing — just the hub binary + needed dynamic libs
 
 # ─── Builder ─────────────────────────────────────────────────────────────
-FROM rust:1.83-slim-bookworm AS builder
+# Toolchain floor is REAL, not stylistic: `uuid` declares rust-version 1.85 and
+# `aws-config` (the DynamoDB backend) declares 1.91.1, both in hub's lockfile. The
+# previous pin was 1.83, which cannot build this image at all. Pinned to the
+# version this workspace is actually built and tested with on the fleet (1.96).
+#
+# To re-derive the floor after a dependency bump:
+#   grep -rhm1 '^rust-version' ~/.cargo/registry/src/*/*/Cargo.toml \
+#     | cut -d'"' -f2 | sort -V | tail -1
+FROM rust:1.96-slim-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config libssl-dev \
@@ -26,8 +34,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /src
 
 # Copy only what hub needs: hub itself + path-dependency siblings.
+#
+# The sibling list must match hub's ACTUAL path dependencies, which are three:
+# `web4-core`, `web4-trust-core` and `web4-policy` (hub/Cargo.toml). `web4-policy`
+# was missing here, so this image could not build at all -- cargo resolves the
+# path dep against a directory that was never copied. `hub-lib` needs no line of
+# its own because it lives INSIDE hub/ and arrives with `COPY hub`.
 COPY web4-core ./web4-core
 COPY web4-trust-core ./web4-trust-core
+COPY web4-policy ./web4-policy
 COPY hub ./hub
 
 WORKDIR /src/hub
