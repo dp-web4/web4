@@ -285,7 +285,7 @@ hub record-event ./chapter demo_night "Title" --attended-by "uuid1,uuid2,uuid3"
 
 ### `docker compose build` fails to find sibling crates
 
-Build context must be the **web4 repo root**, not `web4/hub/`. The `docker-compose.yml` ships with `context: ..` (one level up from hub/) for this reason. If you've copied just the hub/ directory somewhere else, the build needs web4-core and web4-trust-core present as siblings.
+Build context must be the **web4 repo root**, not `web4/hub/`. The `docker-compose.yml` ships with `context: ..` (one level up from hub/) for this reason. If you've copied just the hub/ directory somewhere else, the build needs web4-core, web4-trust-core **and web4-policy** present as siblings — all three are path dependencies in `hub/Cargo.toml`, and a missing one fails the build with an unhelpful cargo path-resolution error rather than a named missing crate.
 
 ### Container starts but port 8770 isn't reachable
 
