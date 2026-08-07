@@ -1069,7 +1069,9 @@ async fn run_up(
     println!();
     println!("Fail-closed by default: a public profile refuses to serve without a law and (production)");
     println!("without an https base URL + operator token — a novice can't accidentally stand up an");
-    println!("open, unauthenticated, no-law public hub.");
+    println!("open, unauthenticated, no-law public hub. On an encrypted (sqlite) hub the law is");
+    println!("sealed in the vault and unreadable until ignition, so there the law check runs at");
+    println!("`hub unlock` — which refuses — and the hub serves only the locked tier until it passes.");
     Ok(())
 }
 
@@ -1179,22 +1181,52 @@ async fn run_query(sub: QueryCommand) -> Result<()> {
     }
 }
 
-/// P1 (residual review): production-profile preflight — pure + testable. Returns
-/// `Err(reason)` when a required hardening isn't satisfied and isn't explicitly
-/// overridden. Enforced only under `HUB_PROFILE=production` (opt-in; this fleet
-/// binds 0.0.0.0 for a tailnet, which isn't "public", so it can't be auto-derived).
-fn production_preflight(
+/// The production **law** requirement — split out of [`production_preflight`]
+/// because it is the one arm whose answer is not knowable from the environment,
+/// and on an encrypted hub it is not knowable at boot *at all*.
+///
+/// On `--storage sqlite` the state store is encrypted, so the law lives inside
+/// the vault; a locked boot reports "no law" no matter what `hub set-law` wrote,
+/// and the vault only opens via `hub unlock`, which needs the hub already
+/// serving. Checking this at boot therefore deadlocked production + sqlite
+/// outright — measured on PUB 2026-08-07 and reproduced here as a matched
+/// control (same law, same env, one variable: `file` SERVES, `sqlite` REFUSES).
+/// The only escape was `HUB_ALLOW_NO_LAW=1`, which switches off the very gate
+/// the production profile exists to provide.
+///
+/// So it is checked at the two moments the answer is real:
+///   * an **unlocked boot** — the store is open, the law is readable, check it there;
+///   * **ignition** on a locked boot — checked against the just-opened store and
+///     failing closed *before* the signer swap, so a lawless production hub never
+///     reaches a serving state.
+///
+/// Serving *while locked* with no visible law is not the hazard this guards
+/// against: the lock-gate serves only the tier-0 allowlist (unlock / well-known
+/// / law / issuer metadata), so there are no acts or admissions to gate yet.
+fn production_law_gate(
     law_present: bool,
-    public_base_url: &str,
     allow_no_law: bool,
-    allow_insecure_origin: bool,
-    operator_token_auth: bool,
-    allow_loopback_operator: bool,
 ) -> std::result::Result<(), &'static str> {
     if !law_present && !allow_no_law {
         return Err("refusing to serve with NO hub law (acts/admissions ungated). \
                     Serve a signed law (hub set-law), or set HUB_ALLOW_NO_LAW=1");
     }
+    Ok(())
+}
+
+/// P1 (residual review): production-profile preflight — pure + testable. Returns
+/// `Err(reason)` when a required hardening isn't satisfied and isn't explicitly
+/// overridden. Enforced only under `HUB_PROFILE=production` (opt-in; this fleet
+/// binds 0.0.0.0 for a tailnet, which isn't "public", so it can't be auto-derived).
+///
+/// These are the **environment-only** arms — knowable before the store opens, so
+/// they are always checked at boot. The law arm is [`production_law_gate`].
+fn production_preflight(
+    public_base_url: &str,
+    allow_insecure_origin: bool,
+    operator_token_auth: bool,
+    allow_loopback_operator: bool,
+) -> std::result::Result<(), &'static str> {
     let origin_ok = public_base_url.starts_with("https://")
         || (public_base_url.starts_with("http://") && allow_insecure_origin);
     if !origin_ok {
@@ -1442,17 +1474,29 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     // is not "public", so an off-by-default enforcement must be opt-in.
     let loopback_bind = public_bind_is_loopback(&addr);
     if std::env::var("HUB_PROFILE").as_deref() == Ok("production") {
-        let law_present = rest_state.law.read().await.is_some();
         production_preflight(
-            law_present,
             &std::env::var("HUB_PUBLIC_BASE_URL").unwrap_or_default(),
-            std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
             std::env::var("HUB_ALLOW_INSECURE_ORIGIN").as_deref() == Ok("1"),
             std::env::var("HUB_OPERATOR_AUTH").as_deref() == Ok("token"),
             std::env::var("HUB_ALLOW_LOOPBACK_OPERATOR").as_deref() == Ok("1"),
         )
         .map_err(|e| anyhow::anyhow!("HUB_PROFILE=production: {e}"))?;
-        println!("  production profile: law + https public base URL + operator token enforced");
+        // The law arm only where the answer is real. `store_opens` is exactly the
+        // "law is readable now" condition — on a locked boot the law is sealed in
+        // the vault, so ignition enforces it instead (see `production_law_gate`).
+        if store_opens {
+            production_law_gate(
+                rest_state.law.read().await.is_some(),
+                std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
+            )
+            .map_err(|e| anyhow::anyhow!("HUB_PROFILE=production: {e}"))?;
+            println!("  production profile: law + https public base URL + operator token enforced");
+        } else {
+            println!(
+                "  production profile: https public base URL + operator token enforced; \
+                 law is sealed in the vault — enforced at ignition (`hub unlock` refuses without one)"
+            );
+        }
     } else if !loopback_bind {
         println!(
             "  ⚠ public bind ({bind}) without HUB_PROFILE=production — hardening (require law + \
@@ -2147,26 +2191,49 @@ mod tests {
     }
 
     #[test]
-    fn production_preflight_requires_law_and_https_origin() {
-        // Happy path: law present + https origin + operator token auth.
-        assert!(production_preflight(true, "https://hub.4-gov.org", false, false, true, false).is_ok());
-        // No law → refused, unless HUB_ALLOW_NO_LAW.
-        assert!(production_preflight(false, "https://x", false, false, true, false).is_err());
-        assert!(production_preflight(false, "https://x", true, false, true, false).is_ok());
+    fn production_preflight_requires_https_origin() {
+        // Happy path: https origin + operator token auth.
+        assert!(production_preflight("https://hub.4-gov.org", false, true, false).is_ok());
         // Missing / http origin → refused, unless HUB_ALLOW_INSECURE_ORIGIN.
-        assert!(production_preflight(true, "", false, false, true, false).is_err());
-        assert!(production_preflight(true, "http://x", false, false, true, false).is_err());
-        assert!(production_preflight(true, "http://x", false, true, true, false).is_ok());
+        assert!(production_preflight("", false, true, false).is_err());
+        assert!(production_preflight("http://x", false, true, false).is_err());
+        assert!(production_preflight("http://x", true, true, false).is_ok());
     }
 
     #[test]
     fn production_preflight_requires_operator_token() {
         // HUB-002: loopback-only operator auth → refused in production...
-        assert!(production_preflight(true, "https://x", false, false, false, false).is_err());
+        assert!(production_preflight("https://x", false, false, false).is_err());
         // ...unless the deployment explicitly claims host access as the factor.
-        assert!(production_preflight(true, "https://x", false, false, false, true).is_ok());
+        assert!(production_preflight("https://x", false, false, true).is_ok());
         // Token mode satisfies it outright.
-        assert!(production_preflight(true, "https://x", false, false, true, false).is_ok());
+        assert!(production_preflight("https://x", false, true, false).is_ok());
+    }
+
+    #[test]
+    fn production_law_gate_requires_a_law_unless_overridden() {
+        assert!(production_law_gate(true, false).is_ok());
+        assert!(production_law_gate(false, false).is_err());
+        assert!(production_law_gate(false, true).is_ok());
+    }
+
+    /// The sqlite/production deadlock (PUB, 2026-08-07). The law arm must NOT be
+    /// reachable from the environment alone: an encrypted hub's law is sealed in
+    /// the vault, so at boot `law_present` is false however the law was set. If
+    /// the law check ever migrates back into `production_preflight`, a locked
+    /// sqlite boot starts refusing again — and the only escape is the override
+    /// that disables the gate. Pinning the split is the regression test.
+    #[test]
+    fn the_boot_preflight_cannot_refuse_over_a_law_it_cannot_read() {
+        // Every environment-only input satisfied → OK, with no law argument to
+        // pass at all. A locked boot reaches exactly this call.
+        assert!(
+            production_preflight("https://hub.4-gov.org", false, true, false).is_ok(),
+            "boot preflight must not consider the law: a locked encrypted store \
+             cannot report one, and `hub unlock` needs the hub already serving"
+        );
+        // The requirement is not dropped — it moved to ignition.
+        assert!(production_law_gate(false, false).is_err());
     }
 
     #[test]
