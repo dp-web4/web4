@@ -94,6 +94,15 @@ pub struct HubState {
     /// Projected from IntroRequested/IntroResponded.
     pub intros: BTreeMap<Uuid, Intro>,
 
+    /// Governance discussion, projected from `TopicCreated` / `PostAdded`.
+    ///
+    /// This is a projection, not a store — the discussion lives in the ledger
+    /// and this map is rebuilt from it. That is the point rather than an
+    /// implementation detail: a post that is a ledger entry is witnessed by
+    /// construction and can later be anchored by a peer society, whereas a post
+    /// in a side table can only ever be asserted.
+    pub topics: BTreeMap<Uuid, Topic>,
+
     /// V2-9 Phase 1: Sovereign Council holders beyond the founding
     /// Sovereign. Empty for single-Sovereign chapters. Each holder
     /// can sign chapter acts as a co-Sovereign; their pubkey is in
@@ -518,6 +527,33 @@ pub struct Intro {
     pub status: IntroStatus,
 }
 
+/// A governance discussion topic and its posts, in ledger order.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Topic {
+    pub topic_id: Uuid,
+    pub title: String,
+    /// The member who opened it (the envelope signer), NOT the entry's
+    /// `actor_lct_id` — the Sovereign witnesses every entry, so that field
+    /// cannot answer "who said this".
+    pub created_by: Uuid,
+    pub created_at: DateTime<Utc>,
+    /// Posts in ledger order. Ordering is the chain's, not a sort key's, so it
+    /// is witnessed rather than asserted.
+    pub posts: Vec<Post>,
+}
+
+/// One post in a topic.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Post {
+    pub post_id: Uuid,
+    pub body: String,
+    pub posted_by: Uuid,
+    pub posted_at: DateTime<Utc>,
+    /// Ledger index of the entry that witnessed this post — the handle a reader
+    /// uses to verify it independently (`/admin/ledger/:index`, `verify-ledger`).
+    pub entry_index: u64,
+}
+
 impl HubState {
     /// Build the projection from a ledger.
     pub fn project(ledger: &HubLedger) -> Self {
@@ -536,13 +572,13 @@ impl HubState {
         let entries = ledger.entries();
         let start = from.min(entries.len());
         for entry in &entries[start..] {
-            self.apply(&entry.event, entry.timestamp);
+            self.apply(&entry.event, entry.timestamp, entry.index);
             self.last_index = entry.index;
         }
         entries.len()
     }
 
-    fn apply(&mut self, event: &HubEvent, ts: DateTime<Utc>) {
+    fn apply(&mut self, event: &HubEvent, ts: DateTime<Utc>, index: u64) {
         match event {
             HubEvent::Genesis { hub_name, charter_hash, founding_sovereign_lct_id, .. } => {
                 self.hub_name = hub_name.clone();
@@ -744,6 +780,36 @@ impl HubState {
                                 visibility,
                             });
                         }
+                    }
+                }
+            }
+            HubEvent::TopicCreated { topic_id, title, created_by } => {
+                // Idempotent on replay and stable under re-projection: a repeated
+                // topic_id keeps the FIRST creation rather than resetting posts.
+                self.topics.entry(*topic_id).or_insert_with(|| Topic {
+                    topic_id: *topic_id,
+                    title: title.clone(),
+                    created_by: *created_by,
+                    created_at: ts,
+                    posts: Vec::new(),
+                });
+            }
+            HubEvent::PostAdded { topic_id, post_id, body, posted_by } => {
+                // A post to an unknown topic is DROPPED rather than creating a
+                // ghost topic with no title or author. The write path refuses it
+                // (see rest.rs `AddPost`), so reaching here means either a
+                // hand-crafted ledger or a future event we do not understand —
+                // and inventing a topic to hold it would put state ahead of what
+                // was actually witnessed.
+                if let Some(topic) = self.topics.get_mut(topic_id) {
+                    if !topic.posts.iter().any(|p| p.post_id == *post_id) {
+                        topic.posts.push(Post {
+                            post_id: *post_id,
+                            body: body.clone(),
+                            posted_by: *posted_by,
+                            posted_at: ts,
+                            entry_index: index,
+                        });
                     }
                 }
             }
@@ -1012,6 +1078,115 @@ mod tests {
         let state = HubState::project(&ledger);
         assert_eq!(state.member_count(), 1);
         assert!(state.members.contains_key(&sov.lct.id));
+    }
+
+    #[tokio::test]
+    async fn discussion_projects_with_the_member_as_author_not_the_witness() {
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let member = Uuid::new_v4();
+        let topic = Uuid::new_v4();
+        let post = Uuid::new_v4();
+
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(),
+                charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::TopicCreated {
+                topic_id: topic,
+                title: "Who writes the rules?".into(),
+                created_by: member,
+            }),
+            (sov.lct.id, &kp, HubEvent::PostAdded {
+                topic_id: topic,
+                post_id: post,
+                body: "The law does, and you can read it.".into(),
+                posted_by: member,
+            }),
+        ]).await;
+
+        let state = HubState::project(&ledger);
+        let t = state.topics.get(&topic).expect("topic projected");
+        assert_eq!(t.title, "Who writes the rules?");
+        assert_eq!(t.posts.len(), 1);
+
+        // The load-bearing assertion. EVERY ledger entry here is signed by the
+        // Sovereign — that is what witnessing means — so if authorship were read
+        // from the entry's `actor_lct_id` the whole discussion would read as the
+        // Sovereign talking to themselves. Author and witness are distinct, and
+        // the projection must surface the author.
+        assert_ne!(member, sov.lct.id, "fixture must distinguish author from witness");
+        assert_eq!(t.created_by, member, "topic author must be the member, not the witness");
+        assert_eq!(t.posts[0].posted_by, member, "post author must be the member, not the witness");
+
+        // The post carries the ledger index that witnessed it, so a reader can
+        // go verify the claim rather than trust the render.
+        assert_eq!(t.posts[0].entry_index, 2);
+    }
+
+    #[tokio::test]
+    async fn a_post_to_an_unknown_topic_is_dropped_not_ghosted() {
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(),
+                charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::PostAdded {
+                topic_id: Uuid::new_v4(),           // never created
+                post_id: Uuid::new_v4(),
+                body: "orphan".into(),
+                posted_by: Uuid::new_v4(),
+            }),
+        ]).await;
+        let state = HubState::project(&ledger);
+        assert!(
+            state.topics.is_empty(),
+            "an orphan post invented a topic with no title and no author",
+        );
+    }
+
+    #[tokio::test]
+    async fn re_projection_is_stable_and_does_not_duplicate_posts() {
+        // The projection is rebuilt from the ledger on every read, and `advance`
+        // exists so it can be rebuilt incrementally. Both paths must agree, or a
+        // topic's post count depends on how often someone looked at it.
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let topic = Uuid::new_v4();
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "T".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::TopicCreated {
+                topic_id: topic, title: "t".into(), created_by: Uuid::new_v4(),
+            }),
+            (sov.lct.id, &kp, HubEvent::PostAdded {
+                topic_id: topic, post_id: Uuid::new_v4(), body: "a".into(),
+                posted_by: Uuid::new_v4(),
+            }),
+        ]).await;
+
+        let full = HubState::project(&ledger);
+        // Incremental: fold everything, then fold from 0 again over the same
+        // state — the idempotence guards in the fold arms must absorb it.
+        let mut inc = HubState::default();
+        let pos = inc.advance(&ledger, 0);
+        inc.advance(&ledger, 0);
+        assert_eq!(pos, 3);
+        assert_eq!(
+            inc.topics.get(&topic).unwrap().posts.len(),
+            full.topics.get(&topic).unwrap().posts.len(),
+            "re-folding duplicated posts",
+        );
+        assert_eq!(inc.topics.get(&topic).unwrap().posts.len(), 1);
     }
 
     #[tokio::test]

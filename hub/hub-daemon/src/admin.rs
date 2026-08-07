@@ -756,6 +756,22 @@ fn event_summary(event: &HubEvent) -> String {
             // SignerKind); this is the one that can carry a payload.
             format!("Role {} → {}", html_escape(&format!("{:?}", role)), short(assigned_to))
         }
+        // Both carry member-supplied free text into the admin page, so both go
+        // through `html_escape` for the same reason `RoleAssigned` does above.
+        HubEvent::TopicCreated { title, created_by, .. } => format!(
+            "Topic opened: \"{}\" by {}",
+            html_escape(title),
+            short(created_by)
+        ),
+        HubEvent::PostAdded { body, posted_by, .. } => {
+            let preview: String = body.chars().take(80).collect();
+            format!(
+                "Post by {}: \"{}{}\"",
+                short(posted_by),
+                html_escape(&preview),
+                if body.chars().count() > 80 { "…" } else { "" }
+            )
+        }
         HubEvent::EventRecorded { event_kind, title, attended_by, .. } => format!(
             "{}: \"{}\" · {} attendee(s)",
             html_escape(event_kind),

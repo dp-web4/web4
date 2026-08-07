@@ -1587,6 +1587,14 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/vp/response", post(vp_response))
         // tier-0: the hub's law is readable even while the vault is locked
         .route("/v1/hubs/:hub_id/law", get(read_hub_law))
+        // H3: discussion is readable WITHOUT joining. A governance forum whose
+        // deliberation you must first be admitted to see cannot be inspected by
+        // the people it governs, and the law that decides who may *speak* is
+        // already public one route up — so the record of what was said under it
+        // should be too.
+        .route("/v1/hubs/:hub_id/topics", get(list_topics))
+        .route("/v1/hubs/:hub_id/topics/:topic_id", get(read_topic))
+        .route("/discuss", get(discuss_html))
         // the unlock slot (stub-console / passphrase): local-only + rate-limited.
         // Promotes a locked hub → unlocked in place (swaps in the real signer).
         .route("/v1/hubs/:hub_id/unlock", post(unlock))
@@ -2784,7 +2792,24 @@ enum EnvelopeAction {
         #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
         visibilities: std::collections::BTreeMap<String, hub_lib::events::ProfileVisibility>,
     },
+    /// Open a governance discussion topic. The hub mints the `topic_id` — it is
+    /// not caller-supplied, so a caller cannot collide with or overwrite an
+    /// existing topic by choosing its id.
+    CreateTopic {
+        title: String,
+    },
+    /// Post to an existing topic. `post_id` is likewise hub-minted.
+    AddPost {
+        topic_id: Uuid,
+        body: String,
+    },
 }
+
+/// Bounds on discussion input. Not security limits — the law decides *who* may
+/// speak — but a ledger is append-only and unbounded free text in a permanent
+/// hash-chained record is a mistake that cannot be edited out afterwards.
+const MAX_TITLE_LEN: usize = 200;
+const MAX_BODY_LEN: usize = 8_000;
 
 #[derive(Serialize)]
 struct EventAccepted {
@@ -2914,6 +2939,59 @@ async fn submit_event(
                 fields,
                 visibilities,
                 updated_by: envelope.signer_lct_id,
+            }
+        }
+        EnvelopeAction::CreateTopic { title } => {
+            let title = title.trim().to_string();
+            if title.is_empty() {
+                return Err(ApiError::bad_request("topic title must not be empty".to_string()));
+            }
+            if title.chars().count() > MAX_TITLE_LEN {
+                return Err(ApiError::bad_request(format!(
+                    "topic title exceeds {MAX_TITLE_LEN} characters"
+                )));
+            }
+            // NO authorization branch here, deliberately. Who may open a topic is
+            // a LAW question, decided below at the PolicyEntity gate against the
+            // `topic_created` action — which is the whole demonstration. A
+            // hardcoded `signer_is_sovereign` check here would answer "who writes
+            // the rules" with "whoever wrote this line", which is the opposite of
+            // the claim. A hub whose law is silent on `topic_created` gets the
+            // law's default, and that is a governance decision the operator can
+            // read and change, not one buried in a binary.
+            HubEvent::TopicCreated {
+                topic_id: Uuid::new_v4(),
+                title,
+                created_by: envelope.signer_lct_id,
+            }
+        }
+        EnvelopeAction::AddPost { topic_id, body } => {
+            let body = body.trim().to_string();
+            if body.is_empty() {
+                return Err(ApiError::bad_request("post body must not be empty".to_string()));
+            }
+            if body.chars().count() > MAX_BODY_LEN {
+                return Err(ApiError::bad_request(format!(
+                    "post body exceeds {MAX_BODY_LEN} characters"
+                )));
+            }
+            // The topic must already exist. Checked BEFORE the law gate and
+            // before any append: a post to a nonexistent topic is a malformed
+            // request, not a governance question, and admitting it would put an
+            // unreachable entry in a permanent record (the projection drops it —
+            // see state.rs `PostAdded`).
+            {
+                let ledger = s.ledger.lock().await;
+                let projected = hub_lib::state::HubState::project(&*ledger);
+                if !projected.topics.contains_key(&topic_id) {
+                    return Err(ApiError::not_found(format!("no such topic {topic_id}")));
+                }
+            }
+            HubEvent::PostAdded {
+                topic_id,
+                post_id: Uuid::new_v4(),
+                body,
+                posted_by: envelope.signer_lct_id,
             }
         }
     };
@@ -5396,6 +5474,144 @@ async fn gate_read(s: &RestState, role: &str, tool: &str) -> Result<(), ApiError
     }
 }
 
+// ============================================================================
+// Track H — the governed discussion surface
+// ============================================================================
+
+#[derive(Serialize)]
+struct TopicSummary {
+    topic_id: Uuid,
+    title: String,
+    created_by: Uuid,
+    created_at: DateTime<Utc>,
+    post_count: usize,
+}
+
+/// GET /v1/hubs/:hub_id/topics — unauthenticated.
+async fn list_topics(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "chapter id {hub_id} does not match this hub's chapter {}",
+            s.hub_id
+        )));
+    }
+    // Readable while LOCKED. Reads need no Sovereign signer — only writes do —
+    // and a governance record that disappears when the vault locks would be
+    // exactly the kind of availability nobody can rely on.
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::state::HubState::project(&*ledger)
+    };
+    let mut topics: Vec<TopicSummary> = projected
+        .topics
+        .values()
+        .map(|t| TopicSummary {
+            topic_id: t.topic_id,
+            title: t.title.clone(),
+            created_by: t.created_by,
+            created_at: t.created_at,
+            post_count: t.posts.len(),
+        })
+        .collect();
+    topics.sort_by_key(|t| t.created_at);
+    Ok(Json(serde_json::json!({ "topics": topics })))
+}
+
+/// GET /v1/hubs/:hub_id/topics/:topic_id — unauthenticated, with posts.
+async fn read_topic(
+    State(s): State<RestState>,
+    Path((hub_id, topic_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "chapter id {hub_id} does not match this hub's chapter {}",
+            s.hub_id
+        )));
+    }
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::state::HubState::project(&*ledger)
+    };
+    let topic = projected
+        .topics
+        .get(&topic_id)
+        .ok_or_else(|| ApiError::not_found(format!("no such topic {topic_id}")))?;
+    Ok(Json(serde_json::to_value(topic).map_err(|e| {
+        ApiError::internal(anyhow::anyhow!("serializing topic: {e}"))
+    })?))
+}
+
+/// Minimal HTML escape. The discussion renders member-supplied text into a page
+/// served to strangers; without this a post body is a script tag. Deliberately
+/// hand-rolled rather than pulling a templating crate — this is the entire
+/// attack surface of the render and it should be readable in one screen.
+fn esc(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#39;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// GET /discuss — the human surface. No SPA, no build step, no external assets.
+async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::state::HubState::project(&*ledger)
+    };
+    let mut topics: Vec<_> = projected.topics.values().collect();
+    topics.sort_by_key(|t| t.created_at);
+
+    let mut body = String::new();
+    body.push_str(&format!(
+        "<!doctype html><meta charset=\"utf-8\">\
+         <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
+         <title>{} — governance</title>\
+         <style>body{{font:16px/1.6 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem}}\
+         .m{{color:#666;font-size:.85em}} .p{{border-left:3px solid #ddd;padding:.2rem 0 .2rem .8rem;margin:.9rem 0}}\
+         h2{{margin-top:2rem}} pre{{white-space:pre-wrap;margin:.2rem 0;font:inherit}}</style>\
+         <h1>{}</h1>\
+         <p class=\"m\">Governance discussion. Every topic and post below is an entry in this hub's \
+         hash-chained ledger, witnessed by the Sovereign and admitted under the hub's \
+         <a href=\"/v1/hubs/{}/law\">published law</a>. \
+         Nothing here is asserted — it is recorded, and you can verify it.</p>",
+        esc(&s.hub_name), esc(&s.hub_name), s.hub_id
+    ));
+
+    if topics.is_empty() {
+        body.push_str("<p class=\"m\"><em>No topics yet.</em></p>");
+    }
+    for t in topics {
+        body.push_str(&format!(
+            "<h2>{}</h2><p class=\"m\">opened by {} · {}</p>",
+            esc(&t.title),
+            esc(&t.created_by.to_string()),
+            t.created_at.format("%Y-%m-%d %H:%M UTC")
+        ));
+        for p in &t.posts {
+            body.push_str(&format!(
+                "<div class=\"p\"><pre>{}</pre><p class=\"m\">{} · {} · ledger #{}</p></div>",
+                esc(&p.body),
+                esc(&p.posted_by.to_string()),
+                p.posted_at.format("%Y-%m-%d %H:%M UTC"),
+                p.entry_index
+            ));
+        }
+    }
+    ([(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")], body).into_response()
+}
+
 fn build_r6_request(
     envelope: &SignedEnvelope,
     event: &HubEvent,
@@ -6823,6 +7039,125 @@ async fn commit_pair_event(s: &RestState, event: HubEvent) -> Result<(u64, Strin
 }
 
 #[cfg(test)]
+mod discussion_tests {
+    use super::*;
+    use hub_lib::law::Law;
+    use hub_lib::events::HubEvent;
+
+    /// The action string law sees for a discussion act. If this drifts, every
+    /// norm an operator wrote silently stops matching — and stops matching
+    /// SILENTLY, because an unmatched norm is not an error, it is an allow.
+    #[test]
+    fn discussion_acts_reach_law_under_stable_names() {
+        assert_eq!(
+            HubEvent::TopicCreated {
+                topic_id: Uuid::nil(), title: "t".into(), created_by: Uuid::nil(),
+            }.kind(),
+            "topic_created",
+        );
+        assert_eq!(
+            HubEvent::PostAdded {
+                topic_id: Uuid::nil(), post_id: Uuid::nil(),
+                body: "b".into(), posted_by: Uuid::nil(),
+            }.kind(),
+            "post_added",
+        );
+    }
+
+    /// H5: who may speak is decided by LAW, not by a branch in this file.
+    ///
+    /// The demonstration the hackathon turns on — a hub whose operator writes
+    /// "citizens may post but opening a topic escalates" gets exactly that,
+    /// by editing law rather than rebuilding a binary.
+    #[test]
+    fn law_governs_who_may_speak_and_the_two_acts_are_separable() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: NO-POSTING-BY-CITIZENS
+    selector: r6.request.action
+    operator: "=="
+    value: post_added
+    decision: deny
+    priority: 10
+    description: "Read-only chapter: citizens may not post"
+escalation:
+  - condition: "r6.request.action == 'topic_created'"
+    escalate_to: sovereign
+    description: "Opening a governance topic is a Sovereign act"
+"#;
+        let law: Law = serde_yaml::from_str(yaml).expect("law parses");
+
+        let post = R6Request {
+            role: "citizen".into(),
+            action: "post_added".into(),
+            payload: Default::default(),
+            resource: Default::default(),
+        };
+        let out = law.evaluate_outcome(&post);
+        assert_eq!(out.decision, Decision::Deny, "a deny norm must actually deny a post");
+        assert_eq!(out.winning_norm.as_deref(), Some("NO-POSTING-BY-CITIZENS"),
+                   "the response must name the norm that decided, so a denied member can read why");
+
+        // The two acts are independently governable — denying posts did not
+        // also deny opening topics, and vice versa.
+        let topic = R6Request {
+            role: "citizen".into(),
+            action: "topic_created".into(),
+            payload: Default::default(),
+            resource: Default::default(),
+        };
+        let out = law.evaluate_outcome(&topic);
+        assert_eq!(out.decision, Decision::Escalate);
+        assert_eq!(out.escalate_to.as_deref(), Some("sovereign"));
+    }
+
+    /// Guard run against what it guards: with NO norm naming these actions, the
+    /// same requests are allowed. Without this arm the test above could pass
+    /// against an engine that denies everything.
+    #[test]
+    fn a_law_silent_on_discussion_does_not_deny_it() {
+        let yaml = r#"
+version: "1.0.0"
+norms:
+  - id: UNRELATED
+    selector: r6.request.action
+    operator: "=="
+    value: assign_role
+    decision: deny
+    priority: 10
+    description: "unrelated"
+"#;
+        let law: Law = serde_yaml::from_str(yaml).expect("law parses");
+        for action in ["post_added", "topic_created"] {
+            let req = R6Request {
+                role: "citizen".into(),
+                action: action.into(),
+                payload: Default::default(),
+                resource: Default::default(),
+            };
+            assert_eq!(
+                law.evaluate_outcome(&req).decision, Decision::Allow,
+                "{action} was denied by a law that never names it",
+            );
+        }
+    }
+
+    /// The render serves member-supplied text to strangers. Unescaped, a post
+    /// body is a script tag on a governance page.
+    #[test]
+    fn the_render_escapes_member_supplied_text() {
+        let out = esc(r#"<script>alert('x')</script> & "quoted""#);
+        assert!(!out.contains('<'), "raw < survived into the page: {out}");
+        assert!(!out.contains('>'), "raw > survived into the page: {out}");
+        assert!(out.contains("&lt;script&gt;"));
+        assert!(out.contains("&amp;"));
+        assert!(out.contains("&quot;"));
+        assert!(out.contains("&#39;"));
+    }
+}
+
+#[cfg(test)]
 mod read_gate_tests {
     use super::*;
     use hub_lib::law::Law;
@@ -7042,6 +7377,123 @@ mod lct_registry_tests {
             out.0.filled_roles.iter().any(|r| r.role == "sovereign"),
             "roles come from the society read — the part that used to fail"
         );
+    }
+
+    // ---- Track H: the discussion surface, end to end ----
+
+    /// Open a topic and post to it through the real public write path
+    /// (`submit_event`), then read both back through the real public read paths.
+    /// This is the demo, executed: nothing here is stubbed.
+    #[tokio::test]
+    async fn a_topic_and_a_post_travel_the_public_write_path_and_land_in_the_ledger() {
+        let (_tmp, state, sov) = fresh_state().await;
+
+        let head_before = { state.ledger.lock().await.entries().len() };
+
+        // 1. Open a topic.
+        let env = publish_envelope(
+            &state,
+            &sov,
+            serde_json::json!({ "action": "create_topic", "title": "Who writes the rules?" }),
+        );
+        let accepted = submit_event(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .expect("create_topic must be accepted");
+        assert_eq!(accepted.0.event_kind, "topic_created");
+
+        // 2. Read it back unauthenticated.
+        let listed = list_topics(State(state.clone()), Path(state.hub_id)).await.unwrap();
+        let topics = listed.0["topics"].as_array().cloned().unwrap_or_default();
+        assert_eq!(topics.len(), 1, "the topic must be publicly readable without joining");
+        let topic_id: Uuid = topics[0]["topic_id"].as_str().unwrap().parse().unwrap();
+        assert_eq!(topics[0]["title"], "Who writes the rules?");
+        assert_eq!(topics[0]["post_count"], 0);
+
+        // 3. Post to it.
+        let env = publish_envelope(
+            &state,
+            &sov,
+            serde_json::json!({
+                "action": "add_post",
+                "topic_id": topic_id,
+                "body": "The law does, and you can read it.",
+            }),
+        );
+        let accepted = submit_event(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .expect("add_post must be accepted");
+        assert_eq!(accepted.0.event_kind, "post_added");
+
+        // 4. The post is IN THE LEDGER — two new entries, not one, and not a
+        // side store. This is the claim the whole surface rests on.
+        let head_after = { state.ledger.lock().await.entries().len() };
+        assert_eq!(head_after, head_before + 2, "topic and post must each be a ledger entry");
+
+        // 5. Read the topic with its posts.
+        let read = read_topic(State(state.clone()), Path((state.hub_id, topic_id))).await.unwrap();
+        let posts = read.0["posts"].as_array().cloned().unwrap_or_default();
+        assert_eq!(posts.len(), 1);
+        assert_eq!(posts[0]["body"], "The law does, and you can read it.");
+        assert_eq!(
+            posts[0]["posted_by"].as_str().unwrap().parse::<Uuid>().unwrap(),
+            sov.lct.id,
+            "the post must be attributed to the envelope signer",
+        );
+        // The entry index is the reader's handle for verifying it independently.
+        assert_eq!(posts[0]["entry_index"].as_u64().unwrap() as usize, head_after - 1);
+    }
+
+    #[tokio::test]
+    async fn a_post_to_a_nonexistent_topic_is_refused_before_it_reaches_the_ledger() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let before = { state.ledger.lock().await.entries().len() };
+
+        let env = publish_envelope(
+            &state,
+            &sov,
+            serde_json::json!({
+                "action": "add_post",
+                "topic_id": Uuid::new_v4(),
+                "body": "into the void",
+            }),
+        );
+        let err = submit_event(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .err()
+            .expect("a post to an unknown topic must be refused");
+        assert_eq!(err.status, StatusCode::NOT_FOUND);
+
+        // O (order): the refusal must leave the chain bit-identical. A ledger is
+        // append-only, so an entry admitted here could never be removed.
+        let after = { state.ledger.lock().await.entries().len() };
+        assert_eq!(after, before, "a refused post still grew the ledger");
+    }
+
+    #[tokio::test]
+    async fn empty_and_oversized_discussion_input_is_refused() {
+        let (_tmp, state, sov) = fresh_state().await;
+
+        let before = { state.ledger.lock().await.entries().len() };
+
+        for (label, payload) in [
+            ("empty title", serde_json::json!({ "action": "create_topic", "title": "   " })),
+            (
+                "oversized title",
+                serde_json::json!({ "action": "create_topic", "title": "x".repeat(MAX_TITLE_LEN + 1) }),
+            ),
+        ] {
+            let env = publish_envelope(&state, &sov, payload);
+            let err = submit_event(State(state.clone()), Path(state.hub_id), Json(env))
+                .await
+                .err()
+                .unwrap_or_else(|| panic!("{label} should have been refused"));
+            assert_eq!(err.status, StatusCode::BAD_REQUEST, "{label}");
+        }
+
+        // Unbounded free text in a permanent hash-chained record cannot be
+        // edited out afterwards, so the refusal must precede the append.
+        let after = { state.ledger.lock().await.entries().len() };
+        assert_eq!(after, before, "a refused topic still grew the ledger");
     }
 
     /// A publishable LCT: real key, real self-signed binding_proof.
