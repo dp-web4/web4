@@ -1506,11 +1506,11 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         match crate::rest::hydrate_law_defaults(&rest_state).await {
             Ok(true) => tracing::info!("law defaults hydrated at boot"),
             Ok(false) => {}
-            // `{e:#}` for the same reason as the post-ignition copy of this render
-            // in `rest.rs` — and this is the *normal-boot* copy, which the review
-            // sweeps kept missing because they partitioned by file (`main.rs`
-            // terminates at `Debug`) rather than by render form.
-            Err(e) => tracing::warn!("law-default hydration skipped: {e:#}"),
+            // The *normal-boot* copy of the post-ignition render in `rest.rs`.
+            // Sweeps kept missing this one because they partitioned by file;
+            // plain `{e}` is now correct here because `hydrate_law_defaults`
+            // returns `LawError`, not a bare `anyhow::Error`.
+            Err(e) => tracing::warn!("law-default hydration skipped: {e}"),
         }
         // Re-deliver hub→citizen notices persisted before the last shutdown.
         // (Locked boots hydrate post-ignition in the unlock handler instead.)

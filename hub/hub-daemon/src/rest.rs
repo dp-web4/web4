@@ -576,7 +576,11 @@ impl RestState {
     /// no law set). Used by the `/v1/admin/reload-law` endpoint so
     /// operators can `hub set-law` then `curl reload-law` without
     /// restarting hub serve.
-    pub async fn reload_law(&self) -> anyhow::Result<String> {
+    pub async fn reload_law(&self) -> Result<String, LawError> {
+        self.reload_law_inner().await.map_err(LawError::from)
+    }
+
+    async fn reload_law_inner(&self) -> anyhow::Result<String> {
         use anyhow::Context;
         let store = self.open_store().await
             .context("opening store for law reload")?;
@@ -756,11 +760,9 @@ impl RestState {
                 *self.protected.lock().await = open_protected_vault(&self.paths.root, passphrase);
                 // Load the now-readable law (store opens with the held key).
                 if let Err(e) = self.reload_law().await {
-                    // `{e:#}`: `reload_law` flattens the *parse* chain into its own
-                    // message, but its other arm is a plain
-                    // `.context("opening store for law reload")`, which `{e}` would
-                    // reduce to exactly that phrase — the store error itself dropped.
-                    tracing::warn!("ignition: law reload failed (continuing): {e:#}");
+                    // Plain `{e}` is the whole chain here: `reload_law` returns
+                    // `LawError`, whose `Display` is always the alternate form.
+                    tracing::warn!("ignition: law reload failed (continuing): {e}");
                 }
                 // Re-deliver notices that were queued before this hub went down —
                 // the durable mailbox opens with the same now-live key.
@@ -840,12 +842,10 @@ async fn unlock(
             match hydrate_law_defaults(&s).await {
                 Ok(true) => tracing::info!("law defaults hydrated post-ignition"),
                 Ok(false) => {}
-                // `{e:#}`: the sanity re-parse inside `hydrate_law_defaults`
-                // propagates `parse_and_validate`'s contexted error with a bare
-                // `?`, so `{e}` prints "parsing policy law YAML" and drops the
-                // line/column. Warn-and-continue means this line is the only
-                // artifact the failure ever produces. (PUB review of #660.)
-                Err(e) => tracing::warn!("law-default hydration skipped: {e:#}"),
+                // Warn-and-continue, so this line is the only artifact the
+                // failure ever produces — and `LawError`'s `Display` makes the
+                // plain form carry the sanity re-parse's line and column.
+                Err(e) => tracing::warn!("law-default hydration skipped: {e}"),
             }
             Ok(Json(UnlockResponse {
                 unlocked: true,
@@ -4636,7 +4636,7 @@ struct ReloadLawResponse {
 async fn reload_law(
     State(s): State<RestState>,
 ) -> Result<Json<ReloadLawResponse>, ApiError> {
-    let version = s.reload_law().await.map_err(ApiError::internal)?;
+    let version = s.reload_law().await.map_err(|e| ApiError::internal(e.into()))?;
     Ok(Json(ReloadLawResponse { reloaded: true, version }))
 }
 
@@ -5165,7 +5165,70 @@ fn bump_law_version(v: &str) -> String {
 /// default was actually filled** (idempotent — steady-state boots are no-ops),
 /// so newly-added parameters auto-populate on first boot with no maintenance.
 /// No-op when no law is set (operator establishes a base law via `hub init-law`).
-pub(crate) async fn hydrate_law_defaults(s: &RestState) -> anyhow::Result<bool> {
+/// The error of a law path, whose `Display` **is** the full cause chain.
+///
+/// Four review rounds found four callers of `reload_law()` /
+/// `hydrate_law_defaults()` rendering a contexted `anyhow::Error` with `{e}`,
+/// which keeps only the outermost context and drops the parse error's line and
+/// column. Each round fixed the sites it found and then swept for the rest —
+/// and each sweep partitioned by something *adjacent* to the render rather than
+/// the render itself: first "`?` is fine, it reaches `Debug`", then "`main.rs`
+/// is fine", then a source scan hardcoded to two filenames and to the binding
+/// being spelled `e`. Every one of those proxies leaked (PUB's review of #661
+/// measured the last two).
+///
+/// So this stops trying to *find* the lossy render and removes it from the
+/// language instead: the inner `anyhow::Error` is private, and the only way out
+/// is a `Display` that always formats it with `{:#}`. `{e}`, `{e:#}`,
+/// `{}", e`, `e.to_string()` and any spelling of the binding now all produce
+/// the whole chain, in any file, at any distance from the call. There is
+/// nothing left for a sweep to partition, so the source scan that used to guard
+/// this is gone — `law_error_renders_the_whole_chain_however_it_is_formatted`
+/// pins the behaviour directly.
+///
+/// Scope, stated: this covers the two functions that return it. A *direct*
+/// caller of `Law::parse_and_validate` still holds a bare `anyhow::Error` — the
+/// ignition capture at the `Unparseable` arm is one, and it keeps its own
+/// runtime test. Widening this to `parse_and_validate` itself means changing a
+/// shared `web4-policy` signature across 66 call sites; not taken here.
+pub(crate) struct LawError(anyhow::Error);
+
+impl From<anyhow::Error> for LawError {
+    fn from(e: anyhow::Error) -> Self {
+        LawError(e)
+    }
+}
+
+impl std::fmt::Display for LawError {
+    /// Always the alternate form. This is the whole point of the type: a caller
+    /// cannot select the lossy rendering, because the lossy rendering is not
+    /// reachable from outside this module.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#}", self.0)
+    }
+}
+
+impl std::fmt::Debug for LawError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // `anyhow`'s own `Debug` is the multi-line chain — right for `unwrap()`.
+        std::fmt::Debug::fmt(&self.0, f)
+    }
+}
+
+impl std::error::Error for LawError {
+    /// `None`, deliberately: `Display` already carries the whole chain, so
+    /// reporting a source as well would make `{:#}` print it twice once this is
+    /// converted into an `anyhow::Error` by `?`.
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
+pub(crate) async fn hydrate_law_defaults(s: &RestState) -> Result<bool, LawError> {
+    hydrate_law_defaults_inner(s).await.map_err(LawError::from)
+}
+
+async fn hydrate_law_defaults_inner(s: &RestState) -> anyhow::Result<bool> {
     let mut law = match s.law.read().await.clone() {
         Some(l) => l,
         None => return Ok(false),
@@ -10063,68 +10126,70 @@ norms:
         assert!(state.signer.public_key().is_none());
     }
 
-    /// Pins the **sweep**, not a site.
+    /// Pins the **render**, not a sweep and not a site.
     ///
-    /// `reload_law()` and `hydrate_law_defaults()` both return contexted
-    /// `anyhow::Error`s, so any caller that flattens one into a string must use
-    /// `{e:#}` — `{e}` keeps only the outermost context and drops the parse
-    /// error's line/column. Three review rounds each found *another* caller
-    /// still using `{e}`: #660 fixed two, PUB's review of #660 found a third
-    /// (post-ignition hydration), and this change a fourth (the normal-boot
-    /// hydration in `main.rs`). Each sweep missed the next one because each was
-    /// run from the error-*origin* side under a proxy rule — "`?` is fine, it
-    /// reaches `Debug`", then "`main.rs` is fine, it reaches `Debug`". Both
-    /// proxies are unsound for a caller that renders with `warn!`.
+    /// This replaces a source scan that tried to find lossy renders by text.
+    /// The scan was the fourth sweep in a row to partition by a proxy for the
+    /// render instead of the render itself, and PUB's review of #661 measured
+    /// two leaks in it: a caller in `admin.rs` (it hardcoded two filenames) and
+    /// `Err(err) => warn!("{err}")` at a site it *did* cover (its needles
+    /// hardcoded the binding `e`). Both compiled with the scan passing.
     ///
-    /// So this scans from the *call-site* side, which is the side the defect
-    /// actually lives on, and is why it is a source scan rather than a runtime
-    /// assertion: both hydration sites are unreachable-by-construction sanity
-    /// re-parses (measured — see the PR notes), so no runtime test can reach
-    /// them, and a fifth caller would otherwise be added silently.
+    /// `LawError::Display` removes the lossy render from the language instead,
+    /// so the property to pin is now a behaviour and it is checked directly:
+    /// every formatting route a caller could take must carry the cause.
     #[test]
-    fn no_caller_of_a_law_error_path_flattens_it_lossily() {
-        // Needles are built at runtime so this test does not match its own source.
-        let call_markers = [
-            format!("{}{}", "hydrate_law_", "defaults("),
-            format!("{}{}", "reload_law", "()"),
-        ];
-        let lossy = format!("{}{}{}", "{", "e", "}");
-        let lossy_positional = format!("{}{}", "{}\", ", "e");
+    fn law_error_renders_the_whole_chain_however_it_is_formatted() {
+        // A real contexted chain, built the way the law paths build theirs:
+        // `parse_and_validate`'s own `.context(..)` over a serde_yaml error.
+        let inner = hub_lib::law::Law::parse_and_validate(
+            "version: \"1.0.0\"\nnorms:\n  - this is not a law\n",
+        )
+        .expect_err("bytes that do not parse must not validate");
+        let outermost = format!("{inner}");
+        let e = LawError::from(inner);
 
-        let mut offenders = Vec::new();
-        for (file, src) in [
-            ("rest.rs", include_str!("rest.rs")),
-            ("main.rs", include_str!("main.rs")),
-        ] {
-            // Window over CODE lines, not raw lines: a comment block between the
-            // call and its `Err` arm must not push the render out of view. (It
-            // did — an eight-raw-line window silently stopped covering the
-            // post-ignition site as soon as this change commented it.)
-            let code: Vec<(usize, &str)> = src
-                .lines()
-                .enumerate()
-                .map(|(n, l)| (n + 1, l))
-                .filter(|(_, l)| !l.trim_start().starts_with("//"))
-                .collect();
-            for (i, (_, line)) in code.iter().enumerate() {
-                if !call_markers.iter().any(|m| line.contains(m.as_str())) {
-                    continue;
-                }
-                // The render, when there is one, sits in the match/if-let arms
-                // immediately below the call.
-                for (lineno, probe) in code.iter().skip(i).take(8) {
-                    if probe.contains(&lossy) || probe.contains(&lossy_positional) {
-                        offenders.push(format!("{file}:{lineno} — {}", probe.trim()));
-                    }
-                }
-            }
-        }
-        offenders.dedup(); // overlapping windows can report one line twice
+        // The bug in every round: the outermost context alone, cause dropped.
         assert!(
-            offenders.is_empty(),
-            "a caller of a law-error path flattens it with the lossy form, which \
-             drops the parse error's cause; render it with `{{e:#}}` instead:\n  {}",
-            offenders.join("\n  ")
+            !outermost.contains("line "),
+            "precondition: the bare anyhow Display is the lossy one ({outermost})"
+        );
+
+        for (form, rendered) in [
+            ("{e}", format!("{e}")),
+            ("{e:#}", format!("{e:#}")),
+            ("{}\", e", format!("{}", e)),
+            ("e.to_string()", e.to_string()),
+            // The binding's spelling is not part of the rendering.
+            ("{other}", { let other = &e; format!("{other}") }),
+        ] {
+            assert!(
+                rendered.contains("line ") && rendered.contains("column "),
+                "`{form}` must locate the parse failure, not just name the phase \
+                 — a caller must not be able to select the lossy render: {rendered}"
+            );
+            assert_ne!(
+                rendered.trim(),
+                outermost.trim(),
+                "`{form}` rendered only the outermost context"
+            );
+        }
+
+        // `?` into an `anyhow::Result` keeps it, and does not double-print it.
+        // The plain form matters most: that is the escape a caller actually has
+        // — convert, then render without the `#`.
+        let via_anyhow: anyhow::Error = e.into();
+        assert!(
+            format!("{via_anyhow}").contains("line "),
+            "converted into anyhow and rendered plainly, the cause still survives"
+        );
+        let alt = format!("{via_anyhow:#}");
+        assert!(alt.contains("line "), "converted into anyhow, the cause survives: {alt}");
+        assert_eq!(
+            alt.matches("line ").count(),
+            1,
+            "`source()` returning None is what keeps `{{:#}}` from repeating the \
+             chain it already contains: {alt}"
         );
     }
 
