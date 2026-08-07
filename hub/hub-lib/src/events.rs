@@ -193,6 +193,43 @@ pub enum HubEvent {
         declared_by: Uuid,
     },
 
+    /// A topic was opened for governance discussion.
+    ///
+    /// Discussion on this hub is a **governed act**, not a side store: opening a
+    /// topic is law-evaluated on the way in (action `topic_created`) and lands in
+    /// the hash-chained ledger. "Who writes the rules" therefore has a literal,
+    /// checkable answer — the law does, and the ledger records who said what
+    /// under it.
+    ///
+    /// `created_by` is the **envelope signer**, i.e. the member who actually
+    /// opened the topic. It is deliberately distinct from the entry's
+    /// `actor_lct_id`, which names whoever *signed the ledger entry* (the
+    /// Sovereign, who witnesses). Author and witness are different roles and the
+    /// record keeps both; collapsing them would make every member's contribution
+    /// read as the Sovereign's.
+    TopicCreated {
+        topic_id: Uuid,
+        title: String,
+        created_by: Uuid,
+    },
+
+    /// A post was added to a topic — the unit of discussion.
+    ///
+    /// Law-evaluated as `post_added`, so who may speak is a law question a reader
+    /// (or a future peer society) can inspect rather than a hardcoded check they
+    /// would have to trust. Because the post IS a ledger entry, the discussion is
+    /// witnessed by construction and is anchorable: a peer can later witness
+    /// *that* a discussion happened without being handed its contents.
+    ///
+    /// `posted_by` is the envelope signer — see [`HubEvent::TopicCreated`] on why
+    /// that is not the same field as the entry's `actor_lct_id`.
+    PostAdded {
+        topic_id: Uuid,
+        post_id: Uuid,
+        body: String,
+        posted_by: Uuid,
+    },
+
     /// A member asked the hub to introduce them to another member (the
     /// consent half of member discovery: find_members returns LCTs, an intro
     /// connects them only if BOTH agree). Travels only over the sealed
@@ -581,6 +618,8 @@ impl HubEvent {
             Self::EventRecorded { .. } => "event_recorded",
             Self::CharterAmended { .. } => "charter_amended",
             Self::MemberSkillDeclared { .. } => "member_skill_declared",
+            Self::TopicCreated { .. } => "topic_created",
+            Self::PostAdded { .. } => "post_added",
             Self::MemberKeyPinned { .. } => "member_key_pinned",
             Self::DeviceEnrolled { .. } => "device_enrolled",
             Self::DeviceRevoked { .. } => "device_revoked",
