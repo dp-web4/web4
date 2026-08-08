@@ -372,6 +372,35 @@ impl PolicyExtension for HubPolicy {
 /// Hub-specific accessors on [`Law`]. `Law` is a foreign type alias
 /// (`web4_policy::Law<HubPolicy>`), so these live on an extension trait rather
 /// than an inherent impl. Bring into scope with `use crate::law::HubLawExt;`.
+/// Action strings the gate evaluates that are **not** `HubEvent::kind()` values.
+///
+/// The join gate prices a request *before* any event exists, so it synthesises an
+/// action name (`rest.rs` `submit_join`, `admin.rs`). `member_join_request` is
+/// therefore a real, load-bearing action that no event kind will ever match — and
+/// it appears in the shipped starter law. Any guard over norm actions has to know
+/// that, or it rejects the template the hub ships with.
+pub const KNOWN_SYNTHETIC_ACTIONS: &[&str] = &["member_join_request"];
+
+/// Prefix for the read-gate action family (`read:<tool>`, `rest.rs read_decision`).
+/// Open-ended by design — the tool name is not enumerable — so membership is a
+/// prefix rule rather than a list.
+pub const READ_ACTION_PREFIX: &str = "read:";
+
+/// Is `action` a value the gate can ever actually see?
+pub fn is_known_law_action(action: &str) -> bool {
+    action.starts_with(READ_ACTION_PREFIX)
+        || KNOWN_SYNTHETIC_ACTIONS.contains(&action)
+        || crate::events::HubEvent::ALL_EVENT_KINDS.contains(&action)
+}
+
+/// A norm that tests `r6.request.action` for equality against a value the gate
+/// can never produce.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnknownActionNorm {
+    pub norm_id: String,
+    pub value: String,
+}
+
 pub trait HubLawExt {
     /// Effective admission repeat limit — the law value, or the code default.
     fn admission_repeat_limit(&self) -> u32;
@@ -384,6 +413,21 @@ pub trait HubLawExt {
     /// Sovereign path is not routed through here (Sovereign may always record); this
     /// governs only non-Sovereign emitters.
     fn reputation_emit_decision(&self, emitter: &str, delta_role_lct: &str) -> ReputationEmitOutcome;
+
+    /// Norms that test `r6.request.action` for equality against a value the gate
+    /// can never produce.
+    ///
+    /// Such a norm is **worse than absent**: it reads as a restriction, never
+    /// fires, and leaves the act on whatever the default is. Nothing else in the
+    /// stack can tell the two apart, because an unmatched norm is not an error —
+    /// it is an allow. `HUB-LAW.md` shipped an example naming `assign_role` when
+    /// the gate emits `role_assigned`, which is exactly this failure with a
+    /// documentation source.
+    ///
+    /// Only equality-shaped tests are checked (`==`, `in`). `!=` is deliberately
+    /// exempt: the starter law's `DEFAULT-ALLOW` matches everything by asserting
+    /// `action != __never_match__`, where the value is *meant* to be unmatchable.
+    fn unknown_action_norms(&self) -> Vec<UnknownActionNorm>;
 }
 
 impl HubLawExt for Law {
@@ -400,6 +444,35 @@ impl HubLawExt for Law {
             .as_ref()
             .and_then(|a| a.review_limit)
             .unwrap_or(DEFAULT_ADMISSION_REVIEW_LIMIT)
+    }
+
+    fn unknown_action_norms(&self) -> Vec<UnknownActionNorm> {
+        use web4_policy::Operator;
+        let mut out = Vec::new();
+        for norm in &self.norms {
+            if norm.selector != "r6.request.action" {
+                continue;
+            }
+            // Equality-shaped only. `!=` is how DEFAULT-ALLOW matches everything
+            // (`action != __never_match__`), where an unmatchable value is the
+            // point; ordering operators over an action string are meaningless but
+            // are not this guard's business to adjudicate.
+            let values: Vec<String> = match norm.operator {
+                Operator::Eq => norm.value.as_str().map(|s| vec![s.to_string()]).unwrap_or_default(),
+                Operator::In => norm
+                    .value
+                    .as_sequence()
+                    .map(|seq| seq.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
+                    .unwrap_or_default(),
+                _ => continue,
+            };
+            for v in values {
+                if !is_known_law_action(&v) {
+                    out.push(UnknownActionNorm { norm_id: norm.id.clone(), value: v });
+                }
+            }
+        }
+        out
     }
 
     fn reputation_emit_decision(&self, emitter: &str, delta_role_lct: &str) -> ReputationEmitOutcome {
@@ -1409,4 +1482,94 @@ reputation_emit:
         assert!(res.is_err(), "empty emitter must be rejected at validate");
     }
 
+    // ---- unknown-action guard (doc-audit D1) ----
+
+    #[test]
+    fn a_norm_naming_a_nonexistent_action_is_reported() {
+        // `assign_role` is what HUB-LAW.md told operators to write. The gate emits
+        // `role_assigned`. This norm reads as a restriction and restricts nothing.
+        let law: Law = serde_yaml::from_str(r#"
+version: "1.0.0"
+norms:
+  - id: ESCALATE-ROLE-ASSIGN
+    selector: r6.request.action
+    operator: "=="
+    value: assign_role
+    decision: escalate
+    priority: 50
+"#).expect("parses");
+        let found = law.unknown_action_norms();
+        assert_eq!(found.len(), 1, "the bogus norm was not reported: {found:?}");
+        assert_eq!(found[0].norm_id, "ESCALATE-ROLE-ASSIGN");
+        assert_eq!(found[0].value, "assign_role");
+
+        // And the same norm written correctly is clean — so the guard is
+        // discriminating between the two spellings, not just flagging the norm.
+        let good: Law = serde_yaml::from_str(r#"
+version: "1.0.0"
+norms:
+  - id: ESCALATE-ROLE-ASSIGN
+    selector: r6.request.action
+    operator: "=="
+    value: role_assigned
+    decision: escalate
+    priority: 50
+"#).expect("parses");
+        assert!(good.unknown_action_norms().is_empty(), "the CORRECT spelling was flagged");
+    }
+
+    /// The arm that matters most: the guard must not reject what the hub ships.
+    ///
+    /// The starter law contains three shapes that a naive implementation gets
+    /// wrong — `DEFAULT-ALLOW`'s deliberately-unmatchable `!=` value, an `in` list
+    /// of seven kinds, and `member_join_request`, which is a synthesised gate
+    /// action that no event kind will ever equal.
+    #[test]
+    fn the_shipped_starter_law_is_clean() {
+        let law: Law = Law::parse_and_validate(include_str!("../../examples/starter-law.yaml"))
+            .expect("the embedded starter law validates");
+        let found = law.unknown_action_norms();
+        assert!(
+            found.is_empty(),
+            "the guard rejects the law the hub itself ships: {found:?}",
+        );
+        // Positive control on the two shapes most likely to be mishandled, so a
+        // guard that silently skipped every norm could not pass this test.
+        assert!(law.norms.iter().any(|n| n.id == "DEFAULT-ALLOW"),
+                "fixture lost DEFAULT-ALLOW — the != arm is no longer exercised");
+        assert!(law.norms.iter().any(|n| matches!(n.operator, web4_policy::Operator::In)),
+                "fixture lost the `in` list — that arm is no longer exercised");
+    }
+
+    #[test]
+    fn read_actions_and_in_lists_are_understood() {
+        let law: Law = serde_yaml::from_str(r#"
+version: "1.0.0"
+norms:
+  - id: READ-GATE
+    selector: r6.request.action
+    operator: "=="
+    value: "read:list_members"
+    decision: deny
+    priority: 10
+  - id: MIXED-LIST
+    selector: r6.request.action
+    operator: in
+    value: [member_added, not_a_real_kind, topic_created]
+    decision: escalate
+    priority: 10
+  - id: NOT-AN-ACTION-SELECTOR
+    selector: r6.role
+    operator: "=="
+    value: citizen
+    decision: allow
+    priority: 1
+"#).expect("parses");
+        let found = law.unknown_action_norms();
+        // The read: family passes, the two real kinds pass, only the bogus one is
+        // named — and a norm on a DIFFERENT selector is not examined at all.
+        assert_eq!(found.len(), 1, "expected exactly the bogus list entry: {found:?}");
+        assert_eq!(found[0].norm_id, "MIXED-LIST");
+        assert_eq!(found[0].value, "not_a_real_kind");
+    }
 }
