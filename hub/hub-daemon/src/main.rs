@@ -828,6 +828,40 @@ async fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<
         .context("parsing/validating law YAML")?;
     let version = law.version.clone();
 
+    // Refuse a norm that names an action the gate can never produce.
+    //
+    // This is the authorship boundary, and it is the right place to be strict:
+    // such a norm reads as a restriction, never fires, and leaves the act on the
+    // default. Nothing downstream can tell it from a norm nobody wrote, because
+    // an unmatched norm is not an error — it is an allow. Catching it here costs
+    // the operator one edit; not catching it costs them a rule they believe is
+    // in force and is not.
+    //
+    // Refusing (rather than warning) is safe HERE specifically because it is a
+    // write the operator is making right now and can immediately correct. The
+    // daemon's *load* path only warns — see `reload_law_inner` — so an existing
+    // hub is never bricked by a law that predates this check.
+    {
+        use hub_lib::law::HubLawExt;
+        let unknown = law.unknown_action_norms();
+        if !unknown.is_empty() {
+            let mut msg = String::from(
+                "law refused: these norms test `r6.request.action` against values the gate \
+                 never emits, so they would never fire:\n",
+            );
+            for u in &unknown {
+                msg.push_str(&format!("  - norm `{}` names `{}`\n", u.norm_id, u.value));
+            }
+            msg.push_str(
+                "\nThe action is the HubEvent KIND (past tense): `role_assigned`, not \
+                 `assign_role`; `member_removed`, not `remove_member`. Also valid: \
+                 `member_join_request` (the join gate's synthesised action) and any \
+                 `read:<tool>`.\n",
+            );
+            anyhow::bail!(msg);
+        }
+    }
+
     let mut session = HubSession::open(&hub_dir).await?;
     let entry = session.set_law(&yaml, version.clone(), diff_summary.clone()).await?;
 

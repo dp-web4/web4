@@ -596,6 +596,23 @@ impl RestState {
         let version = new_law.as_ref()
             .map(|l| l.version.clone())
             .unwrap_or_else(|| "none".to_string());
+
+        // WARN, do not refuse. `hub set-law` refuses this at authorship; here the
+        // law is already in force and may predate the check, so failing the load
+        // would take a running hub down over a norm that was merely inert. Loud
+        // and serving beats silent and correct-by-refusal.
+        if let Some(law) = new_law.as_ref() {
+            use hub_lib::law::HubLawExt;
+            for u in law.unknown_action_norms() {
+                tracing::warn!(
+                    norm = %u.norm_id, value = %u.value,
+                    "INERT NORM — tests r6.request.action against a value the gate never emits, \
+                     so it can never fire and the act falls through to the default. The action is \
+                     the HubEvent kind (e.g. `role_assigned`, not `assign_role`)."
+                );
+            }
+        }
+
         *self.law.write().await = new_law;
 
         // Re-read the LEDGER too, not just the law.

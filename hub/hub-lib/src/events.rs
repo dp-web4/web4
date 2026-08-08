@@ -603,6 +603,57 @@ pub enum PairRevocationKind {
 }
 
 impl HubEvent {
+    /// Every value [`HubEvent::kind`] can return.
+    ///
+    /// The law gate evaluates `r6.request.action` against exactly these strings
+    /// (plus the non-event action families in
+    /// [`crate::law::KNOWN_SYNTHETIC_ACTIONS`] and the `read:` prefix), so this
+    /// list is what makes it possible to tell a norm that *restricts something*
+    /// from a norm that *names nothing and therefore allows everything*.
+    ///
+    /// Kept honest by `all_event_kinds_matches_the_kind_fn`, which extracts the
+    /// arms of `kind()` from this file's own source at compile time and demands
+    /// set-equality. Add a variant without adding it here and that test fails;
+    /// the list cannot silently drift behind the enum.
+    pub const ALL_EVENT_KINDS: &'static [&'static str] = &[
+        "charter_amended",
+        "council_member_added",
+        "council_member_removed",
+        "council_threshold_changed",
+        "device_enrolled",
+        "device_revoked",
+        "event_recorded",
+        "genesis",
+        "intro_requested",
+        "intro_responded",
+        "law_amended",
+        "lct_published",
+        "member_added",
+        "member_admission_reset",
+        "member_join_requested",
+        "member_join_resolved",
+        "member_join_review_requested",
+        "member_join_review_resolved",
+        "member_key_pinned",
+        "member_profile_updated",
+        "member_removed",
+        "member_skill_declared",
+        "obligation_opened",
+        "obligation_resolved",
+        "pair_message_posted",
+        "pairing_confirmed",
+        "pairing_requested",
+        "pairing_revoked",
+        "post_added",
+        "referenced_act",
+        "reputation_recorded",
+        "role_assigned",
+        "topic_created",
+        "vault_unlock_attested",
+        "vault_unlock_requested",
+        "vault_unlock_resolved",
+    ];
+
     /// Short human-readable kind name — matches the serde tag.
     pub fn kind(&self) -> &'static str {
         match self {
@@ -714,5 +765,47 @@ mod tests {
         assert_eq!(event.kind(), "referenced_act");
         let HubEvent::ReferencedAct { act: unwrapped } = &event else { unreachable!() };
         assert_eq!(serde_json::to_value(unwrapped).unwrap(), value_before);
+    }
+
+    /// The list and the function must not drift apart.
+    ///
+    /// Extracts the `=> "kind",` arms of `HubEvent::kind` from this file's own
+    /// source (`include_str!`, so it is the compiled source and not a path that
+    /// could go stale) and demands set-equality with `ALL_EVENT_KINDS`.
+    ///
+    /// This matters more than a list-hygiene test usually would: the list is what
+    /// lets the law layer distinguish "this norm names a real act" from "this norm
+    /// names nothing and therefore restricts nothing". A stale list would make a
+    /// legitimate norm look bogus, or worse, let a bogus one through.
+    #[test]
+    fn all_event_kinds_matches_the_kind_fn() {
+        let src = include_str!("events.rs");
+        let mut from_fn: Vec<&str> = src
+            .lines()
+            .filter_map(|l| {
+                let l = l.trim();
+                // `Self::Variant { .. } => "kind",`
+                if !l.starts_with("Self::") { return None; }
+                let (_, rhs) = l.split_once("=> \"")?;
+                rhs.split_once('"').map(|(k, _)| k)
+            })
+            .collect();
+        from_fn.sort_unstable();
+        from_fn.dedup();
+        assert!(!from_fn.is_empty(), "extractor found no kind() arms — it broke, the code did not");
+
+        let mut listed: Vec<&str> = HubEvent::ALL_EVENT_KINDS.to_vec();
+        listed.sort_unstable();
+        let before = listed.len();
+        listed.dedup();
+        assert_eq!(before, listed.len(), "ALL_EVENT_KINDS contains a duplicate");
+
+        assert_eq!(
+            listed, from_fn,
+            "ALL_EVENT_KINDS has drifted from HubEvent::kind(). \
+             Missing from the list: {:?}. Listed but not returned by kind(): {:?}",
+            from_fn.iter().filter(|k| !listed.contains(k)).collect::<Vec<_>>(),
+            listed.iter().filter(|k| !from_fn.contains(k)).collect::<Vec<_>>(),
+        );
     }
 }
