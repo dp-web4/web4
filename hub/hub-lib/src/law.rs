@@ -1572,4 +1572,67 @@ norms:
         assert_eq!(found[0].norm_id, "MIXED-LIST");
         assert_eq!(found[0].value, "not_a_real_kind");
     }
+
+    /// The action table in `HUB-LAW.md` must list every kind the gate can emit.
+    ///
+    /// The example this table replaces carried a wrong value (`assign_role`) for
+    /// weeks and nothing noticed, because documentation has no test. The table is
+    /// now the operator's only source for these values, so it gets the same drift
+    /// guard the code list has: add an event kind, and this fails until the doc
+    /// names it.
+    #[test]
+    fn hub_law_doc_lists_every_action() {
+        let doc = include_str!("../../docs/HUB-LAW.md");
+        let start = doc.find("| group | actions |")
+            .expect("action table heading missing from HUB-LAW.md");
+        let end = doc[start..].find("**Two action families")
+            .map(|i| start + i)
+            .expect("action-table terminator missing from HUB-LAW.md");
+        let table = &doc[start..end];
+        assert!(table.len() > 200, "extracted table is implausibly short — the extractor broke");
+
+        let missing: Vec<&str> = crate::events::HubEvent::ALL_EVENT_KINDS
+            .iter()
+            .copied()
+            .filter(|k| !table.contains(&format!("`{k}`")))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "HUB-LAW.md's action table is missing {} kind(s): {missing:?}. \
+             An operator cannot write a norm for an action the doc never names.",
+            missing.len(),
+        );
+    }
+
+    /// The YAML the doc tells operators to copy must survive the guard the CLI
+    /// applies. A doc example that `hub set-law` would reject is worse than none.
+    #[test]
+    fn the_doc_examples_pass_the_action_guard() {
+        let law: Law = serde_yaml::from_str(r#"
+version: "1.0.0"
+norms:
+  - id: ALLOW-POSTING
+    selector: r6.request.action
+    operator: "=="
+    value: post_added
+    decision: allow
+    priority: 60
+  - id: ESCALATE-TOPIC-OPEN
+    selector: r6.request.action
+    operator: "=="
+    value: topic_created
+    decision: escalate
+    priority: 60
+  - id: ESCALATE-ROLE-ASSIGN
+    selector: r6.request.action
+    operator: "=="
+    value: role_assigned
+    decision: escalate
+    priority: 50
+"#).expect("the doc's examples parse");
+        assert!(
+            law.unknown_action_norms().is_empty(),
+            "HUB-LAW.md tells operators to write a law that set-law would refuse",
+        );
+    }
 }
