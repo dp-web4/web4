@@ -7715,7 +7715,11 @@ norms:
     /// has taken it to append), lets `reload_law` run as far as the code allows,
     /// commits an entry to disk while the lock is still held, then releases.
     ///
-    /// Verified RED against the read-then-swap ordering: in-memory 2, on disk 3.
+    /// Verified RED against the read-then-swap ordering: in-memory 1, on disk 2
+    /// (`fresh_state`'s genesis entry, plus the one this test appends). Re-derived
+    /// at review, 3/3 runs, same two numbers each time — quote what the assertion
+    /// actually prints, since a RED figure nobody can reproduce is the reason to
+    /// re-run rather than to trust the comment.
     /// With the lock taken before the read, `reload_law` cannot observe the store
     /// until the appender is done, so the two agree by construction.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
