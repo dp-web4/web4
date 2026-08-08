@@ -14,19 +14,78 @@
 set -euo pipefail
 
 MONOREPO="$(cd "$(dirname "$0")/.." && pwd)"
-MIRROR_REMOTE="git@github.com:dp-web4/4-hub.git"
+# WHERE to publish. Overridable so a test run can aim at a throwaway bare repo.
+MIRROR_REMOTE="${MIRROR_REMOTE:-git@github.com:dp-web4/4-hub.git}"
+
+# WHAT to publish. HARD-PINNED, deliberately not overridable — see the pin below.
+#
+# This script's failure mode is not a bad merge, it is a SILENT publication: the
+# mirror is fully derived and force-pushed, so there is no conflict for anyone to
+# notice and a wrong publish is visible only in this script's own output. An env
+# knob on the source ref is therefore an env knob on what becomes public, sitting
+# on the one path that looks like the safe publication path. A test bed does not
+# need it: redirect MIRROR_REMOTE at a throwaway repo (that is how this fix's own
+# evidence was produced) and edit this line locally if you must publish something
+# else. Announce an ignored override rather than silently publishing main.
+if [ -n "${PUBLISH_REF:-}" ] && [ "$PUBLISH_REF" != "refs/remotes/origin/main" ]; then
+  echo "[4-hub] IGNORING PUBLISH_REF=$PUBLISH_REF from the environment:" >&2
+  echo "[4-hub]   the publish source is hard-pinned to refs/remotes/origin/main." >&2
+fi
+PUBLISH_REF="refs/remotes/origin/main"
+readonly PUBLISH_REF
+
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+
+# Refresh the ref we are about to pin to. Nothing else in this script advances it:
+# the `git fetch "$MONOREPO" …` below fetches FROM the monorepo INTO the clone, which
+# does not move the monorepo's own origin/main. Unrefreshed, the pin is only as fresh
+# as whenever someone last happened to fetch in a shared, human-and-agent-operated
+# checkout — trading "publishes unmerged" for "publishes stale", the same trade the
+# --branch main note below rejects.
+#
+# Branch on the REFRESH's rc, never on the shape of the answer: `rev-parse` resolves a
+# stale remote-tracking ref just fine after a failed fetch, so a value check cannot
+# tell fresh from stale. And refuse rather than continue — a force-push to a public
+# mirror is the irreversible direction, so doubt costs less than a wrong publication.
+echo "[4-hub] refreshing $PUBLISH_REF in $MONOREPO ..."
+if ! git -C "$MONOREPO" fetch -q origin main; then
+  echo "[4-hub] REFUSING to publish: could not refresh $PUBLISH_REF (fetch failed)." >&2
+  echo "[4-hub] The ref would still resolve, to a stale commit. Fix the network/remote" >&2
+  echo "[4-hub] and re-run; nothing has been pushed." >&2
+  exit 1
+fi
 
 echo "[4-hub] fresh clone of monorepo..."
 git clone --no-local -q "$MONOREPO" "$WORK/mirror"
 cd "$WORK/mirror"
 
+# Pin the publish source to a MERGED ref.
+#
+# A local clone checks out whatever the SOURCE checkout's HEAD happens to be, and
+# the last line of this script is `push --force ... HEAD:main`. The web4 checkout on
+# HUB is shared with an interactive session and is routinely parked on a feature
+# branch, so unpinned this publishes UNMERGED work to a PUBLIC repo. Measured
+# 2026-08-08: HEAD was `hub/quickstart-and-track-h-docs`, 3 commits ahead of
+# origin/main, and a run would have force-pushed all three.
+#
+# `git clone --branch main` is NOT the fix. In a local clone the source's LOCAL
+# branches become the clone's branches, and that local `main` can trail the real
+# one (measured the same day: local 68c2ba9 vs origin/main f7707a9, two behind).
+# That trades publishing unmerged code for publishing stale code. Fetch the
+# source's remote-tracking ref instead — that is the one the merge queue advances.
+git fetch -q "$MONOREPO" "$PUBLISH_REF:refs/heads/__publish"
+git checkout -q __publish
+echo "[4-hub] publishing $PUBLISH_REF = $(git rev-parse --short HEAD)"
+
 # The kept set is hub/ plus the transitive closure of its monorepo path
 # dependencies. Recompute when deps change:
 #   cd hub && cargo metadata --format-version 1 | <extract manifest dirs under the monorepo root>
 echo "[4-hub] filtering history to hub/ + its web4 path dependencies..."
-git filter-repo --quiet \
+# --force because the pin fetch above leaves the clone looking non-pristine to
+# filter-repo's freshness check. Safe here and only here: $WORK is a mktemp clone
+# this script created and its EXIT trap deletes.
+git filter-repo --force --quiet \
   --path hub \
   --path web4-core \
   --path web4-policy \
