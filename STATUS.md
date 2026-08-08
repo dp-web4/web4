@@ -1,6 +1,6 @@
 # Web4 Implementation Status
 
-**Last Updated**: July 9, 2026
+**Last Updated**: August 8, 2026
 
 ---
 
@@ -56,7 +56,7 @@ All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial 
 | **Society roles spec** (7 base-mandatory + context-mandatory + optional) | v0.1.0 DRAFT, 2026-05-13 | [`web4-standard/core-spec/society-roles.md`](web4-standard/core-spec/society-roles.md) |
 | **`web4-core`** | **Published v0.3.0** (crates.io + PyPI, 2026-07-09). LCT, canonical T3/V3, Coherence, Ledger + 2 backends, plus **Act**, **role entities** (fail-closed `affords()`), the **EUDI/DID stack**, and the **vault**. 171 tests. | [`web4-core/`](web4-core/) |
 | **`web4-trust-core`** | **Published v0.2.0** (crates.io + PyPI). Trust storage, witnessing, decay. | [`web4-trust-core/`](web4-trust-core/) |
-| **Community Hub** (`web4/hub`) | Runnable single-binary Web4 society server: signed law + witnessed hash-chained ledger, sealed member↔hub channel, admission/council, EUDI issuer/verifier. Hardened this cycle (external security review: MCP-writes→loopback operator plane, council-gate-before-persist, pluggable operator-auth token, freshness enforcement, production profile, law-integrity fail-closed) + a `hub up` turnkey deploy kit. | [`hub/`](hub/) |
+| **Community Hub** (`web4/hub`) | Runnable single-binary Web4 society server: signed law + witnessed hash-chained ledger, sealed member↔hub channel, admission/council, EUDI issuer/verifier. Hardened this cycle (external security review: MCP-writes→loopback operator plane, council-gate-before-persist, pluggable operator-auth token, freshness enforcement, production profile, law-integrity fail-closed) + a `hub up` turnkey deploy kit.  Plus a **governed discussion surface**: topics and posts are envelope actions on the ordinary write path, so a post passes the same law gate and lands in the same hash-chained ledger as any other act — the discussion *is* the record, readable unauthenticated at `/discuss`. | [`hub/`](hub/) |
 | **Runnable proof of presence** | `python identity_bootstrap.py` — bootstraps a host LCT (keypair on disk, hash-chained `LocalLedger`, public `lct.json` sidecar); `--verify` re-checks the chain on re-run. ~30 sec. | [`web4-core/python/examples/identity_bootstrap.py`](web4-core/python/examples/identity_bootstrap.py) |
 | **Cross-language interop demo** | Python mints an LCT to a hash-chained ledger; a Rust binary reads the same `ledger.jsonl` and verifies chain integrity + anchor proof. The on-disk format is the contract. | [`web4-core/examples/cross_language_verify/`](web4-core/examples/cross_language_verify/) |
 | **Reference Python SDK** | 2,627 tests, mypy --strict clean (not yet on PyPI separately) | [`web4-standard/implementation/`](web4-standard/implementation/) |

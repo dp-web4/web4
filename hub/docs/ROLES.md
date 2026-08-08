@@ -41,13 +41,19 @@ In practice for an MVP chapter:
 hub assign-role <chapter-dir> <role-name> <role-lct-id> <member-lct-id>
 ```
 
-Example: delegating Treasurer to Alice (assuming you ran `hub init` earlier and saved the role LCT ids):
+Example: delegating Treasurer to Alice:
 
 ```bash
-hub assign-role ./my-chapter treasurer 5ce1c40d-ac65-413b-8f18-2ecb165a1797 $ALICE_ID
+hub assign-role ./my-chapter treasurer $ALICE_ID
 ```
 
-The role LCT id stays stable — when you rotate the Treasurer to Bob later, the role's LCT (and its accrued T3) follows. The *filling entity* changes; the *role identity* doesn't. This is what "authority binds to the role, not the entity" means structurally.
+You do **not** pass a role LCT id. The society mints one on the role's first fill
+and reuses it on every rotation, so the id is not the operator's to supply.
+(Earlier revisions of this document showed a fourth argument; the CLI rejects it.)
+
+The role LCT id stays stable — rotate the Treasurer to Bob later and the role's
+LCT follows. The *filling entity* changes; the *role identity* doesn't. That is
+what "authority binds to the role, not the entity" means structurally.
 
 ## When to delegate
 
@@ -62,9 +68,37 @@ A few heuristics:
 
 Each role's LCT can independently:
 - Sign role-scoped actions
-- Accrue T3 (Talent / Training / Temperament) for performance of that role
+- Accrue T3 (Talent / Training / Temperament) for performance of that role — see
+  *Merit is per-occupant* below
 - Be rotated to a new filling entity without breaking the chapter's accountability chain
 - Be inspected via `hub query chapter <chapter-dir>` (which shows role-id ↔ filler-id pairs)
+
+### Merit is per-occupant
+
+A role's trust is **not** a single score that whoever holds it inherits. T3 is a
+tensor, and the occupant is one of its axes: an observation of conduct accrues to
+**temperament**, attributed to a sub-dimension named for the entity that was
+filling the role at the time — *temperament when filled by this entity*.
+
+So a role that has had five occupants carries five such sub-dimensions, side by
+side, none overwriting another. "Which of these two performed better as Treasurer"
+is a read, not a reconstruction.
+
+Two consequences worth stating plainly:
+
+- **Rotation does not reset the role's tensor.** Clearing it would destroy the
+  cross-occupant history that makes merit-based role-filling possible at all.
+- **Rotation does not hand the new occupant the old one's record either**, because
+  the record was never stored at the role level in the first place. Write through
+  `RoleAssignment::observe_occupant_trust`, never the root dimension — the root
+  carries no occupant attribution, so an observation written there becomes
+  unattributable the moment the role rotates.
+
+Rotation itself is recorded: it appends a `FillerRotated` event to the role's own
+history, so a reader can segment the accumulated tensor by tenure. This composes
+fractally — the same shape holds at personal, society, and federation scope,
+because the mechanism is the open-ended sub-dimension tree rather than a fixed two
+levels.
 
 For single-signer acts, the daemon commits ledger entries under the founding
 Sovereign's executor signature regardless of which role "did" the action (the

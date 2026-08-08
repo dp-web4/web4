@@ -10,6 +10,20 @@ The Web4 package family currently consists of:
 
 ## web4-core Unreleased (0.4.0)
 
+- **FIX (`role::RoleAssignment`): rotation carried the outgoing occupant's merit, and recorded nothing.**
+  `rotate()` reassigned the filling entity and left `role_trust` / `role_value` untouched, so a
+  reader taking either as "this occupant's record" got the previous occupant's. It was also the only
+  mutator that wrote no `RoleEvent` — adding a *secondary* holder was recorded while replacing the
+  entity the role's authority binds to was not. The tensors are **preserved** (the role's history
+  across all its occupants is what merit-based role-filling reads), and the occupant is now an axis:
+  `observe_occupant_trust` / `observe_occupant_value` file an observation under
+  `RoleAssignment::occupant_dimension(entity)` — a canonical `filled_by:<uuid>` sub-dimension — so
+  each tenure accumulates separately. New `RoleEventKind::FillerRotated` marks the boundary.
+  **Migration:** none for stored data — nothing in the workspace wrote either field before this
+  change. New code must write through the `observe_occupant_*` helpers rather than the root
+  dimension; a root observation carries no occupant attribution and becomes unattributable at the
+  next rotation.
+
 - **FIX (spec conformance, audit C192-N1): Talent no longer decays through inactivity.**
   `T3::decay` (web4-core) and `t3_apply_decay` (web4-trust-core) both violated protocol
   invariant t3v3-012 ("Talent MUST NOT decay") — trust-core used the LITERAL `0.995` value
