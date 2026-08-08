@@ -1572,4 +1572,110 @@ norms:
         assert_eq!(found[0].norm_id, "MIXED-LIST");
         assert_eq!(found[0].value, "not_a_real_kind");
     }
+
+    /// The action table in `HUB-LAW.md` must be EXACTLY the gate's vocabulary.
+    ///
+    /// Set equality, not containment. A missing kind means an operator cannot
+    /// write a norm for an act that exists; a *spurious* one is worse — it is the
+    /// canonical table teaching a value the gate never emits, which is D1 with a
+    /// documentation source. The first version of this test only checked one
+    /// direction; GPT's review on #671 caught that.
+    #[test]
+    fn hub_law_doc_action_table_equals_the_gate_vocabulary() {
+        let doc = include_str!("../../docs/HUB-LAW.md");
+        let start = doc.find("| group | actions |")
+            .expect("action table heading missing from HUB-LAW.md");
+        let end = doc[start..].find("**Two action families")
+            .map(|i| start + i)
+            .expect("action-table terminator missing from HUB-LAW.md");
+        let table = &doc[start..end];
+
+        // Every backticked token inside the table region.
+        let mut listed: Vec<&str> = Vec::new();
+        let mut rest = table;
+        while let Some(a) = rest.find('`') {
+            rest = &rest[a + 1..];
+            let Some(b) = rest.find('`') else { break };
+            let tok = &rest[..b];
+            rest = &rest[b + 1..];
+            if !tok.is_empty() && tok.chars().all(|c| c.is_ascii_lowercase() || c == '_' || c.is_ascii_digit()) {
+                listed.push(tok);
+            }
+        }
+        listed.sort_unstable();
+        listed.dedup();
+        assert!(listed.len() > 20, "extracted only {} tokens — the extractor broke", listed.len());
+
+        let mut expected: Vec<&str> = crate::events::HubEvent::ALL_EVENT_KINDS.to_vec();
+        expected.sort_unstable();
+
+        let missing: Vec<_> = expected.iter().filter(|k| !listed.contains(k)).collect();
+        let spurious: Vec<_> = listed.iter().filter(|k| !expected.contains(k)).collect();
+        assert!(
+            missing.is_empty() && spurious.is_empty(),
+            "HUB-LAW.md's action table has drifted from the gate vocabulary.\n  \
+             missing (operator cannot write a norm for these): {missing:?}\n  \
+             spurious (the table teaches a value the gate never emits): {spurious:?}",
+        );
+    }
+
+    /// Every YAML block in `HUB-LAW.md` must survive the guard `set-law` applies.
+    ///
+    /// Extracted from the DOC, not retyped here. The first version of this test
+    /// reconstructed the examples in Rust, so the real document could drift back
+    /// to an invalid action while the test stayed green — and it did: the full
+    /// worked law example carried `value: assign_role` about ninety lines below
+    /// its own correction, in the block an operator is most likely to copy
+    /// wholesale. Post-#670 that is a hard refusal, not a silent no-op, so a
+    /// duplicated fixture was actively hiding the worse failure.
+    #[test]
+    fn every_yaml_example_in_the_doc_passes_the_action_guard() {
+        let doc = include_str!("../../docs/HUB-LAW.md");
+
+        let mut blocks: Vec<&str> = Vec::new();
+        let mut rest = doc;
+        while let Some(a) = rest.find("```yaml\n") {
+            rest = &rest[a + 8..];
+            let Some(b) = rest.find("```") else { break };
+            blocks.push(&rest[..b]);
+            rest = &rest[b + 3..];
+        }
+        assert!(
+            blocks.len() >= 3,
+            "found only {} yaml block(s) — the extractor broke, the doc did not",
+            blocks.len(),
+        );
+
+        let mut checked = 0usize;
+        for (i, raw) in blocks.iter().enumerate() {
+            // The doc shows three shapes: a whole law, a bare `norms:` map, and a
+            // bare norm sequence. Normalise each into something parseable rather
+            // than skipping the fragments — the fragments are what people copy.
+            let trimmed = raw.trim_start();
+            let candidate = if trimmed.starts_with("version:") {
+                raw.to_string()
+            } else if trimmed.starts_with("norms:") {
+                format!("version: \"1.0.0\"\n{raw}")
+            } else if trimmed.starts_with("- id:") {
+                let indented: String =
+                    raw.lines().map(|l| format!("  {l}\n")).collect();
+                format!("version: \"1.0.0\"\nnorms:\n{indented}")
+            } else {
+                continue;
+            };
+
+            let law: Law = match serde_yaml::from_str(&candidate) {
+                Ok(l) => l,
+                Err(e) => panic!("HUB-LAW.md yaml block {i} does not parse: {e}\n{candidate}"),
+            };
+            let bad = law.unknown_action_norms();
+            assert!(
+                bad.is_empty(),
+                "HUB-LAW.md yaml block {i} tells operators to write a law that \
+                 `hub set-law` REFUSES: {bad:?}",
+            );
+            checked += 1;
+        }
+        assert!(checked >= 3, "only {checked} block(s) were actually normalised and checked");
+    }
 }

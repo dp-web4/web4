@@ -50,6 +50,47 @@ event payload), and `r6.resource.<key>` (quantifiable costs like `atp`,
 `witness_count`). A selector that doesn't resolve means the norm simply doesn't
 fire.
 
+> **A norm that never fires is not an error — it is an allow.** Nothing in the
+> stack distinguishes a norm that names something the gate never produces from a
+> norm nobody wrote. Both leave the act on whatever the default is. This is why
+> `r6.request.action` values must come from the table below rather than from
+> intuition — and why `hub set-law` now **refuses** a law whose norms name an
+> action the gate cannot emit (the daemon's load path warns instead, so an
+> existing hub is never bricked by a law that predates the check).
+
+### What `r6.request.action` can be
+
+The action is the **HubEvent kind** — the past-tense name of the act that was
+performed, not the imperative of the command that performed it. `role_assigned`,
+not `assign_role`. `member_removed`, not `remove_member`. The CLI verb and the
+event kind are different vocabularies and only the second one reaches law.
+
+Canonical list: `HubEvent::ALL_EVENT_KINDS` (`hub-lib/src/events.rs`), kept in
+lockstep with `HubEvent::kind()` by a test that reads the function's own source.
+
+| group | actions |
+|---|---|
+| founding | `genesis`, `charter_amended`, `law_amended` |
+| membership | `member_added`, `member_removed`, `member_admission_reset`, `member_key_pinned`, `member_profile_updated`, `member_skill_declared` |
+| admission queue | `member_join_requested`, `member_join_resolved`, `member_join_review_requested`, `member_join_review_resolved` |
+| roles | `role_assigned` |
+| council | `council_member_added`, `council_member_removed`, `council_threshold_changed` |
+| discussion | `topic_created`, `post_added` |
+| pairing + channels | `pairing_requested`, `pairing_confirmed`, `pairing_revoked`, `pair_message_posted`, `intro_requested`, `intro_responded` |
+| devices | `device_enrolled`, `device_revoked` |
+| obligations + trust | `obligation_opened`, `obligation_resolved`, `reputation_recorded` |
+| vault unlock (audit) | `vault_unlock_requested`, `vault_unlock_attested`, `vault_unlock_resolved` |
+| records | `event_recorded`, `lct_published`, `referenced_act` |
+
+**Two action families that are not event kinds**, and both are load-bearing:
+
+- **`member_join_request`** — the join gate prices a request *before* any event
+  exists, so it synthesises this action. Note it is **not** `member_join_requested`
+  (which is the event written *after* the decision). The starter law's
+  `ESCALATE-MEMBER-JOIN` norm uses this one.
+- **`read:<tool>`** — read gating is namespaced so read norms cannot collide with
+  act norms: `read:list_members`, `read:find_skill`, and so on.
+
 **The nine operators** (schema §2): `<=`, `>=`, `==`, `!=`, `<`, `>`, `in`,
 `not_in`, `matches`. The four comparison operators require both sides numeric.
 `==`/`!=` use deep value equality. `in`/`not_in` expect a list. (`matches` —
@@ -94,7 +135,20 @@ hub get-law ./my-chapter
 
 # If `hub serve` is running, reload the live law slot without a restart:
 curl -X POST http://<host>/v1/admin/reload-law
+# -> {"reloaded":true,"version":"1.0.0","law_integrity":"ok"}
 ```
+
+**Check `law_integrity` in that reply, not just `reloaded`.** `reloaded: true`
+only says the file parsed. `law_integrity` is the HUB-001 verdict — `ok`,
+`mismatch`, or `unverifiable` — and `mismatch` means the hub is refusing every
+governed write with a 409 because the law it serves diverges from the last
+witnessed `LawAmended`. Without that field the first symptom is your *next* act
+failing for reasons the response never mentioned.
+
+> **`set-law` overwrites `<chapter-dir>/hub-law.yaml`.** The applied law is
+> written into the chapter directory, so the copy that was there before is gone.
+> Keep amendment files (and your pristine starter law) **outside** the chapter
+> directory, or `hub init-law` a fresh template when you need the baseline back.
 
 `hub init-law` ships a starter template (from `examples/starter-law.yaml`),
 sanity-validated against the schema before it's written. `hub set-law` rejects
@@ -182,9 +236,10 @@ of topics to encode:
 
 ### Role rotation
 
-- Who can assign roles? A common pattern: `r6.request.action == "assign_role"` →
-  `escalate` to Sovereign or Administrator. (The assignee LCT still signs
-  acceptance — enforced by `hub assign-role` independent of law.)
+- Who can assign roles? A common pattern: `r6.request.action == "role_assigned"` →
+  `escalate` to Sovereign or Administrator. Past tense — see the action table
+  above; `assign_role` is the CLI verb and matches nothing. (The assignee LCT
+  still signs acceptance — enforced by `hub assign-role` independent of law.)
 
 ### Treasury policy
 
@@ -196,6 +251,38 @@ of topics to encode:
 
 - Require independent witnesses or a quorum for weighty acts
   (`procedures.requires_witnesses` / `requires_quorum`, scoped by `applies_to`).
+
+### Discussion
+
+The hub carries a governed discussion surface (`/discuss`, `/v1/hubs/:id/topics`).
+Opening a topic and posting to one are ordinary law-gated acts — `topic_created`
+and `post_added`.
+
+**The starter law names neither**, so today both fall to `DEFAULT-ALLOW`: anyone
+who can sign an envelope can open a topic. That is a default nobody chose, and
+the starter law's own comment asks the next author to extend the list as new
+consequential kinds land. Worth deciding explicitly, e.g.:
+
+```yaml
+  - id: ALLOW-POSTING
+    selector: r6.request.action
+    operator: "=="
+    value: post_added
+    decision: allow
+    priority: 60
+    description: "Speaking in an existing topic is a right of membership."
+
+  - id: ESCALATE-TOPIC-OPEN
+    selector: r6.request.action
+    operator: "=="
+    value: topic_created
+    decision: escalate
+    priority: 60
+    description: "Opening a topic sets the agenda — Sovereign review."
+```
+
+Posts are ledger entries, so a law change here is visible in the record: the
+refusal names the norm that produced it.
 
 ### Escalation + delegation
 
@@ -237,7 +324,7 @@ norms:
   - id: ROLE-ASSIGNMENT-REVIEW
     selector: r6.request.action
     operator: "=="
-    value: assign_role
+    value: role_assigned
     decision: escalate
     priority: 20
     description: "Role assignment is reviewed by the Sovereign"
