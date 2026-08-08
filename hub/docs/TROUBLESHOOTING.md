@@ -132,6 +132,49 @@ hub export-public-identity ./your-chapter-name
 
 Then restart `hub serve` and try `hub unlock` again.
 
+### Every governed write returns 409 "law integrity mismatch"
+
+```
+law integrity mismatch — the served law does not match the last witnessed
+LawAmended (possible rollback or store tampering); governed writes are refused
+```
+
+The hub is serving, reads work, and **every** write fails. This is HUB-001 doing
+its job: the law the hub serves and the last `LawAmended` on its ledger disagree,
+so rather than enforce a law it cannot vouch for, it refuses.
+
+**First, the boring cause.** Before hub 0.1.0-alpha, running `hub set-law` against
+a **running** hub and then `POST /v1/admin/reload-law` produced this every time.
+`set-law` writes both halves — the law into the store, a `LawAmended` onto the
+ledger — but the reload re-read only the law, leaving the daemon's in-memory
+ledger one entry behind. Fixed: the reload now re-reads both and reports the
+verdict.
+
+```bash
+curl -X POST http://127.0.0.1:8770/v1/admin/reload-law
+# {"reloaded":true,"version":"1.0.0","law_integrity":"ok"}
+```
+
+**Read `law_integrity`, not `reloaded`.** `reloaded: true` only means the file
+parsed. If it says `mismatch`, the hub is still refusing writes.
+
+**If it persists after a reload**, restart the daemon (`hub serve` again, then
+`hub unlock`). A restart re-reads the ledger from the store unconditionally.
+
+**If it survives a restart**, stop treating it as an artifact — the served law and
+the witnessed head genuinely differ, which is what this check exists to catch.
+Compare them:
+
+```bash
+hub get-law ./my-chapter | sha256sum          # what is served
+hub verify-ledger ./my-chapter                # walk to the last LawAmended
+```
+
+Re-witness the law you intend to be in force with `hub set-law`, which appends a
+fresh `LawAmended` and makes the two agree again. `HUB_ALLOW_LAW_MISMATCH=1`
+overrides the gate; it is a diagnostic, not a fix, and it means acts are being
+governed by a law nobody witnessed.
+
 ### Operator plane (port 8772) is unreachable
 
 `hub serve` starts a second listener — the **operator plane** — at
