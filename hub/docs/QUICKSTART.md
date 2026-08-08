@@ -180,31 +180,35 @@ See [`STORAGE.md`](STORAGE.md) for backend comparison and migration (`hub migrat
 Each member needs their own LCT. For an MVP demo, you can generate test ones
 (again with `HUB_PASSPHRASE` set — these are encrypted vaults too):
 
-```bash
-hub gen-lct ./alice.json
-hub gen-lct ./bob.json
-```
-
-(In real use, a member generates their own LCT on their machine and gives you the public id; you don't hold their private key.)
-
-Grab the LCT ids and add them:
-
-`gen-lct` **prints the LCT id** as it writes each file — capture it there:
+`gen-lct` **prints the LCT id** as it writes each file:
 
 ```
 Identity generated (encrypted vault).
   LCT id:        300cbfc9-ce1d-45cb-9914-3fcaf2972a8f
 ```
 
-> Do **not** try to read the id out of the file with `json.load`. Since Step 0
-> these identity files are **encrypted vaults**, not JSON, and parsing one fails
-> with `UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89`. (An earlier
-> version of this guide told you to do exactly that.)
+Capture it **as you generate**, in one step per member:
 
 ```bash
 ALICE_ID=$(hub gen-lct ./alice.json | awk '/LCT id:/ {print $3}')
 BOB_ID=$(hub gen-lct ./bob.json   | awk '/LCT id:/ {print $3}')
+```
 
+> **Run `gen-lct` once per member.** Its output path is *created or overwritten*,
+> so calling it again on the same file mints a **new** identity over the old one —
+> a different keypair under the same name, and anything already done with the
+> first id is orphaned. (An earlier revision of this guide generated the files in
+> one block and then re-ran `gen-lct` to read the ids, which did exactly that.)
+>
+> Do **not** try to read the id out of the file with `json.load` either. Since
+> Step 0 these are **encrypted vaults**, not JSON; parsing one fails with
+> `UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89`.
+
+(In real use, a member generates their own LCT on their machine and gives you the public id; you don't hold their private key.)
+
+Now add them:
+
+```bash
 hub add-member ./your-chapter-name "$ALICE_ID" --name "Alice"
 hub add-member ./your-chapter-name "$BOB_ID" --name "Bob"
 
