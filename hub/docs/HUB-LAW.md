@@ -237,9 +237,9 @@ of topics to encode:
 ### Role rotation
 
 - Who can assign roles? A common pattern: `r6.request.action == "role_assigned"` →
-  `escalate` to Sovereign or Administrator. (Past tense — see the action table
-  above. `assign_role` is the CLI verb and matches nothing.) (The assignee LCT still signs
-  acceptance — enforced by `hub assign-role` independent of law.)
+  `escalate` to Sovereign or Administrator. Past tense — see the action table
+  above; `assign_role` is the CLI verb and matches nothing. (The assignee LCT
+  still signs acceptance — enforced by `hub assign-role` independent of law.)
 
 ### Treasury policy
 
@@ -324,7 +324,7 @@ norms:
   - id: ROLE-ASSIGNMENT-REVIEW
     selector: r6.request.action
     operator: "=="
-    value: assign_role
+    value: role_assigned
     decision: escalate
     priority: 20
     description: "Role assignment is reviewed by the Sovereign"
