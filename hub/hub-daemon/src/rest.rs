@@ -597,7 +597,41 @@ impl RestState {
             .map(|l| l.version.clone())
             .unwrap_or_else(|| "none".to_string());
         *self.law.write().await = new_law;
-        // H-009: verify the served law against the witnessed ledger head.
+
+        // Re-read the LEDGER too, not just the law.
+        //
+        // `hub set-law` is a CLI acting on the same hub directory, and it writes
+        // BOTH halves: the new law into the store, and a `LawAmended` entry onto
+        // the ledger. This daemon holds an in-memory ledger loaded at boot, so
+        // reloading only the law left `witnessed` (read from that stale ledger)
+        // pinned to the PREVIOUS amendment while `served` (read fresh from the
+        // store) moved to the new one. They then cannot match, and the HUB-001
+        // gate refuses EVERY governed write with a 409 until the daemon is
+        // restarted — from a command sequence the starter law itself recommends:
+        //
+        //     hub set-law <dir> ./hub-law.yaml
+        //     curl -X POST .../v1/admin/reload-law   # if serve is running
+        //
+        // Measured 2026-08-07 while rehearsing the hackathon standup: ledger file
+        // 9 entries, daemon reporting 8; `witnessed=4781be39… served=1a84c496…`.
+        //
+        // The store is authoritative for the ledger (`HubLedger::open` loads every
+        // entry from it), so re-opening yields exactly what is on disk. A parallel
+        // append that straddles this swap does not corrupt the chain: it fails
+        // loudly in `append_signed`, which checks both the expected index and the
+        // head hash before committing.
+        {
+            let store = self.open_store().await
+                .context("opening store to reload the ledger")?;
+            let fresh = hub_lib::ledger::HubLedger::open(store).await
+                .context("reloading ledger from store")?;
+            *self.ledger.lock().await = fresh;
+        }
+
+        // H-009: verify the served law against the witnessed ledger head. Now
+        // meaningful rather than decorative — both sides have just been re-read
+        // from the same store, so a mismatch here is a real divergence and not an
+        // artifact of the daemon holding a stale copy.
         self.verify_law_integrity().await;
         Ok(version)
     }
@@ -4631,13 +4665,22 @@ async fn request_citizenship(
 struct ReloadLawResponse {
     reloaded: bool,
     version: String,
+    /// The HUB-001 verdict AFTER the reload: `ok` | `mismatch` | `unverifiable`.
+    ///
+    /// Reported because `reloaded: true` was answering the wrong question. It
+    /// said the file parsed, while the hub could still be refusing every governed
+    /// write with a 409 — the operator's next act was the first they heard of it.
+    /// An operator who amends the law should be able to see, in the reply to the
+    /// act itself, whether the hub will now honour it.
+    law_integrity: &'static str,
 }
 
 async fn reload_law(
     State(s): State<RestState>,
 ) -> Result<Json<ReloadLawResponse>, ApiError> {
     let version = s.reload_law().await.map_err(|e| ApiError::internal(e.into()))?;
-    Ok(Json(ReloadLawResponse { reloaded: true, version }))
+    let law_integrity = s.verify_law_integrity().await;
+    Ok(Json(ReloadLawResponse { reloaded: true, version, law_integrity }))
 }
 
 // ---------- POST /v1/hubs/{hub_id}/members/join (V2-12) ----------
@@ -7556,6 +7599,87 @@ mod lct_registry_tests {
             out.0.filled_roles.iter().any(|r| r.role == "sovereign"),
             "roles come from the society read — the part that used to fail"
         );
+    }
+
+    // ---- HUB-001: reload-law must reload the ledger too ----
+
+    /// Simulate what `hub set-law` does to a RUNNING hub: another process writes
+    /// the new law to the store AND appends the `LawAmended` entry, both behind
+    /// this daemon's back. Then reload, and check the daemon is not left refusing
+    /// every governed write.
+    ///
+    /// Verified RED against the pre-fix `reload_law_inner` (which reloaded only
+    /// the law): `law_integrity` came back "mismatch" and the governed write below
+    /// failed with 409 `law integrity mismatch`.
+    #[tokio::test]
+    async fn reload_law_resyncs_the_ledger_so_a_cli_amendment_does_not_wedge_writes() {
+        let (_tmp, state, sov) = fresh_state().await;
+
+        // A law the daemon has never seen, written the way the CLI writes it.
+        let yaml = r#"
+version: "9.9.9"
+norms:
+  - id: DEFAULT-ALLOW
+    selector: r6.request.action
+    operator: "!="
+    value: __never_match__
+    decision: allow
+    priority: 0
+    description: "permissive base"
+"#;
+        let sha = hub_lib::law::Law::sha256_hex_of(yaml);
+
+        // Both halves, out-of-band — a second store handle and a second ledger
+        // handle, exactly as a separate CLI process would have.
+        {
+            let mut store = state.open_store().await.expect("store");
+            store.write_law(yaml).await.expect("write_law");
+        }
+        {
+            let store = state.open_store().await.expect("store");
+            let mut cli_ledger = hub_lib::ledger::HubLedger::open(store).await.expect("open");
+            cli_ledger
+                .append(
+                    sov.lct.id,
+                    &sov.keypair().unwrap(),
+                    HubEvent::LawAmended {
+                        new_law_sha256: sha.clone(),
+                        amended_by: sov.lct.id,
+                        version: "9.9.9".into(),
+                        diff_summary: None,
+                    },
+                )
+                .await
+                .expect("append LawAmended out-of-band");
+        }
+
+        // The daemon's in-memory ledger is now stale by exactly one entry — the
+        // condition that used to wedge the hub. Assert it really is stale, so a
+        // fixture that failed to reproduce the setup cannot masquerade as a pass.
+        let stale_len = { state.ledger.lock().await.entries().len() };
+        let on_disk_len = {
+            let store = state.open_store().await.expect("store");
+            hub_lib::ledger::HubLedger::open(store).await.expect("open").entries().len()
+        };
+        assert_eq!(on_disk_len, stale_len + 1, "fixture did not create the stale-ledger condition");
+
+        // Reload, as the documented flow says to.
+        let version = state.reload_law().await.expect("reload");
+        assert_eq!(version, "9.9.9");
+        assert_eq!(
+            state.verify_law_integrity().await, "ok",
+            "reload left the daemon's witnessed head stale — governed writes are wedged",
+        );
+
+        // And the thing an operator actually cares about: writes still work.
+        let env = publish_envelope(
+            &state,
+            &sov,
+            serde_json::json!({ "action": "create_topic", "title": "after the amendment" }),
+        );
+        submit_event(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .expect("a governed write must succeed after reload-law");
     }
 
     // ---- Track H: the discussion surface, end to end ----
