@@ -616,16 +616,38 @@ impl RestState {
         // 9 entries, daemon reporting 8; `witnessed=4781be39… served=1a84c496…`.
         //
         // The store is authoritative for the ledger (`HubLedger::open` loads every
-        // entry from it), so re-opening yields exactly what is on disk. A parallel
-        // append that straddles this swap does not corrupt the chain: it fails
-        // loudly in `append_signed`, which checks both the expected index and the
-        // head hash before committing.
+        // entry from it), so re-opening yields exactly what is on disk.
+        //
+        // The lock is taken BEFORE the read and held across it, and that ordering
+        // is the whole point — do not "simplify" it back to read-then-swap.
+        //
+        // Read-then-swap is not atomic, and `witness_event` really does release
+        // this lock mid-write: `authorize_event` takes it to build the unsigned
+        // entry, drops it to await the Sovereign signature, and `witness_event`
+        // re-takes it to append. So an append can land on disk between our read
+        // and our swap, and we would install a ledger one entry short of the file.
+        //
+        // The obvious reassurance is wrong and was written down here as if it were
+        // true (#667, corrected at merge): `append_signed` does NOT catch that.
+        // It checks the incoming entry against `self.entries.len()` and
+        // `self.head_hash` — the IN-MEMORY ledger. Once the stale copy is
+        // installed, the next build/append is perfectly self-consistent against
+        // it and both checks pass. What actually stops the duplicate index is one
+        // layer further down and backend-specific: `SqliteStore::ledger_append`
+        // has `idx` as PRIMARY KEY, so it is a loud constraint violation there,
+        // while the file backend's blind `OpenOptions::append` would write it
+        // silently.
+        //
+        // Holding the lock across the read makes the property structural instead
+        // of incidental: any concurrent append is serialised against this swap, so
+        // whatever we read from disk is what the appender also sees. Cost is a
+        // ledger lock held for one store open on a rare admin route.
         {
+            let mut ledger = self.ledger.lock().await;
             let store = self.open_store().await
                 .context("opening store to reload the ledger")?;
-            let fresh = hub_lib::ledger::HubLedger::open(store).await
+            *ledger = hub_lib::ledger::HubLedger::open(store).await
                 .context("reloading ledger from store")?;
-            *self.ledger.lock().await = fresh;
         }
 
         // H-009: verify the served law against the witnessed ledger head. Now
@@ -7680,6 +7702,97 @@ norms:
         submit_event(State(state.clone()), Path(state.hub_id), Json(env))
             .await
             .expect("a governed write must succeed after reload-law");
+    }
+
+    /// The ordering half of the same bug. #667 made `reload_law` re-read the
+    /// ledger, but read-then-swap: it opened the store, read the whole ledger,
+    /// and only then took `self.ledger`. An append that commits to disk inside
+    /// that window is missed, and the daemon installs a ledger one entry short of
+    /// the file — the same in-memory/disk divergence #667 set out to remove, just
+    /// with a smaller window.
+    ///
+    /// This test holds the ledger lock (standing in for a `witness_event` that
+    /// has taken it to append), lets `reload_law` run as far as the code allows,
+    /// commits an entry to disk while the lock is still held, then releases.
+    ///
+    /// Verified RED against the read-then-swap ordering: in-memory 1, on disk 2
+    /// (`fresh_state`'s genesis entry, plus the one this test appends). Re-derived
+    /// at review, 3/3 runs, same two numbers each time — quote what the assertion
+    /// actually prints, since a RED figure nobody can reproduce is the reason to
+    /// re-run rather than to trust the comment.
+    /// With the lock taken before the read, `reload_law` cannot observe the store
+    /// until the appender is done, so the two agree by construction.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn reload_law_cannot_swap_in_a_ledger_that_missed_a_concurrent_append() {
+        let (_tmp, state, sov) = fresh_state().await;
+
+        let yaml = r#"
+version: "9.9.9"
+norms:
+  - id: DEFAULT-ALLOW
+    selector: r6.request.action
+    operator: "!="
+    value: __never_match__
+    decision: allow
+    priority: 0
+    description: "permissive base"
+"#;
+        {
+            let mut store = state.open_store().await.expect("store");
+            store.write_law(yaml).await.expect("write_law");
+        }
+
+        // Take the ledger lock, as an in-flight append holds it.
+        let guard = state.ledger.lock().await;
+
+        // Start the reload. Under the old ordering it runs straight past
+        // `open_store` + `HubLedger::open` and parks on the swap; under the fixed
+        // ordering it parks on the lock, before reading anything.
+        let s2 = state.clone();
+        let reload = tokio::spawn(async move { s2.reload_law().await });
+
+        // Give it time to get as far as it can. The old ordering needs only this
+        // long to have read the store; the fixed one cannot have.
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+        // The appender commits to disk — still holding the lock, which is exactly
+        // what `append_signed` -> `store.ledger_append` does before returning.
+        let sha = hub_lib::law::Law::sha256_hex_of(yaml);
+        {
+            let store = state.open_store().await.expect("store");
+            let mut appender = hub_lib::ledger::HubLedger::open(store).await.expect("open");
+            appender
+                .append(
+                    sov.lct.id,
+                    &sov.keypair().unwrap(),
+                    HubEvent::LawAmended {
+                        new_law_sha256: sha,
+                        amended_by: sov.lct.id,
+                        version: "9.9.9".into(),
+                        diff_summary: None,
+                    },
+                )
+                .await
+                .expect("append while the lock is held");
+        }
+
+        let on_disk = {
+            let store = state.open_store().await.expect("store");
+            hub_lib::ledger::HubLedger::open(store).await.expect("open").entries().len()
+        };
+        assert!(on_disk >= 1, "fixture appended nothing");
+
+        drop(guard);
+        reload.await.expect("join").expect("reload");
+
+        let in_memory = state.ledger.lock().await.entries().len();
+        assert_eq!(
+            in_memory, on_disk,
+            "reload swapped in a ledger that missed an append committed while the \
+             lock was held: in-memory {in_memory}, on disk {on_disk}. `append_signed` \
+             will NOT catch this — it checks the incoming entry against the \
+             in-memory ledger, which is uniformly stale and therefore consistent.",
+        );
     }
 
     // ---- Track H: the discussion surface, end to end ----
