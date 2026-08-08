@@ -18,6 +18,38 @@ The daemon is local-first. There is no central server, no cloud account, no vend
 
 ---
 
+## The one-command path
+
+If you know how the hub will be reached, `hub up` does most of this for you. It
+picks a deployment archetype, writes a **fail-closed** config profile, a starter
+law and an operator token, then prints the exact go-live runbook:
+
+```bash
+hub up ./my-hub --profile public-managed --domain hub.example.org
+```
+
+Archetypes: `dev`, `private-vpn`, `public-managed` (a platform terminates TLS —
+Fly.io and friends), `public-selfhost`, `public-tunnel`. Omit `--profile` to be
+prompted.
+
+A public profile **refuses to serve** without a law, and in production without an
+HTTPS base URL and an operator token — so a first-time operator cannot accidentally
+stand up an open, unauthenticated, lawless public hub.
+
+One step `hub up`'s printed runbook does **not** list, and you need it:
+
+```bash
+hub export-public-identity ./my-hub     # run BEFORE `hub serve`
+```
+
+Without it a locked hub cannot identify itself on `/.well-known` or accept
+`hub unlock`, and step 6 of that runbook fails.
+
+The rest of this document is the **manual** walkthrough — worth reading once even
+if you use `hub up`, because it explains what each generated file is for.
+
+---
+
 ## What you'll do in the next 30 minutes
 
 1. Get a `hub` binary (build from source OR pull the Docker image)
@@ -157,9 +189,21 @@ hub gen-lct ./bob.json
 
 Grab the LCT ids and add them:
 
+`gen-lct` **prints the LCT id** as it writes each file — capture it there:
+
+```
+Identity generated (encrypted vault).
+  LCT id:        300cbfc9-ce1d-45cb-9914-3fcaf2972a8f
+```
+
+> Do **not** try to read the id out of the file with `json.load`. Since Step 0
+> these identity files are **encrypted vaults**, not JSON, and parsing one fails
+> with `UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89`. (An earlier
+> version of this guide told you to do exactly that.)
+
 ```bash
-ALICE_ID=$(python3 -c "import json; print(json.load(open('alice.json'))['lct']['id'])")
-BOB_ID=$(python3 -c "import json; print(json.load(open('bob.json'))['lct']['id'])")
+ALICE_ID=$(hub gen-lct ./alice.json | awk '/LCT id:/ {print $3}')
+BOB_ID=$(hub gen-lct ./bob.json   | awk '/LCT id:/ {print $3}')
 
 hub add-member ./your-chapter-name "$ALICE_ID" --name "Alice"
 hub add-member ./your-chapter-name "$BOB_ID" --name "Bob"

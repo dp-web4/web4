@@ -270,6 +270,8 @@ POST /v1/hubs/:id/unlock                              Tier-1 passphrase ignition
 POST /v1/hubs/:id/unlock/challenge | /unlock/attest   Tier-2 M-of-N protected-tier release; needs an
                                                       ignited hub (503 while locked; 501 w/o verifier)
 POST /v1/hubs/:id/members/join                        Member admission request → law gate → queue
+GET  /v1/hubs/:id/topics | /topics/:tid               Governance discussion, unauthenticated read
+GET  /discuss                                         The same discussion, rendered (no build step)
 POST /v1/hubs/:id/channel                             Sealed member↔hub channel (see below)
 *    /v1/hubs/:id/council/{propose,sign,proposals}    Sovereign Council proposal flow
 *    /v1/hubs/:id/pairs/...                            Paired member↔member channels
@@ -289,6 +291,32 @@ An external entity calls `request_citizenship` (or `POST /v1/hubs/:id/members/jo
 The hub-law gate evaluates it: **Allow** admits immediately, **Deny** rejects (403),
 **Escalate** parks the request in the operator admission queue (202), where an operator
 Admits or Denies it live from `/admin/joins`.
+
+### Governance discussion
+
+`create_topic` and `add_post` are two envelope actions on the ordinary write path
+(`POST /v1/hubs/:id/events`), so a post passes the **same law gate** and lands in
+the **same signed hash-chained ledger** as any other consequential act. The
+discussion is not a side store bolted on beside the record — it *is* the record.
+
+Reads are unauthenticated: `GET /v1/hubs/:id/topics`, `/topics/:tid`, and
+`/discuss` for a rendered page with no build step. A governance record you must be
+admitted to read cannot be inspected by the people it governs, and the law that
+decides who may *speak* is already public one route over.
+
+Two properties worth knowing before you rely on it:
+
+- **Author is not witness.** Every ledger entry's `actor_lct_id` is the Sovereign,
+  because the Sovereign *signs* entries — that is what witnessing is. Who wrote a
+  post lives in the event body (`posted_by` = the envelope signer). Collapsing the
+  two would make every member's contribution read as the Sovereign's.
+- **Locked hubs return 503 here, not an empty forum.** These routes are not in the
+  tier-0 allowlist. That is deliberate: fail-closed beats a `200` that reads as
+  "nothing was ever said". Ignite the vault (`hub unlock`) and they serve.
+
+Who may open a topic or post is a **law** question — see
+[`docs/HUB-LAW.md`](docs/HUB-LAW.md) § Discussion. The starter law names neither
+action today, so both currently ride `DEFAULT-ALLOW`.
 
 ### Sealed member↔hub channel
 
