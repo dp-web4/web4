@@ -14,7 +14,9 @@
 set -euo pipefail
 
 MONOREPO="$(cd "$(dirname "$0")/.." && pwd)"
-MIRROR_REMOTE="git@github.com:dp-web4/4-hub.git"
+MIRROR_REMOTE="${MIRROR_REMOTE:-git@github.com:dp-web4/4-hub.git}"
+# WHAT to publish. Deliberately not the checkout's HEAD — see the pin below.
+PUBLISH_REF="${PUBLISH_REF:-refs/remotes/origin/main}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -22,11 +24,32 @@ echo "[4-hub] fresh clone of monorepo..."
 git clone --no-local -q "$MONOREPO" "$WORK/mirror"
 cd "$WORK/mirror"
 
+# Pin the publish source to a MERGED ref.
+#
+# A local clone checks out whatever the SOURCE checkout's HEAD happens to be, and
+# the last line of this script is `push --force ... HEAD:main`. The web4 checkout on
+# HUB is shared with an interactive session and is routinely parked on a feature
+# branch, so unpinned this publishes UNMERGED work to a PUBLIC repo. Measured
+# 2026-08-08: HEAD was `hub/quickstart-and-track-h-docs`, 3 commits ahead of
+# origin/main, and a run would have force-pushed all three.
+#
+# `git clone --branch main` is NOT the fix. In a local clone the source's LOCAL
+# branches become the clone's branches, and that local `main` can trail the real
+# one (measured the same day: local 68c2ba9 vs origin/main f7707a9, two behind).
+# That trades publishing unmerged code for publishing stale code. Fetch the
+# source's remote-tracking ref instead — that is the one the merge queue advances.
+git fetch -q "$MONOREPO" "$PUBLISH_REF:refs/heads/__publish"
+git checkout -q __publish
+echo "[4-hub] publishing $PUBLISH_REF = $(git rev-parse --short HEAD)"
+
 # The kept set is hub/ plus the transitive closure of its monorepo path
 # dependencies. Recompute when deps change:
 #   cd hub && cargo metadata --format-version 1 | <extract manifest dirs under the monorepo root>
 echo "[4-hub] filtering history to hub/ + its web4 path dependencies..."
-git filter-repo --quiet \
+# --force because the pin fetch above leaves the clone looking non-pristine to
+# filter-repo's freshness check. Safe here and only here: $WORK is a mktemp clone
+# this script created and its EXIT trap deletes.
+git filter-repo --force --quiet \
   --path hub \
   --path web4-core \
   --path web4-policy \
