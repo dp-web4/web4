@@ -157,6 +157,39 @@ impl std::fmt::Debug for HubLedger {
     }
 }
 
+/// The sealed chain-tail watermark (dp's design, 2026-08-08).
+///
+/// `verify_chain`'s own caveat names the one thing hash-linking cannot prove:
+/// *"removing entries from the tail leaves a chain that verifies."* This is the
+/// independently-recorded value it says to compare against — written into the
+/// **store** (SQLCipher-encrypted on the sqlite backend) at every append, so the
+/// chain and its witness live in different trust boundaries. A tail-trimmed
+/// `ledger.jsonl` no longer matches the watermark the vault still holds.
+///
+/// Semantics are a **monotonic floor**, not an equality:
+/// - chain longer than the watermark → fine (the crash window between
+///   ledger-append and watermark-stamp lags by design; the next append heals it);
+/// - chain shorter, or a different entry at the watermark index → **refused at
+///   open** (truncation or rewritten history).
+///
+/// What it does NOT close, stated so nobody recalls it as closed: a coordinated
+/// rollback of chain **and** store together (a whole-filesystem restore). Inside
+/// one machine that is undetectable by construction; it is what cross-hub
+/// anchoring exists for. This is the local tier of that design, not a substitute.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ChainWatermark {
+    /// Number of entries witnessed (chain length at stamp time).
+    pub chain_len: u64,
+    /// `entry_hash` of the entry at `chain_len - 1`.
+    pub head_hash: String,
+    /// `entry_hash` of up to two entries before the head — diagnostic depth so a
+    /// dispute about the head itself can be localised, per the design ask
+    /// ("hash of last couple items").
+    #[serde(default)]
+    pub prev_hashes: Vec<String>,
+    pub stamped_at: DateTime<Utc>,
+}
+
 impl HubLedger {
     /// Open a ledger backed by the given store. Loads any existing entries
     /// into memory + restores head_hash. Does NOT write a Genesis entry —
@@ -164,6 +197,58 @@ impl HubLedger {
     pub async fn open(store: Box<dyn HubStore>) -> Result<Self> {
         let entries = store.ledger_load_all().await
             .context("loading ledger entries from store")?;
+
+        // Chain-tail check against the sealed watermark. Everything that reads
+        // this ledger loads through here, so this is the one choke point where a
+        // truncated tail can be caught before anything trusts the chain.
+        //
+        // The two failure directions are different claims and get different
+        // exits: a chain SHORTER than the floor, or a DIFFERENT entry at the
+        // floor index, is refuted — refuse. A watermark that cannot be read is
+        // undecidable, not refuted — also refuse, but say which fired. Both are
+        // overridable with HUB_ALLOW_CHAIN_ROLLBACK=1 (mirroring
+        // HUB_ALLOW_LAW_MISMATCH), which exists for operator forensics, not for
+        // production.
+        let override_on = std::env::var("HUB_ALLOW_CHAIN_ROLLBACK").ok().as_deref() == Some("1");
+        match store.read_chain_watermark().await {
+            Ok(None) => {} // no claim yet (pre-watermark hub); first append stamps it
+            Ok(Some(wm)) => {
+                let n = wm.chain_len as usize;
+                let verdict: Option<String> = if entries.len() < n {
+                    Some(format!(
+                        "chain has {} entries but the sealed watermark witnessed {} \
+                         (head {}) — the tail has been truncated or the chain rolled back",
+                        entries.len(), n, &wm.head_hash[..16.min(wm.head_hash.len())],
+                    ))
+                } else if n > 0 && entries[n - 1].entry_hash != wm.head_hash {
+                    Some(format!(
+                        "the entry at watermark index {} is not the entry the sealed \
+                         watermark witnessed ({} != {}) — divergent history",
+                        n - 1,
+                        &entries[n - 1].entry_hash[..16],
+                        &wm.head_hash[..16.min(wm.head_hash.len())],
+                    ))
+                } else {
+                    None
+                };
+                if let Some(msg) = verdict {
+                    if override_on {
+                        tracing::warn!("CHAIN WATERMARK OVERRIDE (HUB_ALLOW_CHAIN_ROLLBACK=1): {msg}");
+                    } else {
+                        return Err(anyhow!("chain watermark check REFUTED: {msg}"));
+                    }
+                }
+            }
+            Err(e) => {
+                let msg = format!("chain watermark UNDECIDABLE (store read failed): {e:#}");
+                if override_on {
+                    tracing::warn!("{msg} — proceeding under HUB_ALLOW_CHAIN_ROLLBACK=1");
+                } else {
+                    return Err(anyhow!(msg));
+                }
+            }
+        }
+
         let head_hash = entries
             .last()
             .map(|e| e.entry_hash.clone())
@@ -316,6 +401,26 @@ impl HubLedger {
 
         self.head_hash = unsigned.entry.entry_hash.clone();
         self.entries.push(unsigned.entry);
+
+        // Stamp the sealed watermark AFTER the entry is durably committed —
+        // this order makes the crash window lag in the benign direction (floor
+        // behind chain), which open() tolerates. A stamp failure is warned, not
+        // returned: the entry IS witnessed, and erroring here would tell the
+        // caller their act failed when the ledger says otherwise.
+        let wm = ChainWatermark {
+            chain_len: self.entries.len() as u64,
+            head_hash: self.head_hash.clone(),
+            prev_hashes: self.entries.iter().rev().skip(1).take(2)
+                .map(|e| e.entry_hash.clone()).collect(),
+            stamped_at: Utc::now(),
+        };
+        if let Err(e) = self.store.write_chain_watermark(&wm).await {
+            tracing::warn!(
+                "entry {} committed but the chain watermark stamp FAILED: {e:#} — \
+                 the sealed floor now lags the chain until the next successful append",
+                self.entries.len() - 1,
+            );
+        }
         Ok(self.entries.last().unwrap())
     }
 
@@ -677,6 +782,14 @@ mod tests {
         let mut body = lines.join("\n");
         if !body.is_empty() { body.push('\n'); }
         std::fs::write(path, body).unwrap();
+        // Stand the chain-tail watermark down: this helper exists to exercise
+        // `verify_chain`'s per-entry checks in isolation, and the watermark now
+        // front-runs it at open() for any rewrite that moves the head. Deleting
+        // the plaintext sibling file is also exactly what the File-tier attacker
+        // these rewrites simulate would do; the watermark's own coverage is
+        // asserted by the dedicated tests above, not here. `let _` because some
+        // callers have already deleted it to make the same point explicitly.
+        let _ = std::fs::remove_file(tmp.path().join("chap/chain-watermark.json"));
         let reopened = HubLedger::open(reopen_file_backend(tmp)).await.unwrap();
         let lookup = build_lookup([sovereign.lct.clone()]);
         reopened.verify_chain(|id| lookup.get(&id).cloned())
@@ -708,9 +821,28 @@ mod tests {
             .head_hash().to_string();
 
         // Drop the last two entries. Nothing else is touched.
+        //
+        // NEW (chain-tail watermark): open() now refuses this, because the
+        // sealed floor still witnesses 4 entries. Assert the refusal FIRST —
+        // this is the hole this test used to document, closing.
+        {
+            let mut body = lines[..2].join("\n"); body.push('\n');
+            std::fs::write(&path, body).unwrap();
+            let err = HubLedger::open(reopen_file_backend(&tmp)).await
+                .err().expect("a truncated tail must now be refused at open");
+            assert!(format!("{err:#}").contains("watermark"));
+        }
+
+        // The ORIGINAL lesson still holds one layer down, and stays pinned: the
+        // chain ALONE cannot see truncation. On the File backend the watermark
+        // is a plaintext sibling file, so an attacker who knows about it deletes
+        // it — read_chain_watermark then returns None ("no claim") and the
+        // guard stands down. That is the documented File-tier limit; on the
+        // SQLCipher backend the same deletion needs the store key.
+        std::fs::remove_file(tmp.path().join("chap/chain-watermark.json")).unwrap();
         let result = verify_after_rewrite(&tmp, &sovereign, &path, &lines[..2]).await;
         assert!(result.is_ok(),
-            "a truncated tail is NOT detectable by the chain alone; got {:?}", result.err());
+            "with the watermark gone, the chain alone is still blind; got {:?}", result.err());
 
         // The head the hub publishes moves with the truncation — which is what
         // makes an externally-recorded head a sufficient detector for the case
@@ -808,6 +940,11 @@ mod tests {
             let mut body = chain_a[0].clone();
             body.push('\n');
             std::fs::write(&path, body).unwrap();
+            // This test rewinds the FILE to Genesis to forge a fork — exactly
+            // the rollback the watermark now refuses at open(). Stand it down so
+            // the test can still exercise the prev_hash graft check it predates;
+            // the rollback itself is covered by the watermark tests.
+            let _ = std::fs::remove_file(tmp.path().join("chap/chain-watermark.json"));
             let keypair = sovereign.keypair().unwrap();
             let mut ledger = HubLedger::open(reopen_file_backend(&tmp)).await.unwrap();
             for i in 0..2 {
@@ -843,7 +980,7 @@ mod tests {
     /// ledger_entries WHERE idx >= ?` is a shorter attack than rewriting a
     /// JSONL file. Both classes are induced here against the real backend.
     #[tokio::test]
-    async fn the_sqlite_backend_catches_a_tampered_entry_and_not_a_truncated_tail() {
+    async fn the_sqlite_backend_catches_a_tampered_entry_and_now_a_truncated_tail_too() {
         use crate::store::SqliteBackend;
         let tmp = tempdir().unwrap();
         let sovereign = fresh_sovereign();
@@ -894,12 +1031,26 @@ mod tests {
         assert!(err.contains("entry_hash mismatch"),
             "expected the entry_hash check, got: {err}");
 
-        // (b) Truncate the tail — one DELETE, and the survivors verify. Same
-        // limit as the file backend, reached by a much shorter route.
+        // (b) Truncate the tail — one DELETE. NEW: the sealed watermark row in
+        // `metadata` survives the DELETE, so open() now refuses. On a keyed
+        // (SQLCipher) store this is the trust boundary doing its work: erasing
+        // the watermark too requires the store key, and holding the key is
+        // Sovereign-equivalent compromise.
         {
             let conn = rusqlite::Connection::open(&db_path).unwrap();
             let n = conn.execute("DELETE FROM ledger_entries WHERE idx >= 2", []).unwrap();
             assert_eq!(n, 2, "the truncation must actually land");
+        }
+        let err = HubLedger::open(reopen(&db_path)).await
+            .err().expect("sqlite truncation must now be refused at open");
+        assert!(format!("{err:#}").contains("watermark"));
+
+        // And the ORIGINAL lesson, preserved: erase the watermark row as well
+        // (attacker WITH the key, or this test's keyless fixture) and the chain
+        // alone is still blind — which is what external anchoring is for.
+        {
+            let conn = rusqlite::Connection::open(&db_path).unwrap();
+            conn.execute("DELETE FROM metadata WHERE key = 'chain_watermark'", []).unwrap();
         }
         let ledger = HubLedger::open(reopen(&db_path)).await.unwrap();
         assert_eq!(ledger.len(), 2);
@@ -1245,5 +1396,103 @@ mod tests {
             tampered.verify_chain(|id| lookup.get(&id).cloned()).is_err(),
             "moving the instant must break the chain"
         );
+    }
+
+    // ---- chain-tail watermark (dp's design, 2026-08-08): the sealed floor ----
+
+    /// Build a 3-entry chain on the File backend and return (tmp, ledger_path).
+    async fn three_entry_chain() -> (tempfile::TempDir, std::path::PathBuf, IdentityFile) {
+        let tmp = tempdir().unwrap();
+        let (store, ledger_path) = fresh_store(&tmp);
+        let sov = fresh_sovereign();
+        let kp = sov.keypair().unwrap();
+        let mut ledger = HubLedger::open(store).await.unwrap();
+        ledger.write_genesis(sov.lct.id, &kp, "WM".into(), "sha256:0".into()).await.unwrap();
+        for skill in ["a", "b"] {
+            ledger.append(sov.lct.id, &kp, HubEvent::MemberSkillDeclared {
+                member_lct_id: sov.lct.id,
+                skill: skill.into(),
+                declared_by: sov.lct.id,
+            }).await.unwrap();
+        }
+        (tmp, ledger_path, sov)
+    }
+
+    #[tokio::test]
+    async fn every_append_stamps_the_sealed_watermark() {
+        let (tmp, _lp, _sov) = three_entry_chain().await;
+        let store = reopen_file_backend(&tmp);
+        let wm = store.read_chain_watermark().await.unwrap()
+            .expect("appends must leave a watermark");
+        assert_eq!(wm.chain_len, 3);
+        // The watermark's head is the chain's real head.
+        let entries = store.ledger_load_all().await.unwrap();
+        assert_eq!(wm.head_hash, entries.last().unwrap().entry_hash);
+        // And it remembers the couple before it, per the design.
+        assert_eq!(wm.prev_hashes.len(), 2);
+        assert_eq!(wm.prev_hashes[0], entries[entries.len()-2].entry_hash);
+    }
+
+    /// The attack verify-ledger warns about: drop the tail, chain still verifies.
+    /// With the watermark, open() refuses.
+    #[tokio::test]
+    async fn a_truncated_tail_is_refused_at_open() {
+        let (tmp, ledger_path, _sov) = three_entry_chain().await;
+
+        // Truncate: remove the last line of ledger.jsonl. Assert the mutation
+        // landed — a truncation that silently failed reads exactly like a
+        // working guard.
+        let txt = std::fs::read_to_string(&ledger_path).unwrap();
+        let lines: Vec<&str> = txt.lines().collect();
+        assert_eq!(lines.len(), 3, "fixture did not build 3 entries");
+        std::fs::write(&ledger_path, format!("{}\n{}\n", lines[0], lines[1])).unwrap();
+        assert_eq!(std::fs::read_to_string(&ledger_path).unwrap().lines().count(), 2);
+
+        let err = HubLedger::open(reopen_file_backend(&tmp)).await
+            .err()
+            .expect("a chain shorter than its sealed watermark must be refused");
+        let msg = format!("{err:#}");
+        assert!(msg.contains("watermark"), "the refusal must name the mechanism: {msg}");
+    }
+
+    /// A crash between ledger-append and watermark-stamp leaves the watermark
+    /// one behind. That is the benign direction and must not brick the hub.
+    #[tokio::test]
+    async fn a_lagging_watermark_is_tolerated() {
+        let (tmp, _lp, _sov) = three_entry_chain().await;
+        {
+            let store = reopen_file_backend(&tmp);
+            let entries = store.ledger_load_all().await.unwrap();
+            let mut store = store;
+            store.write_chain_watermark(&ChainWatermark {
+                chain_len: 2,
+                head_hash: entries[1].entry_hash.clone(),
+                prev_hashes: vec![entries[0].entry_hash.clone()],
+                stamped_at: Utc::now(),
+            }).await.unwrap();
+        }
+        let ledger = HubLedger::open(reopen_file_backend(&tmp)).await
+            .expect("a watermark BEHIND the chain is the crash window, not an attack");
+        assert_eq!(ledger.len(), 3);
+    }
+
+    /// Same length, different entry at the watermark index: a rewritten history
+    /// that kept the count. Refused.
+    #[tokio::test]
+    async fn a_divergent_entry_at_the_watermark_is_refused() {
+        let (tmp, _lp, _sov) = three_entry_chain().await;
+        {
+            let mut store = reopen_file_backend(&tmp);
+            store.write_chain_watermark(&ChainWatermark {
+                chain_len: 3,
+                head_hash: "0".repeat(64),
+                prev_hashes: vec![],
+                stamped_at: Utc::now(),
+            }).await.unwrap();
+        }
+        let err = HubLedger::open(reopen_file_backend(&tmp)).await
+            .err()
+            .expect("an entry that is not the one the watermark witnessed must be refused");
+        assert!(format!("{err:#}").contains("watermark"));
     }
 }

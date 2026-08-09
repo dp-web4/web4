@@ -1733,9 +1733,18 @@ async fn run_verify_ledger(hub_dir: PathBuf) -> Result<()> {
     println!();
     println!("  Proven:   the {} entries above are linked, hashed and signed consistently.",
              result.entries);
-    println!("  NOT proven: that they are ALL the entries. Removing entries from the tail");
-    println!("              leaves a chain that verifies. Compare the head hash against an");
-    println!("              independently-recorded value (query_hub publishes it) to detect it.");
+    // The chain alone still cannot prove completeness. What CHANGED (2026-08-08):
+    // the daemon now stamps a sealed chain-tail watermark at every append, and
+    // refuses to open a ledger shorter than — or divergent from — that floor. So
+    // a truncated tail is caught at load on this hub, within one trust boundary.
+    // It does NOT catch a coordinated rollback of chain AND sealed store together
+    // (a whole-machine restore); that is the case cross-hub anchoring exists for.
+    println!("  Local floor: the sealed chain-tail watermark witnesses the head at every");
+    println!("               append, so a truncated or rolled-back tail is refused at open");
+    println!("               (override for forensics: HUB_ALLOW_CHAIN_ROLLBACK=1).");
+    println!("  Still open:  a rollback of the chain AND the sealed store together is not");
+    println!("               locally detectable — compare the head against an independently");
+    println!("               recorded value (a peer hub's anchor) to close that tier.");
     Ok(())
 }
 

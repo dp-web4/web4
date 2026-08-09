@@ -127,6 +127,22 @@ pub trait HubStore: Send + Sync {
 
     /// True iff the ledger has zero entries. Used by callers to detect
     /// "fresh hub, needs Genesis" without round-tripping the full list.
+    /// Read the sealed chain-tail watermark, if this backend holds one.
+    /// `Ok(None)` = the backend makes NO claim (fresh hub, or pre-watermark
+    /// data) — open() proceeds without a check. An `Err` is *undecidable*, which
+    /// open() treats as refuse-with-override, not as absence.
+    async fn read_chain_watermark(&self) -> Result<Option<crate::ledger::ChainWatermark>> {
+        Ok(None)
+    }
+
+    /// Persist the chain-tail watermark. The default REFUSES rather than
+    /// silently dropping it: a backend that cannot hold the watermark should
+    /// fail loudly at the first append (fail-closed + warn at the call site),
+    /// not degrade the guard into a no-op nobody notices.
+    async fn write_chain_watermark(&mut self, _wm: &crate::ledger::ChainWatermark) -> Result<()> {
+        anyhow::bail!("this backend does not support the chain watermark")
+    }
+
     async fn ledger_is_empty(&self) -> Result<bool> {
         Ok(self.ledger_load_all().await?.is_empty())
     }
@@ -724,6 +740,30 @@ impl HubStore for FileBackend {
         Ok(())
     }
 
+    async fn read_chain_watermark(&self) -> Result<Option<crate::ledger::ChainWatermark>> {
+        let path = self.paths.root.join("chain-watermark.json");
+        if !path.exists() {
+            return Ok(None);
+        }
+        let txt = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        Ok(Some(serde_json::from_str(&txt).context("parsing chain watermark")?))
+    }
+
+    /// HONEST TIER NOTE: on this backend the watermark is a plaintext file next
+    /// to a plaintext ledger — it defends against accidental truncation and
+    /// naive tampering, not against an attacker editing both files. The sealed
+    /// trust boundary the design asks for is the SQLCipher backend, where this
+    /// lands inside the encrypted DB. Same posture as the mailbox durability
+    /// caveat: File is the dev tier, sqlite is production.
+    async fn write_chain_watermark(&mut self, wm: &crate::ledger::ChainWatermark) -> Result<()> {
+        let path = self.paths.root.join("chain-watermark.json");
+        Self::ensure_parent(&path)?;
+        let json = serde_json::to_string_pretty(wm).context("serializing chain watermark")?;
+        crate::atomic_file::write_atomic(&path, &json)
+            .with_context(|| format!("writing {}", path.display()))
+    }
+
     async fn read_law(&self) -> Result<Option<String>> {
         let path = self.law_path();
         if path.exists() {
@@ -1210,6 +1250,22 @@ pub async fn migrate_hub(
 
 #[async_trait::async_trait]
 impl HubStore for SqliteBackend {
+    async fn read_chain_watermark(&self) -> Result<Option<crate::ledger::ChainWatermark>> {
+        match self.read_meta("chain_watermark")? {
+            Some(json) => Ok(Some(serde_json::from_str(&json)
+                .context("parsing chain watermark from sqlite metadata")?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Lands in the `metadata` KV inside the SQLCipher-encrypted DB — the sealed
+    /// trust boundary the watermark design requires: rewriting it takes the
+    /// store key, which only an unlocked daemon (or the passphrase) holds.
+    async fn write_chain_watermark(&mut self, wm: &crate::ledger::ChainWatermark) -> Result<()> {
+        let json = serde_json::to_string(wm).context("serializing chain watermark")?;
+        self.write_meta("chain_watermark", &json)
+    }
+
     fn backend_kind(&self) -> BackendKind {
         BackendKind::Sqlite
     }
