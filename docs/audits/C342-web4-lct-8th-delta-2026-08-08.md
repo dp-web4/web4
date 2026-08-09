@@ -34,7 +34,7 @@ rather than inherit.
   this one named the destination *slot number* and the *target file path*, pre-registered three
   regression greps, and still did not arrive.
 - **N2 (LOW, mirror-set, → this lineage's own ledger).** C302 admitted `ledgers/` on the strength of
-  **one** artifact, `reference/typescript/lct-document.ts` (`a29e1052`, 2026-02-19). The tree holds a
+  **one** artifact, `ledgers/reference/typescript/lct-document.ts` (`a29e1052`, 2026-02-19). The tree holds a
   **second, larger, one-day-newer independent implementation** — `ledgers/reference/go/lct/`, **2,007
   lines** across 6 files (`b3a5256c`, 2026-02-20) — named in **no** document of this lineage. It is
   the artifact `C316-N1`'s transport-grammar arm is measured against.
@@ -60,15 +60,36 @@ C302 §D recommended C342 be **event-triggered**, *"recorded for the operator; n
 rotation stands until the operator rules."* The rotation stands, so this pass runs. The triggers are
 measured anyway, because C302 asked for them:
 
-| Trigger | C302 baseline | HEAD | Motion |
-|---|---|---|---|
-| target `protocols/web4-lct.md` | blob `5f68a5c7` | blob `5f68a5c7` | **none** |
-| canonical `core-spec/LCT-linked-context-token.md` | `d89595e8` | `d89595e8` | **none** |
-| `web4-standard/schemas/lct.schema.json` | `9bcfe598` | `9bcfe598` | **none** |
-| `web4-core/` | 0 commits | **1** — `d43964e2` `src/role.rs` | **fires** |
+| Trigger | C302 baseline `a6959a8c:` | HEAD `55c0ed7b:` | Motion | last-touching commit |
+|---|---|---|---|---|
+| target `web4-standard/protocols/web4-lct.md` | blob `5f68a5c7` | blob `5f68a5c7` | **none** | `27b85624` |
+| canonical `web4-standard/core-spec/LCT-linked-context-token.md` | blob `231d70b5` | blob `231d70b5` | **none** | `d89595e8` |
+| `web4-standard/schemas/lct.schema.json` | blob `e46d5a09` | blob `e46d5a09` | **none** | `9bcfe598` |
+| `web4-core/` | 0 commits | **1** — `d43964e2` `web4-core/src/role.rs` | **fires** | `d43964e2` |
 
-**Instrument:** `git rev-parse HEAD:<path>` for blobs; `git log --oneline a6959a8c..HEAD -- <tree>`
-for motion. **This pass makes no cadence ruling.** It is **CADENCE datapoint 15**, routed to the
+**Instrument:** `git rev-parse <rev>:<path>` for blobs, one column per endpoint;
+`git log --oneline a6959a8c..HEAD -- <tree>` for tree motion. `a6959a8c` is a **tree-ish operand**
+here, not a published value. The three blob rows are byte-identical at both endpoints, so
+*"motion: none"* reads off the cells directly.
+
+> **Corrected under the #675 block (item 1), and the correction is a repair of the evidence, not of the
+> verdict.** Rows 2 and 3 originally published `d89595e8` and `9bcfe598` in the blob columns. Those are
+> the paths' **last-touching commits** — the output of `git log`, not of the declared
+> `git rev-parse` — and `git cat-file -t` types both as `commit`. They are retained in the added
+> right-hand column so no provenance is lost, but the Motion columns now hold blobs, because
+> **the predicate of this table is byte-freeze and byte-freeze is a property of a blob.** A
+> commit-anchored trigger **fires on non-motion** — a revert pair, a whitespace round-trip, a
+> path-touching merge all yield a new commit over unchanged content — so keeping the commit values
+> under a relabelled column would have made this table's false-positive risk permanent and legitimate
+> rather than removing it. That is not neutral here: **§G.8 argues the cadence case from the trigger
+> fire count**, so an instrument that over-fires inflates the exact number the operator's open cadence
+> question turns on. Per **v26** the artifact C382 inherits is the **instrument**, not the values; values
+> are fixed to match the declared instrument and never the reverse. *"Motion: none"* was true before the
+> correction and is true after it — verified by re-deriving all three blobs at `a6959a8c`, at base
+> `55c0ed7b` and at this document's own head, byte-identical at all three. See §E.5 for why the
+> post-write cross-tool re-run **confirmed** the error instead of catching it.
+
+**This pass makes no cadence ruling.** It is **CADENCE datapoint 15**, routed to the
 operator with the C324 memo. Deciding it here is on this pass's out-of-bounds list.
 
 ### A.2 — `d43964e2` (`role.rs`) — gated on subject matter, not on the fact that it moved
@@ -250,7 +271,8 @@ not silently."* That answers the predicate **"is it normative?"** It does **not*
 agree with the target?"** — which is the question §D.7 asked. The decline is re-affirmed **and** the
 comparison is run.
 
-`hello_web4.py:33-36` derives an LCT id as:
+`web4-standard/demos/hello-web4/hello_web4.py`, `generate_lct_id` (`:33-36` at this base), derives an
+LCT id as:
 
 ```python
 def generate_lct_id(entity_type: str, pubkey: bytes) -> str:
@@ -264,10 +286,22 @@ Set against the two forms already carried:
 |---|---|---|---|
 | **target §3 step 5** (`:147`) | `binding_proof` (the **signature**) | MB32 | full SHA-256 |
 | `web4-core/src/lct.rs:361-364` `derive_lct_id` | `public_key` | `mb32:b` + base32 | full SHA-256 — **this divergence is C172-N1** |
-| **`demos/hello_web4.py:35`** | **`entity_type ‖ public_key`** | **base64url** | **truncated to 128 bits** |
+| **`web4-standard/demos/hello-web4/hello_web4.py`** `generate_lct_id` (`:35`) | **`entity_type ‖ public_key`** | **base64url** | **truncated to 128 bits** |
 
 A **third** preimage, a **third** encoding, and a width no other artifact in the corpus uses. Emitted
-into committed fixtures: `demo_alice.json` `"lct_id": "lct:web4:MFU-oSh_b217a7xYByUfTQ"`.
+into committed fixtures: `web4-standard/demos/hello-web4/demo_alice.json`
+`"lct_id": "lct:web4:MFU-oSh_b217a7xYByUfTQ"`.
+
+> **Path segment restored under the #675 block (item 2).** Every cite of this file and its fixture
+> originally dropped the intervening `hello-web4/` directory, so `demos/hello_web4.py` and
+> `demo_alice.json` resolved to nothing while the **content** they described was correct at the real
+> path (verified: `generate_lct_id` at `:33`, the sha256 preimage at `:35`, the `h[:16]` truncation at
+> `:36`, and the fixture id verbatim). Nothing about the third-formula finding changes. Note what
+> failed: **§B.0 exists three subsections earlier precisely to resolve tree names before comparing** —
+> it caught that a root-level sweep *"would have returned zero for both and certified a false clean"* —
+> and then these cites did not inherit its resolution. Resolving the tree does not resolve the cites.
+> The function is now named as well as numbered, per the standing name-don't-number guard, so
+> `generate_lct_id` will outlive `:35`.
 
 **Refutation run, and it succeeded in part — published (v4).** The obvious charge is that these ids
 violate the standard's own schema. **They do not.** `lct.schema.json`'s pattern is
@@ -378,8 +412,8 @@ here for `E-M1`/`C316-N1` as the worked example.
 
 ### C.2 — N2 (LOW, mirror-set → this lineage's ledger). `ledgers/` was admitted on one implementation of two
 
-Full measurement in §B.3. C302's admission names `reference/typescript/lct-document.ts` in the gate
-row, in N2's evidence fold and in §D.7; `ledgers/reference/go/lct/` (**2,007 lines, 6 files, 952 lines
+Full measurement in §B.3. C302's admission names `ledgers/reference/typescript/lct-document.ts` in the
+gate row, in N2's evidence fold and in §D.7; `ledgers/reference/go/lct/` (**2,007 lines, 6 files, 952 lines
 of tests**, `b3a5256c` 2026-02-20 — **one day newer** than the TypeScript model) appears in **no**
 document of this lineage. Both implementations enumerate **15** entity types against the target's 12.
 
@@ -426,6 +460,14 @@ Every number above was re-run after its section was written, at a different **ro
 different **tool** than it was drafted with — **including this pass's own gate cells**, which is the
 C338 amendment.
 
+> **Entries 5, 11 and 12 were added when the #675 block was cleared** (`4da4e9a2` → this head). Three
+> items were flagged; each was treated as a **defect class** and swept mechanically over this file, and
+> **two of the three sweeps found a member the block had not named** (§E.11(b), §E.12 check 2). Nothing
+> in §B.1–§B.5 was re-measured: the block's author re-ran every published instrument in an isolated
+> worktree at `4da4e9a2` and reports they reproduce to the digit, and a self re-run of a number already
+> independently reproduced is weaker evidence than the one on the record — and padding under §G.5's own
+> rule. No finding, severity or disposition changed.
+
 1. **CAUGHT (reviewer's cell, not mine — but I ran it): 3 vs 44.** §A.3. Would have shipped as an
    inherited premise. The re-run was in bounds only because I asked first; the lesson is that
    **the question a number answers must be published beside it**, since 3 and 44 are both correct
@@ -447,8 +489,36 @@ C338 amendment.
 4. **CAUGHT, mine: the Go test-line total.** Drafted **948**; `wc -l` gives 204 + 409 + 339 = **952**.
    A plain arithmetic slip in the finding that is *about* an under-named artifact. Corrected in §B.3
    and §C.2. Neither the finding nor its severity depends on the cell.
-5. **Re-run, held:** the four trigger blobs, under `git rev-parse HEAD:<path>` (drafted) and
-   `git log --oneline -1 -- <path>` (re-run) — agree.
+5. **CAUGHT BY THE #675 BLOCK, NOT BY ME — and this entry is the mechanism.** As first written it
+   read: *"Re-run, held: the four trigger blobs, under `git rev-parse HEAD:<path>` (drafted) and
+   `git log --oneline -1 -- <path>` (re-run) — agree."* **Those two commands emit different kinds of
+   object, so they cannot agree unless the drafted value already came from the second one.** It did:
+   `git log -1 --format=%H` returns `d89595e8` and `9bcfe598` exactly, and `git cat-file -t` types both
+   as `commit` under a column declaring `git rev-parse` blobs. §A.1 rows 2 and 3 are corrected there.
+   **The v17 safeguard confirmed the error rather than catching it, because both tools were asked the
+   wrong question — which is the one failure mode a different-tool re-run is supposed to be immune to.**
+   The generalizable rule, filed as candidate **v34** in §F: *a cross-tool re-run is immune to
+   derivation error but **not** to a mis-specified question, so it must include a **kind/type check on
+   the object compared**, not only a value comparison.* Re-derived correctly and **held**: all three
+   blobs are byte-identical at C302's baseline `a6959a8c`, at base `55c0ed7b` and at this document's own
+   head ⇒ *"motion: none"* survives the correction intact.
+   **Class swept, published as a negative — POST-write, per the binding condition on this fix.** The
+   remedy introduces two object ids (`231d70b5`, `e46d5a09`) that did not exist in the corpus a
+   pre-write sweep would have measured, so `git cat-file -t` was run over **every** object id the
+   *finished* document publishes — **14** ids (matcher `grep -oE '\b[0-9a-f]{8}\b'` over this file, minus
+   the two date tokens `20260808`/`20260809`, which the matcher catches and `cat-file` rejects):
+
+   - **3 blobs, all used as blobs** — `5f68a5c7`, `231d70b5`, `e46d5a09`, i.e. exactly §A.1's Motion
+     columns and `:5`'s freeze cite.
+   - **11 commits, all used as commits** — `27b85624`, `4da4e9a2`, `55c0ed7b`, `9bcfe598`, `a29e1052`,
+     `a6959a8c`, `b21da071`, `b3a5256c`, `d43964e2`, `d89595e8`, `e4a62d7a`. `a6959a8c` is a **tree-ish
+     operand**, correctly typed for the question asked of it.
+
+   **No other kind/instrument mismatch in the document.** The pre-write run of this same sweep saw **11**
+   ids; the post-write run sees **14**, because the remedy introduced `231d70b5` and `e46d5a09` and the
+   amendment cites the blocked head `4da4e9a2` — so a pre-write sweep would have certified the document
+   being *replaced*, and would not have typed a single one of the three values the fix turns on. **v33
+   applied to the remedy for its own defect class.**
 6. **Re-run, held:** the per-tree **LCT** counts, drafted with `git grep -liwE` and re-run with
    `grep -rliwE` over the filesystem — **85** both ways, and unchanged by the `__pycache__`
    contamination (`.pyc` files do not match the word-bound matcher), which is why the LCT column
@@ -464,13 +534,43 @@ C338 amendment.
 10. **Ambiguity published, not resolved in my favour:** C328 and C334 share the date 2026-08-07, so
    "was v28 available to C328" is decided by PR number (**#653 < #663**, verified in the merge log),
    not by date. Stated as such in §C.1 rather than asserted.
+11. **CAUGHT BY THE #675 BLOCK (item 2) — and the class sweep it forced found a second member the block
+   did not name.** Every one of the **35** file paths this document cites was put through `test -e`.
+   Bare basenames used as shorthand after a full path is established are not path claims and were left
+   alone. Two multi-segment cite groups purported to resolve and did not, **both by dropping exactly one
+   intervening directory segment**: (a) the four `demos/hello_web4.py` / `demo_alice.json` cites the block
+   flagged, real tree `web4-standard/demos/hello-web4/`; and (b) **`:37` and `:415`, which attributed
+   `reference/typescript/lct-document.ts` to C302's admission when C302 writes
+   `ledgers/reference/typescript/lct-document.ts` at both `C302:252` and `C302:341`** — so `:415`'s claim
+   about what C302 *"names"* was a **misquote of the artifact N2 is about**, while `:232` of this same
+   document quotes the full path correctly two subsections earlier. Both fixed; no finding, severity or
+   disposition moves, because the described **content** was verified correct at both real paths.
+   **The sweep was then re-run post-write with a different extractor (`python3` + `re` rather than
+   `grep -oE`) and it caught residue the first pass did not** — **39** cited paths / 17 multi-segment at
+   that moment, of which **§A.1's own first two row labels were still tree-relative**
+   (`protocols/web4-lct.md`, `core-spec/LCT-linked-context-token.md`) while row 3 was repo-relative.
+   That is not cosmetic here: §A.1's corrected instrument is `git rev-parse <rev>:<path>`, so **the
+   cell's path IS the command's operand**, and a tree-relative operand does not run. Now repo-relative
+   on all three rows. **The final sweep reads 40 / 18, not 39 / 17, because writing this entry added two
+   more path strings to the corpus it measures** — the same mechanism as §E.3 and §E.5, now firing a
+   third time inside the sentence that reports it, which is the cleanest available demonstration that a
+   document counting itself has no fixed point. All **4** remaining non-resolving strings are the
+   **wrong** paths quoted deliberately as the defect being described: `:296`, `:541`, `:543`, `:550-551`.
+   Excluding those, every multi-segment path the document asserts resolves.
+12. **CAUGHT BY THE #675 BLOCK (item 3) — and here too the class sweep found more than the block.**
+   Every §G guard was re-evaluated against a tree that **contains this document**. Result: guard 3
+   carried three pre-registered checks and **two** were defective — the flagged self-referential count,
+   and an unflagged **bare locus with no file, matcher or root** whose two most likely wrong resolutions
+   are the very fixtures guard 1 sends C382 to first. Both corrected in §G.3, with the negative for the
+   other seven guards published there.
 
 ---
 
 ## §F — Carry ledger after C342 (every id named individually — v19/v23/v24)
 
-**Row count: 14.** Ids received from other lineages are written **under this ledger's own typing**, per
-N1's proposed corrective.
+**Row count: 15** (14 at `4da4e9a2`; the **v34** candidate is added by the #675 block fix, and it is a
+method row, not a finding — no finding was added, removed or re-severitied). Ids received from other
+lineages are written **under this ledger's own typing**, per N1's proposed corrective.
 
 | ID | Class | State after C342 |
 |---|---|---|
@@ -478,7 +578,7 @@ N1's proposed corrective.
 | **B7 / B8 / B9** | C74, cross-doc | HELD — **now adjudicated in canonical's favour BY EXECUTION** (§B.1, 175 green tests) and by **two** `ledgers/` implementations (§B.3). Direction unchanged; evidence strengthened. Operator bundle with D0/B-D1 |
 | **C75 3.1 / 3.2** | structural | HELD-REAL; `README.md:64`, canonical `:718`; sources frozen |
 | **C114-N1** | internal `claims` contradiction | HELD; D0-blocked |
-| **C172-N1** | `derive_lct_id` key-derived | HELD — **reach: a THIRD formula** (`demos/hello_web4.py:35`, entity_type‖pubkey, base64url, 128-bit). §B.4 |
+| **C172-N1** | `derive_lct_id` key-derived | HELD — **reach: a THIRD formula** (`web4-standard/demos/hello-web4/hello_web4.py` `generate_lct_id`, entity_type‖pubkey, base64url, 128-bit). §B.4 |
 | **C302-N2** | reach-escalation on B7/B8/B9 | **→ OPERATOR**, unchanged in routing; **strengthened** by §B.1 |
 | **C302-N3** | 8th witnessing role `peer` | **→ witness-registry track**; not re-opened |
 | **C342-N1** | **NEW — MED, process/instrument** | Routing-by-slot-number failed at its first addressee; 4th non-reception sighting, sharpest form. **→ operator + rotation-wide.** §C.1 |
@@ -488,6 +588,7 @@ N1's proposed corrective.
 | **D0** | DESIGN-Q | **operator-unanswered; gates all `protocols/` remediation.** Read-as-evidence split upheld (C296/C336 posture): this pass read the target and laid **no finding against it** |
 | **B-D1** | flagship SSOT inversion | unanswered |
 | **CADENCE** | DESIGN-Q | **datapoint 15**, routed with the C324 memo. **Not decided here** |
+| **v34 (candidate)** | **NEW — method, → the rotation** | *A cross-tool re-run is immune to derivation error but **not** to a mis-specified question: it must include a **kind/type check on the object compared**, not only a value comparison.* Born from §E.5, where v17's own safeguard **confirmed** an error because both tools were asked the wrong question. **Filed, not self-applied** — proposed to the rotation; no other lineage is edited from here. §E.5 |
 
 ---
 
@@ -500,9 +601,29 @@ N1's proposed corrective.
 2. **Re-derive the 16-tree gate, do not re-read it** (C302 §D.1, still live). **And check inside each
    admitted tree** — C342-N2 shows an admission can name one artifact and stand in for a whole tree.
 3. **Check `E-M1` / `C316-N1` first.** If either is still open and still uncited at C382, that is the
-   *routing* failure escalating, not a new LCT finding. Pre-registered, unchanged: `grep -rlF "E-M1" .`
-   = **2**; `entity_id` `pattern` = **absent**; `LCT-SPEC-RECONCILIATION-2026-02.md:116` = **present
-   and false**. **Do not re-charge the ratified transport/identity split** (§D.2).
+   *routing* failure escalating, not a new LCT finding. **Do not re-charge the ratified
+   transport/identity split** (§D.2). Pre-registered, each check carrying its own matcher, root and
+   scope — corrected under the #675 block (item 3):
+
+   | # | check | pre-registered value | how to read it |
+   |---|---|---|---|
+   | 1 | `grep -rlF "E-M1" .` from the repository root | **2 pre-merge** (`web4-standard/docs/audits/C33-…md`, `docs/audits/C316-…md`) / **3 post-merge** | **This document is the third.** ≥4, or any member that is not one of those three, is the change; 3 is the null result. Equivalently, scope the grep with `':!docs/audits/C342-*'` and the pre-registered value stays **2** |
+   | 2 | `/properties/entity_id` in **`web4-standard/schemas/attestation-envelope-jsonld.schema.json`**, keys read as JSON | `['description','minLength','type']` ⇒ **no `pattern`** | Named by file and JSON pointer, not by bare key. **7** JSON files in the tree carry an `entity_id`, and two of them — `web4-standard/test_lcts_simple.json`, `web4-standard/test_lcts_rdf.json` — are the same root fixtures guard 1 sends C382 to first |
+   | 3 | `docs/history/design_decisions/LCT-SPEC-RECONCILIATION-2026-02.md:116` | **present, ACTIVE, and false** (*"The JSON schema regex is intentionally permissive to"*) | Re-resolve by content, not by line, if the file has moved |
+
+   > **Two of these three were defective as first written, and only one was flagged.** Check 1
+   > pre-registered **2** against a tree that this document's own merge makes **3** — §E.3 already owns
+   > that mechanism (*"the act of measuring changed the thing measured"*, and C340's *"the audit doc
+   > entered the corpus it measures"*), and it was applied to the file counts but not to the forward
+   > guard, so C382 would have investigated this file's own arrival. Check 2 was worse and was **not**
+   > flagged: it published a **bare locus with no file, no matcher and no root**, while the measurement
+   > behind it (§B) is scoped to one schema. That is **v30 inside the guard** — a vague pointer that a
+   > later pass resolves for itself can be resolved to a *different* artifact, and here the two most
+   > likely wrong resolutions are the very fixtures guard 1 orders C382 to open first, so the guard
+   > would have read true-or-false by accident. Check 3's value held; its **basename** did not resolve,
+   > and is now given its directory with the class-2 sweep. Guards 1, 2, 6, 7 and 8 pre-register no
+   > count; guard 4's v28 sweep is **self-immune** — its own `grep -viE "C[0-9]+-<target>"` filter
+   > excludes this document's path; guard 5 tests a canonical file this document does not touch.
 4. **Run v28 before §A, every pass.** It is the only instrument that found this pass's largest result,
    and the sweep command is in §C.1 verbatim with this target substituted.
 5. **Anchors: apply v22's cheap test, don't perform the re-resolution.** `git log <lastpass>..HEAD --
@@ -526,10 +647,20 @@ S: low/reversible [construct: read-only; sole write is this new file under docs/
 R: n/a [construct: no caller-driven path created]
 W: n/a [construct: no identity or authority asserted; every finding routes, none decides]
 O: pass [construct: §D refutations and the §B.0 path resolution precede §C authorship; the demo-vs-schema charge was killed pre-write, and the four §D.7 dispositions were measured before any was written]
-A: pass [construct: every count carries its matcher, root, filetypes and range; every zero names its token; §E publishes the post-write re-runs and both inherited-number corrections, including the one that was load-bearing for my own approved scope]
+A: pass [construct: every count carries its matcher, root, filetypes and range; every zero names its token; §E publishes the post-write re-runs and both inherited-number corrections, including the one that was load-bearing for my own approved scope. AMENDED when the #675 block was cleared: the original clause rested on "§E publishes the post-write re-runs" while §E.5 was itself one of those re-runs and had CONFIRMED an error rather than caught it — so the clause certified the defect. It now rests on the CORRECTED §E.5, which states the failure mode in the open, plus §E.11 and §E.12, which publish the two class sweeps and the two members the block did not name. An A clause that cites a re-run must name what that re-run was asked, not only that it ran]
 V: present [construct: §D kill-list — the pass killed its own strongest candidate and declined to reopen scope the review had struck, on a premise the review got wrong]
 verdict: PASS
 ```
 
 *No file outside `docs/audits/` was created or modified. `protocols/web4-lct.md` is untouched; D0 is
 unanswered and stands. `C342-N1` and `C342-N2` are routed, not applied.*
+
+*Block-clearing amendment (2026-08-09, slot `web4-20260809-000000`): the standing CHANGES REQUESTED on
+PR #675 was cleared by editing **this file only** — three cells corrected, three defect classes swept
+with their negatives published, the `A` clause re-based, and **v34** filed as a candidate to the
+rotation. Zero finding, severity or disposition changes; zero new files; nothing outside this document
+self-applied. Note for whoever reads the tool output: `pr_standing_blocks.py` reports the block
+**against head `4da4e9a2`**, so any new commit changes the head and can return "no standing block"
+whether or not the fix is right — a green tool is not evidence the block was addressed. And the block is
+**pushed, not cleared**: its author reviews next cycle, so this fire claims no rotation slot. C344
+(`mcp-protocol.md`) waits.*
