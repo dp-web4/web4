@@ -1757,6 +1757,7 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/topics", get(list_topics))
         .route("/v1/hubs/:hub_id/topics/:topic_id", get(read_topic))
         .route("/discuss", get(discuss_html))
+        .route("/client", get(client_html))
         // the unlock slot (stub-console / passphrase): local-only + rate-limited.
         // Promotes a locked hub → unlocked in place (swaps in the real signer).
         .route("/v1/hubs/:hub_id/unlock", post(unlock))
@@ -5872,6 +5873,207 @@ async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
     }
     ([(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")], body).into_response()
 }
+
+/// GET /client — an interactive, same-origin hub client. Generates an Ed25519
+/// identity in the browser (WebCrypto), requests to join, and — once the
+/// Sovereign admits it — opens topics and posts. Every write is a SignedEnvelope
+/// the hub verifies against its law and commits to the ledger. Same-origin (no
+/// CORS) and no external assets, so it works unchanged behind a Tailscale funnel.
+/// No SPA, no build step. The signing preimage matches `canonical_signing_bytes`
+/// exactly: `challenge_nonce ++ serialize_canonical(payload)`.
+async fn client_html() -> axum::response::Response {
+    use axum::response::IntoResponse;
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        CLIENT_HTML,
+    )
+        .into_response()
+}
+
+const CLIENT_HTML: &str = r##"<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hub Client</title>
+<style>
+:root{color-scheme:light dark}
+body{font:16px/1.55 system-ui,sans-serif;max-width:44rem;margin:1.5rem auto;padding:0 1rem}
+h1{margin:.2rem 0}h2{margin-top:1.6rem;border-top:1px solid #8883;padding-top:1rem}
+.m{color:#7a7a7a;font-size:.85em}
+.card{border:1px solid #8884;border-radius:8px;padding:.8rem 1rem;margin:1rem 0}
+.p{border-left:3px solid #8886;padding:.1rem 0 .1rem .7rem;margin:.7rem 0}
+pre{white-space:pre-wrap;margin:.15rem 0;font:inherit}
+input,textarea{font:inherit;width:100%;box-sizing:border-box;padding:.4rem;margin:.25rem 0;
+ border:1px solid #8886;border-radius:6px;background:transparent;color:inherit}
+button{font:inherit;padding:.4rem .9rem;border:1px solid #8888;border-radius:6px;
+ background:#8881;color:inherit;cursor:pointer;margin:.2rem .3rem .2rem 0}
+button:hover{background:#8883}code{word-break:break-all}
+.ok{color:#2a8a3e}.warn{color:#b26a00}.err{color:#c0392b}
+.st{font-size:.85em;margin-top:.4rem;white-space:pre-wrap}
+</style>
+<h1 id="hubname">Hub Client</h1>
+<p class="m" id="hubinfo">connecting…</p>
+
+<div class="card" id="idcard">
+ <b>Your identity</b>
+ <p class="m">A Web4 identity is an Ed25519 keypair generated here, in your browser. The secret half
+ never leaves this device; the hub pins only your public half when you join.</p>
+ <div id="idbody"></div>
+</div>
+
+<div class="card" id="joincard" style="display:none">
+ <b>Join this hub</b>
+ <p class="m">Sends a signed join request. Under this hub's law, closed admission means your request is
+ <i>queued for the Sovereign's review</i> — you are admitted only when they approve.</p>
+ <input id="jname" placeholder="display name (optional)">
+ <input id="jmsg" placeholder="note to the Sovereign (optional)">
+ <button onclick="doJoin()">Request to join</button>
+ <div class="st" id="jstatus"></div>
+</div>
+
+<h2>Discussion</h2>
+<p class="m">Every topic and post is an entry in this hub's hash-chained ledger, admitted under its
+<a id="lawlink" href="#">published law</a>. Nothing here is asserted — it is recorded, and you can verify it.</p>
+<div class="card">
+ <input id="ntitle" placeholder="new topic title">
+ <button onclick="doTopic()">Open topic</button>
+ <div class="st" id="tstatus"></div>
+</div>
+<div id="topics"><p class="m">loading…</p></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const enc=new TextEncoder();
+const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+// Canonical JSON — matches the hub's serialize_canonical: recursive, object keys
+// sorted, compact, standard JSON string escaping.
+function canon(v){
+  if(v===null)return 'null';
+  const t=typeof v;
+  if(t==='boolean')return v?'true':'false';
+  if(t==='number')return String(v);
+  if(t==='string')return JSON.stringify(v);
+  if(Array.isArray(v))return '['+v.map(canon).join(',')+']';
+  return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
+}
+
+let HUBID=null, HUBNAME='Hub', ID=null, ADMITTED=false;
+
+async function loadID(){
+  const raw=localStorage.getItem('hestia_hub_id'); if(!raw)return null;
+  const o=JSON.parse(raw);
+  const priv=await crypto.subtle.importKey('jwk',o.privJwk,{name:'Ed25519'},true,['sign']);
+  return {lct_id:o.lct_id,pubHex:o.pubHex,priv};
+}
+async function genID(){
+  try{
+    const kp=await crypto.subtle.generateKey({name:'Ed25519'},true,['sign','verify']);
+    const pub=await crypto.subtle.exportKey('raw',kp.publicKey);
+    const privJwk=await crypto.subtle.exportKey('jwk',kp.privateKey);
+    const lct_id=crypto.randomUUID(), pubHex=hex(pub);
+    localStorage.setItem('hestia_hub_id',JSON.stringify({lct_id,pubHex,privJwk}));
+    ID={lct_id,pubHex,priv:kp.privateKey}; renderID();
+  }catch(e){ $('#idbody').innerHTML='<span class="err">This browser lacks WebCrypto Ed25519. Use current Edge, Chrome, or Firefox.</span>'; }
+}
+function forget(){ localStorage.removeItem('hestia_hub_id'); ID=null; ADMITTED=false; renderID(); }
+function renderID(){
+  if(!ID){ $('#idbody').innerHTML='<button onclick="genID()">Generate identity</button>';
+    $('#joincard').style.display='none'; return; }
+  $('#idbody').innerHTML='<p class="m">LCT id</p><code>'+esc(ID.lct_id)+'</code>'+
+   '<p class="m" style="margin-top:.5rem">public key</p><code>'+esc(ID.pubHex)+'</code>'+
+   '<div style="margin-top:.5rem"><button onclick="forget()">Forget / regenerate</button></div>';
+  $('#joincard').style.display='';
+}
+
+async function nonce(){
+  const r=await fetch('/v1/auth/challenge',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({for_lct_id:ID.lct_id})});
+  if(!r.ok)throw new Error('challenge '+r.status);
+  return (await r.json()).nonce;
+}
+async function envelope(payload){
+  const n=await nonce();
+  const msg=new Uint8Array([...enc.encode(n),...enc.encode(canon(payload))]);
+  const sig=await crypto.subtle.sign('Ed25519',ID.priv,msg);
+  return {signer_lct_id:ID.lct_id,challenge_nonce:n,payload,signature:hex(sig)};
+}
+function show(sel,cls,msg){ const e=$(sel); e.className='st '+cls; e.textContent=msg; }
+
+async function doJoin(){
+  try{
+    const p={action:'member_join_request',member_lct_id:ID.lct_id,member_pubkey_hex:ID.pubHex};
+    const nm=$('#jname').value.trim(); if(nm)p.name=nm;
+    const mg=$('#jmsg').value.trim(); if(mg)p.message=mg;
+    const r=await fetch('/v1/hubs/'+HUBID+'/members/join',{method:'POST',
+      headers:{'content-type':'application/json'},body:JSON.stringify(await envelope(p))});
+    const txt=await r.text();
+    if(r.status===200){ ADMITTED=true; show('#jstatus','ok','Admitted. You can open topics and post below.'); }
+    else if(r.status===202){ show('#jstatus','warn','Queued for the Sovereign\'s review (closed admission). '+
+      'You can read and try to post — writes are refused by law until the Sovereign admits you.'); }
+    else { show('#jstatus','err','HTTP '+r.status+' — '+txt); }
+  }catch(e){ show('#jstatus','err',e.message); }
+}
+async function doTopic(){
+  if(!ID){ show('#tstatus','err','Generate an identity and join first.'); return; }
+  const title=$('#ntitle').value.trim(); if(!title){ show('#tstatus','warn','Enter a title.'); return; }
+  try{
+    const r=await fetch('/v1/hubs/'+HUBID+'/events',{method:'POST',
+      headers:{'content-type':'application/json'},body:JSON.stringify(await envelope({action:'create_topic',title}))});
+    const txt=await r.text();
+    if(r.ok){ show('#tstatus','ok','Opened — ledger entry recorded.'); $('#ntitle').value=''; loadTopics(); }
+    else { show('#tstatus','err','HTTP '+r.status+' — '+txt); }
+  }catch(e){ show('#tstatus','err',e.message); }
+}
+async function doReply(tid,inputId,statusId){
+  if(!ID){ show('#'+statusId,'err','Generate an identity and join first.'); return; }
+  const body=$('#'+inputId).value.trim(); if(!body){ show('#'+statusId,'warn','Write something.'); return; }
+  try{
+    const r=await fetch('/v1/hubs/'+HUBID+'/events',{method:'POST',
+      headers:{'content-type':'application/json'},body:JSON.stringify(await envelope({action:'add_post',topic_id:tid,body}))});
+    const txt=await r.text();
+    if(r.ok){ show('#'+statusId,'ok','Posted — recorded in the ledger.'); loadTopics(); }
+    else { show('#'+statusId,'err','HTTP '+r.status+' — '+txt); }
+  }catch(e){ show('#'+statusId,'err',e.message); }
+}
+
+async function loadTopics(){
+  try{
+    const {topics}=await (await fetch('/v1/hubs/'+HUBID+'/topics')).json();
+    const box=$('#topics');
+    if(!topics||!topics.length){ box.innerHTML='<p class="m"><em>No topics yet. Open the first one.</em></p>'; return; }
+    let html='';
+    for(const t of topics){
+      const tid=t.topic_id||t.id;
+      let posts=[];
+      try{ const d=await (await fetch('/v1/hubs/'+HUBID+'/topics/'+tid)).json();
+        posts=d.posts||(d.topic&&d.topic.posts)||[]; }catch(e){}
+      html+='<h3 style="margin:1.2rem 0 .2rem">'+esc(t.title)+'</h3>';
+      html+='<p class="m">by '+esc((t.created_by||'').toString().slice(0,8))+'…</p>';
+      for(const p of posts){
+        html+='<div class="p"><pre>'+esc(p.body)+'</pre><p class="m">'+
+          esc((p.posted_by||'').toString().slice(0,8))+'… · ledger #'+(p.entry_index??'?')+'</p></div>';
+      }
+      const iid='r_'+tid.replace(/[^a-z0-9]/gi,''), sid='s_'+tid.replace(/[^a-z0-9]/gi,'');
+      html+='<input id="'+iid+'" placeholder="reply…"><button onclick="doReply(\''+tid+'\',\''+iid+'\',\''+sid+'\')">Reply</button>'+
+        '<div class="st" id="'+sid+'"></div>';
+    }
+    box.innerHTML=html;
+  }catch(e){ $('#topics').innerHTML='<p class="err">could not load topics: '+esc(e.message)+'</p>'; }
+}
+
+(async function init(){
+  try{
+    const w=await (await fetch('/.well-known/web4-hub.json')).json();
+    HUBID=w.hub_lct_id; HUBNAME=(w.hubs&&w.hubs[0]&&w.hubs[0].name)||'Hub';
+    $('#hubname').textContent=HUBNAME+' — Hub Client';
+    $('#hubinfo').innerHTML='hub '+esc(HUBID)+' · '+(w.locked?'<span class="warn">locked</span>':'<span class="ok">live</span>')+
+      ' · '+(w.law_present?'governed by law':'<span class="warn">no law</span>');
+    $('#lawlink').href='/v1/hubs/'+HUBID+'/law';
+    ID=await loadID(); renderID(); loadTopics();
+  }catch(e){ $('#hubinfo').innerHTML='<span class="err">could not reach hub: '+esc(e.message)+'</span>'; }
+})();
+</script>
+"##;
 
 fn build_r6_request(
     envelope: &SignedEnvelope,
