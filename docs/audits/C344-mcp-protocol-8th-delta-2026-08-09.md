@@ -5,6 +5,10 @@
 **Prior pass**: C304 (7th delta, 2026-08-01, PR #628)
 **Base**: C304's HEAD `76ff2f52` → this pass's HEAD `79957170`
 **Mutation**: **ZERO.** No spec, schema, SDK, vector or sibling file is edited by this pass.
+**Revision**: **rev1** (2026-08-09) — line-cite class sweep in response to #680's standing block.
+Three cite errors the block named (6 occurrences) + **2 more the sweep found**, 6 census loci
+normalized to one convention, §F.5 added. **No finding, severity, route, verdict or disposition
+changes**; C345 remains a declared NO-OP.
 
 ---
 
@@ -34,7 +38,7 @@ This is not a novel defect class. It is *the* defect class the standard already 
 examples encode the role as a bare type string"*) and remediated in `6d40cc4b` (#234, 2026-05-25);
 `dictionary-entities.md` was charged (C17 H2) and remediated in `991a0092` (#242, 2026-05-28).
 **`mcp-protocol.md` is the one spec the migration did not reach** — and the C77 remediation later
-added a note (`:340-347`) that ratifies `roleType` as *"intentionally distinct"* while saying nothing
+added a note (`:339-346`) that ratifies `roleType` as *"intentionally distinct"* while saying nothing
 about `entity`. r7-framework's examples were merely stale. This spec's are stale **and defended**.
 
 The carry that should have delivered this — `C17-INFO3`, filed 2026-05-27 and routed to "an MCP-side
@@ -138,7 +142,8 @@ were outside it.
 **Locus:** `web4-standard/core-spec/mcp-protocol.md:313-314` (block `:305-337`, §7.1 *MCP Actions as
 R6 Transactions*).
 
-**The claim the block makes.** `:301` — *"Every MCP interaction maps to R6:"*. The object that
+**The claim the block makes.** `:303` — *"Every MCP interaction maps to R6:"* (`:301` is the `### 7.1`
+heading). The object that
 follows carries all six R6 components, canonically named and in the order of `r6-framework.md`
 §1.1–1.6: `rules`, `role`, `request`, `reference`, `resource`, `result`. It is a mapping statement,
 not a sketch.
@@ -149,9 +154,14 @@ containing `"role"`; no filetype filter; `*/target/` and `node_modules` excluded
 the corpus as it stood before this file was written** — see §F.4, which publishes what the same run
 returns afterwards and why:
 
+Loci in the *where* column are each block's **opening** line — the `role` key that introduces the
+object, not the first key inside it — so they are comparable row to row; for the two schema files the
+asserted declaration line is given after it. (Deliberately phrased without the literal token, so that
+adding this caption does not add a block to the census it captions. See §F.5.)
+
 | key set | blocks | where |
 |---|--:|---|
-| `actor` + `roleLCT` | **26** | `r6-framework.md:59`, `r7-framework.md:69`/`:672`, `dictionary-entities.md:417`, `schemas/r7-action-jsonld.schema.json:87`, `schema_registry.json:2604`, and **20** vectors in `test-vectors/schema-validation/r7-action-jsonld-validation.json` |
+| `actor` + `roleLCT` | **26** | `r6-framework.md:58`, `r7-framework.md:68`/`:671`, `dictionary-entities.md:416`, `schemas/r7-action-jsonld.schema.json:85` (`required` at `:87`), `schema_registry.json:2601` (`required` at `:2603-2604`), and **20** vectors in `test-vectors/schema-validation/r7-action-jsonld-validation.json` |
 | `roleLCT` alone (inline one-liners) | 15 | `r6-framework.md` ×5, `r7-framework.md` ×4, audit quotes ×6 |
 | `roleType` alone | 4 | all four are `docs/audits/r7-framework-internal-consistency-2026-05-24.md` quoting the **pre-remediation** r7-framework |
 | `actor` + `roleType` | 2 | `submission/draft-palatov-web4-core-00.txt:567`, `:868` — outward draft, half-migrated |
@@ -195,7 +205,7 @@ because C304 admitted `schemas/` into the mirror set and this pass re-derived ra
    canonical R6 role block is `actor`+`roleLCT`+`pairedAt`+`t3InRole`+`v3InRole`, the **identical**
    key set to the R7 schema's role object. R7 extends R6 with Reputation only — which the target
    itself states at `:372`. The R6/R7 distinction does not reach the role block.
-2. *"The C77 note ratifies it."* — **Partially, and not where it matters.** The note (`:340-347`)
+2. *"The C77 note ratifies it."* — **Partially, and not where it matters.** The note (`:339-346`)
    defends `roleType` as *"intentionally distinct"* and is **silent on `entity`**, the key no audit
    has ever named. Its stated rationale — *"the R6 `role` block here uses the abstract role name
    form"* — has no counterpart in `r6-framework.md`, whose R6 role block has no name form at all;
@@ -257,7 +267,8 @@ history, this pass — is what produced N1.
 
 ### N3 (LOW, net-new, SDK) — the standard's own §7.3–7.6 suite is the sole corpus counterexample to §7.1's stated value form
 
-`mcp-protocol.md:344` states *"All three carry the same value form, `web4:<RoleName>`"*, and `:461`
+`mcp-protocol.md:343-344` states *"All three carry the same value form, `web4:<RoleName>`"* (the
+sentence opens on `:343` and closes on `:344`), and `:461`
 repeats it for `responding_role_expected` (*"in the `web4:<RoleName>` form, per §4.1
 `sender_role`"*). Every `sender_role` value in the standard:
 
@@ -286,9 +297,10 @@ and stopped being correct on 2026-06-20: **`C94:85` (2026-06-24) explicitly reco
 all carry `:314`. Live HEAD is **`:314`**.
 
 The restoration reverted its own lineage's correction, silently, two months and three passes after it
-was made. The likely mis-resolution is not a miss but a false hit: `:306` at HEAD is
-`  "type": "mcp_invocation",` — a real line, inside the same JSON block, eight lines above the
-defect. A reader resolving the restored pointer lands on plausible content and finds no `roleType`.
+was made. The likely mis-resolution is not a miss but a false hit: `:306` at HEAD is `{` — the opening
+brace of §7.1's R6 object, a real line inside the same fenced block (`:305-337`), eight lines above
+the defect at `:314`. A reader resolving the restored pointer lands inside the right example and
+finds no `roleType`; nothing signals that the pointer is stale rather than the defect fixed.
 
 This is v19's shape at the anchor scale: *the pass most likely to degrade a row is the one restoring
 it.* C322 did the harder and more valuable thing — it recovered nine rows C282 had dropped — and the
@@ -400,11 +412,46 @@ Published because a pass that reports only its findings is reporting half its in
    published table is therefore stated **as of the pre-write corpus**, and every count that could be
    contaminated is scoped in words rather than left to the reader: §C N1's census excludes this file,
    and §C N2's *"0 of 11"* means the eleven MCP-side documents that **predate** this pass
-   (`C17-INFO3` occurs **7** times in this one). Two counts were re-run post-write and did **not**
+   (`C17-INFO3` occurs **8** times in this one, one of which is this sentence). Two counts were
+   re-run post-write and did **not**
    move: the citing-file sweep (**40** — it excludes both audit trees by construction) and the
    `sender_role` census (scoped to `web4-standard/`).
    *An audit that greps the tree it is being written into is part of its own corpus. Publish the
    measurement instant, not only the number.*
+5. **Three line cites shipped wrong, and clearing them by cell would have left two more standing
+   (rev1, 2026-08-09, in response to #680's block; v35).** The reviewer named three: `:301` for a
+   sentence that is at `:303`, the C77 note as `:340-347` when it is `:339-346` (three occurrences —
+   Headline, §C N1 refutation 2, C384 guard 2), and §C N4 naming `:306`'s content as
+   `  "type": "mcp_invocation",` when that is `:307` and `:306` is `{`. All three are corrected above
+   and all three were re-derived, not accepted on the reviewer's word.
+   The block is a **class**, not three cells, so every line cite in this document was re-resolved
+   against the object it names. Instrument: two regexes over the pre-revision blob — qualified
+   `<file>:<n>` and bare `` `:<n>` `` — giving **66 cite tokens (52 distinct)**, read line by line out
+   of the **24 files** they name, at `origin/main` `5fddf603` (the target blob is still `4491c1bb`,
+   so nothing here is a merge-state artifact). That sweep found **two more** the block did not name:
+   - **§C N3 cited `:344`** for *"All three carry the same value form, `web4:<RoleName>`"*. The
+     sentence **opens on `:343`**; `:344` carries only its tail. This is `:301`'s exact error class —
+     a cite landing one line inside the thing it quotes — and it survived the block because the
+     quoted words do appear on the named line.
+   - **§F.4 published its own token count as 7; it is 8.** The count was taken before the sentence
+     stating it was written, and that sentence is the eighth occurrence. §F.4 is the paragraph whose
+     subject is *"writing it changed it"* — it happened to its own number, one clause after saying so.
+     Corrected, with the self-reference named so the value is now a fixed point.
+   The sweep also found the census table anchoring four of its instance rows on the first key *inside*
+   the block and three on the block's opening line. Neither is false, so it is not a defect — but a
+   census counting **blocks** must locate them comparably, so the rows are normalized to the opening
+   line and the convention is now stated above the table.
+   **Post-revision re-measure (v17 as amended: the re-run covers every number, not the changed ones).**
+   Every count published above was re-run against the revised tree: §B.1's three predicates
+   **0/0/0**, the mailbox guard **0**, §B.2's citing-file sweep **40**, §E's **0** and **0**, guard 1's
+   target `action_id` **0**, and the reception count **0 of 11**. The `entity`+`roleType` census
+   re-runs at **5** with the same five sites — the caption added to §C N1 was deliberately written
+   without the literal token so that a caption *about* the census would not become a row *in* it.
+   **What the whole class shows: this pass re-derived every anchor it charged another lineage for and
+   none of the anchors it wrote itself.** N4 charges C322 with re-publishing a locus it did not
+   re-resolve, and the cell demonstrating it named the wrong line's content. The reviewer's phrasing
+   is exact and is kept as the lesson: *a pass charging another lineage for an anchor it did not
+   re-derive has to have re-derived its own.*
 
 ---
 
@@ -433,7 +480,7 @@ test vectors `9b002074`; `hub/hub-daemon/src/mcp.rs` **`b05845bc`** (*blob* `797
 1. **Run the inbound grep FIRST**: `grep -rn "mcp-protocol" docs/audits/ web4-standard/docs/audits/`,
    and read every row addressed to this lineage in prose as well as by slot. This pass's entire yield
    came from that one command, run for the first time in nine passes.
-2. Check whether N1 landed — and **if `role` was fixed, check whether the C77 note at `:340-347` was
+2. Check whether N1 landed — and **if `role` was fixed, check whether the C77 note at `:339-346` was
    withdrawn with it.** A patched example under a note that still ratifies `roleType` is worse than
    either alone.
 3. Check whether the outward draft's two half-migrated sites moved
