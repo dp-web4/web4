@@ -23,7 +23,7 @@
       </address>
     </author>
 
-    <date year="2025" month="January" day="11"/>
+    <date year="2026" month="August" day="9"/>
 
     <area>Internet</area>
     <workgroup>Independent Submission</workgroup>
@@ -253,7 +253,7 @@ message-type = "ANNOUNCE" / "HEARTBEAT" / "CAPABILITY"
           <c>MUST</c>
           
           <c>W4-FIPS-1</c>
-          <c>P-256</c>
+          <c>ECDH-P256</c>
           <c>ECDSA-P256</c>
           <c>AES-128-GCM</c>
           <c>SHA-256</c>
@@ -280,9 +280,15 @@ message-type = "ANNOUNCE" / "HEARTBEAT" / "CAPABILITY"
 w4idp = MB32(HKDF-Extract-Then-Expand(
           salt=peer_salt,
           IKM=sk_master,
-          info="W4IDp:v1"))
+          info="W4IDp:v1",
+          L=16))
         ]]></artwork>
       </figure>
+      <t>
+        The HKDF-Expand output length is exactly 16 bytes before multibase base32
+        encoding. This fixed length is part of the derivation contract; omitting
+        it permits conformant implementations to derive different-length identifiers.
+      </t>
       
       <t>
         This ensures that entities cannot be correlated across different
@@ -357,7 +363,7 @@ w4idp = MB32(HKDF-Extract-Then-Expand(
           <author initials="R." surname="Barnes" fullname="R. Barnes">
             <organization/>
           </author>
-          <author initials="K." surname="Bhargavan" fullname="K. Bhargavan">
+          <author initials="B." surname="Bhargavan" fullname="B. Bhargavan">
             <organization/>
           </author>
           <author initials="B." surname="Lipp" fullname="B. Lipp">
