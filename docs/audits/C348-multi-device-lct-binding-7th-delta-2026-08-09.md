@@ -11,13 +11,21 @@ this track applies to the ISP and atp-adp lineages, each of which likewise has a
 `multi-device-lct-binding-internal-consistency-2026-05-28` → C36 → C80 → C81 → C120 → C152 → C268 →
 C308 → **C348**. (C19 is the first-pass audit under its own filename and is chained by C308's header.)
 **Mutation**: **ZERO.** No spec, schema, SDK, vector, config or sibling file is edited by this pass.
+**Rev1**: 2026-08-10 — clears the standing block on PR #682. **No finding, severity, verdict or
+measured value changes.** The block was against **§E**, the pass's own warranty surface, on two
+classes this document had cleared on `#681` four hours earlier: a denominator narrower than its own
+instrument's reach, and unrooted path tokens. Both were swept **by class over the whole document**
+(v35) rather than by the cells named, which returned **three further members the block did not name**.
+Full account and the resulting method carry (**v39**) in **§F.5**.
 
 ---
 
 ## Headline
 
 Target byte-frozen **49 days** (`a6cbde92`, 2026-06-21) — the fifth consecutive frozen delta, and the
-first **sextuple**-frozen one once the C308-N1 mirror layer is included. Window = **56** commits,
+first **ten-fold** frozen one once the C308-N1 mirror layer is included (C308's quadruple **+ 6**
+mirror files = **10**; §A publishes all ten. *Rev1: this sentence read "sextuple", which named the size
+of the addition and not the size of the set the table certifies — §F.5 item 3.*). Window = **56** commits,
 `web4-standard/core-spec/` **0 changed files**. Every C308 carry probe reproduces. On the numbers this
 should be empty.
 
@@ -90,8 +98,8 @@ instrument is a **set difference**: rows in non-lineage documents naming the tar
 minus the rows this ledger holds. Here the corpus is small enough to run exhaustively.
 
 ```
-git grep -l "multi-device-lct-binding" -- docs/audits web4-standard/docs/audits   →  31
-  minus the 8 lineage documents (inclusive rule)                                  →  23 non-lineage
+git grep -l "multi-device-lct-binding" afa107f5 -- docs/audits web4-standard/docs/audits   →  31
+  minus the 8 lineage documents (inclusive rule)                                        →  23 non-lineage
 ```
 
 **Verb set PRE-REGISTERED before the run** (v26, and the C346 rev1 lesson that an unregistered filter
@@ -113,9 +121,9 @@ sweep, for the third consecutive fire on this track.**
 
 ### B.2 — Third direction (v28) and the outward trees (v29)
 
-`grep -rn "cose:ES256" web4-standard/ --include=*.md` = **9 occurrences / 4 files**, reproducing C296
-and C336 to the digit; this target holds **2** of them (`:257`, `:270`). `cose:EdDSA` in
-`web4-standard/` = **0**; repo-wide-minus-audit-trees = **0** — the token this lineage has been asked
+`git grep -c "cose:ES256" afa107f5 -- 'web4-standard/**/*.md'` = **9 occurrences / 4 files**, reproducing
+C296 and C336 to the digit; this target holds **2** of them (`:257`, `:270`).
+`grep -rn "cose:EdDSA" web4-standard/` = **0**; `grep -rn "cose:EdDSA" . | grep -v docs/audits` = **0** — the token this lineage has been asked
 to adopt exists **only inside audit prose**, which is itself the substance of C336-N2.
 
 ---
@@ -141,12 +149,23 @@ security lineage's operator bundle as *"a separate ask, and the more urgent one.
 **Measurement — the reception happened at C336 and nowhere earlier.**
 
 ```
-git grep -c "C152" -- docs/audits/*security-framework*
+git grep -c "C152" afa107f5 -- 'docs/audits/*security-framework*'
   →  C336-security-framework-8th-delta-2026-08-08.md:10        (one file, ten hits)
+
+git ls-tree -r --name-only afa107f5 docs/audits/ | grep security-framework | wc -l   →  10
 ```
 
-**Nine security-lineage documents; exactly one cites `C152`, and it is the one published yesterday.**
-So the row did not travel — it was **rediscovered**, from the target's own text (`security-framework.md:35-36`, `:44`), 32 days after C152 proved it.
+**Ten security-lineage documents; exactly one cites `C152`, and it is the one published yesterday.**
+So the row did not travel — it was **rediscovered**, from the target's own text
+(`web4-standard/core-spec/security-framework.md:35-36`, `:44`), 32 days after C152 proved it.
+
+> **Rev1 — the denominator was published as nine and the instrument addressed ten.** The tenth member
+> is `docs/audits/C109-security-framework-remediation-2026-06-28.md`, a **remediation**, excluded by an
+> exclusive reading of the membership rule while this document's *own* lineage was enumerated by the
+> **inclusive** rule stated in the header — which admits `C81`, a remediation, as member 7 of 8. That
+> is `C346 rev1` §F.7's defect with the sign flipped, and it is the block on this PR. C109 holds **0**
+> occurrences of `C152` and **0** of `multi-device`, so the corrected reading does not disturb the
+> result — it **strengthens** it: **1 of 10**, not 1 of 9. Recorded in §F.5.
 
 **And the receiver says so itself.** `C336-N3` (LOW) records inbound non-reception as *selective*:
 three routes, **1 received / 2 not** — and `C152-1` is one of the two lost, lost because *"it named
@@ -158,8 +177,10 @@ in the flagship and in a dedicated adjudication paragraph, and it still did not 
 **Why this is a MEDIUM against this ledger and not a note.** C308's row is not stale in the ordinary
 sense of *not yet re-checked* — it makes an affirmative claim about the owner's ledger (*"owner ledger
 unmoved ⇒ no adjudication has occurred"*) whose probe was `git log` over
-`security-framework.md protocols/`. **A spec-freeze probe cannot see an adjudication that lives in an
-audit document.** That is `C346-N1`'s `C290:75` failure exactly, in this lineage, in the opposite
+`web4-standard/core-spec/security-framework.md` and `web4-standard/protocols/` (C308's cell names both
+unrooted; both resolve uniquely under `web4-standard/` — *except* that
+`forum/nova/web4-sal-bundle/security-framework.md` also exists at a different blob, §F.5 item 2).
+**A spec-freeze probe cannot see an adjudication that lives in an audit document.** That is `C346-N1`'s `C290:75` failure exactly, in this lineage, in the opposite
 direction: there a *sender* certified a row against a spec blob; here a *receiver* certified
 non-reception against one. **v31 fires: an OPEN row licenses only the predicate its evidence
 answered.**
@@ -252,21 +273,29 @@ cell, and the C388 guard requires it).
 
 Every probe re-run this pass. **12 rows; 11 HELD unchanged, 1 RE-TYPED by N1, 0 closed.**
 
-| Carry | probe re-run at HEAD | adjudication |
+**Rev1 — every path in this table is now repo-relative, and every `git log … -- <path>` was re-run
+against the rooted path.** As originally written, seven cells named bare basenames or no path at all.
+Four of those basenames are **shadowed** by `forum/nova/web4-sal-bundle/`, and — the reason this is a
+correction and not a tidy-up — **`git log <range> -- <path-that-matches-nothing>` exits 0 and prints
+nothing**, which is byte-identical to the true answer *"0 commits touched it."* Every `→ 0` below was
+therefore an output a typo would also have produced. All values survive re-rooting unchanged; see
+§F.5 item 2.
+
+| Carry | probe re-run at HEAD (paths repo-relative) | adjudication |
 |---|---|---|
-| **N1** (flat 8-dim `t3_tensor`) | `git log 69a5f471..HEAD -- t3-v3-tensors.md` → **0**; `:137` verbatim (*"root nodes in an open-ended RDF sub-graph"*) | **STILL-OPEN**, anchor stable a 3rd pass. DESIGN-Q — idle, no self-decision |
-| **N2** (no entity-role binding) | same file, 0 commits | **STILL-OPEN** |
-| **C36-N9** (Society MUSTs / birth-cert owner) | owner ledger 0 commits | **STILL-OPEN** by byte-identity |
-| **C36-N11** (entity-segmented LCT IDs) | `LCT-linked-context-token.md` 0 commits | **STILL-OPEN** |
-| **C19-M3** (3 exception classes vs `errors.md`) | `grep -cE` both casings → **0**; `errors.md` window → **0** | **STILL-OPEN**; adjudicate jointly with C268-N1 |
-| **C19-M4** (LCT-core doesn't acknowledge §7.1) | `grep -ci "multi-device\|multi_device"` → **1** (`:41`) | **STILL-OPEN, UNCHANGED** |
-| **C19-M5** (8 sub-dims absent from ontology) | `grep -cE` 4 spellings → **0**; ontology window → **0** | **STILL-OPEN.** C308 moved this from byte-identity to a live measurement; the live measurement is re-run here rather than inherited |
-| **C19-M7** (§7.3 ATP costs free-floating) | `atp-adp-cycle.md` unmoved; independently re-confirmed by **C346** two fires ago | **STILL-OPEN, HELD** |
+| **N1** (flat 8-dim `t3_tensor`) | `git log --oneline 69a5f471..afa107f5 -- web4-standard/core-spec/t3-v3-tensors.md` → **0**; `sed -n '137p'` on that path, verbatim (*"root nodes in an open-ended RDF sub-graph"*) | **STILL-OPEN**, anchor stable a 3rd pass. DESIGN-Q — idle, no self-decision |
+| **N2** (no entity-role binding) | same file (`web4-standard/core-spec/t3-v3-tensors.md`), **0** commits | **STILL-OPEN** |
+| **C36-N9** (Society MUSTs / birth-cert owner) | `git log --oneline 69a5f471..afa107f5 -- web4-standard/core-spec/SOCIETY_SPECIFICATION.md web4-standard/core-spec/web4-society-authority-law.md` → **0** (C308's cell named both unrooted; `web4-society-authority-law.md` is shadowed by the SAL bundle mirror at blob `040d8e75` vs `0849ebbe`) | **STILL-OPEN** by byte-identity |
+| **C36-N11** (entity-segmented LCT IDs) | `git log --oneline 69a5f471..afa107f5 -- web4-standard/core-spec/LCT-linked-context-token.md` → **0** | **STILL-OPEN** |
+| **C19-M3** (3 exception classes vs `errors.md`) | `grep -cE "InsufficientRecoveryQuorum\|NoHardwareAnchorError\|DeviceLimitExceeded\|insufficient_recovery_quorum\|no_hardware_anchor\|device_limit_exceeded"` on `web4-standard/core-spec/errors.md` → **0** (both casings, v11's rider); window over that path → **0**. *The mirror `forum/nova/web4-sal-bundle/errors.md` (blob `84e1e834`, 144 L vs 154 L) also returns 0, so the verdict is root-invariant here — but the instrument was not.* | **STILL-OPEN**; adjudicate jointly with C268-N1 |
+| **C19-M4** (LCT-core doesn't acknowledge §7.1) | `grep -cie "multi-device" -e "multi_device"` on `web4-standard/core-spec/LCT-linked-context-token.md` → **1** (`:41`, *"(e.g. a multi-device, biometric, richly-witnessed constellation)"*) | **STILL-OPEN, UNCHANGED** |
+| **C19-M5** (8 sub-dims absent from ontology) | `grep -cE "hardware_binding_strength\|constellation_coherence\|hardwareBindingStrength\|constellationCoherence"` on `web4-standard/ontology/t3v3-ontology.ttl` → **0**; window over that path → **0** | **STILL-OPEN.** C308 moved this from byte-identity to a live measurement; the live measurement is re-run here rather than inherited |
+| **C19-M7** (§7.3 ATP costs free-floating) | `git log --oneline 69a5f471..afa107f5 -- web4-standard/core-spec/atp-adp-cycle.md` → **0**; independently re-confirmed by **C346** two fires ago | **STILL-OPEN, HELD** |
 | **B-10 arm** (`cose:ES256` `:257`/`:270`) | both anchors verbatim; **`C336-N2` adjudicated the arm 2026-08-08** | **RE-TYPED — see N1.** No longer *"unconsumed"*: **RECEIVED (by rediscovery), per-locus split now carried by the security ledger.** This file holds 2 of B-10's 8 loci and they are the 2 the prescription is wrong for |
 | **C152-1** (B-10 overreach + §2.4 genesis-signer gap) | — | **B-10 half CONSUMED at C336-N2. Genesis-signer half remains unconsumed.** `C336-N3` records this route as having been **lost**; the reception was rediscovery, not delivery |
-| **C152-2** (`PAIRED-CHANNELS.md` §8 item 6) | `grep -n "multi-device is later"` → **`:425`** verbatim | **STILL-OPEN**, hub track. Status-check only |
+| **C152-2** (`hub/docs/PAIRED-CHANNELS.md` §8 item 6) | `grep -n "multi-device is later"` on `hub/docs/PAIRED-CHANNELS.md` → **`:425`** verbatim (basename unique in the tree) | **STILL-OPEN**, hub track. Status-check only |
 | **C268-N1** (§2.2.4 `:155` + §3.6 exclusion verdict) | target frozen ⇒ byte-identical | **STILL-OPEN, unconsumed.** Adjudicate jointly with C19-M3 |
-| **C308-N1 / C308-N2** (two ceiling authorities; `lct.rs` 0.85 software default) | all 6 mirror-layer blobs frozen (§A) | **STILL-OPEN, unremediated by construction** |
+| **C308-N1 / C308-N2** (two ceiling authorities; `web4-core/src/lct.rs` 0.85 software default) | all 6 mirror-layer blobs frozen (§A) | **STILL-OPEN, unremediated by construction** |
 
 **No row lost a locus. One row (B-10 arm) gained a disposition it had been denied for 32 days.**
 
@@ -275,36 +304,56 @@ Every probe re-run this pass. **12 rows; 11 HELD unchanged, 1 RE-TYPED by N1, 0 
 ## §E — Instrument index
 
 **Built by capture, not transcription** — this is `C346 rev1`'s guard 6, written yesterday and applied
-here for the first time. Every figure below is pasted from the output of the commands as written;
-scopes, denominators and instrument names were re-derived as their own class, and **every path token
-was verified to resolve as written**. Roots: all paths repo-relative.
+here for the first time. Every figure below is pasted from the output of the commands as written.
 
-| claim | instrument | scope | result |
+> **Rev1 — this section was the block on PR #682, and both halves of its warranty were false.** The
+> original text warranted that *"scopes, denominators and instrument names were re-derived as their own
+> class, and every path token was verified to resolve as written,"* closing **"Not mechanically
+> reproducible: none."** In fact one scope cell was a denominator narrower than its own instrument's
+> reach, and **eight** cells carried a path that either resolves to two tracked files or names no root
+> at all. The method upgrade reached §A and did not reach §E. The whole section has been re-derived
+> **by class** — every scope cell against what its instrument actually addresses, and every path token
+> against `git ls-tree` — and the class sweep returned three members the block did not name. §F.5.
+
+**Path roots — declared, not assumed.** All paths below are **repo-relative from the repository root**
+and each was checked for basename uniqueness with
+`git ls-tree -r --name-only afa107f5 | grep "/<basename>$"`. The hazard is specific and it is
+enumerated rather than described: **`forum/nova/web4-sal-bundle/` is a tracked mirror that shadows
+eight `web4-standard/core-spec/` basenames — `core-protocol.md`, `data-formats.md`, `entity-types.md`,
+`errors.md`, `mrh-tensors.md`, `security-framework.md`, `t3-v3-tensors.md`,
+`web4-society-authority-law.md` — and every one of the eight is at a *different blob* from its
+core-spec sibling.** Four of the eight are named by cells in this document. A bare basename against
+that tree is not an imprecision, it is a fork: `sed -n '137p' t3-v3-tensors.md` returns *"root nodes in
+an open-ended RDF sub-graph"* under `web4-standard/core-spec/` and `"v3_tensor": {` under the mirror.
+
+| claim | instrument (paths repo-relative) | scope | result |
 |---|---|---|---|
 | target frozen 49 d | `git log -1 --format=%h -- web4-standard/core-spec/multi-device-lct-binding.md` | 1 file | `a6cbde92`, 2026-06-21 |
-| freeze set | `git rev-parse HEAD:<path>` × **10** (blobs, typed — N3) | 10 files | table §A |
+| freeze set | `git rev-parse afa107f5:<path>` × **10** (blobs, typed — N3) | 10 files, each rooted in §A | table §A |
 | window | `git rev-list --count 69a5f471..afa107f5` | repo | **56** commits |
 | core-spec motion | `git diff --name-only 69a5f471..afa107f5 -- web4-standard/core-spec/` | tree | **0** files |
-| inbound corpus | `git grep -l "multi-device-lct-binding" -- docs/audits web4-standard/docs/audits` | both audit trees | **31** |
+| inbound corpus | `git grep -l "multi-device-lct-binding" afa107f5 -- docs/audits web4-standard/docs/audits` | both audit trees (`web4-standard/docs/audits` exists at base: **2** files) | **31** |
 | lineage (inclusive rule) | `git ls-tree -r --name-only afa107f5 -- docs/audits web4-standard/docs/audits \| grep -ci multi-device` — **pinned to the base commit, because the working tree now contains this document** (§F.4) | both trees @ `afa107f5` | **8** ⇒ **23** non-lineage |
-| addressee residue | pre-registered verb set `owner\|route\|routed\|carry\|carried\|owed\|addressee\|cross-track` ∩ `multi-device` lines | 23 docs | **12** carry addressee language; **2 rows not held** |
-| C152 reception | `git grep -c "C152" -- docs/audits/*security-framework*` | 9 docs | **1** file (`C336`, 10 hits) |
-| B-10 reach | `grep -rn "cose:ES256" web4-standard/ --include=*.md` | `web4-standard/**/*.md` | **9** occ / **4** files; target holds **2** (`:257`, `:270`) |
-| B-10 target token | `grep -rn "cose:EdDSA"` | `web4-standard/`; repo minus audit trees | **0**; **0** |
-| C80 item count | `grep -c "^### N[0-9]"` + the §A flagship | `C80-…-2026-06-21.md` | **8 + 1 = 9** |
-| C80 disposition | C81 *"Findings applied"* / *"Not applied"* tables, cross-checked against §D | 2 tables | **7** applied, **2** live carries, **0** dropped |
+| addressee residue | pre-registered verb set `owner\|route\|routed\|carry\|carried\|owed\|addressee\|cross-track` ∩ `multi-device` lines | 23 docs (= 31 − 8) | **12** carry addressee language; **2 rows not held** |
+| **C152 reception** | `git grep -c "C152" afa107f5 -- 'docs/audits/*security-framework*'` | **10** docs — the count its own glob addresses, by the header's **inclusive** rule (`git ls-tree -r --name-only afa107f5 docs/audits/ \| grep -c security-framework` → **10**) ***(rev1: published as 9; C109, a remediation, was excluded — the tenth member)*** | **1** file (`C336`, 10 hits). C109 holds **0** `C152` / **0** `multi-device` ⇒ **1 of 10** |
+| B-10 reach | `git grep -c "cose:ES256" afa107f5 -- 'web4-standard/**/*.md'` | `web4-standard/**/*.md` | **9** occ / **4** files (`web4-standard/core-spec/LCT-linked-context-token.md` 1, `web4-standard/core-spec/lct-capability-levels.md` 5, `web4-standard/core-spec/multi-device-lct-binding.md` 2, `web4-standard/protocols/web4-lct.md` 1); target holds **2** (`:257`, `:270`) |
+| B-10 target token | `grep -rn "cose:EdDSA" web4-standard/` → **0**; `grep -rn "cose:EdDSA" . \| grep -v docs/audits` → **0** ***(rev1: printed without a path argument, so it addressed `.`, not either declared scope; both scopes now carry their own command)*** | `web4-standard/`; repo minus audit trees | **0**; **0** |
+| C80 item count | `grep -c "^### N[0-9]"` + the §A flagship | `docs/audits/C80-multi-device-lct-binding-delta-audit-2026-06-21.md` ***(rev1: elided to `C80-…-2026-06-21.md`, a glob matching **3** tracked files — C80, C81, C82)*** | **8 + 1 = 9** |
+| C80 disposition | C81 *"Findings applied"* / *"Not applied"* tables, cross-checked against §D | `docs/audits/C81-multi-device-lct-binding-remediation-2026-06-21.md`, 2 tables | **7** applied, **2** live carries, **0** dropped |
 | ratchet object type | `git cat-file -t 7b048a78` | 1 object | **commit** (not a blob) |
 | ratchet blob at C308's HEAD | `git rev-parse --short 69a5f471:web4-core/src/ratchet.rs` | 1 file | **`806882b1`** |
-| C19-M3 | `grep -cE "<6 spellings, both casings>"` | `errors.md` | **0** |
-| C19-M5 | `grep -cE "hardware_binding_strength\|constellation_coherence\|hardwareBindingStrength\|constellationCoherence"` | `t3v3-ontology.ttl` | **0** |
-| C19-M4 | `grep -ci "multi-device\|multi_device"` | `LCT-linked-context-token.md` | **1** (`:41`) |
-| C152-2 | `grep -n "multi-device is later"` | `hub/docs/PAIRED-CHANNELS.md` | **`:425`** verbatim |
-| N1 anchor | `sed -n '137p'` | `t3-v3-tensors.md` | *"root nodes in an open-ended RDF sub-graph"* |
+| C19-M3 | `grep -cE "InsufficientRecoveryQuorum\|NoHardwareAnchorError\|DeviceLimitExceeded\|insufficient_recovery_quorum\|no_hardware_anchor\|device_limit_exceeded"` ***(rev1: printed as the placeholder `"<6 spellings, both casings>"`, which is not a command)*** | `web4-standard/core-spec/errors.md` ***(rev1: bare; shadowed, blob `acda930e` vs mirror `84e1e834`)*** | **0** (mirror also **0** — root-invariant verdict, non-invariant instrument) |
+| C19-M5 | `grep -cE "hardware_binding_strength\|constellation_coherence\|hardwareBindingStrength\|constellationCoherence"` | `web4-standard/ontology/t3v3-ontology.ttl` ***(rev1: bare; basename unique but unrooted)*** | **0** |
+| C19-M4 | `grep -cie "multi-device" -e "multi_device"` | `web4-standard/core-spec/LCT-linked-context-token.md` ***(rev1: bare; basename unique but unrooted)*** | **1** (`:41`) |
+| C152-2 | `grep -n "multi-device is later"` | `hub/docs/PAIRED-CHANNELS.md` (basename unique) | **`:425`** verbatim |
+| N1 anchor | `sed -n '137p'` | `web4-standard/core-spec/t3-v3-tensors.md` ***(rev1: bare; shadowed, and the two files return **different lines** — this is the cell that falsified the "none" below)*** | *"root nodes in an open-ended RDF sub-graph"* |
+| N1 rediscovery locus | `sed -n '35,36p;44p'` | `web4-standard/core-spec/security-framework.md` ***(rev1: cited bare in §C; shadowed, and both loci differ in the mirror — `:35` "ECDH-P256 (ECDH with P-256…)" vs "ECDH with P-256", `:44` "is SHOULD" vs "is OPTIONAL/SHOULD")*** | the ES256/EdDSA MTI text C336 rediscovered from |
 
-**Not mechanically reproducible: none.** Every row above is a command and its output. The one row that
-required judgement — `addressee residue` — has its verb set pre-registered above, so it is
-re-runnable; the C346 rev1 defect (a hand-triaged filter whose verb set was never published) is not
-repeated.
+**Not mechanically reproducible: none — *now*.** Every row above is a command, a rooted scope, and its
+output. The one row that requires judgement (`addressee residue`) has its verb set pre-registered, so
+it is re-runnable. **As published on 2026-08-09 this claim was false**, and the cell that falsified it
+was the `N1 anchor`: an instrument whose answer depends on which of two tracked files a bare basename
+lands on is reproducible by its author and by nobody else.
 
 ---
 
@@ -313,7 +362,7 @@ repeated.
 1. **The freeze set was first derived at 4 artifacts and was wrong by 6.** §A was initially the C308
    quadruple (target, `binding.py`, `binding-vectors.json`, `ratchet.rs`). C308's own findings live in
    a **mirror layer of six further files** (`attestation-envelope.md`, `attestation.py`, `envelope.py`,
-   `attestation-vectors.json`, `lct.rs`, `hub.rs`), and without measuring those, *"C308-N1 stands"*
+   `attestation-vectors.json`, `lct.rs`, `hub.rs` — all ten rooted in §A), and without measuring those, *"C308-N1 stands"*
    would have been an inherited status rather than a measured one — the exact failure C308's own §A.2
    corrected for C19-M5. All ten are published. **v13's corollary: a frozen target obliges you to
    widen the surface, and the first place to widen it is the prior pass's own findings.**
@@ -335,6 +384,63 @@ repeated.
    well as *what*. The same hazard does not touch the `31` (measured with `git grep` at the base
    commit from the start) — which is precisely why one cell moved and the other did not: **the row
    that broke was the one whose instrument read the working tree.**
+5. **Rev1 (2026-08-10) — §E's warranty was false in both halves, and the two defects are the two
+   classes this document cleared on `#681` four hours earlier, recurring inside the document that
+   names them.** `#681` carried a standing block against this PR; the findings §A–§D were re-derived
+   by the reviewer and stand unchanged. What follows is the class sweep, run per **v35** — *clear the
+   class over the whole artifact, not the cell you were shown.* **The sweep returned three members the
+   block did not name** (marked ✚).
+   1. **Membership rule, applied inclusively to my own lineage and exclusively to the one I charged.**
+      The header states the rule and credits `C346 rev1` for it — *every `docs/audits/*multi-device*`
+      document, C-numbered or not* — and applies it to this lineage, returning **8** including `C81`,
+      a **remediation**. §E's `C152 reception` row then published `scope = 9 docs` while the instrument
+      printed beside it addresses **10**, because
+      `C109-security-framework-remediation-2026-06-28.md` — a remediation, the same kind of member the
+      rule admits as `C81` — was silently dropped. This is `C346 rev1` §F.7 verbatim with the sign
+      flipped. **Direction: under-claiming.** C109 holds 0 `C152` and 0 `multi-device`, so the finding
+      survives and **strengthens** (1 of 10 > 1 of 9). Corrected in §C-N1, §E, and the Pattern section
+      (three occurrences of *nine*).
+   2. **Path roots — the warranty's load-bearing half.** §E declared *"Roots: all paths repo-relative"*
+      and warranted every token resolves as written; **eight cells named a bare basename or no path at
+      all**, across §C, §D and §E. `forum/nova/web4-sal-bundle/` shadows **8** `core-spec/` basenames,
+      all at different blobs; this document's cells touch **4** of them
+      (`errors.md`, `t3-v3-tensors.md`, `security-framework.md`, ✚ `web4-society-authority-law.md`).
+      Two consequences, and the second is why this is a block rather than a note:
+      - `sed -n '137p' t3-v3-tensors.md` returns **different lines** under the two roots, so the
+        strongest claim in the file (*"Not mechanically reproducible: none"*) was false as written.
+      - ✚ **`security-framework.md:35-36`, `:44` is a bare *line cite inside a finding*, not a scope
+        cell** — and both loci **differ in text** between the two files (`:44` reads *"is SHOULD for
+        bridge scenarios"* in `core-spec/` and *"is OPTIONAL/SHOULD"* in the mirror). The block listed
+        four §E scope cells; this one is in N1's body, where the ambiguity touches the evidence for a
+        MEDIUM rather than an index row.
+   3. ✚ **A denominator in the Headline that names the addition instead of the set.** *"the first
+      **sextuple**-frozen one once the C308-N1 mirror layer is included"* — the mirror layer adds
+      **6** to C308's **4**, and §A certifies **10**. Same class as item 1 (a published denominator
+      narrower than the thing it describes), found only because item 1 sent me through every count
+      word in the file. Corrected to **ten-fold**.
+   4. ✚ **The `git log -- <bare path>` cells were vacuous, not merely unrooted.** A pathspec that
+      matches nothing exits 0 and prints nothing — **identical output to the true answer**. Seven §D
+      cells reported `→ 0` through an instrument that would have printed `0` for a misspelling, a
+      moved file, or a deleted one. All seven were re-run rooted and **all seven values hold**; the
+      defect is that until this rev, nothing in the document could have distinguished the two cases.
+      This is `v27`'s shape one layer down: **a green that a broken instrument also emits is not a
+      measurement.**
+   5. Also corrected, same class, not separately findings: the `C80 item count` scope was elided to
+      `C80-…-2026-06-21.md`, a glob matching **3** tracked files (C80, C81, **C82**); `C19-M3`'s
+      instrument was printed as the placeholder `"<6 spellings, both casings>"` rather than the six
+      spellings (`C346 rev1`'s "named matcher, not reproducible" defect, one rev after adopting the
+      guard against it); and `B-10 target token` printed `grep -rn "cose:EdDSA"` with **no path
+      argument** beside a scope cell naming two different scopes.
+
+   **What this costs and what it is worth.** No finding moves, no severity moves, no verdict moves —
+   every re-rooted and re-derived value came back identical, and the one denominator that moved moved
+   in the direction that strengthens the finding. That is the honest report, and it is also the
+   uncomfortable one: **a warranty surface can be entirely false while every number under it is
+   entirely true.** The failure mode is precise — the method upgrade (`C346 rev1` guard 6) was applied
+   where the *findings* live and not where the *warranty* lives, so §A got rooted paths and typed
+   columns and §E, written last, inherited the habits of the passes before it. **A pass converts to a
+   new method table-by-table, and the last table to convert is the one that certifies the others.**
+   → **v39.**
 
 ---
 
@@ -345,7 +451,8 @@ repeated.
 - **C349 = declared NO-OP.** N1's ledger half is discharged **in this document** (§D re-types the B-10
   arm); its operator half now bundles with `C336-N2` and is not an auditor's edit. N2 is the C330
   lineage's instrument. N3 is fixed prospectively by §A's typed column. Do **not** self-fix
-  `multi-device-lct-binding.md`, `security-framework.md`, any C308/C330/C336 text, or any carry
+  `web4-standard/core-spec/multi-device-lct-binding.md`, `web4-standard/core-spec/security-framework.md`,
+  any C308/C330/C336 text, or any carry
   another ledger owns.
 - **Delivered outward this fire, not merely routed** (v36 applied to this pass's own output): N2 is
   addressed to the C330/ISP lineage, whose next rotation slot is **ISP ≈ C370**. It is recorded here
@@ -353,7 +460,10 @@ repeated.
   `C336-N3` diagnoses (*an item is lost when written under the sender's id*). **Re-check at C370.**
 - **Rotation** advances +2 → `t3-v3-tensors.md` = **C350**. Next multi-device delta ≈ **C388**.
 
-**Baseline for C388** (blobs unless marked *commit*; all paths repo-relative, all verified to resolve):
+**Baseline for C388** (blobs unless marked *commit*; all paths repo-relative, and **each basename below
+verified unique in the tree** at rev1 —
+`git ls-tree -r --name-only afa107f5 | grep -c "/<basename>$"` = **1** for all ten, so none is exposed
+to the `forum/nova/web4-sal-bundle/` shadowing described in §E):
 target `web4-standard/core-spec/multi-device-lct-binding.md` `b979ea7d` (*commit* `a6cbde92`, 1126 L;
 B-10 loci `:257`/`:270`; C268-N1 sites `:155`, `:795-801`; §4.2 ceiling table `:871-887`, closing MUST
 `:886-887`); `web4-standard/implementation/sdk/web4/binding.py` `857f8040`;
@@ -375,7 +485,15 @@ B-10 loci `:257`/`:270`; C268-N1 sites `:155`, `:795-801`; §4.2 ceiling table `
 3. **Type every identifier before comparing two of them** (N3, v34, third firing). Publish blobs in a
    blob column and commits in a commit column; never a header that permits both.
 4. **Build §E by capture** (C346 rev1 guard 6) — re-derive every scope, denominator, instrument name
-   and path root as its own class, and verify every path resolves as written.
+   and path root as its own class, and verify every path resolves as written. **And do §E LAST-but-not-
+   least: this pass applied the guard to §A and left §E on the old habits, which is what `#682`'s block
+   convicted (§F.5, v39).** Concretely, before publishing §E: (a) for every basename in the document,
+   run `git ls-tree -r --name-only <base> | grep "/<basename>$"` and root anything with more than one
+   hit — `forum/nova/web4-sal-bundle/` shadows **8** `core-spec/` basenames at differing blobs and is
+   the standing trap on this target; (b) never publish a `git log … -- <path>` green without confirming
+   the pathspec matches a tracked file, because a non-matching pathspec prints the same nothing; (c)
+   apply **one** membership rule to your lineage and the lineage you charge, and state it; (d) check
+   every count word against the set it names, not the delta that produced it.
 5. Check whether C330's instrument was re-typed (N2), and whether C80's accounting is cited when it is.
 6. Do **not** re-open: the 9-of-9 C80 accounting (discharged NEGATIVE here); C308-N1/N2's mirror layer
    while its ten blobs are frozen; the `binding` conformance-suite absence (C308 INFO-1, C276
@@ -388,7 +506,7 @@ B-10 loci `:257`/`:270`; C268-N1 sites `:155`, `:795-801`; §4.2 ceiling table `
 **C346 found a carry that failed by being *received*. This pass found its complement: a carry that
 succeeded, and could not tell anyone.**
 
-C152 proved a prescription wrong. The security lineage never cited it — nine documents, zero mentions
+C152 proved a prescription wrong. The security lineage never cited it — **ten** documents, zero mentions
 until yesterday — and then arrived at the same result independently, from the target's own text, 32
 days later, and charged it as net-new. Both ledgers were behaving correctly the whole time: this one
 re-recorded *unconsumed* against a probe that watches spec files, and that one could not find an item
@@ -405,6 +523,18 @@ freeze-probe on the owner's *spec* cannot detect one that happened in the owner'
 row is routed out, its status probe must watch the channel disposition actually travels in: the
 receiver's audit documents, not the receiver's files. And when an instrument reports a lineage as
 unconsumed, check the **remediation commits** before the citations — consumption that reached the
-standard leaves no citation at all. → [[feedback_subsumption_is_a_disposition]] /
+standard leaves no citation at all.
+
+**v39 (rev1, from this document's own block): a pass converts to a new method table-by-table, and the
+last table to convert is the one that certifies the others.** Guard 6 reached §A — typed columns,
+rooted paths, ten artifacts measured — and did not reach §E, so the warranty section went out claiming
+a discipline the document had genuinely acquired everywhere except in the section making the claim.
+Two corollaries with teeth: **a bare basename is a fork, not an imprecision**, wherever a mirror tree
+shadows the name (here `forum/nova/web4-sal-bundle/`, 8 shadowed `core-spec/` basenames, all at
+different blobs); and **`git log <range> -- <pathspec-that-matches-nothing>` prints exactly what
+"0 commits touched it" prints**, so an unrooted freeze green is a green a broken instrument also emits.
+Every value in this document survived the re-derivation unchanged — which is the point: the warranty
+was false while the numbers were true. → [[feedback_last_table_to_convert]] /
+[[feedback_subsumption_is_a_disposition]] /
 [[feedback_delivery_is_an_act_of_the_receiver]] / [[feedback_admission_row_is_not_examination]] /
 [[feedback_routing_by_slot_is_not_delivery]].
