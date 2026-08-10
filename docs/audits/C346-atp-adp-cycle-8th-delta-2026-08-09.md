@@ -4,7 +4,12 @@
 **Target**: `web4-standard/core-spec/atp-adp-cycle.md` (804 L, blob `2d060579`)
 **Prior pass**: C306 (7th delta, 2026-08-01, PR #629), base `0fb9d952`
 **This pass's HEAD**: `5fddf603`
-**Lineage** (10 docs): C34 → C78 → C118 → C119 → C150 → C151 → C190 → C228 → C266 → C306 → **C346**
+**Lineage** (**11** docs at base; this pass is the 12th). **Membership rule, stated because the first
+write did not have one** (§F.7): every `docs/audits/*atp-adp-cycle*` document, C-numbered or not —
+the *same inclusive rule this document already applies to the ISP lineage*, whose tenth member is
+likewise a non-C-numbered `…-internal-consistency-…` pass.
+`atp-adp-cycle-internal-consistency-2026-05-23` → C34 → C78 → C118 → C119 → C150 → C151 → C190 →
+C228 → C266 → C306 → **C346**
 **Mutation**: **ZERO.** No spec, schema, SDK, vector, config or sibling file is edited by this pass.
 
 ---
@@ -62,20 +67,25 @@ answers.
 ## §A — Freeze, collapsed to blob identity (the policy review struck the anchor table)
 
 Per the C344 precedent, blob identity is strictly stronger than re-resolving anchors one at a time.
-The whole atp mirror set, measured at `5fddf603`:
+The whole atp mirror set, measured at `5fddf603`.
 
-| artifact | blob at HEAD | last mover | date |
+**Roots are declared per row** (§F.7): the first write mixed two roots with none stated — nine paths
+are `web4-standard/`-relative and `web4-core/src/atp.rs` is repo-root-relative, so no single declared
+root could have served the table. This is C344's own bare-filename error at the next slot; the paths
+below are now **repo-relative and resolve as written**.
+
+| artifact (repo-relative) | blob at HEAD | last mover | date |
 |---|---|---|---|
-| `core-spec/atp-adp-cycle.md` | `2d060579` | `256ab51d` | 2026-07-07 |
-| `schemas/atp-jsonld.schema.json` | `a8e07c0f` | `639cdebd` | 2026-03-21 |
-| `schemas/contexts/atp.jsonld` | `a78531a0` | `639cdebd` | 2026-03-21 |
-| `test-vectors/atp/transfer-operations.json` | `3b89dffc` | `a3b93713` | 2026-02-27 |
-| `test-vectors/schema-validation/atp-jsonld-validation.json` | `11485cec` | `3495e135` | 2026-03-22 |
-| `testing/conformance/atp-operations.json` | `31cbd900` | `92454d65` | 2026-05-14 |
-| `deployment/config/demurrage.example.json` | `699ad842` | `0e547127` | 2025-12-05 |
-| `web4-core/src/atp.rs` | `f5b0efe0` | `8857ab09` | 2026-05-13 |
-| `implementation/sdk/web4/atp.py` | `efa5de3c` | `62524cf8` | 2026-05-24 |
-| `test-vectors/validate_vectors.py` | `5259d473` | `a3b93713` | 2026-02-27 |
+| `web4-standard/core-spec/atp-adp-cycle.md` | `2d060579` | `256ab51d` | 2026-07-07 |
+| `web4-standard/schemas/atp-jsonld.schema.json` | `a8e07c0f` | `639cdebd` | 2026-03-21 |
+| `web4-standard/schemas/contexts/atp.jsonld` | `a78531a0` | `639cdebd` | 2026-03-21 |
+| `web4-standard/test-vectors/atp/transfer-operations.json` | `3b89dffc` | `a3b93713` | 2026-02-27 |
+| `web4-standard/test-vectors/schema-validation/atp-jsonld-validation.json` | `11485cec` | `3495e135` | 2026-03-22 |
+| `web4-standard/testing/conformance/atp-operations.json` | `31cbd900` | `92454d65` | 2026-05-14 |
+| `web4-standard/deployment/config/demurrage.example.json` | `699ad842` | `0e547127` | 2025-12-05 |
+| `web4-core/src/atp.rs` *(repo root — the one non-`web4-standard/` member)* | `f5b0efe0` | `8857ab09` | 2026-05-13 |
+| `web4-standard/implementation/sdk/web4/atp.py` | `efa5de3c` | `62524cf8` | 2026-05-24 |
+| `web4-standard/test-vectors/validate_vectors.py` | `5259d473` | `a3b93713` | 2026-02-27 |
 
 All ten frozen. Target blobs recorded at C266 and C306 both equal HEAD's. **Every C306/C266 anchor
 row holds by byte-identity; no per-anchor re-resolution is published, because on an unchanged blob it
@@ -100,14 +110,20 @@ row is published as a measured negative rather than skipped.
 `grep -rl "atp-adp-cycle" web4-standard/docs/audits/` → **0** (that tree holds exactly 2 files, C33
 and C75). The second half of v36 discharges in one line, negative.
 
-`grep -rl "atp-adp-cycle" docs/audits/` → **86** files, of which **10** are this lineage ⇒ **76
-non-lineage documents name the target.** As literally specified, v36 would have me read all 76 — a
-token sink, and the policy review said so. The reviewer's sharpening is what produced N1: **generalize
+`grep -rl "atp-adp-cycle" docs/audits/` → **86** files, of which **11** are this lineage ⇒ **75
+non-lineage documents name the target.** (The first write said 10 / 76: it enumerated the lineage by
+C-number, excluding `atp-adp-cycle-internal-consistency-2026-05-23.md` — while counting the ISP
+lineage *inclusively* at 10. Two membership rules in one document; corrected per §F.7. The residue
+result below does not move, because that document carries **no** routing-language line naming the
+target.) As literally specified, v36 would have me read all 75 — a token sink, and the policy review
+said so. The reviewer's sharpening is what produced N1: **generalize
 C306's own I-5 instrument** (which found that C158 named "atp-adp 2" among affected files and 0 of 9
 atp docs ever mentioned it) into a **set difference** — rows in non-lineage documents that name
 atp-adp *as an addressee* (owner / route / carry / owed), minus the rows this ledger holds.
 
-Filtered to lines carrying both the target and routing language: **53 documents**. Hand-triaged, the
+Filtered to lines carrying both the target and routing language: **53 documents** — **hand-triaged,
+and this row is the one instrument in the document that is not mechanically reproducible from what it
+publishes** (no verb set was pre-registered; v26 miss, recorded in §F.7). Hand-triaged, the
 great majority are *disjointness* notes in the other direction (*"atp-adp is the correct side"*,
 *"DISJOINT from the edit"*) — those are senders reporting that they need nothing. **The residue that
 names atp-adp as the OWNER of an open row is `C62-B11`, carried in seven documents — the most recent
@@ -116,19 +132,27 @@ two days old — and it is not in this ledger.** → N1.
 ### B.2 — Third direction (v28): what cites the target
 
 `git grep -l "atp-adp-cycle" -- . ':!docs/audits' ':!web4-standard/docs/audits'` → **42 files.**
-Cross-referenced against the 10 lineage documents by basename:
+Cross-referenced against the **11** lineage documents by basename. **This split moved when the
+membership rule was corrected** (§F.7) and both readings are published:
 
-| | count |
-|---|--:|
-| tracked files citing `atp-adp-cycle` (outside both audit trees) | **42** |
-| ever named by any of the 10 lineage documents | **14** |
-| **never named by any lineage document** | **28** |
+| | 11-doc rule (correct) | 10-doc rule (first write) |
+|---|--:|--:|
+| tracked files citing `atp-adp-cycle` (outside both audit trees) | **42** | 42 |
+| ever named by any lineage document | **18** | 14 |
+| **never named by any lineage document** | **24** | 28 |
 
-Among the 28 unread: **`web4-standard/ATP_INTEGRATION_SUMMARY.md`** — an in-standard, ATP-subject
-summary document, never read by any of ten passes over 64 days. It is where N3 lives. Also unread:
-four `core-spec/` siblings (`LCT-…`, `SOCIETY_SPECIFICATION`, `acp-framework`, `r6-framework`),
+The four files that reclassify are **exactly four `core-spec/` siblings** — `LCT-linked-context-token`,
+`SOCIETY_SPECIFICATION`, `entity-types`, `r6-framework` — all named by the 2026-05-23
+internal-consistency pass, the document the wrong rule excluded. So three of the "four `core-spec/`
+siblings" the first write listed as unread **had in fact been read**; `acp-framework` is the one that
+had not, and `entity-types` also leaves the unread set.
+
+**N3's locus is untouched, and the measurement supporting it gets stronger.**
+`web4-standard/ATP_INTEGRATION_SUMMARY.md` is named by the internal-consistency pass **zero** times, so
+it stays in the never-read set — and the set of passes that never read it is now **eleven, spanning 78
+days** (2026-05-23 → 2026-08-09), not ten over 64. Also still unread:
 `whitepaper/sections/09-atp-adp/index.md`, `docs/reference/CANONICAL_TERMS_v1.md` and
-`docs/reference/GLOSSARY.md`. This is not a call to read all 28; it is the measured statement that the
+`docs/reference/GLOSSARY.md`. This is not a call to read all 24; it is the measured statement that the
 lineage's frame has been the artifacts that *implement* the target.
 
 ### B.3 — Outward trees (v29), funded because they have real cardinality
@@ -181,7 +205,7 @@ settlement at all … or only intra-society multi-currency bookkeeping?"* — wo
 **Measurement 1 — the label exists in exactly one file.**
 
 ```
-grep -rl "ISP-B11" docs/audits/            →  C78-atp-adp-cycle-delta-audit-2026-06-20.md   (1 of 196)
+grep -rl "ISP-B11" docs/audits/            →  C78-atp-adp-cycle-delta-audit-2026-06-20.md   (1 of 217)
 grep -ci "subsum" <10 ISP-lineage docs>    →  0, every one
 ```
 
@@ -229,9 +253,18 @@ structurally incapable of containing the answer.
 | C266 | 07-24 | same, mcp-only | *"mcp §7.7 unmoved"* |
 | C306 | 08-01 | same, mcp-only | *"Neither side moved; mcp byte-frozen since C226"* |
 
-`grep -c "unit-of-account"` over the ten lineage docs: **C78 = 1, C118 = 3** (both inside the *B7
-References* row, a different item), **every other pass = 0.** `grep -c "\bC62\b"`: **C78 = 1, all
-others = 0.**
+Over the **eleven** lineage docs, with each half typed to the instrument that actually produced it
+(§F.7 — the first write named `grep -c` for both, and `grep -c` counts *lines*, not occurrences):
+
+- `grep -o "unit-of-account" | wc -l` (**occurrences**): **C78 = 1, C118 = 3** (both inside the *B7
+  References* row, a different item), **every other pass = 0.** For reference, the line count
+  `grep -c` returns **2** for C118 — same conclusion, different number, and the published 3 was the
+  occurrence figure all along.
+- `grep -c "\bC62\b"` (**lines** — here the correct instrument, and unchanged): **C78 = 1, all
+  others = 0.**
+
+The eleventh document (`…-internal-consistency-2026-05-23`) returns **0/0** on both, so widening the
+scope moves no result in this measurement.
 
 So for six consecutive passes the row certified *STILL OPEN, direction unchanged* on a predicate —
 **"did mcp §7.7 move?"** — that is structurally incapable of reaching the ISP §4.1 half it had
@@ -395,10 +428,13 @@ Every cell is a measurement taken this pass, at `5fddf603`.
 ## §E — The three vector gates, executed, scoped, and asked what their green answers
 
 C304/C344 established that a green gate can be the defect. This target has **three** gates over its
-vectors. All three were run; none of them is a lie, and none of them asserts what a reader would
-assume.
+vectors. All three were run (and re-run at the §F.7 sweep, identical output); none of them is a lie,
+and none of them asserts what a reader would assume.
 
-| gate | wired to CI? | opens (atp) | reports | what the green actually answers |
+**Root declared** (§F.7 m5): paths in this section and in §B.3/§C are **`web4-standard/`-relative**
+unless they begin with a repo-root segment (`web4-core/`, `forum/`, `docs/`, `.github/`).
+
+| gate (`web4-standard/`-relative) | wired to CI? | opens (atp) | reports | what the green actually answers |
 |---|---|---|---|---|
 | `test-vectors/validate_context_refs.py` | **yes** — `vector-context-refs.yml`, on `test-vectors/**` | 1 of 2 atp vector files | `atp.jsonld  OK  (21 refs, 1 files)` | every `web4.io` context URI **that is cited** resolves to a backing file |
 | `test-vectors/schema-validation/validate_schema_vectors.py` | **no** | the schema-validation suite | `atp: 23/23 passed` (`ALL 278 VECTORS PASSED`) | two dataclass shapes match their schema |
@@ -443,7 +479,7 @@ Published because a pass that reports only its findings is reporting half its in
 
 1. **The v36 inbound grep, run as literally specified, was a token sink — and the policy review
    caught it before any budget was spent.** `grep -rln "atp-adp-cycle" docs/audits/` returns **86**
-   files where C344's equivalent returned a handful. Reading 76 non-lineage documents would have
+   files where C344's equivalent returned a handful. Reading 75 non-lineage documents would have
    consumed the pass and returned the disjointness notes that make up most of them. The instrument
    that worked is a **set difference** (rows naming atp-adp as *addressee*, minus rows this ledger
    holds), and it is a generalization of C306's own **I-5**. **v36 names the direction to look; it
@@ -491,11 +527,88 @@ Published because a pass that reports only its findings is reporting half its in
    `C62-B11` the first search keyed on. **A disposition must name its members from an enumeration,
    not from a list you assembled while reading**, and a search keyed to a row's *described* form will
    not find the row after it has been collapsed to a label.
-6. **Measurement instants.** Every count in this document was re-run against the tree **after** the
-   findings were written; see §G. Two counts move if this file is included in their scope and are
-   therefore scoped in words: §B.1's **86** and **76** are measured **excluding this document**
-   (which now names the target), and §B.2's **42/14/28** excludes both audit trees by construction
-   and does not move.
+6. **Measurement instants.** Every *result* in this document was re-run against the tree **after** the
+   findings were written; see §G. **That warranty did not extend to the instruments, scopes and
+   denominators those results were obtained with — which is what §F.7 is, and what the standing block
+   on this PR was about.** Two counts move if this file is included in their scope and are therefore
+   scoped in words: §B.1's **86** and **75** are measured **excluding this document** (which now names
+   the target), and §B.2's **42/18/24** excludes both audit trees by construction and does not move.
+
+7. **The class sweep the block asked for: three named cells, five members found, and none of them a
+   result.** This PR was returned with three cells marked — a stale denominator, a retracted scope,
+   and an instrument name that does not return its published number. Per **v35** (*clear a block by
+   class, not by cell*) the whole class was re-derived rather than the three cells patched: **every
+   `scope` cell, every denominator anywhere in the document, and every `instrument` cell in §G's
+   index**, plus — on the policy review's addition — **every path token in §A and in §G's baseline**,
+   a class the proposal had missed and which carries the worst blast radius, because C386's freeze
+   check reads it.
+
+   | # | member | published | corrected | how found |
+   |--:|---|---|---|---|
+   | 1 | `docs/audits/` denominator (2 index rows + §C N1 measurement 1) | 196 | **217** | named by the block; 196 was C306's figure carried forward, stale by 21 files / 8 days |
+   | 2 | `subsum in ISP lineage` scope | × 5 docs | **× 10 docs** | named by the block; 5 is the pre-correction scope this document's own §F.5 records as wrong |
+   | 3 | `B1 narrowing` instrument | `grep -c "unit-of-account"` → 3 | `grep -o … \| wc -l` → 3 (`grep -c` returns **2**) | named by the block |
+   | 4 | **lineage membership rule** — §B.1 split, §B.2 split, `addressee residue` scope, §F.1, §F.6, the header | 10 lineage / 76 non | **11 / 75** | **found by the class sweep, not by the block** |
+   | 5 | **path roots** — §A's 10 rows, §G's baseline | 3 baseline paths resolve from **no** root; §A mixes two roots, none declared | all repo-relative, root declared per row | **found by the class sweep, not by the block** |
+
+   **Member 4 is the one that mattered, and it is the same defect as the two the block named, one
+   level up.** The document counts the ISP lineage *inclusively* — §F.5 is explicitly about widening
+   that enumeration from a hand-listed 5 to a mechanical 10, and the tenth member is a non-C-numbered
+   `…-internal-consistency-…` pass. It then counted **its own** lineage by C-number and excluded the
+   structurally identical `atp-adp-cycle-internal-consistency-2026-05-23.md`. **The pass applied the
+   corrected rule to the lineage it was charging and the pre-correction rule to itself** — §F.5's own
+   lesson, unconverted, in the document that wrote it.
+
+   Its consequence is a *result* change, which is why it is published in both readings in §B.2 rather
+   than quietly overwritten: 42/14/28 → **42/18/24**. Every reclassified file is a `core-spec/`
+   sibling, so three of the four siblings §B.2 listed as unread had in fact been read. **N3 is
+   unaffected and its supporting measurement strengthens** — `ATP_INTEGRATION_SUMMARY.md` is named by
+   the eleventh document zero times, so the passes that never read it go from ten over 64 days to
+   **eleven over 78**. Direction matters here: like the block's own note that *1 of 217* is a stronger
+   result than *1 of 196*, a stale scope had been making a finding look **weaker** than the evidence
+   supports. **No finding, severity, route, verdict or disposition changes, and C347 remains a
+   declared NO-OP.**
+
+   **Two honest limits on this sweep.**
+   - **The `addressee residue` row cannot be reproduced from what it publishes.** Its instrument cell
+     reads *"routing-verb ∩ target regex, hand-triaged"* and never names the verb set. A post-hoc
+     approximation over `{owner, route, carry, carried, owed}` returns **20** documents, not 53 — so
+     the published figure is not re-derivable, and it is now labelled as such in §B.1 and §G rather
+     than left to read as mechanical. Its load-bearing half — the single addressee row not held,
+     `C62-B11` — was independently reproduced by the reviewer. **v26 in the failure direction: an
+     unregistered window is an unfalsifiable one.**
+   - **The line-cite class came back clean.** Every baseline anchor was re-resolved against the spec
+     (`:615` heading, `:617-622` six MUSTs, `:624-633`, `:635-641`, `:184`/`:194`, `:547`,
+     `:511-512`, `:621`, 804 L) and all hold — §F.4's sweep did its job. The failure was never in the
+     cites; it was one column over.
+
+   **Why the class exists at all, and the structural fix.** §F.4 re-resolved every **line cite**.
+   §F.6 re-ran every **result**. Neither instrument reads a scope, a denominator, an instrument name
+   or a path root — and all five members live there. The mechanism is that §G is *transcribed at
+   end-of-pass from memory of how a number was got*, while results are *captured from the tree*. The
+   fix is capture, not diligence: the sweep below was run as one script and every figure above is
+   pasted from its output, so the claim is falsifiable by re-running it — which no prior warranty in
+   this document was.
+
+   ```sh
+   # C346 instrument sweep — run from repo root; B is this pass's base.
+   B=5fddf603
+   git ls-tree -r --name-only $B -- docs/audits | wc -l                    # 217  denominator
+   git grep -l "atp-adp-cycle" $B -- docs/audits | wc -l                   # 86   inbound corpus
+   git grep -l "atp-adp-cycle" $B -- docs/audits \
+     | sed "s|^$B:docs/audits/||" | grep -ci "atp-adp-cycle"               # 11   lineage (inclusive rule)
+   git grep -l "ISP-B11" $B -- docs/audits | wc -l                         # 1    label reach
+   git ls-tree -r --name-only $B -- docs/audits | grep -c inter-society     # 10   ISP scope
+   for f in $(git ls-tree -r --name-only $B -- docs/audits | grep "atp-adp-cycle"); do
+     printf '%s uoa_lines=%s uoa_occ=%s c62_lines=%s\n' "$(basename $f)" \
+       "$(git show $B:$f | grep -c 'unit-of-account')" \
+       "$(git show $B:$f | grep -o 'unit-of-account' | wc -l)" \
+       "$(git show $B:$f | grep -c '\bC62\b')"; done                       # C118 2/3/0 ; C78 1/1/1
+   git ls-tree -r --name-only $B -- web4-standard/test-vectors \
+     | grep -c '\.json$'                                                   # 35   gate-3 denominator
+   for p in <the 10 §A paths, repo-relative>; do
+     test -f "$p" || echo "UNRESOLVED: $p"; done                           # path-root check
+   ```
 
 ---
 
@@ -517,14 +630,23 @@ Published because a pass that reports only its findings is reporting half its in
 - **Rotation** advances +2 → `multi-device-lct-binding.md` = **C348** (last audited C308).
   Next atp delta ≈ **C386**.
 
-**Baseline for C386** (commits unless marked *blob*): target `256ab51d` (*blob* `2d060579`, 804 L;
-§7.1 heading `:615`, its **6 MUSTs** `:617-622`, MUST-#6-scope note `:624-633`, escrow note
-`:635-641`, §2.4 `:184`/`:194`, §6.1 `:547`, §5.3 `:511-512`, MUST #5 referent `:621`);
-`atp-jsonld.schema.json` `639cdebd`; `contexts/atp.jsonld` `639cdebd`;
-`test-vectors/atp/transfer-operations.json` `a3b93713`; `schema-validation/atp-jsonld-validation.json`
-`3495e135`; `testing/conformance/atp-operations.json` `92454d65`; `deployment/config/demurrage.example.json`
-`0e547127`; `web4-core/src/atp.rs` `8857ab09`; `sdk/web4/atp.py` `62524cf8` (*blob* `efa5de3c`);
-`test-vectors/validate_vectors.py` `a3b93713` (*blob* `5259d473`).
+**Baseline for C386** (commits unless marked *blob*). **All paths repo-relative and verified to
+resolve as written** (§F.7 member 5 — three of them previously resolved from no root at all, which is
+C344's bare-filename error recurring at the next slot, in the baseline C386's freeze check reads).
+Line anchors re-resolved against the spec this pass; all hold.
+
+- target `web4-standard/core-spec/atp-adp-cycle.md` — `256ab51d` (*blob* `2d060579`, **804 L**;
+  §7.1 heading `:615`, its **6 MUSTs** `:617-622`, MUST-#6-scope note `:624-633`, escrow note
+  `:635-641`, §2.4 `:184`/`:194`, §6.1 `:547`, §5.3 `:511-512`, MUST #5 referent `:621`)
+- `web4-standard/schemas/atp-jsonld.schema.json` — `639cdebd`
+- `web4-standard/schemas/contexts/atp.jsonld` — `639cdebd`
+- `web4-standard/test-vectors/atp/transfer-operations.json` — `a3b93713`
+- `web4-standard/test-vectors/schema-validation/atp-jsonld-validation.json` — `3495e135`
+- `web4-standard/testing/conformance/atp-operations.json` — `92454d65`
+- `web4-standard/deployment/config/demurrage.example.json` — `0e547127`
+- `web4-core/src/atp.rs` — `8857ab09` *(repo root; the one non-`web4-standard/` member)*
+- `web4-standard/implementation/sdk/web4/atp.py` — `62524cf8` (*blob* `efa5de3c`)
+- `web4-standard/test-vectors/validate_vectors.py` — `a3b93713` (*blob* `5259d473`)
 
 **Guards for C386.**
 1. **Check whether N1 was reconciled** — specifically whether `C62-B11` carries a disposition in the
@@ -540,32 +662,49 @@ Published because a pass that reports only its findings is reporting half its in
    (C158-owned); the 23/23 schema-validation suite; the 3/3 `to_jsonld()`↔schema result; the §E
    path-filter candidate (refuted, 1 of 3); the 25 outward files' non-citation of the spec (measured
    negative, not a defect).
+6. **Build §G by capture, not transcription, and sweep the instrument column as its own class**
+   (§F.7). The lineage is **11 docs at base + this pass**, by the *inclusive* rule stated in the
+   header — if C386 counts it by C-number it will reproduce member 4. Before publishing any index:
+   re-derive every scope, denominator, instrument name and **path root**; verify every path resolves
+   as written; and pre-register the verb set of any hand-triaged filter (`addressee residue` is the
+   one row here that cannot be re-derived from what it publishes).
 
-**Instrument index — every count re-run after the findings were written, at `5fddf603`.**
+**Instrument index.** Warranty, restated to say exactly what was swept and by what means (§F.7 —
+the first version said *"every count re-run after the findings were written"*, and two cells proved
+that sweep was not universal):
+
+- **Results** — re-run against the tree at `5fddf603` **after** the findings were written.
+- **Instruments, scopes, denominators and path roots** — re-derived in a **second, separate sweep**
+  (§F.7), by executing each named command verbatim and comparing what it returns to what is
+  published. Five members were corrected; **four rows below carry a value that changed.**
+- **Not mechanically reproducible — one row, named rather than absorbed**: `addressee residue` is
+  hand-triaged and its verb set was never pre-registered.
+- **Re-implemented rather than re-run** (independent instrument, same answer): `broken links`.
+- **Self-reporting denominators** (the tool prints its own scope): `gate 1`, `gate 2`, `gate 3`.
 
 | claim | instrument | scope | result |
 |---|---|---|---|
-| target frozen 33 d | `git log -1 --format=%h -- core-spec/atp-adp-cycle.md` | 1 file | `256ab51d`, 2026-07-07 |
+| target frozen 33 d | `git log -1 --format=%h -- web4-standard/core-spec/atp-adp-cycle.md` | 1 file | `256ab51d`, 2026-07-07 |
 | mirror set frozen | `git rev-parse HEAD:<path>` × 10 | 10 files | table §A |
 | window | `git log 0fb9d952..HEAD -- web4-standard/` | tree | **2** commits |
 | window ATP tokens | `git log -p … \| grep -icE '^\+.*\b(atp\|adp\|demurrage\|slash_atp\|mint_adp)\b'` | window diff | **0** |
 | second audit tree | `grep -rl "atp-adp-cycle" web4-standard/docs/audits/` | 2 files | **0** |
-| inbound corpus | `grep -rl "atp-adp-cycle" docs/audits/` | 196 docs | **86** (10 lineage, 76 not) — *excludes this file* |
-| addressee residue | routing-verb ∩ target regex, hand-triaged | 76 docs | 53 with routing language; **1 addressee row not held** (`C62-B11`) |
-| `ISP-B11` label reach | `grep -rl "ISP-B11" docs/audits/` | 196 docs | **1** (C78) |
-| `subsum` in ISP lineage | `grep -c subsum` × 5 docs | 5 docs | **0** |
-| B1 narrowing | `grep -c "unit-of-account"` / `grep -c "\bC62\b"` × 10 lineage docs | 10 docs | C78 1/1; C118 3/0; others **0/0** |
-| citation direction | `git grep -l "atp-adp-cycle" -- . ':!docs/audits' ':!web4-standard/docs/audits'` | tree | **42**; 14 named, **28** never |
+| inbound corpus | `grep -rl "atp-adp-cycle" docs/audits/` | **217** docs *(was 196 — §F.7 m1)* | **86** (**11** lineage, **75** not — *§F.7 m4*) — *excludes this file* |
+| addressee residue | hand triage over the corpus; **verb set not pre-registered ⇒ not mechanically reproducible** (§F.7) | **75** docs *(was 76 — §F.7 m4)* | 53 with routing language; **1 addressee row not held** (`C62-B11`) |
+| `ISP-B11` label reach | `grep -rl "ISP-B11" docs/audits/` | **217** docs *(was 196 — §F.7 m1)* | **1** (C78) |
+| `subsum` in ISP lineage | `grep -c subsum` × **10** docs *(was ×5 — the pre-correction scope §F.5 retracts; §F.7 m2)* | **10** docs | **0**, all ten |
+| B1 narrowing | `grep -o "unit-of-account" \| wc -l` (**occurrences**) / `grep -c "\bC62\b"` (**lines**) × **11** lineage docs *(§F.7 m3, m4)* | **11** docs | C78 1/1; C118 **3**/0 (`grep -c` on C118 = 2 lines); others **0/0** |
+| citation direction | `git grep -l "atp-adp-cycle" -- . ':!docs/audits' ':!web4-standard/docs/audits'` | tree; cross-ref vs **11** lineage docs | **42**; **18** named, **24** never *(10-doc rule gave 14/28 — §F.7 m4)* |
 | outward trees | `grep -rli atp` vs `grep -rl atp-adp-cycle` × 6 trees | `web4-standard/{rfcs,submission,proposals,profiles,testing,docs}` | **25** mention, **0** cite |
 | validator invocation | `grep -rn validate_vectors --include={yml,yaml,toml,cfg,ini,sh,mk,py,Makefile}` | repo, minus the copies + `docs/audits/` | **0** |
 | validator copies | `git rev-parse HEAD:<path>` × 5 | 5 files | 4 × `c5c9e5bf` (180 L) + 1 × `5259d473` (423 L) |
 | README validator is ATP-blind | `grep -ci 'atp\|transfer\|demurrage' web4-standard/validate_vectors.py` | 1 file | **0** |
 | README names the vector tree | `grep -c "test-vectors" web4-standard/README.md` | 1 file | **0** |
 | broken links | resolve every relative md link | `web4-standard/**/*.md` | **5 of 173**; 2 are the same ATP target |
-| gate 1 | `python3 test-vectors/validate_context_refs.py` | `test-vectors/**` | `atp.jsonld OK (21 refs, 1 files)` |
-| gate 1 reach | `grep -c '@context' test-vectors/atp/transfer-operations.json` | 1 file | **0** |
-| gate 2 | `python3 schema-validation/validate_schema_vectors.py` | 278 vectors | `atp 23/23`, all pass |
-| gate 3 | `python3 test-vectors/validate_vectors.py` | 2 of 35 files | `87 passed, 0 failed` |
+| gate 1 | `python3 web4-standard/test-vectors/validate_context_refs.py` | `web4-standard/test-vectors/**` | `atp.jsonld OK (21 refs, 1 files)` |
+| gate 1 reach | `grep -c '@context' web4-standard/test-vectors/atp/transfer-operations.json` | 1 file | **0** |
+| gate 2 | `python3 web4-standard/test-vectors/schema-validation/validate_schema_vectors.py` *(the first write dropped `test-vectors/`, leaving a path that resolves from no root — §F.7 m5)* | 278 vectors | `atp 23/23`, all pass |
+| gate 3 | `python3 web4-standard/test-vectors/validate_vectors.py` | 2 of **35** files under `web4-standard/test-vectors/` | `87 passed, 0 failed` |
 | §7.1 MUST coverage | count MUSTs `:617-622` vs schema `$defs` | 1 spec + 1 schema | **6 MUSTs, 0 covered** |
 | ISP-lineage reach | `grep -c 'C62-B11'` / bare `B11` / `subsum` × 10 ISP docs | `docs/audits/*inter-society*` | **7 carry it** (5 described, 2 bare); `subsum` **0/10** |
 | §E refutation | co-change of `test-vectors/` and `implementation/sdk/` | since `270a5715` (2026-03-27) | **1 of 3** (all history: **10 of 32** — §F.2) |
