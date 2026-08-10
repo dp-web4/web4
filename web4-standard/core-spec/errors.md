@@ -2,7 +2,7 @@
 
 **Version**: 1
 **Status**: Draft — core protocol error taxonomy (RFC 9457 Problem Details); subsystem specs extend it (see §1).
-**Last-Updated**: 2026-06-17
+**Last-Updated**: 2026-08-09
 
 ---
 
@@ -91,6 +91,9 @@ Web4 defines a hierarchical error code taxonomy with the following categories:
 | W4_ERR_PROTO_SEQUENCE | Sequence Error | 400 | Message sequence out of order |
 | W4_ERR_PROTO_REPLAY | Replay Detected | 409 | Message replay attack detected |
 | W4_ERR_PROTO_DOWNGRADE | Downgrade Detected | 400 | Protocol downgrade attack detected |
+| W4_ERR_PROTO_FORMAT | Protocol Format Error | 400 | Message encoding, canonical form, or required protocol structure is malformed or unsupported |
+
+`W4_ERR_PROTO_FORMAT` is the core error for structural/canonical-format failures in protocol messages. Specifications that require aborting on a malformed protocol representation SHOULD use this code unless a more specific subsystem error applies.
 
 ## 3. Error Examples
 
@@ -142,7 +145,7 @@ Web4 defines a hierarchical error code taxonomy with the following categories:
 
 Per §1, the `status` member is **transport-agnostic** — the reason phrases below are HTTP status codes used as the canonical *illustrative labels* for each semantic class, and the same semantic class applies over non-HTTP transports (e.g. CBOR over TLS/QUIC, BLE GATT, CAN Bus). Each entry names the semantic class the status conveys:
 
-- **400 Bad Request**: Malformed requests, invalid parameters
+- **400 Bad Request**: Malformed requests, invalid parameters, invalid protocol format
 - **401 Unauthorized**: Authentication failure, or a credential that lacks the required capability (e.g. `W4_ERR_AUTHZ_DENIED`)
 - **403 Forbidden**: An authenticated entity lacking the additional scope or authorization required for the operation (e.g. `W4_ERR_AUTHZ_SCOPE`)
 - **408 Request Timeout**: Operation timed out

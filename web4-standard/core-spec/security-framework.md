@@ -73,6 +73,13 @@ Private keys MUST be stored securely to prevent unauthorized access. Recommended
 -   **Secure Enclaves:** On devices that support it, private keys can be stored in a secure enclave, such as the Secure Enclave on Apple devices or the Trusted Execution Environment (TEE) on Android devices.
 -   **Encrypted Storage:** If an HSM or secure enclave is not available, private keys should be stored in an encrypted format, with the encryption key protected by a strong password or other authentication mechanism.
 
+For multi-device identities, implementations MUST distinguish **replicated identity state** from **device-local custody**:
+
+- Root-LCT public state, constellation membership, enrollment/revocation state, recovery policy, and public Device-LCT material MAY be replicated across authorized devices.
+- Hardware-anchor private keys, device-unlock secrets, and private attestation material MUST remain device-local and MUST NOT be synchronized as part of an opaque identity-vault copy.
+- A replicated backup format MUST identify each secret's custody class. Importing a backup MUST NOT silently convert a hardware-bound credential into an exportable software credential at the same assurance level.
+- Revocation state SHOULD propagate aggressively; stale replicas MUST NOT restore authority to a revoked device merely because they predate the revocation.
+
 ### 2.3. Key Rotation
 
 To mitigate the risk of key compromise, Web4 entities SHOULD rotate their keys periodically. The key rotation process involves generating a new key pair and issuing a new LCT bound to the new public key. See `LCT-linked-context-token.md` Section 7.3 for the normative rotation lifecycle (new LCT issuance, `lineage` to the parent, and the dual-validity overlap window before the parent is retired as `superseded`).
@@ -87,6 +94,35 @@ Authentication and authorization are essential for controlling access to Web4 re
 ### 3.1. Authentication
 
 Authentication in Web4 is based on digital signatures. An entity authenticates itself by signing a challenge with its private key. The signature can then be verified by the other party using the entity's public key. See `web4-handshake.md` §6.0.5 (Binding to Session) for the normative session-binding requirement, and §9 (Anti-Replay & Clocks) for the freshness, nonce-uniqueness, and replay-protection requirements that a conformant challenge-response MUST satisfy; the `HandshakeAuth` `nonce`/`ts` fields these rules operate on are defined in §6.1.
+
+#### 3.1.1 Composed Actor Provenance
+
+A valid principal signature proves control of the principal credential; it does **not** by itself prove which harness, device, role, or delegated authority caused an act.
+
+When software or another member acts on behalf of a principal, a consequential session or act MUST preserve the identities as distinct fields rather than collapsing them into one signer. The authenticated envelope SHOULD bind, as applicable:
+
+- `principal` — the human, AI, organization, or other root identity whose intent/benefit is represented;
+- `actor` — the harness, application instance, agent, or member that actually performs the act;
+- `via_device` — the Device LCT or hardware anchor used for the session;
+- `office` — the role/office being occupied, when authority derives from a role rather than merely from identity; and
+- `authority` — the occupancy, delegation, capability, or session reference that authorizes the actor to act for the principal in that office.
+
+The canonical transcript or act digest MUST cover every field whose alteration would change attribution or authority. If separate actor/device credentials exist, their proofs SHOULD cover the same transcript so that replacing `actor`, `via_device`, `office`, or `authority` invalidates the proof.
+
+**Authority does not transfer through prose or authenticated instruction alone.** A request from one entity to another is evidence of instruction, not an implicit grant of the requester's or deputy's authority. Cross-entity delegation MUST be explicit, attributable, scoped, and independently verifiable.
+
+#### 3.1.2 Multi-Device and Quorum Assurance
+
+A multi-device policy such as `m-of-n` is an **assurance claim**. Implementations MUST distinguish cryptographic quorum from a policy wrapper around a single credential key:
+
+- If a credential is described as cryptographic `m-of-n`, no single participating device may be sufficient to complete the protected credential operation when `m > 1`.
+- A design in which one device holds the relying-party credential key and peer devices merely approve its use MAY be useful, but it MUST be identified as policy quorum rather than cryptographic quorum unless the key operation itself cannot complete without the required peers.
+- If fewer than `m` required devices are available, implementations MUST NOT silently reduce the threshold while presenting the result as the same credential or assurance level.
+- Recovery, emergency access, and intentionally lower-assurance credentials MAY exist, but each MUST be a separately defined path whose reduced assurance is visible to the relying party or policy evaluator.
+
+> **Availability may degrade service; it may not silently degrade identity assurance.**
+
+A Web4-backed WebAuthn/passkey credential MAY claim assurance parity with an ordinary platform passkey only when its key custody, relying-party binding, user verification, and anti-export properties meet the same bar. Additional independent anchors MAY then increase assurance; they do not retroactively make weak single-device custody equivalent to hardware-bound custody.
 
 ### 3.2. Authorization
 
