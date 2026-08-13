@@ -104,6 +104,11 @@ pub struct RestState {
     /// process); HestiaCallbackSigner for Hestia-mode chapters (hub holds NO
     /// keys; signs via Hestia HTTP callback); LockedSigner while sealed.
     pub signer: Arc<SwappableSigner>,
+    /// F0.1 (R7a): the degraded-event diagnostic log — the fallback witness
+    /// for windows in which the signer (the normal witness) is the
+    /// unreachable thing. The `SwappableSigner` appends to it at its choke
+    /// point; ignition reconciles it into the witnessed ledger.
+    pub degraded_log: Arc<hub_lib::degraded::DegradedLog>,
     pub ledger: Arc<Mutex<HubLedger>>,
     /// Incremental projection cache. The ledger is append-only, so a cached
     /// `HubState` can be advanced by folding only entries appended since it was
@@ -376,12 +381,20 @@ impl RestState {
         }
 
         let _ = locked; // lock state now derives from the installed signer kind
+        // F0.1 (R7a): one degraded log per hub root; the swappable signer
+        // records infrastructure failures to it at its choke point.
+        let degraded_log = Arc::new(hub_lib::degraded::DegradedLog::new(
+            paths.root.join("degraded.jsonl"),
+        ));
+        let signer_sw = Arc::new(SwappableSigner::new(signer));
+        signer_sw.set_degraded_log(degraded_log.clone());
         Ok(Self {
             paths,
             hub_id: society.lct_id,
             hub_name: society.name.clone(),
             sovereign_lct_id,
-            signer: Arc::new(SwappableSigner::new(signer)),
+            signer: signer_sw,
+            degraded_log,
             ledger,
             state_cache: Arc::new(std::sync::Mutex::new(ProjectionCache::default())),
             nonces: Arc::new(NonceStore::new()),
@@ -543,12 +556,21 @@ impl RestState {
             )
         })?;
         let signer: Arc<dyn RemoteSigner> = Arc::new(LockedSigner::new(pid.founding_sovereign_lct_id));
+        // F0.1 (R7a): the locked shell is exactly the boot most likely to
+        // produce degraded events — attach the log so locked refusals are
+        // recorded and reconciled at ignition.
+        let degraded_log = Arc::new(hub_lib::degraded::DegradedLog::new(
+            paths.root.join("degraded.jsonl"),
+        ));
+        let signer_sw = Arc::new(SwappableSigner::new(signer));
+        signer_sw.set_degraded_log(degraded_log.clone());
         Ok(Self {
             paths,
             hub_id: pid.hub_id,
             hub_name: pid.hub_name,
             sovereign_lct_id: pid.founding_sovereign_lct_id,
-            signer: Arc::new(SwappableSigner::new(signer)),
+            signer: signer_sw,
+            degraded_log,
             ledger: placeholder_ledger,
             state_cache: Arc::new(std::sync::Mutex::new(ProjectionCache::default())),
             nonces: Arc::new(NonceStore::new()),
@@ -841,6 +863,37 @@ impl RestState {
                 // the durable mailbox opens with the same now-live key.
                 self.hydrate_mailbox().await;
                 self.unlock_gate.record_success();
+                // F0.1 (R7a): the signer is live again — reconcile the degraded
+                // diagnostic log into the witnessed ledger. The local log was
+                // the fallback witness for the window in which the signer (the
+                // normal witness) was the unreachable thing; this entry binds
+                // its exact drained bytes by digest. Non-fatal on failure: the
+                // drain fails toward duplication, never loss, and ignition
+                // must not be blocked by its own bookkeeping.
+                if let Some(snap) = self.degraded_log.snapshot() {
+                    let count = snap.summary.count;
+                    let ev = HubEvent::DegradedReconciled {
+                        count,
+                        first_ts: snap.summary.first_ts,
+                        last_ts: snap.summary.last_ts,
+                        entries_digest: snap.summary.entries_digest.clone(),
+                        by_source: snap.summary.by_source.clone(),
+                    };
+                    match witness_event(self, ev).await {
+                        Ok(idx) => {
+                            // Witnessed — only now remove the reconciled bytes.
+                            self.degraded_log.commit_reconciled(&snap);
+                            tracing::info!(
+                                "ignition: reconciled {count} degraded event(s) into ledger entry {idx}"
+                            );
+                        }
+                        Err(e) => tracing::warn!(
+                            "ignition: degraded-log reconciliation failed (non-fatal; \
+                             entries re-report on next ignition): {}",
+                            e.message
+                        ),
+                    }
+                }
                 // Refresh the clear public-identity tier-0 file so a future locked-shell
                 // boot knows who this hub is (to serve well-known + accept `hub unlock`).
                 let pid = PublicIdentity {
@@ -3757,6 +3810,10 @@ fn temporal_delta(
         // Hub-internal obligation-outcome delta: the hub does not hardware-attest
         // the subject's sovereign here, so it stays at the fail-closed default.
         sovereign_strength: web4_core::r6::SovereignStrength::default(),
+        // Adjudicated by the hub from witnessed timestamps — conduct evidence.
+        // (F0.1/R7a: an infrastructure-caused miss is the emitter's to classify
+        // as `Infra`; the deadline sweep judges only what the ledger witnessed.)
+        class: web4_core::r6::DeltaClass::Conduct,
         action_type: action_kind.to_string(),
         action_target: "hub".to_string(),
         action_id: action_id.to_string(),
@@ -3947,8 +4004,27 @@ async fn dispatch_channel(
                     }
                 }
             }
-            let index = witness_event(s, HubEvent::ReputationRecorded { delta }).await?;
-            Ok(serde_json::json!({ "recorded": true, "entry_index": index }))
+            // F0.1 (R7a): decide application AT RECORD TIME from the law's
+            // staged mode × the delta's class, and capture it into the event —
+            // replay honors the law in force when the delta landed. Fail-closed
+            // on every arm: no law / no section / classify_only mode / non-
+            // Conduct class ⇒ recorded, applied to nothing.
+            let applied = {
+                use hub_lib::law::{EmitMode, HubLawExt};
+                let law_guard = s.law.read().await;
+                let mode = law_guard.as_ref()
+                    .map(|law| law.reputation_emit_mode())
+                    .unwrap_or_default();
+                mode == EmitMode::Apply && delta.class == web4_core::r6::DeltaClass::Conduct
+            };
+            let class = delta.class;
+            let index = witness_event(s, HubEvent::ReputationRecorded { delta, applied }).await?;
+            Ok(serde_json::json!({
+                "recorded": true,
+                "entry_index": index,
+                "applied": applied,
+                "class": class,
+            }))
         }
         "list_members" => {
             let all: Vec<hub_lib::state::MemberView> = state.members.values()
@@ -4273,7 +4349,19 @@ async fn dispatch_channel(
                             _ => "met",
                         };
                         let delta = temporal_delta(&ob, &request_id, outcome_str, &impact, index, &notice_kind, now);
-                        witness_event(s, HubEvent::ReputationRecorded { delta }).await?;
+                        // F0.1 (R7a): the obligation sweep obeys the same staged
+                        // mode as every other emitter — hub-adjudicated Conduct
+                        // applies only when the law's mode says apply.
+                        let applied = {
+                            use hub_lib::law::{EmitMode, HubLawExt};
+                            let law_guard = s.law.read().await;
+                            let mode = law_guard.as_ref()
+                                .map(|law| law.reputation_emit_mode())
+                                .unwrap_or_default();
+                            mode == EmitMode::Apply
+                                && delta.class == web4_core::r6::DeltaClass::Conduct
+                        };
+                        witness_event(s, HubEvent::ReputationRecorded { delta, applied }).await?;
                         witness_event(s, HubEvent::ObligationResolved {
                             request_id: request_id.clone(),
                             outcome: outcome_str.to_string(),
@@ -9139,12 +9227,17 @@ pub(crate) mod channel_e2e_tests {
         assert_eq!(out2["outcome"], serde_json::json!("met"));
         assert!(out2["t3_temperament"].as_f64().unwrap() > 0.0, "on-time = positive temperament");
 
-        // Projected: obligation cleared, reputation folded at (subject, role).
+        // Projected: obligation cleared. F0.1 (R7a): with no `reputation_emit`
+        // section the mode is CLASSIFY-ONLY — the hub-adjudicated Conduct delta
+        // is WITNESSED to the ledger but folds into no tensor until the law
+        // ratifies `mode: apply` (the staged seam opening). The observation
+        // window reads the held counter instead.
         let proj2 = { let l = state.ledger.lock().await; HubState::project(&l) };
         assert!(!proj2.obligations.contains_key("req-1"), "resolved obligation removed");
-        let rep = proj2.reputation.get(&(lct.to_string(), "citizen".to_string()))
-            .expect("reputation folded for (subject, citizen)");
-        assert_eq!(rep.observations, 1);
+        assert!(proj2.reputation.is_empty(),
+            "classify-only mode holds the delta out of the tensors");
+        assert_eq!(proj2.reputation_ingest.held_classify_only, 1,
+            "the delta was witnessed and counted, not lost");
     }
 
     #[tokio::test]

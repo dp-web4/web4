@@ -910,13 +910,25 @@ fn event_summary(event: &HubEvent) -> String {
                 html_escape(&act.substance.uri),
             )
         }
-        HubEvent::ReputationRecorded { delta } => format!(
+        HubEvent::DegradedReconciled { count, first_ts, last_ts, by_source, .. } => format!(
+            "🛠 degraded window reconciled <span class=\"muted\">— {} infrastructure event(s), \
+             {} → {}, by source: {}</span>",
+            count,
+            first_ts.format("%Y-%m-%d %H:%M"),
+            last_ts.format("%Y-%m-%d %H:%M"),
+            html_escape(
+                &by_source.iter().map(|(k, v)| format!("{k}×{v}")).collect::<Vec<_>>().join(", ")
+            ),
+        ),
+        HubEvent::ReputationRecorded { delta, applied } => format!(
             "📊 reputation Δ for {} <span class=\"muted\">in role</span> {} \
-             <span class=\"muted\">(ΔT3 {:+.3}, ΔV3 {:+.3}) — {}</span>",
+             <span class=\"muted\">(ΔT3 {:+.3}, ΔV3 {:+.3}, class {:?}, {}) — {}</span>",
             html_escape(&delta.subject_lct),
             html_escape(&delta.role_lct),
             delta.net_trust_change(),
             delta.net_value_change(),
+            delta.class,
+            if *applied { "applied" } else { "recorded-only" },
             html_escape(&delta.reason),
         ),
         HubEvent::ObligationOpened { request_id, subject_lct, role_lct, due_at, criticality, .. } => format!(
