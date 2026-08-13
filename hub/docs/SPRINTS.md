@@ -189,3 +189,67 @@ After Sprint 6 ships, MVP is in pilot. V2 work starts when one of these triggers
 - **A deployment's central operator asks for cross-chapter observability** (triggers Central Overlay phase) — still future.
 
 Each trigger defines its own sprint stack. V2 planning is deferred until a trigger fires; sprint-planning-in-advance for hypothetical V2 work is drift.
+
+---
+
+## F-series: the federated-hub PRD sprints
+
+> The maintained north star is `PRD_HUB_V2_FEDERATED.md` (merged #698, all five design questions
+> ratified). F-series sprints execute its ordered plan. Unlike the V2 triggers above, these are not
+> hypothetical: Phase 0 was ratified as gating (Q5), so planning it is not drift.
+
+### Sprint F0 — the gating hygiene (PRD Phase 0: R7a, R7b, R7c)
+
+Three items, parallelizable. R7a is the critical path: the reputation seam (hestia's ~9.5k queued
+deltas) stays closed until it is green.
+
+**F0.1 — R7a: degraded-verdict recording + delta classification.**
+- A `DegradedEvent` record: class (`infra` vs `conduct`), source (`locked-refusal` |
+  `signer-unreachable` | `peer-unreachable` | `gate-timeout`), timestamp, context — recorded
+  append-only. The existing type-level distinctions (`LockedSigner` refusals, `SignError::Transport`)
+  become recorded events, not just returned errors.
+- Every reputation delta carries a conduct-vs-infra class; infra never scores as conduct.
+- **Exit = PRD criterion 7**: kill the hestia callback (and a federation peer, once one exists)
+  mid-session → every failure lands as a recorded degraded event, distinguishable from conduct
+  denies; zero conduct-class deltas emitted from the window; the seam-opening test replays queued
+  deltas and proves the classifier separates the classes.
+
+**F0.2 — R7b: asserted-asker admission law.**
+- Law section: witness vouches count only toward identities resolved from the authoritative record;
+  a self-asserted binding collects no peer factors. Enforced in admission scoring.
+- **Exit = PRD criterion 8**: differential test — the self-asserted twin of a resolved identity
+  accumulates zero peer factors.
+
+**F0.3 — R7c: ratified-digest closure + operator surface.**
+- Supervisor-owned ratified-digest manifest (extends hub-watch `self_fingerprint`); running hub
+  self-reports its executing digest; operator surface shows per-seat `current`/`stale`/`unknown`;
+  deploy path (unit, scripts, binary path) joins the gate-protected closure.
+- **Exit = PRD criterion 9**: staging an unratified binary flips the seat to `stale` without
+  needing a restart to notice; a closure write from a gated session is refused and escalatable.
+
+**Restart discipline:** F0.1 + F0.2 daemon changes batch onto one branch and go live as **one dark
+binary → one ignition**. Never two restarts where one will do (the vault relocks on every restart).
+
+**Seam-opening decision (HUB seat, dp-delegated 2026-08-13): staged.** When F0.1 is green, the same
+ignition opens `reputation_emit` in **classify-and-record mode** — queued deltas are ingested,
+classified conduct-vs-infra, and visible on the operator surface, but applied to no tensor. After one
+observation window in which the classification distribution is reviewed and looks sane, application
+turns on. Observe before actuate: the fail-closed+warn default applied to the merit arc itself. Any
+anomaly in the window (implausible conduct/infra ratio, deltas that classify as neither, volume
+mismatch vs hestia's queue) holds application and escalates to dp.
+
+### Sprint F1 — R4 design (roles-as-entities), doc before code
+
+The entity-model decisions — role-LCT minting, charter as the policy-action vocabulary, the
+institutional tensor with occupant-attributed sub-dimensions (merit never transfers between
+occupants), migration of the founding seven with no legacy fork, and the distinct-identity
+role-filling binding (#698 R5 semantics) — land as a design PR for adversarial review BEFORE
+implementation sprints are cut. Cheap to review, expensive to get wrong in code.
+
+### Parallel — AIC pilot track
+
+Requires live-now features only; independent of F0/F1. dp's outreach (presentation artifact exists);
+then one chapter, one quarter. Pilot feedback steers R4/R2 priorities — consistent with the V2
+trigger discipline above: real triggers over pre-planned hypotheticals. Note the head start: R1
+composes on already-shipped primitives (`find_members`, intros, `did:web4`/EUDI, `/.well-known`
+discovery), not greenfield.
