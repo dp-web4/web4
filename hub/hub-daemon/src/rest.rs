@@ -864,36 +864,8 @@ impl RestState {
                 self.hydrate_mailbox().await;
                 self.unlock_gate.record_success();
                 // F0.1 (R7a): the signer is live again — reconcile the degraded
-                // diagnostic log into the witnessed ledger. The local log was
-                // the fallback witness for the window in which the signer (the
-                // normal witness) was the unreachable thing; this entry binds
-                // its exact drained bytes by digest. Non-fatal on failure: the
-                // drain fails toward duplication, never loss, and ignition
-                // must not be blocked by its own bookkeeping.
-                if let Some(snap) = self.degraded_log.snapshot() {
-                    let count = snap.summary.count;
-                    let ev = HubEvent::DegradedReconciled {
-                        count,
-                        first_ts: snap.summary.first_ts,
-                        last_ts: snap.summary.last_ts,
-                        entries_digest: snap.summary.entries_digest.clone(),
-                        by_source: snap.summary.by_source.clone(),
-                    };
-                    match witness_event(self, ev).await {
-                        Ok(idx) => {
-                            // Witnessed — only now remove the reconciled bytes.
-                            self.degraded_log.commit_reconciled(&snap);
-                            tracing::info!(
-                                "ignition: reconciled {count} degraded event(s) into ledger entry {idx}"
-                            );
-                        }
-                        Err(e) => tracing::warn!(
-                            "ignition: degraded-log reconciliation failed (non-fatal; \
-                             entries re-report on next ignition): {}",
-                            e.message
-                        ),
-                    }
-                }
+                // diagnostic log into the witnessed ledger.
+                reconcile_degraded_log(self, "ignition").await;
                 // Refresh the clear public-identity tier-0 file so a future locked-shell
                 // boot knows who this hub is (to serve well-known + accept `hub unlock`).
                 let pid = PublicIdentity {
@@ -1106,7 +1078,91 @@ pub(crate) async fn law_integrity_write_gate(
 /// append). Returns the committed entry index. Requires an ignited signer.
 /// HUB-001: refuses on law-integrity mismatch — except `LawAmended` itself,
 /// which is the recovery path (re-witnessing the law is how a mismatch clears).
+/// Releases the degraded-log reconciliation slot on drop, so an early return
+/// (or a panic) cannot strand the guard and disable reconciliation for the
+/// life of the process.
+struct ReconcileSlot(Arc<hub_lib::degraded::DegradedLog>);
+impl Drop for ReconcileSlot {
+    fn drop(&mut self) {
+        self.0.end_reconcile();
+    }
+}
+fn scopeguard_release(s: &RestState) -> ReconcileSlot {
+    ReconcileSlot(s.degraded_log.clone())
+}
+
+/// F0.1 (R7a): fold the local degraded diagnostic log into the witnessed
+/// ledger. The local log is the fallback witness for a window in which the
+/// signer — the normal witness — was the unreachable thing; this binds its
+/// exact drained bytes by digest so the two records are auditable against each
+/// other.
+///
+/// **Reconciliation is opportunistic, not ignition-only.** It runs at ignition
+/// AND after any signing act that succeeds while unreconciled entries are
+/// pending, so a dependency that recovers on a live hub (a hestia callback
+/// coming back, a peer reachable again) does not leave its window unwitnessed
+/// until the next restart. The hub may run for weeks between ignitions; a
+/// record that waits that long is not a record anyone can act on.
+///
+/// Best-effort by construction: snapshot → witness → commit, so a failed
+/// witness re-reports on the next attempt (auditable duplication with a
+/// matching digest) rather than losing entries. Never blocks or fails its
+/// caller.
+async fn reconcile_degraded_log(s: &RestState, occasion: &str) {
+    // Cheap guard: an atomic load, so the witness path pays nothing when
+    // nothing is degraded (the overwhelmingly common case).
+    if !s.degraded_log.has_pending() {
+        return;
+    }
+    // Claim the slot: this both prevents recursion (the witness below re-enters
+    // here) and collapses concurrent attempts into one.
+    if !s.degraded_log.try_begin_reconcile() {
+        return;
+    }
+    let _release = scopeguard_release(s);
+    let Some(snap) = s.degraded_log.snapshot() else { return };
+    let count = snap.summary.count;
+    let ev = HubEvent::DegradedReconciled {
+        count,
+        first_ts: snap.summary.first_ts,
+        last_ts: snap.summary.last_ts,
+        entries_digest: snap.summary.entries_digest.clone(),
+        by_source: snap.summary.by_source.clone(),
+    };
+    match witness_event_inner(s, ev).await {
+        Ok(idx) => {
+            // Witnessed — only now remove the reconciled bytes.
+            s.degraded_log.commit_reconciled(&snap);
+            tracing::info!(
+                "{occasion}: reconciled {count} degraded event(s) into ledger entry {idx}"
+            );
+        }
+        Err(e) => tracing::warn!(
+            "{occasion}: degraded-log reconciliation failed (non-fatal; entries \
+             re-report on the next attempt): {}",
+            e.message
+        ),
+    }
+}
+
 async fn witness_event(s: &RestState, event: HubEvent) -> Result<u64, ApiError> {
+    let index = witness_event_inner(s, event).await?;
+    // F0.1 (R7a): this act just signed and witnessed successfully, so signing
+    // capability is live NOW. If a degraded window is still unwitnessed, fold
+    // it in — a dependency that recovers on a running hub must not leave its
+    // record waiting for the next ignition (hubs run for weeks between
+    // restarts). Costs one atomic load when nothing is pending, and never
+    // fails this caller: the act above is already committed, and
+    // reconciliation is bookkeeping.
+    reconcile_degraded_log(s, "post-witness").await;
+    Ok(index)
+}
+
+/// The witness path WITHOUT the reconciliation hook. Reconciliation witnesses
+/// its own event, so it calls this — breaking the recursion structurally
+/// rather than relying on a runtime guard to unwind it (the guard still exists
+/// for concurrency, but the call graph is acyclic by construction).
+async fn witness_event_inner(s: &RestState, event: HubEvent) -> Result<u64, ApiError> {
     let (unsigned, signature) = authorize_event(s, event).await?;
     let mut ledger = s.ledger.lock().await;
     let entry = ledger
@@ -7583,10 +7639,20 @@ async fn commit_pair_event(s: &RestState, event: HubEvent) -> Result<(u64, Strin
         .sign(s.sovereign_lct_id, &signing_bytes, &intent)
         .await
         .map_err(|e| ApiError::internal(anyhow::anyhow!("Sovereign signer denied/failed: {}", e)))?;
-    let mut ledger = s.ledger.lock().await;
-    let entry = ledger.append_signed(unsigned, signature).await
-        .map_err(ApiError::internal)?;
-    Ok((entry.index, entry.entry_hash.clone()))
+    let (index, hash) = {
+        let mut ledger = s.ledger.lock().await;
+        let entry = ledger.append_signed(unsigned, signature).await
+            .map_err(ApiError::internal)?;
+        (entry.index, entry.entry_hash.clone())
+    };
+    // F0.1 (R7a): a successful signed append proves signing capability is live
+    // — fold any still-unwitnessed degraded window in now, without waiting for
+    // an ignition. (This path signs Sovereign acts directly rather than through
+    // `witness_event`, so it needs its own hook: a reconciliation trigger on one
+    // signing path and not its sibling would leave whole classes of recovery
+    // unreconciled.)
+    reconcile_degraded_log(s, "post-commit").await;
+    Ok((index, hash))
 }
 
 #[cfg(test)]
@@ -9199,6 +9265,40 @@ pub(crate) mod channel_e2e_tests {
             caller_lct_id: lct, pair_id: pid, sealed, caller_pubkey_hex: None,
         })).await?;
         Ok(open_resp(m, hub_pub, pid, &r.0.sealed))
+    }
+
+    /// F0.1 (R7a), review follow-up: a dependency that recovers while the hub
+    /// stays LIVE must not leave its degraded window unwitnessed until the next
+    /// ignition. Hubs run for weeks between restarts; a record that waits that
+    /// long is not a record anyone can act on.
+    #[tokio::test]
+    async fn live_recovery_reconciles_without_an_ignition() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+
+        // A degraded window happens (the signer was unreachable for a while).
+        state.degraded_log.append(
+            hub_lib::degraded::DegradedSource::SignerUnreachable, "sign:member_added: refused");
+        state.degraded_log.append(
+            hub_lib::degraded::DegradedSource::GateTimeout, "law gate: timed out");
+        assert!(state.degraded_log.has_pending(), "entries are pending");
+
+        // The dependency recovers — no restart, no unlock. The very next
+        // successful witnessed act proves capability is back.
+        let (_kp, _lct) = pin_member(&state, &hub_pub).await;
+
+        assert!(!state.degraded_log.has_pending(),
+            "the window reconciled on live recovery, not at some future ignition");
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert_eq!(proj.degraded.reconciliations, 1);
+        assert_eq!(proj.degraded.entries, 2);
+        assert_eq!(proj.degraded.by_source.get("signer_unreachable"), Some(&1));
+        assert_eq!(proj.degraded.by_source.get("gate_timeout"), Some(&1));
+
+        // And it does not re-witness an empty window on every later act.
+        let (_kp2, _lct2) = pin_member(&state, &hub_pub).await;
+        let proj2 = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert_eq!(proj2.degraded.reconciliations, 1, "no empty re-reconciliation");
     }
 
     #[tokio::test]
