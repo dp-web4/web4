@@ -78,12 +78,56 @@ impl RatifiedManifest {
             Ok(s) => {
                 let m: Self = serde_json::from_str(&s)
                     .map_err(|e| anyhow::anyhow!("parsing ratified manifest: {e}"))?;
-                if m.ratified_git_sha.trim().is_empty() {
-                    anyhow::bail!("ratified manifest has an empty ratified_git_sha");
-                }
+                m.validate()?;
                 Ok(Some(m))
             }
         }
+    }
+
+    /// Admit only a well-formed record. **The validation belongs here, at
+    /// admission, not at the writer.**
+    ///
+    /// The writer already checks shape (`ratify-build.sh` enforces hex), but
+    /// this module's entire premise is that the daemon must assume nothing
+    /// about the writer — the manifest is deliberately owned by a different
+    /// principal, root-owned and daemon-unwritable, because "a process that
+    /// could write its own ratification record would be certifying itself". A
+    /// writer untrusted enough to need that asymmetry is untrusted enough to
+    /// need input validation. Leaving the check on the writer's side put the
+    /// whole guarantee in the hands of the party it is designed to distrust.
+    ///
+    /// A malformed record therefore reaches the same fail-closed rendering as
+    /// any other unparseable one (`manifest unreadable` ⇒ `Unknown`, never a
+    /// pass) instead of reaching a comparison at all.
+    fn validate(&self) -> anyhow::Result<()> {
+        let sha = self.ratified_git_sha.trim();
+        if sha.is_empty() {
+            anyhow::bail!("ratified manifest has an empty ratified_git_sha");
+        }
+        // FULL commit id, not an abbreviation. A short sha is a
+        // repository-local locator whose uniqueness changes as history grows —
+        // it is not a durable identity token, and in the commit-only fallback
+        // (no artifact digest pinned) it is the ONLY identity claim carrying
+        // the control. Accepting 7 hex characters would ratify any future
+        // commit sharing 28 bits of prefix.
+        if sha.len() != 40 || !sha.chars().all(|c| c.is_ascii_hexdigit()) {
+            anyhow::bail!(
+                "ratified_git_sha must be a full 40-character hex commit id \
+                 (got {} character(s)); an abbreviation is a repo-local locator, \
+                 not an identity — resolve it before writing the manifest",
+                sha.chars().count()
+            );
+        }
+        if let Some(d) = self.ratified_binary_sha256.as_deref() {
+            let d = d.trim();
+            if d.len() != 64 || !d.chars().all(|c| c.is_ascii_hexdigit()) {
+                anyhow::bail!(
+                    "ratified_binary_sha256 must be 64 hex characters (got {})",
+                    d.chars().count()
+                );
+            }
+        }
+        Ok(())
     }
 }
 
@@ -182,7 +226,11 @@ pub fn evaluate_running(
         }
         Provenance::Clean => {}
     }
-    if !sha_matches(&m.ratified_git_sha, build.git_sha) {
+    // Full-to-full. `read()` admitted only a 40-hex `ratified_git_sha`, and the
+    // build stamp is 40-hex by construction, so there is no shorter-operand case
+    // left to have an opinion about — the prefix-identity question is closed at
+    // admission rather than re-decided here on every render.
+    if !m.ratified_git_sha.trim().eq_ignore_ascii_case(build.git_sha.trim()) {
         return DeployVerdict::Stale {
             reason: format!(
                 "running {} but {} is ratified for this seat",
@@ -293,19 +341,6 @@ pub fn file_sha256(path: &Path) -> Option<String> {
     std::fs::read(path).ok().map(|b| web4_core::crypto::sha256_hex(&b))
 }
 
-/// Compare two commit shas allowing either side to be abbreviated — the
-/// manifest may record a short sha, the build a full one. Comparison is on the
-/// shorter length, case-insensitively, and an empty or absurdly short value
-/// never matches (a 1-character "sha" must not prefix-match everything).
-fn sha_matches(a: &str, b: &str) -> bool {
-    let (a, b) = (a.trim(), b.trim());
-    let n = a.len().min(b.len());
-    if n < 7 {
-        return false;
-    }
-    a[..n].eq_ignore_ascii_case(&b[..n])
-}
-
 fn short(s: &str) -> String {
     s.chars().take(12).collect()
 }
@@ -313,6 +348,13 @@ fn short(s: &str) -> String {
 #[cfg(test)]
 pub(super) mod tests {
     use super::*;
+
+    // Full 40-hex commit ids. SHA_A and SHA_PREFIX_TWIN deliberately share the
+    // first 7 characters — the abbreviation a human would type — and are
+    // otherwise distinct, which is the pair the prefix-identity test needs.
+    pub(super) const SHA_A: &str = "abcdef1234567890abcdef1234567890abcdef12";
+    pub(super) const SHA_B: &str = "feedface00000000feedface00000000feedface";
+    pub(super) const SHA_PREFIX_TWIN: &str = "abcdef19999999999999999999999999999999f";
 
     pub(super) fn build_clean_at(sha: &'static str) -> BuildInfo { build(sha, Provenance::Clean) }
     pub(super) fn build_dirty_at(sha: &'static str) -> BuildInfo { build(sha, Provenance::Dirty) }
@@ -337,8 +379,8 @@ pub(super) mod tests {
 
     #[test]
     fn matching_clean_build_is_current() {
-        let b = build("abcdef1234567890", Provenance::Clean);
-        assert_eq!(evaluate_running(&b, None, Some(&manifest("abcdef1234567890"))), DeployVerdict::Current);
+        let b = build(SHA_A, Provenance::Clean);
+        assert_eq!(evaluate_running(&b, None, Some(&manifest(SHA_A))), DeployVerdict::Current);
     }
 
     /// **The parked-checkout case this module exists for.** The binary is
@@ -347,8 +389,8 @@ pub(super) mod tests {
     /// ratified.
     #[test]
     fn a_clean_build_of_an_unratified_commit_is_stale() {
-        let b = build("feedface00000000", Provenance::Clean);
-        let v = evaluate_running(&b, None, Some(&manifest("abcdef1234567890")));
+        let b = build(SHA_B, Provenance::Clean);
+        let v = evaluate_running(&b, None, Some(&manifest(SHA_A)));
         assert!(matches!(v, DeployVerdict::Stale { .. }), "got {v:?}");
         assert!(v.detail().unwrap().contains("ratified"));
         assert!(!v.is_current());
@@ -358,8 +400,8 @@ pub(super) mod tests {
     /// the binary is not any commit.
     #[test]
     fn a_dirty_build_is_stale_even_at_the_ratified_commit() {
-        let b = build("abcdef1234567890", Provenance::Dirty);
-        let v = evaluate_running(&b, None, Some(&manifest("abcdef1234567890")));
+        let b = build(SHA_A, Provenance::Dirty);
+        let v = evaluate_running(&b, None, Some(&manifest(SHA_A)));
         assert!(matches!(v, DeployVerdict::Stale { .. }), "got {v:?}");
         assert!(v.detail().unwrap().contains("MODIFIED"));
     }
@@ -368,8 +410,8 @@ pub(super) mod tests {
     /// is not an assertion that it was clean.
     #[test]
     fn unknown_provenance_is_unknown_not_current() {
-        let b = build("abcdef1234567890", Provenance::Unknown);
-        let v = evaluate_running(&b, None, Some(&manifest("abcdef1234567890")));
+        let b = build(SHA_A, Provenance::Unknown);
+        let v = evaluate_running(&b, None, Some(&manifest(SHA_A)));
         assert!(matches!(v, DeployVerdict::Unknown { .. }), "got {v:?}");
         assert!(!v.is_current());
     }
@@ -378,7 +420,7 @@ pub(super) mod tests {
     /// different human response from "this is not the ratified build".
     #[test]
     fn absent_manifest_is_unknown_not_stale_and_never_current() {
-        let b = build("abcdef1234567890", Provenance::Clean);
+        let b = build(SHA_A, Provenance::Clean);
         let v = evaluate_running(&b, None, None);
         assert!(matches!(v, DeployVerdict::Unknown { .. }), "got {v:?}");
         assert!(!v.is_current(), "an unratified seat never reads as a pass");
@@ -388,23 +430,49 @@ pub(super) mod tests {
     fn a_build_with_no_commit_cannot_be_matched() {
         let b = build("unknown", Provenance::Clean);
         assert!(matches!(
-            evaluate_running(&b, None, Some(&manifest("abcdef1234567890"))),
+            evaluate_running(&b, None, Some(&manifest(SHA_A))),
             DeployVerdict::Unknown { .. }
         ));
     }
 
+    /// **Review finding (PR 708): a short sha is a locator, not an identity.**
+    /// Its uniqueness changes as history grows, so accepting one would ratify
+    /// any future commit sharing 28 bits of prefix. Abbreviations are refused
+    /// at ADMISSION, which closes the question by construction — there is no
+    /// shorter-operand case left for the comparison to have an opinion about.
     #[test]
-    fn abbreviated_shas_compare_on_the_shorter_length() {
-        let b = build("abcdef1234567890", Provenance::Clean);
-        assert_eq!(evaluate_running(&b, None, Some(&manifest("abcdef1"))), DeployVerdict::Current);
-        // ...but a stub must not prefix-match the world.
-        let v = evaluate_running(&b, None, Some(&manifest("ab")));
-        assert!(matches!(v, DeployVerdict::Stale { .. }), "got {v:?}");
+    fn an_abbreviated_sha_is_refused_at_admission() {
+        for short in ["abcdef1", "abcdef1234567890", &SHA_A[..39]] {
+            let m = RatifiedManifest {
+                ratified_git_sha: short.to_string(),
+                ratified_binary_sha256: None, ratified_at: None, ratified_by: None,
+            };
+            let e = m.validate().expect_err(&format!("{short} must be refused"));
+            assert!(e.to_string().contains("full 40"), "{e}");
+        }
+        // ...and the full one is admitted.
+        assert!(manifest(SHA_A).validate().is_ok());
+    }
+
+    /// The pair the prefix bug would have confused: two DISTINCT full commits
+    /// sharing the first 7 hex characters. Ratifying one must never make the
+    /// other `Current`. This cannot pass by accident under a byte-compare-only
+    /// fix, which is why it is the discriminating one.
+    #[test]
+    fn two_commits_sharing_a_prefix_are_never_interchangeable() {
+        assert_eq!(&SHA_A[..7], &SHA_PREFIX_TWIN[..7], "the fixture must actually collide");
+        assert_ne!(SHA_A, SHA_PREFIX_TWIN);
+        let ratified = manifest(SHA_A);
+        let twin_build = build(SHA_PREFIX_TWIN, Provenance::Clean);
+        let v = evaluate_running(&twin_build, None, Some(&ratified));
+        assert!(matches!(v, DeployVerdict::Stale { .. }),
+            "a prefix twin must not read as the ratified commit: {v:?}");
+        assert!(!v.is_current());
     }
 
     #[test]
     fn staged_artifact_is_checked_before_it_runs() {
-        let mut m = manifest("abcdef1234567890");
+        let mut m = manifest(SHA_A);
         m.ratified_binary_sha256 = Some("aa".repeat(32));
         assert_eq!(evaluate_staged(Some(&"aa".repeat(32)), Some(&m)), DeployVerdict::Current);
         let v = evaluate_staged(Some(&"bb".repeat(32)), Some(&m));
@@ -413,7 +481,7 @@ pub(super) mod tests {
             "the operator is told what the consequence is");
         // Unreadable artifact, and a manifest with no digest, are both unknown.
         assert!(matches!(evaluate_staged(None, Some(&m)), DeployVerdict::Unknown { .. }));
-        let no_digest = manifest("abcdef1234567890");
+        let no_digest = manifest(SHA_A);
         assert!(matches!(
             evaluate_staged(Some(&"aa".repeat(32)), Some(&no_digest)),
             DeployVerdict::Unknown { .. }
@@ -439,9 +507,9 @@ pub(super) mod tests {
             "a manifest that ratifies nothing is malformed, not permissive");
 
         let good = dir.join("good.json");
-        std::fs::write(&good, br#"{"ratified_git_sha":"abcdef1234567890","ratified_by":"dp"}"#).unwrap();
+        std::fs::write(&good, format!(r#"{{"ratified_git_sha":"{SHA_A}","ratified_by":"dp"}}"#).as_bytes()).unwrap();
         let m = RatifiedManifest::read(&good).unwrap().expect("parsed");
-        assert_eq!(m.ratified_git_sha, "abcdef1234567890");
+        assert_eq!(m.ratified_git_sha, SHA_A);
         assert_eq!(m.ratified_by.as_deref(), Some("dp"));
     }
 }
@@ -457,8 +525,8 @@ mod artifact_identity_tests {
     /// When the manifest pins a digest, the digest decides.
     #[test]
     fn same_commit_different_bytes_is_stale() {
-        let b = build_clean_at("abcdef1234567890");
-        let mut m = manifest("abcdef1234567890");
+        let b = build_clean_at(SHA_A);
+        let mut m = manifest(SHA_A);
         m.ratified_binary_sha256 = Some("aa".repeat(32));
 
         // The ratified artifact: current.
@@ -468,9 +536,13 @@ mod artifact_identity_tests {
         // why a matching commit is not a match.
         let v = evaluate_running(&b, Some(&"bb".repeat(32)), Some(&m));
         assert!(matches!(v, DeployVerdict::Stale { .. }), "got {v:?}");
-        assert!(v.detail().unwrap().contains("same \n                         commit")
-                || v.detail().unwrap().contains("different bytes"),
-            "reason names the distinction: {:?}", v.detail());
+        // Single arm, deliberately: the previous two-arm `||` had an unreachable
+        // first arm (it matched raw source whitespace that `\`-continuation
+        // removes at runtime), so it checked one property while looking like it
+        // checked two.
+        let why = v.detail().unwrap();
+        assert!(why.contains("different bytes"), "reason names the distinction: {why:?}");
+        assert!(why.contains("same commit"), "and names what is NOT the difference: {why:?}");
         assert!(!v.is_current());
     }
 
@@ -478,8 +550,8 @@ mod artifact_identity_tests {
     /// authoritative comparison did not happen.
     #[test]
     fn pinned_digest_with_unreadable_image_is_unknown() {
-        let b = build_clean_at("abcdef1234567890");
-        let mut m = manifest("abcdef1234567890");
+        let b = build_clean_at(SHA_A);
+        let mut m = manifest(SHA_A);
         m.ratified_binary_sha256 = Some("aa".repeat(32));
         let v = evaluate_running(&b, None, Some(&m));
         assert!(matches!(v, DeployVerdict::Unknown { .. }), "got {v:?}");
@@ -491,8 +563,8 @@ mod artifact_identity_tests {
     /// artifact match — hence `is_artifact_pinned`.
     #[test]
     fn commit_only_ratification_is_marked_as_the_weaker_claim() {
-        let b = build_clean_at("abcdef1234567890");
-        let m = manifest("abcdef1234567890");
+        let b = build_clean_at(SHA_A);
+        let m = manifest(SHA_A);
         assert_eq!(evaluate_running(&b, Some(&"cc".repeat(32)), Some(&m)), DeployVerdict::Current);
         assert!(!is_artifact_pinned(Some(&m)), "commit-only ratification is distinguishable");
         let mut pinned = m.clone();
@@ -505,15 +577,79 @@ mod artifact_identity_tests {
     /// those are decided before it and stay decided.
     #[test]
     fn artifact_match_cannot_launder_a_wrong_commit_or_dirty_tree() {
-        let mut m = manifest("abcdef1234567890");
+        let mut m = manifest(SHA_A);
         m.ratified_binary_sha256 = Some("aa".repeat(32));
-        let wrong_commit = build_clean_at("feedface00000000");
+        let wrong_commit = build_clean_at(SHA_B);
         assert!(matches!(
             evaluate_running(&wrong_commit, Some(&"aa".repeat(32)), Some(&m)),
             DeployVerdict::Stale { .. }));
-        let dirty = build_dirty_at("abcdef1234567890");
+        let dirty = build_dirty_at(SHA_A);
         assert!(matches!(
             evaluate_running(&dirty, Some(&"aa".repeat(32)), Some(&m)),
             DeployVerdict::Stale { .. }));
+    }
+}
+
+#[cfg(test)]
+mod malformed_manifest_tests {
+    use super::*;
+    use super::tests::*;
+
+    /// **The blocking review finding (PR 708), as a regression.** The manifest
+    /// is operator-supplied JSON from a principal this module deliberately does
+    /// NOT trust, and the old comparison byte-sliced it:
+    /// `a[..n]` where `n = a.len().min(b.len())`. A multi-byte character
+    /// straddling byte 40 is not a char boundary, so a manifest of
+    /// `"aééé…"` panicked — inside `/admin`, the very surface that reports the
+    /// ratification verdict, taking the page down.
+    ///
+    /// Second time this exact shape shipped in this sprint (the degraded-log
+    /// truncation was the first), which is why the fix is structural: validate
+    /// at admission so no non-hex string ever reaches a comparison, rather than
+    /// making one comparison site multibyte-safe.
+    #[test]
+    fn a_non_ascii_sha_yields_a_verdict_not_a_panic() {
+        let dir = std::env::temp_dir().join(format!("hub-ratified-mb-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("m.json");
+        // 41 bytes / 21 chars — byte 40 lands inside the final 'é'.
+        let payload = format!("a{}", "é".repeat(20));
+        assert_eq!(payload.len(), 41);
+        assert!(!payload.is_char_boundary(40), "fixture must straddle byte 40");
+        std::fs::write(&path, format!(r#"{{"ratified_git_sha":"{payload}"}}"#)).unwrap();
+
+        // Admission refuses it — the same fail-closed exit as any other
+        // malformed record, reached without a comparison.
+        let err = RatifiedManifest::read(&path).expect_err("a non-hex sha is malformed");
+        assert!(err.to_string().contains("full 40"), "{err}");
+
+        // And the evaluation path is unreachable-by-construction for such a
+        // record; called directly with one anyway, it still returns a verdict.
+        let m = RatifiedManifest {
+            ratified_git_sha: payload,
+            ratified_binary_sha256: None, ratified_at: None, ratified_by: None,
+        };
+        let v = evaluate_running(&build(SHA_A, Provenance::Clean), None, Some(&m));
+        assert!(matches!(v, DeployVerdict::Stale { .. }), "verdict, not panic: {v:?}");
+        assert!(!v.is_current());
+    }
+
+    /// The same class on the other operator-supplied field.
+    #[test]
+    fn a_malformed_binary_digest_is_refused_at_admission() {
+        for bad in ["nothex", &"a".repeat(63), &"é".repeat(32)] {
+            let m = RatifiedManifest {
+                ratified_git_sha: SHA_A.to_string(),
+                ratified_binary_sha256: Some(bad.to_string()),
+                ratified_at: None, ratified_by: None,
+            };
+            assert!(m.validate().is_err(), "{bad:?} must be refused");
+        }
+        let ok = RatifiedManifest {
+            ratified_git_sha: SHA_A.to_string(),
+            ratified_binary_sha256: Some("ab".repeat(32)),
+            ratified_at: None, ratified_by: None,
+        };
+        assert!(ok.validate().is_ok());
     }
 }

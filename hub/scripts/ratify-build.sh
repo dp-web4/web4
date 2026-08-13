@@ -90,6 +90,24 @@ fi
 [ -n "$SHA" ] || usage
 printf '%s' "$SHA" | grep -Eq '^[0-9a-fA-F]{7,40}$' || die "not a git sha: $SHA"
 
+# PERSIST A FULL COMMIT ID, never an abbreviation. A short sha is a
+# repository-LOCAL locator whose uniqueness changes as history grows; it is not a
+# durable identity token, and in the commit-only fallback (no artifact digest
+# pinned) it is the ONLY identity claim carrying the control. A 7-hex manifest
+# would ratify any future commit sharing 28 bits of prefix.
+#
+# So an abbreviation is RESOLVED here, at write time, where a repository exists to
+# resolve it against — the daemon has no repo and refuses anything short at admission.
+if [ "${#SHA}" -ne 40 ]; then
+  FULL="$(git rev-parse --verify --quiet "${SHA}^{commit}" 2>/dev/null || true)"
+  if [ -n "$FULL" ] && [ "${#FULL}" -eq 40 ]; then
+    echo "ratify-build: resolved ${SHA} -> ${FULL}" >&2
+    SHA="$FULL"
+  else
+    die "refusing to ratify an abbreviated sha ('$SHA'): a repo-local locator is not an identity. Run inside a repo containing the commit, or pass the full 40-character id."
+  fi
+fi
+
 DIGEST=""
 if [ -n "$BIN" ]; then
   [ -f "$BIN" ] || die "no such binary: $BIN"

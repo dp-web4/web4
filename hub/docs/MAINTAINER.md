@@ -107,6 +107,12 @@ hub/scripts/ratify-build.sh --from-binary /path/to/hub \
 hub/scripts/ratify-build.sh <git-sha> /path/to/hub --manifest ...
 ```
 
+**The manifest records a FULL 40-character commit id.** `ratify-build.sh` resolves an
+abbreviation against the repository before writing (and refuses if it cannot), and the daemon
+refuses a short one at admission. A short sha is a *repository-local locator* whose uniqueness
+changes as history grows — not a durable identity — and in the commit-only fallback it is the
+only identity claim carrying the control.
+
 **Pin the binary digest.** Pass the binary path so the manifest records
 `ratified_binary_sha256`. Without it the check can only make the weaker
 **commit-level** claim, and the operator page labels it as such — because two

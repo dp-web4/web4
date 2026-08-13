@@ -287,7 +287,17 @@ fn ratified_block(s: &RestState) -> String {
     // The RUNNING arm decides on the executing image's bytes when the manifest
     // pins a digest — commit identity is provenance, artifact identity is the
     // ratification claim.
-    let running_digest = ratified::running_image_sha256();
+    //
+    // Hashing the image is ~20 MB read + digest (12-36 ms measured) and runs
+    // SYNCHRONOUSLY inside an async handler, so it is computed only when a
+    // manifest actually pins a digest to compare against. Without one,
+    // `evaluate_running` returns before ever looking at it — which is every
+    // seat that has not been ratified yet, i.e. the common case today.
+    let running_digest = if ratified::is_artifact_pinned(manifest.as_ref()) {
+        ratified::running_image_sha256()
+    } else {
+        None
+    };
     let running = ratified::evaluate_running(
         &hub_lib::build_info::BUILD, running_digest.as_deref(), manifest.as_ref());
     // The STAGED arm answers "what will the supervisor execute next?" — which
@@ -302,7 +312,9 @@ fn ratified_block(s: &RestState) -> String {
             ratified::evaluate_staged(digest.as_deref(), manifest.as_ref())
         }
         _ => DeployVerdict::Unknown {
-            reason: "HUB_EXEC_PATH is not set, so the artifact the supervisor will execute on                      restart is not known to this process — it is NOT assumed to be the running                      image".to_string(),
+            reason: "HUB_EXEC_PATH is not set, so the artifact the supervisor will execute on restart \
+                     is not known to this process — it is NOT assumed to be the running image"
+                .to_string(),
         },
     };
 
@@ -1600,7 +1612,7 @@ mod ratified_surface_tests {
         // ARM 2 — a manifest ratifying a DIFFERENT commit. This is the
         // parked-checkout shape: the binary is clean and newer than merged
         // source (every currency arm passes) but nobody ratified this commit.
-        write_manifest(&state, r#"{"ratified_git_sha":"0000000deadbeef0000000","ratified_by":"dp"}"#);
+        write_manifest(&state, r#"{"ratified_git_sha":"0000000deadbeef00000000deadbeef000000000","ratified_by":"dp"}"#);
         let html = overview_html(&state).await;
         let running_line = html.split("<dt>Running</dt>").nth(1).expect("running row");
         assert!(running_line.contains("STALE"),
@@ -1643,7 +1655,7 @@ mod ratified_surface_tests {
     async fn staged_arm_does_not_infer_the_future_exec_path() {
         let (_tmp, state) = fresh_rest_state(None).await;
         write_manifest(&state, &format!(
-            r#"{{"ratified_git_sha":"abcdef1234567","ratified_binary_sha256":"{}"}}"#,
+            r#"{{"ratified_git_sha":"abcdef1234567890abcdef1234567890abcdef12","ratified_binary_sha256":"{}"}}"#,
             "aa".repeat(32)));
         let _env = EXEC_PATH_ENV.lock().unwrap_or_else(|e| e.into_inner());
         std::env::remove_var("HUB_EXEC_PATH");
@@ -1663,7 +1675,7 @@ mod ratified_surface_tests {
         let (tmp, state) = fresh_rest_state(None).await;
         // A manifest that ratifies some binary digest...
         write_manifest(&state, &format!(
-            r#"{{"ratified_git_sha":"abcdef1234567","ratified_binary_sha256":"{}"}}"#,
+            r#"{{"ratified_git_sha":"abcdef1234567890abcdef1234567890abcdef12","ratified_binary_sha256":"{}"}}"#,
             "aa".repeat(32)));
         // ...and an artifact at the exec path that is NOT it.
         let staged = tmp.path().join("staged-hub");
