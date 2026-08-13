@@ -4738,6 +4738,73 @@ async fn membox_find_members(
         .unwrap_or_default())
 }
 
+/// F0.2 (R7b): resolve the applicant's sponsor claim against the authoritative
+/// record and evaluate it under hub law.
+///
+/// **One implementation, every admission path.** Both admission surfaces
+/// (`request_citizenship` over the sealed channel and `submit_join` over
+/// plaintext) call this — a sponsor rule enforced on one path and not its
+/// sibling is not a rule, it is a detour sign. The predicate itself lives in
+/// LAW ([`hub_lib::law::evaluate_sponsor`]); this function only resolves the
+/// facts LAW needs from the projection.
+///
+/// "Resolved from the authoritative record" is deliberately strict: the
+/// claimed sponsor must be a current member **and** carry a pinned public key.
+/// Membership without a key-bound identity is a name in a list, which is the
+/// very thing R7b refuses to count as a peer factor.
+///
+/// **Evaluated against a law snapshot the caller also uses for the norms
+/// gate.** Two independent `s.law.read()` calls would let one request straddle
+/// a law reload — norms from the old law, sponsor policy from the new — so the
+/// caller takes the guard once and passes it in.
+fn resolve_sponsor_verdict(
+    law: Option<&hub_lib::law::Law>,
+    state: &HubState,
+    applicant_lct_id: Uuid,
+    claimed_sponsor: Option<Uuid>,
+) -> hub_lib::law::SponsorVerdict {
+    use hub_lib::law::{evaluate_sponsor, SponsorFacts};
+    let policy = law.and_then(|l| l.ext.admission.as_ref());
+    let sponsor_is_resolved_member = claimed_sponsor
+        .map(|sp| state.members.contains_key(&sp) && state.member_pubkeys.contains_key(&sp))
+        .unwrap_or(false);
+    // The hub projects no witnessed vouch event yet, so a sponsoring ACT can
+    // never be established today — every named sponsor is undecidable and goes
+    // to operator review. This is a deliberate `false`, not an oversight: the
+    // alternative is crediting a peer factor the named member never granted,
+    // which is the asserted-asker hole this rule exists to close. When a vouch
+    // event is projected (follow-up issue), this reads it and `Satisfied`
+    // becomes reachable.
+    let vouch_is_attested = false;
+    // Trust is read at the sponsoring role — membership's own role. `None`
+    // here means "no observations", which LAW treats as undecidable, never as
+    // a zero score. While the reputation seam runs in `classify_only` (F0.1)
+    // this is the normal state, and it escalates rather than denying.
+    let sponsor_trust = claimed_sponsor.and_then(|sp| {
+        state
+            .reputation
+            .get(&(sp.to_string(), hub_lib::law::MEMBERSHIP_ROLE.to_string()))
+            .map(|r| r.t3.aggregate())
+    });
+    evaluate_sponsor(
+        policy,
+        SponsorFacts {
+            applicant_lct_id,
+            claimed_sponsor,
+            sponsor_is_resolved_member,
+            vouch_is_attested,
+            sponsor_trust,
+        },
+    )
+}
+
+/// Parse a claimed sponsor id from a request payload field.
+fn claimed_sponsor_from(args: &serde_json::Value) -> Option<Uuid> {
+    args.get("sponsor_lct_id")
+        .and_then(|v| v.as_str())
+        .and_then(|s| Uuid::parse_str(s).ok())
+}
+
 /// External→citizen bootstrap over the channel. An authenticated external LCT
 /// (proven by the successful channel_open) asks to become a member. Mirrors the
 /// plaintext `/members/join` admission, but encrypted: PolicyEntity gates as
@@ -4786,8 +4853,16 @@ async fn request_citizenship(
     };
 
     // PolicyEntity gate — admission policy from hub law, role="applicant".
+    // F0.2 (R7b): the sponsor verdict composes onto that decision on the
+    // strictest-wins lattice — it may only tighten (auto-admit → review), and
+    // is computed BEFORE any side effect (RWOA `O`).
     {
+        let state = { let l = s.ledger.lock().await; s.projected(&l) };
+        // ONE law snapshot for both the sponsor predicate and the norms gate —
+        // two reads would let a request straddle a law reload.
         let law_guard = s.law.read().await;
+        let sponsor = resolve_sponsor_verdict(
+            law_guard.as_ref(), &state, caller_lct_id, claimed_sponsor_from(args));
         if let Some(law) = law_guard.as_ref() {
             let payload = serde_yaml::to_value(&event)
                 .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {e}")))?;
@@ -4797,7 +4872,16 @@ async fn request_citizenship(
                 payload,
                 resource: Default::default(),
             };
-            match law.evaluate_outcome(&req).decision {
+            let norms = law.evaluate_outcome(&req).decision;
+            let decision = hub_lib::law::tighten_with_sponsor(norms.clone(), &sponsor);
+            if decision != norms {
+                tracing::info!(
+                    "admission tightened {norms:?} → {decision:?} by sponsor verdict ({})",
+                    sponsor.token()
+                );
+            }
+            drop(law_guard);
+            match decision {
                 Decision::Allow => {}
                 Decision::Warn => {
                     // Non-blocking flagged-allow: admission proceeds, flagged.
@@ -4817,12 +4901,14 @@ async fn request_citizenship(
                         member_pubkey_hex: pubkey_hex.clone(),
                         name: args.get("name").and_then(|v| v.as_str()).map(String::from),
                         message: args.get("message").and_then(|v| v.as_str()).map(String::from),
+                        sponsor_note: sponsor.reason(),
                         requested_at: Utc::now(),
                     }).await?;
                     return Ok(serde_json::json!({
                         "admitted": false,
                         "status": "pending_review",
                         "request_id": request_id,
+                        "sponsor": sponsor.token(),
                     }));
                 }
             }
@@ -4889,6 +4975,11 @@ struct JoinPayload {
     /// when hub law escalates the request).
     #[serde(default)]
     message: Option<String>,
+    /// F0.2 (R7b): the member the applicant claims sponsors them. A claim, not
+    /// evidence — the hub resolves it against the authoritative record, and a
+    /// self-named or unresolvable sponsor collects no peer factor.
+    #[serde(default)]
+    sponsor_lct_id: Option<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -5743,9 +5834,15 @@ async fn submit_join(
     let event_value_yaml = serde_yaml::to_value(&prospective)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {}", e)))?;
 
-    let decision = {
+    // F0.2 (R7b): same sponsor predicate as the sealed-channel path — one
+    // implementation, both surfaces (see `resolve_sponsor_verdict`).
+    let state = { let l = s.ledger.lock().await; s.projected(&l) };
+    // ONE law snapshot for both the sponsor predicate and the norms gate.
+    let (sponsor, decision) = {
         let law_guard = s.law.read().await;
-        match law_guard.as_ref() {
+        let sponsor = resolve_sponsor_verdict(
+            law_guard.as_ref(), &state, payload.member_lct_id, payload.sponsor_lct_id);
+        let norms = match law_guard.as_ref() {
             None => Decision::Allow, // open-by-default when no law is set
             Some(law) => law.evaluate_outcome(&R6Request {
                 role: "applicant".to_string(),
@@ -5753,7 +5850,16 @@ async fn submit_join(
                 payload: event_value_yaml,
                 resource: Default::default(),
             }).decision,
+        };
+        drop(law_guard);
+        let tightened = hub_lib::law::tighten_with_sponsor(norms.clone(), &sponsor);
+        if tightened != norms {
+            tracing::info!(
+                "admission tightened {norms:?} → {tightened:?} by sponsor verdict ({})",
+                sponsor.token()
+            );
         }
+        (sponsor, tightened)
     };
 
     match decision {
@@ -5787,6 +5893,7 @@ async fn submit_join(
                 member_pubkey_hex: payload.member_pubkey_hex.clone(),
                 name: payload.name.clone(),
                 message: payload.message.clone(),
+                sponsor_note: sponsor.reason(),
                 requested_at: Utc::now(),
             }).await?;
             Ok((
@@ -9265,6 +9372,188 @@ pub(crate) mod channel_e2e_tests {
             caller_lct_id: lct, pair_id: pid, sealed, caller_pubkey_hex: None,
         })).await?;
         Ok(open_resp(m, hub_pub, pid, &r.0.sealed))
+    }
+
+    /// Drive the PLAINTEXT `/members/join` surface end to end: issue a real
+    /// challenge, build and sign the envelope exactly as a client would, and
+    /// call the handler. Deliberately not a shortcut around the handler — the
+    /// point of these tests is that the gate fires on the real path.
+    async fn post_join(
+        state: &RestState,
+        kp: &KeyPair,
+        lct: Uuid,
+        sponsor: Option<Uuid>,
+    ) -> axum::response::Response {
+        let challenge = state.nonces.issue(lct, Utc::now());
+        let mut payload = serde_json::json!({
+            "action": "member_join_request",
+            "member_lct_id": lct,
+            "member_pubkey_hex": kp.verifying_key().to_hex(),
+            "name": "Plaintext Applicant",
+        });
+        if let Some(sp) = sponsor {
+            payload["sponsor_lct_id"] = serde_json::json!(sp);
+        }
+        let mut env = hub_lib::envelope::SignedEnvelope {
+            challenge_nonce: challenge.nonce.clone(),
+            payload,
+            signature: String::new(),
+            signer_lct_id: lct,
+        };
+        let bytes = env.signing_bytes().expect("signing bytes");
+        env.signature = kp.sign(&bytes).to_hex();
+        submit_join(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .expect("join call completes")
+    }
+
+    // ---- F0.2 (R7b): the asserted-asker rule, enforced on BOTH surfaces ----
+
+    /// Law that requires a sponsor and would otherwise auto-admit. If the
+    /// sponsor check were absent, every applicant below would sail through —
+    /// which is exactly what makes these tests discriminating.
+    const SPONSOR_LAW: &str = r#"
+version: "1.0.0"
+norms: []
+admission:
+  open: false
+  requires_sponsor: true
+"#;
+
+    #[tokio::test]
+    async fn sponsor_exits_are_distinguished_and_none_auto_admits_unvouched() {
+        // Bootstrap order mirrors reality: a founding member exists BEFORE the
+        // society amends a sponsor requirement into its law.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let (_sponsor_kp, sponsor_lct) = pin_member(&state, &hub_pub).await;
+        *state.law.write().await = Some(Law::parse_and_validate(SPONSOR_LAW).unwrap());
+
+        // ARM 1 — a REAL, resolvable member is named. Review finding (PR 706):
+        // this proves the member exists, NOT that they sponsored anyone, and
+        // member ids are public enough that anyone could name anyone. So it
+        // must NOT auto-admit; it is UNDECIDABLE and goes to a human.
+        let named = KeyPair::generate();
+        let named_lct = Uuid::new_v4();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&named, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Names A Member", "sponsor_lct_id": sponsor_lct.to_string() }));
+        let r = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: named_lct, pair_id: pid, sealed,
+            caller_pubkey_hex: Some(named.verifying_key().to_hex()),
+        })).await.expect("call ok");
+        let out = open_resp(&named, &hub_pub, pid, &r.0.sealed);
+        assert_eq!(out["admitted"], serde_json::json!(false),
+            "a sponsor who never vouched cannot admit anyone");
+        assert_eq!(out["sponsor"], serde_json::json!("undecidable_vouch_not_attested"));
+
+        // ARM 2 — the self-sponsoring twin. Same non-admission, but a DIFFERENT
+        // exit: refuted, not undecidable. This is what makes the arms
+        // discriminating rather than a blanket escalate-everything.
+        let twin = KeyPair::generate();
+        let twin_lct = Uuid::new_v4();
+        let pid2 = Uuid::new_v4();
+        let sealed2 = seal_req(&twin, &hub_pub, pid2, "request_citizenship",
+            serde_json::json!({ "name": "Twin", "sponsor_lct_id": twin_lct.to_string() }));
+        let r2 = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: twin_lct, pair_id: pid2, sealed: sealed2,
+            caller_pubkey_hex: Some(twin.verifying_key().to_hex()),
+        })).await.expect("call ok");
+        let out2 = open_resp(&twin, &hub_pub, pid2, &r2.0.sealed);
+        assert_eq!(out2["admitted"], serde_json::json!(false));
+        assert_eq!(out2["sponsor"], serde_json::json!("refuted_self_sponsored"),
+            "self-sponsorship is REFUTED — a different exit from unwitnessed consent");
+
+        // ARM 3 — a name that resolves to nobody: refuted again, its own exit.
+        let ghost = KeyPair::generate();
+        let ghost_lct = Uuid::new_v4();
+        let pid3 = Uuid::new_v4();
+        let sealed3 = seal_req(&ghost, &hub_pub, pid3, "request_citizenship",
+            serde_json::json!({ "name": "Ghost", "sponsor_lct_id": Uuid::new_v4().to_string() }));
+        let r3 = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: ghost_lct, pair_id: pid3, sealed: sealed3,
+            caller_pubkey_hex: Some(ghost.verifying_key().to_hex()),
+        })).await.expect("call ok");
+        let out3 = open_resp(&ghost, &hub_pub, pid3, &r3.0.sealed);
+        assert_eq!(out3["sponsor"], serde_json::json!("refuted_not_resolved"));
+
+        // Nobody was admitted; each queued request carries ITS OWN finding.
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        for lct in [named_lct, twin_lct, ghost_lct] {
+            assert!(!proj.members.contains_key(&lct), "no unvouched applicant admitted");
+        }
+        let note_for = |lct: Uuid| proj.pending_joins.values()
+            .find(|j| j.member_lct_id == lct)
+            .and_then(|j| j.sponsor_note.clone())
+            .unwrap_or_default();
+        assert!(note_for(named_lct).contains("not evidence of a"),
+            "operator told existence != consent");
+        assert!(note_for(twin_lct).contains("itself"), "operator told it was self-sponsorship");
+
+        // The finding reaches the page the operator actually reads.
+        let html = crate::admin::joins_page(State(state.clone())).await.unwrap().0;
+        assert!(html.contains("sponsor check:"), "queue page labels the finding");
+    }
+    /// The sibling-path check: a rule enforced on one admission surface and not
+    /// the other is not a rule. Same law, the plaintext `/members/join`.
+    #[tokio::test]
+    async fn plaintext_join_path_enforces_the_same_rule() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let (_sponsor_kp, sponsor_lct) = pin_member(&state, &hub_pub).await;
+        *state.law.write().await = Some(Law::parse_and_validate(SPONSOR_LAW).unwrap());
+
+        // Naming a real member: queued, not admitted (consent unwitnessed).
+        let named_kp = KeyPair::generate();
+        let named_lct = Uuid::new_v4();
+        assert_eq!(post_join(&state, &named_kp, named_lct, Some(sponsor_lct)).await.status(),
+            StatusCode::ACCEPTED,
+            "resolvable-but-unvouched is queued on the plaintext path too");
+
+        // Self-sponsored: queued.
+        let twin_kp = KeyPair::generate();
+        let twin_lct = Uuid::new_v4();
+        assert_eq!(post_join(&state, &twin_kp, twin_lct, Some(twin_lct)).await.status(),
+            StatusCode::ACCEPTED, "self-sponsored applicant is queued, not admitted");
+
+        // Unresolvable name: queued.
+        let bogus_kp = KeyPair::generate();
+        let bogus_lct = Uuid::new_v4();
+        assert_eq!(post_join(&state, &bogus_kp, bogus_lct, Some(Uuid::new_v4())).await.status(),
+            StatusCode::ACCEPTED, "an unresolvable name is an assertion, not a peer factor");
+
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        for lct in [named_lct, twin_lct, bogus_lct] {
+            assert!(!proj.members.contains_key(&lct), "none auto-admitted");
+        }
+        // Discriminating control on THIS path: with the requirement absent, the
+        // same call admits — so these ACCEPTEDs are the sponsor gate, not an
+        // unrelated failure.
+        *state.law.write().await = None;
+        let free_kp = KeyPair::generate();
+        let free_lct = Uuid::new_v4();
+        assert_eq!(post_join(&state, &free_kp, free_lct, None).await.status(),
+            StatusCode::OK, "no requirement in law ⇒ the same path admits");
+    }
+
+    /// Guard the guard: with no sponsor requirement in law, admission behaves
+    /// exactly as before this sprint (the check is additive, not a new bar).
+    #[tokio::test]
+    async fn no_sponsor_requirement_leaves_admission_unchanged() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let kp = KeyPair::generate();
+        let lct = Uuid::new_v4();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&kp, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Nobody Sponsored Me" }));
+        let r = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: lct, pair_id: pid, sealed,
+            caller_pubkey_hex: Some(kp.verifying_key().to_hex()),
+        })).await.expect("call ok");
+        let out = open_resp(&kp, &hub_pub, pid, &r.0.sealed);
+        assert_eq!(out["admitted"], serde_json::json!(true),
+            "no requirement in law ⇒ no new bar");
     }
 
     /// F0.1 (R7a), review follow-up: a dependency that recovers while the hub

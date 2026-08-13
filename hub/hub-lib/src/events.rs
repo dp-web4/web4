@@ -109,6 +109,13 @@ pub enum HubEvent {
         /// Optional free-text note from the applicant (shown to the operator).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         message: Option<String>,
+        /// F0.2 (R7b): the **hub's own finding** about the applicant's sponsor
+        /// claim, when that finding is why the request was queued. Kept in a
+        /// field distinct from `message` on purpose: the applicant's assertion
+        /// and the system's finding must never be conflated in the record the
+        /// operator reads. `None` = the sponsor requirement was met or absent.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sponsor_note: Option<String>,
         requested_at: DateTime<Utc>,
     },
 

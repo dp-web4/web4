@@ -21,6 +21,7 @@
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 use web4_policy::PolicyExtension;
 
 // Re-export the generic engine surface so `crate::law::*` consumers are unchanged.
@@ -153,6 +154,243 @@ pub struct AdmissionPolicy {
     pub review_limit: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+}
+
+// ============================================================================
+// F0.2 (R7b): sponsor evidence — the asserted-asker rule, in LAW
+// ============================================================================
+
+/// What the hub could establish about an applicant's claimed sponsor.
+///
+/// **Sprint F0.2 / PRD_HUB_V2_FEDERATED R7b.** The governing rule: *a witness
+/// vouch counts only toward an identity resolved from the authoritative
+/// record; a self-asserted binding collects no peer factors.* Generalizes the
+/// Legion incident (a hostname-minted second identity out-polling the
+/// canonical seat) from a roster filter into law.
+///
+/// The verdict deliberately **splits its failure exits**. A guard with one
+/// failure exit either certifies a lie (treating "cannot check" as "checked
+/// and passed") or becomes unsatisfiable (treating it as "checked and
+/// failed"). So:
+///
+/// - [`SponsorVerdict::Refuted`] — the claim was checked and definitely fails.
+/// - [`SponsorVerdict::Undecidable`] — the hub cannot establish it either way
+///   from what it projects. Not a refutation, and never silently an approval.
+///
+/// Both block **auto-admission**; neither is a terminal exclusion. Which one
+/// fired is carried to the operator, because "you vouched for yourself" and
+/// "we cannot verify treasurer role" call for different human responses.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SponsorVerdict {
+    /// Law imposes no sponsor requirement — nothing to establish.
+    NotRequired,
+    /// Requirement met by an authoritatively-resolved sponsor.
+    Satisfied { sponsor_lct_id: Uuid },
+    /// Checked and definitely unmet.
+    Refuted(SponsorRefusal),
+    /// Not establishable from what the hub projects.
+    Undecidable(SponsorUnknown),
+}
+
+/// Definite failures — the claim was evaluated and does not hold.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SponsorRefusal {
+    /// Law requires a sponsor; the applicant named none.
+    Missing,
+    /// **The asserted-asker case.** The applicant named itself. An identity
+    /// cannot be its own peer factor at any strength.
+    SelfSponsored,
+    /// The named sponsor is not resolvable from the authoritative record —
+    /// not a member, or a member with no key-bound identity pinned. A name in
+    /// a payload is an assertion, not evidence.
+    NotResolved { named: Uuid },
+    /// The sponsor resolved, but its trust in the sponsoring role is below the
+    /// bar law sets.
+    TrustBelowBar { score: f64, required: f64 },
+}
+
+/// Conditions the hub cannot decide from its projection.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SponsorUnknown {
+    /// **The sponsoring ACT is not witnessed.** The named party resolves to a
+    /// key-bound member — but that proves the member *exists*, not that they
+    /// *sponsored anyone*. The sponsorship relation as submitted is a field
+    /// the applicant typed, and member ids are not secret by any route (the
+    /// public identity file publishes the founding sovereign's; the presence
+    /// roster returns every member's; every member already knows the others').
+    /// So an applicant could name any member and collect a peer factor they
+    /// never granted — the asserted-asker hole this rule is named after,
+    /// one level out.
+    ///
+    /// Until the hub projects a witnessed vouch event, this is **undecidable**
+    /// and routes to operator review. It is not a refutation: the sponsorship
+    /// may well be real, and a human can confirm it. When a vouch event lands,
+    /// [`SponsorVerdict::Satisfied`] becomes reachable cleanly.
+    VouchNotAttested { named: Uuid },
+    /// Law names a sponsor role other than membership itself. The hub does not
+    /// project role assignments today (`RoleAssigned` is witnessed, not
+    /// folded), so holding that role can be neither confirmed nor refuted.
+    RoleNotProjected { required_role: String },
+    /// Law sets a trust bar, but the sponsor has no observations to read —
+    /// e.g. while the reputation seam is in `classify_only` (F0.1), tensors
+    /// are deliberately empty. Absence of a record is not a low score.
+    NoTrustRecord { required: f64 },
+}
+
+/// Facts the caller resolved from the authoritative record, handed to the pure
+/// evaluation below. Keeping the projection lookups on the caller's side keeps
+/// LAW transport-free and directly testable.
+#[derive(Clone, Copy, Debug)]
+pub struct SponsorFacts {
+    /// Who is applying.
+    pub applicant_lct_id: Uuid,
+    /// Who the applicant claims sponsors them, if anyone.
+    pub claimed_sponsor: Option<Uuid>,
+    /// Is that claimed sponsor a member **with a key-bound identity pinned**
+    /// in the authoritative record? (Membership alone is not enough — R7b
+    /// wants a witnessed, key-bound identity, per the RWOA `W` clause.)
+    ///
+    /// Note this establishes only that the *identity exists*. Whether that
+    /// member performed a sponsoring **act** is a separate fact —
+    /// `vouch_is_attested` below.
+    pub sponsor_is_resolved_member: bool,
+    /// Did the hub witness the claimed sponsor actually **vouch for this
+    /// applicant**? Identity existence is not evidence of an act, so this is
+    /// what `Satisfied` genuinely rests on. Today the hub projects no vouch
+    /// event, so callers pass `false` and every named sponsor is undecidable
+    /// (operator review) — deliberately, rather than crediting a peer factor
+    /// nobody granted.
+    pub vouch_is_attested: bool,
+    /// The sponsor's aggregate trust in the sponsoring role, if any
+    /// observations exist. `None` = no record, which is [`SponsorUnknown`],
+    /// never a zero.
+    pub sponsor_trust: Option<f64>,
+}
+
+/// The role name that membership itself confers. A `sponsor_role` naming this
+/// is checkable from the member projection; any other role is not (yet).
+pub const MEMBERSHIP_ROLE: &str = "citizen";
+
+/// Evaluate an applicant's sponsor claim against law. Pure: no I/O, no
+/// projection access — see [`SponsorFacts`].
+pub fn evaluate_sponsor(
+    policy: Option<&AdmissionPolicy>,
+    facts: SponsorFacts,
+) -> SponsorVerdict {
+    let Some(p) = policy else {
+        return SponsorVerdict::NotRequired;
+    };
+    // A trust bar is meaningful only against a sponsor, so it rides the same
+    // requirement. Law that sets a bar without requiring a sponsor states a
+    // requirement it cannot apply; treat it as requiring one.
+    if !p.requires_sponsor && p.min_trust_score.is_none() {
+        return SponsorVerdict::NotRequired;
+    }
+    let Some(sponsor) = facts.claimed_sponsor else {
+        return SponsorVerdict::Refuted(SponsorRefusal::Missing);
+    };
+    // R7b, the core rule: an asserted asker collects no peer factor. Checked
+    // FIRST, so self-sponsorship can never be laundered through any later
+    // clause.
+    if sponsor == facts.applicant_lct_id {
+        return SponsorVerdict::Refuted(SponsorRefusal::SelfSponsored);
+    }
+    if !facts.sponsor_is_resolved_member {
+        return SponsorVerdict::Refuted(SponsorRefusal::NotResolved { named: sponsor });
+    }
+    // Existence is not consent. The applicant typed this relation; only a
+    // witnessed sponsoring act can establish it, and member ids are public
+    // enough that anyone could name anyone. Undecidable, not refuted — the
+    // claim may be true, and an operator can confirm what the hub cannot.
+    if !facts.vouch_is_attested {
+        return SponsorVerdict::Undecidable(SponsorUnknown::VouchNotAttested { named: sponsor });
+    }
+    // A sponsor role beyond membership is unverifiable from the projection.
+    if let Some(role) = &p.sponsor_role {
+        if !role.eq_ignore_ascii_case(MEMBERSHIP_ROLE) {
+            return SponsorVerdict::Undecidable(SponsorUnknown::RoleNotProjected {
+                required_role: role.clone(),
+            });
+        }
+    }
+    if let Some(required) = p.min_trust_score {
+        return match facts.sponsor_trust {
+            None => SponsorVerdict::Undecidable(SponsorUnknown::NoTrustRecord { required }),
+            Some(score) if score < required => {
+                SponsorVerdict::Refuted(SponsorRefusal::TrustBelowBar { score, required })
+            }
+            Some(_) => SponsorVerdict::Satisfied { sponsor_lct_id: sponsor },
+        };
+    }
+    SponsorVerdict::Satisfied { sponsor_lct_id: sponsor }
+}
+
+impl SponsorVerdict {
+    /// May this verdict auto-admit? Only an established one may.
+    pub fn may_auto_admit(&self) -> bool {
+        matches!(self, SponsorVerdict::NotRequired | SponsorVerdict::Satisfied { .. })
+    }
+
+    /// Operator-facing reason, recorded on the queued request so a human sees
+    /// **which exit fired**.
+    pub fn reason(&self) -> Option<String> {
+        match self {
+            SponsorVerdict::NotRequired | SponsorVerdict::Satisfied { .. } => None,
+            SponsorVerdict::Refuted(r) => Some(match r {
+                SponsorRefusal::Missing =>
+                    "hub law requires a sponsor; none was named".to_string(),
+                SponsorRefusal::SelfSponsored =>
+                    "applicant named itself as sponsor — a self-asserted identity \
+                     collects no peer factors".to_string(),
+                SponsorRefusal::NotResolved { named } => format!(
+                    "named sponsor {named} is not a key-bound member of this society"),
+                SponsorRefusal::TrustBelowBar { score, required } => format!(
+                    "sponsor trust {score:.3} is below the required {required:.3}"),
+            }),
+            SponsorVerdict::Undecidable(u) => Some(match u {
+                SponsorUnknown::VouchNotAttested { named } => format!(
+                    "sponsor {named} is a member, but no witnessed vouch for this \
+                     applicant exists — identity existence is not evidence of a \
+                     sponsoring act; operator review"),
+                SponsorUnknown::RoleNotProjected { required_role } => format!(
+                    "cannot verify the sponsor holds role '{required_role}' — role \
+                     assignments are witnessed but not projected; operator review"),
+                SponsorUnknown::NoTrustRecord { required } => format!(
+                    "sponsor has no trust observations to compare against the \
+                     required {required:.3}; operator review"),
+            }),
+        }
+    }
+
+    /// Short token for logs/telemetry — which exit fired.
+    pub fn token(&self) -> &'static str {
+        match self {
+            SponsorVerdict::NotRequired => "not_required",
+            SponsorVerdict::Satisfied { .. } => "satisfied",
+            SponsorVerdict::Refuted(SponsorRefusal::Missing) => "refuted_missing",
+            SponsorVerdict::Refuted(SponsorRefusal::SelfSponsored) => "refuted_self_sponsored",
+            SponsorVerdict::Refuted(SponsorRefusal::NotResolved { .. }) => "refuted_not_resolved",
+            SponsorVerdict::Refuted(SponsorRefusal::TrustBelowBar { .. }) => "refuted_trust_below_bar",
+            SponsorVerdict::Undecidable(SponsorUnknown::VouchNotAttested { .. }) => "undecidable_vouch_not_attested",
+            SponsorVerdict::Undecidable(SponsorUnknown::RoleNotProjected { .. }) => "undecidable_role",
+            SponsorVerdict::Undecidable(SponsorUnknown::NoTrustRecord { .. }) => "undecidable_trust",
+        }
+    }
+}
+
+/// Compose the sponsor verdict with the norms-gate decision on the ratified
+/// **strictest-wins** lattice (Family 8): the sponsor check may only *tighten*
+/// the outcome, never loosen it. An unmet sponsor requirement turns an
+/// auto-admit into operator review; it cannot rescue a law-denied applicant,
+/// and it cannot downgrade an escalation.
+pub fn tighten_with_sponsor(norms: Decision, verdict: &SponsorVerdict) -> Decision {
+    if verdict.may_auto_admit() {
+        return norms;
+    }
+    match norms {
+        Decision::Allow | Decision::Warn => Decision::Escalate,
+        other => other,
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1744,5 +1982,261 @@ rules:
         let back = serde_yaml::to_string(&policy).expect("serializes");
         let again: ReputationEmitPolicy = serde_yaml::from_str(&back).expect("round-trips");
         assert_eq!(again.mode, EmitMode::Apply);
+    }
+}
+
+#[cfg(test)]
+pub(super) mod sponsor_tests {
+    use super::*;
+
+    pub(super) fn policy(requires: bool, role: Option<&str>, trust: Option<f64>) -> AdmissionPolicy {
+        AdmissionPolicy {
+            open: false,
+            requires_sponsor: requires,
+            sponsor_role: role.map(String::from),
+            min_trust_score: trust,
+            repeat_limit: None,
+            review_limit: None,
+            description: None,
+        }
+    }
+
+    /// Facts for a sponsor whose vouch IS witnessed (the future state, once a
+    /// vouch event is projected). Existing assertions about role/trust logic
+    /// use this so they exercise the clauses beyond consent.
+    pub(super) fn facts(applicant: Uuid, sponsor: Option<Uuid>, resolved: bool, trust: Option<f64>)
+        -> SponsorFacts {
+        SponsorFacts {
+            applicant_lct_id: applicant,
+            claimed_sponsor: sponsor,
+            sponsor_is_resolved_member: resolved,
+            vouch_is_attested: true,
+            sponsor_trust: trust,
+        }
+    }
+
+    /// Facts as the daemon builds them TODAY: no vouch event is projected, so
+    /// the sponsoring act is unwitnessed however resolvable the identity is.
+    pub(super) fn policy_requiring_sponsor() -> AdmissionPolicy { policy(true, None, None) }
+
+    pub(super) fn facts_unvouched(applicant: Uuid, sponsor: Option<Uuid>, resolved: bool)
+        -> SponsorFacts {
+        SponsorFacts {
+            applicant_lct_id: applicant,
+            claimed_sponsor: sponsor,
+            sponsor_is_resolved_member: resolved,
+            vouch_is_attested: false,
+            sponsor_trust: None,
+        }
+    }
+
+    /// **The R7b acceptance criterion (issue 701).** Differential: two
+    /// applicants identical in every respect except *who* they name as
+    /// sponsor. The one naming a registry-resolved member is satisfied; its
+    /// self-asserting twin collects no peer factor and cannot auto-admit.
+    #[test]
+    fn self_asserted_twin_collects_no_peer_factor() {
+        let p = policy(true, None, None);
+        let applicant = Uuid::new_v4();
+        let real_sponsor = Uuid::new_v4();
+
+        let resolved = evaluate_sponsor(Some(&p), facts(applicant, Some(real_sponsor), true, None));
+        assert_eq!(resolved, SponsorVerdict::Satisfied { sponsor_lct_id: real_sponsor });
+        assert!(resolved.may_auto_admit(), "a resolved peer sponsor may auto-admit");
+
+        let twin = evaluate_sponsor(Some(&p), facts(applicant, Some(applicant), true, None));
+        assert_eq!(twin, SponsorVerdict::Refuted(SponsorRefusal::SelfSponsored));
+        assert!(!twin.may_auto_admit(), "an asserted asker collects no peer factor");
+    }
+
+    /// Self-sponsorship is refused even when the applicant is *already*
+    /// resolvable — being key-bound does not let an identity vouch for itself.
+    #[test]
+    fn self_sponsorship_is_checked_before_resolution() {
+        let p = policy(true, Some("citizen"), Some(0.9));
+        let a = Uuid::new_v4();
+        // Resolved member, high trust, right role — and still refused.
+        let v = evaluate_sponsor(Some(&p), facts(a, Some(a), true, Some(1.0)));
+        assert_eq!(v, SponsorVerdict::Refuted(SponsorRefusal::SelfSponsored),
+            "no later clause may launder a self-sponsorship");
+    }
+
+    /// A name in a payload is an assertion, not evidence.
+    #[test]
+    fn unresolved_sponsor_is_refuted() {
+        let p = policy(true, None, None);
+        let (a, s) = (Uuid::new_v4(), Uuid::new_v4());
+        let v = evaluate_sponsor(Some(&p), facts(a, Some(s), false, None));
+        assert_eq!(v, SponsorVerdict::Refuted(SponsorRefusal::NotResolved { named: s }));
+        assert!(!v.may_auto_admit());
+    }
+
+    #[test]
+    fn missing_sponsor_when_required_is_refuted() {
+        let p = policy(true, None, None);
+        let v = evaluate_sponsor(Some(&p), facts(Uuid::new_v4(), None, false, None));
+        assert_eq!(v, SponsorVerdict::Refuted(SponsorRefusal::Missing));
+    }
+
+    /// The split-exit discipline: "cannot verify" is NOT "verified false".
+    /// A role beyond membership is undecidable (roles aren't projected), and
+    /// an absent trust record is undecidable (not a zero score) — both block
+    /// auto-admission, but each names its own exit.
+    #[test]
+    fn undecidable_exits_are_distinct_from_refutations() {
+        let (a, s) = (Uuid::new_v4(), Uuid::new_v4());
+
+        let role = evaluate_sponsor(
+            Some(&policy(true, Some("treasurer"), None)),
+            facts(a, Some(s), true, None));
+        assert_eq!(role, SponsorVerdict::Undecidable(
+            SponsorUnknown::RoleNotProjected { required_role: "treasurer".into() }));
+        assert!(!role.may_auto_admit());
+        assert_eq!(role.token(), "undecidable_role");
+
+        let trust = evaluate_sponsor(
+            Some(&policy(true, None, Some(0.5))),
+            facts(a, Some(s), true, None));
+        assert_eq!(trust, SponsorVerdict::Undecidable(
+            SponsorUnknown::NoTrustRecord { required: 0.5 }));
+        assert_eq!(trust.token(), "undecidable_trust",
+            "an absent record must not read as a failing score");
+
+        let below = evaluate_sponsor(
+            Some(&policy(true, None, Some(0.5))),
+            facts(a, Some(s), true, Some(0.2)));
+        assert_eq!(below, SponsorVerdict::Refuted(
+            SponsorRefusal::TrustBelowBar { score: 0.2, required: 0.5 }),
+            "a real score below the bar IS a refutation");
+    }
+
+    /// `sponsor_role: citizen` names membership itself, which the projection
+    /// can check — so it stays decidable.
+    #[test]
+    fn membership_role_is_decidable() {
+        let (a, s) = (Uuid::new_v4(), Uuid::new_v4());
+        let v = evaluate_sponsor(Some(&policy(true, Some("Citizen"), None)),
+            facts(a, Some(s), true, None));
+        assert_eq!(v, SponsorVerdict::Satisfied { sponsor_lct_id: s },
+            "the membership role is case-insensitively checkable");
+    }
+
+    #[test]
+    fn no_policy_or_no_requirement_imposes_nothing() {
+        let a = Uuid::new_v4();
+        assert_eq!(evaluate_sponsor(None, facts(a, None, false, None)),
+            SponsorVerdict::NotRequired);
+        assert_eq!(evaluate_sponsor(Some(&policy(false, None, None)), facts(a, None, false, None)),
+            SponsorVerdict::NotRequired);
+    }
+
+    /// A trust bar without `requires_sponsor` still requires one — otherwise
+    /// law states a bar it can never apply (the unenforced-knob defect this
+    /// sprint exists to end).
+    #[test]
+    fn trust_bar_alone_still_requires_a_sponsor() {
+        let v = evaluate_sponsor(Some(&policy(false, None, Some(0.4))),
+            facts(Uuid::new_v4(), None, false, None));
+        assert_eq!(v, SponsorVerdict::Refuted(SponsorRefusal::Missing));
+    }
+
+    /// Strictest-wins: the sponsor check may only tighten (Family 8 lattice).
+    #[test]
+    fn composition_only_tightens() {
+        let refuted = SponsorVerdict::Refuted(SponsorRefusal::SelfSponsored);
+        let ok = SponsorVerdict::Satisfied { sponsor_lct_id: Uuid::new_v4() };
+        // Unmet turns auto-admit into review...
+        assert_eq!(tighten_with_sponsor(Decision::Allow, &refuted), Decision::Escalate);
+        assert_eq!(tighten_with_sponsor(Decision::Warn, &refuted), Decision::Escalate);
+        // ...but never rescues a denial, and never downgrades an escalation.
+        assert_eq!(tighten_with_sponsor(Decision::Deny, &ok), Decision::Deny);
+        assert_eq!(tighten_with_sponsor(Decision::Deny, &refuted), Decision::Deny);
+        assert_eq!(tighten_with_sponsor(Decision::Escalate, &ok), Decision::Escalate);
+        // A met requirement leaves the norms decision untouched.
+        assert_eq!(tighten_with_sponsor(Decision::Allow, &ok), Decision::Allow);
+    }
+
+    /// Every non-passing verdict tells the operator which exit fired.
+    #[test]
+    fn every_blocking_verdict_carries_a_reason() {
+        let (a, s) = (Uuid::new_v4(), Uuid::new_v4());
+        for v in [
+            evaluate_sponsor(Some(&policy(true, None, None)), facts(a, None, false, None)),
+            evaluate_sponsor(Some(&policy(true, None, None)), facts(a, Some(a), true, None)),
+            evaluate_sponsor(Some(&policy(true, None, None)), facts(a, Some(s), false, None)),
+            evaluate_sponsor(Some(&policy(true, Some("archivist"), None)), facts(a, Some(s), true, None)),
+            evaluate_sponsor(Some(&policy(true, None, Some(0.5))), facts(a, Some(s), true, None)),
+            evaluate_sponsor(Some(&policy(true, None, Some(0.5))), facts(a, Some(s), true, Some(0.1))),
+        ] {
+            assert!(!v.may_auto_admit());
+            assert!(v.reason().is_some(), "{v:?} must explain itself to the operator");
+        }
+        assert!(evaluate_sponsor(None, facts(a, None, false, None)).reason().is_none());
+    }
+}
+
+#[cfg(test)]
+mod sponsor_consent_tests {
+    use super::*;
+    use super::sponsor_tests::*;
+
+    /// **The review finding (PR 706).** A resolvable member identity proves the
+    /// member EXISTS; it does not prove they sponsored anyone. The relation is a
+    /// field the applicant typed, and member ids are not secret by any route —
+    /// the public identity file publishes the founding sovereign's, the presence
+    /// roster returns every member's, and every member already knows the others'.
+    /// So resolvability alone must NOT auto-admit.
+    #[test]
+    fn a_resolvable_but_unconsenting_sponsor_cannot_auto_admit() {
+        let p = policy_requiring_sponsor();
+        let (applicant, sponsor) = (Uuid::new_v4(), Uuid::new_v4());
+
+        // Exactly the daemon's present facts: real member, pinned key, no
+        // witnessed vouch.
+        let v = evaluate_sponsor(Some(&p), facts_unvouched(applicant, Some(sponsor), true));
+        assert_eq!(v, SponsorVerdict::Undecidable(
+            SponsorUnknown::VouchNotAttested { named: sponsor }));
+        assert!(!v.may_auto_admit(),
+            "naming a member you never spoke to must not admit you");
+        assert_eq!(v.token(), "undecidable_vouch_not_attested");
+        assert!(v.reason().unwrap().contains("not evidence of a"),
+            "the operator is told existence != consent");
+    }
+
+    /// It is UNDECIDABLE, not refuted: the sponsorship may be perfectly real,
+    /// and a human can confirm what the hub cannot yet witness. Conflating the
+    /// two would make an honest applicant look like a liar in the record.
+    #[test]
+    fn unattested_vouch_is_undecidable_not_a_refutation() {
+        let p = policy_requiring_sponsor();
+        let (a, s) = (Uuid::new_v4(), Uuid::new_v4());
+        let v = evaluate_sponsor(Some(&p), facts_unvouched(a, Some(s), true));
+        assert!(matches!(v, SponsorVerdict::Undecidable(_)));
+        assert!(!matches!(v, SponsorVerdict::Refuted(_)));
+    }
+
+    /// Consent does not rescue the refutations: a self-named sponsor and an
+    /// unresolvable name stay Refuted, checked before consent is consulted.
+    #[test]
+    fn consent_is_checked_after_the_refutations_not_instead_of_them() {
+        let p = policy_requiring_sponsor();
+        let a = Uuid::new_v4();
+        assert_eq!(evaluate_sponsor(Some(&p), facts_unvouched(a, Some(a), true)),
+            SponsorVerdict::Refuted(SponsorRefusal::SelfSponsored));
+        let ghost = Uuid::new_v4();
+        assert_eq!(evaluate_sponsor(Some(&p), facts_unvouched(a, Some(ghost), false)),
+            SponsorVerdict::Refuted(SponsorRefusal::NotResolved { named: ghost }));
+    }
+
+    /// The forward path: once a vouch event IS witnessed, `Satisfied` becomes
+    /// reachable cleanly — the predicate is already correct for that world, so
+    /// landing the vouch event is wiring, not a redesign.
+    #[test]
+    fn an_attested_vouch_satisfies() {
+        let p = policy_requiring_sponsor();
+        let (a, s) = (Uuid::new_v4(), Uuid::new_v4());
+        let v = evaluate_sponsor(Some(&p), facts(a, Some(s), true, None));
+        assert_eq!(v, SponsorVerdict::Satisfied { sponsor_lct_id: s });
+        assert!(v.may_auto_admit());
     }
 }

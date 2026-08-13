@@ -370,6 +370,11 @@ pub struct JoinRequest {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// F0.2 (R7b): the hub's finding about the sponsor claim, when that is why
+    /// this request was queued. Distinct from `message` (the applicant's own
+    /// words) by design.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sponsor_note: Option<String>,
     pub requested_at: DateTime<Utc>,
     pub status: JoinStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -658,7 +663,8 @@ impl HubState {
                 self.member_pubkeys.remove(member_lct_id);
             }
             HubEvent::MemberJoinRequested {
-                request_id, member_lct_id, member_pubkey_hex, name, message, requested_at,
+                request_id, member_lct_id, member_pubkey_hex, name, message,
+                sponsor_note, requested_at,
             } => {
                 self.pending_joins.insert(*request_id, JoinRequest {
                     request_id: *request_id,
@@ -666,6 +672,7 @@ impl HubState {
                     member_pubkey_hex: member_pubkey_hex.clone(),
                     name: name.clone(),
                     message: message.clone(),
+                    sponsor_note: sponsor_note.clone(),
                     requested_at: *requested_at,
                     status: JoinStatus::Pending,
                     resolved_by: None,
