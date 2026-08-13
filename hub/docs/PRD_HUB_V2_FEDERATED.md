@@ -80,52 +80,66 @@ can **witness** it, cheaply and continuously.
   disaster recovery at the cost of bandwidth, storage, and a larger disclosure surface.
 - **Recommendation (needs dp ruling — §3 Q1)**: layer them. Hash witnessing is the always-on default
   for every federation edge; checkpoints are an opt-in per-edge capability granted by law. "Joinable"
-  then means: any two witnessed ledgers can be placed into one partial order by their exchanged
-  witnessed heads, without either ever containing the other.
+  means independent ledgers can establish cryptographically witnessed **causal anchors** between
+  their histories without either containing the other. A witness establishes what one hub had
+  observed of another at a particular local ledger point; timestamps are evidence, not a global
+  consensus clock or an implied total ordering across societies.
 
 ### R4. New roles as entities
 
 Roles become first-class, creatable at runtime — today's seven are the founding set, not the type.
 
 - A role is an **entity**: it has an LCT, a charter (the policy-action set it may perform — which is
-  exactly the hub-law gate's vocabulary already), and its own reputation record.
+  exactly the hub-law gate's vocabulary already), and a persistent institutional history/tensor.
+  Occupant merit remains attributed to occupant-scoped sub-dimensions; it is not inherited by the
+  next filler merely because that entity occupies the same role.
 - **Creating a role is a witnessed governed act** (law-gated, quorum per law); **filling** a role is
   conferral (17A pattern: quorum of witnesses, backing attestations recorded).
 - Per the ratified merit ruling: the role's tensor persists across occupants; the occupant is a
-  sub-dimension ("when filled by X") under temperament. Rotation never resets the role's record.
+  sub-dimension ("when filled by X") under temperament. Rotation never resets the role's record and
+  never transfers one occupant's attributed merit to another.
 - The seven founding roles migrate onto this substrate (they become role-entities with founding
   charters) rather than remaining a parallel hard-coded system — one mechanism, no legacy fork.
 
 ### R5. Roles promotable into fractal sub-hubs
 
 Some roles outgrow a single occupant: a committee, a working group, an events team. A role-entity can
-be **promoted into a sub-hub** — the role becomes a society whose charter derives from the role's
-charter.
+be **promoted into a sub-hub relationship**: promotion creates a new sovereign child-society entity
+with its own society LCT and charter derived from the role's charter, then witnesses a binding by
+which that child society fills the persistent parent role. The role does **not** change ontological
+type or become the society.
 
 - The promotion is a witnessed governed act in the parent (quorum per law) plus an ignition of the
-  child (its own sovereign act — the child is born sovereign, not owned).
+  child (its own sovereign act — the child is born sovereign, not owned). The parent role LCT and
+  child society LCT remain distinct identities throughout their lifetimes.
 - The parent–child relationship is an ordinary **federation edge (R1) with a role-scoped delegation
-  (R2 semantics)**: the child fills, for the parent, exactly the role it was promoted from. Fractal
-  recursion falls out: same binary, same law machinery, same conferral discipline at every scale.
+  (R2 semantics)**: the child fills, for the parent, exactly the role from which it was promoted.
+  Fractal recursion falls out: same binary, same law machinery, same conferral discipline at every
+  scale, without entity-type mutation.
 - Demotion/dissolution: the edge is revocable from either side; the parent revoking the delegation
   reclaims the role (the role-entity persists — R4 — with its tensor intact); the child dissolving
-  returns a terminal witnessed entry.
+  returns a terminal witnessed entry. A later child society may fill the same persistent role without
+  inheriting the prior child's identity.
 
-### R6. Law-sync for hierarchically related hubs = an alignment ledger, not shared law
+### R6. Law-sync for related hubs = an edge-scoped compatibility ledger, not shared law
 
 Related hubs (parent/child, member/greater) do **not** share law and never auto-sync it.
 
 - Each hub already publishes a witnessed law-amendment history (law digest at each head). Federation
   peers exchange law heads as part of R3 witnessing.
-- Each side maintains an **alignment record** against each related hub: per law section (granularity
-  needs ruling — §3 Q4), a state of `aligned | diverged | silent-here | silent-there`, recomputed
-  whenever either side's law head advances, and recorded as a witnessed entry when it *changes*.
-- **Misalignment is a fact to surface, not an error to fix.** Divergence beyond what an edge's
-  delegation charter tolerates triggers law-defined responses — flag on the operator surface,
-  escalate, suspend the delegated surface — but never an overwrite of anyone's law. (This is the
-  fail-closed+warn default doing federation work: unrecognized divergence defaults to
-  flag-and-continue for peers, deny-delegated-surface for chartered relationships, both
-  law-overridable.)
+- Each side maintains a **compatibility record per federation/delegation edge**, evaluated only over
+  the law surface relevant to that edge's charter and permitted flows — the relationship's MRH. The
+  record is therefore contextual, not a claim that two sovereign laws are globally "aligned." A
+  useful v0 state is `compatible | incompatible | unknown | irrelevant`, with section-level evidence
+  as the cheap baseline and rule-level evidence where the edge charter requires precision. The
+  record is recomputed whenever either law head advances and witnessed when its state changes.
+- **Incompatibility is a fact to surface, not an error to fix.** A difference outside the edge MRH is
+  `irrelevant`; an incompatibility inside the delegated surface triggers law-defined responses — flag
+  on the operator surface, escalate, suspend that delegated surface — but never an overwrite of
+  anyone's law. Raw digest difference is evidence that evaluation must be refreshed, not by itself
+  proof of semantic disagreement. (This is the fail-closed+warn default doing federation work:
+  unresolved compatibility defaults to flag-and-continue for peers, deny-delegated-surface for
+  chartered relationships, both law-overridable.)
 
 ### R7. The hestia-transfer set (concrete, from `PRD_GATE_CONSOLIDATION.md` lessons)
 
@@ -164,8 +178,8 @@ mapping is already almost 1:1 — this PRD makes it explicit and keeps it testab
 | Meeting / decision record | The witnessed ledger — append-only, tamper-evident, exportable |
 | Contribution that travels | Reputation per (entity, role), portable across chapters via federation edges (R1) |
 | "Who knows X in another chapter?" | Federated `find_members` (R1) under both chapters' laws |
-| National ↔ chapters without capture | Greater hub chartered for a narrow role (R2) + alignment ledger instead of imposed bylaws (R6) |
-| Chapter splits / working groups | Role → sub-hub promotion (R5) |
+| National ↔ chapters without capture | Greater hub chartered for a narrow role (R2) + edge-scoped law compatibility instead of imposed bylaws (R6) |
+| Chapter splits / working groups | Persistent role + newly ignited child society bound through a federation edge (R5) |
 | Trust in the record itself | Fractal ledger witnessing (R3) — chapters witness each other's heads |
 
 **Pain points CONFIRMED (dp, 2026-08-12)**: organizer time, non-portable reputation, invisible
@@ -181,10 +195,12 @@ deliverable (separate artifact, not this PRD) leads with that frame.
    per-edge opt-in by law)? Or one mechanism only?
 2. **R2 — first greater-hub charter.** Recommend the minimum: cross-society member discovery only.
    Ratify, or charter more at birth?
-3. **R5 — promotion authority.** Recommend: quorum conferral in the parent per parent law **plus**
-   sovereign ignition of the child (child born sovereign). Ratify?
-4. **R6 — alignment granularity.** Section-level (cheap, coarse) vs rule-level (precise, chattier
-   alignment ledger). Recommend section-level v0, rule-level where a delegation charter demands it.
+3. **R5 — promotion authority + identity.** Recommend: quorum conferral in the parent per parent law
+   **plus** sovereign ignition of a distinct child-society entity (child born sovereign), with a
+   witnessed role-filling binding between persistent role LCT and child society LCT. Ratify?
+4. **R6 — compatibility scope/granularity.** Recommend edge/MRH-scoped compatibility, never global
+   law alignment: section-level evidence as the cheap v0 baseline; rule-level evidence where a
+   delegation charter demands it. Ratify?
 5. **Sequencing** — endorse §5's phase order (in particular: R7a gates the reputation seam, and
    R4 lands before R2/R5 because both compose out of role-entities)?
 
@@ -204,10 +220,12 @@ instrument), and `reputation_emit` (dark by design, pending dp + R7a).
   seam at dp's discretion), R7b (asserted-asker law), R7c (ratified-digest surface + closure).
 - **Phase 1 — R4 roles-as-entities.** The substrate: R2's chartered role and R5's promotable role are
   both role-entities. Migrate the founding seven onto it.
-- **Phase 2 — R1 peer federation MVP** + R3 hash witnessing + R6 alignment record v0. Two real hubs,
-  two machines, witnessed edge, law heads exchanged, federated discovery behind both laws.
+- **Phase 2 — R1 peer federation MVP** + R3 hash witnessing + R6 edge-scoped compatibility record v0.
+  Two real hubs, two machines, witnessed edge, law heads exchanged, federated discovery behind both
+  laws.
 - **Phase 3 — R2 greater hub** (discovery charter) + R7d parity instrument reading federation calls.
-- **Phase 4 — R5 promotion** (role → sub-hub), demotion/dissolution paths.
+- **Phase 4 — R5 promotion** (persistent role + distinct child society + witnessed role-filling edge),
+  demotion/dissolution paths.
 - **Phase 5 — R3 checkpoints** (if ruled in) for the edges whose law asks for them.
 - **Throughout — R8**: validate each phase against a real AIC chapter workflow; the presentation
   artifact follows the pain-point confirmation, not the other way around.
@@ -223,16 +241,21 @@ instrument), and `reputation_emit` (dark by design, pending dp + R7a).
    and requires uniform refusal).
 3. **R3**: a peer's ledger rollback/fork is detected from witnessed heads alone (test: rewind a test
    hub's ledger; the peer's next witness cycle flags head regression); a witnessed head discloses no
-   member data.
+   member data; exchanged head witnesses establish reproducible causal anchors without requiring or
+   claiming a global total order across the two ledgers.
 4. **R4**: create role → confer occupant → rotate occupant; the role tensor persists across rotation;
-   a role acts only within its charter (gate-refused otherwise); the founding seven pass the same
-   tests on the new substrate.
-5. **R5**: promote a role to a sub-hub; the child serves tier-0 sovereign identity of its own; the
-   parent's edge shows role-scoped delegation; revocation reclaims the role with tensor intact.
-6. **R6**: amend one side's law → the other side's alignment record flips the affected section within
-   one witness cycle, as a witnessed entry; nothing on either side's law changed by the sync itself;
-   a divergence beyond a delegation charter's tolerance triggers the law-defined response and
-   nothing more.
+   occupant-attributed merit remains distinguishable and does not transfer to the next occupant; a
+   role acts only within its charter (gate-refused otherwise); the founding seven pass the same tests
+   on the new substrate.
+5. **R5**: promote a role relationship to a sub-hub; the persistent role LCT and newly ignited child
+   society LCT are distinct; the child serves tier-0 sovereign identity of its own; the parent's edge
+   shows role-scoped delegation; revocation reclaims the role with tensor intact; a replacement child
+   can later fill the same role without inheriting the prior child's identity.
+6. **R6**: amend one side's law inside the edge MRH → the other side's compatibility record changes
+   within one witness cycle, as a witnessed entry; amend law outside the edge MRH → the edge records
+   the difference as irrelevant (or leaves compatibility unchanged); nothing on either side's law is
+   changed by the comparison itself; an incompatibility beyond a delegation charter's tolerance
+   triggers the law-defined response and nothing more.
 7. **R7a**: kill the hestia callback (and separately, a federation peer) mid-session → every failure
    lands as a recorded degraded event, distinguishable from conduct denies; **zero** conduct-class
    reputation deltas are emitted from the window; the seam-opening test replays the queued deltas and
