@@ -168,10 +168,12 @@ mapping is already almost 1:1 — this PRD makes it explicit and keeps it testab
 | Chapter splits / working groups | Role → sub-hub promotion (R5) |
 | Trust in the record itself | Fractal ledger witnessing (R3) — chapters witness each other's heads |
 
-**Pain-point validation is open**: the table above maps *presumed* pain points (organizer time,
-non-portable reputation, invisible cross-chapter discovery, governance opacity). Before the AIC
-presentation is built, dp confirms/edits the actual pain-point list from AIC conversations, and the
-presentation deliverable (separate artifact, not this PRD) leads with their words, not ours.
+**Pain points CONFIRMED (dp, 2026-08-12)**: organizer time, non-portable reputation, invisible
+cross-chapter discovery, governance opacity — with the governing frame: AIC is a **nonprofit,
+volunteer-run** org, so governance must be **frictionless but well organized, and above all
+transparent/accountable**. That tension — enforcement usually adds friction — is the design spine:
+the law gate and the witnessed ledger do the bookkeeping so volunteers don't. The presentation
+deliverable (separate artifact, not this PRD) leads with that frame.
 
 ## 3. Design questions needing dp rulings
 
