@@ -7,7 +7,7 @@
 **License:** AGPL-3.0-or-later (inherits web4 root)
 **Repo location:** `web4/hub/` (new Cargo workspace, sibling to `web4/web4-core/` and `web4/web4-trust-core/`)
 
-> **STATUS as of 2026-06:** This is the original pre-build PRD. Much of the "Out of scope (V2+)" list below has since shipped: encrypt-at-rest vault/SQLCipher state, machine-enforced hub law (PolicyEntity gate), sealed member channels + intros + `find_members`, EUDI/`did:web4`, Sovereign Council M-of-N, admin/operator web UI + admission queue, and the open-core plugin seam (the `hub-plugin` *crate* ships and hestia loads it; the hub daemon does **not** link it yet — see the status table in the hub README). The "Out of scope" list below was the **pre-build** scope; items now shipped are annotated inline (**SHIPPED**). For the live architecture see `docs/V2-V3-ARCHITECTURE.md` and the README.
+> **STATUS as of 2026-06:** This is the original pre-build PRD. Much of the "Out of scope (V2+)" list below has since shipped: encrypt-at-rest vault/SQLCipher state, machine-enforced hub law (PolicyEntity gate), sealed member channels + intros + `find_members`, EUDI/`did:web4`, Sovereign Council M-of-N, admin/operator web UI + admission queue, and the open-core plugin seam (the `hub-plugin` *crate* ships and hestia loads it; the hub daemon does **not** link it yet — see the status table in the hub README). The "Out of scope" list below was the **pre-build** scope; items now shipped are annotated inline (**SHIPPED**). For the live architecture see `docs/V2-V3-ARCHITECTURE.md` and the README. **The maintained forward-looking PRD — what the hub is becoming (federation, roles-as-entities, sub-hubs, law alignment) — is `PRD_HUB_V2_FEDERATED.md`; this document is the historical record of the MVP.**
 
 ---
 
