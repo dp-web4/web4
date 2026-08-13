@@ -68,11 +68,15 @@ fi
 if [ "$FROM_BINARY" = 1 ]; then
   [ -n "$BIN" ] || die "--from-binary needs a binary path"
   [ -x "$BIN" ] || die "not executable: $BIN"
-  VERSION_LINE="$("$BIN" --version 2>/dev/null)" || die "could not run $BIN --version"
-  # Format: "<ver> (<short-sha> <provenance>, built <ts>)"
-  SHA="$(printf '%s' "$VERSION_LINE" | sed -n 's/.*(\([0-9a-f]\{7,\}\) .*/\1/p')"
-  [ -n "$SHA" ] || die "could not read a build sha from: $VERSION_LINE"
-  PROV="$(printf '%s' "$VERSION_LINE" | sed -n 's/.*([0-9a-f]\{7,\} \([a-z]*\).*/\1/p')"
+  # Ask the artifact in a MACHINE-READABLE form. Parsing the human `--version`
+  # line yields an ABBREVIATED sha and a format free to change; `build-info`
+  # emits the same stamp the daemon publishes, with the full commit, so a
+  # ratification record is never built on a truncated or mis-parsed identity.
+  INFO="$("$BIN" build-info 2>/dev/null)" || die "could not run '$BIN build-info' (binary too old?)"
+  json_str() { printf '%s' "$INFO" | sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -1; }
+  SHA="$(json_str git_sha)"
+  PROV="$(json_str provenance)"
+  [ -n "$SHA" ] || die "no git_sha in build-info output: $INFO"
   # A dirty or unverifiable build is not a ratifiable artifact: it is not any
   # commit, so ratifying "the commit" would name something that does not
   # describe the bytes. Refuse rather than record a claim that cannot hold.
@@ -92,6 +96,13 @@ if [ -n "$BIN" ]; then
   DIGEST="$(sha256sum "$BIN" | cut -d' ' -f1)"
 fi
 
+# JSON-escape operator-supplied text: a name containing a quote or backslash
+# would otherwise emit a manifest that fails to parse — which the daemon reports
+# as "manifest unreadable" (fail-closed, so not dangerous, but a self-inflicted
+# outage of the control).
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+BY_ESC="$(json_escape "$BY")"
+
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 TMP="$(mktemp "${MANIFEST}.XXXXXX")"
 {
@@ -99,9 +110,15 @@ TMP="$(mktemp "${MANIFEST}.XXXXXX")"
   printf '  "ratified_git_sha": "%s",\n' "$SHA"
   [ -n "$DIGEST" ] && printf '  "ratified_binary_sha256": "%s",\n' "$DIGEST"
   printf '  "ratified_at": "%s",\n' "$TS"
-  printf '  "ratified_by": "%s"\n' "$BY"
+  printf '  "ratified_by": "%s"\n' "$BY_ESC"
   printf '}\n'
 } > "$TMP"
+# mktemp creates 0600. The daemon usually runs as a DIFFERENT user than the one
+# ratifying (the whole point: the manifest should not be writable by the thing it
+# ratifies), so a 0600 manifest would be unreadable to it and every seat would
+# render `unknown` — a control that silently disables itself. Widen to 0644
+# BEFORE the rename, so the file is never briefly readable in a half-written state.
+chmod 0644 "$TMP"
 # Atomic replace: a half-written ratification record must never be readable.
 mv -f "$TMP" "$MANIFEST"
 

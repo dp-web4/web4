@@ -97,14 +97,29 @@ ratification record would be certifying itself.
 ### Using it
 
 ```bash
-# ratify what a specific artifact attests about itself (preferred — the
-# artifact is asked, rather than trusting memory of what was built)
+# ratify what a specific artifact attests about itself (preferred — the artifact
+# is ASKED, via `hub build-info` JSON, rather than trusting memory of what was
+# built or parsing an abbreviated sha out of human --version text)
 hub/scripts/ratify-build.sh --from-binary /path/to/hub \
     --manifest /etc/web4/ratified-build.json --by dp
 
 # or ratify an explicit commit, optionally pinning the binary digest too
 hub/scripts/ratify-build.sh <git-sha> /path/to/hub --manifest ...
 ```
+
+**Pin the binary digest.** Pass the binary path so the manifest records
+`ratified_binary_sha256`. Without it the check can only make the weaker
+**commit-level** claim, and the operator page labels it as such — because two
+builds of the same commit are not the same executable. A different toolchain,
+different feature flags, or a substituted artifact all preserve the commit while
+changing the bytes. *Commit identity is provenance; artifact identity is the
+ratification claim.*
+
+**Set `HUB_EXEC_PATH`** to the artifact the unit will execute, so the staged arm
+has something to check. Unset, that arm reports `unknown` — it deliberately does
+**not** fall back to the running image, because reporting a fact about the
+present as a fact about the next restart is the substitution this check exists to
+catch.
 
 `--from-binary` **refuses** a dirty or unverifiable build: such an artifact is
 not any commit, so ratifying "the commit" would name something that does not
@@ -119,7 +134,10 @@ ratifies is not a control.
 
 `/admin` renders a **Deploy ratification** block with two arms:
 
-- **Running** — the executing binary vs the manifest.
+- **Running** — the **executing image's bytes** (read via `/proc/self/exe`, which
+  stays readable after a replace-in-place, so it is the bytes actually running
+  rather than the bytes now at the path) vs the manifest. Falls back to the
+  commit-level claim, clearly labelled, when no digest was ratified.
 - **Staged at exec path** — the artifact the unit will run *next*, so an
   unratified binary dropped in place is visible **before** the restart that
   makes it live (set `HUB_EXEC_PATH` when the unit's path differs from the
@@ -136,3 +154,20 @@ Verdicts fail closed and keep their failure exits distinct:
 `unknown` and `STALE` are deliberately separate: *"nobody has ratified anything
 here"* calls for a different response than *"this seat is running something
 nobody approved."*
+
+### Not yet closed: the deploy closure itself
+
+R7c has a third limb this does not implement: **writes to the deploy closure —
+the unit file, the deploy scripts, the exec path, and the ratification manifest —
+must themselves be gated, refused, and escalatable.** Ratification and visibility
+land here; the write-protection does not.
+
+The reason is worth recording, because it is the control demonstrating itself:
+that closure is enforced by the hestia gate's canonical governance-file list,
+which lives in a file that is *itself* on that list. A session operating under
+the gate cannot edit it — which is exactly the intended behaviour for
+authority-bearing surfaces, and why the change belongs to a deliberate,
+separately-reviewed act rather than a side effect of this work.
+
+**Phase 0 is not complete until that lands.** Tracked separately; do not read the
+Deploy ratification block as evidence that the deploy path is write-protected.

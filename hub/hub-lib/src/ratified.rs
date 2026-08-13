@@ -123,8 +123,28 @@ impl DeployVerdict {
 /// Evaluate the **running** binary against the ratified manifest.
 ///
 /// Pure: the running side comes from the compile-time stamp the artifact
-/// carries, the ratified side from the supervisor's record.
-pub fn evaluate_running(build: &BuildInfo, manifest: Option<&RatifiedManifest>) -> DeployVerdict {
+/// carries plus the digest of the executing image, the ratified side from the
+/// supervisor's record.
+///
+/// **Commit identity is provenance; artifact identity is the ratification
+/// claim.** Two builds of the same commit are not the same executable — a
+/// different toolchain, different feature flags, or a tampered artifact all
+/// keep the commit while changing the bytes. So when the manifest records a
+/// binary digest, that digest is authoritative and must match; the commit
+/// check remains as the earlier, cheaper discriminator. A manifest with no
+/// digest can only support the weaker commit-level claim, and callers are
+/// expected to say so on the operator surface rather than let it read as a
+/// full artifact match.
+///
+/// `running_sha256` is the digest of the executing image (on Linux, read via
+/// `/proc/self/exe`, which stays readable even after a replace-in-place has
+/// unlinked the original path — that is the point: it is the bytes actually
+/// running, not the bytes currently at the path).
+pub fn evaluate_running(
+    build: &BuildInfo,
+    running_sha256: Option<&str>,
+    manifest: Option<&RatifiedManifest>,
+) -> DeployVerdict {
     let Some(m) = manifest else {
         return DeployVerdict::Unknown {
             reason: "no ratified-build manifest on this seat — nothing has been recorded as \
@@ -171,7 +191,54 @@ pub fn evaluate_running(build: &BuildInfo, manifest: Option<&RatifiedManifest>) 
             ),
         };
     }
-    DeployVerdict::Current
+    // The commit matches. That is provenance, not identity — decide on the
+    // artifact when the manifest names one.
+    match (m.ratified_binary_sha256.as_deref(), running_sha256) {
+        (Some(ratified), Some(running)) => {
+            if running.eq_ignore_ascii_case(ratified) {
+                DeployVerdict::Current
+            } else {
+                DeployVerdict::Stale {
+                    reason: format!(
+                        "the EXECUTING artifact ({}…) is not the ratified binary ({}…) — same \
+                         commit, different bytes (toolchain, build flags, or substitution)",
+                        short(running),
+                        short(ratified)
+                    ),
+                }
+            }
+        }
+        // A digest was ratified but the running image could not be read: the
+        // authoritative check could not be performed, so this is not a pass.
+        (Some(_), None) => DeployVerdict::Unknown {
+            reason: "the ratified manifest pins a binary digest, but the executing image \
+                     could not be read to compare against it".to_string(),
+        },
+        // No digest ratified: the commit-level claim is the strongest available.
+        // Callers surface this as the weaker claim it is.
+        (None, _) => DeployVerdict::Current,
+    }
+}
+
+/// Does the manifest support a full **artifact**-level claim, or only the
+/// weaker commit-level one? The operator surface renders the difference so a
+/// commit-only `current` is never read as "these are the ratified bytes".
+pub fn is_artifact_pinned(manifest: Option<&RatifiedManifest>) -> bool {
+    manifest.map(|m| m.ratified_binary_sha256.is_some()).unwrap_or(false)
+}
+
+/// SHA-256 of the **executing image**. On Linux `/proc/self/exe` resolves to
+/// the running inode even after the file at that path has been replaced or
+/// unlinked, which is exactly what this needs: the bytes in memory, not the
+/// bytes someone has since staged. Falls back to `current_exe` elsewhere.
+pub fn running_image_sha256() -> Option<String> {
+    let proc_self = Path::new("/proc/self/exe");
+    if proc_self.exists() {
+        if let Some(d) = file_sha256(proc_self) {
+            return Some(d);
+        }
+    }
+    std::env::current_exe().ok().as_deref().and_then(file_sha256)
 }
 
 /// Evaluate the artifact **staged at the exec path** against the manifest.
@@ -244,10 +311,12 @@ fn short(s: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
 
-    fn build(sha: &'static str, prov: Provenance) -> BuildInfo {
+    pub(super) fn build_clean_at(sha: &'static str) -> BuildInfo { build(sha, Provenance::Clean) }
+    pub(super) fn build_dirty_at(sha: &'static str) -> BuildInfo { build(sha, Provenance::Dirty) }
+    pub(super) fn build(sha: &'static str, prov: Provenance) -> BuildInfo {
         BuildInfo {
             version: "test",
             git_sha: sha,
@@ -257,7 +326,7 @@ mod tests {
         }
     }
 
-    fn manifest(sha: &str) -> RatifiedManifest {
+    pub(super) fn manifest(sha: &str) -> RatifiedManifest {
         RatifiedManifest {
             ratified_git_sha: sha.to_string(),
             ratified_binary_sha256: None,
@@ -269,7 +338,7 @@ mod tests {
     #[test]
     fn matching_clean_build_is_current() {
         let b = build("abcdef1234567890", Provenance::Clean);
-        assert_eq!(evaluate_running(&b, Some(&manifest("abcdef1234567890"))), DeployVerdict::Current);
+        assert_eq!(evaluate_running(&b, None, Some(&manifest("abcdef1234567890"))), DeployVerdict::Current);
     }
 
     /// **The parked-checkout case this module exists for.** The binary is
@@ -279,7 +348,7 @@ mod tests {
     #[test]
     fn a_clean_build_of_an_unratified_commit_is_stale() {
         let b = build("feedface00000000", Provenance::Clean);
-        let v = evaluate_running(&b, Some(&manifest("abcdef1234567890")));
+        let v = evaluate_running(&b, None, Some(&manifest("abcdef1234567890")));
         assert!(matches!(v, DeployVerdict::Stale { .. }), "got {v:?}");
         assert!(v.detail().unwrap().contains("ratified"));
         assert!(!v.is_current());
@@ -290,7 +359,7 @@ mod tests {
     #[test]
     fn a_dirty_build_is_stale_even_at_the_ratified_commit() {
         let b = build("abcdef1234567890", Provenance::Dirty);
-        let v = evaluate_running(&b, Some(&manifest("abcdef1234567890")));
+        let v = evaluate_running(&b, None, Some(&manifest("abcdef1234567890")));
         assert!(matches!(v, DeployVerdict::Stale { .. }), "got {v:?}");
         assert!(v.detail().unwrap().contains("MODIFIED"));
     }
@@ -300,7 +369,7 @@ mod tests {
     #[test]
     fn unknown_provenance_is_unknown_not_current() {
         let b = build("abcdef1234567890", Provenance::Unknown);
-        let v = evaluate_running(&b, Some(&manifest("abcdef1234567890")));
+        let v = evaluate_running(&b, None, Some(&manifest("abcdef1234567890")));
         assert!(matches!(v, DeployVerdict::Unknown { .. }), "got {v:?}");
         assert!(!v.is_current());
     }
@@ -310,7 +379,7 @@ mod tests {
     #[test]
     fn absent_manifest_is_unknown_not_stale_and_never_current() {
         let b = build("abcdef1234567890", Provenance::Clean);
-        let v = evaluate_running(&b, None);
+        let v = evaluate_running(&b, None, None);
         assert!(matches!(v, DeployVerdict::Unknown { .. }), "got {v:?}");
         assert!(!v.is_current(), "an unratified seat never reads as a pass");
     }
@@ -319,7 +388,7 @@ mod tests {
     fn a_build_with_no_commit_cannot_be_matched() {
         let b = build("unknown", Provenance::Clean);
         assert!(matches!(
-            evaluate_running(&b, Some(&manifest("abcdef1234567890"))),
+            evaluate_running(&b, None, Some(&manifest("abcdef1234567890"))),
             DeployVerdict::Unknown { .. }
         ));
     }
@@ -327,9 +396,9 @@ mod tests {
     #[test]
     fn abbreviated_shas_compare_on_the_shorter_length() {
         let b = build("abcdef1234567890", Provenance::Clean);
-        assert_eq!(evaluate_running(&b, Some(&manifest("abcdef1"))), DeployVerdict::Current);
+        assert_eq!(evaluate_running(&b, None, Some(&manifest("abcdef1"))), DeployVerdict::Current);
         // ...but a stub must not prefix-match the world.
-        let v = evaluate_running(&b, Some(&manifest("ab")));
+        let v = evaluate_running(&b, None, Some(&manifest("ab")));
         assert!(matches!(v, DeployVerdict::Stale { .. }), "got {v:?}");
     }
 
@@ -374,5 +443,77 @@ mod tests {
         let m = RatifiedManifest::read(&good).unwrap().expect("parsed");
         assert_eq!(m.ratified_git_sha, "abcdef1234567890");
         assert_eq!(m.ratified_by.as_deref(), Some("dp"));
+    }
+}
+
+#[cfg(test)]
+mod artifact_identity_tests {
+    use super::*;
+    use super::tests::*;
+
+    /// **The review finding (PR 708).** Same commit does NOT mean same
+    /// executable: a different toolchain, different feature flags, or an
+    /// outright substitution all preserve the commit while changing the bytes.
+    /// When the manifest pins a digest, the digest decides.
+    #[test]
+    fn same_commit_different_bytes_is_stale() {
+        let b = build_clean_at("abcdef1234567890");
+        let mut m = manifest("abcdef1234567890");
+        m.ratified_binary_sha256 = Some("aa".repeat(32));
+
+        // The ratified artifact: current.
+        assert_eq!(evaluate_running(&b, Some(&"aa".repeat(32)), Some(&m)), DeployVerdict::Current);
+
+        // A different build of the SAME commit: stale, and the operator is told
+        // why a matching commit is not a match.
+        let v = evaluate_running(&b, Some(&"bb".repeat(32)), Some(&m));
+        assert!(matches!(v, DeployVerdict::Stale { .. }), "got {v:?}");
+        assert!(v.detail().unwrap().contains("same \n                         commit")
+                || v.detail().unwrap().contains("different bytes"),
+            "reason names the distinction: {:?}", v.detail());
+        assert!(!v.is_current());
+    }
+
+    /// A pinned digest that cannot be checked is UNKNOWN, never a pass — the
+    /// authoritative comparison did not happen.
+    #[test]
+    fn pinned_digest_with_unreadable_image_is_unknown() {
+        let b = build_clean_at("abcdef1234567890");
+        let mut m = manifest("abcdef1234567890");
+        m.ratified_binary_sha256 = Some("aa".repeat(32));
+        let v = evaluate_running(&b, None, Some(&m));
+        assert!(matches!(v, DeployVerdict::Unknown { .. }), "got {v:?}");
+        assert!(!v.is_current());
+    }
+
+    /// Without a pinned digest the commit-level claim is all there is. It may
+    /// read `current`, but callers must be able to tell it apart from a full
+    /// artifact match — hence `is_artifact_pinned`.
+    #[test]
+    fn commit_only_ratification_is_marked_as_the_weaker_claim() {
+        let b = build_clean_at("abcdef1234567890");
+        let m = manifest("abcdef1234567890");
+        assert_eq!(evaluate_running(&b, Some(&"cc".repeat(32)), Some(&m)), DeployVerdict::Current);
+        assert!(!is_artifact_pinned(Some(&m)), "commit-only ratification is distinguishable");
+        let mut pinned = m.clone();
+        pinned.ratified_binary_sha256 = Some("cc".repeat(32));
+        assert!(is_artifact_pinned(Some(&pinned)));
+        assert!(!is_artifact_pinned(None));
+    }
+
+    /// The artifact check does not rescue a wrong commit or a dirty tree —
+    /// those are decided before it and stay decided.
+    #[test]
+    fn artifact_match_cannot_launder_a_wrong_commit_or_dirty_tree() {
+        let mut m = manifest("abcdef1234567890");
+        m.ratified_binary_sha256 = Some("aa".repeat(32));
+        let wrong_commit = build_clean_at("feedface00000000");
+        assert!(matches!(
+            evaluate_running(&wrong_commit, Some(&"aa".repeat(32)), Some(&m)),
+            DeployVerdict::Stale { .. }));
+        let dirty = build_dirty_at("abcdef1234567890");
+        assert!(matches!(
+            evaluate_running(&dirty, Some(&"aa".repeat(32)), Some(&m)),
+            DeployVerdict::Stale { .. }));
     }
 }

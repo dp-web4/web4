@@ -284,15 +284,27 @@ fn ratified_block(s: &RestState) -> String {
         Ok(m) => (m, None),
         Err(e) => (None, Some(e.to_string())),
     };
-    let running = ratified::evaluate_running(&hub_lib::build_info::BUILD, manifest.as_ref());
-    // The staged arm needs the artifact the unit will next execute. `current_exe`
-    // is this process's image, which is the honest thing to hash when the unit
-    // path is not configured: after a replace-in-place it is the OLD inode, and
-    // that difference is exactly what the arm should surface.
-    let staged_path = std::env::var("HUB_EXEC_PATH").ok().map(std::path::PathBuf::from)
-        .or_else(|| std::env::current_exe().ok());
-    let staged_digest = staged_path.as_deref().and_then(ratified::file_sha256);
-    let staged = ratified::evaluate_staged(staged_digest.as_deref(), manifest.as_ref());
+    // The RUNNING arm decides on the executing image's bytes when the manifest
+    // pins a digest — commit identity is provenance, artifact identity is the
+    // ratification claim.
+    let running_digest = ratified::running_image_sha256();
+    let running = ratified::evaluate_running(
+        &hub_lib::build_info::BUILD, running_digest.as_deref(), manifest.as_ref());
+    // The STAGED arm answers "what will the supervisor execute next?" — which
+    // only the supervisor's configured path can answer. Falling back to this
+    // process's own image would label a fact about the PRESENT as a fact about
+    // the NEXT restart, which is precisely the substitution this check exists
+    // to catch. Unconfigured ⇒ Unknown, never inferred.
+    let staged = match std::env::var("HUB_EXEC_PATH") {
+        Ok(p) if !p.trim().is_empty() => {
+            let path = std::path::PathBuf::from(p);
+            let digest = ratified::file_sha256(&path);
+            ratified::evaluate_staged(digest.as_deref(), manifest.as_ref())
+        }
+        _ => DeployVerdict::Unknown {
+            reason: "HUB_EXEC_PATH is not set, so the artifact the supervisor will execute on                      restart is not known to this process — it is NOT assumed to be the running                      image".to_string(),
+        },
+    };
 
     let pill = |v: &DeployVerdict| match v {
         DeployVerdict::Current => r#"<span class="pill">current</span>"#.to_string(),
@@ -305,8 +317,14 @@ fn ratified_block(s: &RestState) -> String {
 
     let b = &hub_lib::build_info::BUILD;
     let mut out = String::from("<h3>Deploy ratification</h3><dl>");
+    // A commit-only `current` must not read as "these are the ratified bytes".
+    let claim_note = if running.is_current() && !ratified::is_artifact_pinned(manifest.as_ref()) {
+        " <span class=\"muted\">(commit-level only — no artifact digest ratified)</span>"
+    } else {
+        ""
+    };
     out.push_str(&format!(
-        "<dt>Running</dt><dd>{}{}</dd>", pill(&running), detail(&running)));
+        "<dt>Running</dt><dd>{}{}{}</dd>", pill(&running), detail(&running), claim_note));
     out.push_str(&format!(
         "<dt>Staged at exec path</dt><dd>{}{}</dd>", pill(&staged), detail(&staged)));
     out.push_str(&format!(
@@ -1551,6 +1569,15 @@ mod ratified_surface_tests {
         std::fs::write(s.paths.ratified_manifest(), json).expect("write manifest");
     }
 
+    /// `HUB_EXEC_PATH` is process-global, and cargo runs these tests on
+    /// parallel threads — one test's `set_var` leaks into another's read.
+    /// (Caught by the full-suite run: both env tests passed in isolation and
+    /// one failed together, which is how env-racing test flakiness always
+    /// presents.) Every test that touches the variable takes this lock, so
+    /// they serialize against each other while the rest of the suite still
+    /// runs in parallel.
+    static EXEC_PATH_ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// **The guard must be run against what it guards.** Each arm INDUCES its
     /// condition and asserts the operator page changes — a rendering test that
     /// only ever sees one state proves nothing about the other.
@@ -1608,6 +1635,26 @@ mod ratified_surface_tests {
         assert!(running_line.contains("pill-warn"), "and still fails closed");
     }
 
+    /// Review follow-up (PR 708): with no configured exec path, the staged arm
+    /// must say UNKNOWN — it must not label this process's own image as "what
+    /// the supervisor will run next", which would report a fact about the
+    /// present as a fact about the next restart.
+    #[tokio::test]
+    async fn staged_arm_does_not_infer_the_future_exec_path() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        write_manifest(&state, &format!(
+            r#"{{"ratified_git_sha":"abcdef1234567","ratified_binary_sha256":"{}"}}"#,
+            "aa".repeat(32)));
+        let _env = EXEC_PATH_ENV.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::remove_var("HUB_EXEC_PATH");
+        let html = overview_html(&state).await;
+        let staged_line = html.split("<dt>Staged at exec path</dt>").nth(1).expect("staged row");
+        assert!(staged_line.contains("unknown"),
+            "unconfigured next-exec path is unknown, not inferred:\n{staged_line}");
+        assert!(staged_line.contains("not assumed") || staged_line.contains("NOT assumed"),
+            "and says so explicitly:\n{staged_line}");
+    }
+
     /// The staged arm answers BEFORE a restart: an unratified artifact at the
     /// exec path is a fact the operator should see now, not discover after the
     /// ignition that makes it the running binary.
@@ -1621,6 +1668,7 @@ mod ratified_surface_tests {
         // ...and an artifact at the exec path that is NOT it.
         let staged = tmp.path().join("staged-hub");
         std::fs::write(&staged, b"an unratified binary").unwrap();
+        let _env = EXEC_PATH_ENV.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("HUB_EXEC_PATH", &staged);
         let html = overview_html(&state).await;
         std::env::remove_var("HUB_EXEC_PATH");
