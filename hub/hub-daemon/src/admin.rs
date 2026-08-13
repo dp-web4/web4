@@ -1119,13 +1119,23 @@ pub(crate) async fn joins_page(State(s): State<RestState>) -> Result<Html<String
             // so this is defence-in-depth on a page whose availability IS the
             // admission path — not a live reachable panic.
             let pk: String = j.member_pubkey_hex.chars().take(12).collect();
+            // F0.2 (R7b): the applicant's own words and the hub's finding about
+            // their sponsor claim render in the same cell but are never blended
+            // — the finding is labelled and styled as the system speaking, so an
+            // operator cannot mistake an assertion for a check.
+            let applicant_says = j.message.as_deref().map(html_escape).unwrap_or_default();
+            let hub_found = j.sponsor_note.as_deref().map(|n| format!(
+                "<div class=\"muted\" style=\"margin-top:0.3rem\">⚖ sponsor check: {}</div>",
+                html_escape(n)
+            )).unwrap_or_default();
             body.push_str(&format!(
-                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td><code>{}…</code></td><td>{}</td></tr>",
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}{}</td><td><code>{}…</code></td><td>{}</td></tr>",
                 status,
                 j.requested_at.format("%Y-%m-%d %H:%M"),
                 short(&j.member_lct_id),
                 j.name.as_deref().map(html_escape).unwrap_or_default(),
-                j.message.as_deref().map(html_escape).unwrap_or_default(),
+                applicant_says,
+                hub_found,
                 pk,
                 actions,
             ));
@@ -1418,6 +1428,7 @@ mod tests {
     async fn the_admission_queue_survives_a_pubkey_that_is_not_ascii() {
         let (_tmp, s) = fresh_rest_state(None).await;
         witness_for_test(&s, HubEvent::MemberJoinRequested {
+            sponsor_note: None,
             request_id: Uuid::new_v4(),
             member_lct_id: Uuid::new_v4(),
             // Byte 12 must land INSIDE a codepoint, not merely past one — an

@@ -209,6 +209,53 @@ The `admission` section of the law (`open`, `requires_sponsor`, `sponsor_role`,
 `min_trust_score`) is the natural place to express this, but any norm matching
 `r6.request.action == "member_join_request"` participates.
 
+### Sponsorship is evidence, not a claim (F0.2 / R7b)
+
+`requires_sponsor` and `min_trust_score` are **enforced** on every admission
+surface — the sealed channel and the plaintext `/members/join` alike, through one
+shared predicate. The applicant names a sponsor (`sponsor_lct_id`); the hub then
+resolves that name against its own authoritative record and evaluates it:
+
+- **Satisfied** — the sponsor is a current member with a **pinned public key**,
+  meets `min_trust_score` where law sets one, **and the hub witnessed them
+  actually vouch for this applicant**. Admission proceeds normally.
+  *Not reachable yet:* the hub projects no vouch event today, so no admission
+  auto-passes on a sponsor claim — see the note below.
+- **Refuted** — checked and definitely unmet: no sponsor named, a sponsor who is
+  **the applicant itself**, a name that resolves to no key-bound member, or a
+  real trust score below the bar.
+- **Undecidable** — not establishable from what the hub projects:
+  - **the sponsoring act is unwitnessed** — the named party is a real key-bound
+    member, but that proves the member *exists*, not that they *sponsored
+    anyone*. The relation is a field the applicant typed, and member ids are not
+    secret (the public identity file publishes the founding sovereign's, the
+    presence roster returns every member's, and members already know each
+    other's). Crediting resolvability alone would hand out a peer factor the
+    named member never granted;
+  - a `sponsor_role` other than `citizen` (role assignments are witnessed but not
+    yet projected);
+  - a sponsor with no trust observations at all. *Absence of a record is not a
+    low score.*
+
+Neither Refuted nor Undecidable auto-admits, and neither is a terminal
+exclusion — both route the applicant to the **operator queue**, carrying which
+exit fired and why, rendered on the admission page as the hub's finding
+(labelled separately from the applicant's own message). The composition is
+strictest-wins: the sponsor check can only tighten an auto-admit into review; it
+never rescues a law-denied applicant and never downgrades an escalation.
+
+The governing rule — *an identity that merely asserts itself collects no peer
+factors* — is why self-sponsorship is refused before any other clause is
+consulted, and why it is refused even for an already-key-bound applicant.
+
+> **Today, `requires_sponsor: true` means "every applicant goes to operator
+> review."** That is the honest state until the hub witnesses a vouch act: a
+> human confirms the sponsorship the hub cannot yet verify. It is strictly
+> better than the alternative it replaced, which auto-admitted anyone who could
+> type a member's id. When the vouch event lands, `Satisfied` becomes reachable
+> and genuine sponsor-gated auto-admission starts working — the predicate is
+> already correct for that world.
+
 ## Audit trail
 
 Law is always signed and auditable — the hub binary contains no hardcoded policy;
