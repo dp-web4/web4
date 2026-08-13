@@ -510,7 +510,34 @@ pub enum HubEvent {
     /// society-law weights); the hub records + applies it, never invents the math.
     /// Reputation is NEVER global — the delta's `(subject_lct, role_lct)` scopes
     /// it to an MRH role-pairing link (RFC #403).
-    ReputationRecorded { delta: web4_core::r6::ReputationDelta },
+    ReputationRecorded {
+        delta: web4_core::r6::ReputationDelta,
+        /// F0.1 (R7a): whether this delta was APPLIED to the `(subject, role)`
+        /// tensors, decided **at record time** from the law's `EmitMode` and
+        /// the delta's `DeltaClass` (`applied = mode == Apply && class ==
+        /// Conduct`). Captured into the event so replay honors the law in
+        /// force when the delta was recorded — never re-evaluated against a
+        /// later law. Fail-closed default `false`: an event from before this
+        /// field existed replays as recorded-not-applied.
+        #[serde(default)]
+        applied: bool,
+    },
+
+    /// F0.1 (R7a): reconciliation of the local degraded-event diagnostic log
+    /// into the witnessed ledger. Appended when signing capability returns
+    /// (at unlock / signer recovery) — the diagnostic log is the fallback
+    /// witness for the window in which the normal witness (the signer) was
+    /// the unreachable thing, and this entry binds its exact drained bytes
+    /// by digest so the two records are auditable against each other.
+    DegradedReconciled {
+        count: u32,
+        first_ts: DateTime<Utc>,
+        last_ts: DateTime<Utc>,
+        /// SHA-256 hex over the drained JSONL bytes.
+        entries_digest: String,
+        /// Per-source counts, keyed by `DegradedSource::token()`.
+        by_source: std::collections::BTreeMap<String, u32>,
+    },
 
     /// §5.1 R7 carrier: an accountability *obligation* opened by a coordination
     /// act that carried an `r7` block with a deadline. The subject committed to
@@ -620,6 +647,7 @@ impl HubEvent {
         "council_member_added",
         "council_member_removed",
         "council_threshold_changed",
+        "degraded_reconciled",
         "device_enrolled",
         "device_revoked",
         "event_recorded",
@@ -678,6 +706,7 @@ impl HubEvent {
             Self::IntroResponded { .. } => "intro_responded",
             Self::MemberProfileUpdated { .. } => "member_profile_updated",
             Self::LawAmended { .. } => "law_amended",
+            Self::DegradedReconciled { .. } => "degraded_reconciled",
             Self::CouncilMemberAdded { .. } => "council_member_added",
             Self::CouncilMemberRemoved { .. } => "council_member_removed",
             Self::CouncilThresholdChanged { .. } => "council_threshold_changed",

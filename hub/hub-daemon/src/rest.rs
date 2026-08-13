@@ -104,6 +104,11 @@ pub struct RestState {
     /// process); HestiaCallbackSigner for Hestia-mode chapters (hub holds NO
     /// keys; signs via Hestia HTTP callback); LockedSigner while sealed.
     pub signer: Arc<SwappableSigner>,
+    /// F0.1 (R7a): the degraded-event diagnostic log — the fallback witness
+    /// for windows in which the signer (the normal witness) is the
+    /// unreachable thing. The `SwappableSigner` appends to it at its choke
+    /// point; ignition reconciles it into the witnessed ledger.
+    pub degraded_log: Arc<hub_lib::degraded::DegradedLog>,
     pub ledger: Arc<Mutex<HubLedger>>,
     /// Incremental projection cache. The ledger is append-only, so a cached
     /// `HubState` can be advanced by folding only entries appended since it was
@@ -376,12 +381,20 @@ impl RestState {
         }
 
         let _ = locked; // lock state now derives from the installed signer kind
+        // F0.1 (R7a): one degraded log per hub root; the swappable signer
+        // records infrastructure failures to it at its choke point.
+        let degraded_log = Arc::new(hub_lib::degraded::DegradedLog::new(
+            paths.root.join("degraded.jsonl"),
+        ));
+        let signer_sw = Arc::new(SwappableSigner::new(signer));
+        signer_sw.set_degraded_log(degraded_log.clone());
         Ok(Self {
             paths,
             hub_id: society.lct_id,
             hub_name: society.name.clone(),
             sovereign_lct_id,
-            signer: Arc::new(SwappableSigner::new(signer)),
+            signer: signer_sw,
+            degraded_log,
             ledger,
             state_cache: Arc::new(std::sync::Mutex::new(ProjectionCache::default())),
             nonces: Arc::new(NonceStore::new()),
@@ -543,12 +556,21 @@ impl RestState {
             )
         })?;
         let signer: Arc<dyn RemoteSigner> = Arc::new(LockedSigner::new(pid.founding_sovereign_lct_id));
+        // F0.1 (R7a): the locked shell is exactly the boot most likely to
+        // produce degraded events — attach the log so locked refusals are
+        // recorded and reconciled at ignition.
+        let degraded_log = Arc::new(hub_lib::degraded::DegradedLog::new(
+            paths.root.join("degraded.jsonl"),
+        ));
+        let signer_sw = Arc::new(SwappableSigner::new(signer));
+        signer_sw.set_degraded_log(degraded_log.clone());
         Ok(Self {
             paths,
             hub_id: pid.hub_id,
             hub_name: pid.hub_name,
             sovereign_lct_id: pid.founding_sovereign_lct_id,
-            signer: Arc::new(SwappableSigner::new(signer)),
+            signer: signer_sw,
+            degraded_log,
             ledger: placeholder_ledger,
             state_cache: Arc::new(std::sync::Mutex::new(ProjectionCache::default())),
             nonces: Arc::new(NonceStore::new()),
@@ -841,6 +863,9 @@ impl RestState {
                 // the durable mailbox opens with the same now-live key.
                 self.hydrate_mailbox().await;
                 self.unlock_gate.record_success();
+                // F0.1 (R7a): the signer is live again — reconcile the degraded
+                // diagnostic log into the witnessed ledger.
+                reconcile_degraded_log(self, "ignition").await;
                 // Refresh the clear public-identity tier-0 file so a future locked-shell
                 // boot knows who this hub is (to serve well-known + accept `hub unlock`).
                 let pid = PublicIdentity {
@@ -1053,7 +1078,91 @@ pub(crate) async fn law_integrity_write_gate(
 /// append). Returns the committed entry index. Requires an ignited signer.
 /// HUB-001: refuses on law-integrity mismatch — except `LawAmended` itself,
 /// which is the recovery path (re-witnessing the law is how a mismatch clears).
+/// Releases the degraded-log reconciliation slot on drop, so an early return
+/// (or a panic) cannot strand the guard and disable reconciliation for the
+/// life of the process.
+struct ReconcileSlot(Arc<hub_lib::degraded::DegradedLog>);
+impl Drop for ReconcileSlot {
+    fn drop(&mut self) {
+        self.0.end_reconcile();
+    }
+}
+fn scopeguard_release(s: &RestState) -> ReconcileSlot {
+    ReconcileSlot(s.degraded_log.clone())
+}
+
+/// F0.1 (R7a): fold the local degraded diagnostic log into the witnessed
+/// ledger. The local log is the fallback witness for a window in which the
+/// signer — the normal witness — was the unreachable thing; this binds its
+/// exact drained bytes by digest so the two records are auditable against each
+/// other.
+///
+/// **Reconciliation is opportunistic, not ignition-only.** It runs at ignition
+/// AND after any signing act that succeeds while unreconciled entries are
+/// pending, so a dependency that recovers on a live hub (a hestia callback
+/// coming back, a peer reachable again) does not leave its window unwitnessed
+/// until the next restart. The hub may run for weeks between ignitions; a
+/// record that waits that long is not a record anyone can act on.
+///
+/// Best-effort by construction: snapshot → witness → commit, so a failed
+/// witness re-reports on the next attempt (auditable duplication with a
+/// matching digest) rather than losing entries. Never blocks or fails its
+/// caller.
+async fn reconcile_degraded_log(s: &RestState, occasion: &str) {
+    // Cheap guard: an atomic load, so the witness path pays nothing when
+    // nothing is degraded (the overwhelmingly common case).
+    if !s.degraded_log.has_pending() {
+        return;
+    }
+    // Claim the slot: this both prevents recursion (the witness below re-enters
+    // here) and collapses concurrent attempts into one.
+    if !s.degraded_log.try_begin_reconcile() {
+        return;
+    }
+    let _release = scopeguard_release(s);
+    let Some(snap) = s.degraded_log.snapshot() else { return };
+    let count = snap.summary.count;
+    let ev = HubEvent::DegradedReconciled {
+        count,
+        first_ts: snap.summary.first_ts,
+        last_ts: snap.summary.last_ts,
+        entries_digest: snap.summary.entries_digest.clone(),
+        by_source: snap.summary.by_source.clone(),
+    };
+    match witness_event_inner(s, ev).await {
+        Ok(idx) => {
+            // Witnessed — only now remove the reconciled bytes.
+            s.degraded_log.commit_reconciled(&snap);
+            tracing::info!(
+                "{occasion}: reconciled {count} degraded event(s) into ledger entry {idx}"
+            );
+        }
+        Err(e) => tracing::warn!(
+            "{occasion}: degraded-log reconciliation failed (non-fatal; entries \
+             re-report on the next attempt): {}",
+            e.message
+        ),
+    }
+}
+
 async fn witness_event(s: &RestState, event: HubEvent) -> Result<u64, ApiError> {
+    let index = witness_event_inner(s, event).await?;
+    // F0.1 (R7a): this act just signed and witnessed successfully, so signing
+    // capability is live NOW. If a degraded window is still unwitnessed, fold
+    // it in — a dependency that recovers on a running hub must not leave its
+    // record waiting for the next ignition (hubs run for weeks between
+    // restarts). Costs one atomic load when nothing is pending, and never
+    // fails this caller: the act above is already committed, and
+    // reconciliation is bookkeeping.
+    reconcile_degraded_log(s, "post-witness").await;
+    Ok(index)
+}
+
+/// The witness path WITHOUT the reconciliation hook. Reconciliation witnesses
+/// its own event, so it calls this — breaking the recursion structurally
+/// rather than relying on a runtime guard to unwind it (the guard still exists
+/// for concurrency, but the call graph is acyclic by construction).
+async fn witness_event_inner(s: &RestState, event: HubEvent) -> Result<u64, ApiError> {
     let (unsigned, signature) = authorize_event(s, event).await?;
     let mut ledger = s.ledger.lock().await;
     let entry = ledger
@@ -3757,6 +3866,10 @@ fn temporal_delta(
         // Hub-internal obligation-outcome delta: the hub does not hardware-attest
         // the subject's sovereign here, so it stays at the fail-closed default.
         sovereign_strength: web4_core::r6::SovereignStrength::default(),
+        // Adjudicated by the hub from witnessed timestamps — conduct evidence.
+        // (F0.1/R7a: an infrastructure-caused miss is the emitter's to classify
+        // as `Infra`; the deadline sweep judges only what the ledger witnessed.)
+        class: web4_core::r6::DeltaClass::Conduct,
         action_type: action_kind.to_string(),
         action_target: "hub".to_string(),
         action_id: action_id.to_string(),
@@ -3947,8 +4060,27 @@ async fn dispatch_channel(
                     }
                 }
             }
-            let index = witness_event(s, HubEvent::ReputationRecorded { delta }).await?;
-            Ok(serde_json::json!({ "recorded": true, "entry_index": index }))
+            // F0.1 (R7a): decide application AT RECORD TIME from the law's
+            // staged mode × the delta's class, and capture it into the event —
+            // replay honors the law in force when the delta landed. Fail-closed
+            // on every arm: no law / no section / classify_only mode / non-
+            // Conduct class ⇒ recorded, applied to nothing.
+            let applied = {
+                use hub_lib::law::{EmitMode, HubLawExt};
+                let law_guard = s.law.read().await;
+                let mode = law_guard.as_ref()
+                    .map(|law| law.reputation_emit_mode())
+                    .unwrap_or_default();
+                mode == EmitMode::Apply && delta.class == web4_core::r6::DeltaClass::Conduct
+            };
+            let class = delta.class;
+            let index = witness_event(s, HubEvent::ReputationRecorded { delta, applied }).await?;
+            Ok(serde_json::json!({
+                "recorded": true,
+                "entry_index": index,
+                "applied": applied,
+                "class": class,
+            }))
         }
         "list_members" => {
             let all: Vec<hub_lib::state::MemberView> = state.members.values()
@@ -4273,7 +4405,19 @@ async fn dispatch_channel(
                             _ => "met",
                         };
                         let delta = temporal_delta(&ob, &request_id, outcome_str, &impact, index, &notice_kind, now);
-                        witness_event(s, HubEvent::ReputationRecorded { delta }).await?;
+                        // F0.1 (R7a): the obligation sweep obeys the same staged
+                        // mode as every other emitter — hub-adjudicated Conduct
+                        // applies only when the law's mode says apply.
+                        let applied = {
+                            use hub_lib::law::{EmitMode, HubLawExt};
+                            let law_guard = s.law.read().await;
+                            let mode = law_guard.as_ref()
+                                .map(|law| law.reputation_emit_mode())
+                                .unwrap_or_default();
+                            mode == EmitMode::Apply
+                                && delta.class == web4_core::r6::DeltaClass::Conduct
+                        };
+                        witness_event(s, HubEvent::ReputationRecorded { delta, applied }).await?;
                         witness_event(s, HubEvent::ObligationResolved {
                             request_id: request_id.clone(),
                             outcome: outcome_str.to_string(),
@@ -7495,10 +7639,20 @@ async fn commit_pair_event(s: &RestState, event: HubEvent) -> Result<(u64, Strin
         .sign(s.sovereign_lct_id, &signing_bytes, &intent)
         .await
         .map_err(|e| ApiError::internal(anyhow::anyhow!("Sovereign signer denied/failed: {}", e)))?;
-    let mut ledger = s.ledger.lock().await;
-    let entry = ledger.append_signed(unsigned, signature).await
-        .map_err(ApiError::internal)?;
-    Ok((entry.index, entry.entry_hash.clone()))
+    let (index, hash) = {
+        let mut ledger = s.ledger.lock().await;
+        let entry = ledger.append_signed(unsigned, signature).await
+            .map_err(ApiError::internal)?;
+        (entry.index, entry.entry_hash.clone())
+    };
+    // F0.1 (R7a): a successful signed append proves signing capability is live
+    // — fold any still-unwitnessed degraded window in now, without waiting for
+    // an ignition. (This path signs Sovereign acts directly rather than through
+    // `witness_event`, so it needs its own hook: a reconciliation trigger on one
+    // signing path and not its sibling would leave whole classes of recovery
+    // unreconciled.)
+    reconcile_degraded_log(s, "post-commit").await;
+    Ok((index, hash))
 }
 
 #[cfg(test)]
@@ -9113,6 +9267,40 @@ pub(crate) mod channel_e2e_tests {
         Ok(open_resp(m, hub_pub, pid, &r.0.sealed))
     }
 
+    /// F0.1 (R7a), review follow-up: a dependency that recovers while the hub
+    /// stays LIVE must not leave its degraded window unwitnessed until the next
+    /// ignition. Hubs run for weeks between restarts; a record that waits that
+    /// long is not a record anyone can act on.
+    #[tokio::test]
+    async fn live_recovery_reconciles_without_an_ignition() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+
+        // A degraded window happens (the signer was unreachable for a while).
+        state.degraded_log.append(
+            hub_lib::degraded::DegradedSource::SignerUnreachable, "sign:member_added: refused");
+        state.degraded_log.append(
+            hub_lib::degraded::DegradedSource::GateTimeout, "law gate: timed out");
+        assert!(state.degraded_log.has_pending(), "entries are pending");
+
+        // The dependency recovers — no restart, no unlock. The very next
+        // successful witnessed act proves capability is back.
+        let (_kp, _lct) = pin_member(&state, &hub_pub).await;
+
+        assert!(!state.degraded_log.has_pending(),
+            "the window reconciled on live recovery, not at some future ignition");
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert_eq!(proj.degraded.reconciliations, 1);
+        assert_eq!(proj.degraded.entries, 2);
+        assert_eq!(proj.degraded.by_source.get("signer_unreachable"), Some(&1));
+        assert_eq!(proj.degraded.by_source.get("gate_timeout"), Some(&1));
+
+        // And it does not re-witness an empty window on every later act.
+        let (_kp2, _lct2) = pin_member(&state, &hub_pub).await;
+        let proj2 = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert_eq!(proj2.degraded.reconciliations, 1, "no empty re-reconciliation");
+    }
+
     #[tokio::test]
     async fn r7_obligation_opens_then_resolves_on_time() {
         let (_tmp, state) = fresh_rest_state(None).await;
@@ -9139,12 +9327,17 @@ pub(crate) mod channel_e2e_tests {
         assert_eq!(out2["outcome"], serde_json::json!("met"));
         assert!(out2["t3_temperament"].as_f64().unwrap() > 0.0, "on-time = positive temperament");
 
-        // Projected: obligation cleared, reputation folded at (subject, role).
+        // Projected: obligation cleared. F0.1 (R7a): with no `reputation_emit`
+        // section the mode is CLASSIFY-ONLY — the hub-adjudicated Conduct delta
+        // is WITNESSED to the ledger but folds into no tensor until the law
+        // ratifies `mode: apply` (the staged seam opening). The observation
+        // window reads the held counter instead.
         let proj2 = { let l = state.ledger.lock().await; HubState::project(&l) };
         assert!(!proj2.obligations.contains_key("req-1"), "resolved obligation removed");
-        let rep = proj2.reputation.get(&(lct.to_string(), "citizen".to_string()))
-            .expect("reputation folded for (subject, citizen)");
-        assert_eq!(rep.observations, 1);
+        assert!(proj2.reputation.is_empty(),
+            "classify-only mode holds the delta out of the tensors");
+        assert_eq!(proj2.reputation_ingest.held_classify_only, 1,
+            "the delta was witnessed and counted, not lost");
     }
 
     #[tokio::test]

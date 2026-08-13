@@ -202,6 +202,23 @@ pub struct ReputationEmitRule {
     pub description: Option<String>,
 }
 
+/// How authorized reputation deltas are APPLIED — the staged seam-opening
+/// (Sprint F0.1 / PRD R7a, decision recorded in `SPRINTS.md` 2026-08-13).
+///
+/// - `classify_only` (fail-closed default): authorized deltas are witnessed to
+///   the ledger with their conduct-vs-infra class, visible on the operator
+///   surface, and applied to **no** tensor. The observation-window mode.
+/// - `apply`: authorized `Conduct`-class deltas fold into `(subject, role)`
+///   tensors. `Infra` and `Unclassified` deltas are recorded, never applied,
+///   in **every** mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EmitMode {
+    #[default]
+    ClassifyOnly,
+    Apply,
+}
+
 /// The hub's `reputation_emit` law section — who, other than the Sovereign, may
 /// record reputation deltas, and for which subject-roles. Absent section ⇒ the
 /// emit path is fully dark (Sovereign-only, the pre-wiring behavior).
@@ -209,6 +226,10 @@ pub struct ReputationEmitRule {
 pub struct ReputationEmitPolicy {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<ReputationEmitRule>,
+    /// Staged application mode (F0.1). Absent ⇒ `classify_only` — a law that
+    /// opens the seam without stating a mode observes before it actuates.
+    #[serde(default)]
+    pub mode: EmitMode,
 }
 
 /// A `subject` token that references `constellation:<emitter>` — the v2 attestation
@@ -414,6 +435,11 @@ pub trait HubLawExt {
     /// governs only non-Sovereign emitters.
     fn reputation_emit_decision(&self, emitter: &str, delta_role_lct: &str) -> ReputationEmitOutcome;
 
+    /// F0.1 (R7a): the staged application mode of the `reputation_emit`
+    /// section. Fail-closed: no section ⇒ `ClassifyOnly` — with the seam dark
+    /// or unstated, nothing applies to tensors.
+    fn reputation_emit_mode(&self) -> EmitMode;
+
     /// Norms that test `r6.request.action` for equality against a value the gate
     /// can never produce.
     ///
@@ -473,6 +499,10 @@ impl HubLawExt for Law {
             }
         }
         out
+    }
+
+    fn reputation_emit_mode(&self) -> EmitMode {
+        self.ext.reputation_emit.as_ref().map(|re| re.mode).unwrap_or_default()
     }
 
     fn reputation_emit_decision(&self, emitter: &str, delta_role_lct: &str) -> ReputationEmitOutcome {
@@ -1677,5 +1707,42 @@ norms:
             checked += 1;
         }
         assert!(checked >= 3, "only {checked} block(s) were actually normalised and checked");
+    }
+}
+
+#[cfg(test)]
+mod emit_mode_tests {
+    use super::*;
+
+    #[test]
+    fn mode_defaults_to_classify_only() {
+        // F0.1: a `reputation_emit` section that says nothing about mode
+        // observes before it actuates — and no section at all is the same.
+        let yaml = r#"
+rules:
+  - emitter: "hestia-gate"
+    subject: "citizen"
+    decision: allow
+    priority: 10
+"#;
+        let policy: ReputationEmitPolicy = serde_yaml::from_str(yaml).expect("parses");
+        assert_eq!(policy.mode, EmitMode::ClassifyOnly);
+    }
+
+    #[test]
+    fn mode_apply_parses_and_round_trips() {
+        let yaml = r#"
+mode: apply
+rules:
+  - emitter: "hestia-gate"
+    subject: "citizen"
+    decision: allow
+    priority: 10
+"#;
+        let policy: ReputationEmitPolicy = serde_yaml::from_str(yaml).expect("parses");
+        assert_eq!(policy.mode, EmitMode::Apply);
+        let back = serde_yaml::to_string(&policy).expect("serializes");
+        let again: ReputationEmitPolicy = serde_yaml::from_str(&back).expect("round-trips");
+        assert_eq!(again.mode, EmitMode::Apply);
     }
 }

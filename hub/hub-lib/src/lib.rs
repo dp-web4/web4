@@ -27,6 +27,7 @@ pub mod atomic_file;
 pub mod build_info;
 pub mod charter;
 pub mod constellation;
+pub mod degraded;
 pub mod envelope;
 pub mod events;
 pub mod identity;

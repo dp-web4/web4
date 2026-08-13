@@ -432,11 +432,23 @@ impl RemoteSigner for LockedSigner {
 /// of the currently-installed inner signer (`signer_kind() == Locked`).
 pub struct SwappableSigner {
     inner: std::sync::RwLock<Arc<dyn RemoteSigner>>,
+    /// F0.1 (R7a): the degraded-event diagnostic log. Every signer failure
+    /// that is an *infrastructure* fact — the vault is locked, or the remote
+    /// signer's transport failed — is recorded here, at this single choke
+    /// point all signing paths flow through, so no caller has to remember to.
+    /// Policy denials (`SignError::Denied` from an unlocked vault) are NOT
+    /// degraded events and are not recorded here.
+    degraded: std::sync::OnceLock<Arc<crate::degraded::DegradedLog>>,
 }
 
 impl SwappableSigner {
     pub fn new(initial: Arc<dyn RemoteSigner>) -> Self {
-        Self { inner: std::sync::RwLock::new(initial) }
+        Self { inner: std::sync::RwLock::new(initial), degraded: std::sync::OnceLock::new() }
+    }
+    /// Attach the degraded-event diagnostic log (once, at boot). Absent a log
+    /// the signer behaves exactly as before — recording is additive.
+    pub fn set_degraded_log(&self, log: Arc<crate::degraded::DegradedLog>) {
+        let _ = self.degraded.set(log);
     }
     /// Promote (or demote) the backing signer. Used by the unlock slot to swap
     /// a `LockedSigner` for the real `LocalKeypairSigner` once ignited.
@@ -445,6 +457,23 @@ impl SwappableSigner {
     }
     fn current(&self) -> Arc<dyn RemoteSigner> {
         self.inner.read().expect("swappable signer lock poisoned").clone()
+    }
+    /// Classify a signer failure as a degraded (infrastructure) event and
+    /// record it; conduct-shaped outcomes (policy denials) pass through
+    /// unrecorded. `locked` is the *backing signer's* kind at call time —
+    /// a `Denied` from a locked shell is a capability refusal, not policy.
+    fn record_if_degraded(&self, op: &str, locked: bool, err: &SignError) {
+        let Some(log) = self.degraded.get() else { return };
+        use crate::degraded::DegradedSource;
+        match err {
+            SignError::Transport(msg) => {
+                log.append(DegradedSource::SignerUnreachable, &format!("{op}: {msg}"));
+            }
+            SignError::Denied(msg) if locked => {
+                log.append(DegradedSource::LockedRefusal, &format!("{op}: {msg}"));
+            }
+            _ => {}
+        }
     }
 }
 
@@ -458,7 +487,12 @@ impl RemoteSigner for SwappableSigner {
     ) -> std::result::Result<SignatureBytes, SignError> {
         // Snapshot the Arc, then drop the lock before the await point.
         let cur = self.current();
-        cur.sign(actor_lct_id, signing_bytes, intent).await
+        let locked = cur.signer_kind() == SignerKind::Locked;
+        let res = cur.sign(actor_lct_id, signing_bytes, intent).await;
+        if let Err(e) = &res {
+            self.record_if_degraded(&format!("sign:{}", intent.event_kind), locked, e);
+        }
+        res
     }
     fn signer_kind(&self) -> SignerKind {
         self.current().signer_kind()
@@ -468,11 +502,23 @@ impl RemoteSigner for SwappableSigner {
     }
     fn channel_seal(&self, peer: &PublicKey, pair_id: Uuid, plaintext: &[u8])
         -> std::result::Result<String, SignError> {
-        self.current().channel_seal(peer, pair_id, plaintext)
+        let cur = self.current();
+        let locked = cur.signer_kind() == SignerKind::Locked;
+        let res = cur.channel_seal(peer, pair_id, plaintext);
+        if let Err(e) = &res {
+            self.record_if_degraded("channel_seal", locked, e);
+        }
+        res
     }
     fn channel_open(&self, peer: &PublicKey, pair_id: Uuid, sealed_b64: &str)
         -> std::result::Result<Vec<u8>, SignError> {
-        self.current().channel_open(peer, pair_id, sealed_b64)
+        let cur = self.current();
+        let locked = cur.signer_kind() == SignerKind::Locked;
+        let res = cur.channel_open(peer, pair_id, sealed_b64);
+        if let Err(e) = &res {
+            self.record_if_degraded("channel_open", locked, e);
+        }
+        res
     }
 }
 
@@ -771,5 +817,117 @@ mod tests {
             SignResponse::Denied { deny_reason, .. } => assert!(deny_reason.contains("policy")),
             _ => panic!("expected Denied"),
         }
+    }
+}
+
+#[cfg(test)]
+mod degraded_recording_tests {
+    use super::*;
+    use crate::degraded::{DegradedLog, DegradedSource};
+
+    /// A remote signer whose transport always fails — the unit-level stand-in
+    /// for "the hestia callback was killed mid-session" (criterion 7).
+    struct DeadTransportSigner;
+    #[async_trait]
+    impl RemoteSigner for DeadTransportSigner {
+        async fn sign(&self, _a: Uuid, _b: &[u8], _i: &SignIntent)
+            -> std::result::Result<SignatureBytes, SignError> {
+            Err(SignError::Transport("connect refused (test)".into()))
+        }
+        fn signer_kind(&self) -> SignerKind { SignerKind::HestiaCallback }
+        fn public_key(&self) -> Option<PublicKey> { None }
+        fn channel_seal(&self, _p: &PublicKey, _id: Uuid, _pt: &[u8])
+            -> std::result::Result<String, SignError> {
+            Err(SignError::Transport("connect refused (test)".into()))
+        }
+        fn channel_open(&self, _p: &PublicKey, _id: Uuid, _s: &str)
+            -> std::result::Result<Vec<u8>, SignError> {
+            Err(SignError::Transport("connect refused (test)".into()))
+        }
+    }
+
+    /// An UNLOCKED signer that denies on policy — a conduct-shaped refusal
+    /// that must NOT be recorded as degraded.
+    struct PolicyDenyingSigner;
+    #[async_trait]
+    impl RemoteSigner for PolicyDenyingSigner {
+        async fn sign(&self, _a: Uuid, _b: &[u8], _i: &SignIntent)
+            -> std::result::Result<SignatureBytes, SignError> {
+            Err(SignError::Denied("vault policy said no (test)".into()))
+        }
+        fn signer_kind(&self) -> SignerKind { SignerKind::HestiaCallback }
+        fn public_key(&self) -> Option<PublicKey> { None }
+        fn channel_seal(&self, _p: &PublicKey, _id: Uuid, _pt: &[u8])
+            -> std::result::Result<String, SignError> {
+            Err(SignError::Denied("no (test)".into()))
+        }
+        fn channel_open(&self, _p: &PublicKey, _id: Uuid, _s: &str)
+            -> std::result::Result<Vec<u8>, SignError> {
+            Err(SignError::Denied("no (test)".into()))
+        }
+    }
+
+    fn intent(kind: &str) -> SignIntent {
+        SignIntent {
+            request_id: Uuid::new_v4(),
+            hub_id: Uuid::new_v4(),
+            hub_name: "Test".into(),
+            actor_lct_id: Uuid::new_v4(),
+            ledger_index: 1,
+            event_kind: kind.into(),
+            event: serde_json::json!({}),
+        }
+    }
+
+    fn tmp_log(name: &str) -> Arc<DegradedLog> {
+        let dir = std::env::temp_dir().join("hub-signer-degraded-tests");
+        std::fs::create_dir_all(&dir).unwrap();
+        Arc::new(DegradedLog::new(dir.join(format!("{name}-{}.jsonl", Uuid::new_v4()))))
+    }
+
+    #[tokio::test]
+    async fn transport_failure_records_signer_unreachable() {
+        // F0.1 criterion 7, unit form: the callback dies mid-session → every
+        // failed signing act lands in the degraded log as infrastructure.
+        let log = tmp_log("transport");
+        let sw = SwappableSigner::new(Arc::new(DeadTransportSigner));
+        sw.set_degraded_log(log.clone());
+        let err = sw.sign(Uuid::new_v4(), b"bytes", &intent("member_added")).await.unwrap_err();
+        assert!(matches!(err, SignError::Transport(_)), "error passes through unchanged");
+        let entries = log.read_all();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].source, DegradedSource::SignerUnreachable);
+        assert!(entries[0].context.contains("sign:member_added"));
+    }
+
+    #[tokio::test]
+    async fn locked_refusal_records_locked_not_policy() {
+        let log = tmp_log("locked");
+        let sw = SwappableSigner::new(Arc::new(LockedSigner::new(Uuid::new_v4())));
+        sw.set_degraded_log(log.clone());
+        let _ = sw.sign(Uuid::new_v4(), b"bytes", &intent("law_amended")).await.unwrap_err();
+        let entries = log.read_all();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].source, DegradedSource::LockedRefusal);
+    }
+
+    #[tokio::test]
+    async fn policy_denial_from_unlocked_signer_is_not_degraded() {
+        // The discrimination criterion: a conduct-shaped policy denial from a
+        // live vault is NOT an infrastructure event and must not be recorded.
+        let log = tmp_log("policy");
+        let sw = SwappableSigner::new(Arc::new(PolicyDenyingSigner));
+        sw.set_degraded_log(log.clone());
+        let _ = sw.sign(Uuid::new_v4(), b"bytes", &intent("member_added")).await.unwrap_err();
+        assert!(log.is_empty(), "policy denial must leave no degraded entry");
+    }
+
+    #[tokio::test]
+    async fn recording_is_additive_absent_a_log() {
+        // No log attached → identical behavior to pre-F0.1 (recording is
+        // strictly additive).
+        let sw = SwappableSigner::new(Arc::new(DeadTransportSigner));
+        let err = sw.sign(Uuid::new_v4(), b"bytes", &intent("x")).await.unwrap_err();
+        assert!(matches!(err, SignError::Transport(_)));
     }
 }

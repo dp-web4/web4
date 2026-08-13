@@ -249,6 +249,33 @@ impl Default for SovereignStrength {
     }
 }
 
+/// Classification of what a [`ReputationDelta`] evidences — member **conduct**,
+/// or an **infrastructure** condition that is not the member's doing (timeout,
+/// locked vault, unreachable referee or peer). The measured fleet failure this
+/// prevents (hestia PR #357 class): infrastructure fail-closed denies scored as
+/// member conduct. The class rides the delta so the scoring side can never
+/// conflate the two. Fail-closed: absent ⇒ `Unclassified`, which is **held** —
+/// recorded, surfaced for review, never applied to tensors — so a
+/// pre-classification delta can never fabricate `Conduct`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DeltaClass {
+    /// Evidences member conduct — eligible to apply to `(subject, role)` tensors.
+    Conduct,
+    /// Evidences an infrastructure condition. Recorded for audit; never applied.
+    Infra,
+    /// Not yet classified (e.g., emitted before this field existed). Held:
+    /// recorded, not applied, surfaced for review.
+    Unclassified,
+}
+
+impl Default for DeltaClass {
+    fn default() -> Self {
+        // Fail-closed: an unstated class is held, never scored as conduct.
+        DeltaClass::Unclassified
+    }
+}
+
 /// R7's first-class reputation output — explicit trust/value delta per action.
 ///
 /// Key: reputation is ROLE-CONTEXTUALIZED. The `role_lct` field determines
@@ -264,6 +291,12 @@ pub struct ReputationDelta {
     /// as `Placeholder` (the fail-closed default), never fabricating `Hardware`.
     #[serde(default)]
     pub sovereign_strength: SovereignStrength,
+    /// What this delta evidences: member conduct vs an infrastructure condition
+    /// (see [`DeltaClass`]). Backward-compatible: deltas emitted before this
+    /// field existed deserialize as `Unclassified` (held, never applied to
+    /// tensors), never fabricating `Conduct`.
+    #[serde(default)]
+    pub class: DeltaClass,
     /// What action caused the change
     pub action_type: String,
     /// Target of the action
@@ -488,6 +521,11 @@ impl R7Action {
             subject_lct: self.role.actor_lct.clone(),
             role_lct: self.role.role_lct.clone(),
             sovereign_strength: SovereignStrength::default(),
+            // The R6 engine scores an ADJUDICATED action outcome — conduct
+            // evidence by construction. An emitter that knows the outcome was
+            // infrastructure-caused (transport failure, referee timeout)
+            // overrides this to `Infra` before recording.
+            class: DeltaClass::Conduct,
             action_type: self.request.action.clone(),
             action_target: self.request.target.clone(),
             action_id: self.action_id.clone(),

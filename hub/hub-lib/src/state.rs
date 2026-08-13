@@ -154,6 +154,15 @@ pub struct HubState {
     #[serde(serialize_with = "serialize_reputation")]
     pub reputation: BTreeMap<(String, String), RoleReputation>,
 
+    /// F0.1 (R7a): ingest accounting for the reputation seam — how many deltas
+    /// were applied vs recorded-only, by why. The observation-window review
+    /// (staged seam opening) reads these before `EmitMode::Apply` is ratified.
+    pub reputation_ingest: ReputationIngest,
+
+    /// F0.1 (R7a): degraded-window accounting folded from `DegradedReconciled`
+    /// events — the witnessed summary of the local diagnostic log.
+    pub degraded: DegradedCounters,
+
     /// §5.1 R7 carrier: open accountability obligations, keyed by `request_id`.
     /// An `ObligationOpened` inserts; `ObligationResolved` removes. String-keyed,
     /// so serialization-safe. The timeout sweep (P2) reads this to debit misses.
@@ -197,6 +206,33 @@ pub struct Obligation {
     pub due_at: DateTime<Utc>,
     pub criticality: web4_core::time::Criticality,
     pub opened_at: DateTime<Utc>,
+}
+
+/// F0.1 (R7a): reputation-seam ingest counters. `applied` folded into tensors;
+/// the three `held_*` buckets were witnessed to the ledger but applied to
+/// nothing — split by why, so the observation window can distinguish "law says
+/// classify-only" from "the delta itself was infra/unclassified".
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct ReputationIngest {
+    pub applied: u64,
+    /// Conduct-class deltas recorded while the law's mode was `classify_only`.
+    pub held_classify_only: u64,
+    /// Infra-class deltas — never applied in any mode.
+    pub held_infra: u64,
+    /// Unclassified deltas — held for review, never applied in any mode.
+    pub held_unclassified: u64,
+}
+
+/// F0.1 (R7a): counters folded from witnessed `DegradedReconciled` events.
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct DegradedCounters {
+    /// Reconciliation events witnessed.
+    pub reconciliations: u64,
+    /// Total degraded entries those reconciliations summarized.
+    pub entries: u64,
+    /// Per-source totals, keyed by `DegradedSource::token()`.
+    pub by_source: BTreeMap<String, u64>,
+    pub last_reconciled: Option<DateTime<Utc>>,
 }
 
 /// Accumulated role-contextualized reputation for one `(subject, role)` pairing.
@@ -832,28 +868,51 @@ impl HubState {
             // R7 reputation: fold the delta into the (subject, role) tensors. The
             // hub applies the delta (via T3/V3::apply_delta); the *weights* that
             // produced it are a society-law hook, computed by the recorder.
-            HubEvent::ReputationRecorded { delta } => {
-                let rep = self
-                    .reputation
-                    .entry((delta.subject_lct.clone(), delta.role_lct.clone()))
-                    .or_insert_with(|| RoleReputation::new(ts));
-                for (dim, td) in &delta.t3_delta {
-                    if let Some(d) = trust_dim(dim) {
-                        rep.t3.apply_delta(d, td.change);
+            HubEvent::ReputationRecorded { delta, applied } => {
+                use web4_core::r6::DeltaClass;
+                // F0.1 (R7a): the class gate. `applied` was decided at record
+                // time (law mode × class) and is honored on replay — but the
+                // fold re-checks the class as a belt-and-braces invariant: an
+                // event claiming `applied` for a non-Conduct delta (corrupt or
+                // adversarial) folds NOTHING. Infra never scores as conduct.
+                if *applied && delta.class == DeltaClass::Conduct {
+                    let rep = self
+                        .reputation
+                        .entry((delta.subject_lct.clone(), delta.role_lct.clone()))
+                        .or_insert_with(|| RoleReputation::new(ts));
+                    for (dim, td) in &delta.t3_delta {
+                        if let Some(d) = trust_dim(dim) {
+                            rep.t3.apply_delta(d, td.change);
+                        }
+                    }
+                    for (dim, td) in &delta.v3_delta {
+                        if let Some(d) = value_dim(dim) {
+                            rep.v3.apply_delta(d, td.change);
+                        }
+                    }
+                    // Fail-closed provenance: the bucket is only as strong as the
+                    // weakest delta that fed it. A placeholder-attested delta pins the
+                    // bucket to `placeholder` and no later hardware delta can upgrade
+                    // the placeholder-era observations back to `hardware`.
+                    rep.sovereign_strength = rep.sovereign_strength.min(delta.sovereign_strength);
+                    rep.observations += 1;
+                    rep.last_updated = ts;
+                    self.reputation_ingest.applied += 1;
+                } else {
+                    match delta.class {
+                        DeltaClass::Conduct => self.reputation_ingest.held_classify_only += 1,
+                        DeltaClass::Infra => self.reputation_ingest.held_infra += 1,
+                        DeltaClass::Unclassified => self.reputation_ingest.held_unclassified += 1,
                     }
                 }
-                for (dim, td) in &delta.v3_delta {
-                    if let Some(d) = value_dim(dim) {
-                        rep.v3.apply_delta(d, td.change);
-                    }
+            }
+            HubEvent::DegradedReconciled { count, last_ts, by_source, .. } => {
+                self.degraded.reconciliations += 1;
+                self.degraded.entries += u64::from(*count);
+                for (src, n) in by_source {
+                    *self.degraded.by_source.entry(src.clone()).or_insert(0) += u64::from(*n);
                 }
-                // Fail-closed provenance: the bucket is only as strong as the
-                // weakest delta that fed it. A placeholder-attested delta pins the
-                // bucket to `placeholder` and no later hardware delta can upgrade
-                // the placeholder-era observations back to `hardware`.
-                rep.sovereign_strength = rep.sovereign_strength.min(delta.sovereign_strength);
-                rep.observations += 1;
-                rep.last_updated = ts;
+                self.degraded.last_reconciled = Some(*last_ts);
             }
             HubEvent::ObligationOpened {
                 request_id,
@@ -1240,6 +1299,7 @@ mod tests {
             subject_lct: subject.clone(),
             role_lct: "citizen".to_string(),
             sovereign_strength: web4_core::r6::SovereignStrength::Hardware,
+            class: web4_core::r6::DeltaClass::Conduct,
             action_type: "handoff".into(),
             action_target: "hub".into(),
             action_id: "act-1".into(),
@@ -1256,7 +1316,7 @@ mod tests {
                 hub_name: "Test".into(), charter_hash: "sha256:0".into(),
                 founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
             }),
-            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta }),
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta, applied: true }),
         ]).await;
         let state = HubState::project(&ledger);
         let rep = state.reputation.get(&(subject.clone(), "citizen".to_string()))
@@ -1289,6 +1349,7 @@ mod tests {
                 subject_lct: subject.clone(),
                 role_lct: "role:constellation:mesh-worker".to_string(),
                 sovereign_strength: strength,
+            class: web4_core::r6::DeltaClass::Conduct,
                 action_type: "act".into(), action_target: "hub".into(), action_id: id.into(),
                 rule_triggered: "r".into(), reason: "x".into(),
                 t3_delta: t3, v3_delta: HashMap::new(),
@@ -1301,9 +1362,9 @@ mod tests {
                 founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
             }),
             // hardware first, then a placeholder delta, then hardware again.
-            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta: mk(SovereignStrength::Hardware, "a1") }),
-            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta: mk(SovereignStrength::Placeholder, "a2") }),
-            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta: mk(SovereignStrength::Hardware, "a3") }),
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded { applied: true, delta: mk(SovereignStrength::Hardware, "a1") }),
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded { applied: true, delta: mk(SovereignStrength::Placeholder, "a2") }),
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded { applied: true, delta: mk(SovereignStrength::Hardware, "a3") }),
         ]).await;
         let state = HubState::project(&ledger);
         let rep = state.reputation
@@ -1330,6 +1391,7 @@ mod tests {
             subject_lct: subject.clone(),
             role_lct: "citizen".to_string(),
             sovereign_strength: Default::default(),
+            class: web4_core::r6::DeltaClass::Conduct,
             action_type: "handoff".into(), action_target: "hub".into(), action_id: "a".into(),
             rule_triggered: "r".into(), reason: "x".into(),
             t3_delta, v3_delta: HashMap::new(),
@@ -1340,7 +1402,7 @@ mod tests {
                 hub_name: "Test".into(), charter_hash: "sha256:0".into(),
                 founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
             }),
-            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta }),
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta, applied: true }),
         ]).await;
         let state = HubState::project(&ledger);
         let json = serde_json::to_value(&state).expect("HubState must serialize");
@@ -1349,6 +1411,86 @@ mod tests {
         assert_eq!(arr[0]["subject_lct"], serde_json::json!(subject));
         assert_eq!(arr[0]["role_lct"], serde_json::json!("citizen"));
         assert_eq!(arr[0]["observations"], serde_json::json!(1));
+    }
+
+    #[tokio::test]
+    async fn class_gate_holds_everything_but_applied_conduct() {
+        // F0.1 (R7a) criterion 7, fold form: of four witnessed deltas, ONLY
+        // the applied Conduct delta reaches the tensors. The classify-only
+        // Conduct, the Infra (even adversarially marked applied), and the
+        // Unclassified are each recorded, counted, and folded into NOTHING.
+        use std::collections::HashMap;
+        use web4_core::r6::DeltaClass;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let subject = Uuid::new_v4().to_string();
+        let mk = |class: DeltaClass, id: &str| {
+            let mut t3_delta = HashMap::new();
+            t3_delta.insert("talent".to_string(),
+                web4_core::r6::TensorDelta { change: 0.1, from_value: 0.0, to_value: 0.1 });
+            web4_core::r6::ReputationDelta {
+                subject_lct: subject.clone(),
+                role_lct: "citizen".to_string(),
+                sovereign_strength: Default::default(),
+                class,
+                action_type: "act".into(), action_target: "hub".into(), action_id: id.into(),
+                rule_triggered: "r".into(), reason: "t".into(),
+                t3_delta, v3_delta: HashMap::new(),
+                contributing_factors: vec![], witnesses: vec![], timestamp: Utc::now(),
+            }
+        };
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            // applied Conduct — the only one that may fold
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded {
+                delta: mk(DeltaClass::Conduct, "a1"), applied: true }),
+            // Conduct held by classify-only mode
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded {
+                delta: mk(DeltaClass::Conduct, "a2"), applied: false }),
+            // Infra ADVERSARIALLY marked applied — the belt-and-braces gate
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded {
+                delta: mk(DeltaClass::Infra, "a3"), applied: true }),
+            // Unclassified (pre-F0.1 emitter) — held
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded {
+                delta: mk(DeltaClass::Unclassified, "a4"), applied: false }),
+        ]).await;
+        let state = HubState::project(&ledger);
+        let rep = state.reputation.get(&(subject.clone(), "citizen".to_string()))
+            .expect("the applied Conduct delta folded");
+        assert_eq!(rep.observations, 1, "exactly ONE delta reached the tensors");
+        assert_eq!(state.reputation_ingest.applied, 1);
+        assert_eq!(state.reputation_ingest.held_classify_only, 1);
+        assert_eq!(state.reputation_ingest.held_infra, 1,
+            "infra never scores as conduct, even marked applied");
+        assert_eq!(state.reputation_ingest.held_unclassified, 1);
+    }
+
+    #[tokio::test]
+    async fn degraded_reconciled_folds_counters_only() {
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let mut by_source = std::collections::BTreeMap::new();
+        by_source.insert("signer_unreachable".to_string(), 2u32);
+        by_source.insert("locked_refusal".to_string(), 1u32);
+        let now = Utc::now();
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::DegradedReconciled {
+                count: 3, first_ts: now, last_ts: now,
+                entries_digest: "d".repeat(64), by_source,
+            }),
+        ]).await;
+        let state = HubState::project(&ledger);
+        assert_eq!(state.degraded.reconciliations, 1);
+        assert_eq!(state.degraded.entries, 3);
+        assert_eq!(state.degraded.by_source.get("signer_unreachable"), Some(&2));
+        assert!(state.reputation.is_empty(), "degraded windows touch no tensor");
     }
 
     #[tokio::test]
