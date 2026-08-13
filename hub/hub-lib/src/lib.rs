@@ -36,6 +36,7 @@ pub mod law;
 pub mod ledger;
 pub mod pair_message;
 pub mod proposal;
+pub mod ratified;
 pub mod replay;
 pub mod session;
 

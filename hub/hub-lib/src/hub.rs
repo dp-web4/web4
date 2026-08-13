@@ -315,6 +315,17 @@ impl HubPaths {
     }
 
     pub fn config(&self) -> PathBuf { self.root.join("config.toml") }
+    /// F0.3 (R7c): the supervisor-owned record of the build this seat is
+    /// approved to run. Written by the deploy path, never by the daemon — a
+    /// process that could write its own ratification would be certifying
+    /// itself. Overridable via `HUB_RATIFIED_MANIFEST` for fleets that keep it
+    /// outside the hub root (e.g. root-owned, so the daemon user cannot write
+    /// it at all — the preferred deployment).
+    pub fn ratified_manifest(&self) -> PathBuf {
+        std::env::var("HUB_RATIFIED_MANIFEST")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| self.root.join("ratified-build.json"))
+    }
     pub fn charter(&self) -> PathBuf { self.root.join("charter.json") }
     pub fn society(&self) -> PathBuf { self.root.join("society.json") }
     pub fn ledger(&self) -> PathBuf { self.root.join("ledger.jsonl") }
