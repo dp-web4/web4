@@ -43,6 +43,16 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Print this binary's build identity as JSON.
+    ///
+    /// F0.3 (R7c): the deploy path ratifies an ARTIFACT, and it must be able to
+    /// ask the artifact what it is in a form meant for machines. Parsing the
+    /// human `--version` line yields an abbreviated sha and a format that is
+    /// free to change; this emits the same stamp the daemon publishes, with the
+    /// FULL commit, so a ratification record cannot be built on a truncated or
+    /// mis-parsed identity.
+    BuildInfo,
+
     /// Initialize a new hub society in the given directory.
     ///
     /// Two modes:
@@ -559,6 +569,12 @@ async fn main() -> Result<()> {
             // No subcommand — print short usage hint and exit 0.
             println!("hub {} — Web4 Community Hub", hub_lib::build_info::SUMMARY);
             println!("Run `hub --help` for available commands.");
+            Ok(())
+        }
+        Some(Command::BuildInfo) => {
+            // Serialized from the same `BUILD` constant the daemon publishes —
+            // one record rendered twice, not two records to keep in step.
+            println!("{}", serde_json::to_string_pretty(&hub_lib::build_info::BUILD)?);
             Ok(())
         }
         Some(Command::Init {

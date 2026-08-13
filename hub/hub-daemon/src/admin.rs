@@ -265,6 +265,100 @@ async fn landing_page(State(s): State<RestState>) -> Result<Html<String>, AdminE
     Ok(public_layout(&s.hub_name, &s.hub_id.to_string(), &body))
 }
 
+
+/// F0.3 (R7c): the deploy-ratification block for the operator surface.
+///
+/// Two independently-produced records are compared: what this binary attests
+/// about itself (compile-time stamp) and what the supervisor recorded as
+/// approved. Both arms render — the RUNNING one, and the STAGED one at the
+/// exec path, which answers before a restart makes an unratified artifact the
+/// running one.
+///
+/// Fail-closed in rendering as well as in logic: `unknown` gets the warning
+/// pill, not a neutral one. An operator scanning this page must not read
+/// "we could not check" as "checked and fine".
+fn ratified_block(s: &RestState) -> String {
+    use hub_lib::ratified::{self, DeployVerdict};
+    let path = s.paths.ratified_manifest();
+    let (manifest, read_err) = match ratified::RatifiedManifest::read(&path) {
+        Ok(m) => (m, None),
+        Err(e) => (None, Some(e.to_string())),
+    };
+    // The RUNNING arm decides on the executing image's bytes when the manifest
+    // pins a digest — commit identity is provenance, artifact identity is the
+    // ratification claim.
+    //
+    // Hashing the image is ~20 MB read + digest (12-36 ms measured) and runs
+    // SYNCHRONOUSLY inside an async handler, so it is computed only when a
+    // manifest actually pins a digest to compare against. Without one,
+    // `evaluate_running` returns before ever looking at it — which is every
+    // seat that has not been ratified yet, i.e. the common case today.
+    let running_digest = if ratified::is_artifact_pinned(manifest.as_ref()) {
+        ratified::running_image_sha256()
+    } else {
+        None
+    };
+    let running = ratified::evaluate_running(
+        &hub_lib::build_info::BUILD, running_digest.as_deref(), manifest.as_ref());
+    // The STAGED arm answers "what will the supervisor execute next?" — which
+    // only the supervisor's configured path can answer. Falling back to this
+    // process's own image would label a fact about the PRESENT as a fact about
+    // the NEXT restart, which is precisely the substitution this check exists
+    // to catch. Unconfigured ⇒ Unknown, never inferred.
+    let staged = match std::env::var("HUB_EXEC_PATH") {
+        Ok(p) if !p.trim().is_empty() => {
+            let path = std::path::PathBuf::from(p);
+            let digest = ratified::file_sha256(&path);
+            ratified::evaluate_staged(digest.as_deref(), manifest.as_ref())
+        }
+        _ => DeployVerdict::Unknown {
+            reason: "HUB_EXEC_PATH is not set, so the artifact the supervisor will execute on restart \
+                     is not known to this process — it is NOT assumed to be the running image"
+                .to_string(),
+        },
+    };
+
+    let pill = |v: &DeployVerdict| match v {
+        DeployVerdict::Current => r#"<span class="pill">current</span>"#.to_string(),
+        DeployVerdict::Stale { .. } => r#"<span class="pill pill-warn">STALE</span>"#.to_string(),
+        DeployVerdict::Unknown { .. } => r#"<span class="pill pill-warn">unknown</span>"#.to_string(),
+    };
+    let detail = |v: &DeployVerdict| v.detail()
+        .map(|d| format!(" <span class=\"muted\">— {}</span>", html_escape(d)))
+        .unwrap_or_default();
+
+    let b = &hub_lib::build_info::BUILD;
+    let mut out = String::from("<h3>Deploy ratification</h3><dl>");
+    // A commit-only `current` must not read as "these are the ratified bytes".
+    let claim_note = if running.is_current() && !ratified::is_artifact_pinned(manifest.as_ref()) {
+        " <span class=\"muted\">(commit-level only — no artifact digest ratified)</span>"
+    } else {
+        ""
+    };
+    out.push_str(&format!(
+        "<dt>Running</dt><dd>{}{}{}</dd>", pill(&running), detail(&running), claim_note));
+    out.push_str(&format!(
+        "<dt>Staged at exec path</dt><dd>{}{}</dd>", pill(&staged), detail(&staged)));
+    out.push_str(&format!(
+        "<dt>This binary</dt><dd><code>{}</code> ({:?}, built {})</dd>",
+        html_escape(b.git_sha_short), b.provenance, html_escape(b.built_at)));
+    match (&manifest, &read_err) {
+        (Some(m), _) => out.push_str(&format!(
+            "<dt>Ratified</dt><dd><code>{}</code>{}{}</dd>",
+            html_escape(&m.ratified_git_sha),
+            m.ratified_by.as_deref().map(|w| format!(" by {}", html_escape(w))).unwrap_or_default(),
+            m.ratified_at.as_deref().map(|a| format!(" at {}", html_escape(a))).unwrap_or_default())),
+        (None, Some(e)) => out.push_str(&format!(
+            "<dt>Ratified</dt><dd><span class=\"pill pill-warn\">manifest unreadable</span> \
+             <span class=\"muted\">— {}</span></dd>", html_escape(e))),
+        (None, None) => out.push_str(&format!(
+            "<dt>Ratified</dt><dd><span class=\"muted\">no manifest at {}</span></dd>",
+            html_escape(&path.display().to_string()))),
+    }
+    out.push_str("</dl>");
+    out
+}
+
 async fn overview(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
     let ledger = s.ledger.lock().await;
     let projected = HubState::project(&*ledger);
@@ -297,6 +391,12 @@ async fn overview(State(s): State<RestState>) -> Result<Html<String>, AdminError
     body.push_str(&format!("<dt>Ledger length</dt><dd>{}</dd>", ledger_len));
     body.push_str(&format!("<dt>Head hash</dt><dd>{}</dd>", html_escape(&head_hash)));
     body.push_str("</dl>");
+
+    // F0.3 (R7c): is this seat running what the society ratified? Placed high
+    // on the overview, next to identity — an operator who reads no further
+    // still sees whether the thing they are administering is the approved
+    // build. (A verdict rendered somewhere nobody looks is not filed.)
+    body.push_str(&ratified_block(&s));
 
     body.push_str("<h2>Membership</h2><dl class=\"grid\">");
     body.push_str(&format!("<dt>Members</dt><dd>{}</dd>", projected.member_count()));
@@ -1465,3 +1565,129 @@ pub fn operator_router(state: RestState) -> Router {
         .with_state(state)
 }
 
+
+#[cfg(test)]
+mod ratified_surface_tests {
+    use super::*;
+    use crate::rest::channel_e2e_tests::fresh_rest_state;
+    use axum::extract::State;
+
+    async fn overview_html(s: &RestState) -> String {
+        overview(State(s.clone())).await.map(|Html(h)| h)
+            .unwrap_or_else(|e| panic!("overview failed: {} {}", e.0, e.1))
+    }
+
+    fn write_manifest(s: &RestState, json: &str) {
+        std::fs::write(s.paths.ratified_manifest(), json).expect("write manifest");
+    }
+
+    /// `HUB_EXEC_PATH` is process-global, and cargo runs these tests on
+    /// parallel threads — one test's `set_var` leaks into another's read.
+    /// (Caught by the full-suite run: both env tests passed in isolation and
+    /// one failed together, which is how env-racing test flakiness always
+    /// presents.) Every test that touches the variable takes this lock, so
+    /// they serialize against each other while the rest of the suite still
+    /// runs in parallel.
+    static EXEC_PATH_ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// **The guard must be run against what it guards.** Each arm INDUCES its
+    /// condition and asserts the operator page changes — a rendering test that
+    /// only ever sees one state proves nothing about the other.
+    #[tokio::test]
+    async fn operator_page_distinguishes_unknown_stale_and_current() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+
+        // ARM 1 — nothing ratified. Must read `unknown`, never a pass, and must
+        // carry the WARNING pill: an operator scanning the page cannot be
+        // allowed to read "we could not check" as "checked and fine".
+        let html = overview_html(&state).await;
+        assert!(html.contains("Deploy ratification"), "the section renders");
+        assert!(html.contains("no manifest at"), "says what is missing");
+        let running_line = html.split("<dt>Running</dt>").nth(1).expect("running row");
+        assert!(running_line.contains("pill-warn"),
+            "an unknown seat wears the warning pill, not a neutral one");
+        assert!(!running_line.starts_with("<dd><span class=\"pill\">current</span>"),
+            "unratified must never render current");
+
+        // ARM 2 — a manifest ratifying a DIFFERENT commit. This is the
+        // parked-checkout shape: the binary is clean and newer than merged
+        // source (every currency arm passes) but nobody ratified this commit.
+        write_manifest(&state, r#"{"ratified_git_sha":"0000000deadbeef00000000deadbeef000000000","ratified_by":"dp"}"#);
+        let html = overview_html(&state).await;
+        let running_line = html.split("<dt>Running</dt>").nth(1).expect("running row");
+        assert!(running_line.contains("STALE"),
+            "a clean build of an unratified commit is STALE, not current:\n{running_line}");
+        assert!(html.contains("0000000deadbeef"), "the ratified sha is shown for comparison");
+
+        // ARM 3 — ratify what is actually running. Under `cargo test` the build
+        // stamp may be `unknown` provenance, which is legitimately `unknown`
+        // rather than `current`; assert the DISCRIMINATING property instead —
+        // matching the running commit must not still read STALE-for-mismatch.
+        let running_sha = hub_lib::build_info::BUILD.git_sha;
+        if running_sha != "unknown" {
+            write_manifest(&state, &format!(
+                r#"{{"ratified_git_sha":"{running_sha}","ratified_by":"dp"}}"#));
+            let html = overview_html(&state).await;
+            let running_line = html.split("<dt>Running</dt>").nth(1).expect("running row");
+            assert!(!running_line.contains("is ratified for this seat"),
+                "a matching commit must not report a commit mismatch:\n{running_line}");
+        }
+    }
+
+    /// A manifest that exists but is malformed is its own state — not silently
+    /// the same as absent, and emphatically not a pass.
+    #[tokio::test]
+    async fn a_malformed_manifest_is_surfaced_not_swallowed() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        write_manifest(&state, "{ this is not json");
+        let html = overview_html(&state).await;
+        assert!(html.contains("manifest unreadable"),
+            "a broken ratification record is shown to the operator");
+        let running_line = html.split("<dt>Running</dt>").nth(1).expect("running row");
+        assert!(running_line.contains("pill-warn"), "and still fails closed");
+    }
+
+    /// Review follow-up (PR 708): with no configured exec path, the staged arm
+    /// must say UNKNOWN — it must not label this process's own image as "what
+    /// the supervisor will run next", which would report a fact about the
+    /// present as a fact about the next restart.
+    #[tokio::test]
+    async fn staged_arm_does_not_infer_the_future_exec_path() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        write_manifest(&state, &format!(
+            r#"{{"ratified_git_sha":"abcdef1234567890abcdef1234567890abcdef12","ratified_binary_sha256":"{}"}}"#,
+            "aa".repeat(32)));
+        let _env = EXEC_PATH_ENV.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::remove_var("HUB_EXEC_PATH");
+        let html = overview_html(&state).await;
+        let staged_line = html.split("<dt>Staged at exec path</dt>").nth(1).expect("staged row");
+        assert!(staged_line.contains("unknown"),
+            "unconfigured next-exec path is unknown, not inferred:\n{staged_line}");
+        assert!(staged_line.contains("not assumed") || staged_line.contains("NOT assumed"),
+            "and says so explicitly:\n{staged_line}");
+    }
+
+    /// The staged arm answers BEFORE a restart: an unratified artifact at the
+    /// exec path is a fact the operator should see now, not discover after the
+    /// ignition that makes it the running binary.
+    #[tokio::test]
+    async fn staged_artifact_mismatch_is_visible_without_a_restart() {
+        let (tmp, state) = fresh_rest_state(None).await;
+        // A manifest that ratifies some binary digest...
+        write_manifest(&state, &format!(
+            r#"{{"ratified_git_sha":"abcdef1234567890abcdef1234567890abcdef12","ratified_binary_sha256":"{}"}}"#,
+            "aa".repeat(32)));
+        // ...and an artifact at the exec path that is NOT it.
+        let staged = tmp.path().join("staged-hub");
+        std::fs::write(&staged, b"an unratified binary").unwrap();
+        let _env = EXEC_PATH_ENV.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("HUB_EXEC_PATH", &staged);
+        let html = overview_html(&state).await;
+        std::env::remove_var("HUB_EXEC_PATH");
+
+        let staged_line = html.split("<dt>Staged at exec path</dt>").nth(1).expect("staged row");
+        assert!(staged_line.contains("STALE"), "staged mismatch is STALE:\n{staged_line}");
+        assert!(staged_line.contains("next restart"),
+            "the operator is told the consequence, not just the fact");
+    }
+}
