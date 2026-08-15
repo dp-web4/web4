@@ -4,6 +4,11 @@
 **Predecessor**: `C354-acp-framework-9th-delta-2026-08-10.md` (PR #686) · **Window**: `9958fc6a..0f4ebd93`
 **Verdict**: **1 method finding (INFO), 1 recovered carry re-entered at LOW with a measured increment, 1 cross-lineage re-confirmation (INFO), 3 recorded negatives. ZERO mutation.**
 
+**Revision 1 (2026-08-15, PR #719 review cycle)** — §C.2's `A \ B` cell and its stated mechanism were
+false; corrected here, with the lct control's convention now published and the next-delta baseline
+re-stated by domain. **Findings, severities, the UNION figure and §C.1/§C.3/§D/§F.1–F.4 are unchanged.**
+Full account of what was wrong and in which direction: **§F.5**.
+
 **Enumeration rule (stated, per the standing rule):** this lineage's members are the ten
 `C{n}-acp-framework-*` documents plus the non-C-numbered
 `acp-framework-internal-consistency-2026-05-28.md`. The inclusive rule is used throughout and is
@@ -194,21 +199,47 @@ its stated non-`@` convention) gives **22 of 62** at HEAD, unchanged. The four n
 **The increment.** This pass built a second instrument — **Instrument A: the key names the SDK's four
 public `to_jsonld()` methods actually emit** (`acp.py:469/:691/:821/:958`, each emitting
 `"@context": [ACP_JSONLD_CONTEXT]` at `:486/:699/:829/:972`) — measured against the same 36 context
-terms. **Neither instrument subsumes the other:**
+terms. **Neither instrument subsumes the other.**
+
+**Domain, stated before the counts (v40/v49).** Instrument B walks **`$defs/X/properties` at depth 1
+only** — the convention C314 used and the one every figure in this table is on. Instrument A walks the
+emitted document to full depth. The two domains are not the same shape, which is exactly why the
+difference set below needs a domain label rather than the word "never".
 
 | | distinct undefined key names |
 |---|---|
-| **Instrument B** — schema-declared `$defs` properties | **21** of 49 distinct names |
-| **Instrument A** — emitter-produced key names | **20** of 44 distinct names |
-| **A \ B** — emitted, never schema-declared | **5**: `output`, `q`, `rows`, `status`, `tool` |
+| **Instrument B** — schema-declared properties, **depth-1 `$defs/X/properties`** | **21** of 49 distinct names |
+| **Instrument A** — emitter-produced key names, in the canonical example | **20** of 44 distinct names |
+| **A \ B** — emitted, **outside Instrument B's depth-1 `$defs` domain** | **5**: `output`, `q`, `rows`, `status`, `tool` — of which only **3** (`tool`, `q`, `rows`) are undeclared at *any* depth |
 | **B \ A** — schema-declared, never emitted in the canonical example | **6**: `audience`, `authorized`, `dependsOn`, `expr`, `kind`, `requiresApproval` |
-| **UNION** | **26** |
+| **UNION** | **26** — invariant under both conventions; a **floor**, see the tail note |
 
-**Why A sees five things B cannot.** `mcpCall.args` and `result.output` are declared
-`{"type": "object"}` with no `properties`, so a `$defs` walk terminates there — but the SDK emits real
-children into them (`tool`, `status`, `q`, `rows`, `output`), and a JSON-LD processor expands those
-children against the active context exactly as it does any other. B's domain is *what the schema
-declares*; A's is *what the wire carries*. **A context must cover the union.**
+**Why A sees five things B cannot — two mechanisms, not one.** The first draft of this paragraph gave
+one mechanism and it was wrong; corrected in review (§F.5).
+
+1. **Depth-1 truncation → `output`, `status`.** These *are* schema-declared, at depth 2:
+   `$defs/ExecutionRecord/properties/result` is a fully modelled object with
+   `properties {status, output, resourcesConsumed}` and `"additionalProperties": false`. B misses them
+   because it does not descend past depth 1, **not** because `result` is opaque. A full recursive walk
+   gives **52 distinct / 23 undefined**, and the only three names recursion adds are `output`,
+   `resourcesConsumed`, `status`. That `result` is closed and fully modelled *strengthens* the
+   no-disclosure-defense argument below, rather than weakening it.
+2. **Bare `{"type": "object"}` parents → `tool`, `q`, `rows`.** `ExecutionRecord.mcpCall` and
+   `result.output` are declared `{"type": "object"}` with no `properties`, so **no walk of any depth**
+   can reach their children. (The earlier draft wrote `mcpCall.args`; that is not a path in this schema
+   — `mcpCall` is `$defs/ExecutionRecord/properties/mcpCall` and `args` is
+   `$defs/PlanStep/properties/args`, two different `$defs`, and `PlanStep` has no `mcpCall` property.)
+
+A JSON-LD processor expands all five against the active context exactly as it does any other key. B's
+domain is *what the schema declares*; A's is *what the wire carries*. **A context must cover the union.**
+
+**UNION 26 is a floor, and the 3-name tail is example-dependent.** The arithmetic is invariant under
+both conventions — `21 + |A\B_depth1| = 21 + 5 = 26` and `23 + |A\B_full| = 23 + 3 = 26` — so the
+headline does not move. But `tool`, `q`, `rows` are not emitter literals: `acp.py:978` and `acp.py:967`
+pass `self.mcp_call` and `self.result_output` through as **caller-supplied free dicts**, so those names
+are whatever the canonical example's author happened to write. A different payload yields a different
+tail. **26 is therefore a floor with a 3-name example-dependent tail, not a settled total** — the same
+canonical-example-is-a-floor caution this pass records in F.1, applied to its own table.
 
 **Two counts for one concept — the conventions, published side by side (v61).** C314's **22** counts
 **per-`$def` occurrences** over a 62-property total (36 top-level + 26 nested); this pass's **21**
@@ -218,12 +249,46 @@ correct on their own convention and C314's stated convention is not retired** �
 is stated in distinct names and labelled as such.
 
 **A control in the opposite direction, which is why this is a method result and not an acp artifact.**
-`lct` fails the *other* way: Instrument B gives **6** undefined (`sub_dimensions`, `last_computed`,
-`computation_witnesses` × two tensor blocks — `lct-jsonld.schema.json:303/311/315/343/351/355`, and
-`grep -c` over `contexts/lct.jsonld` = **0**, reproducing `C314:196`'s 57.1%), while Instrument A gives
-**0** — because `git grep -nI "sub_dimensions\|last_computed\|computation_witnesses" -- web4-standard/implementation/sdk/`
-returns **no hit in any `.py` module**: the SDK never emits those keys. **acp declares less than it
-emits; lct emits less than it declares.** Neither instrument alone can rank the corpus.
+`lct` fails the *other* way. **The control's convention, stated (this was the review's ask):** the **6**
+is a **per-occurrence** count over the two `$defs` tensor blocks — `sub_dimensions`, `last_computed`,
+`computation_witnesses` × 2 (`lct-jsonld.schema.json:303/311/315/343/351/355`), `grep -c` over
+`contexts/lct.jsonld` = **0**. That is **C314:196's convention exactly** (2 `$defs` / 14 properties / 6
+undefined / 57.1%), reproduced so the row is comparable to C314's table. **On the table's own domain
+above — depth-1 `$defs`, distinct names — lct is 3, not 6.** Three figures for one artifact, published
+side by side rather than picked between (v61):
+
+| lct, by domain | undefined |
+|---|---|
+| depth-1 `$defs`, **distinct names** — the domain of the acp table above | **3** |
+| depth-1 `$defs`, **per-occurrence** — C314:196's convention, the figure this control uses | **6** |
+| **full recursive walk incl. top-level `mrh` `oneOf` branches**, distinct names | **7** — adds `binding_context`, `role`, `last_attestation`, `witness_count` (`lct-jsonld.schema.json:123/157/158/159`) |
+
+**The 7 is real and is not the figure to put beside acp's 21.** On that same full-recursive domain acp's
+Instrument B is **23 of 52**, not 21 of 49; quoting lct-7 against acp-21 would compare two domains, the
+defect class this lineage already carries (v40/v49). The control stays on C314's convention and names it.
+
+**Instrument A for lct — corrected, and the correction is the interesting part.** The draft said A gives
+**0**. That is true **only on the canonical all-strings example**. `lct.py:576/:586` pass MRH entries
+through *verbatim* (`{"lct_id": b} if isinstance(b, str) else b`), so when a caller supplies the
+schema's own modelled dict form the emitter returns those keys unchanged. Executed both ways:
+
+| `LCT.to_jsonld()` input | undefined names emitted |
+|---|---|
+| canonical all-strings `witnesses=[...]` | **0** |
+| schema's modelled dict form, as `test_lct_jsonld.py:429/:486` supplies it | **4**: `binding_context`, `last_attestation`, `role`, `witness_count` |
+
+So **A for lct is 0 on the canonical example and 4 on the schema's own dict form.** This is F.1's lesson
+recurring one section later, in this document's own control — recorded rather than quietly fixed.
+
+**The direction claim survives, and is restated precisely.** What carries it is not A's absolute count
+but the *difference sets*, **both taken on the full-recursive domain so the comparison is same-domain**:
+for lct, **A \ B = 0** (every name the emitter produces, dict form included, is schema-declared at some
+depth) while **B \ A = 3** (`sub_dimensions`, `last_computed`, `computation_witnesses` are declared and
+emitted by no code path — `git grep -nI` over `web4-standard/implementation/sdk/` returns hits only in
+`web4/schema_registry.json`, the bundled *copy of the schema*, and **zero in any `.py` module**). acp is
+the mirror on the same domain: **A \ B = 3**, **B \ A = 6**. **acp declares less than it emits; lct
+emits less than it declares.** Neither
+instrument alone can rank the corpus.
 
 **Severity — LOW, and the available escalation is declined on the record.** `C314:205` bounded this
 LOW *"by the consumption mechanism (v13): nothing in the repo expands ACP JSON-LD to RDF … **Latent,
@@ -358,6 +423,12 @@ precise conflation its own point 5 asked this pass to avoid. **The reviewer's co
 faulty evidence** — `lct` *is* a 7th exception under B, F.1 stands — and the error is what produced
 §C.2's opposite-direction control. Verified rather than accepted (v52).
 
+**F.2 scope note, added in the correction cycle.** F.2 is measured on the **3-name set**
+(`sub_dimensions`, `last_computed`, `computation_witnesses`) and on that set it stands unchanged: those
+three are schema-only and no `.py` module emits them. It does **not** generalize to the 7-name
+full-recursive set — 4 of those 7 *are* emitter-reachable (§C.2, F.5). F.2's claim is that the reviewer
+attributed *those three* to Instrument A; that remains true and the correction remains correct.
+
 **F.3 — the memory guard's freeze citation.** See §B: `f8d7ccda` is a **blob**, not a commit. Noun
 corrected at the source; no measurement changes.
 
@@ -366,10 +437,47 @@ corrected at the source; no measurement changes.
 §A and repeated here because C354's own guard 2 instructs the next pass to treat a *falling* count as a
 retirement — a *rising* count needs the same explicit accounting.
 
+**F.5 — the correction cycle, and what the false cell actually was.** PR #719 was returned CHANGES
+REQUESTED on one cell of §C.2's table. The block is accepted in full and every claim in it was
+re-derived from the artifacts before being applied (v52). What was wrong:
+
+| draft claim | corrected | how |
+|---|---|---|
+| A\B = "emitted, **never schema-declared**", 5 names | 5 names outside B's **depth-1 `$defs` domain**; only 3 undeclared at any depth | `result` = `{status, output, resourcesConsumed}`, `additionalProperties: false` |
+| B is blind because `result.output` is a bare object | B is blind by **depth-1 truncation**; the bare-object mechanism is real but explains only `tool`/`q`/`rows` | recursive walk = 52/23, adding exactly `output`, `resourcesConsumed`, `status` |
+| `mcpCall.args` | not a path — `mcpCall` ∈ `ExecutionRecord`, `args` ∈ `PlanStep` | `PlanStep` has no `mcpCall` property |
+| lct control "6", convention unstated | convention stated; 3 / 6 / 7 published by domain | see §C.2 |
+| lct "Instrument A gives **0**" | **0** on the canonical example, **4** on the schema's dict form | executed both ways; `lct.py:576/:586` pass MRH dicts through verbatim |
+
+**Direction of the error, stated because it is the part that propagates:** "never schema-declared" made
+the schema↔context gap look **wider** than it is, and made Instrument B look **better characterized**
+than it was. Both read as *more* verified, not less — the direction that survives a skim.
+
+**Unchanged, and stated so the next pass reads a correction and not a re-measurement:** **UNION = 26**
+(invariant under both conventions, now labelled a floor), **severity LOW**, the **declined escalation**,
+**N1**, **N3**, **§D**, **§F.1–F.4**. Nothing in §C.1 is touched.
+
+**Why the fix took a cycle rather than a note.** §C.2 is the table that re-enters `C314-N1` as ledger
+row 12, and this document's thesis is that the next pass re-derives from its predecessor's *table* and
+inherits whatever the cell says. A false cell **in this table** is the document's own failure mode,
+propagating through the channel it exists to document.
+
 **Policy review falsified a published number for the 13th consecutive pass.** The scope submitted was a
 measured premise, not a plan; the review killed the headline denominator (F.1), convicted the
 "MED / net-new" label (§C.1's classification), and demoted the label-collision claim to one line. All
 three corrections are applied. The review's own factual error is recorded in F.2.
+
+**14th, on the correction cycle itself.** The correction scope was submitted as six measured premises.
+Five confirmed; **premise (f) — "Instrument A for lct = 0" — was falsified by execution**, and the
+falsifier is F.1's own lesson: the 0 was read off the all-strings canonical example while the emitter
+passes caller-supplied dicts straight through. The review also caught that swapping the lct control
+6→7 without moving acp's B to 23/52 would have manufactured a fresh cross-domain comparison, and that
+"§F needs no change" was itself false (hence the F.2 scope note). **A method note worth carrying: when a
+reviewer's COUNT does not reproduce, check their ITEMS, not your count.** This pass's own verification
+walker returned 3 against the reviewer's 7 and would have returned 3 forever — it did not descend
+`oneOf`/`anyOf`/`allOf`, the same truncation-shaped blind spot as the instrument it was checking. One
+line — *is `binding_context` in the context? no* — inverted the verdict. An item is checkable against
+the artifact atomically; a count is only ever as good as the walker behind it.
 
 ---
 
@@ -379,10 +487,16 @@ three corrections are applied. The review's own factual error is recorded in F.2
    reports 11 rows or fewer, it has been retired a second time — check the deflation, not the count**
    ([[feedback_ledger_emptied_not_closed]]). One grep: `grep -c "C314-N1" <that pass's doc>`.
 2. **Guard 3, substance not footnote.** Re-run the coverage measurement on **both** instruments and
-   publish the union. Baseline at HEAD: **B = 21 distinct names / 22 per-`$def` occurrences, A = 20,
-   union = 26**, blobs `fbe09135` / `08b09ffb`. If either blob has moved, the gap may have widened
-   without anyone touching the context. **Carrying only the enumeration footnote is what lost this row
-   once already.**
+   publish the union — **and state the walk domain before the number** (§C.2, F.5). Baseline at HEAD,
+   blobs `fbe09135` / `08b09ffb`:
+   - **B, depth-1 `$defs/X/properties`** (C314's convention): **21 distinct / 22 per-`$def` occurrences**, of 49
+   - **B, full recursive walk** (incl. `oneOf`/`anyOf`/`allOf`): **23** of 52 — the 2 extra are `output`, `status`
+   - **A**, canonical example: **20** of 44 · **UNION = 26 under either convention**, a floor
+   - **lct control**: **3** (depth-1 distinct) / **6** (depth-1 per-occurrence, C314:196) / **7** (full recursive); A = **0** canonical, **4** on the dict form
+
+   If either blob has moved, the gap may have widened without anyone touching the context. **Carrying
+   only the enumeration footnote is what lost this row once already** — and carrying a count without its
+   domain is what cost this pass a review cycle.
 3. **C354-N1** (`W4_ERR_ACP`): `git grep -nE 'W4_ERR_ACP"' -- web4-standard/` — **1 hit at HEAD is the
    baseline; any change is the answer.** Still open.
 4. **C274-N1's two greps** — schema `witnesses` widening (`:189`/`:229`) and acp↔r7 cross-refs. Both
@@ -410,7 +524,7 @@ three corrections are applied. The review's own factual error is recorded in F.2
 surface: C394 audit document   act: publish an audit record; re-enter a ledger row; route two remedies
 S: low/reversible [construct: doc-only; docs/audits/ is append-only record, no governed state mutated]
 R: n/a [construct: no caller-driven path created]   W: n/a [construct: no identity/authority asserted]
-O: pass [construct: policy review (Step 4) completed and REVISE applied before the document was written]
+O: pass [construct: policy review (Step 4) completed and REVISE applied before the document was written; rev1's corrections were policy-reviewed before any edit, and premise (f) was falsified there — see F.5]
 A: pass [construct: every count carries its command; §F records this pass's own falsified number and the reviewer's]
 V: n/a [construct: reversible, low-consequence; both substantive remedies ROUTED, not applied]
 verdict: PASS
