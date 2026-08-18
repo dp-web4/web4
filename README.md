@@ -141,11 +141,33 @@ The applications come when the substrate exists *and* the present-tense pain for
 
 ---
 
-## Status Snapshot (2026-07-09)
+## Status Snapshot (2026-08-18)
 
 ### Where it landed publicly
 - **AI Demo Day 4** (2026-04-26): Web4 presented as "verifiable presence" for agentic AI. Slides + narration archived at https://4-gov.org/demo
 - **Cross-model independent review** (2026-05-13): Kimi 2.6 reviewed the repo + specs across three rounds of dialogue. Verbatim transcript at [`forum/kimi2_6_review.md`](forum/kimi2_6_review.md). Scoring: architectural coherence 8.5/10, bootstrap story 8/10, spec completeness intra-society 7/10, spec completeness inter-society 4/10. The dialogue produced two new spec docs (see below).
+
+### Since the last snapshot (2026-07-09 → 2026-08-18)
+
+229 PRs merged. What a visitor should know changed:
+
+- **The hub's north star is written down.** [`hub/docs/PRD_HUB_V2_FEDERATED.md`](hub/docs/PRD_HUB_V2_FEDERATED.md)
+  (#698) is a maintained PRD for the *federated* hub — peer federation, greater hubs chartered for a
+  narrow role, fractally-joinable ledgers, roles as runtime entities, roles promotable into sub-hubs,
+  and edge-scoped law compatibility instead of shared law. R1–R6 are **specified and unbuilt**; the
+  document carries falsifiable acceptance criteria for each, so progress against it is checkable.
+- **Sprint F0 landed** — the hygiene the rest is gated on: degraded-event recording with a
+  conduct-vs-infrastructure class so an infra failure never scores as a member's conduct (#703);
+  asserted-asker admission, where a self-asserted identity collects no peer factors (#706); and
+  deploy ratification, on the principle that **currency is not ratification** (#708).
+- **The role-scope bridge** (#715, with its twin in hestia): a role's charter carries a scope
+  manifest, occupancy delivers it to the occupant's own daemon, and a member-level clearance bounds
+  it — scope is an intersection, never a union. Design stage, both sides.
+- **Hub surface**: an in-browser client for join + discuss (#676), and a sealed chain-tail watermark
+  so a truncated ledger is refused at open (#677).
+- **Standard**: hackathon findings folded into canonical text (#678), plus a continuing per-spec
+  audit series (C344/C366/C384/C394…) whose findings are recorded even when they indict earlier
+  passes.
 
 ### Implementation status
 - **Published artifacts**: `web4-core` and `web4-trust-core` on crates.io; `web4-core` and `web4-trust` on PyPI. **Current: `web4-core` v0.3.0** (published 2026-07-09 — role entities + LCT issuance/registry, canonical T3/V3, the Act primitive, EUDI/OID4VC, the vault; `web4-trust-core`/`web4-trust` at v0.2.0), AGPL-3.0-or-later. See [STATUS.md](STATUS.md) for the full version table and [docs/proof/PUBLISHED.md](docs/proof/PUBLISHED.md) for the publish trail.

@@ -41,6 +41,24 @@ We don't mandate the policy. We insist that whatever the policy is, is followed 
 | 5 | Docker package + first-chapter demo scripts | ✓ (Docker untested on dev machine; first operator with Docker should report) |
 | 6 | Pilot-organizer docs + polish | ✓ |
 
+**Sprint F0 — Phase 0 of the federated PRD (2026-08, landed).** [`docs/PRD_HUB_V2_FEDERATED.md`](docs/PRD_HUB_V2_FEDERATED.md)
+is the maintained north star for what the hub becomes: peer federation, greater hubs chartered for a
+narrow role, fractally-joinable ledgers, roles as runtime entities, roles promotable into sub-hubs,
+and edge-scoped law compatibility rather than shared law. **R1–R6 are specified and unbuilt** — the
+PRD carries falsifiable acceptance criteria so that is checkable rather than asserted. Phase 0, which
+gates the rest, has landed:
+
+| | capability | status |
+|---|---|---|
+| R7a | degraded-event recording; reputation deltas carry a conduct-vs-infra class, and infra never scores as conduct | ✓ (#703) |
+| R7b | asserted-asker admission — a self-asserted identity collects no peer factors | ✓ (#706) |
+| R7c | deploy ratification — the running binary self-reports; **currency is not ratification** | ✓ (#708) |
+| R7d | availability parity instrument | not started |
+
+Also design-stage, both sides: the **role-scope bridge** ([`docs/PRD_ROLE_SCOPE_BRIDGE.md`](docs/PRD_ROLE_SCOPE_BRIDGE.md),
+#715) — a role charter carries a scope manifest, occupancy delivers it to the occupant's own daemon,
+and a member-level clearance bounds it. Scope is an intersection, never a union.
+
 **Post-MVP hardening (2026-07).** A full external security review (GPT-5.5 Pro, 3 passes) drove a
 hardening cycle, all landed: MCP write tools moved off the public listener onto the loopback operator
 plane; `assign_role` gates council/law *before* persisting; **pluggable operator-auth** (`HUB_OPERATOR_AUTH=token`);
