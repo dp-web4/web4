@@ -9,7 +9,16 @@
 #   $EDITOR fly.toml            # set app name and primary_region
 #
 # See hub/docs/DEPLOY-CLOUD.md for the full runbook, including the one-time
-# `hub init` and why HUB_PASSPHRASE is a platform secret rather than a file.
+# `hub init` and the key-custody tiers.
+#
+# KEY CUSTODY (dp, 2026-08-18): a TPM / secure module is the target and is not
+# implemented anywhere in the stack yet; absent one, the hub BOOTS LOCKED and
+# waits for `hub unlock`. That is this config's posture, and it is why no
+# passphrase secret is set here. Passphrase-from-environment (HUB_PASSPHRASE)
+# self-ignites but is a temporary dev convenience, tolerated for now and NOT a
+# production-acceptable solution -- so a restart here leaves the hub answering
+# 503 until a human ignites it through `fly proxy`. The auto_stop/min_machines
+# settings below exist to make that rare; the health check makes it VISIBLE.
 
 app = "CHANGE-ME-your-chapter"
 primary_region = "CHANGE-ME"          # e.g. "ord" — pick one near your members

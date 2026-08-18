@@ -26,28 +26,50 @@ The operator plane is loopback **by construction**, not by configuration: `plane
 `hub-daemon/src/main.rs` builds it from `Ipv4Addr::LOCALHOST` regardless of what `--bind` says. You
 cannot accidentally publish it, and you should not try to. You reach it by proxying into the machine.
 
-## Restart survival — read this before you deploy
+## Key custody and restart survival — read this before you deploy
 
 A sealed hub **boots locked**: every endpoint returns 503 except the unlock path, and `hub unlock`
-ignites it. That is the right default for a laptop and the wrong one for a managed host, where the
-platform restarts your container unattended and nobody is awake to re-ignite it.
+ignites it. Where the vault key lives is the decision this profile turns on.
 
-**Ruling (dp, 2026-08-18): on a managed host, set `HUB_PASSPHRASE` from the platform's secret
-store.** The daemon then opens the vault at boot and never reaches the locked shell
-(`main.rs:1471-1486` — the env'd entry point is `open_hub_store_async` → `store::store_key` →
-`identity::env_passphrase`).
+**Ruling (dp, 2026-08-18), in priority order:**
 
-Be clear about what that trades. The source names the cost: it "parks the passphrase at rest beside
-the ciphertext it protects," which is why the planned de-env'ing ("increment 6") exists. On a managed
-platform the trade is better than the same choice on a VPS, because the secret and the volume have
-**different compromise paths** — an attacker who obtains the volume snapshot does not thereby obtain
-the key. An attacker who obtains a shell in the running container obtains both. Judge accordingly,
-and prefer a platform whose secrets are encrypted at rest and injected at process start rather than
-written into the image.
+| tier | posture | status today |
+|---|---|---|
+| **1** | The passphrase lives in a **TPM or secure module** where one is available | **not implemented anywhere in the stack** |
+| **2** | No secure module → **boot locked and wait for unlock** | **shipped — this is the hub's default behaviour** |
+| **3** | Passphrase from the environment (`HUB_PASSPHRASE`) | works; a **temporary dev convenience**, tolerated for now, and **not a production-acceptable solution** |
 
-If you would rather not make that trade, run without the secret and ignite manually after every
-restart via the proxy in §5 — and expect a 3am restart to leave the hub answering 503 until someone
-notices.
+Hardware binding is aspirational throughout the codebase, not available: `web4-core/src/crypto.rs:10`
+says keys are *"designed to be hardware-bindable (TPM/SE) in production"*, `lct.rs:16` says the same
+of LCTs, and `hub-lib/src/constellation.rs:104` refers to *"a future `hardware_evidence` layer"*.
+Canon defines hardware as LCT capability level 5 (`lct-capability-levels.md`); no code binds a key to
+it. So tier 1 is the target, not an option you can select today.
+
+**Therefore, on a managed host today: tier 2. The hub boots locked and waits for you to ignite it.**
+
+Say plainly what that costs, because it is the deciding property of this profile: a platform restart
+at 3am leaves your chapter's hub answering 503 until a human ignites it through the proxy (§5). On a
+free tier, where restarts are routine and unattended, that will happen. Mitigate it — do not paper
+over it:
+
+- set `auto_stop_machines = false` and `min_machines_running = 1` (already in the example config) so
+  the platform is not restarting you for idleness;
+- put a health check on `/` somewhere that notifies **you**, so a 503 reaches a person rather than
+  waiting to be noticed by a member;
+- treat ignition as a two-minute operational task with a written procedure (§5), not an emergency.
+
+### On `HUB_PASSPHRASE` (tier 3)
+
+The daemon **will** self-ignite if `HUB_PASSPHRASE` is present in its environment — the env'd entry
+point is `open_hub_store_async` → `store::store_key` → `identity::env_passphrase`
+(`main.rs:1471-1486`), and such a hub never reaches the locked shell. It is documented here so you
+recognise the behaviour, **not** as the recommended configuration.
+
+The source names the cost: it *"parks the passphrase at rest beside the ciphertext it protects,"*
+which is the whole reason the planned de-env'ing ("increment 6") exists. Per the ruling above this is
+a **dev convenience**, tolerated temporarily, and **not production-acceptable** — do not ship a real
+chapter on it merely because it is more convenient than being paged. If you use it while developing,
+use a throwaway passphrase and a throwaway chapter.
 
 ## 1. Prerequisites
 
@@ -72,10 +94,13 @@ crates, and the platform uses the config file's directory as the context.
 ```bash
 fly apps create your-chapter
 fly volumes create chapter_data --size 1        # durable chapter dir  (unverified)
-fly secrets set HUB_PASSPHRASE='...'            # per the ruling above (unverified)
 ```
 
-Use a generated passphrase you also store in a password manager. **If you lose it, the vault is
+**No passphrase secret is set** — that is tier 3, and this deployment is tier 2 (see *Key custody*).
+The passphrase is presented interactively at genesis and at each ignition, and is never stored on the
+host.
+
+Use a generated passphrase you keep in a password manager. **If you lose it, the vault is
 unrecoverable** — that is the point of a vault.
 
 ## 4. One-time chapter genesis
@@ -88,8 +113,10 @@ fly deploy                                       # builds and starts (will boot 
 fly ssh console -C "hub init /chapter/data"      # founding charter + sovereign identity     (unverified)
 ```
 
-`hub init` resolves the passphrase from `HUB_PASSPHRASE` (already in the environment from §3) and
-seals the identity under it. Genesis currently mints all seven base-mandatory role LCTs and the hub
+`hub init` resolves the passphrase from a TTY prompt (`HUB_PASSPHRASE` would also satisfy it, but
+this deployment sets none) and seals the identity under it. `fly ssh console` gives you a terminal so
+the prompt works; an empty value is allowed but must be explicit, and on a real chapter must not be
+empty. Genesis currently mints all seven base-mandatory role LCTs and the hub
 discards five of them (`hub-lib/src/init.rs:46`, pending a `web4-core` bootstrap parameter) — this is
 known, harmless, and cosmetic in the ledger.
 
@@ -103,11 +130,15 @@ fly ssh console -C "hub set-law /chapter/data /path/to/starter-law.yaml"   # (un
 
 ### Expect the first deploy to refuse to serve — that is the gate working
 
-With `HUB_PASSPHRASE` set (§3) the hub boots **unlocked**, so the production law gate runs at boot
-(`production_law_gate`, `main.rs:1291`). Until §4 has completed, the daemon refuses to serve with
-*"refusing to serve with NO hub law (acts/admissions ungated)"*. That refusal is correct: a
-production hub that would gate nothing does not start. Work through genesis and the law, and it comes
-up.
+The production law gate (`production_law_gate`, `main.rs:1291`) is checked at the two moments its
+answer is real: an **unlocked boot**, or **ignition** on a locked boot — where it fails closed
+*before* the signer swap, so a lawless production hub never reaches a serving state. On this tier-2
+deployment the check happens **at ignition**, which means:
+
+- before genesis and law, the hub sits locked and answers 503 — expected;
+- with no law installed, `hub unlock` **refuses to ignite**: *"refusing to serve with NO hub law
+  (acts/admissions ungated)"*. That refusal is correct — a production hub that would gate nothing
+  does not start.
 
 **Do not set `HUB_ALLOW_NO_LAW=1` to get past it.** That waiver switches off the very gate the
 production profile exists to provide, and its documented meaning is that the operator is *knowingly*
@@ -115,8 +146,9 @@ accepting an ungated hub. It is not a startup workaround.
 
 One related trap, worth knowing before it costs you an afternoon: on `--storage sqlite` the law lives
 inside the vault, so a **locked** hub reports "no law" no matter what `hub set-law` wrote
-(`main.rs:1268`). If you ever run without the passphrase secret, "no law" on a locked hub means
-*locked*, not *lawless* — check ignition first.
+(`main.rs:1268`). Because this deployment boots locked by design, that is the **normal**
+pre-ignition state: "no law" on a locked hub means *locked*, not *lawless*. Check ignition before you
+go looking for a law problem.
 
 ## 5. Reaching the operator plane
 
@@ -139,7 +171,8 @@ curl -sf https://your-chapter.fly.dev/ >/dev/null && echo "public plane up"
 Then confirm the two things a green HTTP check does **not** prove:
 
 1. **The hub is ignited, not merely running.** A locked hub answers 503, so a 200 on `/` means the
-   vault opened. If you see 503 after a restart, the secret is not reaching the process.
+   vault opened. **A 503 after a restart is expected on this tier** — the machine came back and is
+   waiting for you to ignite it (§5). It does not mean anything is broken.
 2. **The law is loaded.** `/admin` (through the proxy) shows law version and norm count. A production
    hub that serves at all has a law, but check the version is the one you installed.
 
