@@ -86,6 +86,7 @@ Where: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
 - [**core-spec/dictionary-entities.md**](core-spec/dictionary-entities.md) - Dictionary entity specification
 
 #### Protocols
+- [**core-spec/interface-planes.md**](core-spec/interface-planes.md) - **NEW**: Fact planes and exposure classes — how a surface is described, and what may not substitute for what
 - [**core-spec/mcp-protocol.md**](core-spec/mcp-protocol.md) - Model Context Protocol as inter-entity communication layer
 - [**protocols/web4-handshake.md**](protocols/web4-handshake.md) - HPKE-based handshake protocol
 - [**protocols/web4-metering.md**](protocols/web4-metering.md) - ATP/ADP resource exchange
