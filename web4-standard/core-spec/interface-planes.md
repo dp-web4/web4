@@ -136,11 +136,19 @@ A surface is described by its **(plane, exposure)** pair, and specifications and
 | surface | plane | exposure |
 |---|---|---|
 | society public page, tier-0 identity | D | public |
-| member queries over the membrane | C, D | member |
+| occupancy proof over the membrane | C | member |
+| historical and attribution queries over the membrane | D | member |
 | law amendment / role charter administration | A | operator |
 | act evaluation against law | B | member |
 | deployment-drift and gate-availability reporting | E | operator |
 | vault, sealed identity material | A | internal |
+
+The membrane row is decomposed on purpose, and it is the worked case for §2.1. "Member queries"
+is a natural way to name one surface, but it bundles *proving occupancy* — which answers whether a
+party may act in a role right now, and is authorization-bearing — with *answering a historical
+query*, which answers what is recorded and must never grant authority. Those are the two planes §3
+puts a **MUST NOT** between, so leaving them in one cell would render as one surface exactly the
+pair the invariant most insists are separable.
 
 Two consequences worth stating, because they are the cases that get built wrong:
 
@@ -181,8 +189,8 @@ An implementation conforms to this specification when:
 - `hub-law-schema.md` §0 — the RWOA+S+V governing invariant; §5 here is its R clause applied to
   interface design.
 - `entity-types.md`, `society-roles.md` — roles are plane-C objects; a role's *charter* is plane A.
-  `society-roles.md` §1.2 already distinguishes a society's **outward-facing** role, which is the
-  exposure axis appearing in the roles vocabulary.
+  `society-roles.md` §1.2 already distinguishes a society's **outward-facing** role, which is
+  a related outward/inward distinction in the roles vocabulary.
 - `MCP_ENTITY_SPECIFICATION.md` — the membrane, §7 here.
 - `SOCIETY_SPECIFICATION.md`, `inter-society-protocol.md` — a federation edge is a member-exposure
   surface between societies; what crosses it is classified by plane like any other surface.
