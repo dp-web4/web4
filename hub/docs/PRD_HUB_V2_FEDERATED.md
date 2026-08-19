@@ -30,8 +30,9 @@ Two invariants carry over unchanged and bound everything below:
 
 ## 2. Requirements
 
-Numbered R1–R8. R1–R6 are dp's directive (2026-08-12 verbatim intent, sharpened); R7 is the ratified
-hestia-transfer set; R8 is the proving use case.
+Numbered R1–R10. R1–R6 are dp's directive (2026-08-12 verbatim intent, sharpened); R7 is the ratified
+hestia-transfer set; R8 is the proving use case; **R9 and R10 were added 2026-08-18** — the two
+capabilities the AIC Portland pitch requires that this PRD did not previously ask for.
 
 ### R1. Fractal federation into peer societies
 
@@ -164,30 +165,115 @@ Related hubs (parent/child, member/greater) do **not** share law and never auto-
   time). Structural per-caller cost asymmetry manufactures fail-closed timeouts that then read as
   conduct — R7a's recording makes this visible; R7d makes it a criterion.
 
-### R8. The proving use case — AIC chapter/member management
+### R8. The proving use case — AIC Portland: split without fragmenting
 
-The first deployment target remains a volunteer-driven collective organized in chapters (AIC). The
-mapping is already almost 1:1 — this PRD makes it explicit and keeps it testable:
+**Sharpened 2026-08-18** after dp met the AI Collective Portland chapter. The pilot now has a
+governing question, a scale, and a working draft (*"Scaling Without Fragmenting"*), which turns R8
+from a mapping table into a deliverable list. The mapping below is unchanged where it held; what is
+new is the **question the pilot must answer** and the **two capabilities it needs that this PRD did
+not previously require**.
+
+**The governing question, verbatim from the chapter:**
+
+> How does Portland split without fragmenting?
+
+**Scale and constraints.** ~4,500 members, volunteer-led. Leadership attention is the scarce
+resource; administrative overhead competes directly with community work. Splitting risks silos;
+choosing one organizing axis (geography / interest / project / cause) too early may lock in the wrong
+structure for years.
+
+**The load-bearing design constraint this adds to R4/R5.** Communities, working groups, projects and
+events **MUST NOT** be four unrelated features. They differ in lifespan and purpose, not in kind —
+each is a context with membership, governance, relationships and a lifecycle. That is exactly the
+(role-entity | child-society) substrate R4 and R5 already specify, and stating it here makes it a
+requirement rather than an implementation preference. A fifth group shape must cost approximately
+nothing to add.
 
 | AIC operational need | Hub mechanism |
 |---|---|
-| Stand up a chapter | `hub init` — society + founding charter + 7 role defaults |
+| Stand up a chapter | `hub init` — society + founding charter + role defaults |
 | Onboard a member, verifiably | Admission queue + witnessed conferral with vouching basis (17A/17B) |
 | Officers / responsibilities | Role-entities (R4): chartered, conferrable, rotating without history loss |
+| Communities / working groups / projects / events | **One primitive** — role-entity or child society, differing only in lifecycle (R4 + R5) |
 | Bylaws that are actually enforced | Hub law: inspectable, machine-enforced at the gate, amendable by due process, every amendment witnessed |
 | Meeting / decision record | The witnessed ledger — append-only, tamper-evident, exportable |
 | Contribution that travels | Reputation per (entity, role), portable across chapters via federation edges (R1) |
-| "Who knows X in another chapter?" | Federated `find_members` (R1) under both chapters' laws |
-| National ↔ chapters without capture | Greater hub chartered for a narrow role (R2) + edge-scoped law compatibility instead of imposed bylaws (R6) |
+| "Who knows X?" | Semantic member discovery (**R9**) — the chapter's stated need is meaning, not keywords |
+| Getting two members talking | Consent-based introduction (**R10**) |
+| National ↔ chapters without capture | Greater hub chartered for a narrow role (R2) + edge-scoped law compatibility (R6) |
 | Chapter splits / working groups | Persistent role + newly ignited child society bound through a federation edge (R5) |
-| Trust in the record itself | Fractal ledger witnessing (R3) — chapters witness each other's heads |
+| Trust in the record itself | Fractal ledger witnessing (R3) |
 
-**Pain points CONFIRMED (dp, 2026-08-12)**: organizer time, non-portable reputation, invisible
-cross-chapter discovery, governance opacity — with the governing frame: AIC is a **nonprofit,
-volunteer-run** org, so governance must be **frictionless but well organized, and above all
-transparent/accountable**. That tension — enforcement usually adds friction — is the design spine:
-the law gate and the witnessed ledger do the bookkeeping so volunteers don't. The presentation
-deliverable (separate artifact, not this PRD) leads with that frame.
+**Pain points CONFIRMED (dp, 2026-08-12; re-confirmed and extended 2026-08-18)**: organizer time,
+non-portable reputation, invisible cross-chapter discovery, governance opacity — plus **premature
+axis lock-in**, which is the new one and the reason the pilot's first phase is modelling rather than
+building. Governing frame unchanged: a **nonprofit, volunteer-run** org, so governance must be
+**frictionless but well organized, and above all transparent/accountable**.
+
+#### R8.1 The burden criterion — measured, not asserted
+
+The chapter's own success test is *"the desired outcome is less administration."* Every other
+criterion in §6 is a differential test on mechanism; this one is about humans, and it is the one the
+pilot is actually judged on. It therefore needs a **baseline taken before anything is built**:
+
+- time and manual steps to stand up a new working group **today**;
+- manual steps per admission **today**;
+- who currently performs each, and how long the queue is.
+
+Without that baseline "less administration" is unfalsifiable — the failure mode this PRD keeps
+naming in other contexts, applied to its own proving use case.
+
+#### R8.2 Exit is a requirement, not a courtesy
+
+The chapter states as success that *"relationships can leave the platform without penalty"* and that
+another chapter can adopt the model *without Portland becoming its central administrator*. So
+**portability is a requirement**: the ledger, the member graph and a member's own context must be
+exportable in an open format, and a member or group leaving must not forfeit their record. A system a
+volunteer organization cannot leave is one it should not adopt.
+
+### R9. Member context and semantic discovery
+
+Members are more than profile keywords. Over time a member-controlled contextual profile accumulates
+interests, skills, experience, current projects, questions, causes, capabilities, and needs — and
+discovery operates over **meaning**, so that a member can ask *"who here has experience with
+distributed AI systems and might enjoy thinking about decentralized governance?"* rather than
+`Python + Portland + ML engineer`.
+
+- **Member-controlled.** The subject decides what enters their context and can inspect, correct and
+  withdraw it. Context accrues **only** with the member's knowledge — a profile silently assembled
+  from observed behaviour is a different product and is out of scope.
+- **Bounded results.** A small number of candidates, never a ranked feed. The absence of an infinite
+  result set is a design requirement, not a limitation to be lifted later.
+- **Least disclosure at match time.** A match **MUST NOT** reveal what it matched on. The system may
+  know two members are relevant to one another without exposing either's context to the other — this
+  is `PRD_AGENT_CONTEXT_ACCESS.md` §6.2's rule (*derived information counts as disclosure*) applied
+  to discovery, and it is what keeps semantic search from becoming an inference channel.
+- **Not a ranking of people.** Discovery surfaces relevance, never a score, standing, or league
+  table. A T3/V3 threshold gating who is discoverable would reproduce the `satisfied_by` inversion at
+  the discovery grain — evidence in, verdict with the relying party.
+- **Federated later, local first.** Cross-chapter discovery rides R1 and must satisfy both laws; the
+  pilot's phase 3 is local-only.
+
+### R10. Consent-based introduction
+
+The protocol, in full: **Discovery → Introduction request → Consent → Private channel.** Being
+findable is not being reachable.
+
+- **Consent precedes contact.** Discovery grants no channel. The addressed member's decline is
+  final, is **not** disclosed to the requester as a signal beyond "no", and is not published.
+- **The channel already exists**: sealed member↔hub paired channels ship today; R10 is the
+  authorization and consent flow in front of them, not a new transport.
+- **Authorization model is not re-derived.** `PRD_AGENT_CONTEXT_ACCESS.md` (dp, 2026-08-14) holds it
+  — citizenship as a floor and never sufficient, need-to-know narrowing, the receptionist surface for
+  callers with no standing, `ConversationGrant`, revocation, and authorization-before-retrieval. R10
+  **cites** that PRD; a second outward-authorization system would fork the model, which is the
+  failure the role-scope bridge §9 exists to prevent.
+- **Then get out of the way.** After the introduction the hub's job is done. Participants may
+  continue in the channel or leave entirely, and **leaving must carry no penalty** (R8.2).
+- **The metric is introductions, not engagement.** Time-on-platform is explicitly *not* a success
+  measure. Any feature justified by attention rather than by a successful introduction is out of
+  scope by construction.
+
 
 ## 3. Design questions needing dp rulings
 
@@ -203,6 +289,16 @@ deliverable (separate artifact, not this PRD) leads with that frame.
    delegation charter demands it. Ratify?
 5. **Sequencing** — endorse §5's phase order (in particular: R7a gates the reputation seam, and
    R4 lands before R2/R5 because both compose out of role-entities)?
+6. **R1 split (new, 2026-08-18)** — ratify §5.1's recommendation to build the **local parent↔child
+   edge** as a restriction of the R1 object, ahead of the peer edge, so R5 promotion can land at the
+   pilot's phase 2 instead of waiting for full peer federation? The alternative is to keep this
+   plan's order and tell Portland that subdivision waits on cross-organization federation it does not
+   need until phase 5.
+7. **R9/R10 scope (new, 2026-08-18)** — are member context, semantic discovery and consent-based
+   introductions in scope for *this* PRD, or do they belong in a companion product PRD that cites it?
+   They are requirements of the pitch either way; the question is whether the federated-hub document
+   is where they live. Related: `PRD_AGENT_CONTEXT_ACCESS.md` already holds R10's authorization
+   model and is itself awaiting review.
 
 ## 4. Current state (measured, 2026-08-12)
 
@@ -229,6 +325,37 @@ instrument), and `reputation_emit` (dark by design, pending dp + R7a).
 - **Phase 5 — R3 checkpoints** (if ruled in) for the edges whose law asks for them.
 - **Throughout — R8**: validate each phase against a real AIC chapter workflow; the presentation
   artifact follows the pain-point confirmation, not the other way around.
+
+### 5.1 Amendment (2026-08-18) — the pilot's proving order inverts this plan
+
+The Portland pilot proves capabilities in the order **subdivision first, federation last**: model the
+chapter and its proposed subdivisions (phase 1), perform one real subdivision (phase 2), then member
+context and discovery (3), introductions (4), and only then invite another chapter to federate (5).
+
+This plan sequences **R1 peer federation at Phase 2 and R5 promotion at Phase 4** — the opposite
+order. The tension is real and is **not** resolved by simply swapping them, because R5's mechanism is
+*"an ordinary federation edge (R1) with a role-scoped delegation"*: promotion needs an edge to exist.
+
+**Recommended resolution — split R1 by trust domain, not by feature.** A **parent↔child edge inside
+one operator's control** is a materially smaller problem than a peer edge between two sovereign hubs
+on two machines under two organizations:
+
+| | local (parent↔child) edge | peer edge |
+|---|---|---|
+| both endpoints | one operator, often one host | two organizations, two machines |
+| law compatibility (R6) | parent charter derives the child's | two independently amended laws |
+| identity resolution (R7b) | child ignited by the parent's operator | must resolve an asserted society |
+| transport | same membrane, may be loopback | network, availability, revocation latency |
+
+Building the local subset first delivers **R5 without R1's hard half**, which is what the pilot needs
+in its phase 2, and leaves the peer edge to be built when the pilot actually reaches phase 5. The
+risk to name: a local edge that quietly assumes shared operator control is not a federation edge, and
+if the two diverge, phase 5 pays. The subset must therefore be a **restriction** of the R1 object —
+same consent, same witnessing, same revocation — never a parallel one.
+
+**Also newly sequenced**: R9 (member context + discovery) and R10 (introductions) land at pilot
+phases 3 and 4, after the governance model has proved itself. Neither should start before R8.1's
+baseline exists, or the burden claim they are partly justified by cannot be evaluated.
 
 ## 6. Falsifiable acceptance criteria
 
@@ -267,6 +394,22 @@ instrument), and `reputation_emit` (dark by design, pending dp + R7a).
    a write to the deploy closure from a gated session is refused and escalatable.
 10. **R7d**: measured idle timeout rate per caller ≈ equal ≈ 0 across the fleet against hub
     endpoints; the pair-audit runs on a named cadence with a named owner.
+11. **R8.1 (burden)**: a baseline of time and manual steps — stand up a working group, process an
+    admission — is recorded **before** the pilot builds anything, and the same measurement after
+    phase 2 shows a reduction. A pilot that passes every mechanism criterion and fails this one has
+    failed; that is the point of stating it as a criterion rather than a hope.
+12. **R8.2 (exit)**: a member and a group can each export their record in an open format and leave;
+    the export verifies against the ledger after removal, and nothing in the remaining record
+    silently degrades. Differential: a chapter that adopts the model can be administered entirely by
+    its own operator, with the originating chapter's access revoked and no capability lost.
+13. **R9**: a member's context is inspectable, correctable and withdrawable by that member; a
+    discovery query returns a bounded candidate set; and a **match discloses nothing about what it
+    matched on** — differential: two members with materially different contexts that both match a
+    query yield candidate entries indistinguishable to the requester.
+14. **R10**: a declined introduction produces no channel, no retry-with-more-information affordance,
+    and no disclosure beyond the decline itself; an accepted one produces a channel neither party
+    needs the hub to keep using. Differential: after acceptance, both parties leave the hub entirely
+    and the relationship is unaffected.
 
 ## 7. Non-goals
 
