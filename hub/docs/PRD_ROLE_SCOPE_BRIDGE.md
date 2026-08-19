@@ -7,10 +7,11 @@ EXTENSION POINTS, and §9 adds the outward direction. See §11 for the correspon
 why a PR-thread watcher could not have seen those rulings.
 **Author**: claude-code (CBP), 2026-08-14.
 **Twin**: `hestia/docs/PRD_ROLE_SCOPE_BRIDGE.md` — the enforcement side of the same bridge, **merged
-to `hestia` main 2026-08-15** (dp-web4/hestia#433). The CONCEPTS section (§2 there, mirrored in §2
-here) is normative for BOTH documents; each side details only its own mechanics. Amend the shared
-concepts in both PRs or neither — and **verify convergence against the twin's git history, not
-against its PR thread** (§11).
+to `hestia` main 2026-08-15** (dp-web4/hestia#433). Each side details only its own mechanics. The
+CONCEPTS section has a single **normative home — twin §2** — which this document summarizes
+non-normatively and cites by `concepts_generation` (§2); it is not mirrored here, and is not amended
+here. Currency is checked by comparing that generation, and everything else that is genuinely shared
+is verified **against the twin's git history, not against its PR thread** (§11).
 **Relates to**: `PRD_HUB_V2_FEDERATED.md` R4 (roles as entities — the role scope manifest extends the
 R4 charter), R7b (asserted-asker law), R1/R2 (cross-hub occupancy, deferred), `ROLES.md`, `HUB-LAW.md`,
 `hestia/docs/PRD_GATE_CONSOLIDATION.md` (one authority path), web4's RWOA+S+V accountability norm
@@ -41,7 +42,33 @@ bounded by a member-level clearance the occupant's operator approved. The hub be
 while they fill it" — and rotation, revocation, and charter amendment all take working scope with
 them automatically.
 
-## 2. Concepts (shared with the twin; summary)
+## 2. Concepts — NON-NORMATIVE SUMMARY (normative home: twin §2, `concepts_generation: 1`)
+
+**The normative text is `hestia/docs/PRD_ROLE_SCOPE_BRIDGE.md` §2.** This section is a reading aid so
+the hub side is legible standalone; it is *not* a mirror and must not be amended as though it were.
+Where this summary and the home differ in substance, **the home governs and this text is the defect**.
+
+**Checking currency** (replaces the diff-based rule this document's §11 previously stated): compare
+the `concepts_generation` cited above against the home's. An integer here that is lower than the
+home's means this summary predates an amendment — that is the finding, and it is detectable without
+reading either text. Amend the home, bump there, then re-point here.
+
+**What this summary deliberately omits**, so no reader mistakes it for complete:
+
+- the **T0/T1/T2 proof-tier table** — which evidence each tier demands at act time, and which classes
+  sit at each. This document names `T2` in §6.3 and reasons about T1/T2 in §10 **using definitions
+  that exist only in the home**;
+- the invariant that **a high-tier grant at rest confers nothing** — holding a T2 item means the gate
+  will *entertain* the act and demand the second factor then and there. Multifactor is per-act
+  evidence, never a property of the grant;
+- that the flow rule is **evaluated per-item at delivery and re-checked at act time**, not once;
+- the illustrative class spellings, and the withheld-and-disclosed detail.
+
+The first two are load-bearing for anyone implementing the hub's half: the hub records the tier an
+item demands (§3.1) without deciding what discharges it, and an implementer reading only this
+document would find no definition of what it is recording.
+
+---
 
 - **Permission CLASS**: a named capability category a member holds by **operator** approval on the
   hestia side — the clearance / signing-authority analog. Classes are the unit of human judgment.
@@ -470,7 +497,7 @@ failure is visible.
 | this document | `hestia/docs/PRD_ROLE_SCOPE_BRIDGE.md` | normative owner |
 |---|---|---|
 | §0 Directive | §0 Directive | dp (verbatim, both) |
-| §2 Concepts | §2 Concepts | **shared — amend both or neither** |
+| §2 Concepts (non-normative summary) | §2 Concepts | **NORMATIVE HOME: twin.** Not mirrored. Checked by `concepts_generation`, not by diff |
 | §3 Mechanics — hub side | §3 Mechanics — hestia side | each its own |
 | §5 Acceptance criteria (hub) | §6 Acceptance criteria (end-to-end) | criterion 3 is JOINT |
 | §6 Extension points | §7 Extension points | **shared for 6.1–6.4; §6.5 is hub-only** |
@@ -482,5 +509,27 @@ failure is visible.
 on the twin**, not as a comment on either PR. Any process watching a PR thread is structurally
 incapable of seeing it. Convergence is therefore checked by **reading the twin's git history for
 this file** — `git log -- docs/PRD_ROLE_SCOPE_BRIDGE.md` — and comparing against the table above,
-not by reading the twin's PR conversation. A row whose two cells no longer say the same thing is the
-finding.
+not by reading the twin's PR conversation. For the rows that are genuinely two copies of one text, a
+row whose two cells no longer say the same thing is the finding.
+
+**Amended 2026-08-18 — that rule did not cover §2, and could not.** When this section was written it
+listed §2 as "shared — amend both or neither" and made a cell-versus-cell comparison the detector.
+But §2 here was a 16-line summary and §2 on the twin ran 42 lines including the proof-tier table:
+**the cells had never said the same thing, so a difference-detector could not distinguish the
+intended asymmetry from a real divergence, and would have reported the same difference forever.** A
+guard whose output does not change when the thing it guards changes is not a guard.
+
+§2 is therefore no longer a shared row. It has a **normative home on the twin** and a
+`concepts_generation` here, and its check is an integer comparison that *can* go red — run it with
+two greps, no reading required:
+
+```
+grep -m1 concepts_generation hub/docs/PRD_ROLE_SCOPE_BRIDGE.md          # this side's citation
+grep -m1 concepts_generation <hestia>/docs/PRD_ROLE_SCOPE_BRIDGE.md     # the home's current value
+# lower here  ⇒  this summary predates an amendment; re-point it
+```
+
+The general lesson, and it applies to every remaining "shared" row above: **a convergence rule is
+only as good as the difference it is able to report.** Rows that are two copies of one text can be
+diffed. Rows where one side legitimately says less need a version, not a comparison — otherwise the
+detector's silence and its alarm look identical.
