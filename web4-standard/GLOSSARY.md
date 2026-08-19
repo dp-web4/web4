@@ -8,7 +8,14 @@
 - **Formula**: `Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP`
 - **Operators**: `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
 - **Nature**: Web4 is an **ontology** — a formal structure of typed relationships, not a flat component list
-- **MCP**: I/O membrane — bridges AI models to external resources
+- **MCP**: I/O membrane — bridges AI models to external resources. The membrane is *how* something is
+  carried across a boundary; it is not a plane and a plane is never inferred from it
+  (`core-spec/interface-planes.md` §7)
+- **Fact plane**: what kind of fact a surface handles — governance authority (A), gate execution (B),
+  occupancy & authorization (C), attribution & witness (D), infrastructure telemetry (E). No plane may
+  silently substitute for another (`core-spec/interface-planes.md`)
+- **Exposure class**: who may reach a surface — public, member, operator, internal. A property of the
+  surface, not of the deployment; reachability is weak evidence, never authority
 - **RDF**: Ontological backbone — all trust relationships are typed RDF triples, all MRH graphs are RDF
 - **LCT**: Presence substrate — verifiable presence reification
 - **T3/V3\*MRH**: Trust/Value tensors *contextualized by* Markov Relevancy Horizon — trust only exists within role-scoped fractal context
