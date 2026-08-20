@@ -49,9 +49,21 @@ the hub side is legible standalone; it is *not* a mirror and must not be amended
 Where this summary and the home differ in substance, **the home governs and this text is the defect**.
 
 **Checking currency** (replaces the diff-based rule this document's §11 previously stated): compare
-the `concepts_generation` cited above against the home's. An integer here that is lower than the
-home's means this summary predates an amendment — that is the finding, and it is detectable without
-reading either text. Amend the home, bump there, then re-point here.
+the `concepts_generation` cited above against the home's. The comparison has **three** outcomes, and
+the third is the one a two-state check loses:
+
+| home's generation | verdict |
+|---|---|
+| equal to the citation above | **CURRENT** |
+| greater than the citation | **STALE** — this summary predates an amendment; re-point it |
+| **absent or unreadable** | **UNDETERMINED** — *not* current |
+
+The third row is load-bearing (GPT review, 2026-08-20). If the home is renamed, moved, or loses its
+marker, the grep that implements this check returns nothing — and nothing, compared against an
+integer, is not less-than. A two-state reading therefore reports a missing home as *not stale*, which
+is the absence-reads-as-OK shape this PRD family keeps finding in its own instruments. UNDETERMINED
+is fail-closed by construction: it is a finding to be resolved, never a pass. Amend the home, bump
+there, then re-point here.
 
 **What this summary deliberately omits**, so no reader mistakes it for complete:
 
