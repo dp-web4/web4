@@ -462,10 +462,13 @@ pub(crate) async fn members(State(s): State<RestState>) -> Result<Html<String>, 
                 // and cannot self-repair — both self-service paths short-circuit
                 // on `already_member` before pinning anything (rest.rs
                 // `request_citizenship` / `/members/join`). Only an operator
-                // re-key clears it. NOT a legacy-only state: `/tools/add_member`
-                // and the Sovereign `AddMember` envelope action both still mint
-                // keyless members today, so the old "(pre-V2-12)" label told the
-                // operator this could not have been created recently.
+                // re-key clears it. NOT a legacy-only state, so the old
+                // "(pre-V2-12)" label told the operator this could not have been
+                // created recently. Every minting path now *accepts* a pubkey
+                // (`--pubkey-hex`, `/tools/add_member`, the Sovereign
+                // `AddMember` action) and warns when one is omitted — but the
+                // field is still optional for back-compat, so this row is
+                // reachable by a caller that declines to key at mint.
                 "<span class=\"pill pill-warn\">no (operator re-key needed)</span>"
             };
             body.push_str(&format!(
@@ -1476,9 +1479,10 @@ mod tests {
 
     /// The warning must still FIRE for the state it exists to report, or the
     /// two fixes above would have been "stop warning" rather than "warn
-    /// accurately". An ordinary member added with no pubkey — which
-    /// `/tools/add_member` and the Sovereign `AddMember` envelope action both
-    /// still mint today — is genuinely unable to open a sealed channel.
+    /// accurately". An ordinary member added with no pubkey — still reachable,
+    /// since key-at-mint made `member_pubkey_hex` available on every minting
+    /// path but left it optional for back-compat — is genuinely unable to open
+    /// a sealed channel.
     #[tokio::test]
     async fn an_ordinary_keyless_member_is_still_warned_and_the_label_does_not_claim_it_is_legacy() {
         let (_tmp, s) = fresh_rest_state(None).await;

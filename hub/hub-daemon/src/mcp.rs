@@ -13,7 +13,7 @@
 //! - GET  /tools/query_hub       → hub identity + role-fill snapshot + recent events
 //! - GET  /tools/list_members    → all current members (projected from ledger)
 //! - GET  /tools/find_skill      → ?q=...  case-insensitive skill search
-//! - POST /tools/add_member      → {member_lct_id, name?} — records MemberAdded
+//! - POST /tools/add_member      → {member_lct_id, name?, member_pubkey_hex?} — records MemberAdded
 //! - POST /tools/assign_role     → {role, role_lct_id, member_lct_id} — records RoleAssigned
 //! - POST /tools/record_event    → {event_kind, title, attended_by, held_at?}
 //! - POST /tools/declare_skill   → {member_lct_id, skill} — records MemberSkillDeclared
@@ -332,6 +332,12 @@ struct AddMemberRequest {
     member_lct_id: Uuid,
     #[serde(default)]
     name: Option<String>,
+    /// Member's Ed25519 public key, hex (64 chars), pinned in the same
+    /// `MemberAdded`. Optional only for back-compat: a member minted without
+    /// one can never open a sealed channel and cannot self-repair, so omitting
+    /// it hands the operator a row only they can fix.
+    #[serde(default)]
+    member_pubkey_hex: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -347,11 +353,16 @@ async fn add_member(
     Json(req): Json<AddMemberRequest>,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
     require_loopback(&peer)?;
+    // Validate before appending: a mistyped key pinned into the ledger is
+    // indistinguishable from a real one until the member's first envelope
+    // fails to verify, and by then the row is already written.
+    hub_lib::hub::validate_member_pubkey_hex(req.member_lct_id, req.member_pubkey_hex.as_deref())
+        .map_err(|e| ApiError::bad_request(format!("{:#}", e)))?;
     let event = HubEvent::MemberAdded {
         member_lct_id: req.member_lct_id,
         added_by: s.sovereign_lct_id,
         member_name: req.name,
-        member_pubkey_hex: None,
+        member_pubkey_hex: req.member_pubkey_hex,
     };
     append_with_sovereign(&s, event).await
 }
@@ -712,7 +723,18 @@ mod tests {
     }
 
     fn add_member_req() -> AddMemberRequest {
-        AddMemberRequest { member_lct_id: Uuid::new_v4(), name: Some("Probe".into()) }
+        AddMemberRequest {
+            member_lct_id: Uuid::new_v4(),
+            name: Some("Probe".into()),
+            member_pubkey_hex: None,
+        }
+    }
+
+    /// A real Ed25519 public key, hex — not `"00".repeat(32)`, which is not a
+    /// valid point and is exactly what the new validator rejects.
+    fn real_pubkey_hex() -> String {
+        use web4_core::crypto::KeyPair;
+        KeyPair::generate().verifying_key().to_hex()
     }
 
     /// A law that pins one `decision` onto one event kind. `check_governance`
@@ -1091,4 +1113,57 @@ mod tests {
             "the build stamp is a property of the artifact, identical across societies"
         );
     }
+
+    // ---------- key-at-mint (/tools/add_member) ----------
+
+    /// The blocker this change closes: `/tools/add_member` had no pubkey field
+    /// at all, so the natural way to admit a member produced a row that can
+    /// never key itself — `/members/join` and `request_citizenship` both
+    /// short-circuit on `already_member` before pinning, leaving an operator
+    /// re-key as the only exit. A key supplied at mint must reach the
+    /// projection, or the field is decoration.
+    #[tokio::test]
+    async fn add_member_pins_a_supplied_key_at_mint() {
+        let (_tmp, rest) = fresh_rest_state(None).await;
+        let s = mcp_over(&rest).await;
+        let member = Uuid::new_v4();
+        let pk = real_pubkey_hex();
+
+        add_member(State(s.clone()), loopback(), Json(AddMemberRequest {
+            member_lct_id: member,
+            name: Some("Keyed".into()),
+            member_pubkey_hex: Some(pk.clone()),
+        })).await.expect("a keyed add is admitted");
+
+        let ledger = s.ledger.lock().await;
+        let projected = HubState::project(&ledger);
+        assert!(projected.members.contains_key(&member), "the member landed");
+        assert_eq!(
+            projected.member_pubkeys.get(&member), Some(&pk),
+            "the key must land in member_pubkeys — that map is what seeds the \
+             resolver at startup, so a key that misses it is a key the member \
+             cannot sign with"
+        );
+    }
+
+    /// A mistyped key is worse than no key: it is indistinguishable from a real
+    /// one until the member's first envelope fails to verify, and by then the
+    /// ledger has already witnessed it. Reject at the door.
+    #[tokio::test]
+    async fn add_member_rejects_a_malformed_key_before_appending() {
+        let (_tmp, rest) = fresh_rest_state(None).await;
+        let s = mcp_over(&rest).await;
+        let (before_index, _) = head(&s).await;
+
+        let err = add_member(State(s.clone()), loopback(), Json(AddMemberRequest {
+            member_lct_id: Uuid::new_v4(),
+            name: None,
+            member_pubkey_hex: Some("not-hex".into()),
+        })).await.err().expect("a malformed key is refused");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST, "malformed input is a 400, not a 500");
+
+        let (after_index, _) = head(&s).await;
+        assert_eq!(after_index, before_index, "and nothing was appended");
+    }
+
 }

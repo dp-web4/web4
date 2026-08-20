@@ -302,6 +302,37 @@ the gap by pinning that member's channel key (`hub set-member-key <dir> <lct-id>
 <pubkey-hex>`) so future verification can resolve them; entries signed before a key
 was pinned can't be retroactively resolved.
 
+### A member was minted with no key and can't open a sealed channel
+
+The members page shows `no (operator re-key needed)` for them, and their channel
+requests fail. **A keyless member cannot fix itself.** Both self-service paths —
+`POST /v1/hubs/<id>/members/join` and the `request_citizenship` channel action —
+short-circuit on `already_member` before pinning anything, so re-joining under
+the *same* LCT changes nothing no matter how many times it is tried.
+
+Two exits, in cost order:
+
+1. **Operator re-key** — `hub set-member-key <dir> <lct-id> <pubkey-hex>` (writes
+   the store; the running daemon's resolver stays stale until restart), or the
+   no-restart operator-plane equivalent on `127.0.0.1:8772`. Costs an operator
+   with the vault passphrase on an encrypted chapter.
+2. **Re-join under a fresh LCT** — the applicant mints a new LCT and joins with
+   its pubkey in the envelope, where admission pins it. No operator needed. The
+   old row stays as a stub; remove it if it matters.
+
+**Prevention: key at mint.** Every minting path takes the pubkey now, and the
+one that skips it says so on stdout and in the log:
+
+```bash
+hub add-member <dir> <lct-id> --name Alice --pubkey-hex <64-hex>
+# POST /tools/add_member  { member_lct_id, name?, member_pubkey_hex? }
+# envelope action         { "action": "add_member", ..., "member_pubkey_hex": "…" }
+```
+
+Key-at-join works; key-after-membership does not. A member keyed at mint through
+the envelope action is also inserted into the *live* resolver, so it can sign
+without waiting for a `serve` restart.
+
 ### Sovereign LCT path resolution errors after moving the chapter dir
 
 `hub init` stores an **absolute** Sovereign LCT path in `config.toml`. If you move `sovereign.json` after init, edit `config.toml`'s `[sovereign].lct_path` to the new absolute path. Then `hub verify-ledger` will find it.
