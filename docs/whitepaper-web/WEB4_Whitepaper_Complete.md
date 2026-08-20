@@ -309,7 +309,7 @@ Web4 is developed in the open as a **normative standard with reference implement
 - **[`ontology/`](https://github.com/dp-web4/web4/tree/main/web4-standard/ontology)** — the RDF backbone as machine-readable artifacts (Turtle ontologies, JSON-LD contexts)
 - **[`test-vectors/`](https://github.com/dp-web4/web4/tree/main/web4-standard/test-vectors)** and **[`profiles/`](https://github.com/dp-web4/web4/tree/main/web4-standard/profiles)** — conformance vectors by subsystem, and deployment profiles (edge device, cloud service, peer-to-peer)
 
-Specification status is marked per document — some are v1.0 core specifications, others are drafts under active revision. The standard is versioned in public; its history is its changelog.
+Specification status is marked unevenly. Some documents carry an explicit status line — v1.0 core specification, draft under active revision, proposed standard — and many carry none at all, including the specs for several of the mechanisms listed above. Where a document is unmarked, read its status as unsettled rather than settled: absence of a status line is not a claim of stability. The standard is versioned in public; its history is its changelog.
 
 ## Reference implementations
 
@@ -515,4 +515,4 @@ To contribute to Web4 development or request access to additional technical docu
 
 ---
 
-*Generated: 2026-07-30 04:38:41*
+*Generated: 2026-08-20 04:44:49*
