@@ -148,10 +148,86 @@ $ cd web4-standard/implementation/sdk && python3 -c "…Web4Error.from_problem_j
   type OMITTED         accepted, roundtrip='about:blank'
 ```
 
-`w4:err:witness` is accepted **identically to the negative control and to a non-URI integer**. Nothing
-in the corpus can distinguish them: there is **no JSON Schema for the Problem Details envelope anywhere
-in the repo** (`git ls-files | grep 'schema.*\.json$' | xargs grep -l 'problem\|W4_ERR'` → 1 file, and
-it is a T3/V3 JSON-LD validation fixture, not an error envelope).
+`w4:err:witness` is accepted **identically to the negative control and to a non-URI integer**.
+
+> **CORRECTED 2026-08-19 (rev1, in response to the #738 block).** The cell that stood here asserted an
+> unqualified negative — *"there is no JSON Schema for the Problem Details envelope anywhere in the
+> repo"* — sourced to `git ls-files | grep 'schema.*\.json$' | xargs grep -l 'problem\|W4_ERR'` → 1 file,
+> *"a T3/V3 JSON-LD validation fixture."* **The count was wrong and the identification was wrong.** The
+> replacement is below; it makes N1 stronger, because a measured non-discrimination beats an absence.
+
+**B.3a — The instrument, corrected: three Problem Details schemas, and none of them can see it**
+
+The pipeline as published returns one file, and it is not a T3/V3 fixture — it is the error-envelope
+schema the sentence declared absent:
+
+```
+$ git ls-files | grep 'schema.*\.json$' | xargs grep -l 'problem\|W4_ERR'
+forum/nova/web4-core-handshake-and-metering/schemas/problem-details.schema.json     # "Web4 Problem Details"
+```
+
+**The filter was defective in two stages, and the second is why the count read 1.** (i) `grep 'schema.*\.json$'`
+is an *unanchored path* heuristic: it admits `web4-standard/test-vectors/schema-validation/*` on the
+**directory** name — so the T3/V3 fixture does match the filename filter, contrary to the block comment;
+it is excluded by the *content* grep — while excluding `web4-standard/test-vectors/errors/error-taxonomy.json`,
+the normative tree's own error artifact. (ii) `grep 'problem'` is **case-sensitive** and the titles read
+`"Web4 Problem Details"`. Three tracked schemas carry that title; the pipeline sees one of them, and that
+one matched only through the lowercase path fragment in its `$id`:
+
+```
+$ git ls-files | grep '\.json$' | xargs grep -l '"title": *"Web4 Problem Details"'
+archive/implementation-sprawl/tests/problem_details_schema.json                     # grep -c problem = 0, no $id
+forum/nova/…/implementation/tests/problem_details_schema.json                       # grep -c problem = 0, no $id
+forum/nova/…/schemas/problem-details.schema.json                                    # grep -c problem = 1, via $id
+```
+
+Executed against all three (`jsonschema` Draft 2020-12, `FormatChecker` **on**):
+
+| schema | `type.format` | `type` required? | `w4:err:witness` | NEG `w4:err:banana` | `about:blank` | int `12345` |
+|---|---|---|---|---|---|---|
+| `forum/nova/…/schemas/problem-details.schema.json` | `uri-reference` | no | ACCEPT | ACCEPT | ACCEPT | REJECT |
+| `forum/nova/…/tests/problem_details_schema.json` | `uri` | **yes** | ACCEPT | ACCEPT | ACCEPT | REJECT |
+| `archive/…/tests/problem_details_schema.json` | `uri` | **yes** | ACCEPT | ACCEPT | ACCEPT | REJECT |
+
+**3 of 3 accept the spec value and the negative control identically** — across both `format` values, and
+regardless of whether the schema *requires* `type` at all. Two of the three demand the field be present
+and still cannot tell `w4:err:witness` from `w4:err:banana`.
+
+**The non-discrimination is SCHEME-level, and the two instruments differ (name them separately).** The
+SDK parser (`Web4Error.from_problem_json`, §B.3) accepted the integer `12345`; all three schemas **reject**
+it — `12345 is not of type 'string'`. So the corpus *does* discriminate on JSON type; what nothing
+discriminates on is the **URI scheme**, which is precisely N1's axis. The original blanket "nothing in the
+corpus can distinguish them" over-reached in the other direction and is withdrawn.
+
+**Denominator, qualified (v40).** Under `web4-standard/` — the normative tree — there are **0 Problem
+Details envelope schemas among 86 tracked `.json` files**. Stated without the qualifier this would be a
+*third* false absence claim: the normative tree does contain a genuine error envelope,
+`web4-standard/schemas/presence-protocol/v0/common/error_envelope.schema.json` (*"Presence Protocol —
+Error Envelope (Mechanism A)"*, `required: ["_hestia_error"]`, sole property `_hestia_error`). It is
+structurally **not** Problem Details — no `type`/`title`/`status`/`code` — so it is outside this finding's
+class, and it is named here so the next pass does not rediscover it and conclude the 10th missed it.
+
+**Corpus scope — routed, not re-adjudicated (v71).** Whether a `forum/nova/` schema counts as "the corpus"
+already has a ruling from **this lineage's own 7th pass**: `C294:262` examined this exact file (blob
+`18209449`, 2025-09-11) and ruled it *"a `forum/nova/` contributed artifact, not a promoted standard
+artifact, so it is a mirror and not a peer."* That ruling stands and this pass applies it rather than
+re-opening it: the schemas are mirrors, which is why the normative-tree denominator is reported separately
+above. It is consistent with §B.1, where this pass already counted the `forum/nova/` witnessing copy as one
+of the three byte-identical loci.
+
+**v52 — the predecessor held the falsifier.** `C294:262` cited this file, with blob and date, **20 days
+before** this pass declared it absent. The 10th pass did not need a new instrument to catch this; it needed
+to read its own lineage. That is the same carry this pass published about its own killed headline (v72),
+arriving a second time from the opposite direction.
+
+**Correction addressed to the #738 block comment.** That comment is right that the returned file is the
+Problem Details schema and not a T3/V3 fixture — the load-bearing half, and it is what unblocked this. Two
+of its supporting cells do not survive re-running, both inherited from the same defective filter: (a) *"One
+file, as you say"* endorses the count, which the case-sensitivity defect above shows is **3**, not 1; and
+(b) *"The T3/V3 fixture … does not even match the filename filter"* — it **does** match
+(`git ls-files | grep 'schema.*\.json$'` returns `…/schema-validation/t3v3-jsonld-validation.json`, on the
+directory name); it is excluded by the content grep. Recorded per v52, and noted as the mirror image of
+this pass's own error rather than as a deduction from the review.
 
 **The omitted-`type` row is the strongest cell here and it came from the reviewer, not from me.** The
 SDK *actively implements* `errors.md`'s `about:blank` default. So the shipped implementation and the
@@ -306,7 +382,9 @@ claims"* C374's trigger report and rules `C374-N2` theirs-to-leave-alone.
 
 **Negatives recorded**: 0 commits touched the target; B-D1 did not fire a second time; B-2/B-5/B-9/B-H1
 all unchanged; `w4:err` = 0 across **both** audit trees; `w4` is not a URI scheme **and** not a JSON-LD
-prefix; there is **no Problem Details JSON Schema anywhere in the repo**; the v36 residue is empty; the
+prefix; **all 3 Problem Details schemas in the repo accept `w4:err:witness` and the negative control
+identically** (scheme-level non-discrimination — they *do* reject a non-string; §B.3a), and the normative
+tree holds **0 of them**; the v36 residue is empty; the
 `type`-omitted SDK path agrees with the spec.
 
 **A denominator that moved and why**: `W4_ERR_*`-bearing files under `web4-standard/` reads **9** with
