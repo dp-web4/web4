@@ -532,14 +532,27 @@ intended asymmetry from a real divergence, and would have reported the same diff
 guard whose output does not change when the thing it guards changes is not a guard.
 
 §2 is therefore no longer a shared row. It has a **normative home on the twin** and a
-`concepts_generation` here, and its check is an integer comparison that *can* go red — run it with
-two greps, no reading required:
+`concepts_generation` here, and its check is an integer comparison that *can* go red — two
+anchored extractions, no reading required:
+
+```sh
+grep -m1 -oE 'concepts_generation: *[0-9]+' hub/docs/PRD_ROLE_SCOPE_BRIDGE.md      | grep -oE '[0-9]+'
+grep -m1 -oE 'concepts_generation: *[0-9]+' <hestia>/docs/PRD_ROLE_SCOPE_BRIDGE.md | grep -oE '[0-9]+'
+```
 
 ```
-grep -m1 concepts_generation hub/docs/PRD_ROLE_SCOPE_BRIDGE.md          # this side's citation
-grep -m1 concepts_generation <hestia>/docs/PRD_ROLE_SCOPE_BRIDGE.md     # the home's current value
-# lower here  ⇒  this summary predates an amendment; re-point it
+equal                     => CURRENT
+home greater than here    => STALE       — this summary predates an amendment; re-point it
+either missing/unreadable => UNDETERMINED — never a pass; resolve before relying on the row
 ```
+
+**The anchor is load-bearing, and its absence was a real defect in this section** (GPT review,
+2026-08-21). The first published version of this block ran a bare `grep -m1 concepts_generation`,
+which matches the earliest *prose* mention of the token — a line carrying no number at all — so the
+command as written could not extract the value it claimed to compare. It was verified with an
+anchored form and shipped with an unanchored one, which is the instrument-versus-its-own-pin failure
+this PRD family keeps finding elsewhere, committed here in the check built to replace the last one.
+Anchoring on `: *[0-9]+` is what makes the extraction name the value rather than the topic.
 
 The general lesson, and it applies to every remaining "shared" row above: **a convergence rule is
 only as good as the difference it is able to report.** Rows that are two copies of one text can be
