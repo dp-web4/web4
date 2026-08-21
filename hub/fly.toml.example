@@ -1,0 +1,81 @@
+# Web4 Community Hub — Fly.io deployment (managed host, platform terminates TLS).
+#
+# Copy to the WEB4 REPO ROOT as `fly.toml`, not into hub/. The Dockerfile has
+# path-dependencies on sibling crates (web4-core, web4-trust-core, web4-policy),
+# so the build context must be the repo root — Fly uses the directory containing
+# fly.toml as the context.
+#
+#   cp hub/fly.toml.example ./fly.toml
+#   $EDITOR fly.toml            # set app name and primary_region
+#
+# See hub/docs/DEPLOY-CLOUD.md for the full runbook, including the one-time
+# `hub init` and the key-custody tiers.
+#
+# KEY CUSTODY (dp, 2026-08-18): a TPM / secure module is the target and is not
+# implemented anywhere in the stack yet; absent one, the hub BOOTS LOCKED and
+# waits for `hub unlock`. That is this config's posture, and it is why no
+# passphrase secret is set here. Passphrase-from-environment (HUB_PASSPHRASE)
+# self-ignites but is a temporary dev convenience, tolerated for now and NOT a
+# production-acceptable solution -- so a restart here leaves the hub answering
+# 503 until a human ignites it through `fly proxy`. The auto_stop/min_machines
+# settings below exist to make that rare; the health check makes it VISIBLE -- but
+# only because it targets a non-tier-0 path (see the [[http_service.checks]] note).
+
+app = "CHANGE-ME-your-chapter"
+primary_region = "CHANGE-ME"          # e.g. "ord" — pick one near your members
+
+[build]
+  dockerfile = "hub/Dockerfile"
+
+[env]
+  # Production profile: refuses to serve without a law, and requires an operator
+  # token for the operator plane rather than trusting reachability.
+  HUB_PROFILE = "production"
+
+# The chapter directory — charter, ledger, vault, config. This is the only
+# durable state; everything else in the image is disposable.
+[[mounts]]
+  source = "chapter_data"
+  destination = "/chapter"
+
+# PUBLIC PLANE ONLY (fact planes D/C at public+member exposure).
+#
+# The operator plane is NOT listed here and MUST NOT be. The daemon binds it to
+# 127.0.0.1 unconditionally — `plane_addrs()` hardcodes Ipv4Addr::LOCALHOST
+# regardless of --bind — so it is unreachable from outside the machine by
+# construction. Reach it with `fly proxy 8772:8772` (see the runbook).
+[http_service]
+  internal_port = 8770
+  force_https = true
+  auto_stop_machines = false          # a society that sleeps stops witnessing
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 50
+    hard_limit = 100
+
+# Liveness against the public plane. The path matters more than it looks like it
+# does: a LOCKED hub still answers 200 on `/`, because the landing page is on the
+# tier-0 allowlist (`locked_tier0_allows`, hub-daemon/src/rest.rs) so a human can
+# open it and read the 🔒. A check on `/` therefore reports HEALTHY for a hub that
+# refuses every real request -- exactly the outage this tier needs to page you for.
+#
+# `/tools` is on the public plane and is NOT tier-0, so the lock-gate refuses it at
+# 503 while locked (pinned by `the_other_operator_pages_stay_refused_while_locked`,
+# hub-daemon/src/main.rs). That is the correct signal: running but not ignited, and
+# it should read as unhealthy until it is.
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/tools"
+
+[processes]
+  app = "serve /chapter/data --bind 0.0.0.0 --port 8770"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"                    # NOT measured for this image — see runbook before trimming

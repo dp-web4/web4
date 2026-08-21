@@ -186,6 +186,7 @@ Read `docs/QUICKSTART.md` for the chapter-organizer onboarding walkthrough.
 | Doc | Purpose |
 |-----|---------|
 | [`docs/QUICKSTART.md`](docs/QUICKSTART.md) | Chapter-organizer onboarding (5-min deploy, 30-min first event) |
+| [`docs/DEPLOY-CLOUD.md`](docs/DEPLOY-CLOUD.md) | Managed-host deploy (platform TLS, persistent volume, restart survival) |
 | [`docs/PRD.md`](docs/PRD.md) | Formal PRD — problem, solution, scope, requirements, risks |
 | [`docs/SPRINTS.md`](docs/SPRINTS.md) | Sprint 0 → 6 plan, exit criteria each |
 | [`docs/HUB-LAW.md`](docs/HUB-LAW.md) | Template + guidance for writing hub law |
