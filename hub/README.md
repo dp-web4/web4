@@ -41,18 +41,18 @@ We don't mandate the policy. We insist that whatever the policy is, is followed 
 | 5 | Docker package + first-chapter demo scripts | ✓ (Docker untested on dev machine; first operator with Docker should report) |
 | 6 | Pilot-organizer docs + polish | ✓ |
 
-**Sprint F0 — Phase 0 of the federated PRD (2026-08, landed).** [`docs/PRD_HUB_V2_FEDERATED.md`](docs/PRD_HUB_V2_FEDERATED.md)
+**Sprint F0 — Phase 0 of the federated PRD (2026-08, *partially* landed).** [`docs/PRD_HUB_V2_FEDERATED.md`](docs/PRD_HUB_V2_FEDERATED.md)
 is the maintained north star for what the hub becomes: peer federation, greater hubs chartered for a
 narrow role, fractally-joinable ledgers, roles as runtime entities, roles promotable into sub-hubs,
 and edge-scoped law compatibility rather than shared law. **R1–R6 are specified and unbuilt** — the
-PRD carries falsifiable acceptance criteria so that is checkable rather than asserted. Phase 0, which
-gates the rest, has landed:
+PRD carries falsifiable acceptance criteria so that is checkable rather than asserted. Phase 0 gates
+the rest and is **not yet complete** — R7c is partial and R7d has not started:
 
 | | capability | status |
 |---|---|---|
 | R7a | degraded-event recording; reputation deltas carry a conduct-vs-infra class, and infra never scores as conduct | ✓ (#703) |
-| R7b | asserted-asker admission — a self-asserted identity collects no peer factors | ✓ (#706) |
-| R7c | deploy ratification — the running binary self-reports; **currency is not ratification** | ✓ (#708) |
+| R7b | asserted-asker admission — a self-asserted identity collects no peer factors | core landed (#706); witnessed sponsor-vouch completion open (#707) |
+| R7c | deploy ratification — the running binary self-reports; **currency is not ratification** | **partial** — ratified-artifact visibility landed (#708); protecting the deploy closure (unit/ExecStart, deploy scripts, staged artifact, manifest) is open and **gates Phase 0** (#709) |
 | R7d | availability parity instrument | not started |
 
 Also design-stage, both sides: the **role-scope bridge** ([`docs/PRD_ROLE_SCOPE_BRIDGE.md`](docs/PRD_ROLE_SCOPE_BRIDGE.md),
