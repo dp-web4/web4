@@ -36,7 +36,7 @@ Measured 2026-08-19 on `web4 @ 4319296`:
 |---|---|
 | HTML production | `format!` string interpolation in Rust — **122 `format!` calls in `hub-daemon/src/admin.rs`** alone |
 | Templates | **none** — no `askama` / `tera` / `handlebars` / `maud` / `minijinja` in any `Cargo.toml` |
-| Stylesheets | **no `.css` file exists in the repo**; at least **four** separate inline `<style>` blocks (`admin.rs:40`, `admin.rs:108`, `admin.rs:1101`, `rest.rs:6094`, `rest.rs:6147`) |
+| Stylesheets | **no `.css` file exists under `hub/`** (four exist elsewhere in the repo — visualizer, whitepaper, archived site — none reachable by the daemon); **five** inline `<style>` blocks (`admin.rs:40,108,1101`, `rest.rs:6094,6147`) |
 | Public plane HTML | `/`, `/client`, `/discuss`, `/.well-known/web4-hub.json` — and nothing else |
 | Public group/role data | **no directory route** — `/v1/hubs/:id/members/join` and `/members/:uuid/pubkey` exist, but nothing lists roles, groups, communities or projects |
 | Member tool surface | **rich, and live** — 11 tools over the sealed channel (below), reachable only as protocol calls |
@@ -62,8 +62,9 @@ This **sharpens dp's thesis rather than softening it**: R9 and R10 in the federa
 it is "a member has no way to reach discovery that is not a protocol call."
 
 **One consequence for deployment.** `find_members` requires the membot sidecar
-(`WEB4_MEMBOX_URL`, default `http://127.0.0.1:8771`, and the hub **refuses a non-loopback value** to
-prevent shipping member queries off-box). The managed-host deploy path (PR #728) provisions a single
+(`WEB4_MEMBOX_URL`, default `http://127.0.0.1:8771`). The hub refuses a non-loopback value **unless
+`WEB4_MEMBOX_ALLOW_REMOTE=1`** (`rest.rs:4699`; the 503 body advertises the escape hatch) — so the
+guard is a default, not a wall, and one platform secret disables it. The managed-host deploy path (PR #728) provisions a single
 container with no sidecar — so **semantic discovery would be dark on a hosted chapter today**. Either
 the deploy path grows a second process, or the chapter's discovery degrades to `find_skill` and the
 runbook must say so.
@@ -133,6 +134,9 @@ The visibility boundary is therefore already enforced where it matters. This is 
 
 ### 3.2 Gaps
 
+**Tracked as `dp-web4/hestia#563`** (opened 2026-08-21) so these stop living only in prose;
+the table below stays as the rationale the issue cites.
+
 | # | gap | why it blocks the deck |
 |---|---|---|
 | H1 | **`Platform` has no community-channel variants** — no Slack, Discord, Matrix, Telegram, Meetup, Luma, Eventbrite, Zoom. The enum is *personal presence*, not *where a community actually meets*. | A chapter's channels are precisely these. `Custom(String)` works but is unverifiable and unindexable. |
@@ -170,22 +174,42 @@ lifecycle field — **not four page types**. A fifth shape must cost approximate
 
 Plane names per `interface-planes.md`. **Every row is data-first (P1).**
 
-| # | surface | plane / exposure | today | needed |
-|---|---|---|---|---|
-| B1 | Chapter profile — name, charter summary, what we do, how to join | D / public | landing page only | public page + `GET /v1/hubs/:id/chapter` |
-| B2 | **Groups directory** — communities, working groups, projects, events; each with purpose, lifecycle, open/closed, channel references | C+D / public (listed) · member (detail) | **absent** | `GET …/groups`, `…/groups/:id` |
-| B3 | **Roles directory** — what each office does, who fills it, term, how it rotates | C / public | operator-only (`/admin/roles`) | `GET …/roles` + public page |
-| B4 | Member directory — display name, bio, **verified references** (§3.2 H4) | C+D / member | `list_members`/`find_members` over the channel — no page | `GET …/members` with tier-correct projection + a page |
-| B5 | My chapter — my roles, my groups, my obligations, what needs me | C / member | **absent** | member home; the single highest-value member page |
-| B6 | Events — upcoming, RSVP, past with record | C+D / public + member | **absent** | needs a lifecycle-aware group kind |
-| B7 | Join flow — apply, vouching status, decision, appeal | C / public → member | `/client` (join+discuss) | surface the *state* of a request to the asker |
-| B8 | Group formation — propose, quorum, charter derived from parent | A / member + operator | **absent** (R4 unbuilt) | the act the pilot's phase 2 measures |
-| B9 | Decision record — what was decided, by whom, under which law, when | D / public (redacted) + member | `/admin/ledger` operator-only | public transparency is the deck's promise |
-| B10 | Discussion | C / member | `/discuss` exists | scope per group, not chapter-wide |
-| B11 | Discovery + introductions | C / member | **engine live, no UI** (§1.1) | screens for search, candidate review, request, consent, and the resulting channel |
-| B12 | Export — my record, our record (R8.2) | D / member + operator | **absent** | "leave without penalty" is a stated success criterion |
+| # | surface | plane | exposure | today | needed |
+|---|---|---|---|---|---|
+| B1 | Chapter profile — name, charter summary, what we do, how to join | D | public | landing page only | public page + `GET /v1/hubs/:id/chapter` |
+| B2a | **Groups list** — existence, purpose, lifecycle, open/closed | D | public | **absent** | `GET …/groups` |
+| B2b | **Group detail** — membership, roles, channel references | C | member | **absent** | `GET …/groups/:id` |
+| B3 | **Roles directory** — what each office does, who fills it, term, rotation | C | public | operator-only (`/admin/roles`) | `GET …/roles` + public page |
+| B4a | Member roster — who currently holds membership | C | member | `list_members` over the channel — no page | `GET …/members` |
+| B4b | Member profile records — display name, bio, **verified references** (§3.2 H4) | D | member | flattened by `hub_fields()` | `GET …/members/:id/profile`, verification preserved |
+| B5 | My chapter — my roles, my groups, my obligations, what needs me | C | member | **absent** | member home; the highest-value member page |
+| B6a | Events list — upcoming and past | D | public | **absent** | lifecycle-aware group kind |
+| B6b | Event participation — RSVP, attendance | C | member | **absent** | — |
+| B7a | Join application — submit a request | C | public | `/client` | — |
+| B7b | Join status — the state of *my* request, vouching, decision, appeal | C | **applicant** — see §4.4 | **absent** | surface the request's state to the asker |
+| B8a | Group formation — propose, quorum, charter derived from parent | A | member | **absent** (R4 unbuilt) | the act the pilot's phase 2 measures |
+| B8b | Group formation — operator administration of the same act | A | operator | **absent** | — |
+| B9a | **Public decision record** — what was decided, under which law, when (redacted) | D | public | `/admin/ledger` operator-only | public transparency is the deck's promise |
+| B9b | Member decision record — the unredacted projection | D | member | operator-only | — |
+| B10 | Discussion | **see §4.4** | member | `/discuss` exists | scope per group, not chapter-wide |
+| B11 | Discovery + introductions | C | member | **engine live, no UI** (§1.1) | screens for search, candidate review, request, consent, resulting channel |
+| B12a | Export — my own record (R8.2) | D | member | **absent** | "leave without penalty" is a stated success criterion |
+| B12b | Export — the chapter's record (R8.2) | D | operator | **absent** | — |
 
-**B9 deserves a note.** "Governance opacity" is a confirmed AIC pain point and "transparent" is the
+**Why the rows split.** `interface-planes.md` §2.1 makes it a **MUST** that every surface be assignable
+to exactly one fact plane, §2.2 a **MUST** that it declare exactly one exposure class, and §8.2 a
+conformance clause that no surface serves two planes without decomposition. An earlier draft of this
+table had 5 of 12 rows conformant — three rows naming two planes, six naming two exposures. Since
+§4.2's rows are *work items* consumed by §4.3 and §5.2, a row naming two planes specifies a handler
+serving two planes, which is exactly what the standard this document cites forbids.
+
+The split is not bookkeeping. **B4 was the standard's own worked counterexample**: "member directory"
+bundles *proven occupancy* (C — authorization-bearing, answers whether a party may act now) with
+*attestation records* (D — answers what is recorded and must never grant authority), and §3's
+`MUST NOT` sits exactly between them. Likewise B9a/B9b: a redacted public projection and a full member
+projection are two authorizations, which is the safer thing to build regardless of the standard.
+
+**B9a deserves a note.** "Governance opacity" is a confirmed AIC pain point and "transparent" is the
 deck's headline promise, yet the ledger is currently visible only to the operator. A public,
 appropriately-redacted decision record is arguably the single most persuasive surface the hub could
 ship for this audience — it is the thing no incumbent tool offers.
@@ -193,7 +217,7 @@ ship for this audience — it is the thing no incumbent tool offers.
 ### 4.3 Accountability self-audit — the new public surfaces
 
 ```
-surface: public groups + member directory (B2/B3/B4)   act: disclose member and group data to unauthenticated callers
+surface: public groups + member directory (B2a/B3/B4a/B4b)   act: disclose member and group data to unauthenticated callers
 S: med/irreversible (disclosure cannot be recalled) [construct: tier projection at the serialization boundary]
 R: n/a for read of PUBLIC tier — public exposure IS the classification, not a shortcut past one
 W: pass [construct: only Visibility::Public projects to the public plane; member tier requires a proven member]
@@ -214,6 +238,32 @@ V: present [construct: P3 reserves governance chrome from all themes; contrast f
 verdict: PASS (design) — P3 is the load-bearing clause; without it this surface fails V outright.
 ```
 
+### 4.4 Two surfaces that do not fit the vocabulary — canon-track, not assigned here
+
+`interface-planes.md` §2.1/§2.2 require exactly one plane and one exposure per surface. Two rows
+cannot satisfy that honestly, and assigning them by nearest neighbour would hide a real gap in the
+spec rather than surface it. Both belong to the standard, not to this PRD.
+
+**B10 — discussion has no fact plane.** Plane C is *"proven identity; who fills which role, bounded in
+time; the occupancy boundary; revocation."* A discussion surface is none of those. If posts are
+recorded it leans D, but discussion *content* is not attestation about members either — D is the
+witness chain and its projections, and chapter chatter must never enter it (that would make ordinary
+conversation governance evidence). The honest reading is that **member-generated content is outside
+A–E**, and the standard should either add a plane for it or say explicitly that content is out of
+scope and carries no plane.
+
+**B7b — the applicant is neither public nor member.** The exposure classes are public / member /
+operator / internal. Someone who has applied and is awaiting a decision is **identified but not
+admitted**: showing their own request's state to the world fails least-disclosure, and gating it
+behind `member` makes it unreachable exactly while it matters. This is the same party
+`PRD_AGENT_CONTEXT_ACCESS.md` §2.2 calls the **receptionist** case — a caller with standing but no
+citizenship — so the gap is already named on the authorization side and simply has no exposure class
+on the presentation side.
+
+Recommend both be raised against `interface-planes.md` rather than resolved here. Until they are,
+B10's plane and B7b's exposure are marked *see §4.4* rather than guessed, so a reader cannot mistake a
+placeholder for a decision.
+
 ---
 
 ## 5. Theming — the architectural work
@@ -221,14 +271,15 @@ verdict: PASS (design) — P3 is the load-bearing clause; without it this surfac
 ### 5.1 Why this is not a CSS task
 
 There is nowhere to put a theme. HTML is `format!`-interpolated in Rust across 122 call sites in one
-file; styles are four inline `<style>` literals; no `.css` file exists; no template engine is a
+file; styles are **five** inline `<style>` literals; no `.css` file exists under `hub/`; no template engine is a
 dependency. **A per-community theme cannot be expressed in the current architecture at all** — which
 is why this is listed as architecture, not polish.
 
 ### 5.2 Proposed model
 
-1. **Extract**: move markup out of `format!` into templates, and the four inline `<style>` blocks
-   into one stylesheet built from custom properties. This is the prerequisite for everything else and
+1. **Extract**: move markup out of `format!` into templates, and **all five** inline `<style>` blocks
+   (`admin.rs:40,108,1101`, `rest.rs:6094,6147` — count them from the list, not from memory) into one
+   stylesheet built from custom properties. This is the prerequisite for everything else and
    is a mechanical, reviewable change.
 2. **Tokenize**: define the token vocabulary once — ground, surface, ink, accent, semantic
    good/warn/critical, type family + scale, radius, spacing unit, logo, wordmark. This is a small,
@@ -262,24 +313,39 @@ is why this is listed as architecture, not polish.
 
 ## 6. Ordered plan
 
-Sequenced so each step unblocks the next and the pilot's phases are served in order.
+**Amended 2026-08-21** after review. Two changes: discovery is no longer held behind channel work,
+and Phase A no longer blocks the first slice.
 
-- **Phase A — make it presentable.** §5.2 steps 1–2 (extract markup + tokenize). Nothing
-  user-visible changes; everything after this depends on it.
-- **Phase B — open the public plane.** B1, B3, B9 (chapter profile, roles directory, public decision
-  record) with data endpoints. Highest persuasive value per unit of work, and none of it needs R4.
-- **Phase C — the member plane.** B5 (my chapter), B4 (directory with §3.2 H4 fixed), B7 (join
-  state), B10 scoped discussion.
-- **Phase D — groups as first-class.** B2, B6, B8 — gated on R4/R5 landing. This is the pilot's
-  phase 2.
-- **Phase E — themes.** §5.2 steps 3–6. Deliberately after the surfaces exist: theming an incomplete
-  UI means doing it twice.
-- **Phase F — channels.** hestia H1–H6, then the hub-side group channel references. The internal
-  plane (§3.3) follows only if a chapter asks for it.
-- **Phase G — discovery + introductions.** R9/R10, pilot phases 3–4.
+- **Phase A — establish the pattern, don't migrate everything.** Stand up the template + token +
+  data-endpoint pattern (§5.2 steps 1–2) and prove it **on the new surfaces of Phase B**. Migrating
+  every legacy `format!` call in the operator plane is *not* a prerequisite — it happens
+  incrementally unless a concrete coupling forces it. (The earlier draft made full mechanical
+  extraction a gate; that delays every persuasive surface behind a refactor with no user-visible
+  result.)
+- **Phase B — open the public plane, in persuasion order.** **B9a** public redacted decision record
+  first — it is the thing no incumbent tool offers and it answers the confirmed "governance opacity"
+  pain point directly. Then **B1** chapter profile. Neither needs R4.
+- **Phase C — the member plane, and put the existing engine in front of people.** **B5** (my chapter),
+  **B4a/B4b** (roster + profile records, with H4 fixed), **B11** (discovery + introduction screens),
+  **B7a/B7b** (join + status). **B11 sits here, not at the end**: the engine is already built and
+  running (§1.1), so this is UI over shipped capability, and it is a pitch-critical promise.
+- **Phase D — groups as first-class.** B2a/B2b, B6a/B6b, B8a/B8b — gated on R4, and on R5 built as a
+  **restricted parent–child subset of the canonical R1 edge** rather than a temporary subgroup
+  mechanism that later needs replacing. This is the pilot's phase 2.
+- **Phase E — themes.** §5.2 steps 3–6, after the surfaces exist. Theming an incomplete UI means
+  doing it twice.
+- **Phase F — channels (independent lane).** hestia H1–H6, then group-owned channel references.
+  **This no longer gates anything above it.** An earlier draft sequenced channels before discovery,
+  which would have held a shipped, pitch-critical capability behind unrelated third-party reference
+  work. The internal agent-managed plane (§3.3) stays later still.
 
-**Export (B12) is not a phase** — it is a standing requirement that each phase satisfies for the data
+**Export (B12a/B12b) is not a phase** — it is a standing requirement each phase satisfies for the data
 it adds. Retrofitting export is how systems become impossible to leave.
+
+**Deployment runs alongside, not after.** Semantic discovery needs the membot sidecar, and the
+managed-host path does not provision it (§1.1). Tracked as **#749** with a two-posture acceptance —
+provision and health-check it, or advertise discovery as degraded. Phase C must not ship a discovery
+UI onto a hosted chapter whose engine is dark.
 
 ## 7. Non-goals
 
