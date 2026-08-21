@@ -18,7 +18,8 @@
 # self-ignites but is a temporary dev convenience, tolerated for now and NOT a
 # production-acceptable solution -- so a restart here leaves the hub answering
 # 503 until a human ignites it through `fly proxy`. The auto_stop/min_machines
-# settings below exist to make that rare; the health check makes it VISIBLE.
+# settings below exist to make that rare; the health check makes it VISIBLE -- but
+# only because it targets a non-tier-0 path (see the [[http_service.checks]] note).
 
 app = "CHANGE-ME-your-chapter"
 primary_region = "CHANGE-ME"          # e.g. "ord" — pick one near your members
@@ -55,15 +56,22 @@ primary_region = "CHANGE-ME"          # e.g. "ord" — pick one near your member
     soft_limit = 50
     hard_limit = 100
 
-# Liveness against the public plane. A LOCKED hub answers 503 here, which is the
-# correct signal: it is running but not ignited, and it should read as unhealthy
-# until it is.
+# Liveness against the public plane. The path matters more than it looks like it
+# does: a LOCKED hub still answers 200 on `/`, because the landing page is on the
+# tier-0 allowlist (`locked_tier0_allows`, hub-daemon/src/rest.rs) so a human can
+# open it and read the 🔒. A check on `/` therefore reports HEALTHY for a hub that
+# refuses every real request -- exactly the outage this tier needs to page you for.
+#
+# `/tools` is on the public plane and is NOT tier-0, so the lock-gate refuses it at
+# 503 while locked (pinned by `the_other_operator_pages_stay_refused_while_locked`,
+# hub-daemon/src/main.rs). That is the correct signal: running but not ignited, and
+# it should read as unhealthy until it is.
 [[http_service.checks]]
   interval = "30s"
   timeout = "5s"
   grace_period = "20s"
   method = "GET"
-  path = "/"
+  path = "/tools"
 
 [processes]
   app = "serve /chapter/data --bind 0.0.0.0 --port 8770"

@@ -28,8 +28,22 @@ cannot accidentally publish it, and you should not try to. You reach it by proxy
 
 ## Key custody and restart survival — read this before you deploy
 
-A sealed hub **boots locked**: every endpoint returns 503 except the unlock path, and `hub unlock`
-ignites it. Where the vault key lives is the decision this profile turns on.
+A sealed hub **boots locked**: the lock-gate refuses every request at 503 except a small **tier-0
+allowlist**, and `hub unlock` ignites it. The allowlist is five paths, not one — it is
+`locked_tier0_allows` in `hub-daemon/src/rest.rs`, and it is worth knowing exactly which, because one
+of them decides how you monitor this deployment:
+
+| tier-0 path (served while locked) | why |
+|---|---|
+| `/.well-known/web4-hub.json` | discovery — how an operator finds the hub id that ignition needs |
+| **`/`** | the landing page renders the 🔒 from `is_locked()` + the in-memory law; it never touches the store |
+| `/v1/hubs/{id}/unlock` | ignition itself |
+| `/v1/hubs/{id}/law` | the signed law, from the clear in-memory projection |
+| `/v1/hubs/{id}/.well-known/openid-credential-issuer` | public OID4VCI issuer metadata |
+
+**`/` is on that list, so a locked hub answers `200` on `/`.** A human who opens it sees the lock; an
+HTTP status check does not. Everything below that talks about proving ignition uses a *non-tier-0*
+path for that reason. Where the vault key lives is the decision this profile turns on.
 
 **Ruling (dp, 2026-08-18), in priority order:**
 
@@ -54,8 +68,11 @@ over it:
 
 - set `auto_stop_machines = false` and `min_machines_running = 1` (already in the example config) so
   the platform is not restarting you for idleness;
-- put a health check on `/` somewhere that notifies **you**, so a 503 reaches a person rather than
-  waiting to be noticed by a member;
+- put a health check on **`/tools`** — not `/` — somewhere that notifies **you**, so the 503 reaches a
+  person rather than waiting to be noticed by a member. `/` is tier-0 and answers 200 while locked, so
+  a check pointed there reports healthy through exactly the outage you are trying to be paged for;
+  `/tools` is public-plane and non-tier-0, so the lock-gate refuses it (pinned by
+  `the_other_operator_pages_stay_refused_while_locked` in `hub-daemon/src/main.rs`);
 - treat ignition as a two-minute operational task with a written procedure (§5), not an emergency.
 
 ### On `HUB_PASSPHRASE` (tier 3)
@@ -135,7 +152,7 @@ answer is real: an **unlocked boot**, or **ignition** on a locked boot — where
 *before* the signer swap, so a lawless production hub never reaches a serving state. On this tier-2
 deployment the check happens **at ignition**, which means:
 
-- before genesis and law, the hub sits locked and answers 503 — expected;
+- before genesis and law, the hub sits locked and refuses every non-tier-0 request at 503 — expected;
 - with no law installed, `hub unlock` **refuses to ignite**: *"refusing to serve with NO hub law
   (acts/admissions ungated)"*. That refusal is correct — a production hub that would gate nothing
   does not start.
@@ -165,14 +182,21 @@ point: reachability is evidence, never authority.
 ## 6. Verify
 
 ```bash
+# The process is up and serving. This is ALL this proves — `/` is tier-0 and a
+# locked, un-ignited hub answers it 200 as well.
 curl -sf https://your-chapter.fly.dev/ >/dev/null && echo "public plane up"
+
+# Ignition. `/tools` is public-plane and non-tier-0, so the lock-gate refuses it
+# at 503 until the vault is open. 200 here is the thing you actually wanted to know.
+curl -s -o /dev/null -w '%{http_code}\n' https://your-chapter.fly.dev/tools
 ```
 
-Then confirm the two things a green HTTP check does **not** prove:
+Then confirm the two things a green check on `/` does **not** prove:
 
-1. **The hub is ignited, not merely running.** A locked hub answers 503, so a 200 on `/` means the
-   vault opened. **A 503 after a restart is expected on this tier** — the machine came back and is
-   waiting for you to ignite it (§5). It does not mean anything is broken.
+1. **The hub is ignited, not merely running.** `/` cannot answer this — it is served while locked.
+   Use `/tools`: **503 means locked**, 200 means the vault opened. **A 503 after a restart is expected
+   on this tier** — the machine came back and is waiting for you to ignite it (§5). It does not mean
+   anything is broken.
 2. **The law is loaded.** `/admin` (through the proxy) shows law version and norm count. A production
    hub that serves at all has a law, but check the version is the one you installed.
 
