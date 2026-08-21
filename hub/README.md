@@ -191,6 +191,7 @@ Read `docs/QUICKSTART.md` for the chapter-organizer onboarding walkthrough.
 | [`docs/HUB-LAW.md`](docs/HUB-LAW.md) | Template + guidance for writing hub law |
 | [`docs/ROLES.md`](docs/ROLES.md) | The 7 Web4 society roles, how to fill them |
 | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Common errors + recovery |
+| [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) | Every environment variable the daemon reads — including the four that switch a safety check **off** |
 
 ## Build (Sprint 0 onwards)
 
