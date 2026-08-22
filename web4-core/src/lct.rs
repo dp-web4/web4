@@ -222,12 +222,21 @@ pub struct MrhEdge {
 /// the operational key, so no hub-private roster is needed to know which key a
 /// witness signs with (dp's ruling (b), 2026-07-18). This is what makes the witness
 /// tree independently traversable (inspectable-evidence, LCT spec §1.2).
+
+/// Canonical operational-key purpose for witnessing acts. ONE source of truth
+/// across web4-core and hestia (the registry, the CLI) — a `"witnessing"` /
+/// `"witness"` split silently failed `operational_key_for` → `None` → "quorum
+/// not met" (found 2026-08-21, McNugget/Legion, citizenship pilot). The live
+/// hub registry uses `"witnessing"`, so that is the value; both repos import
+/// this constant rather than repeat the literal.
+pub const WITNESS_PURPOSE: &str = "witnessing";
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OperationalKey {
     /// The operational public key.
     pub pubkey: PublicKey,
-    /// What the key is authorized for (e.g. `"witness"`). An entity may vouch a
-    /// distinct operational key per purpose; one active key per purpose.
+    /// What the key is authorized for (see [`WITNESS_PURPOSE`]). An entity may
+    /// vouch a distinct operational key per purpose; one active key per purpose.
     pub purpose: String,
     /// The binding key's signature over the vouching message — binds `pubkey` +
     /// `purpose` to THIS LCT, verifiable against the LCT's own `public_key`.
@@ -845,30 +854,30 @@ mod tests {
         let (mut member, binding_kp) = Lct::new(EntityType::AiSoftware, None);
         member.sign_binding(&binding_kp);
         let operational = KeyPair::generate(); // the channel key it witnesses with
-        member.authorize_operational_key("witness", operational.verifying_key(), &binding_kp);
+        member.authorize_operational_key(WITNESS_PURPOSE, operational.verifying_key(), &binding_kp);
 
         // resolves to exactly the vouched operational key
-        assert_eq!(member.operational_key_for("witness"), Some(operational.verifying_key()));
+        assert_eq!(member.operational_key_for(WITNESS_PURPOSE), Some(operational.verifying_key()));
         // a purpose that was never vouched → None
         assert_eq!(member.operational_key_for("treasurer"), None);
 
         // fail-closed: tamper the stored proof → no longer resolves
         let mut tampered = member.clone();
         tampered.operational_keys[0].proof = binding_kp.sign(b"different message");
-        assert_eq!(tampered.operational_key_for("witness"), None, "tampered vouch does not resolve");
+        assert_eq!(tampered.operational_key_for(WITNESS_PURPOSE), None, "tampered vouch does not resolve");
 
         // fail-closed: a vouch whose proof was signed by a FOREIGN key → not resolved
         let mut forged = member.clone();
         let foreign = KeyPair::generate();
         forged.operational_keys[0].proof =
-            foreign.sign(&super::opkey_message(&forged.lct_id(), "witness", &operational.verifying_key()));
-        assert_eq!(forged.operational_key_for("witness"), None, "foreign-signed vouch does not resolve");
+            foreign.sign(&super::opkey_message(&forged.lct_id(), WITNESS_PURPOSE, &operational.verifying_key()));
+        assert_eq!(forged.operational_key_for(WITNESS_PURPOSE), None, "foreign-signed vouch does not resolve");
 
         // rotation: vouching a new key for the same purpose replaces the old one
         let rotated = KeyPair::generate();
-        member.authorize_operational_key("witness", rotated.verifying_key(), &binding_kp);
+        member.authorize_operational_key(WITNESS_PURPOSE, rotated.verifying_key(), &binding_kp);
         assert_eq!(member.operational_keys.len(), 1, "one active key per purpose");
-        assert_eq!(member.operational_key_for("witness"), Some(rotated.verifying_key()));
+        assert_eq!(member.operational_key_for(WITNESS_PURPOSE), Some(rotated.verifying_key()));
     }
 
     #[test]
@@ -890,9 +899,9 @@ mod tests {
         let (mut member, binding_kp) = Lct::new(EntityType::AiSoftware, None);
         member.sign_binding(&binding_kp);
         let op = KeyPair::generate();
-        member.authorize_operational_key("witness", op.verifying_key(), &binding_kp);
+        member.authorize_operational_key(WITNESS_PURPOSE, op.verifying_key(), &binding_kp);
         let restored: Lct = serde_json::from_str(&serde_json::to_string(&member).unwrap()).unwrap();
-        assert_eq!(restored.operational_key_for("witness"), Some(op.verifying_key()));
+        assert_eq!(restored.operational_key_for(WITNESS_PURPOSE), Some(op.verifying_key()));
     }
 
     #[test]
