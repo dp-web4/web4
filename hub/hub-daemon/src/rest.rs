@@ -12231,11 +12231,18 @@ norms:
     /// on purpose.
     ///
     /// The second half is the discriminator. The same two calls run against a
-    /// hub carrying the **shipped** `starter-law.yaml` — closed by default,
-    /// `ESCALATE-MEMBER-JOIN` at priority 90 — and both queue instead of
-    /// admitting. Without it, the first half is satisfied by a harness that
-    /// admits unconditionally, which would clear on an arm where both options
-    /// behave the same.
+    /// hub carrying the **shipped** `starter-law.yaml` — closed by default —
+    /// and both queue instead of admitting. Without it, the first half is
+    /// satisfied by a harness that admits unconditionally, which would clear on
+    /// an arm where both options behave the same.
+    ///
+    /// What that half does NOT establish is *which* mechanism closed them. The
+    /// shipped law closes admission twice over — `ESCALATE-MEMBER-JOIN` at
+    /// priority 90 and `admission.requires_sponsor: true` — so neither can be
+    /// seen to move while the other stands, and this test stays green with the
+    /// norm flipped to `allow`. That leg lives in
+    /// `the_join_norm_is_the_operative_gate_when_nothing_else_closes_admission`
+    /// below, on a fixture where the norm is the only gate.
     ///
     /// One correction to #762 while pinning it: it calls the sealed path "the
     /// worse of the two." Measured here, the two surfaces are behaviourally
@@ -12313,7 +12320,10 @@ norms:
         })).await.expect("channel call completes");
         let out2 = open_resp(&sealed_kp2, &hub_pub2, pid2, &r2.0.sealed);
         assert_eq!(out2["admitted"], serde_json::json!(false),
-            "ESCALATE-MEMBER-JOIN (priority 90) closes the sealed surface");
+            "the shipped law closes the sealed surface (it does so twice over — \
+             the join norm AND requires_sponsor; see \
+             the_join_norm_is_the_operative_gate_when_nothing_else_closes_admission \
+             for the leg that pins which)");
         assert_eq!(out2["status"], serde_json::json!("pending_review"));
 
         let plain_kp2 = KeyPair::generate();
@@ -12331,6 +12341,111 @@ norms:
         }
         assert_eq!(proj2.pending_joins.len(), 2,
             "both surfaces queued for operator review — the outcome arm A never reaches");
+    }
+
+    /// The kill switch the shipped-law arm above cannot provide.
+    ///
+    /// That arm runs the real `starter-law.yaml`, which closes admission
+    /// **twice over**: `ESCALATE-MEMBER-JOIN` at priority 90, *and*
+    /// `admission.requires_sponsor: true`, whose `Refuted(Missing)` verdict
+    /// tightens `Allow` → `Escalate` on its own. Neither mechanism can be seen
+    /// to move while the other is standing, so that test stays green with the
+    /// norm flipped to `allow` — measured, both arms, at 6706a1f.
+    ///
+    /// That is not a tidiness point. `starter-law.yaml` documents flipping
+    /// exactly this norm as *the* way to opt into open admission ("To opt into
+    /// open admission, change this norm's decision to `allow`"). An operator
+    /// who follows that instruction and runs the suite gets a full green from
+    /// the one test advertised as pinning admission behaviour — while the
+    /// sealed surface is now genuinely open and the plaintext one is still
+    /// closed for a reason they did not choose.
+    ///
+    /// This fixture omits the `admission:` block entirely. With no
+    /// `AdmissionPolicy`, `evaluate_sponsor` returns `NotRequired` and
+    /// `tighten_with_sponsor` is a no-op, so the norm is the *sole* gate. Both
+    /// of its settings are exercised, which is what makes the stated cause the
+    /// demonstrated cause: if the norm ever stops doing the work, the `allow`
+    /// half queues instead of admitting and this test fails.
+    #[tokio::test]
+    async fn the_join_norm_is_the_operative_gate_when_nothing_else_closes_admission() {
+        for (decision, admits) in [("escalate", false), ("allow", true)] {
+            let yaml = format!(
+                r#"
+version: "1.0.0"
+norms:
+  - id: ESCALATE-MEMBER-JOIN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: {decision}
+    priority: 90
+    description: "the only admission gate in this fixture"
+"#
+            );
+            let (_tmp, hub) = fresh_rest_state(Some(&yaml)).await;
+            assert!(
+                hub.law.read().await.as_ref().unwrap().ext.admission.is_none(),
+                "{decision}: fixture precondition — no AdmissionPolicy, so the sponsor \
+                 path cannot close admission independently of the norm"
+            );
+            let hub_pub = hub.signer.public_key().unwrap();
+
+            // ---- sealed surface (request_citizenship) ----
+            let sealed_kp = KeyPair::generate();
+            let sealed_lct = Uuid::new_v4();
+            let pid = Uuid::new_v4();
+            let sealed = seal_req(
+                &sealed_kp,
+                &hub_pub,
+                pid,
+                "request_citizenship",
+                serde_json::json!({ "name": "Sole Gate Sealed" }),
+            );
+            let r = channel_request(
+                State(hub.clone()),
+                Path(hub.hub_id),
+                Json(ChannelRequest {
+                    caller_lct_id: sealed_lct,
+                    pair_id: pid,
+                    sealed,
+                    caller_pubkey_hex: Some(sealed_kp.verifying_key().to_hex()),
+                }),
+            )
+            .await
+            .expect("channel call completes");
+            let out = open_resp(&sealed_kp, &hub_pub, pid, &r.0.sealed);
+            assert_eq!(
+                out["admitted"],
+                serde_json::json!(admits),
+                "sealed: with `decision: {decision}` as the ONLY closing mechanism, \
+                 the norm alone decides admission"
+            );
+
+            // ---- plaintext surface (/members/join) ----
+            let plain_kp = KeyPair::generate();
+            let plain_lct = Uuid::new_v4();
+            let resp = post_join(&hub, &plain_kp, plain_lct, None).await;
+            let expected = if admits { StatusCode::OK } else { StatusCode::ACCEPTED };
+            assert_eq!(
+                resp.status(),
+                expected,
+                "plaintext: `decision: {decision}` is the sole gate here, so it — and \
+                 nothing else — selects admit (200) vs queue (202)"
+            );
+
+            // ---- and the projection agrees with both surfaces ----
+            let proj = {
+                let l = hub.ledger.lock().await;
+                HubState::project(&l)
+            };
+            for (lct, surface) in [(sealed_lct, "sealed"), (plain_lct, "plaintext")] {
+                assert_eq!(
+                    proj.members.contains_key(&lct),
+                    admits,
+                    "{surface}: membership under `decision: {decision}` follows the norm"
+                );
+            }
+        }
     }
 
 }
