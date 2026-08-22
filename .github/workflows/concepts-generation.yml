@@ -1,0 +1,74 @@
+name: concepts-generation
+
+# Convergence gate for PRD_ROLE_SCOPE_BRIDGE §2.
+#
+# §2 of hub/docs/PRD_ROLE_SCOPE_BRIDGE.md is a NON-NORMATIVE summary; its
+# normative home is §2 of the twin in dp-web4/hestia. The two sections
+# legitimately say different amounts, so the PRD replaced its diff-based rule
+# with an integer comparison of an anchored `concepts_generation:` marker:
+#
+#   equal / home greater / either missing => CURRENT / STALE / UNDETERMINED
+#
+# The rule was documented on 2026-08-18 and NOTHING EXECUTED IT — measured
+# 2026-08-21 by two seats independently: `grep -rl concepts_generation .github/`
+# returned zero files. A convergence rule nobody runs fails silently in prose.
+# This workflow is the executable half.
+#
+# UNDETERMINED is a FAILURE here, not a skip: the PRD declares it "never a pass",
+# because a renamed or moved home makes the extraction return nothing, and
+# nothing compared against an integer is not less-than. The tool gives STALE and
+# UNDETERMINED distinct exit codes (1 and 2) so the log says which arm fired even
+# though CI collapses both to red.
+#
+# TWO TRIGGERS, and the second is the load-bearing one:
+#   * pull_request/push path-filtered on the hub side — catches a summary edited
+#     without re-pointing its citation.
+#   * schedule — catches the case the path filter STRUCTURALLY CANNOT SEE. The
+#     home is in another repository, so a bump there touches no web4 path and
+#     fires no web4 PR. Without the daily run the STALE arm is nearly
+#     unreachable and the gate would be green by construction.
+#
+# Armed GREEN at merge: both sides read `concepts_generation: 1` => CURRENT.
+#
+# Stdlib-only Python, no pip step. The home is fetched over raw HTTPS because
+# dp-web4/hestia is public — no clone, no submodule, no token.
+
+on:
+  pull_request:
+    paths:
+      - 'hub/docs/PRD_ROLE_SCOPE_BRIDGE.md'
+      - 'hub/tools/check_concepts_generation.py'
+      - '.github/workflows/concepts-generation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'hub/docs/PRD_ROLE_SCOPE_BRIDGE.md'
+      - 'hub/tools/check_concepts_generation.py'
+      - '.github/workflows/concepts-generation.yml'
+  schedule:
+    # Daily. The home lives in another repo; nothing else can catch a bump there.
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: hub §2 summary is current with its normative home
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # The guard is run against the conditions it guards before it is trusted
+      # to report on the real ones: every arm induced against a fixture, and the
+      # arms asserted PAIRWISE DISTINCT — a check whose arms return the same
+      # value cannot discriminate, which is exactly how the rule this one
+      # replaces failed.
+      - name: Self-test (all arms, incl. the anchoring regression)
+        run: python3 hub/tools/check_concepts_generation.py --self-test
+
+      - name: Compare concepts_generation against the normative home
+        run: python3 hub/tools/check_concepts_generation.py
