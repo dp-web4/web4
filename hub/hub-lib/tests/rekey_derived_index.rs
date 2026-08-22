@@ -384,26 +384,56 @@ fn the_uuid_flavour_manufactures_quorum_members_out_of_one_rotating_member() {
         "derived->Uuid: one member, one key, three counted witnesses — quorum CONFERRED"
     );
 
-    // And the flavours swap places: `-> Lct` refuses HERE, because the stale
-    // ids resolve to the stale keys, which did not sign. Neither flavour is the
-    // safe one — they refuse each other's attack and neither refuses both.
+    // And `-> Lct` refuses HERE, because the stale ids resolve to the stale
+    // keys, which did not sign.
+    //
+    // WITHDRAWN by its author in `forum/legion-ack-the-ruling-holds-…-2026-08-22.md`
+    // §0, and left in place as the record of what was withdrawn: this arm was
+    // read as "the flavours refuse each other's attack and neither refuses
+    // both." It does not show that. It fixes ONE spelling of the attack — all
+    // three attestations signed by the member's CURRENT key — and a
+    // per-spelling refusal is not a per-flavour one. The attacker generated the
+    // keys they rotated away from and still holds the private halves; which key
+    // signs which stale label is theirs to pick, AFTER seeing the flavour. Sign
+    // each stale label with the key it derives from and `-> Lct` confers this
+    // attack too (measured: `flavour_dominance.rs`, #764 §2). `-> Lct` refuses
+    // nothing `-> Uuid` does not also refuse — dominated, not complementary.
+    //
+    // The assert below is correct as written and stays; only the reading of it
+    // was wrong.
     assert!(
         !record.verify_quorum(&subject_id, via_lct(&cache)),
         "derived->Lct: stale ids resolve to stale keys, which did not sign — refused"
     );
 }
 
-/// **Clause (a) is the whole fix; clause (b) only picks which attack survives
-/// without it.** HUB's amended condition has two parts. Measured here: with
+/// **Clause (a) closes both attacks THIS fixture can reach, under both
+/// flavours.** (Headline WITHDRAWN as originally written — "clause (a) is the
+/// whole fix; clause (b) only picks which attack survives without it" — for the
+/// reason below.) HUB's amended condition has two parts. Measured here: with
 /// eviction-on-insert in place, BOTH attacks above are refused, under BOTH
 /// flavours — because after eviction the two flavours hold the same one entry
 /// and cannot disagree. Without eviction, neither flavour refuses both.
 ///
-/// So (b) is not an independent guard, and the spec should not read as though
-/// choosing `-> Uuid` were an alternative to evicting. (b) earns its place for
-/// a different reason: one copy of key material means the index cannot be a
-/// place rotated-away keys live, so a FUTURE missing eviction degrades to a
-/// wrong count rather than to a resurrected key.
+/// The half of the original reading that survives: (b) is not an ALTERNATIVE to
+/// evicting. The half that does not: "(b) is not an independent guard." It is
+/// one. Clause (a) is sited at `insert`, and `remove_member_live`
+/// (`rest.rs:5331`) reaches through the public tuple field and calls no
+/// eviction at all — so on the removal path (a) never runs, and (b) is the
+/// entire refusal (measured: `flavour_dominance.rs` arm 3, #764 §3). This
+/// fixture cannot see that row, because the only mutation it exercises is
+/// re-key.
+///
+/// So the ranking this test's name and doc comment were written to support does
+/// not hold. Both clauses are blocking, and they do not cover each other's row:
+/// (a) closes the rotated-away-key vote and the one-member-quorum, under either
+/// flavour; (b) closes the ejected-member vote, which (a) is not sited on. The
+/// conjunction is measured on one roster in `bottom_row.rs` (#765). See
+/// `hub/docs/WITNESS_ROSTER_SPEC.md` §3 for the settled clause.
+///
+/// (b)'s other reason still stands: one copy of key material means the index
+/// cannot be a place rotated-away keys live, so a FUTURE missing eviction
+/// degrades to a wrong count rather than to a resurrected key.
 #[test]
 fn eviction_on_insert_closes_both_attacks_under_both_flavours() {
     /// `on_insert`, with HUB's clause (a): evict the prior entry's derived key
