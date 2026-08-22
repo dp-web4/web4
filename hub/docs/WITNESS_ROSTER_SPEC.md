@@ -352,10 +352,10 @@ docs change that introduced this file.
 |---|---|---|
 | id bridge is blind to 2 of 3 key sources (C8-C11) | web4 **#759** (merged) | 165 + 301 + 3 green |
 | `verify_quorum` contract characterization | web4 **#758** (merged) | 6 arms, 2 defects |
-| forward derivation dissolves C9/C10/C11; C8 needs the re-siting | web4 **#761** (open) | hub-lib 312 passed |
-| re-key desynchronizes a derived index; eviction closes it | `rekey_derived_index` (in #763) | 6 passed |
-| flavour dominance: `-> Lct` confers A, B and C | web4 **#764** (open) | 4 passed |
-| the conjunction — (a)+(b) refuse A, B, C on one roster; injectivity's sign | web4 **#765** (open) | 3 passed |
+| forward derivation dissolves C9/C10/C11; C8 needs the re-siting | web4 **#761** (merged `9462e451`) | hub-lib 312 passed |
+| re-key desynchronizes a derived index; eviction closes it | web4 **#763** (merged `e76eb98`) | 6 passed |
+| flavour dominance: `-> Lct` confers A, B and C | web4 **#764** (merged `b0919f6`) | 4 passed |
+| the conjunction — (a)+(b) refuse A, B, C on one roster; injectivity's sign | web4 **#765** (merged `ca521ab`) | 3 passed |
 
 Reproduced on HUB at `8088a512`: #763 `--test rekey_derived_index` 6/6, #764
 `--test flavour_dominance` 4/4, #765 `--test bottom_row` 3/3 — each run unedited
