@@ -365,11 +365,15 @@ impl RestState {
         }
         // V2-9 Phase 1: seed the resolver with every Sovereign Council
         // holder's pubkey so any holder can sign chapter acts as a
-        // co-Sovereign. Holders are also auto-added to member_pubkeys
-        // when they're admitted (CouncilMemberAdded handler in state.rs
-        // inserts them into the member registry); this loop is the
-        // explicit council-holder pass for clarity + to surface
-        // reconstruction errors with the council label.
+        // co-Sovereign. This pass is LOAD-BEARING, not a clarity pass:
+        // `CouncilMemberAdded` (state.rs, the arm at ~961) adds the holder
+        // to the `members` registry and pins their key in `council_pubkeys`
+        // ONLY — it never writes `member_pubkeys`, so the loop above cannot
+        // see a co-Sovereign. Delete this loop and every holder's envelope
+        // stops verifying. Guarded by
+        // `sprout_bridge_cannot_resolve_a_council_holder` (state.rs, C9) and
+        // `a_council_holders_row_is_not_reported_as_unkeyed` (admin.rs).
+        // It also surfaces reconstruction errors under the council label.
         for (holder_lct_id, pubkey_hex) in &projected.council_pubkeys {
             match hub_lib::hub::hestia_sovereign_lct(*holder_lct_id, pubkey_hex) {
                 Ok(lct) => resolver.insert(lct),
@@ -8806,6 +8810,63 @@ pub(crate) mod channel_e2e_tests {
             .await
             .unwrap();
         (tmp, state)
+    }
+
+    /// C12 — the council-holder pass in `RestState::new` is LOAD-BEARING, and
+    /// this is the test that says so. Sprout's ack (forum
+    /// `sprout-ack-hub-c8-c11-verified…`, 2026-08-21) caught the comment above
+    /// that loop claiming holders "are also auto-added to `member_pubkeys`"
+    /// and calling the pass a clarity duplicate. C9 (state.rs) shows the
+    /// projection half — `CouncilMemberAdded` writes `council_pubkeys` + a
+    /// `members` row and never `member_pubkeys`. This is the consequence half,
+    /// one layer up: enroll a holder, REOPEN the chapter so `RestState::new`
+    /// re-seeds from the replayed projection, and the holder is in the
+    /// resolver — reachable only through the council pass, because the member
+    /// loop above it has nothing to iterate for them.
+    #[tokio::test]
+    async fn a_council_holder_survives_a_restart_only_via_the_council_pass() {
+        let (tmp, state) = fresh_rest_state(None).await;
+        let root = state.paths.root.clone();
+
+        let kp = KeyPair::generate();
+        let hex = kp.verifying_key().to_hex();
+        let holder = Uuid::new_v4();
+        witness_for_test(&state, HubEvent::CouncilMemberAdded {
+            member_lct_id: holder,
+            member_pubkey_hex: hex.clone(),
+            added_by: state.sovereign_lct_id,
+            member_name: Some("Co-Sovereign".into()),
+        })
+        .await;
+
+        // The projection the reopen will read: keyed in council_pubkeys ONLY.
+        let projected = { let l = state.ledger.lock().await; state.projected(&l) };
+        assert_eq!(projected.council_pubkeys.get(&holder), Some(&hex));
+        assert!(
+            !projected.member_pubkeys.contains_key(&holder),
+            "the comment's claim, measured: CouncilMemberAdded never writes member_pubkeys"
+        );
+        assert!(projected.members.contains_key(&holder), "…it writes the members row instead");
+
+        // Restart. Drop the live handle first so nothing shares the store.
+        drop(state);
+        let store = open_hub_store(&root).unwrap();
+        let ledger = Arc::new(Mutex::new(HubLedger::open(store).await.unwrap()));
+        let reopened = RestState::open_with_law_and_ledger(
+            root,
+            Arc::new(RwLock::new(None)),
+            ledger,
+        )
+        .await
+        .unwrap();
+
+        let resolved = reopened.resolver.read().await.lookup(holder).map(|l| l.public_key.to_hex());
+        assert_eq!(
+            resolved,
+            Some(hex),
+            "C12: delete the council pass and this is None — every co-Sovereign's \
+             envelope stops verifying across a restart"
+        );
     }
 
     fn seal_req(
