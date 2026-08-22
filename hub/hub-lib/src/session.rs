@@ -108,6 +108,8 @@ impl HubSession {
             added_by: self.sovereign_lct_id,
             member_name: name,
             member_pubkey_hex: pubkey_hex,
+            anchor_level: None,
+            trust_ceiling: None,
         };
         self.append(event).await
     }

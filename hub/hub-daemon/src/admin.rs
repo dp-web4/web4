@@ -1379,6 +1379,8 @@ mod tests {
             added_by: s.sovereign_lct_id,
             member_name: Some(name.to_string()),
             member_pubkey_hex: None,
+            anchor_level: None,
+            trust_ceiling: None,
         }).await;
         witness_for_test(s, HubEvent::MemberSkillDeclared {
             member_lct_id: lct,
@@ -1441,6 +1443,8 @@ mod tests {
             added_by: s.sovereign_lct_id,
             member_name: Some("Sovereign".to_string()),
             member_pubkey_hex: None,
+            anchor_level: None,
+            trust_ceiling: None,
         }).await;
 
         let html = render(members(State(s.clone())).await).await;
@@ -1492,6 +1496,8 @@ mod tests {
             added_by: s.sovereign_lct_id,
             member_name: Some("Ghost".to_string()),
             member_pubkey_hex: None,
+            anchor_level: None,
+            trust_ceiling: None,
         }).await;
 
         let html = render(members(State(s.clone())).await).await;
@@ -1543,6 +1549,8 @@ mod tests {
             name: Some("Applicant".into()),
             message: None,
             requested_at: chrono::Utc::now(),
+            anchor_level: None,
+            asserted_trust_ceiling: None,
         }).await;
 
         let html = render(joins_page(State(s.clone())).await).await;
