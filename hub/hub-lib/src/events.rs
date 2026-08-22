@@ -84,6 +84,24 @@ pub enum HubEvent {
         /// re-added with a pubkey.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         member_pubkey_hex: Option<String>,
+        /// Hardware-binding level this member was admitted at
+        /// (`web4_core::lct::HardwareBinding::level`), and the trust ceiling the
+        /// society's law granted that level **at admission time**.
+        ///
+        /// Recorded on the event, not read from live law at fold time, for the
+        /// same reason `ReputationRecorded::applied` is: a projection must be a
+        /// pure function of the ledger. Re-reading current law during replay would
+        /// make the same ledger project differently after a `LawAmended`, which is
+        /// exactly the property the witnessed chain exists to deny.
+        ///
+        /// Absent on every member added before this field existed — and absent
+        /// means *uncapped*, not zero-capped: those members were admitted under a
+        /// law with no ceiling in force, and retro-capping them here would be this
+        /// field inventing history it did not witness.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        anchor_level: Option<u8>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        trust_ceiling: Option<f64>,
     },
 
     /// A member's Citizen status was revoked.
@@ -104,6 +122,14 @@ pub enum HubEvent {
         request_id: Uuid,
         member_lct_id: Uuid,
         member_pubkey_hex: String,
+        /// The anchor the applicant asserted, carried through the queue so the
+        /// operator-approval path prices the same claim the auto-admit path would
+        /// have. Dropping it here would make escalation a way *around* the anchor
+        /// cap — the queue is a slower door, not a different one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        anchor_level: Option<u8>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        asserted_trust_ceiling: Option<f64>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         name: Option<String>,
         /// Optional free-text note from the applicant (shown to the operator).

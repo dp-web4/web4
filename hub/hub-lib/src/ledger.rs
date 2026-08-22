@@ -576,6 +576,8 @@ mod tests {
                 added_by: sovereign.lct.id,
                 member_name: Some("Alice".into()),
                 member_pubkey_hex: None,
+                anchor_level: None,
+                trust_ceiling: None,
             },
         ).await.unwrap();
 
@@ -606,6 +608,8 @@ mod tests {
                         added_by: sovereign.lct.id,
                         member_name: None,
                         member_pubkey_hex: None,
+                        anchor_level: None,
+                        trust_ceiling: None,
                     },
                 ).await.unwrap();
             }
@@ -637,6 +641,8 @@ mod tests {
                 added_by: sovereign.lct.id,
                 member_name: Some("Original".into()),
                 member_pubkey_hex: None,
+                anchor_level: None,
+                trust_ceiling: None,
             },
         ).await.unwrap();
         drop(ledger);
@@ -764,6 +770,8 @@ mod tests {
                     added_by: sovereign.lct.id,
                     member_name: Some(format!("m{i}")),
                     member_pubkey_hex: None,
+                    anchor_level: None,
+                    trust_ceiling: None,
                 },
             ).await.unwrap();
         }
@@ -955,6 +963,8 @@ mod tests {
                         added_by: sovereign.lct.id,
                         member_name: Some(format!("fork{i}")),
                         member_pubkey_hex: None,
+                        anchor_level: None,
+                        trust_ceiling: None,
                     },
                 ).await.unwrap();
             }
@@ -1001,6 +1011,8 @@ mod tests {
                         added_by: sovereign.lct.id,
                         member_name: Some(format!("m{i}")),
                         member_pubkey_hex: None,
+                        anchor_level: None,
+                        trust_ceiling: None,
                     },
                 ).await.unwrap();
             }
@@ -1111,6 +1123,8 @@ mod tests {
                 added_by: sovereign.lct.id,
                 member_name: Some("Alice".into()),
                 member_pubkey_hex: None,
+                anchor_level: None,
+                trust_ceiling: None,
             },
             Utc::now(),
         ).unwrap();
@@ -1143,7 +1157,10 @@ mod tests {
         // Build entry A (gets index=1, prev_hash=genesis_hash)
         let unsigned_a = ledger.build_entry(
             sovereign.lct.id,
-            HubEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: None, member_pubkey_hex: None },
+            HubEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: None, member_pubkey_hex: None,
+            anchor_level: None,
+            trust_ceiling: None,
+        },
             Utc::now(),
         ).unwrap();
 
@@ -1151,7 +1168,10 @@ mod tests {
         // but commits before A and becomes the actual index=1)
         ledger.append(
             sovereign.lct.id, &kp,
-            HubEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: Some("B".into()), member_pubkey_hex: None },
+            HubEvent::MemberAdded { member_lct_id: Uuid::new_v4(), added_by: sovereign.lct.id, member_name: Some("B".into()), member_pubkey_hex: None,
+            anchor_level: None,
+            trust_ceiling: None,
+        },
         ).await.unwrap();
 
         // Now A tries to commit; should fail because the ledger advanced
@@ -1178,6 +1198,8 @@ mod tests {
                 added_by: sovereign.lct.id,
                 member_name: None,
                 member_pubkey_hex: None,
+                anchor_level: None,
+                trust_ceiling: None,
             },
         ).await;
         assert!(result.is_err());
@@ -1213,6 +1235,8 @@ mod tests {
                 added_by: sovereign.lct.id,
                 member_name: Some("Alice".into()),
                 member_pubkey_hex: None,
+                anchor_level: None,
+                trust_ceiling: None,
             },
         ).await.unwrap().clone();
 
@@ -1258,6 +1282,8 @@ mod tests {
             added_by: sovereign.lct.id,
             member_name: Some("Carol".into()),
             member_pubkey_hex: None,
+            anchor_level: None,
+            trust_ceiling: None,
         };
         // Build with proposal_ref + sign + commit.
         let unsigned = ledger.build_entry_with_proposal_ref(
@@ -1359,6 +1385,8 @@ mod tests {
                 added_by: sovereign.lct.id,
                 member_name: Some("Dana".into()),
                 member_pubkey_hex: None,
+                anchor_level: None,
+                trust_ceiling: None,
             },
             pinned,
         ).unwrap();
