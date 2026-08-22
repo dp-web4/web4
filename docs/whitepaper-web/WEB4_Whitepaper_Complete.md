@@ -344,7 +344,7 @@ The claims are testable and the artifacts are public. The [standard](https://git
 
 ## Legal and organizational framework
 
-The LCT mechanism is protected by two issued U.S. patents — [US11477027](https://patents.google.com/patent/US11477027B1) and [US12278913](https://patents.google.com/patent/US12278913B1) — with additional filings pending, held to keep the foundational mechanisms open for public benefit. The published implementations are licensed **AGPL-3.0-or-later** with a royalty-free patent grant for non-commercial and research use ([PATENTS.md](https://github.com/dp-web4/web4/blob/main/PATENTS.md)). Development is supported by **MetaLINXX Inc.** The conceptual layer draws on the [Synchronism](https://dpcars.net/synchronism) research program; Web4 itself is practical architecture, evaluable as protocols and running code.
+The LCT mechanism is protected by two issued U.S. patents — [US11477027](https://patents.google.com/patent/US11477027B1) and [US12278913](https://patents.google.com/patent/US12278913B2) — with additional filings pending, held to keep the foundational mechanisms open for public benefit. The published implementations are licensed **AGPL-3.0-or-later** with a royalty-free patent grant for non-commercial and research use ([PATENTS.md](https://github.com/dp-web4/web4/blob/main/PATENTS.md)). Development is supported by **MetaLINXX Inc.** The conceptual layer draws on the [Synchronism](https://dpcars.net/synchronism) research program; Web4 itself is practical architecture, evaluable as protocols and running code.
 
 ## An invitation
 
@@ -404,13 +404,13 @@ Compact definitions for every term this paper relies on. The standard's [GLOSSAR
 
 ## Primary Sources
 
-[1] Palatov, D. et al. (2024). "What is Web4 and Why Does It Matter." MetaLINNX Inc. Foundation Document.
+[1] Palatov, D. et al. (2024). "What is Web4 and Why Does It Matter." MetaLINXX Inc. Foundation Document.
 
 [2] Palatov, D. (2025). "LCT_T3_ATP Integration with Anthropic Protocol - Entity Types and Roles." Web4 Technical Specification.
 
 [3] Palatov, D. (2025). "Role-Entity LCT Framework." Web4 Architecture Document.
 
-[4] MetaLINNX Inc. (2024). "Coherence Ethics: Synchronism and Emergent Systems." Philosophical Framework.
+[4] MetaLINXX Inc. (2024). "Coherence Ethics: Synchronism and Emergent Systems." Philosophical Framework.
 
 ## Patents
 
@@ -420,7 +420,7 @@ Compact definitions for every term this paper relies on. The standard's [GLOSSAR
 
 ## Technical Implementations
 
-[7] Palatov, D. (2025). "Fractal Lightchain Architecture." https://github.com/dp-web4/Memory
+[7] Palatov, D. (2025). "Fractal Lightchain Architecture." Web4 Architecture Document (source repository not public).
 
 [8] Palatov, D. (2025). "SAGE: Situation-Aware Governance Engine." https://github.com/dp-web4/HRM
 
@@ -434,7 +434,7 @@ Compact definitions for every term this paper relies on. The standard's [GLOSSAR
 
 [12] Aragon, R. (2024). "Transformer-Sidecar: Bolt-On Persistent State Space Memory." https://github.com/RichardAragon/Transformer-Sidecar-Bolt-On-Persistent-State-Space-Memory
 
-[13] Model Context Protocol Specification. https://github.com/anthropic/model-context-protocol
+[13] Model Context Protocol Specification. https://github.com/modelcontextprotocol/modelcontextprotocol
 
 ## Theoretical Foundations
 
@@ -499,7 +499,7 @@ Compact definitions for every term this paper relies on. The standard's [GLOSSAR
 ### Websites
 - Web4 Project: https://metalinxx.io/web4
 - Web4 GitHub: https://github.com/dp-web4
-- MetaLINNX Inc.: https://metalinxx.io
+- MetaLINXX Inc.: https://metalinxx.io
 
 ### Contact
 - Metalinxx Inc.: via the [project repository](https://github.com/dp-web4/web4)
@@ -515,4 +515,4 @@ To contribute to Web4 development or request access to additional technical docu
 
 ---
 
-*Generated: 2026-08-20 04:44:49*
+*Generated: 2026-08-22 04:38:34*
