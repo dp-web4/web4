@@ -65,6 +65,14 @@ is the absence-reads-as-OK shape this PRD family keeps finding in its own instru
 is fail-closed by construction: it is a finding to be resolved, never a pass. Amend the home, bump
 there, then re-point here.
 
+**This is executed, not merely stated** (added 2026-08-21). The rule lived in prose from 2026-08-18
+with nothing running it — `grep -rl concepts_generation .github/` returned zero files, measured
+independently by two seats. The gate is now `.github/workflows/concepts-generation.yml`, running
+`hub/tools/check_concepts_generation.py` (stdlib-only; fetches the home over raw HTTPS, since
+`dp-web4/hestia` is public). It runs on the hub-side path filter **and on a daily schedule** — the
+schedule is the load-bearing trigger, because the home is in another repository and a bump there
+touches no web4 path, so a PR-only gate could never reach the STALE arm at all.
+
 **What this summary deliberately omits**, so no reader mistakes it for complete:
 
 - the **T0/T1/T2 proof-tier table** — which evidence each tier demands at act time, and which classes
@@ -545,6 +553,14 @@ equal                     => CURRENT
 home greater than here    => STALE       — this summary predates an amendment; re-point it
 either missing/unreadable => UNDETERMINED — never a pass; resolve before relying on the row
 ```
+
+**A fourth case this table does not enumerate** (found while making the rule executable,
+2026-08-21): `home < here` — the hub citing a generation the home never issued, which is what a
+citation bumped without the corresponding amendment, or a reverted home, looks like. The three rows
+above do not cover it, and it is plainly not CURRENT. The gate treats it as **UNDETERMINED** and says
+so in its output, per the fleet's fail-closed default for unrecognized conditions. It is recorded
+here so the tool's behaviour is a written rule rather than an unstated choice; if the intended
+verdict is something else, amend this row and the tool together.
 
 **The anchor is load-bearing, and its absence was a real defect in this section** (GPT review,
 2026-08-21). The first published version of this block ran a bare `grep -m1 concepts_generation`,
