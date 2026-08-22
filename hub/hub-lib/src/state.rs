@@ -2069,4 +2069,164 @@ mod tests {
         assert!(state.council_pubkeys.contains_key(&council),
             "the co-Sovereign's key IS projected — into the map nobody consults here");
     }
+
+    // ------------------------------------------------------------------
+    // Characterization: Sprout's "the id bridge is already in HubState"
+    // resolver (forum 74f8559f, 2026-08-21), transcribed VERBATIM from its
+    // §2 and measured against this projection. These tests assert what the
+    // shape DOES, not what it should do — the same discipline as web4#758.
+    // ------------------------------------------------------------------
+
+    /// Sprout's proposed resolver, exactly as written:
+    ///   registry[witness].document.id → member_pubkeys[uuid] → equality on the key.
+    /// Signature matches `CitizenshipRecord::verify_quorum`'s `Fn(&str) -> Option<PublicKey>`.
+    fn sprout_bridge(state: &HubState, witness: &str) -> Option<web4_core::crypto::PublicKey> {
+        let doc = &state.registry.get(witness)?.document;
+        let pinned = state.member_pubkeys.get(&doc.id)?;
+        (pinned == &doc.public_key.to_hex()).then(|| doc.public_key.clone())
+    }
+
+    /// Publish `lct` into the registry under its canonical pubkey-derived id,
+    /// returning that id (what an `Attestation.witness` would carry).
+    fn publish(state: &mut HubState, lct: &web4_core::lct::Lct) -> String {
+        let lct_id = web4_core::lct::derive_lct_id(&lct.public_key);
+        state.apply(&HubEvent::LctPublished {
+            lct_id: lct_id.clone(),
+            document: lct.clone(),
+            published_by: lct.id,
+            provenance: crate::events::LctProvenance::SelfIssued,
+            published_at: Utc::now(),
+        }, Utc::now(), 1);
+        lct_id
+    }
+
+    fn keyed_lct(id: Uuid) -> (web4_core::lct::Lct, String) {
+        let kp = web4_core::crypto::KeyPair::generate();
+        let hex = kp.verifying_key().to_hex();
+        (crate::hub::hestia_sovereign_lct(id, &hex).unwrap(), hex)
+    }
+
+    /// POSITIVE CONTROL. Where all three of Sprout's preconditions hold — the
+    /// member is pinned via `MemberAdded`, the pin is lowercase hex, and the
+    /// published document's `id` equals the membership uuid — the walk resolves.
+    /// The shape is sound; the four tests below are about what it MISSES.
+    #[tokio::test]
+    async fn sprout_bridge_resolves_an_ordinary_pinned_member() {
+        let mut state = HubState::default();
+        let member = Uuid::new_v4();
+        let (lct, hex) = keyed_lct(member);
+        state.apply(&HubEvent::MemberAdded {
+            member_lct_id: member, added_by: Uuid::nil(),
+            member_name: Some("Alice".into()), member_pubkey_hex: Some(hex.clone()),
+        }, Utc::now(), 1);
+        let witness = publish(&mut state, &lct);
+        assert_eq!(sprout_bridge(&state, &witness).map(|k| k.to_hex()), Some(hex),
+            "the bridge must resolve where the pin, the case, and the uuid all line up");
+    }
+
+    /// C8 — the founding Sovereign is UNRESOLVABLE by the bridge.
+    /// `Genesis` seeds a `members` row and NEVER a `member_pubkeys` entry
+    /// (state.rs `Genesis` arm), and `HubState` carries only
+    /// `founding_sovereign_lct_id` — a Uuid, no key. The Sovereign's key is
+    /// loaded from the identity store/vault into the resolver at
+    /// `RestState::new` (rest.rs ~336-356), OUTSIDE this projection. So the
+    /// bridge-as-a-HubState-method structurally cannot resolve the one
+    /// identity that signs every ledger entry.
+    #[tokio::test]
+    async fn sprout_bridge_cannot_resolve_the_founding_sovereign() {
+        let mut state = HubState::default();
+        let sov = Uuid::new_v4();
+        let (lct, _hex) = keyed_lct(sov);
+        state.apply(&HubEvent::Genesis {
+            hub_name: "Fleet".into(), charter_hash: "sha256:0".into(),
+            founding_sovereign_lct_id: sov, created_at: Utc::now(),
+        }, Utc::now(), 0);
+        let witness = publish(&mut state, &lct);
+
+        assert!(state.members.contains_key(&sov), "the Sovereign IS a member");
+        assert!(state.registry.contains_key(&witness), "and its LCT IS published");
+        assert!(!state.member_pubkeys.contains_key(&sov),
+            "but Genesis pins no key — the gap the /admin pill was rewritten for");
+        assert_eq!(state.founding_sovereign_lct_id, Some(sov));
+        assert_eq!(sprout_bridge(&state, &witness), None,
+            "C8: the Sovereign resolves to None — a keyed, admission-gated identity \
+             the bridge silently cannot see");
+    }
+
+    /// C9 — every council holder (co-Sovereign) is UNRESOLVABLE.
+    /// `CouncilMemberAdded` writes `council_pubkeys` and adds a `members` row
+    /// in the same arm (state.rs ~961-972); it never touches `member_pubkeys`.
+    /// `RestState::new` seeds the daemon resolver from `council_pubkeys`
+    /// separately, so their envelopes verify — the bridge's would not.
+    #[tokio::test]
+    async fn sprout_bridge_cannot_resolve_a_council_holder() {
+        let mut state = HubState::default();
+        let holder = Uuid::new_v4();
+        let (lct, hex) = keyed_lct(holder);
+        state.apply(&HubEvent::CouncilMemberAdded {
+            member_lct_id: holder, member_pubkey_hex: hex.clone(),
+            added_by: Uuid::nil(), member_name: Some("Holder".into()),
+        }, Utc::now(), 1);
+        let witness = publish(&mut state, &lct);
+
+        assert!(state.members.contains_key(&holder), "a council holder IS a member");
+        assert_eq!(state.council_pubkeys.get(&holder), Some(&hex), "and IS keyed");
+        assert!(!state.member_pubkeys.contains_key(&holder),
+            "in the other map — the third resolver source");
+        assert_eq!(sprout_bridge(&state, &witness), None,
+            "C9: co-Sovereigns resolve to None — the bridge reads one of three sources");
+    }
+
+    /// C10 — a mixed-case pin is unresolvable by an equality the daemon's own
+    /// path tolerates. `member_pubkey_hex` is stored VERBATIM as the applicant
+    /// supplied it (state.rs MemberAdded arm; rest.rs `request_citizenship`
+    /// passes `caller_pubkey_hex` through with no normalization), while
+    /// `PublicKey::to_hex` is `hex::encode` — always lowercase. `hex::decode`
+    /// is case-insensitive, so `hestia_sovereign_lct` reconstructs the SAME key
+    /// and the envelope resolver works. Only the string comparison fails.
+    #[tokio::test]
+    async fn sprout_bridge_fails_on_a_mixed_case_pin_the_daemon_accepts() {
+        let mut state = HubState::default();
+        let member = Uuid::new_v4();
+        let (lct, hex) = keyed_lct(member);
+        let upper = hex.to_uppercase();
+        assert_ne!(upper, hex, "fixture must actually differ in case");
+        state.apply(&HubEvent::MemberAdded {
+            member_lct_id: member, added_by: Uuid::nil(),
+            member_name: Some("Bob".into()), member_pubkey_hex: Some(upper.clone()),
+        }, Utc::now(), 1);
+        let witness = publish(&mut state, &lct);
+
+        assert_eq!(state.member_pubkeys.get(&member), Some(&upper),
+            "the fold stores the applicant's spelling verbatim");
+        let reconstructed = crate::hub::hestia_sovereign_lct(member, &upper).unwrap();
+        assert_eq!(reconstructed.public_key.to_hex(), hex,
+            "the daemon's own path decodes it to the identical key");
+        assert_eq!(sprout_bridge(&state, &witness), None,
+            "C10: same key, same member, silently unresolvable — compare bytes, not strings");
+    }
+
+    /// C11 — the `document.id → member_lct_id` hop is a CONVENTION, not an
+    /// invariant. `request_citizenship` pins `member_lct_id: caller_lct_id`
+    /// with a caller-supplied `pubkey_hex` and binds neither to any published
+    /// document (rest.rs ~4915). A member who joined under a different uuid
+    /// than the one in its published LCT is unresolvable, with no signal.
+    #[tokio::test]
+    async fn sprout_bridge_returns_none_when_the_membership_uuid_is_not_the_document_id() {
+        let mut state = HubState::default();
+        let membership_uuid = Uuid::new_v4();
+        let document_uuid = Uuid::new_v4();
+        let (lct, hex) = keyed_lct(document_uuid);
+        state.apply(&HubEvent::MemberAdded {
+            member_lct_id: membership_uuid, added_by: Uuid::nil(),
+            member_name: Some("Carol".into()), member_pubkey_hex: Some(hex.clone()),
+        }, Utc::now(), 1);
+        let witness = publish(&mut state, &lct);
+
+        assert_eq!(state.member_pubkeys.get(&membership_uuid), Some(&hex),
+            "the very same key is pinned, under the joiner's chosen uuid");
+        assert_eq!(sprout_bridge(&state, &witness), None,
+            "C11: the walk indexes on document.id, which nothing binds to the pin");
+    }
+
 }
