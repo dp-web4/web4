@@ -2008,4 +2008,65 @@ mod tests {
         assert!(!serde_json::to_string(&view).unwrap().contains("\"visibility\""),
             "MemberView must not expose the visibility tier metadata");
     }
+
+    /// **The precondition behind issue 707's optimistic "Today" paragraph.**
+    /// `resolve_sponsor_verdict` computes `sponsor_is_resolved_member` as
+    /// `members ∧ member_pubkeys`. This fold shows the two most authoritative
+    /// identities on any hub satisfy the first conjunct and not the second:
+    /// `Genesis` seeds the founding Sovereign into `members` with no pin, and
+    /// `CouncilMemberAdded` writes `council_pubkeys` — never `member_pubkeys`.
+    /// So naming either as a sponsor is *Refuted(NotResolved)*, one clause
+    /// earlier than the *Undecidable(VouchNotAttested)* the law docs predict,
+    /// and the operator's note says they are "not a key-bound member of this
+    /// society" — which is false about both.
+    #[tokio::test]
+    async fn sovereign_and_council_are_members_without_member_pubkeys() {
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let council = Uuid::new_v4();
+        let ordinary = Uuid::new_v4();
+        let council_kp = web4_core::crypto::KeyPair::generate();
+        let ordinary_kp = web4_core::crypto::KeyPair::generate();
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(),
+                charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::CouncilMemberAdded {
+                member_lct_id: council,
+                member_pubkey_hex: council_kp.verifying_key().to_hex(),
+                added_by: sov.lct.id,
+                member_name: Some("Co-Sovereign".into()),
+            }),
+            // The control: an ordinary admission, pinned the ordinary way.
+            (sov.lct.id, &kp, HubEvent::MemberAdded {
+                member_lct_id: ordinary,
+                added_by: sov.lct.id,
+                member_name: Some("Citizen".into()),
+                member_pubkey_hex: Some(ordinary_kp.verifying_key().to_hex()),
+            }),
+        ]).await;
+        let state = HubState::project(&ledger);
+
+        // All three are members...
+        for m in [sov.lct.id, council, ordinary] {
+            assert!(state.members.contains_key(&m), "{m} is a member");
+        }
+        // ...but the sponsor predicate's second conjunct holds for one of them.
+        assert!(!state.member_pubkeys.contains_key(&sov.lct.id),
+            "Genesis pins no member key for the founding Sovereign");
+        assert!(!state.member_pubkeys.contains_key(&council),
+            "CouncilMemberAdded pins into council_pubkeys, not member_pubkeys");
+        assert!(state.member_pubkeys.contains_key(&ordinary),
+            "control: an ordinary MemberAdded DOES pin — so the two misses above \
+             are the event shape, not a broken fixture");
+
+        // The council key is not lost, merely elsewhere: the hub's resolver
+        // merges three sources at startup, and only one of them is the map the
+        // sponsor predicate reads.
+        assert!(state.council_pubkeys.contains_key(&council),
+            "the co-Sovereign's key IS projected — into the map nobody consults here");
+    }
 }

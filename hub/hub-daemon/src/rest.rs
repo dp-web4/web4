@@ -4841,8 +4841,12 @@ fn resolve_sponsor_verdict(
     // to operator review. This is a deliberate `false`, not an oversight: the
     // alternative is crediting a peer factor the named member never granted,
     // which is the asserted-asker hole this rule exists to close. When a vouch
-    // event is projected (follow-up issue), this reads it and `Satisfied`
-    // becomes reachable.
+    // event is projected (issue 707), this reads it and `Satisfied` becomes
+    // reachable. NOTE the reachability is necessary, not sufficient: under a
+    // norm that escalates on `action == member_join_request` alone, every
+    // verdict — `Satisfied` included — composes to `Escalate`, so closing 707
+    // changes the recorded finding and no admission outcome. See
+    // `hub_lib::law::sponsor_reachability_tests`.
     let vouch_is_attested = false;
     // Trust is read at the sponsoring role — membership's own role. `None`
     // here means "no observations", which LAW treats as undecidable, never as
@@ -9715,6 +9719,76 @@ admission:
         let out = open_resp(&kp, &hub_pub, pid, &r.0.sealed);
         assert_eq!(out["admitted"], serde_json::json!(true),
             "no requirement in law ⇒ no new bar");
+    }
+
+
+    /// **The end-to-end consequence of the missing Genesis pin.** On a hub
+    /// whose one published norm is ADMISSION-REQUIRES-SOVEREIGN, the most
+    /// natural sponsor to name is the Sovereign. `sponsor_is_resolved_member`
+    /// is `members ∧ member_pubkeys`, and `Genesis` seeds the first and not
+    /// the second — so that applicant takes `NotResolved`, the *definite
+    /// failure* arm, one clause before the `VouchNotAttested` that HUB-LAW.md
+    /// and issue 707 both describe as today's universal answer. The operator
+    /// reads a finding asserting the founding Sovereign "is not a key-bound
+    /// member of this society".
+    #[tokio::test]
+    async fn naming_the_founding_sovereign_as_sponsor_is_refuted_not_undecidable() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let hub_pub = state.signer.public_key().unwrap();
+        // Control sponsor: an ordinary member, pinned the ordinary way.
+        let (_kp, pinned_lct) = pin_member(&state, &hub_pub).await;
+        *state.law.write().await = Some(Law::parse_and_validate(SPONSOR_LAW).unwrap());
+
+        let sovereign = state.sovereign_lct_id;
+        {
+            let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+            assert!(proj.members.contains_key(&sovereign), "Genesis made it a member");
+            assert!(!proj.member_pubkeys.contains_key(&sovereign), "and pinned no key");
+            assert!(proj.member_pubkeys.contains_key(&pinned_lct), "control IS pinned");
+        }
+
+        // ARM 1 — name the Sovereign.
+        let a1 = KeyPair::generate();
+        let l1 = Uuid::new_v4();
+        let p1 = Uuid::new_v4();
+        let s1 = seal_req(&a1, &hub_pub, p1, "request_citizenship", serde_json::json!({
+            "name": "Names The Sovereign", "sponsor_lct_id": sovereign.to_string() }));
+        let r1 = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: l1, pair_id: p1, sealed: s1,
+            caller_pubkey_hex: Some(a1.verifying_key().to_hex()),
+        })).await.expect("call ok");
+        let out1 = open_resp(&a1, &hub_pub, p1, &r1.0.sealed);
+        assert_eq!(out1["admitted"], serde_json::json!(false));
+        assert_eq!(out1["sponsor"], serde_json::json!("refuted_not_resolved"),
+            "naming the founding Sovereign takes the DEFINITE-FAILURE exit");
+
+        // ARM 2 — the control takes the exit the docs describe as universal.
+        let a2 = KeyPair::generate();
+        let l2 = Uuid::new_v4();
+        let p2 = Uuid::new_v4();
+        let s2 = seal_req(&a2, &hub_pub, p2, "request_citizenship", serde_json::json!({
+            "name": "Names A Pinned Member", "sponsor_lct_id": pinned_lct.to_string() }));
+        let r2 = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: l2, pair_id: p2, sealed: s2,
+            caller_pubkey_hex: Some(a2.verifying_key().to_hex()),
+        })).await.expect("call ok");
+        let out2 = open_resp(&a2, &hub_pub, p2, &r2.0.sealed);
+        assert_eq!(out2["sponsor"], serde_json::json!("undecidable_vouch_not_attested"),
+            "an ordinary pinned member is undecidable, not refuted");
+
+        // Neither is admitted — the finding is about WHICH exit, and what the
+        // record then asserts about the Sovereign.
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        for lct in [l1, l2] {
+            assert!(!proj.members.contains_key(&lct), "nobody auto-admitted either way");
+        }
+        let note = proj.pending_joins.values()
+            .find(|j| j.member_lct_id == l1)
+            .and_then(|j| j.sponsor_note.clone())
+            .unwrap_or_default();
+        assert!(note.contains("is not a key-bound member of this society"),
+            "operator note asserts a falsehood about the founding Sovereign: {note}");
+        assert!(note.contains(&sovereign.to_string()), "and names it: {note}");
     }
 
     /// F0.1 (R7a), review follow-up: a dependency that recovers while the hub
