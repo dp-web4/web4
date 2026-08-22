@@ -98,7 +98,11 @@ impl HubSession {
         name: Option<String>,
         pubkey_hex: Option<String>,
     ) -> Result<&LedgerEntry> {
-        crate::hub::validate_member_pubkey_hex(member_lct_id, pubkey_hex.as_deref())?;
+        // The built `Lct` is only useful to a caller with a live resolver in
+        // hand; the CLI has none (it exits before anything verifies), so the
+        // value is deliberately discarded here and the call is kept purely for
+        // its validate-and-warn effect.
+        let _ = crate::hub::validate_member_pubkey_hex(member_lct_id, pubkey_hex.as_deref())?;
         let event = HubEvent::MemberAdded {
             member_lct_id,
             added_by: self.sovereign_lct_id,

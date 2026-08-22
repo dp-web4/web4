@@ -155,15 +155,26 @@ pub enum SovereignMode {
 /// the resolver uses, so a typo is rejected at the door rather than pinned as
 /// an unusable key; and an omitted key is logged with its consequence, so
 /// "keyless" is a decision in the record instead of a default nobody saw.
-pub fn validate_member_pubkey_hex(member_lct_id: Uuid, pubkey_hex: Option<&str>) -> Result<()> {
+///
+/// **Returns the `Lct` it built**, so a caller that needs to seed the live
+/// resolver reuses *this* construction instead of repeating
+/// `hestia_sovereign_lct` a second time. The second call is the same input
+/// through the same function, so its `Err` arm is unreachable — which is
+/// exactly why a caller writing `if let Ok(lct) = …` there would be dropping an
+/// error it can never see, and would silently skip the seed if that ever
+/// stopped being true. One construction, one validation, one outcome.
+pub fn validate_member_pubkey_hex(
+    member_lct_id: Uuid,
+    pubkey_hex: Option<&str>,
+) -> Result<Option<Lct>> {
     match pubkey_hex {
         Some(pk) => {
-            hestia_sovereign_lct(member_lct_id, pk)
+            let lct = hestia_sovereign_lct(member_lct_id, pk)
                 .with_context(|| format!(
                     "invalid member_pubkey_hex for {member_lct_id} \
                      (expected 64 hex chars = 32-byte Ed25519 key)"
                 ))?;
-            Ok(())
+            Ok(Some(lct))
         }
         None => {
             tracing::warn!(
@@ -174,7 +185,7 @@ pub fn validate_member_pubkey_hex(member_lct_id: Uuid, pubkey_hex: Option<&str>)
                  operator re-key (hub set-member-key) or a re-join under a fresh LCT. \
                  Supply member_pubkey_hex to key the member at mint."
             );
-            Ok(())
+            Ok(None)
         }
     }
 }

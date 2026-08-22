@@ -330,8 +330,16 @@ hub add-member <dir> <lct-id> --name Alice --pubkey-hex <64-hex>
 ```
 
 Key-at-join works; key-after-membership does not. A member keyed at mint through
-the envelope action is also inserted into the *live* resolver, so it can sign
-without waiting for a `serve` restart.
+either **running-daemon** path — the Sovereign envelope action or
+`POST /tools/add_member` — is also inserted into the *live* resolver, so it can
+sign without waiting for a `serve` restart.
+
+`hub add-member` is the exception: it is a one-shot process with no resolver of
+its own, so the key is picked up by whichever `serve` reads that store next. If a
+daemon is **already** serving the same chapter, it will not see the new member
+until it is restarted — that is a property of writing the store out from under a
+live process and applies to the whole entry, key or no key, not something
+key-at-mint introduces. Prefer one of the two daemon paths above on a live hub.
 
 ### Sovereign LCT path resolution errors after moving the chapter dir
 

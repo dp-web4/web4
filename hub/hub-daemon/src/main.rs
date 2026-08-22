@@ -1539,6 +1539,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             rest.store_key.clone(),
             rest.hub_id,
             rest.hub_name.clone(),
+            rest.resolver.clone(),
         )
         .await?;
         (rest, mcp)
@@ -1567,6 +1568,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             rest.store_key.clone(),
             rest.hub_id,
             rest.hub_name.clone(),
+            rest.resolver.clone(),
         )
         .await?;
         (rest, mcp)
@@ -2520,6 +2522,7 @@ mod tests {
                 rest.store_key.clone(),
                 rest.hub_id,
                 rest.hub_name.clone(),
+                rest.resolver.clone(),
             )
             .await
             .unwrap();
@@ -2853,6 +2856,7 @@ mod tests {
                 rest.store_key.clone(),
                 rest.hub_id,
                 rest.hub_name.clone(),
+                rest.resolver.clone(),
             )
             .await
             .unwrap();
@@ -2959,6 +2963,7 @@ mod tests {
                 rest.store_key.clone(),
                 rest.hub_id,
                 rest.hub_name.clone(),
+                rest.resolver.clone(),
             )
             .await
             .unwrap();
@@ -3219,6 +3224,7 @@ mod tests {
                 locked.store_key.clone(),
                 locked.hub_id,
                 locked.hub_name.clone(),
+                locked.resolver.clone(),
             )
             .await
             .unwrap();
@@ -3358,6 +3364,7 @@ mod tests {
                 locked.store_key.clone(),
                 locked.hub_id,
                 locked.hub_name.clone(),
+                locked.resolver.clone(),
             )
             .await
             .unwrap();

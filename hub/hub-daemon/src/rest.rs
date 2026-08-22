@@ -3183,18 +3183,17 @@ async fn submit_event(
             }
             // Reject a malformed key before it reaches the ledger, and record
             // the keyless mint as the deliberate act it has to be.
-            hub_lib::hub::validate_member_pubkey_hex(member_lct_id, member_pubkey_hex.as_deref())
-                .map_err(|e| ApiError::bad_request(format!("{:#}", e)))?;
+            //
             // Key-at-mint is only real if the key works before the next
             // restart. `pin_member_key` already does this for the re-key path;
             // the events route never touched the resolver, so a member keyed at
             // mint would have been unable to verify until `serve` was bounced —
-            // a smaller version of the same trap this change closes.
-            if let Some(pk) = member_pubkey_hex.as_deref() {
-                if let Ok(lct) = hub_lib::hub::hestia_sovereign_lct(member_lct_id, pk) {
-                    resolver_seed = Some(lct);
-                }
-            }
+            // a smaller version of the same trap this change closes. The seed
+            // is the Lct the validator itself built: one construction, so there
+            // is no second fallible call whose `Err` this arm could drop.
+            resolver_seed =
+                hub_lib::hub::validate_member_pubkey_hex(member_lct_id, member_pubkey_hex.as_deref())
+                    .map_err(|e| ApiError::bad_request(format!("{:#}", e)))?;
             HubEvent::MemberAdded {
                 member_lct_id,
                 added_by: envelope.signer_lct_id,
