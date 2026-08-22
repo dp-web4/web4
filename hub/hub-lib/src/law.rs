@@ -224,8 +224,18 @@ pub enum SponsorUnknown {
     ///
     /// Until the hub projects a witnessed vouch event, this is **undecidable**
     /// and routes to operator review. It is not a refutation: the sponsorship
-    /// may well be real, and a human can confirm it. When a vouch event lands,
-    /// [`SponsorVerdict::Satisfied`] becomes reachable cleanly.
+    /// may well be real, and a human can confirm it. When a vouch event lands
+    /// (**issue 707**), [`SponsorVerdict::Satisfied`] becomes reachable
+    /// cleanly — though reachable is not the same as *observable*: see
+    /// `sponsor_reachability_tests`, where a norm escalating on the join
+    /// action alone maps every verdict to `Escalate`.
+    ///
+    /// Reaching this arm also requires the named sponsor to be
+    /// `sponsor_is_resolved_member`, i.e. present in **`member_pubkeys`**.
+    /// The founding Sovereign (seeded by `Genesis` with no pin) and every
+    /// council holder (pinned into `council_pubkeys`) are not, so naming
+    /// either lands on [`SponsorRefusal::NotResolved`] instead —
+    /// `state::tests::sovereign_and_council_are_members_without_member_pubkeys`.
     VouchNotAttested { named: Uuid },
     /// Law names a sponsor role other than membership itself. The hub does not
     /// project role assignments today (`RoleAssigned` is witnessed, not
@@ -2238,5 +2248,108 @@ mod sponsor_consent_tests {
         let v = evaluate_sponsor(Some(&p), facts(a, Some(s), true, None));
         assert_eq!(v, SponsorVerdict::Satisfied { sponsor_lct_id: s });
         assert!(v.may_auto_admit());
+    }
+}
+
+#[cfg(test)]
+mod sponsor_reachability_tests {
+    use super::*;
+
+    /// The norm the Fleet hub actually publishes (measured 2026-08-21 by
+    /// Legion, re-derived here as a fixture): **one** norm, matching on the
+    /// ACTION ALONE, escalating every join unconditionally.
+    const LIVE_SHAPED_LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+    description: "Every membership request is decided by the Sovereign"
+admission:
+  open: false
+  requires_sponsor: true
+"#;
+
+    fn join_request() -> R6Request {
+        R6Request {
+            role: "applicant".to_string(),
+            action: "member_join_request".to_string(),
+            ..Default::default()
+        }
+    }
+
+    /// **The sponsor verdict is outcome-inert under the live norm — for every
+    /// verdict, including the one issue 707 exists to make reachable.**
+    ///
+    /// `tighten_with_sponsor` may only tighten, and a norm that escalates on
+    /// the action alone has already tightened as far as this lattice goes. So
+    /// landing the vouch event changes `Satisfied` from unreachable to
+    /// reachable and changes **no admission outcome**: the composition maps
+    /// `Escalate` to `Escalate` under all nine exits. Whatever else the vouch
+    /// event buys, sponsor-gated auto-admission is not it until a norm
+    /// distinguishes a sponsored join from an unsponsored one.
+    #[test]
+    fn under_the_live_norm_every_sponsor_verdict_is_outcome_inert() {
+        let law = Law::parse_and_validate(LIVE_SHAPED_LAW).expect("live-shaped law parses");
+        // The requirement really is switched on in this fixture — otherwise
+        // inertness would be trivially about `NotRequired`.
+        assert!(law.ext.admission.as_ref().expect("admission section").requires_sponsor);
+
+        let norms = law.evaluate_outcome(&join_request()).decision;
+        assert_eq!(norms, Decision::Escalate, "the action alone escalates every join");
+
+        let s = Uuid::new_v4();
+        let every_exit = [
+            SponsorVerdict::NotRequired,
+            SponsorVerdict::Satisfied { sponsor_lct_id: s },
+            SponsorVerdict::Refuted(SponsorRefusal::Missing),
+            SponsorVerdict::Refuted(SponsorRefusal::SelfSponsored),
+            SponsorVerdict::Refuted(SponsorRefusal::NotResolved { named: s }),
+            SponsorVerdict::Refuted(SponsorRefusal::TrustBelowBar { score: 0.1, required: 0.9 }),
+            SponsorVerdict::Undecidable(SponsorUnknown::VouchNotAttested { named: s }),
+            SponsorVerdict::Undecidable(SponsorUnknown::RoleNotProjected {
+                required_role: "archivist".to_string(),
+            }),
+            SponsorVerdict::Undecidable(SponsorUnknown::NoTrustRecord { required: 0.5 }),
+        ];
+        for v in &every_exit {
+            assert_eq!(tighten_with_sponsor(norms.clone(), v), Decision::Escalate,
+                "{} cannot move the outcome under an escalate-on-action norm", v.token());
+        }
+
+        // Discriminating control: the same nine verdicts DO separate when the
+        // norms gate leaves room. So the inertness above is a property of the
+        // live norm, not of `tighten_with_sponsor` being a no-op.
+        assert_eq!(tighten_with_sponsor(Decision::Allow, &every_exit[1]), Decision::Allow);
+        assert_eq!(tighten_with_sponsor(Decision::Allow, &every_exit[6]), Decision::Escalate);
+    }
+
+    /// The corollary for anyone reading `requires_sponsor` as a live knob:
+    /// under this norm set, flipping it changes nothing observable except the
+    /// `sponsor_note` recorded on the queued request. The gate is the norm.
+    #[test]
+    fn flipping_requires_sponsor_changes_only_the_operator_note() {
+        let law = Law::parse_and_validate(LIVE_SHAPED_LAW).expect("parses");
+        let norms = law.evaluate_outcome(&join_request()).decision;
+
+        let (a, s) = (Uuid::new_v4(), Uuid::new_v4());
+        let off = evaluate_sponsor(Some(&sponsor_tests::policy(false, None, None)),
+            sponsor_tests::facts_unvouched(a, Some(s), true));
+        let on = evaluate_sponsor(Some(&sponsor_tests::policy(true, None, None)),
+            sponsor_tests::facts_unvouched(a, Some(s), true));
+
+        assert_eq!(off, SponsorVerdict::NotRequired);
+        assert!(matches!(on, SponsorVerdict::Undecidable(SponsorUnknown::VouchNotAttested { .. })));
+        // Same decision either way...
+        assert_eq!(tighten_with_sponsor(norms.clone(), &off),
+                   tighten_with_sponsor(norms.clone(), &on));
+        // ...and the only difference reaching the operator is the note, which
+        // is EMPTY in the `false` case (`NotRequired.reason()` is `None`) —
+        // so a claimed sponsor is not merely inert today, it is unrecorded.
+        assert_eq!(off.reason(), None);
+        assert!(on.reason().is_some());
     }
 }
