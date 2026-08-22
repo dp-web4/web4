@@ -136,6 +136,60 @@ pub enum SovereignMode {
     },
 }
 
+/// The one gate every member-minting path shares: validate an optional
+/// `member_pubkey_hex` for `member_lct_id`, and make the keyless case audible.
+///
+/// Every path that can mint a member — the `hub add-member` CLI,
+/// `POST /tools/add_member`, and the Sovereign `AddMember` envelope action —
+/// used to hardcode `member_pubkey_hex: None`, so the natural way to admit a
+/// member produced a row that **cannot ever key itself**: a keyless member can
+/// open no sealed channel, and both self-service repair paths
+/// (`/members/join`, `request_citizenship`) short-circuit on `already_member`
+/// before pinning anything. The exits are an operator re-key or a re-join under
+/// a fresh LCT — both of which cost a human. Key-at-join works; key-after-
+/// membership does not.
+///
+/// This function does not forbid the keyless mint (chapters predating V2-12
+/// exist, and some operator flows legitimately have no key in hand). It makes
+/// the mint honest: a supplied key is validated against the same construction
+/// the resolver uses, so a typo is rejected at the door rather than pinned as
+/// an unusable key; and an omitted key is logged with its consequence, so
+/// "keyless" is a decision in the record instead of a default nobody saw.
+///
+/// **Returns the `Lct` it built**, so a caller that needs to seed the live
+/// resolver reuses *this* construction instead of repeating
+/// `hestia_sovereign_lct` a second time. The second call is the same input
+/// through the same function, so its `Err` arm is unreachable — which is
+/// exactly why a caller writing `if let Ok(lct) = …` there would be dropping an
+/// error it can never see, and would silently skip the seed if that ever
+/// stopped being true. One construction, one validation, one outcome.
+pub fn validate_member_pubkey_hex(
+    member_lct_id: Uuid,
+    pubkey_hex: Option<&str>,
+) -> Result<Option<Lct>> {
+    match pubkey_hex {
+        Some(pk) => {
+            let lct = hestia_sovereign_lct(member_lct_id, pk)
+                .with_context(|| format!(
+                    "invalid member_pubkey_hex for {member_lct_id} \
+                     (expected 64 hex chars = 32-byte Ed25519 key)"
+                ))?;
+            Ok(Some(lct))
+        }
+        None => {
+            tracing::warn!(
+                member_lct_id = %member_lct_id,
+                "minting a KEYLESS member: this row can never open a sealed channel \
+                 and cannot self-repair (both /members/join and request_citizenship \
+                 short-circuit on already_member before pinning). Clearing it needs an \
+                 operator re-key (hub set-member-key) or a re-join under a fresh LCT. \
+                 Supply member_pubkey_hex to key the member at mint."
+            );
+            Ok(None)
+        }
+    }
+}
+
 /// Synthesize a minimal Lct from a Hestia-mode config's stored
 /// pubkey + lct_id. In Hestia mode, the hub holds NO IdentityFile —
 /// only the public key — so envelope verification / ledger

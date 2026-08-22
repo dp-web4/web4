@@ -13,7 +13,7 @@
 //! - GET  /tools/query_hub       → hub identity + role-fill snapshot + recent events
 //! - GET  /tools/list_members    → all current members (projected from ledger)
 //! - GET  /tools/find_skill      → ?q=...  case-insensitive skill search
-//! - POST /tools/add_member      → {member_lct_id, name?} — records MemberAdded
+//! - POST /tools/add_member      → {member_lct_id, name?, member_pubkey_hex?} — records MemberAdded
 //! - POST /tools/assign_role     → {role, role_lct_id, member_lct_id} — records RoleAssigned
 //! - POST /tools/record_event    → {event_kind, title, attended_by, held_at?}
 //! - POST /tools/declare_skill   → {member_lct_id, skill} — records MemberSkillDeclared
@@ -74,6 +74,16 @@ pub struct McpState {
     pub law: Arc<tokio::sync::RwLock<Option<Law>>>,
     /// Shared derived store key (same Arc as RestState) — de-env'd runtime opens.
     pub store_key: Arc<tokio::sync::RwLock<Option<zeroize::Zeroizing<[u8; 32]>>>>,
+    /// Public-key resolver for envelope verification — the SAME
+    /// `Arc<RwLock<MapResolver>>` RestState holds, not a second one.
+    ///
+    /// MCP does not *verify* envelopes (its write tools are loopback-only and
+    /// sign as the Sovereign), so this handle exists for the write direction: a
+    /// member keyed at mint through `/tools/add_member` has to be verifiable by
+    /// the REST envelope path *now*, not after the next `serve`. A private
+    /// resolver would satisfy the type and change nothing observable — the seed
+    /// would land in a map no verifier reads.
+    pub resolver: Arc<tokio::sync::RwLock<hub_lib::envelope::MapResolver>>,
 }
 
 impl McpState {
@@ -89,6 +99,10 @@ impl McpState {
     /// longer loads the identity itself — so it constructs cleanly in a locked
     /// shell, and a single runtime ignition (the signer swap) lights up both
     /// surfaces.
+    ///
+    /// `resolver` must be RestState's own handle, for the same reason `ledger`
+    /// must be: a key this surface pins at mint is only usable if the surface
+    /// that verifies envelopes can see it before the next restart.
     pub async fn open_with_law_and_ledger(
         hub_dir: PathBuf,
         law: Arc<tokio::sync::RwLock<Option<Law>>>,
@@ -98,6 +112,7 @@ impl McpState {
         store_key: Arc<tokio::sync::RwLock<Option<zeroize::Zeroizing<[u8; 32]>>>>,
         hub_id: Uuid,
         hub_name: String,
+        resolver: Arc<tokio::sync::RwLock<hub_lib::envelope::MapResolver>>,
     ) -> Result<Self> {
         // No load_society here — it reads the (encrypted) store and would fail in a locked
         // shell. hub_id/hub_name come from RestState (from the ledger when ignited, or from
@@ -111,6 +126,7 @@ impl McpState {
             ledger,
             law,
             store_key,
+            resolver,
         })
     }
 
@@ -332,6 +348,12 @@ struct AddMemberRequest {
     member_lct_id: Uuid,
     #[serde(default)]
     name: Option<String>,
+    /// Member's Ed25519 public key, hex (64 chars), pinned in the same
+    /// `MemberAdded`. Optional only for back-compat: a member minted without
+    /// one can never open a sealed channel and cannot self-repair, so omitting
+    /// it hands the operator a row only they can fix.
+    #[serde(default)]
+    member_pubkey_hex: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -347,13 +369,32 @@ async fn add_member(
     Json(req): Json<AddMemberRequest>,
 ) -> Result<Json<EventRecordedResponse>, ApiError> {
     require_loopback(&peer)?;
+    // Validate before appending: a mistyped key pinned into the ledger is
+    // indistinguishable from a real one until the member's first envelope
+    // fails to verify, and by then the row is already written. The validator
+    // hands back the `Lct` it built so the resolver seed below is the same
+    // construction, not a second fallible one.
+    let resolver_seed =
+        hub_lib::hub::validate_member_pubkey_hex(req.member_lct_id, req.member_pubkey_hex.as_deref())
+            .map_err(|e| ApiError::bad_request(format!("{:#}", e)))?;
     let event = HubEvent::MemberAdded {
         member_lct_id: req.member_lct_id,
         added_by: s.sovereign_lct_id,
         member_name: req.name,
-        member_pubkey_hex: None,
+        member_pubkey_hex: req.member_pubkey_hex,
     };
-    append_with_sovereign(&s, event).await
+    let recorded = append_with_sovereign(&s, event).await?;
+    // Ledger first, resolver second — same ordering the Sovereign `AddMember`
+    // envelope arm uses (`rest.rs` `submit_event`), and for the same two
+    // reasons: only a witnessed key is ever installed in memory, and a member
+    // keyed at mint can verify immediately instead of waiting for a `serve`
+    // restart. Without this, `/tools/add_member` would pin a key into the
+    // ledger that the running daemon does not use — the field would be honest
+    // about the store and wrong about the process.
+    if let Some(lct) = resolver_seed {
+        s.resolver.write().await.insert(lct);
+    }
+    Ok(recorded)
 }
 
 // ---------- POST /tools/assign_role ----------
@@ -658,6 +699,7 @@ mod tests {
             s.store_key.clone(),
             s.hub_id,
             s.hub_name.clone(),
+            s.resolver.clone(),
         )
         .await
         .expect("an McpState over an ignited local-mode hub")
@@ -712,7 +754,18 @@ mod tests {
     }
 
     fn add_member_req() -> AddMemberRequest {
-        AddMemberRequest { member_lct_id: Uuid::new_v4(), name: Some("Probe".into()) }
+        AddMemberRequest {
+            member_lct_id: Uuid::new_v4(),
+            name: Some("Probe".into()),
+            member_pubkey_hex: None,
+        }
+    }
+
+    /// A real Ed25519 public key, hex — not `"00".repeat(32)`, which is not a
+    /// valid point and is exactly what the new validator rejects.
+    fn real_pubkey_hex() -> String {
+        use web4_core::crypto::KeyPair;
+        KeyPair::generate().verifying_key().to_hex()
     }
 
     /// A law that pins one `decision` onto one event kind. `check_governance`
@@ -1091,4 +1144,114 @@ mod tests {
             "the build stamp is a property of the artifact, identical across societies"
         );
     }
+
+    // ---------- key-at-mint (/tools/add_member) ----------
+
+    /// The blocker this change closes: `/tools/add_member` had no pubkey field
+    /// at all, so the natural way to admit a member produced a row that can
+    /// never key itself — `/members/join` and `request_citizenship` both
+    /// short-circuit on `already_member` before pinning, leaving an operator
+    /// re-key as the only exit. A key supplied at mint must reach the
+    /// projection, or the field is decoration.
+    #[tokio::test]
+    async fn add_member_pins_a_supplied_key_at_mint() {
+        let (_tmp, rest) = fresh_rest_state(None).await;
+        let s = mcp_over(&rest).await;
+        let member = Uuid::new_v4();
+        let pk = real_pubkey_hex();
+
+        add_member(State(s.clone()), loopback(), Json(AddMemberRequest {
+            member_lct_id: member,
+            name: Some("Keyed".into()),
+            member_pubkey_hex: Some(pk.clone()),
+        })).await.expect("a keyed add is admitted");
+
+        {
+            let ledger = s.ledger.lock().await;
+            let projected = HubState::project(&ledger);
+            assert!(projected.members.contains_key(&member), "the member landed");
+            assert_eq!(
+                projected.member_pubkeys.get(&member), Some(&pk),
+                "the key must land in member_pubkeys — that map is what seeds the \
+                 resolver at startup, so a key that misses it is a key the member \
+                 cannot sign with"
+            );
+        }
+
+        // The half that makes it real. `member_pubkeys` is what seeds the
+        // resolver at the NEXT startup; this is what verifies envelopes now.
+        // Asserted through `rest`, not `s`, on purpose: the point is that MCP
+        // and REST share one resolver, and a private handle on McpState would
+        // pass an assertion made through `s` while changing nothing a verifier
+        // can see.
+        let seeded = rest.resolver.read().await.0.get(&member).cloned();
+        let seeded = seeded.expect(
+            "the key must also reach the LIVE resolver — the ledger row alone means \
+             /tools/add_member pinned a key the running daemon will not use, and the \
+             member cannot sign until `serve` is restarted",
+        );
+        assert_eq!(
+            seeded.public_key.to_hex(), pk,
+            "and it must be THE key that was supplied: seeding some other Lct under \
+             this id verifies nothing the member can produce a signature for"
+        );
+        assert_eq!(seeded.id, member, "seeded under the member's own LCT id");
+    }
+
+    /// The keyless mint stays legal (back-compat), and must leave the live
+    /// resolver alone: seeding anything for a member the ledger does not
+    /// witness a key for would let an unwitnessed key verify until restart —
+    /// the exact inversion of the ledger-first ordering this path exists to
+    /// keep. Mirrors the envelope arm's
+    /// `add_member_without_a_key_is_still_admitted_and_leaves_the_resolver_alone`.
+    #[tokio::test]
+    async fn a_keyless_add_member_is_admitted_and_seeds_nothing() {
+        let (_tmp, rest) = fresh_rest_state(None).await;
+        let s = mcp_over(&rest).await;
+        let member = Uuid::new_v4();
+
+        add_member(State(s.clone()), loopback(), Json(AddMemberRequest {
+            member_lct_id: member,
+            name: Some("Keyless".into()),
+            member_pubkey_hex: None,
+        })).await.expect("a keyless add is still admitted");
+
+        let projected = { HubState::project(&*s.ledger.lock().await) };
+        assert!(projected.members.contains_key(&member), "the member landed");
+        assert!(
+            !projected.member_pubkeys.contains_key(&member),
+            "and carries no key — this is the state the admin page warns about"
+        );
+        assert!(
+            !rest.resolver.read().await.0.contains_key(&member),
+            "nothing may be seeded for a member with no witnessed key"
+        );
+    }
+
+    /// A mistyped key is worse than no key: it is indistinguishable from a real
+    /// one until the member's first envelope fails to verify, and by then the
+    /// ledger has already witnessed it. Reject at the door.
+    #[tokio::test]
+    async fn add_member_rejects_a_malformed_key_before_appending() {
+        let (_tmp, rest) = fresh_rest_state(None).await;
+        let s = mcp_over(&rest).await;
+        let (before_index, _) = head(&s).await;
+
+        let member = Uuid::new_v4();
+        let err = add_member(State(s.clone()), loopback(), Json(AddMemberRequest {
+            member_lct_id: member,
+            name: None,
+            member_pubkey_hex: Some("not-hex".into()),
+        })).await.err().expect("a malformed key is refused");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST, "malformed input is a 400, not a 500");
+
+        let (after_index, _) = head(&s).await;
+        assert_eq!(after_index, before_index, "and nothing was appended");
+        assert!(
+            !rest.resolver.read().await.0.contains_key(&member),
+            "a refused mint must seed nothing either — ledger first, resolver \
+             second, and a rejected act never reaches the second"
+        );
+    }
+
 }

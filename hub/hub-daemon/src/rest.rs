@@ -3053,6 +3053,10 @@ enum EnvelopeAction {
         member_lct_id: Uuid,
         #[serde(default)]
         name: Option<String>,
+        /// Member's Ed25519 public key, hex (64 chars), pinned by the same act.
+        /// Optional for back-compat only — see `validate_member_pubkey_hex`.
+        #[serde(default)]
+        member_pubkey_hex: Option<String>,
     },
     DeclareSkill {
         member_lct_id: Uuid,
@@ -3165,19 +3169,36 @@ async fn submit_event(
     // law) and "member-self" (declare your own skill, etc.). The
     // founding Sovereign can do anything; members are restricted to
     // acts about themselves.
+    // Set by the arms that mint or rotate a key; applied to the LIVE resolver
+    // only after the entry is committed, so a rejected act never leaves a key
+    // installed in memory that the ledger does not carry.
+    let mut resolver_seed: Option<web4_core::lct::Lct> = None;
     let event = match action {
-        EnvelopeAction::AddMember { member_lct_id, name } => {
+        EnvelopeAction::AddMember { member_lct_id, name, member_pubkey_hex } => {
             if !signer_is_sovereign {
                 return Err(ApiError::unauthorized(String::from(
                     "add_member is a Sovereign-only act; members cannot admit other members \
                      (members self-add via POST /v1/hubs/{id}/members/join — V2-12)"
                 )));
             }
+            // Reject a malformed key before it reaches the ledger, and record
+            // the keyless mint as the deliberate act it has to be.
+            //
+            // Key-at-mint is only real if the key works before the next
+            // restart. `pin_member_key` already does this for the re-key path;
+            // the events route never touched the resolver, so a member keyed at
+            // mint would have been unable to verify until `serve` was bounced —
+            // a smaller version of the same trap this change closes. The seed
+            // is the Lct the validator itself built: one construction, so there
+            // is no second fallible call whose `Err` this arm could drop.
+            resolver_seed =
+                hub_lib::hub::validate_member_pubkey_hex(member_lct_id, member_pubkey_hex.as_deref())
+                    .map_err(|e| ApiError::bad_request(format!("{:#}", e)))?;
             HubEvent::MemberAdded {
                 member_lct_id,
                 added_by: envelope.signer_lct_id,
                 member_name: name,
-                member_pubkey_hex: None,
+                member_pubkey_hex,
             }
         }
         EnvelopeAction::DeclareSkill { member_lct_id, skill } => {
@@ -3362,16 +3383,25 @@ async fn submit_event(
         })?;
 
     // 6. Commit the signed entry.
-    let mut ledger = s.ledger.lock().await;
-    let entry = ledger.append_signed(unsigned, signature).await
-        .map_err(ApiError::internal)?;
+    let accepted = {
+        let mut ledger = s.ledger.lock().await;
+        let entry = ledger.append_signed(unsigned, signature).await
+            .map_err(ApiError::internal)?;
+        EventAccepted {
+            entry_index: entry.index,
+            entry_hash: entry.entry_hash.clone(),
+            event_kind: entry.event.kind().to_string(),
+            signer_lct_id: envelope.signer_lct_id,
+        }
+    };
 
-    Ok(Json(EventAccepted {
-        entry_index: entry.index,
-        entry_hash: entry.entry_hash.clone(),
-        event_kind: entry.event.kind().to_string(),
-        signer_lct_id: envelope.signer_lct_id,
-    }))
+    // 7. Ledger first, resolver second — a member keyed at mint can verify
+    // immediately, and only ever for a key that is already witnessed.
+    if let Some(lct) = resolver_seed {
+        s.resolver.write().await.insert(lct);
+    }
+
+    Ok(Json(accepted))
 }
 
 // ---------- GET /v1/hubs/{hub_id}/state ----------
@@ -8408,6 +8438,99 @@ norms:
     ) -> SignedEnvelope {
         let challenge = state.nonces.issue(signer.lct.id, Utc::now());
         build_envelope(signer.lct.id, &signer.keypair().unwrap(), &challenge, payload).unwrap()
+    }
+
+    // ---- key-at-mint: the Sovereign AddMember action ----
+
+    /// The blocker: every member-minting path hardcoded `member_pubkey_hex:
+    /// None`, so the natural way to admit a member produced a row that can
+    /// never key itself — `/members/join` and `request_citizenship` both
+    /// short-circuit on `already_member` before pinning anything, leaving an
+    /// operator re-key as the only exit. Two halves have to hold for the fix to
+    /// be real, and the second is the one that is easy to miss: the key must
+    /// reach `member_pubkeys` (what seeds the resolver at *startup*) **and**
+    /// the LIVE resolver (what verifies envelopes *now*). Ledger-only would
+    /// mean a member keyed at mint still cannot sign until `serve` is bounced.
+    #[tokio::test]
+    async fn a_member_keyed_at_mint_can_verify_without_a_restart() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let member = Uuid::new_v4();
+        let member_key = KeyPair::generate();
+        let pk_hex = member_key.verifying_key().to_hex();
+
+        let env = publish_envelope(&state, &sov, serde_json::json!({
+            "action": "add_member",
+            "member_lct_id": member,
+            "name": "Keyed At Mint",
+            "member_pubkey_hex": pk_hex,
+        }));
+        let accepted = submit_event(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .expect("a Sovereign-signed keyed add_member must be accepted");
+        assert_eq!(accepted.0.event_kind, "member_added");
+
+        let projected = { HubState::project(&*state.ledger.lock().await) };
+        assert_eq!(
+            projected.member_pubkeys.get(&member), Some(&pk_hex),
+            "the key must be witnessed in the ledger, or a restart forgets it"
+        );
+        assert!(
+            state.resolver.read().await.0.contains_key(&member),
+            "the key must also be in the LIVE resolver — otherwise key-at-mint \
+             still costs a daemon restart before the member can sign anything"
+        );
+    }
+
+    /// Omitting the key is still legal (back-compat), and must stay legal —
+    /// the fix is that keyless becomes a choice, not the only option. Guarding
+    /// this keeps a future tightening from silently breaking chapters that
+    /// bootstrap members before their keys exist.
+    #[tokio::test]
+    async fn add_member_without_a_key_is_still_admitted_and_leaves_the_resolver_alone() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let member = Uuid::new_v4();
+
+        let env = publish_envelope(&state, &sov, serde_json::json!({
+            "action": "add_member",
+            "member_lct_id": member,
+        }));
+        submit_event(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .expect("a keyless add_member is still accepted");
+
+        let projected = { HubState::project(&*state.ledger.lock().await) };
+        assert!(projected.members.contains_key(&member), "the member landed");
+        assert!(
+            !projected.member_pubkeys.contains_key(&member),
+            "and carries no key — this is the state the admin page warns about"
+        );
+        assert!(
+            !state.resolver.read().await.0.contains_key(&member),
+            "nothing may be seeded for a member with no witnessed key"
+        );
+    }
+
+    /// A mistyped key is worse than no key: it looks pinned, so nobody re-keys,
+    /// and it fails only at the member's first envelope — after the ledger has
+    /// already witnessed it append-only. Refuse before the chain moves.
+    #[tokio::test]
+    async fn add_member_with_a_malformed_key_is_refused_before_the_chain_moves() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let before = { state.ledger.lock().await.entries().len() };
+
+        let env = publish_envelope(&state, &sov, serde_json::json!({
+            "action": "add_member",
+            "member_lct_id": Uuid::new_v4(),
+            "member_pubkey_hex": "00".repeat(31),   // right shape, wrong length
+        }));
+        let err = submit_event(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .err()
+            .expect("a malformed member_pubkey_hex must be refused");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST, "malformed input is a 400, not a 500");
+
+        let after = { state.ledger.lock().await.entries().len() };
+        assert_eq!(after, before, "a refused add still grew the ledger");
     }
 
     fn payload_for(doc: &Lct, lct_id: &str, published_by: Uuid, provenance: &str) -> serde_json::Value {

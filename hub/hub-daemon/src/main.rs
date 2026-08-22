@@ -320,6 +320,13 @@ enum Command {
         /// Optional display name.
         #[arg(long)]
         name: Option<String>,
+        /// Member's Ed25519 public key, hex (64 chars) — pinned in the same
+        /// act. Strongly recommended: omitting it mints a member that can
+        /// never open a sealed channel and cannot self-repair, so clearing it
+        /// later costs an operator `set-member-key` or a re-join under a fresh
+        /// LCT.
+        #[arg(long)]
+        pubkey_hex: Option<String>,
     },
 
     /// Remove a member from the chapter.
@@ -623,8 +630,8 @@ async fn main() -> Result<()> {
             run_serve(hub_dir, port, bind, admin_port).await
         }
         Some(Command::Status { hub_dir }) => run_status(hub_dir).await,
-        Some(Command::AddMember { hub_dir, member_lct_id, name }) => {
-            run_add_member(hub_dir, member_lct_id, name).await
+        Some(Command::AddMember { hub_dir, member_lct_id, name, pubkey_hex }) => {
+            run_add_member(hub_dir, member_lct_id, name, pubkey_hex).await
         }
         Some(Command::RemoveMember { hub_dir, member_lct_id, reason }) => {
             run_remove_member(hub_dir, member_lct_id, reason).await
@@ -770,14 +777,29 @@ async fn run_status(hub_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
-async fn run_add_member(hub_dir: PathBuf, member_lct_id: Uuid, name: Option<String>) -> Result<()> {
+async fn run_add_member(
+    hub_dir: PathBuf,
+    member_lct_id: Uuid,
+    name: Option<String>,
+    pubkey_hex: Option<String>,
+) -> Result<()> {
     let mut session = HubSession::open(&hub_dir).await?;
-    let entry = session.add_member(member_lct_id, name.clone()).await?;
+    let keyed = pubkey_hex.is_some();
+    let entry = session.add_member(member_lct_id, name.clone(), pubkey_hex).await?;
     println!("Member added.");
     println!("  Member LCT:   {}", member_lct_id);
     if let Some(n) = name { println!("  Name:         {}", n); }
     println!("  Entry index:  {}", entry.index);
     println!("  Entry hash:   {}", entry.entry_hash);
+    if keyed {
+        println!("  Pubkey:       pinned at mint");
+    } else {
+        // Say it on stdout as well as in the log: the operator running this
+        // command is the only party who can still supply the key cheaply.
+        println!("  Pubkey:       NONE — this member cannot open a sealed channel");
+        println!("                and cannot self-repair. Re-run with --pubkey-hex,");
+        println!("                or fix it later with `hub set-member-key`.");
+    }
     Ok(())
 }
 
@@ -1517,6 +1539,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             rest.store_key.clone(),
             rest.hub_id,
             rest.hub_name.clone(),
+            rest.resolver.clone(),
         )
         .await?;
         (rest, mcp)
@@ -1545,6 +1568,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             rest.store_key.clone(),
             rest.hub_id,
             rest.hub_name.clone(),
+            rest.resolver.clone(),
         )
         .await?;
         (rest, mcp)
@@ -2498,6 +2522,7 @@ mod tests {
                 rest.store_key.clone(),
                 rest.hub_id,
                 rest.hub_name.clone(),
+                rest.resolver.clone(),
             )
             .await
             .unwrap();
@@ -2831,6 +2856,7 @@ mod tests {
                 rest.store_key.clone(),
                 rest.hub_id,
                 rest.hub_name.clone(),
+                rest.resolver.clone(),
             )
             .await
             .unwrap();
@@ -2937,6 +2963,7 @@ mod tests {
                 rest.store_key.clone(),
                 rest.hub_id,
                 rest.hub_name.clone(),
+                rest.resolver.clone(),
             )
             .await
             .unwrap();
@@ -3197,6 +3224,7 @@ mod tests {
                 locked.store_key.clone(),
                 locked.hub_id,
                 locked.hub_name.clone(),
+                locked.resolver.clone(),
             )
             .await
             .unwrap();
@@ -3336,6 +3364,7 @@ mod tests {
                 locked.store_key.clone(),
                 locked.hub_id,
                 locked.hub_name.clone(),
+                locked.resolver.clone(),
             )
             .await
             .unwrap();

@@ -81,12 +81,33 @@ impl HubSession {
 
     // ---------- acts ----------
 
-    pub async fn add_member(&mut self, member_lct_id: Uuid, name: Option<String>) -> Result<&LedgerEntry> {
+    /// Add a member to the chapter, pinning `pubkey_hex` in the same act when
+    /// one is supplied — **key-at-mint**.
+    ///
+    /// Passing `None` is still legal (chapters bootstrapped before V2-12, and
+    /// operator flows that genuinely have no key yet) but it is a one-way door
+    /// *for the member*: a keyless row cannot open a sealed channel and cannot
+    /// self-repair, because both self-service paths (`/members/join` and
+    /// `request_citizenship`) short-circuit on `already_member` before pinning
+    /// anything. Clearing it costs an operator re-key (`hub set-member-key`, or
+    /// the no-restart REST equivalent) or a re-join under a fresh LCT. So the
+    /// keyless branch warns rather than minting the trap silently.
+    pub async fn add_member(
+        &mut self,
+        member_lct_id: Uuid,
+        name: Option<String>,
+        pubkey_hex: Option<String>,
+    ) -> Result<&LedgerEntry> {
+        // The built `Lct` is only useful to a caller with a live resolver in
+        // hand; the CLI has none (it exits before anything verifies), so the
+        // value is deliberately discarded here and the call is kept purely for
+        // its validate-and-warn effect.
+        let _ = crate::hub::validate_member_pubkey_hex(member_lct_id, pubkey_hex.as_deref())?;
         let event = HubEvent::MemberAdded {
             member_lct_id,
             added_by: self.sovereign_lct_id,
             member_name: name,
-            member_pubkey_hex: None,
+            member_pubkey_hex: pubkey_hex,
         };
         self.append(event).await
     }
@@ -501,8 +522,8 @@ mod tests {
         let alice = Uuid::new_v4();
         let bob = Uuid::new_v4();
 
-        session.add_member(alice, Some("Alice".into())).await.unwrap();
-        session.add_member(bob, Some("Bob".into())).await.unwrap();
+        session.add_member(alice, Some("Alice".into()), None).await.unwrap();
+        session.add_member(bob, Some("Bob".into()), None).await.unwrap();
         session.declare_skill(alice, "Medical Imaging RAG".into()).await.unwrap();
         session.declare_skill(bob, "Distributed Systems".into()).await.unwrap();
 
@@ -547,7 +568,7 @@ mod tests {
         let alice = Uuid::new_v4();
         {
             let mut session = HubSession::open(&dir).await.unwrap();
-            session.add_member(alice, Some("Alice".into())).await.unwrap();
+            session.add_member(alice, Some("Alice".into()), None).await.unwrap();
             session.assign_role(SocietyRole::Administrator, alice).await.unwrap();
         }
         // Re-read society from the store (what query_chapter / admin read).
@@ -662,7 +683,7 @@ mod tests {
         let alice = Uuid::new_v4();
         {
             let mut session = HubSession::open(&dir).await.unwrap();
-            session.add_member(alice, Some("Alice".into())).await.unwrap();
+            session.add_member(alice, Some("Alice".into()), None).await.unwrap();
             let mut f = std::collections::BTreeMap::new();
             f.insert("skills".to_string(), "diffusion fine-tuning, eval harness design".to_string());
             f.insert("interests".to_string(), "mechanistic interpretability".to_string());
@@ -684,8 +705,8 @@ mod tests {
         let (_tmp, dir) = fresh_hub().await;
         {
             let mut session = HubSession::open(&dir).await.unwrap();
-            session.add_member(Uuid::new_v4(), Some("Alice".into())).await.unwrap();
-            session.add_member(Uuid::new_v4(), Some("Bob".into())).await.unwrap();
+            session.add_member(Uuid::new_v4(), Some("Alice".into()), None).await.unwrap();
+            session.add_member(Uuid::new_v4(), Some("Bob".into()), None).await.unwrap();
         }
         let session = HubSession::open(&dir).await.unwrap();
         let st = session.status();
@@ -699,7 +720,7 @@ mod tests {
         let (_tmp, dir) = fresh_hub().await;
         let mut session = HubSession::open(&dir).await.unwrap();
         let alice = Uuid::new_v4();
-        session.add_member(alice, Some("Alice".into())).await.unwrap();
+        session.add_member(alice, Some("Alice".into()), None).await.unwrap();
 
         // Pin: key lands in member_pubkeys (what the daemon resolver seeds from).
         let k1 = KeyPair::generate().verifying_key().to_hex();
@@ -716,5 +737,33 @@ mod tests {
         // Reject: non-member LCT, and garbage hex.
         assert!(session.set_member_key(Uuid::new_v4(), k2.clone()).await.is_err());
         assert!(session.set_member_key(alice, "zz".into()).await.is_err());
+    }
+
+    /// `set_member_key` is the *repair*; this is the thing that makes the repair
+    /// unnecessary. Before key-at-mint the only way to get a key onto a member
+    /// through this API was add-then-pin — two acts, and a window in between
+    /// during which the member is the inert row the admin page warns about.
+    #[tokio::test]
+    async fn add_member_pins_the_key_in_the_same_act_and_refuses_a_bad_one() {
+        use web4_core::crypto::KeyPair;
+        let (_tmp, dir) = fresh_hub().await;
+        let mut session = HubSession::open(&dir).await.unwrap();
+
+        let alice = Uuid::new_v4();
+        let pk = KeyPair::generate().verifying_key().to_hex();
+        session.add_member(alice, Some("Alice".into()), Some(pk.clone())).await.unwrap();
+        let state = HubState::project(&session.ledger);
+        assert_eq!(
+            state.member_pubkeys.get(&alice), Some(&pk),
+            "one act, not two: the key is pinned by the same MemberAdded"
+        );
+        assert_eq!(session.ledger.len(), 2, "and it cost exactly one entry");
+
+        // A malformed key is refused, and refusing it must not admit the member
+        // either — a half-applied mint would be the trap wearing a different hat.
+        let bob = Uuid::new_v4();
+        assert!(session.add_member(bob, None, Some("zz".into())).await.is_err());
+        let state = HubState::project(&session.ledger);
+        assert!(!state.members.contains_key(&bob), "a refused mint admits nobody");
     }
 }

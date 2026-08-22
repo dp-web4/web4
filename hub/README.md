@@ -271,7 +271,7 @@ GET  /tools/query_hub             Hub identity + role-fill + recent events
                                   (/tools/query_chapter is a back-compat alias)
 GET  /tools/list_members          Current member projection
 GET  /tools/find_skill?q=...      Skill substring match
-POST /tools/add_member            { member_lct_id, name? }
+POST /tools/add_member            { member_lct_id, name?, member_pubkey_hex? }
 POST /tools/assign_role           { role, member_lct_id }  (role_lct_id optional; society-managed)
 POST /tools/record_event          { event_kind, title, attended_by?, held_at? }
 POST /tools/declare_skill         { member_lct_id, skill }
