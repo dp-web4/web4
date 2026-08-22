@@ -1547,7 +1547,8 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         // ── LOCKED SHELL (encrypted store, no key) ──
         tracing::warn!(
             "hub state is encrypted and no key is available — starting in a LOCKED shell \
-             (only the unlock path is served). Run `hub unlock` to ignite."
+             (only the tier-0 allowlist is served — including `/`, so a `/` health \
+             check will still read 200). Run `hub unlock` to ignite."
         );
         let shared_law = std::sync::Arc::new(tokio::sync::RwLock::new(None));
         // Empty placeholder ledger on a throwaway temp dir (never the real hub dir, never
