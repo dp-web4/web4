@@ -12211,4 +12211,126 @@ norms:
         assert_eq!(none, None, "an unpinned key is not a member");
     }
 
+
+    // ---- #762: admission fails OPEN when no law is loaded ----
+
+    /// Characterization, not a fix. Issue #762 states that both admission
+    /// surfaces admit when `law` is `None`, contradicting the ratified
+    /// fail-closed+warn default. That claim was prose, and the behaviour was
+    /// unpinned **in either direction** — ~35 tests in this module call
+    /// `fresh_rest_state(None)` and rely on the open door to bootstrap a
+    /// member, but not one of them asserts it as a property, so a change
+    /// either way would have surfaced as an unrelated test's failure.
+    ///
+    /// This pins what the code does TODAY. It deliberately does not decide
+    /// what it should do: flipping the default is a Sovereign call (#762 asks
+    /// dp `Escalate` vs `Deny` vs refuse-to-serve, and "operator-tunable hub
+    /// policy is written to law" is a standing hub-track principle). When the
+    /// ruling lands, this test is the thing that must be edited — which is the
+    /// point. An unpinned default is changed silently; a pinned one is changed
+    /// on purpose.
+    ///
+    /// The second half is the discriminator. The same two calls run against a
+    /// hub carrying the **shipped** `starter-law.yaml` — closed by default,
+    /// `ESCALATE-MEMBER-JOIN` at priority 90 — and both queue instead of
+    /// admitting. Without it, the first half is satisfied by a harness that
+    /// admits unconditionally, which would clear on an arm where both options
+    /// behave the same.
+    ///
+    /// One correction to #762 while pinning it: it calls the sealed path "the
+    /// worse of the two." Measured here, the two surfaces are behaviourally
+    /// **identical** under `law = None` — `submit_join` runs
+    /// `tighten_with_sponsor` where `request_citizenship` skips it, but with no
+    /// law there is no `AdmissionPolicy`, so `evaluate_sponsor` returns
+    /// `NotRequired`, `may_auto_admit()` is true, and the tightening is a
+    /// no-op. The sealed path is worse to *read* (an absent `else` says
+    /// nothing) not worse to *run*.
+    #[tokio::test]
+    async fn an_unlawed_hub_admits_on_both_surfaces_and_the_shipped_law_closes_both() {
+        // ===== ARM A — no law loaded =====
+        let (_tmp, open_hub) = fresh_rest_state(None).await;
+        assert!(open_hub.law.read().await.is_none(),
+            "fixture precondition: this arm is only meaningful with NO law loaded");
+        let hub_pub = open_hub.signer.public_key().unwrap();
+
+        // A.1 sealed channel → request_citizenship
+        let sealed_kp = KeyPair::generate();
+        let sealed_lct = Uuid::new_v4();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&sealed_kp, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Unlawed Sealed" }));
+        let r = channel_request(State(open_hub.clone()), Path(open_hub.hub_id), Json(ChannelRequest {
+            caller_lct_id: sealed_lct, pair_id: pid, sealed,
+            caller_pubkey_hex: Some(sealed_kp.verifying_key().to_hex()),
+        })).await.expect("channel call completes");
+        let out = open_resp(&sealed_kp, &hub_pub, pid, &r.0.sealed);
+        assert_eq!(out["admitted"], serde_json::json!(true),
+            "sealed surface admits with no law loaded — the `if let Some(law)` block \
+             is skipped entirely and execution falls through to commit_pair_event");
+
+        // A.2 plaintext /members/join → submit_join
+        let plain_kp = KeyPair::generate();
+        let plain_lct = Uuid::new_v4();
+        let resp = post_join(&open_hub, &plain_kp, plain_lct, None).await;
+        assert_eq!(resp.status(), StatusCode::OK,
+            "plaintext surface auto-admits (200) with no law loaded — \
+             `None => Decision::Allow`; a queued request would be 202");
+
+        // What the projection records: both admitted, each pinned under the
+        // applicant's OWN key, and nothing marks either as un-evaluated.
+        let proj = { let l = open_hub.ledger.lock().await; HubState::project(&l) };
+        for (lct, kp, surface) in [
+            (sealed_lct, &sealed_kp, "sealed"),
+            (plain_lct, &plain_kp, "plaintext"),
+        ] {
+            assert!(proj.members.contains_key(&lct),
+                "{surface}: an unlawed hub admitted without evaluating anything");
+            assert_eq!(
+                proj.member_pubkeys.get(&lct).map(String::as_str),
+                Some(kp.verifying_key().to_hex().as_str()),
+                "{surface}: the applicant's own key is pinned — self-vouched end to end, \
+                 which is what makes an admission also a resolvable witness (#762)");
+        }
+        assert!(proj.pending_joins.is_empty(),
+            "neither surface asked an operator, so no trace survives that the gate never ran");
+
+        // ===== ARM B — the discriminator: the SHIPPED starter law =====
+        // Same two calls, same harness. If they behaved the same here, arm A
+        // would be measuring the harness rather than law-absence.
+        let (_tmp2, closed_hub) = fresh_rest_state(Some(crate::STARTER_LAW_YAML)).await;
+        assert!(closed_hub.law.read().await.is_some(),
+            "fixture precondition: this arm is only meaningful with law LOADED");
+        let hub_pub2 = closed_hub.signer.public_key().unwrap();
+
+        let sealed_kp2 = KeyPair::generate();
+        let sealed_lct2 = Uuid::new_v4();
+        let pid2 = Uuid::new_v4();
+        let sealed2 = seal_req(&sealed_kp2, &hub_pub2, pid2, "request_citizenship",
+            serde_json::json!({ "name": "Lawed Sealed" }));
+        let r2 = channel_request(State(closed_hub.clone()), Path(closed_hub.hub_id), Json(ChannelRequest {
+            caller_lct_id: sealed_lct2, pair_id: pid2, sealed: sealed2,
+            caller_pubkey_hex: Some(sealed_kp2.verifying_key().to_hex()),
+        })).await.expect("channel call completes");
+        let out2 = open_resp(&sealed_kp2, &hub_pub2, pid2, &r2.0.sealed);
+        assert_eq!(out2["admitted"], serde_json::json!(false),
+            "ESCALATE-MEMBER-JOIN (priority 90) closes the sealed surface");
+        assert_eq!(out2["status"], serde_json::json!("pending_review"));
+
+        let plain_kp2 = KeyPair::generate();
+        let plain_lct2 = Uuid::new_v4();
+        let resp2 = post_join(&closed_hub, &plain_kp2, plain_lct2, None).await;
+        assert_eq!(resp2.status(), StatusCode::ACCEPTED,
+            "the plaintext surface queues (202) rather than admitting (200)");
+
+        let proj2 = { let l = closed_hub.ledger.lock().await; HubState::project(&l) };
+        for (lct, surface) in [(sealed_lct2, "sealed"), (plain_lct2, "plaintext")] {
+            assert!(!proj2.members.contains_key(&lct),
+                "{surface}: the shipped law admits nobody automatically");
+            assert!(!proj2.member_pubkeys.contains_key(&lct),
+                "{surface}: and pins no key, so a queued applicant is not yet a witness");
+        }
+        assert_eq!(proj2.pending_joins.len(), 2,
+            "both surfaces queued for operator review — the outcome arm A never reaches");
+    }
+
 }
