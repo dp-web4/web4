@@ -2239,10 +2239,15 @@ mod tests {
     // Same inputs, same trust source (only pinned keys), one hop instead of
     // three — and the hops it drops are exactly the ones C10 and C11 fail on.
     // These arms measure that against the identical fixtures above rather
-    // than asserting it. C8 is measured as still-failing, deliberately: the
-    // inversion does NOT rescue the Sovereign, because its key is not in
-    // this projection at any depth (HUB's #759 §3 conclusion stands — the
-    // roster belongs beside the resolver, over the three-source union).
+    // than asserting it. C8 is measured as still-failing HERE, deliberately:
+    // the inversion does not rescue the Sovereign *from this projection*,
+    // because its key is not in it at any depth. HUB then showed that this is
+    // an artifact of the address rather than of the inversion — sited at
+    // `MapResolver`, where `RestState::new` has already assembled all three
+    // sources, C8 dissolves with the rest. The `hub-daemon` arms in
+    // `rest.rs` measure that, and HUB's #759 §3 conclusion is what both
+    // halves land on: the roster belongs beside the resolver, over the
+    // three-source union.
     // ------------------------------------------------------------------
 
     /// The inverted resolver, over the keyed union `HubState` actually holds.
@@ -2304,13 +2309,24 @@ mod tests {
             "the legacy witness-id form has no key under either resolver");
     }
 
-    /// C8 STILL FAILS, and this arm exists to keep that visible. `Genesis`
-    /// puts no key anywhere in `HubState`, so no projection-local resolver of
-    /// any shape can see the Sovereign. Only the three-source union at
-    /// `RestState::new` can. The inversion is a simplification of the bridge,
-    /// NOT a substitute for HUB's "filter the union, beside the resolver".
+    /// C8 fails AT THIS ADDRESS, and this arm exists to keep that visible —
+    /// but the headline it was first written under ("C8 does not dissolve")
+    /// was wrong, and HUB falsified it. `Genesis` puts no key anywhere in
+    /// `HubState`, so no *projection-local* resolver of any shape can see the
+    /// Sovereign. That is a fact about `HubState`, not about resolvers: the
+    /// Sovereign's key reaches `RestState::new` from the `IdentityFile` or the
+    /// Hestia config (rest.rs:334-345) and is inserted into the resolver one
+    /// line later, so sited at `MapResolver` the identical witness string DOES
+    /// resolve. Measured in `hub-daemon`:
+    /// `c8_dissolves_at_the_resolver_and_survives_only_in_the_projection`.
+    ///
+    /// So C8 is an artifact of the ADDRESS, and the inversion belongs beside
+    /// the resolver — which is where HUB's #759 §3 put the roster to begin
+    /// with. Read this arm as "the projection is the wrong address", not as
+    /// "the Sovereign is unreachable".
+    /// (forum `hub-r6-prime-taken-but-resited-…-2026-08-21.md` §2.)
     #[tokio::test]
-    async fn derived_resolver_still_cannot_resolve_the_founding_sovereign() {
+    async fn derived_resolver_cannot_resolve_the_founding_sovereign_at_this_address() {
         let mut state = HubState::default();
         let sov = Uuid::new_v4();
         let (lct, _hex) = keyed_lct(sov);
@@ -2321,8 +2337,9 @@ mod tests {
         let witness = publish(&mut state, &lct);
         assert_eq!(sprout_bridge(&state, &witness), None, "C8 under the bridge");
         assert_eq!(derived_resolver(&state, &witness), None,
-            "C8 under the inversion too — the key is absent from the projection, \
-             not merely misindexed by it");
+            "C8 under the inversion too, SITED HERE — the key is absent from this \
+             projection, not merely misindexed by it. It is present one layer up, \
+             and that is where the roster goes");
     }
 
     /// C9 IS DISSOLVED — for free, because the union is one `.chain()` and the
