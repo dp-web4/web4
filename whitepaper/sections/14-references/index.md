@@ -2,13 +2,13 @@
 
 ## Primary Sources
 
-[1] Palatov, D. et al. (2024). "What is Web4 and Why Does It Matter." MetaLINNX Inc. Foundation Document.
+[1] Palatov, D. et al. (2024). "What is Web4 and Why Does It Matter." MetaLINXX Inc. Foundation Document.
 
 [2] Palatov, D. (2025). "LCT_T3_ATP Integration with Anthropic Protocol - Entity Types and Roles." Web4 Technical Specification.
 
 [3] Palatov, D. (2025). "Role-Entity LCT Framework." Web4 Architecture Document.
 
-[4] MetaLINNX Inc. (2024). "Coherence Ethics: Synchronism and Emergent Systems." Philosophical Framework.
+[4] MetaLINXX Inc. (2024). "Coherence Ethics: Synchronism and Emergent Systems." Philosophical Framework.
 
 ## Patents
 
@@ -18,7 +18,7 @@
 
 ## Technical Implementations
 
-[7] Palatov, D. (2025). "Fractal Lightchain Architecture." https://github.com/dp-web4/Memory
+[7] Palatov, D. (2025). "Fractal Lightchain Architecture." Web4 Architecture Document (source repository not public).
 
 [8] Palatov, D. (2025). "SAGE: Situation-Aware Governance Engine." https://github.com/dp-web4/HRM
 
@@ -32,7 +32,7 @@
 
 [12] Aragon, R. (2024). "Transformer-Sidecar: Bolt-On Persistent State Space Memory." https://github.com/RichardAragon/Transformer-Sidecar-Bolt-On-Persistent-State-Space-Memory
 
-[13] Model Context Protocol Specification. https://github.com/anthropic/model-context-protocol
+[13] Model Context Protocol Specification. https://github.com/modelcontextprotocol/modelcontextprotocol
 
 ## Theoretical Foundations
 
@@ -97,7 +97,7 @@
 ### Websites
 - Web4 Project: https://metalinxx.io/web4
 - Web4 GitHub: https://github.com/dp-web4
-- MetaLINNX Inc.: https://metalinxx.io
+- MetaLINXX Inc.: https://metalinxx.io
 
 ### Contact
 - Metalinxx Inc.: via the [project repository](https://github.com/dp-web4/web4)
