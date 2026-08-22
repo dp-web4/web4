@@ -382,6 +382,8 @@ async fn add_member(
         added_by: s.sovereign_lct_id,
         member_name: req.name,
         member_pubkey_hex: req.member_pubkey_hex,
+        anchor_level: None,
+        trust_ceiling: None,
     };
     let recorded = append_with_sovereign(&s, event).await?;
     // Ledger first, resolver second — same ordering the Sovereign `AddMember`
