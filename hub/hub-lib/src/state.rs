@@ -2229,4 +2229,199 @@ mod tests {
             "C11: the walk indexes on document.id, which nothing binds to the pin");
     }
 
+    // ------------------------------------------------------------------
+    // R6' — Legion, 2026-08-21. HUB's roster clause says: where a key
+    // resolves, the check is `derive_lct_id(pk) == id`. Taken as a VERIFIER
+    // that is a second step after the bridge. Taken as a CONSTRUCTOR it
+    // replaces the bridge: map the keyed union FORWARD through the same
+    // derivation instead of walking the registry BACKWARD to a uuid.
+    //
+    // Same inputs, same trust source (only pinned keys), one hop instead of
+    // three — and the hops it drops are exactly the ones C10 and C11 fail on.
+    // These arms measure that against the identical fixtures above rather
+    // than asserting it. C8 is measured as still-failing HERE, deliberately:
+    // the inversion does not rescue the Sovereign *from this projection*,
+    // because its key is not in it at any depth. HUB then showed that this is
+    // an artifact of the address rather than of the inversion — sited at
+    // `MapResolver`, where `RestState::new` has already assembled all three
+    // sources, C8 dissolves with the rest. The `hub-daemon` arms in
+    // `rest.rs` measure that, and HUB's #759 §3 conclusion is what both
+    // halves land on: the roster belongs beside the resolver, over the
+    // three-source union.
+    // ------------------------------------------------------------------
+
+    /// The inverted resolver, over the keyed union `HubState` actually holds.
+    /// Signature matches `CitizenshipRecord::verify_quorum`'s
+    /// `Fn(&str) -> Option<PublicKey>`, same as `sprout_bridge`.
+    fn derived_resolver(state: &HubState, witness: &str) -> Option<web4_core::crypto::PublicKey> {
+        state
+            .member_pubkeys
+            .iter()
+            .chain(state.council_pubkeys.iter())
+            .filter_map(|(uuid, hex)| crate::hub::hestia_sovereign_lct(*uuid, hex).ok())
+            .map(|lct| lct.public_key)
+            .find(|pk| web4_core::lct::derive_lct_id(pk) == witness)
+    }
+
+    /// POSITIVE CONTROL, matching `sprout_bridge_resolves_an_ordinary_pinned_member`.
+    #[tokio::test]
+    async fn derived_resolver_resolves_an_ordinary_pinned_member() {
+        let mut state = HubState::default();
+        let member = Uuid::new_v4();
+        let (lct, hex) = keyed_lct(member);
+        state.apply(&HubEvent::MemberAdded {
+            member_lct_id: member, added_by: Uuid::nil(),
+            member_name: Some("Alice".into()), member_pubkey_hex: Some(hex.clone()),
+        }, Utc::now(), 1);
+        let witness = publish(&mut state, &lct);
+        assert_eq!(derived_resolver(&state, &witness).map(|k| k.to_hex()), Some(hex));
+    }
+
+    /// NEGATIVE CONTROL — the property the bridge was chosen for must survive
+    /// the inversion. Trust still comes only from a pin: an unpinned key that
+    /// publishes itself resolves to `None`, so three self-issued publishes buy
+    /// nothing and a quorum still costs three admissions.
+    #[tokio::test]
+    async fn derived_resolver_refuses_a_self_published_unpinned_key() {
+        let mut state = HubState::default();
+        let (lct, _hex) = keyed_lct(Uuid::new_v4());
+        let witness = publish(&mut state, &lct);
+        assert!(state.registry.contains_key(&witness), "it IS published");
+        assert_eq!(derived_resolver(&state, &witness), None,
+            "publishing is not admission — the map is built from pins, not from the registry");
+    }
+
+    /// NEGATIVE CONTROL — a witness string in the membership space resolves to
+    /// `None`, the same answer Sprout's bridge gives it. The inversion does not
+    /// reopen the namespace ("one resolver, one answer"), and it cannot: it only
+    /// ever produces `lct:web4:mb32:…` keys.
+    #[tokio::test]
+    async fn derived_resolver_refuses_a_membership_space_witness_string() {
+        let mut state = HubState::default();
+        let member = Uuid::new_v4();
+        let (lct, hex) = keyed_lct(member);
+        state.apply(&HubEvent::MemberAdded {
+            member_lct_id: member, added_by: Uuid::nil(),
+            member_name: Some("Alice".into()), member_pubkey_hex: Some(hex),
+        }, Utc::now(), 1);
+        let _ = publish(&mut state, &lct);
+        assert_eq!(derived_resolver(&state, &format!("lct:web4:member:{member}")), None,
+            "the legacy witness-id form has no key under either resolver");
+    }
+
+    /// C8 fails AT THIS ADDRESS, and this arm exists to keep that visible —
+    /// but the headline it was first written under ("C8 does not dissolve")
+    /// was wrong, and HUB falsified it. `Genesis` puts no key anywhere in
+    /// `HubState`, so no *projection-local* resolver of any shape can see the
+    /// Sovereign. That is a fact about `HubState`, not about resolvers: the
+    /// Sovereign's key reaches `RestState::new` from the `IdentityFile` or the
+    /// Hestia config (rest.rs:334-345) and is inserted into the resolver one
+    /// line later, so sited at `MapResolver` the identical witness string DOES
+    /// resolve. Measured in `hub-daemon`:
+    /// `c8_dissolves_at_the_resolver_and_survives_only_in_the_projection`.
+    ///
+    /// So C8 is an artifact of the ADDRESS, and the inversion belongs beside
+    /// the resolver — which is where HUB's #759 §3 put the roster to begin
+    /// with. Read this arm as "the projection is the wrong address", not as
+    /// "the Sovereign is unreachable".
+    /// (forum `hub-r6-prime-taken-but-resited-…-2026-08-21.md` §2.)
+    #[tokio::test]
+    async fn derived_resolver_cannot_resolve_the_founding_sovereign_at_this_address() {
+        let mut state = HubState::default();
+        let sov = Uuid::new_v4();
+        let (lct, _hex) = keyed_lct(sov);
+        state.apply(&HubEvent::Genesis {
+            hub_name: "Fleet".into(), charter_hash: "sha256:0".into(),
+            founding_sovereign_lct_id: sov, created_at: Utc::now(),
+        }, Utc::now(), 0);
+        let witness = publish(&mut state, &lct);
+        assert_eq!(sprout_bridge(&state, &witness), None, "C8 under the bridge");
+        assert_eq!(derived_resolver(&state, &witness), None,
+            "C8 under the inversion too, SITED HERE — the key is absent from this \
+             projection, not merely misindexed by it. It is present one layer up, \
+             and that is where the roster goes");
+    }
+
+    /// C9 IS DISSOLVED — for free, because the union is one `.chain()` and the
+    /// council map is already in this projection. Contrast
+    /// `sprout_bridge_cannot_resolve_a_council_holder`, same fixture.
+    #[tokio::test]
+    async fn derived_resolver_resolves_a_council_holder_the_bridge_misses() {
+        let mut state = HubState::default();
+        let holder = Uuid::new_v4();
+        let (lct, hex) = keyed_lct(holder);
+        state.apply(&HubEvent::CouncilMemberAdded {
+            member_lct_id: holder, member_pubkey_hex: hex.clone(),
+            added_by: Uuid::nil(), member_name: Some("Holder".into()),
+        }, Utc::now(), 1);
+        let witness = publish(&mut state, &lct);
+        assert_eq!(sprout_bridge(&state, &witness), None, "C9 under the bridge");
+        assert_eq!(derived_resolver(&state, &witness).map(|k| k.to_hex()), Some(hex),
+            "C9 dissolved: a co-Sovereign is keyed, and the union sees it");
+    }
+
+    /// C10 IS DISSOLVED — structurally, not by adding a normalization step.
+    /// The inversion never compares hex strings; it compares derived ids, and
+    /// `derive_lct_id` takes a `PublicKey` that `hex::decode` already
+    /// normalized. The class of bug cannot recur here.
+    #[tokio::test]
+    async fn derived_resolver_resolves_a_mixed_case_pin_the_bridge_drops() {
+        let mut state = HubState::default();
+        let member = Uuid::new_v4();
+        let (lct, hex) = keyed_lct(member);
+        let upper = hex.to_uppercase();
+        assert_ne!(upper, hex, "fixture must actually differ in case");
+        state.apply(&HubEvent::MemberAdded {
+            member_lct_id: member, added_by: Uuid::nil(),
+            member_name: Some("Bob".into()), member_pubkey_hex: Some(upper),
+        }, Utc::now(), 1);
+        let witness = publish(&mut state, &lct);
+        assert_eq!(sprout_bridge(&state, &witness), None, "C10 under the bridge");
+        assert_eq!(derived_resolver(&state, &witness).map(|k| k.to_hex()), Some(hex),
+            "C10 dissolved: no string comparison survives to fail");
+    }
+
+    /// C11 IS DISSOLVED — and this is the one that changes what the roster IS.
+    /// `document.id` is never read, so the convention it depends on cannot be
+    /// violated. The stronger form of the same fact is the next arm.
+    #[tokio::test]
+    async fn derived_resolver_ignores_the_document_id_hop_entirely() {
+        let mut state = HubState::default();
+        let membership_uuid = Uuid::new_v4();
+        let document_uuid = Uuid::new_v4();
+        let (lct, hex) = keyed_lct(document_uuid);
+        state.apply(&HubEvent::MemberAdded {
+            member_lct_id: membership_uuid, added_by: Uuid::nil(),
+            member_name: Some("Carol".into()), member_pubkey_hex: Some(hex.clone()),
+        }, Utc::now(), 1);
+        let witness = publish(&mut state, &lct);
+        assert_eq!(sprout_bridge(&state, &witness), None, "C11 under the bridge");
+        assert_eq!(derived_resolver(&state, &witness).map(|k| k.to_hex()), Some(hex),
+            "C11 dissolved: the uuid the joiner chose is not on the path");
+    }
+
+    /// The registry is not on the path AT ALL. A pinned member resolves as a
+    /// witness with NOTHING published — which is the reachability question for
+    /// the pilot, not a cosmetic difference: `hestia_sovereign_lct` synthesises
+    /// an Lct with `binding_proof: None`, and registry ingest is fail-closed on
+    /// exactly that absence, so a member keyed only through the hub's own
+    /// synthesis has no route into `registry` to be bridged from.
+    #[tokio::test]
+    async fn derived_resolver_needs_no_registry_entry() {
+        let mut state = HubState::default();
+        let member = Uuid::new_v4();
+        let (lct, hex) = keyed_lct(member);
+        state.apply(&HubEvent::MemberAdded {
+            member_lct_id: member, added_by: Uuid::nil(),
+            member_name: Some("Dave".into()), member_pubkey_hex: Some(hex.clone()),
+        }, Utc::now(), 1);
+        let witness = web4_core::lct::derive_lct_id(&lct.public_key);
+
+        assert!(state.registry.is_empty(), "nothing published");
+        assert_eq!(sprout_bridge(&state, &witness), None,
+            "the bridge's first hop is registry.get — no entry, no key");
+        assert_eq!(derived_resolver(&state, &witness).map(|k| k.to_hex()), Some(hex),
+            "the inversion resolves an unpublished but ADMITTED member");
+    }
+
 }

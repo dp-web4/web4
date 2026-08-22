@@ -11884,4 +11884,331 @@ norms:
         }
         assert!(state.is_locked(), "lockout holds the vault closed");
     }
+
+    // ==================================================================
+    // R6'' — HUB's re-siting of the inversion, MEASURED.
+    // forum/hub-r6-prime-taken-but-resited-the-resolver-is-already-the-union-
+    // and-c8-dissolves-there-2026-08-21.md, thread `sage-web4-citizenship`.
+    //
+    // HUB adopted #761's inversion and moved its ADDRESS one layer up: not
+    // `HubState` (a projection over two of the three key sources) but
+    // `MapResolver` (the union `RestState::new` already assembles from all
+    // three). HUB's §2 was read from source at 2d36d95, not executed, and
+    // HUB flagged it as the arm that could falsify the ruling. These are
+    // that arm, plus the three conditions it attaches (§4, §5, §7), run on
+    // a real chapter through `RestState::new` rather than on a hand-built
+    // `HubState`.
+    //
+    // Tests only. No verifier, projection, event, route, or wire change.
+    // ==================================================================
+
+    /// The inversion sited at the RESOLVER, derived ON THE FLY over the map
+    /// the resolver already holds. Signature matches
+    /// `CitizenshipRecord::verify_quorum`'s `Fn(&str) -> Option<PublicKey>`,
+    /// same as `sprout_bridge` and #761's `derived_resolver`.
+    ///
+    /// Note what is NOT on this path: no `hex::decode`, so no `.ok()` to
+    /// reject (HUB §7) — the hex was decoded once, at seed time, behind the
+    /// `warn!` arms of `RestState::new`. See
+    /// `a_corrupt_pin_costs_the_vote_under_either_spelling`.
+    fn roster_at_resolver(resolver: &MapResolver, witness: &str) -> Option<PublicKey> {
+        resolver
+            .0
+            .values()
+            .find(|lct| web4_core::lct::derive_lct_id(&lct.public_key) == witness)
+            .map(|lct| lct.public_key.clone())
+    }
+
+    /// The same inversion sited at `HubState` — #761's spelling, transcribed,
+    /// so every arm below can contrast the two addresses on ONE fixture.
+    fn roster_at_hubstate(state: &HubState, witness: &str) -> Option<PublicKey> {
+        state
+            .member_pubkeys
+            .iter()
+            .chain(state.council_pubkeys.iter())
+            .filter_map(|(uuid, hex)| hub_lib::hub::hestia_sovereign_lct(*uuid, hex).ok())
+            .map(|lct| lct.public_key)
+            .find(|pk| web4_core::lct::derive_lct_id(pk) == witness)
+    }
+
+    /// **HUB §2 CONFIRMED, by execution.** C8 is an artifact of the ADDRESS,
+    /// not of the inversion. The fixture here is a real chapter, so the C8
+    /// precondition is observed rather than constructed: `init_hub` writes
+    /// `Genesis`, `Genesis` pins no key anywhere in the projection, and the
+    /// Sovereign's key arrives at `RestState::new` from the `IdentityFile`
+    /// (rest.rs:334-338) — one layer above `HubState`, where #761 looked.
+    ///
+    /// Same witness string, same process, two addresses, two answers.
+    #[tokio::test]
+    async fn c8_dissolves_at_the_resolver_and_survives_only_in_the_projection() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let sov = state.sovereign_lct_id;
+        let sov_lct = state
+            .resolver
+            .read()
+            .await
+            .lookup(sov)
+            .expect("RestState::new seeds the Sovereign LCT into the resolver (rest.rs:355)");
+        let witness = web4_core::lct::derive_lct_id(&sov_lct.public_key);
+
+        // The C8 precondition, measured on a live chapter rather than a
+        // hand-applied Genesis: the projection knows WHO the Sovereign is and
+        // holds no key for them, in either pin map.
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert_eq!(proj.founding_sovereign_lct_id, Some(sov),
+            "the projection names the founding Sovereign");
+        assert!(!proj.member_pubkeys.contains_key(&sov),
+            "Genesis pins no member key — the C8 precondition, observed not constructed");
+        assert!(!proj.council_pubkeys.contains_key(&sov),
+            "and none in the council map either: absent from BOTH sources HubState has");
+
+        assert_eq!(roster_at_hubstate(&proj, &witness), None,
+            "C8 as #761 measured it: sited at HubState the Sovereign is unresolvable, \
+             because its key is not in this projection at any depth");
+
+        assert_eq!(
+            roster_at_resolver(&*state.resolver.read().await, &witness).map(|k| k.to_hex()),
+            Some(sov_lct.public_key.to_hex()),
+            "HUB §2: sited at MapResolver the SAME witness string resolves — the third \
+             source is already in the union, so C8 goes with C9/C10/C11 and #761's \
+             'no resolver of any shape' was true only of projection-local ones",
+        );
+    }
+
+    /// The one arm where C8 does NOT dissolve, and the reason HUB gave for
+    /// discounting it, checked rather than taken: the LOCKED startup
+    /// (rest.rs:320-332) installs no Sovereign LCT, so the roster-at-resolver
+    /// has no Sovereign in it. That is safe only because `lock_gate` refuses
+    /// everything outside a five-entry tier-0 allowlist — so this asserts the
+    /// gate too, next to the hole it covers.
+    #[tokio::test]
+    async fn a_locked_hub_holds_no_sovereign_in_the_roster_and_is_gated_shut() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let root = state.paths.root.clone();
+        let hub_id = state.hub_id;
+        let sov = state.sovereign_lct_id;
+        let witness = web4_core::lct::derive_lct_id(
+            &state.resolver.read().await.lookup(sov).unwrap().public_key,
+        );
+        let lct_path = match hub_lib::hub::HubConfig::load(state.paths.config())
+            .unwrap().sovereign.mode().unwrap()
+        {
+            SovereignMode::Local { lct_path } => lct_path,
+            _ => panic!("fresh_rest_state builds a local-identity chapter"),
+        };
+
+        // Seal the Sovereign identity at rest and restart with no passphrase.
+        IdentityFile::load_auto(&lct_path).unwrap().save_encrypted(&lct_path, "sealed").unwrap();
+        assert!(std::env::var("HUB_PASSPHRASE").is_err(),
+            "precondition: HUB_PASSPHRASE must be unset or this takes the unlocked arm");
+        drop(state);
+        let store = open_hub_store(&root).unwrap();
+        let ledger = Arc::new(Mutex::new(HubLedger::open(store).await.unwrap()));
+        let locked = RestState::open_with_law_and_ledger(root, Arc::new(RwLock::new(None)), ledger)
+            .await.unwrap();
+
+        assert!(locked.is_locked(), "an encrypted vault with no passphrase starts LOCKED");
+        assert!(locked.resolver.read().await.lookup(sov).is_none(),
+            "the locked arm has no Sovereign LCT to insert");
+        assert_eq!(roster_at_resolver(&*locked.resolver.read().await, &witness), None,
+            "C8 survives HERE — the roster-at-resolver of a locked hub has no Sovereign");
+
+        // Why that is not a hole: nothing that could consult a roster is served.
+        for path in [
+            format!("/v1/hubs/{hub_id}/events"),
+            format!("/v1/hubs/{hub_id}/members/join"),
+            format!("/v1/hubs/{hub_id}/credential"),
+            format!("/v1/hubs/{hub_id}/lcts/publish"),
+            format!("/v1/hubs/{hub_id}/council/sign"),
+        ] {
+            assert!(!locked_tier0_allows(hub_id, &path),
+                "lock_gate must refuse {path} — the roster gap is covered by the gate, \
+                 not by the resolver");
+        }
+    }
+
+    /// **HUB §4 (BLOCKING) confirmed — and the cheaper spelling is immune.**
+    /// §8 argues the derivation should be computed once at `insert` (O(1) per
+    /// lookup instead of O(n)). §4 argues that a second index desynchronizes
+    /// on the only live eviction path, `rest.rs:5331`, which reaches through
+    /// the public `.0` and calls `HashMap::remove` directly. Both are true,
+    /// and they pull against each other: the cost fix IS the desync risk.
+    ///
+    /// The cached map here stands in for the "sited at insert" spelling —
+    /// it is a local fixture, not repo code, and it is built exactly the way
+    /// that spelling would build it.
+    #[tokio::test]
+    async fn a_cached_derived_index_desynchronizes_on_the_live_eviction_path() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let member = Uuid::new_v4();
+        let kp = KeyPair::generate();
+        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Quorum".into()))
+            .await.unwrap();
+        let witness = web4_core::lct::derive_lct_id(&kp.verifying_key());
+
+        // §8's spelling: derived once, at insert time, into a second index.
+        let cached: std::collections::HashMap<String, PublicKey> = state
+            .resolver.read().await.0.values()
+            .map(|l| (web4_core::lct::derive_lct_id(&l.public_key), l.public_key.clone()))
+            .collect();
+        assert!(cached.contains_key(&witness), "fixture: the member is in both indexes");
+        assert!(roster_at_resolver(&*state.resolver.read().await, &witness).is_some());
+
+        // The live eviction path — `remove_member_live`, whose body is the
+        // `.0.remove` at rest.rs:5331.
+        remove_member_live(&state, member, Some("removed".into())).await.unwrap();
+
+        assert!(state.resolver.read().await.lookup(member).is_none(),
+            "evicted from the Uuid index, as today");
+        assert_eq!(roster_at_resolver(&*state.resolver.read().await, &witness), None,
+            "the ON-THE-FLY derivation follows the eviction for free — there is no \
+             second index to desynchronize");
+        assert!(cached.contains_key(&witness),
+            "§4 measured: the CACHED index still answers for a removed member. They stop \
+             verifying envelopes and keep counting toward a birth quorum — so §4's \
+             precondition is not paranoia, and it is precisely §8's optimization that \
+             creates the need for it");
+    }
+
+    /// **HUB §5 confirmed.** `CouncilMemberRemoved` is emitted at
+    /// `session.rs:348` and appears nowhere in `rest.rs`: there is no live
+    /// eviction for it at all. Today that is an envelope-verification gap that
+    /// self-heals at restart (the next seed reads `council_pubkeys`, which the
+    /// projection did drop). Under the inversion it is also a QUORUM gap, and
+    /// it is wider than the member case because no code path closes it.
+    #[tokio::test]
+    async fn a_removed_council_holder_stays_in_the_roster_until_restart() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let root = state.paths.root.clone();
+        let holder = Uuid::new_v4();
+        let kp = KeyPair::generate();
+        let hex = kp.verifying_key().to_hex();
+        let witness = web4_core::lct::derive_lct_id(&kp.verifying_key());
+
+        witness_for_test(&state, HubEvent::CouncilMemberAdded {
+            member_lct_id: holder,
+            member_pubkey_hex: hex.clone(),
+            added_by: state.sovereign_lct_id,
+            member_name: Some("Co-Sovereign".into()),
+        }).await;
+
+        // Restart so the council pass seeds them into the live resolver (C12).
+        drop(state);
+        let store = open_hub_store(&root).unwrap();
+        let ledger = Arc::new(Mutex::new(HubLedger::open(store).await.unwrap()));
+        let hub = RestState::open_with_law_and_ledger(
+            root.clone(), Arc::new(RwLock::new(None)), ledger,
+        ).await.unwrap();
+        assert_eq!(roster_at_resolver(&*hub.resolver.read().await, &witness).map(|k| k.to_hex()),
+            Some(hex.clone()),
+            "fixture: a seated co-Sovereign is in the roster");
+
+        witness_for_test(&hub, HubEvent::CouncilMemberRemoved {
+            member_lct_id: holder,
+            removed_by: hub.sovereign_lct_id,
+            removal_kind: web4_core::role::RoleEventKind::FillerEjected,
+            reason: Some("ejected".into()),
+        }).await;
+
+        let proj = { let l = hub.ledger.lock().await; HubState::project(&l) };
+        assert!(!proj.council_pubkeys.contains_key(&holder),
+            "the PROJECTION drops them (state.rs:981) — so a restart self-heals");
+        assert!(hub.resolver.read().await.lookup(holder).is_some(),
+            "§5: but the LIVE resolver still holds them — no rest.rs handler evicts on \
+             CouncilMemberRemoved, unlike remove_member_live for ordinary members");
+        assert_eq!(roster_at_resolver(&*hub.resolver.read().await, &witness).map(|k| k.to_hex()),
+            Some(hex),
+            "§5 under the inversion: an EJECTED co-Sovereign keeps counting toward a birth \
+             quorum for the life of the process. Pre-existing, not caused by the inversion, \
+             and promoted from a verification gap to a quorum gap by it");
+    }
+
+    /// **HUB §7, measured — the rejection is right and the reason is narrower
+    /// than stated.** `.ok()` would swallow bad hex, bad length and bad point
+    /// silently. Sited at the resolver the spelling cannot arise: no hex is on
+    /// the lookup path at all. But the OUTCOME is identical either way — a
+    /// corrupt pin costs that member their vote under both spellings. What the
+    /// `warn!` buys is a diagnosis, not a rescue, and the diagnosis is at
+    /// startup rather than at quorum time.
+    #[tokio::test]
+    async fn a_corrupt_pin_costs_the_vote_under_either_spelling() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let root = state.paths.root.clone();
+        let member = Uuid::new_v4();
+        let kp = KeyPair::generate();
+        let good = kp.verifying_key().to_hex();
+        let corrupt = format!("zz{}", &good[2..]); // valid length, invalid hex
+        let witness = web4_core::lct::derive_lct_id(&kp.verifying_key());
+
+        // Straight into the ledger: the operator-plane handlers validate, so a
+        // corrupt pin has to arrive the way a hand-edited or migrated one would.
+        witness_for_test(&state, HubEvent::MemberAdded {
+            member_lct_id: member,
+            added_by: state.sovereign_lct_id,
+            member_name: Some("Corrupt".into()),
+            member_pubkey_hex: Some(corrupt.clone()),
+        }).await;
+
+        drop(state);
+        let store = open_hub_store(&root).unwrap();
+        let ledger = Arc::new(Mutex::new(HubLedger::open(store).await.unwrap()));
+        let hub = RestState::open_with_law_and_ledger(
+            root, Arc::new(RwLock::new(None)), ledger,
+        ).await.unwrap();
+
+        let proj = { let l = hub.ledger.lock().await; HubState::project(&l) };
+        assert_eq!(proj.member_pubkeys.get(&member), Some(&corrupt),
+            "the projection stores the pin verbatim — the fold does not validate hex");
+        assert!(roster_at_hubstate(&proj, &witness).is_none(),
+            "the HubState siting drops them via `.ok()` — silently, HUB's §7 objection");
+        assert!(hub.resolver.read().await.lookup(member).is_none(),
+            "and the resolver siting drops them at SEED time, behind the warn! arm at \
+             rest.rs:358-364 — same loss, named, once, with the uuid");
+        assert_eq!(roster_at_resolver(&*hub.resolver.read().await, &witness), None,
+            "§7 measured: sited per §2 the `.ok()` question is moot — there is no hex on \
+             the lookup path to swallow. The vote is lost identically; only the diagnosis \
+             differs, and that is the whole of the improvement");
+    }
+
+    /// `rest.rs:5331` is NOT the only site that reaches through `.0` in
+    /// production. `vci_credential` (rest.rs:3019, routed at 1861) already
+    /// does the linear reverse-scan pubkey → `lct.id` over the same map, on a
+    /// public endpoint. It is a THIRD consumer of the index the inversion
+    /// builds, it is already O(n), and it is a second call site that HUB's §4
+    /// "one line has to move" must account for.
+    ///
+    /// This arm pins the shape by exercise, so the count cannot drift silently.
+    #[tokio::test]
+    async fn the_credential_endpoint_is_a_second_production_reach_through() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let member = Uuid::new_v4();
+        let kp = KeyPair::generate();
+        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Holder".into()))
+            .await.unwrap();
+
+        // The reverse-scan `vci_credential` performs, transcribed from
+        // rest.rs:3017-3024 — pubkey in, membership uuid out, over `.0.values()`.
+        let reverse = {
+            let resolver = state.resolver.read().await;
+            resolver.0.values()
+                .find(|lct| lct.public_key.to_bytes() == kp.verifying_key().to_bytes())
+                .map(|lct| lct.id)
+        };
+        assert_eq!(reverse, Some(member),
+            "the credential endpoint reverse-resolves a holder key by scanning the map — \
+             the same O(n) walk the roster would do, already accepted in production at \
+             this chapter size");
+
+        // And it is fail-closed on a non-member, which is the property any
+        // second index would have to preserve through eviction as well.
+        let stranger = KeyPair::generate();
+        let none = {
+            let resolver = state.resolver.read().await;
+            resolver.0.values()
+                .find(|lct| lct.public_key.to_bytes() == stranger.verifying_key().to_bytes())
+                .map(|lct| lct.id)
+        };
+        assert_eq!(none, None, "an unpinned key is not a member");
+    }
+
 }
