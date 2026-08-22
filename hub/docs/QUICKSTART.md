@@ -280,9 +280,10 @@ hub serve ./your-chapter-name
 Because your hub's state store is encrypted (Step 0) and the daemon never reads
 the passphrase from the environment at serve time, an encrypted hub **boots into
 a locked shell**: it comes up, but returns `503` on essentially everything except
-the unlock path (and a little tier-0 discovery: `/.well-known/web4-hub.json`,
-the public law, and OID4VCI issuer metadata). You'll see a warning in the log and
-this on requests:
+the unlock path (and a little tier-0 discovery: **the landing page `/`**,
+`/.well-known/web4-hub.json`, the public law, and OID4VCI issuer metadata — note
+that `/` answers `200` while locked, so check `/tools` if you want to tell locked
+from ignited). You'll see a warning in the log and this on requests:
 
 > `hub vault is locked — ignite it first (run hub unlock)`
 

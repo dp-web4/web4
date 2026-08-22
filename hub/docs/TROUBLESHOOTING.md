@@ -101,17 +101,31 @@ way you'd back up a root key.
 
 ## Locked hub / `hub unlock`
 
-### `hub serve` came up but everything returns 503
+### `hub serve` came up but *most* requests return 503
 
 Your hub state is encrypted, so on boot/restart the daemon comes up in a
 **degraded locked shell**. The error body reads:
 
-> `hub vault is locked — ignite it first (run hub unlock); only the unlock path is served while locked`
+> `hub vault is locked — ignite it first (run hub unlock); while locked the hub serves only its tier-0 paths: the landing page (/), the discovery doc, the signed law, the OID4VCI issuer metadata, and unlock`
 
-While locked, only a tiny tier-0 allowlist answers: the discovery doc
-(`/.well-known/web4-hub.json`), the public law (`.../law`), the OID4VCI issuer
-metadata (`.../.well-known/openid-credential-issuer`), and the unlock slot itself.
-Everything else is `503` by design. Ignite it from the hub host:
+While locked, only a tiny tier-0 allowlist answers — **five** paths:
+
+| path | note |
+|---|---|
+| **`/`** | **the landing page. It answers `200` while locked** — it renders the 🔒 from `is_locked()` and never touches the store |
+| `/.well-known/web4-hub.json` | discovery |
+| `/v1/hubs/{id}/law` | the public law, from the clear in-memory projection |
+| `/v1/hubs/{id}/.well-known/openid-credential-issuer` | OID4VCI issuer metadata |
+| `/v1/hubs/{id}/unlock` | the unlock slot itself |
+
+Everything else is `503` by design.
+
+**Do not diagnose this with `/`.** A locked hub and an ignited one both answer `200`
+there, so the two states are indistinguishable to a status check on the root — which
+is how an unattended locked hub gets monitored as healthy. Use a **non-tier-0** public
+path such as `/tools`: `503` means locked, `200` means ignited.
+
+Ignite it from the hub host:
 
 ```bash
 hub unlock      # defaults to port 8770; prompts for the passphrase (or reads HUB_PASSPHRASE)

@@ -536,7 +536,8 @@ impl RestState {
     }
 
     /// Construct a **locked shell**: the encrypted state store could not be opened
-    /// (no key — total enclosure), so the hub comes up serving only the unlock path.
+    /// (no key — total enclosure), so the hub comes up serving only the tier-0
+    /// allowlist (see [`locked_tier0_allows`]) — which includes `/`, not just unlock.
     /// Identity (hub_id / name / founding sovereign) is read from the clear tier-0
     /// `public-identity.json`; the ledger is an empty placeholder (replaced at
     /// ignition); the signer is a `LockedSigner`; no store key, no protected tier.
@@ -2129,7 +2130,9 @@ mod internal_error_redaction_tests {
 fn locked_error() -> ApiError {
     ApiError {
         status: StatusCode::SERVICE_UNAVAILABLE,
-        message: "hub vault is locked — ignite it first (run `hub unlock`); only the unlock path is served while locked"
+        message: "hub vault is locked — ignite it first (run `hub unlock`); while locked the hub \
+serves only its tier-0 paths: the landing page (`/`), the discovery doc, the signed law, the OID4VCI \
+issuer metadata, and unlock"
             .to_string(),
     }
 }
@@ -2171,7 +2174,10 @@ fn locked_tier0_allows(hub_id: Uuid, path: &str) -> bool {
 
 /// The fail-closed **lock-gate**: while the hub is locked, every request is
 /// refused (503) except the small tier-0 allowlist — the unlock path itself, the
-/// public discovery doc, the (clear) law, and the OID4VCI issuer metadata.
+/// **landing page `/`**, the public discovery doc, the (clear) law, and the OID4VCI
+/// issuer metadata. Five entries, and `/` is the one that gets dropped from prose:
+/// leaving it out is what makes a locked hub look like it answers 503 everywhere,
+/// so a `/` health check reads HEALTHY for a hub refusing every real request.
 /// Applied once to the merged app (covers MCP + REST + admin uniformly), so no
 /// handler runs against unpopulated state in a locked shell. A locked hub is
 /// unlocked, not operated.
@@ -2515,6 +2521,37 @@ mod lock_gate_tests {
         }
     }
 
+    /// The 503 body an operator actually reads used to say *"only the unlock path
+    /// is served while locked"*. The allowlist is five paths, and the one the
+    /// sentence dropped is `/` — so the message taught the operator that a locked
+    /// hub refuses everything, while a locked hub in fact answers `200` on `/`.
+    /// A `/` health check then reads HEALTHY for a hub refusing every real request,
+    /// which is the single failure mode the locked shell most needs to surface.
+    ///
+    /// Pinned as a **biconditional against the gate**, not as a phrase match: the
+    /// message may claim the landing page is served exactly when the gate serves
+    /// it. Drop `/` from the allowlist and this test demands the sentence change
+    /// with it; drop it from the sentence and the test demands the gate change.
+    /// The two cannot disagree about `/` silently again.
+    #[test]
+    fn the_locked_503_body_agrees_with_the_gate_about_the_landing_page() {
+        let h = hub();
+        let msg = locked_error().message;
+
+        assert!(
+            !msg.contains("only the unlock path"),
+            "the locked 503 body under-enumerates the tier-0 allowlist: {msg}"
+        );
+        assert_eq!(
+            locked_tier0_allows(h, "/"),
+            msg.contains("landing page"),
+            "the locked 503 body and the tier-0 gate disagree about `/`. gate serves it: {}. \
+             body claims it: {}. body: {msg}",
+            locked_tier0_allows(h, "/"),
+            msg.contains("landing page"),
+        );
+    }
+
     /// The regression this module exists for. `/admin/law` is declared on the
     /// **public** plane (see `plane_split::the_public_plane_still_serves_the_
     /// transparency_surface`), so this path is anonymously reachable from the
@@ -2698,8 +2735,9 @@ mod operator_auth_tests {
 struct WellKnownHubInfo {
     /// The hub's society LCT id (what `hestia hub connect` keys on).
     hub_lct_id: Uuid,
-    /// True when the hub is a locked shell (state sealed; only the unlock path is
-    /// served). Clients/operators see this to know to `hub unlock` before use.
+    /// True when the hub is a locked shell (state sealed; only the tier-0 allowlist
+    /// is served — `/` among it). Clients/operators see this to know to `hub unlock`
+    /// before use.
     locked: bool,
     /// The hub's LCT public key (hex) — the ECDH peer a member uses to open
     /// an E2E member↔hub channel. `None` if the signer can't expose it
