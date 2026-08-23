@@ -82,6 +82,17 @@ pub struct HubState {
     /// envelopes until re-added with a pubkey.
     pub member_pubkeys: BTreeMap<Uuid, String>,
 
+    /// **Anchor ceilings in force per member** — the accrual half of the anchor
+    /// cap. Folded from `MemberAdded`'s `trust_ceiling` (the grant this society's
+    /// law made for the member's hardware-binding level, decided at admission and
+    /// carried on the event so replay is law-independent), consumed by the
+    /// `ReputationRecorded` fold to saturate stored T3 dimensions.
+    ///
+    /// Absence means **uncapped**, not zero: members admitted before the gate was
+    /// in force were never priced, and a projection may not invent a price the
+    /// ledger never witnessed.
+    pub member_ceilings: BTreeMap<Uuid, f64>,
+
     /// Authoritative constellation enrollment: `owner_lct → device_lct →`
     /// [`EnrolledDevice`]. The record (pubkey, class, status) the constellation
     /// verifier resolves against — established by owner-signed `DeviceEnrolled`
@@ -251,6 +262,17 @@ pub struct RoleReputation {
     /// sovereign and cannot be cryptographically bound. Only a bucket fed
     /// **exclusively** by hardware-sovereign deltas reports `hardware`.
     pub sovereign_strength: web4_core::r6::SovereignStrength,
+    /// The anchor ceiling in force the last time this bucket was folded, and how
+    /// many folds it saturated — the *"and says so"* half of the accrual clamp.
+    ///
+    /// A saturation is a measured finding about the subject's identity-evidence
+    /// situation ("earned conduct reached the limit of what a copyable key can be
+    /// staked on"), not a silent truncation, so it is surfaced rather than merely
+    /// applied. `ceiling: None` ⇒ this subject was admitted with no ceiling in
+    /// force and nothing was clamped.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ceiling: Option<f64>,
+    pub saturations: u32,
 }
 
 impl RoleReputation {
@@ -260,6 +282,8 @@ impl RoleReputation {
             v3: web4_core::v3::V3::default(),
             observations: 0,
             last_updated: ts,
+            ceiling: None,
+            saturations: 0,
             // Neutral bucket, no deltas folded yet → strongest possible; the
             // first (and every) delta can only weaken it via `min` below.
             sovereign_strength: web4_core::r6::SovereignStrength::Hardware,
@@ -375,6 +399,13 @@ pub struct JoinRequest {
     /// words) by design.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sponsor_note: Option<String>,
+    /// The anchor the applicant asserted (see `HubEvent::MemberJoinRequested`).
+    /// Re-priced against the law in force **at approval**, not at request time:
+    /// the grant that binds is the one the society holds when it actually admits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor_level: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub asserted_trust_ceiling: Option<f64>,
     pub requested_at: DateTime<Utc>,
     pub status: JoinStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -634,7 +665,9 @@ impl HubState {
                         profile: std::collections::BTreeMap::new(),
                     });
             }
-            HubEvent::MemberAdded { member_lct_id, member_name, member_pubkey_hex, .. } => {
+            HubEvent::MemberAdded {
+                member_lct_id, member_name, member_pubkey_hex, trust_ceiling, ..
+            } => {
                 self.members.entry(*member_lct_id).or_insert_with(|| Member {
                     lct_id: *member_lct_id,
                     name: member_name.clone(),
@@ -643,6 +676,9 @@ impl HubState {
                 });
                 if let Some(pk) = member_pubkey_hex {
                     self.member_pubkeys.insert(*member_lct_id, pk.clone());
+                }
+                if let Some(ceiling) = trust_ceiling {
+                    self.member_ceilings.insert(*member_lct_id, *ceiling);
                 }
             }
             HubEvent::MemberRemoved { member_lct_id, .. } => {
@@ -661,10 +697,11 @@ impl HubState {
                 // key lingers in the projection and gets re-seeded into the
                 // resolver on the next serve restart (they'd still verify).
                 self.member_pubkeys.remove(member_lct_id);
+                self.member_ceilings.remove(member_lct_id);
             }
             HubEvent::MemberJoinRequested {
                 request_id, member_lct_id, member_pubkey_hex, name, message,
-                sponsor_note, requested_at,
+                sponsor_note, requested_at, anchor_level, asserted_trust_ceiling,
             } => {
                 self.pending_joins.insert(*request_id, JoinRequest {
                     request_id: *request_id,
@@ -673,6 +710,8 @@ impl HubState {
                     name: name.clone(),
                     message: message.clone(),
                     sponsor_note: sponsor_note.clone(),
+                    anchor_level: *anchor_level,
+                    asserted_trust_ceiling: *asserted_trust_ceiling,
                     requested_at: *requested_at,
                     status: JoinStatus::Pending,
                     resolved_by: None,
@@ -883,6 +922,20 @@ impl HubState {
                 // event claiming `applied` for a non-Conduct delta (corrupt or
                 // adversarial) folds NOTHING. Infra never scores as conduct.
                 if *applied && delta.class == DeltaClass::Conduct {
+                    // Anchor cap, site 2 of 2: the ceiling this member was admitted
+                    // under (site 1 is the admission-time validation in
+                    // `law::evaluate_anchor_ceiling`). Read BEFORE the entry()
+                    // borrow, and read from the projection — never from live law —
+                    // so replay of the same ledger projects the same tensors.
+                    //
+                    // Members are keyed by Uuid; reputation subjects are the same
+                    // ids stringified (see `resolve_sponsor_verdict`). A subject
+                    // that is not a member of this hub parses to no Uuid and is
+                    // uncapped, which is correct: this society priced no anchor for
+                    // an entity it never admitted.
+                    let ceiling = Uuid::parse_str(&delta.subject_lct)
+                        .ok()
+                        .and_then(|id| self.member_ceilings.get(&id).copied());
                     let rep = self
                         .reputation
                         .entry((delta.subject_lct.clone(), delta.role_lct.clone()))
@@ -901,6 +954,17 @@ impl HubState {
                     // weakest delta that fed it. A placeholder-attested delta pins the
                     // bucket to `placeholder` and no later hardware delta can upgrade
                     // the placeholder-era observations back to `hardware`.
+                    // Clamp AFTER the fold, and say so when it bites. T3 only:
+                    // the ceiling prices identity-evidence certainty ("how sure are
+                    // we these acts came from this entity and not a copy"), which is
+                    // a property of trust. V3 records value actually delivered and
+                    // is not bounded by how the deliverer is anchored.
+                    rep.ceiling = ceiling;
+                    if let Some(c) = ceiling {
+                        if rep.t3.clamp_to(c) {
+                            rep.saturations += 1;
+                        }
+                    }
                     rep.sovereign_strength = rep.sovereign_strength.min(delta.sovereign_strength);
                     rep.observations += 1;
                     rep.last_updated = ts;
@@ -1293,6 +1357,132 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_anchor_ceiling_clamps_the_fold_and_says_that_it_did() {
+        // Site 2 of the anchor cap. Validating only at the door is not enough:
+        // the hub FOLDS conduct deltas into a stored tensor, so a being admitted
+        // under a 0.4 ceiling would otherwise accrue straight past it.
+        use std::collections::HashMap;
+        use web4_core::t3::TrustDimension;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let member = Uuid::new_v4();
+        let mk_delta = |change: f64| {
+            let mut t3_delta = HashMap::new();
+            t3_delta.insert("temperament".to_string(),
+                web4_core::r6::TensorDelta { change, from_value: 0.0, to_value: change });
+            web4_core::r6::ReputationDelta {
+                subject_lct: member.to_string(),
+                role_lct: "citizen".to_string(),
+                sovereign_strength: web4_core::r6::SovereignStrength::Hardware,
+                class: web4_core::r6::DeltaClass::Conduct,
+                action_type: "handoff".into(),
+                action_target: "hub".into(),
+                action_id: "act".into(),
+                rule_triggered: "on_time".into(),
+                reason: "flawless conduct".into(),
+                t3_delta,
+                v3_delta: HashMap::new(),
+                contributing_factors: vec![],
+                witnesses: vec![],
+                timestamp: Utc::now(),
+            }
+        };
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::MemberAdded {
+                member_lct_id: member,
+                added_by: sov.lct.id,
+                member_name: Some("Software-anchored being".into()),
+                member_pubkey_hex: None,
+                anchor_level: Some(4),
+                trust_ceiling: Some(0.4),
+            }),
+            // Conduct that would take temperament from the 0.5 neutral prior to
+            // 0.9 — well past what a copyable software key can be staked on.
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta: mk_delta(0.4), applied: true }),
+        ]).await;
+        let state = HubState::project(&ledger);
+        assert_eq!(state.member_ceilings.get(&member), Some(&0.4),
+            "the ceiling law granted at admission is projected onto the member");
+        let rep = state.reputation.get(&(member.to_string(), "citizen".to_string()))
+            .expect("reputation projected");
+        assert!(rep.t3.score(TrustDimension::Temperament) <= 0.4,
+            "earned conduct is bounded by anchor certainty, not by character");
+        assert_eq!(rep.ceiling, Some(0.4), "the bucket carries the ceiling in force");
+        assert_eq!(rep.saturations, 1, "a saturation is a finding, and it is counted");
+        assert_eq!(rep.observations, 1, "the observation still happened — only the stake is bounded");
+    }
+
+    #[tokio::test]
+    async fn a_member_admitted_with_no_ceiling_is_uncapped_not_zero_capped() {
+        // Absence of a recorded ceiling means the gate was not in force when this
+        // member joined. Retro-capping here would be the projection inventing
+        // history the ledger never witnessed.
+        use std::collections::HashMap;
+        use web4_core::t3::TrustDimension;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let member = Uuid::new_v4();
+        let mut t3_delta = HashMap::new();
+        t3_delta.insert("temperament".to_string(),
+            web4_core::r6::TensorDelta { change: 0.4, from_value: 0.0, to_value: 0.4 });
+        let delta = web4_core::r6::ReputationDelta {
+            subject_lct: member.to_string(),
+            role_lct: "citizen".to_string(),
+            sovereign_strength: web4_core::r6::SovereignStrength::Hardware,
+            class: web4_core::r6::DeltaClass::Conduct,
+            action_type: "handoff".into(), action_target: "hub".into(), action_id: "act".into(),
+            rule_triggered: "on_time".into(), reason: "conduct".into(),
+            t3_delta, v3_delta: HashMap::new(),
+            contributing_factors: vec![], witnesses: vec![], timestamp: Utc::now(),
+        };
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::MemberAdded {
+                member_lct_id: member, added_by: sov.lct.id,
+                member_name: Some("Pre-gate member".into()), member_pubkey_hex: None,
+                anchor_level: None, trust_ceiling: None,
+            }),
+            (sov.lct.id, &kp, HubEvent::ReputationRecorded { delta, applied: true }),
+        ]).await;
+        let state = HubState::project(&ledger);
+        assert!(state.member_ceilings.is_empty());
+        let rep = state.reputation.get(&(member.to_string(), "citizen".to_string())).unwrap();
+        assert!(rep.t3.score(TrustDimension::Temperament) > 0.4, "nothing was clamped");
+        assert_eq!(rep.ceiling, None);
+        assert_eq!(rep.saturations, 0);
+    }
+
+    #[tokio::test]
+    async fn removing_a_member_drops_its_recorded_ceiling() {
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let member = Uuid::new_v4();
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::MemberAdded {
+                member_lct_id: member, added_by: sov.lct.id, member_name: None,
+                member_pubkey_hex: None, anchor_level: Some(4), trust_ceiling: Some(0.4),
+            }),
+            (sov.lct.id, &kp, HubEvent::MemberRemoved {
+                member_lct_id: member, removed_by: sov.lct.id, reason: None,
+            }),
+        ]).await;
+        let state = HubState::project(&ledger);
+        assert!(state.member_ceilings.get(&member).is_none(),
+            "a removed member's ceiling must not linger — re-admission re-prices");
+    }
+
+    #[tokio::test]
     async fn reputation_recorded_folds_into_role_pairing() {
         use std::collections::HashMap;
         use web4_core::t3::{T3, TrustDimension};
@@ -1517,6 +1707,8 @@ mod tests {
                 added_by: sov.lct.id,
                 member_name: Some("Alice".into()),
                 member_pubkey_hex: None,
+                anchor_level: None,
+                trust_ceiling: None,
             }),
             (sov.lct.id, &kp, HubEvent::MemberSkillDeclared {
                 member_lct_id: alice,
@@ -1549,6 +1741,8 @@ mod tests {
             (sov.lct.id, &kp, HubEvent::MemberAdded {
                 member_lct_id: alice, added_by: sov.lct.id,
                 member_name: Some("Alice".into()), member_pubkey_hex: None,
+                anchor_level: None,
+                trust_ceiling: None,
             }),
         ]).await;
         let full = HubState::project(&ledger);
@@ -1581,8 +1775,14 @@ mod tests {
                 founding_sovereign_lct_id: sov.lct.id,
                 created_at: Utc::now(),
             }),
-            (sov.lct.id, &kp, HubEvent::MemberAdded { member_lct_id: alice, added_by: sov.lct.id, member_name: Some("Alice".into()), member_pubkey_hex: None }),
-            (sov.lct.id, &kp, HubEvent::MemberAdded { member_lct_id: bob, added_by: sov.lct.id, member_name: Some("Bob".into()), member_pubkey_hex: None }),
+            (sov.lct.id, &kp, HubEvent::MemberAdded { member_lct_id: alice, added_by: sov.lct.id, member_name: Some("Alice".into()), member_pubkey_hex: None,
+            anchor_level: None,
+            trust_ceiling: None,
+        }),
+            (sov.lct.id, &kp, HubEvent::MemberAdded { member_lct_id: bob, added_by: sov.lct.id, member_name: Some("Bob".into()), member_pubkey_hex: None,
+            anchor_level: None,
+            trust_ceiling: None,
+        }),
             (sov.lct.id, &kp, HubEvent::MemberSkillDeclared { member_lct_id: alice, skill: "Medical Imaging RAG".into(), declared_by: sov.lct.id }),
             (sov.lct.id, &kp, HubEvent::MemberSkillDeclared { member_lct_id: bob, skill: "Distributed Systems".into(), declared_by: sov.lct.id }),
         ]).await;
@@ -2046,6 +2246,7 @@ mod tests {
                 added_by: sov.lct.id,
                 member_name: Some("Citizen".into()),
                 member_pubkey_hex: Some(ordinary_kp.verifying_key().to_hex()),
+                anchor_level: None, trust_ceiling: None,
             }),
         ]).await;
         let state = HubState::project(&ledger);
@@ -2118,6 +2319,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: member, added_by: Uuid::nil(),
             member_name: Some("Alice".into()), member_pubkey_hex: Some(hex.clone()),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = publish(&mut state, &lct);
         assert_eq!(sprout_bridge(&state, &witness).map(|k| k.to_hex()), Some(hex),
@@ -2194,6 +2396,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: member, added_by: Uuid::nil(),
             member_name: Some("Bob".into()), member_pubkey_hex: Some(upper.clone()),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = publish(&mut state, &lct);
 
@@ -2220,6 +2423,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: membership_uuid, added_by: Uuid::nil(),
             member_name: Some("Carol".into()), member_pubkey_hex: Some(hex.clone()),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = publish(&mut state, &lct);
 
@@ -2272,6 +2476,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: member, added_by: Uuid::nil(),
             member_name: Some("Alice".into()), member_pubkey_hex: Some(hex.clone()),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = publish(&mut state, &lct);
         assert_eq!(derived_resolver(&state, &witness).map(|k| k.to_hex()), Some(hex));
@@ -2303,6 +2508,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: member, added_by: Uuid::nil(),
             member_name: Some("Alice".into()), member_pubkey_hex: Some(hex),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let _ = publish(&mut state, &lct);
         assert_eq!(derived_resolver(&state, &format!("lct:web4:member:{member}")), None,
@@ -2374,6 +2580,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: member, added_by: Uuid::nil(),
             member_name: Some("Bob".into()), member_pubkey_hex: Some(upper),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = publish(&mut state, &lct);
         assert_eq!(sprout_bridge(&state, &witness), None, "C10 under the bridge");
@@ -2393,6 +2600,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: membership_uuid, added_by: Uuid::nil(),
             member_name: Some("Carol".into()), member_pubkey_hex: Some(hex.clone()),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = publish(&mut state, &lct);
         assert_eq!(sprout_bridge(&state, &witness), None, "C11 under the bridge");
@@ -2414,6 +2622,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: member, added_by: Uuid::nil(),
             member_name: Some("Dave".into()), member_pubkey_hex: Some(hex.clone()),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = web4_core::lct::derive_lct_id(&lct.public_key);
 

@@ -377,6 +377,39 @@ impl T3 {
         }
     }
 
+    /// Saturate every root dimension (and sub-dimension) at `ceiling`, returning
+    /// `true` if anything was actually above it.
+    ///
+    /// **Mechanism, not threshold.** The ceiling is supplied by the caller — a
+    /// society's law — and web4-core never picks one: a surface makes evidence
+    /// checkable, it does not encode a universal bar (LCT spec §1.2). What this
+    /// method exists for is the other half of an anchor cap: a cap validated only
+    /// where trust is *asserted* does not bind where trust is *accrued*, so a
+    /// stored tensor folded from conduct deltas climbs past it silently. Callers
+    /// clamp after folding, and record that they did — a saturation is a finding
+    /// about how much identity-evidence certainty the subject's anchor affords,
+    /// which conduct cannot raise, and it is only honest if it is visible.
+    ///
+    /// Weights and observation counts are left alone: the observations happened.
+    /// Only what may be *staked* on them is bounded.
+    pub fn clamp_to(&mut self, ceiling: f64) -> bool {
+        let ceiling = ceiling.clamp(0.0, 1.0);
+        let mut saturated = false;
+        for i in 0..T3_DIMENSIONS {
+            if self.dimensions[i] > ceiling {
+                self.dimensions[i] = ceiling;
+                saturated = true;
+            }
+        }
+        for sub in self.sub_dimensions.values_mut() {
+            if sub.score > ceiling {
+                sub.score = ceiling;
+                saturated = true;
+            }
+        }
+        saturated
+    }
+
     /// Check if trust meets minimum thresholds
     pub fn meets_thresholds(&self, min_scores: &[f64; T3_DIMENSIONS]) -> bool {
         self.dimensions
@@ -480,6 +513,26 @@ impl TrustRelation {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn clamp_to_saturates_dimensions_and_reports_whether_it_bit() {
+        // The mechanism an anchor cap needs at the *accrual* site: a tensor folded
+        // from conduct deltas climbs freely, and the ceiling is applied by whoever
+        // holds the law that sets it. web4-core supplies no ceiling of its own.
+        let mut t3 = T3::new();
+        t3.apply_delta(TrustDimension::Temperament, 0.4); // 0.5 neutral -> 0.9
+        assert!(t3.score(TrustDimension::Temperament) > 0.4);
+
+        assert!(t3.clamp_to(0.4), "clamping a tensor above the ceiling reports true");
+        for d in TrustDimension::all() {
+            assert!(t3.score(d) <= 0.4, "{d:?} saturated at the ceiling");
+        }
+        assert!(!t3.clamp_to(0.4), "a tensor already at/below the ceiling reports false");
+
+        // The observations still happened — only what may be staked is bounded.
+        assert_eq!(t3.observation_counts()[TrustDimension::Temperament as usize], 1);
+        assert!(t3.weight(TrustDimension::Temperament) > 0.0);
+    }
     use super::*;
 
     #[test]

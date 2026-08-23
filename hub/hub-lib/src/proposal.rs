@@ -144,6 +144,8 @@ mod tests {
             added_by: Uuid::new_v4(),
             member_name: Some("test".into()),
             member_pubkey_hex: None,
+            anchor_level: None,
+            trust_ceiling: None,
         };
         CouncilProposal::new(event, Uuid::new_v4(), Utc::now())
     }

@@ -377,11 +377,30 @@ async fn add_member(
     let resolver_seed =
         hub_lib::hub::validate_member_pubkey_hex(req.member_lct_id, req.member_pubkey_hex.as_deref())
             .map_err(|e| ApiError::bad_request(format!("{:#}", e)))?;
+    // Anchor cap, same gate the sealed-channel join and the Sovereign envelope
+    // run. The request carries no anchor assertion, so the member is priced at
+    // the default level and takes law's grant for it. Being reachable only from
+    // loopback is not a reason to skip the ceiling: it is the operator's own
+    // tool, and an operator-minted member that law never priced is uncapped in
+    // the accrual clamp forever after.
+    let anchor = {
+        let law_guard = s.law.read().await;
+        hub_lib::law::resolve_anchor_verdict(law_guard.as_ref(), None, None)
+    };
+    if !anchor.may_admit() {
+        return Err(ApiError {
+            status: axum::http::StatusCode::FORBIDDEN,
+            message: anchor.reason().unwrap_or_else(||
+                "anchor ceiling refused by hub law".to_string()),
+        });
+    }
     let event = HubEvent::MemberAdded {
         member_lct_id: req.member_lct_id,
         added_by: s.sovereign_lct_id,
         member_name: req.name,
         member_pubkey_hex: req.member_pubkey_hex,
+        anchor_level: anchor.level(),
+        trust_ceiling: anchor.ceiling(),
     };
     let recorded = append_with_sovereign(&s, event).await?;
     // Ledger first, resolver second — same ordering the Sovereign `AddMember`
@@ -1254,4 +1273,52 @@ mod tests {
         );
     }
 
+    // ---- anchor cap ----
+
+    const ANCHOR_LAW: &str =
+        "version: \"1.0.0\"\nadmission:\n  anchor_ceilings:\n    4: 0.4\n    5: 1.0\n";
+
+    /// `/tools/add_member` is loopback-only, which is a statement about *who may
+    /// call it*, not about what law prices. It built `MemberAdded` with
+    /// `trust_ceiling: None` — uncapped — so the operator's own tool minted the
+    /// one member class the accrual clamp can never bind.
+    #[tokio::test]
+    async fn an_mcp_admitted_member_carries_the_ceiling_law_grants_its_anchor() {
+        let (_tmp, rest) = fresh_rest_state(Some(ANCHOR_LAW)).await;
+        let s = mcp_over(&rest).await;
+        let member = Uuid::new_v4();
+        add_member(State(s.clone()), loopback(), Json(AddMemberRequest {
+            member_lct_id: member,
+            name: Some("Tooling".into()),
+            member_pubkey_hex: None,
+        })).await.expect("admitted under a law that prices the default level");
+
+        let projected = { let l = rest.ledger.lock().await; rest.projected(&l) };
+        assert_eq!(
+            projected.member_ceilings.get(&member), Some(&0.4),
+            "the tool asserts no anchor, so it is priced at the default level and \
+             records law's grant — the same number every other door records"
+        );
+    }
+
+    /// Fail-closed, and a true preflight: nothing appended, nothing resolved.
+    #[tokio::test]
+    async fn the_mcp_tool_cannot_mint_an_unpriced_anchor() {
+        let law = "version: \"1.0.0\"\nadmission:\n  anchor_ceilings:\n    5: 1.0\n";
+        let (_tmp, rest) = fresh_rest_state(Some(law)).await;
+        let s = mcp_over(&rest).await;
+        let (before_index, before_head) = head(&s).await;
+
+        let member = Uuid::new_v4();
+        let err = add_member(State(s.clone()), loopback(), Json(AddMemberRequest {
+            member_lct_id: member,
+            name: None,
+            member_pubkey_hex: None,
+        })).await.err().expect("an unpriced anchor must fail closed");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("level 4"), "got: {}", err.message);
+
+        assert_eq!((before_index, before_head), head(&s).await, "nothing appended");
+        assert!(!rest.resolver.read().await.0.contains_key(&member), "nothing resolved");
+    }
 }

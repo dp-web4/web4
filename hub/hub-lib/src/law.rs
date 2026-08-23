@@ -152,6 +152,34 @@ pub struct AdmissionPolicy {
     pub repeat_limit: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub review_limit: Option<u32>,
+    /// **Anchor ceilings — this society's grant per hardware-binding level.**
+    /// Keyed by [`web4_core::lct::HardwareBinding::level`] (web4-core's existing
+    /// vocabulary: 0-3 none/weak, 4 software, 5 hardware/TPM-SE), valued as the
+    /// maximum trust an applicant anchored at that level may reach here.
+    ///
+    /// This is a **ceiling on identity-evidence certainty, not a judgment on the
+    /// applicant**: a copied software key bounds how much a relying party can
+    /// safely stake on "these acts came from *this* entity", which conduct cannot
+    /// raise. The door is open — an entity that re-anchors at a stronger level is
+    /// priced by that level's grant instead.
+    ///
+    /// It lives in law, not in a constant, because a ceiling is a trust threshold
+    /// and a surface never encodes a universal one (LCT spec §1.2): a high-stakes
+    /// society may grant level 4 a 0.2, a permissive one 0.6, and the same entity
+    /// crossing societies is capped by *that* society's law. Being a field here
+    /// makes it law by construction — loaded from `hub-law.yaml`, validated by
+    /// [`HubPolicy::validate`], amendable only through a witnessed `LawAmended`.
+    ///
+    /// Unset ⇒ the gate is **not in force** (no ceiling recorded, nothing clamped):
+    /// silence in law is not a zero grant, it is the absence of a rule. A level
+    /// the map does not name *is* fail-closed once the map exists — see
+    /// [`evaluate_anchor_ceiling`].
+    ///
+    /// Deliberately NOT `min_trust_score`, which is the wrong quantity twice over:
+    /// a floor, not a ceiling, and on the *sponsor's* trust, not the applicant's
+    /// (see [`evaluate_sponsor`]). Reusing it would type-check and enforce nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor_ceilings: Option<std::collections::BTreeMap<u8, f64>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
@@ -333,6 +361,166 @@ pub fn evaluate_sponsor(
         };
     }
     SponsorVerdict::Satisfied { sponsor_lct_id: sponsor }
+}
+
+// ============================================================================
+// Anchor ceiling — site 1 of 2: validate at admission
+// ============================================================================
+
+/// Highest hardware-binding level web4-core defines (`HardwareBinding::level`
+/// doc: 0-3 none/weak, 4 software, 5 hardware/TPM-SE). Named here so a law file
+/// naming level 7 fails validation instead of silently pricing a level that
+/// cannot exist.
+pub const MAX_HARDWARE_BINDING_LEVEL: u8 = 5;
+
+/// What this society's law grants an applicant asserting a given anchor level —
+/// the **admission half** of the anchor cap (the accrual half is the clamp in
+/// `HubState`'s `ReputationRecorded` fold; validating only at the door lets a
+/// being admitted under a 0.4 cap accrue straight past it on conduct).
+///
+/// Fail-closed by construction, and the two "no" exits are kept apart for the
+/// same reason [`SponsorVerdict`] splits its failures: a single exit either
+/// certifies a lie or becomes unsatisfiable.
+#[derive(Clone, Debug, PartialEq)]
+pub enum AnchorCeilingVerdict {
+    /// Law configures no `anchor_ceilings` at all — the gate is not in force.
+    /// Nothing is recorded and nothing is clamped; silence in law is the absence
+    /// of a rule, not a zero grant.
+    NotConfigured,
+    /// Law names ceilings but none for this level. Fail-closed: an unpriced
+    /// anchor is refused rather than admitted under someone else's grant.
+    LevelNotGranted { level: u8 },
+    /// The applicant asserted a ceiling above what law grants its level. The
+    /// assertion is refused rather than silently lowered — a minting caller
+    /// that forges a higher ceiling should learn that it did.
+    Refused { level: u8, asserted: f64, granted: f64 },
+    /// The applicant asserted a ceiling that is not a ceiling: outside `[0, 1]`,
+    /// or not a finite number. Law's own values are range-checked at parse
+    /// (Rule 9b); the applicant's assertion arrives over the wire and is not.
+    ///
+    /// Kept apart from [`Self::Refused`] because the two are different lies and
+    /// the `>` comparison silently admits both of these: a **negative** ceiling
+    /// is not "above the grant", so it passes as `Granted`, gets recorded, and
+    /// the accrual clamp then pins every T3 dimension to 0 for the life of the
+    /// member — a self-inflicted permanent zero that no law authored. `NaN` is
+    /// worse: every comparison against it is false, so it takes the same path
+    /// and lands a `NaN` ceiling in the ledger.
+    Malformed { level: u8, asserted: f64 },
+    /// Admissible. `ceiling` is what gets **recorded on the member** and is what
+    /// the accrual clamp saturates at: `min(asserted, granted)`, so an applicant
+    /// claiming *less* than law allows is held to its own claim.
+    Granted { level: u8, ceiling: f64 },
+}
+
+impl AnchorCeilingVerdict {
+    /// The ceiling to record on the member, if this verdict admits one.
+    pub fn ceiling(&self) -> Option<f64> {
+        match self {
+            AnchorCeilingVerdict::Granted { ceiling, .. } => Some(*ceiling),
+            _ => None,
+        }
+    }
+
+    /// The anchor level this verdict priced, if it admits one. Recorded beside
+    /// the ceiling so an auditor can see *what was priced*, not just the number.
+    pub fn level(&self) -> Option<u8> {
+        match self {
+            AnchorCeilingVerdict::Granted { level, .. } => Some(*level),
+            _ => None,
+        }
+    }
+
+    /// May this verdict proceed to admission?
+    pub fn may_admit(&self) -> bool {
+        matches!(
+            self,
+            AnchorCeilingVerdict::NotConfigured | AnchorCeilingVerdict::Granted { .. }
+        )
+    }
+
+    /// Operator/applicant-facing reason, naming which exit fired. `None` when the
+    /// verdict admits.
+    pub fn reason(&self) -> Option<String> {
+        match self {
+            AnchorCeilingVerdict::NotConfigured | AnchorCeilingVerdict::Granted { .. } => None,
+            AnchorCeilingVerdict::LevelNotGranted { level } => Some(format!(
+                "hub law grants no trust ceiling for hardware-binding level {level}; \
+                 an unpriced anchor is refused, not admitted under another level's grant"
+            )),
+            AnchorCeilingVerdict::Refused { level, asserted, granted } => Some(format!(
+                "asserted trust_ceiling {asserted} exceeds this society's grant {granted} \
+                 for hardware-binding level {level}; the ceiling prices the anchor's \
+                 identity-evidence certainty and is set by law, not by the applicant"
+            )),
+            AnchorCeilingVerdict::Malformed { level, asserted } => Some(format!(
+                "asserted trust_ceiling {asserted} is not a ceiling — it must be a \
+                 finite number in [0, 1], the same range hub law's own grants are \
+                 validated against, for hardware-binding level {level}"
+            )),
+        }
+    }
+}
+
+/// Evaluate an applicant's asserted anchor against `admission.anchor_ceilings`.
+///
+/// `asserted` is the applicant's own `HardwareBinding::trust_ceiling` claim, which
+/// web4-core does not validate (it defaults to 0.85 at level 4 — self-asserted).
+/// `None` ⇒ the applicant claims no ceiling and takes the law's grant.
+pub fn evaluate_anchor_ceiling(
+    policy: Option<&AdmissionPolicy>,
+    level: u8,
+    asserted: Option<f64>,
+) -> AnchorCeilingVerdict {
+    let Some(ceilings) = policy.and_then(|p| p.anchor_ceilings.as_ref()) else {
+        return AnchorCeilingVerdict::NotConfigured;
+    };
+    if ceilings.is_empty() {
+        return AnchorCeilingVerdict::NotConfigured;
+    }
+    let Some(&granted) = ceilings.get(&level) else {
+        return AnchorCeilingVerdict::LevelNotGranted { level };
+    };
+    match asserted {
+        // Well-formedness first. `>` cannot carry this check: a negative or NaN
+        // assertion is not "above the grant", so ordering it against `granted`
+        // admits it as a `Granted` ceiling — see [`AnchorCeilingVerdict::Malformed`].
+        Some(a) if !a.is_finite() || !(0.0..=1.0).contains(&a) =>
+            AnchorCeilingVerdict::Malformed { level, asserted: a },
+        Some(a) if a > granted => AnchorCeilingVerdict::Refused { level, asserted: a, granted },
+        Some(a) => AnchorCeilingVerdict::Granted { level, ceiling: a },
+        None => AnchorCeilingVerdict::Granted { level, ceiling: granted },
+    }
+}
+
+/// The level an applicant that states none is priced at: **4 (software)**, which
+/// is web4-core's own `HardwareBinding::default()` for an LCT that does not say.
+/// Levels 0-3 are documented "testing only", so 4 is the documented production
+/// floor rather than a guess in either direction — not level 0, and not the best
+/// available.
+pub const DEFAULT_ANCHOR_LEVEL: u8 = 4;
+
+/// Price an admission against hub law's `admission.anchor_ceilings`.
+///
+/// This is the *only* form the admission sites call. It lives here rather than
+/// beside any one caller because there are four of them across two crates —
+/// three in `hub-daemon` (the sealed-channel join, the Sovereign `AddMember`
+/// envelope, the loopback MCP tool) and one in `hub-lib` (`HubSession::add_member`,
+/// the CLI) — and a default level that each site spelled for itself would be four
+/// chances to disagree about what an unstated anchor costs.
+///
+/// `level: None` ⇒ [`DEFAULT_ANCHOR_LEVEL`]. `asserted: None` ⇒ the applicant
+/// claims no ceiling and takes law's grant; an asserted ceiling may only *lower*
+/// what law grants, never raise it.
+pub fn resolve_anchor_verdict(
+    law: Option<&Law>,
+    level: Option<u8>,
+    asserted: Option<f64>,
+) -> AnchorCeilingVerdict {
+    evaluate_anchor_ceiling(
+        law.and_then(|l| l.ext.admission.as_ref()),
+        level.unwrap_or(DEFAULT_ANCHOR_LEVEL),
+        asserted,
+    )
 }
 
 impl SponsorVerdict {
@@ -567,6 +755,47 @@ impl PolicyExtension for HubPolicy {
                         "admission.min_trust_score {} out of range [0, 1]",
                         score
                     ));
+                }
+            }
+            // Rule 9b: admission.anchor_ceilings — every key is a hardware-binding
+            // level web4-core defines, every value is in [0,1], and the map is
+            // monotonic non-decreasing in level. Monotonicity is the invariant that
+            // makes the ceiling mean what it says: it prices identity-evidence
+            // certainty, so a stronger anchor can never be granted *less* than a
+            // weaker one. A law that inverts them is incoherent, not merely strict,
+            // and refusing it here is cheaper than discovering it at a gate.
+            if let Some(ceilings) = &a.anchor_ceilings {
+                let mut prev: Option<(u8, f64)> = None;
+                for (&level, &ceiling) in ceilings {
+                    if level > MAX_HARDWARE_BINDING_LEVEL {
+                        return Err(anyhow!(
+                            "admission.anchor_ceilings names hardware-binding level {} — \
+                             web4-core defines 0..={} (0-3 none/weak, 4 software, 5 hardware)",
+                            level,
+                            MAX_HARDWARE_BINDING_LEVEL
+                        ));
+                    }
+                    if !(0.0..=1.0).contains(&ceiling) {
+                        return Err(anyhow!(
+                            "admission.anchor_ceilings[{}] = {} out of range [0, 1]",
+                            level,
+                            ceiling
+                        ));
+                    }
+                    if let Some((plevel, pceiling)) = prev {
+                        if ceiling < pceiling {
+                            return Err(anyhow!(
+                                "admission.anchor_ceilings is not monotonic: level {} grants {} \
+                                 but the weaker level {} grants {}; a stronger anchor cannot be \
+                                 granted a lower ceiling",
+                                level,
+                                ceiling,
+                                plevel,
+                                pceiling
+                            ));
+                        }
+                    }
+                    prev = Some((level, ceiling));
                 }
             }
         }
@@ -1052,6 +1281,151 @@ admission:
         assert!(result.is_err());
         let err = format!("{:?}", result.unwrap_err());
         assert!(err.contains("min_trust_score"));
+    }
+
+    // ---- anchor ceilings: rule 9b (law validation) ----
+
+    #[tokio::test]
+    async fn anchor_ceilings_parse_from_law_and_price_by_level() {
+        let yaml = r#"
+version: "1.0.0"
+admission:
+  anchor_ceilings:
+    4: 0.4
+    5: 1.0
+"#;
+        let law = Law::parse_and_validate(yaml).expect("valid anchor_ceilings");
+        let p = law.ext.admission.as_ref().expect("admission policy");
+        assert_eq!(
+            evaluate_anchor_ceiling(Some(p), 4, None),
+            AnchorCeilingVerdict::Granted { level: 4, ceiling: 0.4 },
+            "a software-anchored applicant asserting nothing takes law's grant"
+        );
+        assert_eq!(
+            evaluate_anchor_ceiling(Some(p), 5, None),
+            AnchorCeilingVerdict::Granted { level: 5, ceiling: 1.0 },
+            "the door: re-anchoring at hardware raises the applicant's own cap"
+        );
+    }
+
+    #[tokio::test]
+    async fn anchor_ceiling_out_of_range_rejected() {
+        let yaml = "version: \"1.0.0\"\nadmission:\n  anchor_ceilings:\n    4: 1.4\n";
+        let err = format!("{:?}", Law::parse_and_validate(yaml).unwrap_err());
+        assert!(err.contains("anchor_ceilings"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn anchor_ceiling_unknown_binding_level_rejected() {
+        // web4-core defines 0..=5; a law pricing level 7 prices nothing.
+        let yaml = "version: \"1.0.0\"\nadmission:\n  anchor_ceilings:\n    7: 0.5\n";
+        let err = format!("{:?}", Law::parse_and_validate(yaml).unwrap_err());
+        assert!(err.contains("hardware-binding level 7"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn anchor_ceilings_must_be_monotonic_in_level() {
+        // A stronger anchor granted LESS than a weaker one inverts what the
+        // ceiling means (identity-evidence certainty), so law refuses to load.
+        let yaml = "version: \"1.0.0\"\nadmission:\n  anchor_ceilings:\n    4: 0.9\n    5: 0.5\n";
+        let err = format!("{:?}", Law::parse_and_validate(yaml).unwrap_err());
+        assert!(err.contains("not monotonic"), "got: {err}");
+    }
+
+    // ---- anchor ceilings: the four verdict exits ----
+
+    #[test]
+    fn anchor_gate_is_not_in_force_without_law() {
+        // Silence in law is the absence of a rule, not a zero grant: nothing is
+        // recorded on the member and nothing is later clamped.
+        assert_eq!(evaluate_anchor_ceiling(None, 4, Some(0.99)), AnchorCeilingVerdict::NotConfigured);
+        let mut p = AdmissionPolicy::default();
+        assert_eq!(evaluate_anchor_ceiling(Some(&p), 4, Some(0.99)), AnchorCeilingVerdict::NotConfigured);
+        p.anchor_ceilings = Some(std::collections::BTreeMap::new());
+        assert_eq!(evaluate_anchor_ceiling(Some(&p), 4, None), AnchorCeilingVerdict::NotConfigured,
+            "an empty map configures no grant — it does not price every level at zero");
+    }
+
+    #[test]
+    fn an_unpriced_level_is_refused_not_admitted_under_another_levels_grant() {
+        let mut p = AdmissionPolicy::default();
+        p.anchor_ceilings = Some([(5u8, 1.0f64)].into_iter().collect());
+        let v = evaluate_anchor_ceiling(Some(&p), 4, None);
+        assert_eq!(v, AnchorCeilingVerdict::LevelNotGranted { level: 4 });
+        assert!(!v.may_admit());
+        assert!(v.reason().unwrap().contains("level 4"));
+        assert_eq!(v.ceiling(), None, "a refusal records no ceiling");
+    }
+
+    /// The applicant's assertion arrives over the wire and law's Rule 9b does not
+    /// reach it. `>` alone cannot reject these: a negative is not "above the
+    /// grant" and every comparison against `NaN` is false, so both used to fall
+    /// through to `Granted` and be **recorded on the member** — after which the
+    /// accrual clamp pins that member's T3 at the recorded value forever. A
+    /// permanent zero (or a NaN) no law ever authored.
+    #[test]
+    fn an_asserted_ceiling_that_is_not_a_ceiling_is_refused_not_recorded() {
+        let p = AdmissionPolicy {
+            anchor_ceilings: Some([(4u8, 0.4f64)].into_iter().collect()),
+            ..Default::default()
+        };
+        for bad in [-0.5f64, -0.0001, 1.5, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let v = evaluate_anchor_ceiling(Some(&p), 4, Some(bad));
+            assert!(
+                matches!(v, AnchorCeilingVerdict::Malformed { .. }),
+                "asserted {bad} must be refused as malformed, got {v:?}"
+            );
+            assert!(!v.may_admit(), "asserted {bad} must not admit");
+            assert_eq!(v.ceiling(), None, "asserted {bad} must record no ceiling");
+        }
+        // The boundaries are ceilings and stay admissible.
+        assert_eq!(
+            evaluate_anchor_ceiling(Some(&p), 4, Some(0.0)),
+            AnchorCeilingVerdict::Granted { level: 4, ceiling: 0.0 },
+            "zero is a legitimate self-imposed ceiling, not a malformed one"
+        );
+        assert!(matches!(
+            evaluate_anchor_ceiling(Some(&p), 4, Some(1.0)),
+            AnchorCeilingVerdict::Refused { .. }),
+            "1.0 is well-formed; it is refused for exceeding the grant, not for its shape"
+        );
+    }
+
+    #[test]
+    fn an_asserted_ceiling_above_the_grant_is_refused_not_silently_lowered() {
+        // web4-core's HardwareBinding defaults trust_ceiling to 0.85 and validates
+        // nothing, so this is the live case: a minting caller asserts 0.85 at a
+        // software anchor into a society that grants 0.4.
+        let mut p = AdmissionPolicy::default();
+        p.anchor_ceilings = Some([(4u8, 0.4f64)].into_iter().collect());
+        let v = evaluate_anchor_ceiling(Some(&p), 4, Some(0.85));
+        assert_eq!(v, AnchorCeilingVerdict::Refused { level: 4, asserted: 0.85, granted: 0.4 });
+        assert!(!v.may_admit());
+        let why = v.reason().unwrap();
+        assert!(why.contains("0.85") && why.contains("0.4"), "the refusal names both numbers: {why}");
+    }
+
+    #[test]
+    fn an_applicant_claiming_less_than_law_allows_is_held_to_its_own_claim() {
+        let mut p = AdmissionPolicy::default();
+        p.anchor_ceilings = Some([(4u8, 0.4f64)].into_iter().collect());
+        assert_eq!(
+            evaluate_anchor_ceiling(Some(&p), 4, Some(0.2)),
+            AnchorCeilingVerdict::Granted { level: 4, ceiling: 0.2 }
+        );
+    }
+
+    #[test]
+    fn the_anchor_cap_is_not_min_trust_score() {
+        // Guard against the reuse the PRD warns about: min_trust_score is a FLOOR
+        // on the SPONSOR's trust and has no effect on an applicant's ceiling.
+        let mut p = AdmissionPolicy::default();
+        p.min_trust_score = Some(0.9);
+        assert_eq!(
+            evaluate_anchor_ceiling(Some(&p), 4, Some(0.99)),
+            AnchorCeilingVerdict::NotConfigured,
+            "setting min_trust_score must not be mistakable for setting a ceiling"
+        );
     }
 
     #[tokio::test]
@@ -2007,6 +2381,7 @@ pub(super) mod sponsor_tests {
             min_trust_score: trust,
             repeat_limit: None,
             review_limit: None,
+            anchor_ceilings: None,
             description: None,
         }
     }

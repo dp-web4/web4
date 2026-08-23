@@ -3236,11 +3236,31 @@ async fn submit_event(
             resolver_seed =
                 hub_lib::hub::validate_member_pubkey_hex(member_lct_id, member_pubkey_hex.as_deref())
                     .map_err(|e| ApiError::bad_request(format!("{:#}", e)))?;
+            // Anchor cap. The envelope carries no anchor assertion, so this
+            // prices the admitted member at the default level and records law's
+            // grant for it. Sovereign authority is authority to *admit*, not a
+            // waiver of the ceiling law sets on what the admitted may accrue —
+            // and leaving this ungated would not have left the member at zero,
+            // it would have left them **uncapped**, which is the one outcome
+            // the law cannot express.
+            let anchor = {
+                let law_guard = s.law.read().await;
+                resolve_anchor_verdict(law_guard.as_ref(), None, None)
+            };
+            if !anchor.may_admit() {
+                return Err(ApiError {
+                    status: StatusCode::FORBIDDEN,
+                    message: anchor.reason().unwrap_or_else(||
+                        "anchor ceiling refused by hub law".to_string()),
+                });
+            }
             HubEvent::MemberAdded {
                 member_lct_id,
                 added_by: envelope.signer_lct_id,
                 member_name: name,
                 member_pubkey_hex,
+                anchor_level: anchor.level(),
+                trust_ceiling: anchor.ceiling(),
             }
         }
         EnvelopeAction::DeclareSkill { member_lct_id, skill } => {
@@ -4874,6 +4894,26 @@ fn resolve_sponsor_verdict(
     )
 }
 
+/// Anchor cap, site 1 of 2 — resolve what this society's law grants an applicant
+/// asserting `level` / `asserted` (site 2 is the accrual clamp in the
+/// `ReputationRecorded` fold: a cap checked only at the door does not bind where
+/// trust is actually accrued).
+///
+/// Delegates to [`hub_lib::law::resolve_anchor_verdict`], which is shared with the
+/// CLI's `HubSession::add_member` so the level an unstated anchor is priced at has
+/// exactly one definition across both crates.
+use hub_lib::law::resolve_anchor_verdict;
+
+/// Parse an asserted anchor (`anchor_level`, `trust_ceiling`) out of a channel
+/// request's args. Out-of-range or non-numeric values are `None` — an
+/// unparseable claim is no claim, and `resolve_anchor_verdict` then prices the
+/// applicant at the default level rather than at whatever it typed.
+fn asserted_anchor_from(args: &serde_json::Value) -> (Option<u8>, Option<f64>) {
+    let level = args.get("anchor_level").and_then(|v| v.as_u64()).and_then(|n| u8::try_from(n).ok());
+    let ceiling = args.get("trust_ceiling").and_then(|v| v.as_f64());
+    (level, ceiling)
+}
+
 /// Parse a claimed sponsor id from a request payload field.
 fn claimed_sponsor_from(args: &serde_json::Value) -> Option<Uuid> {
     args.get("sponsor_lct_id")
@@ -4921,12 +4961,10 @@ async fn request_citizenship(
         AdmissionState::New => {}
     }
     let name = args.get("name").and_then(|v| v.as_str()).map(String::from);
-    let event = HubEvent::MemberAdded {
-        member_lct_id: caller_lct_id,
-        added_by: s.sovereign_lct_id,
-        member_name: name,
-        member_pubkey_hex: Some(pubkey_hex.clone()),
-    };
+    let (asserted_level, asserted_ceiling) = asserted_anchor_from(args);
+    // Built inside the gate block below, so the R6 payload law sees is the event
+    // we would actually record — anchor ceiling included.
+    let event;
 
     // PolicyEntity gate — admission policy from hub law, role="applicant".
     // F0.2 (R7b): the sponsor verdict composes onto that decision on the
@@ -4939,6 +4977,24 @@ async fn request_citizenship(
         let law_guard = s.law.read().await;
         let sponsor = resolve_sponsor_verdict(
             law_guard.as_ref(), &state, caller_lct_id, claimed_sponsor_from(args));
+        // Anchor cap: evaluated against the SAME law snapshot, and before any
+        // side effect (RWOA `O`). A refusal here leaves state bit-identical.
+        let anchor = resolve_anchor_verdict(law_guard.as_ref(), asserted_level, asserted_ceiling);
+        if !anchor.may_admit() {
+            return Err(ApiError {
+                status: StatusCode::FORBIDDEN,
+                message: anchor.reason().unwrap_or_else(||
+                    "anchor ceiling refused by hub law".to_string()),
+            });
+        }
+        event = HubEvent::MemberAdded {
+            member_lct_id: caller_lct_id,
+            added_by: s.sovereign_lct_id,
+            member_name: name,
+            member_pubkey_hex: Some(pubkey_hex.clone()),
+            anchor_level: anchor.level(),
+            trust_ceiling: anchor.ceiling(),
+        };
         if let Some(law) = law_guard.as_ref() {
             let payload = serde_yaml::to_value(&event)
                 .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {e}")))?;
@@ -4978,6 +5034,8 @@ async fn request_citizenship(
                         name: args.get("name").and_then(|v| v.as_str()).map(String::from),
                         message: args.get("message").and_then(|v| v.as_str()).map(String::from),
                         sponsor_note: sponsor.reason(),
+                        anchor_level: asserted_level,
+                        asserted_trust_ceiling: asserted_ceiling,
                         requested_at: Utc::now(),
                     }).await?;
                     return Ok(serde_json::json!({
@@ -5056,6 +5114,14 @@ struct JoinPayload {
     /// self-named or unresolvable sponsor collects no peer factor.
     #[serde(default)]
     sponsor_lct_id: Option<Uuid>,
+    /// The applicant's asserted anchor: hardware-binding level, and the trust
+    /// ceiling it claims for itself. Both are claims — law prices the level and
+    /// the assertion may only lower that price, never raise it. Absent ⇒ priced
+    /// at web4-core's default level (see `resolve_anchor_verdict`).
+    #[serde(default)]
+    anchor_level: Option<u8>,
+    #[serde(default)]
+    trust_ceiling: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -5085,7 +5151,12 @@ async fn admit_member(
     member_lct_id: Uuid,
     member_pubkey_hex: &str,
     name: Option<String>,
+    anchor: &hub_lib::law::AnchorCeilingVerdict,
 ) -> Result<(u64, String), ApiError> {
+    // Callers evaluate the anchor before any side effect and pass the verdict in;
+    // this function records what was priced. A verdict that may not admit is a
+    // caller bug, not something to paper over here.
+    debug_assert!(anchor.may_admit(), "admit_member called with a refusing anchor verdict");
     let applicant_lct = hub_lib::hub::hestia_sovereign_lct(member_lct_id, member_pubkey_hex)
         .map_err(|e| ApiError::bad_request(format!("invalid member_pubkey_hex: {}", e)))?;
     let index = witness_event(s, HubEvent::MemberAdded {
@@ -5093,6 +5164,8 @@ async fn admit_member(
         added_by: s.sovereign_lct_id,
         member_name: name,
         member_pubkey_hex: Some(member_pubkey_hex.to_string()),
+        anchor_level: anchor.level(),
+        trust_ceiling: anchor.ceiling(),
     }).await?;
     // Live resolver insert — the whole point of the no-restart path.
     s.resolver.write().await.insert(applicant_lct);
@@ -5265,7 +5338,22 @@ async fn admission_reset(s: &RestState, lct: Uuid, reset_by: Uuid, reason: Optio
 /// `MemberAdded`, all signed by the Sovereign.
 async fn approve_join(s: &RestState, request_id: Uuid, resolved_by: Uuid) -> Result<(u64, String), ApiError> {
     let jr = pending_join(s, request_id).await?;
-    let (index, hash) = admit_member(s, jr.member_lct_id, &jr.member_pubkey_hex, jr.name.clone()).await?;
+    // Anchor cap: re-priced against the law in force AT APPROVAL, not at request
+    // time — the queue is a slower door, not a way around the gate, and the grant
+    // that binds is the one the society holds when it actually admits.
+    let anchor = {
+        let law_guard = s.law.read().await;
+        resolve_anchor_verdict(law_guard.as_ref(), jr.anchor_level, jr.asserted_trust_ceiling)
+    };
+    if !anchor.may_admit() {
+        return Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: anchor.reason().unwrap_or_else(||
+                "anchor ceiling refused by hub law".to_string()),
+        });
+    }
+    let (index, hash) =
+        admit_member(s, jr.member_lct_id, &jr.member_pubkey_hex, jr.name.clone(), &anchor).await?;
     witness_event(s, HubEvent::MemberJoinResolved {
         request_id,
         approved: true,
@@ -5463,7 +5551,23 @@ async fn admin_add_member(
             return Err(ApiError::bad_request(format!("{} is already a member", body.lct_id)));
         }
     }
-    let (entry_index, entry_hash) = admit_member(&s, body.lct_id, &body.pubkey_hex, body.name).await?;
+    // The operator plane is priced by the same law: a member added here is
+    // anchored like any other, and leaving this path uncapped would make
+    // "ask an operator" the way around the ceiling. The operator asserts no
+    // ceiling on the member's behalf, so law's grant for the default level stands.
+    let anchor = {
+        let law_guard = s.law.read().await;
+        resolve_anchor_verdict(law_guard.as_ref(), None, None)
+    };
+    if !anchor.may_admit() {
+        return Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: anchor.reason().unwrap_or_else(||
+                "anchor ceiling refused by hub law".to_string()),
+        });
+    }
+    let (entry_index, entry_hash) =
+        admit_member(&s, body.lct_id, &body.pubkey_hex, body.name, &anchor).await?;
     Ok(Json(serde_json::json!({ "added": true, "entry_index": entry_index, "entry_hash": entry_hash })))
 }
 
@@ -5901,11 +6005,26 @@ async fn submit_join(
     // 3. PolicyEntity gate — admission policy from hub law. The R6 payload
     // is the MemberAdded we *would* record. Allow → auto-admit; Deny → reject;
     // Escalate → queue for operator review (V2-16 admission queue).
+    // Anchor cap (site 1 of 2), priced from the SAME law snapshot the norms gate
+    // uses below and before any side effect (RWOA `O`).
+    let anchor = {
+        let law_guard = s.law.read().await;
+        resolve_anchor_verdict(law_guard.as_ref(), payload.anchor_level, payload.trust_ceiling)
+    };
+    if !anchor.may_admit() {
+        return Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: anchor.reason().unwrap_or_else(||
+                "anchor ceiling refused by hub law".to_string()),
+        });
+    }
     let prospective = HubEvent::MemberAdded {
         member_lct_id: payload.member_lct_id,
         added_by: s.sovereign_lct_id,
         member_name: payload.name.clone(),
         member_pubkey_hex: Some(payload.member_pubkey_hex.clone()),
+        anchor_level: anchor.level(),
+        trust_ceiling: anchor.ceiling(),
     };
     let event_value_yaml = serde_yaml::to_value(&prospective)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {}", e)))?;
@@ -5951,6 +6070,7 @@ async fn submit_join(
             }
             let (entry_index, entry_hash) = admit_member(
                 &s, payload.member_lct_id, &payload.member_pubkey_hex, payload.name.clone(),
+                &anchor,
             ).await?;
             Ok(Json(JoinAccepted {
                 member_lct_id: payload.member_lct_id,
@@ -5970,6 +6090,8 @@ async fn submit_join(
                 name: payload.name.clone(),
                 message: payload.message.clone(),
                 sponsor_note: sponsor.reason(),
+                anchor_level: payload.anchor_level,
+                asserted_trust_ceiling: payload.trust_ceiling,
                 requested_at: Utc::now(),
             }).await?;
             Ok((
@@ -8869,6 +8991,179 @@ pub(crate) mod channel_e2e_tests {
         );
     }
 
+    // ---- anchor cap, site 1: the admission gate ----
+
+    const ANCHOR_LAW: &str = "version: \"1.0.0\"\nadmission:\n  anchor_ceilings:\n    4: 0.4\n    5: 1.0\n";
+
+    #[tokio::test]
+    async fn an_applicant_asserting_a_ceiling_above_law_is_refused_and_nothing_is_written() {
+        // web4-core's HardwareBinding defaults trust_ceiling to 0.85 and validates
+        // nothing, so this is the live shape of the hole: the applicant asserts its
+        // own ceiling. The gate is a preflight — a refusal leaves state identical.
+        let (_tmp, state) = fresh_rest_state(Some(ANCHOR_LAW)).await;
+        let applicant = KeyPair::generate();
+        let applicant_id = Uuid::new_v4();
+        let before = state.ledger.lock().await.entries().len();
+        let err = request_citizenship(
+            &state,
+            applicant_id,
+            Some(applicant.verifying_key().to_hex()),
+            &serde_json::json!({ "anchor_level": 4, "trust_ceiling": 0.85 }),
+        ).await.expect_err("a forged ceiling must not be admitted");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("0.85") && err.message.contains("0.4"),
+            "the refusal names what was asserted and what law grants: {}", err.message);
+        let after = state.ledger.lock().await.entries().len();
+        assert_eq!(before, after, "a denied admission writes nothing (RWOA O)");
+        let projected = { let l = state.ledger.lock().await; state.projected(&l) };
+        assert!(!projected.members.contains_key(&applicant_id));
+    }
+
+    #[tokio::test]
+    async fn an_admitted_applicant_carries_the_ceiling_law_granted_its_anchor() {
+        let (_tmp, state) = fresh_rest_state(Some(ANCHOR_LAW)).await;
+        let applicant = KeyPair::generate();
+        let applicant_id = Uuid::new_v4();
+        let out = request_citizenship(
+            &state,
+            applicant_id,
+            Some(applicant.verifying_key().to_hex()),
+            &serde_json::json!({ "name": "Sprout" }),
+        ).await.expect("admitted");
+        assert_eq!(out.get("admitted").and_then(|v| v.as_bool()), Some(true), "{out}");
+        let projected = { let l = state.ledger.lock().await; state.projected(&l) };
+        assert_eq!(projected.member_ceilings.get(&applicant_id), Some(&0.4),
+            "an applicant that asserts no anchor is priced at web4-core's default \
+             level (4, software) and takes this society's grant for it");
+    }
+
+    #[tokio::test]
+    async fn an_unpriced_anchor_level_is_refused_rather_than_admitted_uncapped() {
+        // Law prices only level 5 here: a software-anchored applicant is refused,
+        // not quietly admitted with no ceiling at all.
+        let law = "version: \"1.0.0\"\nadmission:\n  anchor_ceilings:\n    5: 1.0\n";
+        let (_tmp, state) = fresh_rest_state(Some(law)).await;
+        let applicant = KeyPair::generate();
+        let err = request_citizenship(
+            &state, Uuid::new_v4(), Some(applicant.verifying_key().to_hex()),
+            &serde_json::json!({}),
+        ).await.expect_err("unpriced level must fail closed");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("level 4"), "got: {}", err.message);
+    }
+
+    #[tokio::test]
+    async fn without_anchor_ceilings_in_law_admission_is_unchanged() {
+        // The gate is opt-in by law. No `anchor_ceilings` ⇒ admission behaves
+        // exactly as before and records no ceiling.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let applicant = KeyPair::generate();
+        let applicant_id = Uuid::new_v4();
+        let out = request_citizenship(
+            &state, applicant_id, Some(applicant.verifying_key().to_hex()),
+            &serde_json::json!({ "trust_ceiling": 0.99 }),
+        ).await.expect("admitted");
+        assert_eq!(out.get("admitted").and_then(|v| v.as_bool()), Some(true), "{out}");
+        let projected = { let l = state.ledger.lock().await; state.projected(&l) };
+        assert!(projected.members.contains_key(&applicant_id));
+        assert!(projected.member_ceilings.is_empty(),
+            "no law, no ceiling — the assertion alone establishes nothing");
+    }
+
+    // ---- anchor cap: the OTHER admission paths, which are the ones this hub uses ----
+
+    /// A Sovereign-signed envelope over `payload`, on this chapter's real nonce
+    /// issuer. (`publish_envelope` is the same two lines in the sibling test
+    /// module; it is private to that module and these tests need the law-carrying
+    /// `fresh_rest_state`, which lives here.)
+    fn sovereign_envelope(
+        state: &RestState,
+        signer: &IdentityFile,
+        payload: serde_json::Value,
+    ) -> SignedEnvelope {
+        let challenge = state.nonces.issue(signer.lct.id, Utc::now());
+        hub_lib::envelope::build_envelope(
+            signer.lct.id, &signer.keypair().unwrap(), &challenge, payload,
+        ).unwrap()
+    }
+
+    /// The Sovereign `AddMember` envelope is the admission path a real operator
+    /// drives, and it was the one the cap did not reach: it built `MemberAdded`
+    /// with `trust_ceiling: None`, which is **uncapped**, not zero-capped. So a
+    /// society could configure `anchor_ceilings`, watch the sealed-channel join
+    /// honour them, and still mint unbounded members through its own front door.
+    ///
+    /// Sovereign authority is authority to *admit*. It is not a waiver of the
+    /// ceiling law puts on what the admitted may accrue.
+    #[tokio::test]
+    async fn the_sovereign_add_member_envelope_is_priced_by_law_like_every_other_door() {
+        let (tmp, state) = fresh_rest_state(Some(ANCHOR_LAW)).await;
+        let sov = IdentityFile::load_auto(tmp.path().join("sovereign.json")).unwrap();
+        let member = Uuid::new_v4();
+        let env = sovereign_envelope(&state, &sov, serde_json::json!({
+            "action": "add_member", "member_lct_id": member, "name": "Envelope",
+        }));
+        let accepted = submit_event(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .unwrap_or_else(|e| panic!(
+                "a Sovereign add_member must still be accepted under a law that \
+                 prices it: {}", e.message));
+        assert_eq!(accepted.0.event_kind, "member_added");
+
+        let projected = { let l = state.ledger.lock().await; state.projected(&l) };
+        assert_eq!(
+            projected.member_ceilings.get(&member), Some(&0.4),
+            "the envelope asserts no anchor, so it is priced at the default level \
+             and records law's grant — the same number request_citizenship records"
+        );
+    }
+
+    /// Fail-closed on the Sovereign path too, and as a true preflight: an
+    /// unpriced anchor refuses without appending. If this arm ever admits, the
+    /// cap has become advisory on the only path this hub's own law routes
+    /// through.
+    #[tokio::test]
+    async fn a_sovereign_envelope_cannot_mint_an_unpriced_anchor() {
+        let law = "version: \"1.0.0\"\nadmission:\n  anchor_ceilings:\n    5: 1.0\n";
+        let (tmp, state) = fresh_rest_state(Some(law)).await;
+        let sov = IdentityFile::load_auto(tmp.path().join("sovereign.json")).unwrap();
+        let before = state.ledger.lock().await.entries().len();
+        let member = Uuid::new_v4();
+        let env = sovereign_envelope(&state, &sov, serde_json::json!({
+            "action": "add_member", "member_lct_id": member, "name": "Unpriced",
+        }));
+        let err = submit_event(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .err()
+            .expect("an unpriced anchor must fail closed even for the Sovereign");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("level 4"), "got: {}", err.message);
+        assert_eq!(
+            state.ledger.lock().await.entries().len(), before,
+            "a denied admission writes nothing (RWOA O)"
+        );
+        let projected = { let l = state.ledger.lock().await; state.projected(&l) };
+        assert!(!projected.members.contains_key(&member));
+    }
+
+    /// The refusal string is the 403 body a refused peer machine reads, so it
+    /// has to be a sentence. Both `reason()` arms were built from multi-line
+    /// string literals with no `\` continuation, which embeds the source file's
+    /// own indentation as an 18-space run mid-sentence.
+    #[test]
+    fn a_refusal_reason_is_a_sentence_not_a_source_listing() {
+        for verdict in [
+            hub_lib::law::AnchorCeilingVerdict::LevelNotGranted { level: 4 },
+            hub_lib::law::AnchorCeilingVerdict::Refused { level: 4, asserted: 0.85, granted: 0.4 },
+        ] {
+            let reason = verdict.reason().expect("a refusing verdict states a reason");
+            assert!(
+                !reason.contains("  "),
+                "the wire-facing refusal carries a run of source indentation: {reason:?}"
+            );
+        }
+    }
+
     fn seal_req(
         applicant: &KeyPair,
         hub_pub: &PublicKey,
@@ -9558,6 +9853,8 @@ pub(crate) mod channel_e2e_tests {
         witness_event(&state, HubEvent::MemberAdded {
             member_lct_id: zed, added_by: state.sovereign_lct_id,
             member_name: Some("Zed".into()), member_pubkey_hex: None,
+            anchor_level: None,
+            trust_ceiling: None,
         }).await.expect("append MemberAdded");
 
         let after = { let l = state.ledger.lock().await; state.projected(&l) };
@@ -10258,7 +10555,8 @@ norms:
         let key_a = KeyPair::generate();
         let key_b = KeyPair::generate();
 
-        admit_member(&state, member, &key_a.verifying_key().to_hex(), Some("Rotator".into()))
+        admit_member(&state, member, &key_a.verifying_key().to_hex(), Some("Rotator".into()),
+            &hub_lib::law::AnchorCeilingVerdict::NotConfigured)
             .await.unwrap();
         assert_eq!(state.resolver.read().await.0[&member].public_key.to_hex(),
             key_a.verifying_key().to_hex());
@@ -10280,7 +10578,8 @@ norms:
         let (_tmp, state) = fresh_rest_state(None).await;
         let member = Uuid::new_v4();
         let kp = KeyPair::generate();
-        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Goodbye".into()))
+        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Goodbye".into()),
+            &hub_lib::law::AnchorCeilingVerdict::NotConfigured)
             .await.unwrap();
         assert!(state.resolver.read().await.0.contains_key(&member));
 
@@ -10684,7 +10983,8 @@ norms: []
         let (_tmp, state) = fresh_rest_state(None).await;
         let member = Uuid::new_v4();
         let kp = KeyPair::generate();
-        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Manageable".into()))
+        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Manageable".into()),
+            &hub_lib::law::AnchorCeilingVerdict::NotConfigured)
             .await.unwrap();
 
         let html = crate::admin::manage_page(State(state.clone())).await.unwrap().0;
@@ -11550,6 +11850,8 @@ norms:
             added_by: state.sovereign_lct_id,
             member_name: Some("Cit".into()),
             member_pubkey_hex: Some(kp.verifying_key().to_hex()),
+            anchor_level: None,
+            trust_ceiling: None,
         }).await.unwrap();
 
         // Hub pushes a notification to the citizen.
@@ -11606,6 +11908,8 @@ norms:
             added_by: state.sovereign_lct_id,
             member_name: Some("Cit".into()),
             member_pubkey_hex: Some(kp.verifying_key().to_hex()),
+            anchor_level: None,
+            trust_ceiling: None,
         }).await.unwrap();
         notify_citizen(&state, citizen, state.sovereign_lct_id, "coordination", "forum/x#thread=t1", b"hi").await;
 
@@ -12042,7 +12346,8 @@ norms:
         let (_tmp, state) = fresh_rest_state(None).await;
         let member = Uuid::new_v4();
         let kp = KeyPair::generate();
-        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Quorum".into()))
+        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Quorum".into()),
+            &hub_lib::law::AnchorCeilingVerdict::NotConfigured)
             .await.unwrap();
         let witness = web4_core::lct::derive_lct_id(&kp.verifying_key());
 
@@ -12147,6 +12452,7 @@ norms:
             added_by: state.sovereign_lct_id,
             member_name: Some("Corrupt".into()),
             member_pubkey_hex: Some(corrupt.clone()),
+            anchor_level: None, trust_ceiling: None,
         }).await;
 
         drop(state);
@@ -12183,7 +12489,8 @@ norms:
         let (_tmp, state) = fresh_rest_state(None).await;
         let member = Uuid::new_v4();
         let kp = KeyPair::generate();
-        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Holder".into()))
+        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Holder".into()),
+            &hub_lib::law::AnchorCeilingVerdict::NotConfigured)
             .await.unwrap();
 
         // The reverse-scan `vci_credential` performs, transcribed from

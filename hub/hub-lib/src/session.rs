@@ -103,11 +103,41 @@ impl HubSession {
         // value is deliberately discarded here and the call is kept purely for
         // its validate-and-warn effect.
         let _ = crate::hub::validate_member_pubkey_hex(member_lct_id, pubkey_hex.as_deref())?;
+        // Anchor cap — the same gate the three daemon admission paths run, so the
+        // operator CLI cannot mint the one member class law never priced. The CLI
+        // holds no law snapshot, but it does not need one threaded in: the law
+        // text is persisted in the store beside the ledger, so it is *loaded*
+        // here, one read, immediately before the act it governs.
+        //
+        // A stored law that does not parse fails the admission rather than being
+        // read as "no law". Those are different states and collapsing them is the
+        // #659 defect: the no-law case admits uncapped, so silently taking that
+        // branch on unparseable bytes would let a corrupt law do what no valid
+        // law can say.
+        let anchor = {
+            let law = match self.get_law().await? {
+                Some(yaml) => Some(crate::law::Law::parse_and_validate(&yaml).context(
+                    "parsing the stored hub law to price this admission's anchor \
+                     (a law that does not parse is not the no-law case — inspect it \
+                     with `hub get-law`)"
+                )?),
+                None => None,
+            };
+            crate::law::resolve_anchor_verdict(law.as_ref(), None, None)
+        };
+        if !anchor.may_admit() {
+            anyhow::bail!(
+                "{}",
+                anchor.reason().unwrap_or_else(|| "anchor ceiling refused by hub law".to_string())
+            );
+        }
         let event = HubEvent::MemberAdded {
             member_lct_id,
             added_by: self.sovereign_lct_id,
             member_name: name,
             member_pubkey_hex: pubkey_hex,
+            anchor_level: anchor.level(),
+            trust_ceiling: anchor.ceiling(),
         };
         self.append(event).await
     }
@@ -765,5 +795,91 @@ mod tests {
         assert!(session.add_member(bob, None, Some("zz".into())).await.is_err());
         let state = HubState::project(&session.ledger);
         assert!(!state.members.contains_key(&bob), "a refused mint admits nobody");
+    }
+
+    // ---- anchor cap: the CLI is an admission path too ----
+
+    const ANCHOR_LAW: &str =
+        "version: \"1.0.0\"\nadmission:\n  anchor_ceilings:\n    4: 0.4\n    5: 1.0\n";
+
+    /// The gate's whole point, pinned where it was missing longest. Before this,
+    /// `hub add-member` wrote `trust_ceiling: None` unconditionally — and `None`
+    /// is **uncapped**, not zero-capped, so the operator's own admission path
+    /// minted the one member class the accrual clamp can never bind. The CLI has
+    /// no law snapshot threaded in; it loads law from the store, which is why
+    /// this test's law arrives via `set_law` rather than via a constructor.
+    #[tokio::test]
+    async fn a_cli_admitted_member_carries_the_ceiling_law_grants_its_anchor() {
+        let (_tmp, dir) = fresh_hub().await;
+        let mut session = HubSession::open(&dir).await.unwrap();
+        session.set_law(ANCHOR_LAW, "1.0.0".into(), None).await.unwrap();
+
+        let alice = Uuid::new_v4();
+        session.add_member(alice, Some("Alice".into()), None).await.unwrap();
+
+        let state = HubState::project(&session.ledger);
+        assert_eq!(
+            state.member_ceilings.get(&alice), Some(&0.4),
+            "a member admitted from the CLI asserts no anchor, so it is priced at \
+             the default level and takes this society's grant for it — the same \
+             number the sealed-channel join would have recorded"
+        );
+    }
+
+    /// Fail-closed, from the CLI as from everywhere else: law that prices no
+    /// ceiling for the applicant's level refuses rather than admitting uncapped.
+    /// The refusal must also be a true preflight — nothing appended.
+    #[tokio::test]
+    async fn the_cli_refuses_an_unpriced_anchor_rather_than_minting_it_uncapped() {
+        let (_tmp, dir) = fresh_hub().await;
+        let mut session = HubSession::open(&dir).await.unwrap();
+        // Prices level 5 only; a CLI admission is priced at level 4.
+        session
+            .set_law("version: \"1.0.0\"\nadmission:\n  anchor_ceilings:\n    5: 1.0\n",
+                     "1.0.0".into(), None)
+            .await
+            .unwrap();
+        let before = session.ledger.len();
+
+        let bob = Uuid::new_v4();
+        let err = session
+            .add_member(bob, Some("Bob".into()), None)
+            .await
+            .expect_err("an unpriced anchor must fail closed");
+        let msg = format!("{err:#}");
+        assert!(msg.contains("level 4"), "the refusal names the level it priced: {msg}");
+
+        assert_eq!(session.ledger.len(), before, "a refused admission appends nothing");
+        let state = HubState::project(&session.ledger);
+        assert!(!state.members.contains_key(&bob), "and admits nobody");
+    }
+
+    /// Bytes that do not parse are not the no-law case. The no-law case admits
+    /// uncapped, so reading a corrupt law as "no law" would let corruption do
+    /// what no valid law can say. `set_law` validates, so the corrupt bytes are
+    /// written under it — which is also the only way this state arises in the
+    /// field (edited file, partial write, downgrade).
+    #[tokio::test]
+    async fn an_unparseable_stored_law_fails_the_admission_rather_than_reading_as_no_law() {
+        let (_tmp, dir) = fresh_hub().await;
+        {
+            let mut session = HubSession::open(&dir).await.unwrap();
+            session.ledger.store_mut()
+                .write_law("version: \"1.0.0\"\nnorms: [ this is not a law")
+                .await
+                .unwrap();
+        }
+        let mut session = HubSession::open(&dir).await.unwrap();
+        let before = session.ledger.len();
+        let err = session
+            .add_member(Uuid::new_v4(), None, None)
+            .await
+            .expect_err("unparseable law must not be read as the absence of law");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("hub get-law"),
+            "the operator is told how to look at the bytes that stopped them: {msg}"
+        );
+        assert_eq!(session.ledger.len(), before, "and nothing was appended");
     }
 }
