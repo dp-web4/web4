@@ -12248,7 +12248,8 @@ norms:
         let (_tmp, state) = fresh_rest_state(None).await;
         let member = Uuid::new_v4();
         let kp = KeyPair::generate();
-        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Quorum".into()))
+        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Quorum".into()),
+            &hub_lib::law::AnchorCeilingVerdict::NotConfigured)
             .await.unwrap();
         let witness = web4_core::lct::derive_lct_id(&kp.verifying_key());
 
@@ -12353,6 +12354,7 @@ norms:
             added_by: state.sovereign_lct_id,
             member_name: Some("Corrupt".into()),
             member_pubkey_hex: Some(corrupt.clone()),
+            anchor_level: None, trust_ceiling: None,
         }).await;
 
         drop(state);
@@ -12389,7 +12391,8 @@ norms:
         let (_tmp, state) = fresh_rest_state(None).await;
         let member = Uuid::new_v4();
         let kp = KeyPair::generate();
-        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Holder".into()))
+        admit_member(&state, member, &kp.verifying_key().to_hex(), Some("Holder".into()),
+            &hub_lib::law::AnchorCeilingVerdict::NotConfigured)
             .await.unwrap();
 
         // The reverse-scan `vci_credential` performs, transcribed from

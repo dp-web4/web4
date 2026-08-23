@@ -2246,6 +2246,7 @@ mod tests {
                 added_by: sov.lct.id,
                 member_name: Some("Citizen".into()),
                 member_pubkey_hex: Some(ordinary_kp.verifying_key().to_hex()),
+                anchor_level: None, trust_ceiling: None,
             }),
         ]).await;
         let state = HubState::project(&ledger);
@@ -2318,6 +2319,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: member, added_by: Uuid::nil(),
             member_name: Some("Alice".into()), member_pubkey_hex: Some(hex.clone()),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = publish(&mut state, &lct);
         assert_eq!(sprout_bridge(&state, &witness).map(|k| k.to_hex()), Some(hex),
@@ -2394,6 +2396,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: member, added_by: Uuid::nil(),
             member_name: Some("Bob".into()), member_pubkey_hex: Some(upper.clone()),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = publish(&mut state, &lct);
 
@@ -2420,6 +2423,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: membership_uuid, added_by: Uuid::nil(),
             member_name: Some("Carol".into()), member_pubkey_hex: Some(hex.clone()),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = publish(&mut state, &lct);
 
@@ -2472,6 +2476,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: member, added_by: Uuid::nil(),
             member_name: Some("Alice".into()), member_pubkey_hex: Some(hex.clone()),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = publish(&mut state, &lct);
         assert_eq!(derived_resolver(&state, &witness).map(|k| k.to_hex()), Some(hex));
@@ -2503,6 +2508,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: member, added_by: Uuid::nil(),
             member_name: Some("Alice".into()), member_pubkey_hex: Some(hex),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let _ = publish(&mut state, &lct);
         assert_eq!(derived_resolver(&state, &format!("lct:web4:member:{member}")), None,
@@ -2574,6 +2580,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: member, added_by: Uuid::nil(),
             member_name: Some("Bob".into()), member_pubkey_hex: Some(upper),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = publish(&mut state, &lct);
         assert_eq!(sprout_bridge(&state, &witness), None, "C10 under the bridge");
@@ -2593,6 +2600,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: membership_uuid, added_by: Uuid::nil(),
             member_name: Some("Carol".into()), member_pubkey_hex: Some(hex.clone()),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = publish(&mut state, &lct);
         assert_eq!(sprout_bridge(&state, &witness), None, "C11 under the bridge");
@@ -2614,6 +2622,7 @@ mod tests {
         state.apply(&HubEvent::MemberAdded {
             member_lct_id: member, added_by: Uuid::nil(),
             member_name: Some("Dave".into()), member_pubkey_hex: Some(hex.clone()),
+            anchor_level: None, trust_ceiling: None,
         }, Utc::now(), 1);
         let witness = web4_core::lct::derive_lct_id(&lct.public_key);
 
