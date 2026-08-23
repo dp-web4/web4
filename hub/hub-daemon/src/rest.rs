@@ -3236,13 +3236,31 @@ async fn submit_event(
             resolver_seed =
                 hub_lib::hub::validate_member_pubkey_hex(member_lct_id, member_pubkey_hex.as_deref())
                     .map_err(|e| ApiError::bad_request(format!("{:#}", e)))?;
+            // Anchor cap. The envelope carries no anchor assertion, so this
+            // prices the admitted member at the default level and records law's
+            // grant for it. Sovereign authority is authority to *admit*, not a
+            // waiver of the ceiling law sets on what the admitted may accrue —
+            // and leaving this ungated would not have left the member at zero,
+            // it would have left them **uncapped**, which is the one outcome
+            // the law cannot express.
+            let anchor = {
+                let law_guard = s.law.read().await;
+                resolve_anchor_verdict(law_guard.as_ref(), None, None)
+            };
+            if !anchor.may_admit() {
+                return Err(ApiError {
+                    status: StatusCode::FORBIDDEN,
+                    message: anchor.reason().unwrap_or_else(||
+                        "anchor ceiling refused by hub law".to_string()),
+                });
+            }
             HubEvent::MemberAdded {
                 member_lct_id,
                 added_by: envelope.signer_lct_id,
                 member_name: name,
                 member_pubkey_hex,
-                anchor_level: None,
-                trust_ceiling: None,
+                anchor_level: anchor.level(),
+                trust_ceiling: anchor.ceiling(),
             }
         }
         EnvelopeAction::DeclareSkill { member_lct_id, skill } => {
@@ -4881,24 +4899,10 @@ fn resolve_sponsor_verdict(
 /// `ReputationRecorded` fold: a cap checked only at the door does not bind where
 /// trust is actually accrued).
 ///
-/// An applicant that states no level is priced at **level 4 (software)** — not
-/// level 0 and not the best available. That is web4-core's own
-/// `HardwareBinding::default()` for an LCT that does not say, and levels 0-3 are
-/// documented "testing only", so 4 is the documented production floor rather than
-/// a guess in either direction. The asserted *ceiling* is never taken on trust:
-/// it may only lower what law grants, never raise it.
-fn resolve_anchor_verdict(
-    law: Option<&hub_lib::law::Law>,
-    level: Option<u8>,
-    asserted: Option<f64>,
-) -> hub_lib::law::AnchorCeilingVerdict {
-    const DEFAULT_ANCHOR_LEVEL: u8 = 4; // web4_core::lct::HardwareBinding::default().level
-    hub_lib::law::evaluate_anchor_ceiling(
-        law.and_then(|l| l.ext.admission.as_ref()),
-        level.unwrap_or(DEFAULT_ANCHOR_LEVEL),
-        asserted,
-    )
-}
+/// Delegates to [`hub_lib::law::resolve_anchor_verdict`], which is shared with the
+/// CLI's `HubSession::add_member` so the level an unstated anchor is priced at has
+/// exactly one definition across both crates.
+use hub_lib::law::resolve_anchor_verdict;
 
 /// Parse an asserted anchor (`anchor_level`, `trust_ceiling`) out of a channel
 /// request's args. Out-of-range or non-numeric values are `None` — an
@@ -9064,6 +9068,100 @@ pub(crate) mod channel_e2e_tests {
         assert!(projected.members.contains_key(&applicant_id));
         assert!(projected.member_ceilings.is_empty(),
             "no law, no ceiling — the assertion alone establishes nothing");
+    }
+
+    // ---- anchor cap: the OTHER admission paths, which are the ones this hub uses ----
+
+    /// A Sovereign-signed envelope over `payload`, on this chapter's real nonce
+    /// issuer. (`publish_envelope` is the same two lines in the sibling test
+    /// module; it is private to that module and these tests need the law-carrying
+    /// `fresh_rest_state`, which lives here.)
+    fn sovereign_envelope(
+        state: &RestState,
+        signer: &IdentityFile,
+        payload: serde_json::Value,
+    ) -> SignedEnvelope {
+        let challenge = state.nonces.issue(signer.lct.id, Utc::now());
+        hub_lib::envelope::build_envelope(
+            signer.lct.id, &signer.keypair().unwrap(), &challenge, payload,
+        ).unwrap()
+    }
+
+    /// The Sovereign `AddMember` envelope is the admission path a real operator
+    /// drives, and it was the one the cap did not reach: it built `MemberAdded`
+    /// with `trust_ceiling: None`, which is **uncapped**, not zero-capped. So a
+    /// society could configure `anchor_ceilings`, watch the sealed-channel join
+    /// honour them, and still mint unbounded members through its own front door.
+    ///
+    /// Sovereign authority is authority to *admit*. It is not a waiver of the
+    /// ceiling law puts on what the admitted may accrue.
+    #[tokio::test]
+    async fn the_sovereign_add_member_envelope_is_priced_by_law_like_every_other_door() {
+        let (tmp, state) = fresh_rest_state(Some(ANCHOR_LAW)).await;
+        let sov = IdentityFile::load_auto(tmp.path().join("sovereign.json")).unwrap();
+        let member = Uuid::new_v4();
+        let env = sovereign_envelope(&state, &sov, serde_json::json!({
+            "action": "add_member", "member_lct_id": member, "name": "Envelope",
+        }));
+        let accepted = submit_event(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .unwrap_or_else(|e| panic!(
+                "a Sovereign add_member must still be accepted under a law that \
+                 prices it: {}", e.message));
+        assert_eq!(accepted.0.event_kind, "member_added");
+
+        let projected = { let l = state.ledger.lock().await; state.projected(&l) };
+        assert_eq!(
+            projected.member_ceilings.get(&member), Some(&0.4),
+            "the envelope asserts no anchor, so it is priced at the default level \
+             and records law's grant — the same number request_citizenship records"
+        );
+    }
+
+    /// Fail-closed on the Sovereign path too, and as a true preflight: an
+    /// unpriced anchor refuses without appending. If this arm ever admits, the
+    /// cap has become advisory on the only path this hub's own law routes
+    /// through.
+    #[tokio::test]
+    async fn a_sovereign_envelope_cannot_mint_an_unpriced_anchor() {
+        let law = "version: \"1.0.0\"\nadmission:\n  anchor_ceilings:\n    5: 1.0\n";
+        let (tmp, state) = fresh_rest_state(Some(law)).await;
+        let sov = IdentityFile::load_auto(tmp.path().join("sovereign.json")).unwrap();
+        let before = state.ledger.lock().await.entries().len();
+        let member = Uuid::new_v4();
+        let env = sovereign_envelope(&state, &sov, serde_json::json!({
+            "action": "add_member", "member_lct_id": member, "name": "Unpriced",
+        }));
+        let err = submit_event(State(state.clone()), Path(state.hub_id), Json(env))
+            .await
+            .err()
+            .expect("an unpriced anchor must fail closed even for the Sovereign");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("level 4"), "got: {}", err.message);
+        assert_eq!(
+            state.ledger.lock().await.entries().len(), before,
+            "a denied admission writes nothing (RWOA O)"
+        );
+        let projected = { let l = state.ledger.lock().await; state.projected(&l) };
+        assert!(!projected.members.contains_key(&member));
+    }
+
+    /// The refusal string is the 403 body a refused peer machine reads, so it
+    /// has to be a sentence. Both `reason()` arms were built from multi-line
+    /// string literals with no `\` continuation, which embeds the source file's
+    /// own indentation as an 18-space run mid-sentence.
+    #[test]
+    fn a_refusal_reason_is_a_sentence_not_a_source_listing() {
+        for verdict in [
+            hub_lib::law::AnchorCeilingVerdict::LevelNotGranted { level: 4 },
+            hub_lib::law::AnchorCeilingVerdict::Refused { level: 4, asserted: 0.85, granted: 0.4 },
+        ] {
+            let reason = verdict.reason().expect("a refusing verdict states a reason");
+            assert!(
+                !reason.contains("  "),
+                "the wire-facing refusal carries a run of source indentation: {reason:?}"
+            );
+        }
     }
 
     fn seal_req(

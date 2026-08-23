@@ -394,6 +394,18 @@ pub enum AnchorCeilingVerdict {
     /// assertion is refused rather than silently lowered — a minting caller
     /// that forges a higher ceiling should learn that it did.
     Refused { level: u8, asserted: f64, granted: f64 },
+    /// The applicant asserted a ceiling that is not a ceiling: outside `[0, 1]`,
+    /// or not a finite number. Law's own values are range-checked at parse
+    /// (Rule 9b); the applicant's assertion arrives over the wire and is not.
+    ///
+    /// Kept apart from [`Self::Refused`] because the two are different lies and
+    /// the `>` comparison silently admits both of these: a **negative** ceiling
+    /// is not "above the grant", so it passes as `Granted`, gets recorded, and
+    /// the accrual clamp then pins every T3 dimension to 0 for the life of the
+    /// member — a self-inflicted permanent zero that no law authored. `NaN` is
+    /// worse: every comparison against it is false, so it takes the same path
+    /// and lands a `NaN` ceiling in the ledger.
+    Malformed { level: u8, asserted: f64 },
     /// Admissible. `ceiling` is what gets **recorded on the member** and is what
     /// the accrual clamp saturates at: `min(asserted, granted)`, so an applicant
     /// claiming *less* than law allows is held to its own claim.
@@ -432,10 +444,18 @@ impl AnchorCeilingVerdict {
         match self {
             AnchorCeilingVerdict::NotConfigured | AnchorCeilingVerdict::Granted { .. } => None,
             AnchorCeilingVerdict::LevelNotGranted { level } => Some(format!(
-                "hub law grants no trust ceiling for hardware-binding level {level};                  an unpriced anchor is refused, not admitted under another level's grant"
+                "hub law grants no trust ceiling for hardware-binding level {level}; \
+                 an unpriced anchor is refused, not admitted under another level's grant"
             )),
             AnchorCeilingVerdict::Refused { level, asserted, granted } => Some(format!(
-                "asserted trust_ceiling {asserted} exceeds this society's grant {granted}                  for hardware-binding level {level}; the ceiling prices the anchor's                  identity-evidence certainty and is set by law, not by the applicant"
+                "asserted trust_ceiling {asserted} exceeds this society's grant {granted} \
+                 for hardware-binding level {level}; the ceiling prices the anchor's \
+                 identity-evidence certainty and is set by law, not by the applicant"
+            )),
+            AnchorCeilingVerdict::Malformed { level, asserted } => Some(format!(
+                "asserted trust_ceiling {asserted} is not a ceiling — it must be a \
+                 finite number in [0, 1], the same range hub law's own grants are \
+                 validated against, for hardware-binding level {level}"
             )),
         }
     }
@@ -461,10 +481,46 @@ pub fn evaluate_anchor_ceiling(
         return AnchorCeilingVerdict::LevelNotGranted { level };
     };
     match asserted {
+        // Well-formedness first. `>` cannot carry this check: a negative or NaN
+        // assertion is not "above the grant", so ordering it against `granted`
+        // admits it as a `Granted` ceiling — see [`AnchorCeilingVerdict::Malformed`].
+        Some(a) if !a.is_finite() || !(0.0..=1.0).contains(&a) =>
+            AnchorCeilingVerdict::Malformed { level, asserted: a },
         Some(a) if a > granted => AnchorCeilingVerdict::Refused { level, asserted: a, granted },
         Some(a) => AnchorCeilingVerdict::Granted { level, ceiling: a },
         None => AnchorCeilingVerdict::Granted { level, ceiling: granted },
     }
+}
+
+/// The level an applicant that states none is priced at: **4 (software)**, which
+/// is web4-core's own `HardwareBinding::default()` for an LCT that does not say.
+/// Levels 0-3 are documented "testing only", so 4 is the documented production
+/// floor rather than a guess in either direction — not level 0, and not the best
+/// available.
+pub const DEFAULT_ANCHOR_LEVEL: u8 = 4;
+
+/// Price an admission against hub law's `admission.anchor_ceilings`.
+///
+/// This is the *only* form the admission sites call. It lives here rather than
+/// beside any one caller because there are four of them across two crates —
+/// three in `hub-daemon` (the sealed-channel join, the Sovereign `AddMember`
+/// envelope, the loopback MCP tool) and one in `hub-lib` (`HubSession::add_member`,
+/// the CLI) — and a default level that each site spelled for itself would be four
+/// chances to disagree about what an unstated anchor costs.
+///
+/// `level: None` ⇒ [`DEFAULT_ANCHOR_LEVEL`]. `asserted: None` ⇒ the applicant
+/// claims no ceiling and takes law's grant; an asserted ceiling may only *lower*
+/// what law grants, never raise it.
+pub fn resolve_anchor_verdict(
+    law: Option<&Law>,
+    level: Option<u8>,
+    asserted: Option<f64>,
+) -> AnchorCeilingVerdict {
+    evaluate_anchor_ceiling(
+        law.and_then(|l| l.ext.admission.as_ref()),
+        level.unwrap_or(DEFAULT_ANCHOR_LEVEL),
+        asserted,
+    )
 }
 
 impl SponsorVerdict {
@@ -1299,6 +1355,40 @@ admission:
         assert!(!v.may_admit());
         assert!(v.reason().unwrap().contains("level 4"));
         assert_eq!(v.ceiling(), None, "a refusal records no ceiling");
+    }
+
+    /// The applicant's assertion arrives over the wire and law's Rule 9b does not
+    /// reach it. `>` alone cannot reject these: a negative is not "above the
+    /// grant" and every comparison against `NaN` is false, so both used to fall
+    /// through to `Granted` and be **recorded on the member** — after which the
+    /// accrual clamp pins that member's T3 at the recorded value forever. A
+    /// permanent zero (or a NaN) no law ever authored.
+    #[test]
+    fn an_asserted_ceiling_that_is_not_a_ceiling_is_refused_not_recorded() {
+        let p = AdmissionPolicy {
+            anchor_ceilings: Some([(4u8, 0.4f64)].into_iter().collect()),
+            ..Default::default()
+        };
+        for bad in [-0.5f64, -0.0001, 1.5, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let v = evaluate_anchor_ceiling(Some(&p), 4, Some(bad));
+            assert!(
+                matches!(v, AnchorCeilingVerdict::Malformed { .. }),
+                "asserted {bad} must be refused as malformed, got {v:?}"
+            );
+            assert!(!v.may_admit(), "asserted {bad} must not admit");
+            assert_eq!(v.ceiling(), None, "asserted {bad} must record no ceiling");
+        }
+        // The boundaries are ceilings and stay admissible.
+        assert_eq!(
+            evaluate_anchor_ceiling(Some(&p), 4, Some(0.0)),
+            AnchorCeilingVerdict::Granted { level: 4, ceiling: 0.0 },
+            "zero is a legitimate self-imposed ceiling, not a malformed one"
+        );
+        assert!(matches!(
+            evaluate_anchor_ceiling(Some(&p), 4, Some(1.0)),
+            AnchorCeilingVerdict::Refused { .. }),
+            "1.0 is well-formed; it is refused for exceeding the grant, not for its shape"
+        );
     }
 
     #[test]
