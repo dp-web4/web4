@@ -563,6 +563,28 @@ impl From<CliEntityType> for EntityType {
     }
 }
 
+/// How to spell this binary in an instruction the operator is meant to *type*.
+///
+/// Every "run this next" line here used to hardcode the bare word `hub`, which
+/// resolves only when the binary happens to be on `$PATH`. Straight out of
+/// `cargo build --release` it is not, and on the fleet's own hub host it is
+/// deliberately not — that artifact *is* the unit's `ExecStart`, so symlinking
+/// it onto `$PATH` would put a second name on the file the daemon is executing.
+/// The result was that the ignition line the daemon prints at exactly the moment
+/// the operator needs it (`hub unlock`) was `command not found`, as were all six
+/// steps of `hub init`'s own "Go live" checklist.
+///
+/// So print the invocation that provably works: the path to the running
+/// executable, which is the thing the reader just invoked (or, for the locked
+/// shell, the unit's own `ExecStart`). Falls back to the bare word only when the
+/// OS cannot report our own path — the one case where we have nothing better.
+fn hub_cmd() -> String {
+    std::env::current_exe()
+        .ok()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "hub".to_string())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -575,7 +597,7 @@ async fn main() -> Result<()> {
         None => {
             // No subcommand — print short usage hint and exit 0.
             println!("hub {} — Web4 Community Hub", hub_lib::build_info::SUMMARY);
-            println!("Run `hub --help` for available commands.");
+            println!("Run `{} --help` for available commands.", hub_cmd());
             Ok(())
         }
         Some(Command::BuildInfo) => {
@@ -798,7 +820,7 @@ async fn run_add_member(
         // command is the only party who can still supply the key cheaply.
         println!("  Pubkey:       NONE — this member cannot open a sealed channel");
         println!("                and cannot self-repair. Re-run with --pubkey-hex,");
-        println!("                or fix it later with `hub set-member-key`.");
+        println!("                or fix it later with `{} set-member-key`.", hub_cmd());
     }
     Ok(())
 }
@@ -854,7 +876,7 @@ async fn run_set_member_key(hub_dir: PathBuf, member_lct_id: Uuid, pubkey_hex: S
     println!("  Pubkey:       {pubkey_hex}");
     println!("  Entry index:  {}", entry.index);
     println!("  Entry hash:   {}", entry.entry_hash);
-    println!("  NOTE: restart `hub serve` so the live resolver re-seeds from the ledger.");
+    println!("  NOTE: restart `{} serve` so the live resolver re-seeds from the ledger.", hub_cmd());
     Ok(())
 }
 
@@ -947,10 +969,11 @@ fn stored_law_warning(yaml: &str) -> Option<String> {
     // `{e:#}` — see the note at the `Unparseable` capture in `rest.rs`: plain
     // `{e}` prints only anyhow's outermost context ("parsing policy law YAML"),
     // dropping the line/column/reason the operator needs to fix the file.
+    let cmd = hub_cmd();
     Some(format!(
         "WARNING: the stored bytes above do NOT parse/validate as a hub law: {e:#}\n\
                   Under HUB_PROFILE=production this hub refuses to ignite until \
-         `hub set-law` serves one that validates."
+         `{cmd} set-law` serves one that validates."
     ))
 }
 
@@ -984,7 +1007,7 @@ async fn run_init_law(output: PathBuf, force: bool) -> Result<()> {
     println!();
     println!("Next steps:");
     println!("  1. Edit {} — adjust norms, admission, atp_issuance, etc.", output.display());
-    println!("  2. Apply to a chapter:  hub set-law <chapter-dir> {}", output.display());
+    println!("  2. Apply to a chapter:  {} set-law <chapter-dir> {}", hub_cmd(), output.display());
     println!("  3. If serve is running: curl -X POST http://<host>/v1/admin/reload-law");
     Ok(())
 }
@@ -1134,11 +1157,14 @@ async fn run_up(
         .filter(|s| !s.is_empty() && *s != ".")
         .unwrap_or("hub");
     let mut n = 1;
-    println!("  {n}. hub gen-lct sovereign.json           # your sovereign identity (prompts for a passphrase — keep both safe)");
+    // Spell every step with the invocation that resolves — see `hub_cmd`. The
+    // comments are no longer hand-aligned: the prefix is now variable-length.
+    let cmd = hub_cmd();
+    println!("  {n}. {cmd} gen-lct sovereign.json  # your sovereign identity (prompts for a passphrase — keep both safe)");
     n += 1;
-    println!("  {n}. hub init \"{hub_name}\" --sovereign-lct sovereign.json --hub-dir {}", hub_dir.display());
+    println!("  {n}. {cmd} init \"{hub_name}\" --sovereign-lct sovereign.json --hub-dir {}", hub_dir.display());
     n += 1;
-    println!("  {n}. hub set-law {} {}   # ratify the law", hub_dir.display(), law_path.display());
+    println!("  {n}. {cmd} set-law {} {}  # ratify the law", hub_dir.display(), law_path.display());
     n += 1;
     if arch.tunnel {
         println!("  {n}. cloudflared tunnel run …            # map {} → http://127.0.0.1:8770 (no port-forward)", domain.as_deref().unwrap_or("<domain>"));
@@ -1149,8 +1175,8 @@ async fn run_up(
     }
     println!("  {n}. set -a; . {}; set +a          # load the profile", env_path.display());
     n += 1;
-    println!("     hub serve {} --bind \"$HUB_BIND\"", hub_dir.display());
-    println!("  {n}. hub unlock                          # ignite the vault (passphrase — never stored)", );
+    println!("     {cmd} serve {} --bind \"$HUB_BIND\"", hub_dir.display());
+    println!("  {n}. {cmd} unlock  # ignite the vault (passphrase — never stored)");
     println!();
     if let Some(t) = &token {
         println!(
@@ -1275,7 +1301,7 @@ async fn run_query(sub: QueryCommand) -> Result<()> {
                 for role in &unfilled {
                     println!("    {:?}", role);
                 }
-                println!("    (assign via `hub assign-role <chapter-dir> <role> <member-lct-id>` per hub law)");
+                println!("    (assign via `{} assign-role <chapter-dir> <role> <member-lct-id>` per hub law)", hub_cmd());
             }
             Ok(())
         }
@@ -1318,11 +1344,11 @@ fn production_law_gate(
         // The documented meaning of the waiver: there is no law, and the operator
         // is knowingly accepting an ungated hub.
         LawStatus::Absent if allow_no_law => Ok(()),
-        LawStatus::Absent => Err(
+        LawStatus::Absent => Err(format!(
             "refusing to serve with NO hub law (acts/admissions ungated). \
-             Serve a signed law (hub set-law), or set HUB_ALLOW_NO_LAW=1"
-                .to_string(),
-        ),
+             Serve a signed law (`{} set-law`), or set HUB_ALLOW_NO_LAW=1",
+            hub_cmd()
+        )),
         // Present-but-broken is NOT the no-law case, and `HUB_ALLOW_NO_LAW=1`
         // deliberately does not waive it (PUB review of #659, 2026-08-07). Waiving
         // it would ignite, then `reload_law()` fails and is warn-and-continue, so
@@ -1330,12 +1356,15 @@ fn production_law_gate(
         // reached by following the refusal's own advice. Refusing is recoverable
         // (`hub set-law` works offline against the store, with the passphrase);
         // igniting permissive is not detectable from the outside.
-        LawStatus::Unparseable(e) => Err(format!(
+        LawStatus::Unparseable(e) => {
+            let cmd = hub_cmd();
+            Err(format!(
             "refusing to serve: a hub law IS stored, but it does not parse/validate: {e}. \
-             Serve a law that validates (hub set-law); `hub get-law` prints the stored bytes. \
-             HUB_ALLOW_NO_LAW=1 does NOT waive this — it is the no-law waiver, and here it \
-             would ignite this hub with law = None, i.e. live and PERMISSIVE."
-        )),
+             Serve a law that validates (`{cmd} set-law`); `{cmd} get-law` prints the stored \
+             bytes. HUB_ALLOW_NO_LAW=1 does NOT waive this — it is the no-law waiver, and here \
+             it would ignite this hub with law = None, i.e. live and PERMISSIVE."
+            ))
+        }
     }
 }
 
@@ -1548,7 +1577,8 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         tracing::warn!(
             "hub state is encrypted and no key is available — starting in a LOCKED shell \
              (only the tier-0 allowlist is served — including `/`, so a `/` health \
-             check will still read 200). Run `hub unlock` to ignite."
+             check will still read 200). Run `{} unlock` to ignite.",
+            hub_cmd()
         );
         let shared_law = std::sync::Arc::new(tokio::sync::RwLock::new(None));
         // Empty placeholder ledger on a throwaway temp dir (never the real hub dir, never
@@ -1606,7 +1636,8 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     if rest_state.law.read().await.is_none() {
         tracing::warn!(
             "no hub law loaded — PERMISSIVE no-law mode: acts and admissions are NOT gated by law; \
-             serve a signed law before production (hub set-law)"
+             serve a signed law before production (`{} set-law`)",
+            hub_cmd()
         );
         println!("  ⚠ NO-LAW MODE — acts/admissions ungated; serve a signed law for production");
     } else if rest_state.verify_law_integrity().await == "mismatch" {
@@ -1615,7 +1646,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         // HUB-001: governed writes now refuse while this holds (reads still serve);
         // re-witness via `hub set-law`, or HUB_ALLOW_LAW_MISMATCH=1 for warn-only.
         println!("  ⚠ LAW INTEGRITY MISMATCH — served law != last witnessed LawAmended (see log); \
-                  governed writes REFUSED until re-witnessed (hub set-law)");
+                  governed writes REFUSED until re-witnessed (`{} set-law`)", hub_cmd());
     }
 
     // P1 (residual review): production profile. Opt-in via HUB_PROFILE=production
@@ -1894,8 +1925,8 @@ async fn run_init(
             }
             println!();
             println!("Next: in sprint 2 this is where you'd start recording events.");
-            println!("      For now, inspect the hub dir or run `hub init {} ...` again",
-                     "<same-name>");
+            println!("      For now, inspect the hub dir or run `{} init {} ...` again",
+                     hub_cmd(), "<same-name>");
             println!("      to verify idempotency.");
         }
         InitResult::AlreadyInitialized { society_lct_id, hub_dir, hub_name } => {
@@ -2007,7 +2038,7 @@ async fn run_rotate_passphrase(hub_dir: PathBuf) -> Result<()> {
         println!("  ⚠ new passphrase is EMPTY (NULL) — encrypted but openable by anyone. Your choice.");
     }
     println!("Passphrase rotated. The old one no longer opens this hub.");
-    println!("  → restart the hub (it will boot locked) and ignite with `hub unlock` using the NEW phrase.");
+    println!("  → restart the hub (it will boot locked) and ignite with `{} unlock` using the NEW phrase.", hub_cmd());
     Ok(())
 }
 
@@ -2018,8 +2049,9 @@ async fn run_rotate_operator_token(hub_dir: PathBuf) -> Result<()> {
     if !path.exists() {
         anyhow::bail!(
             "no operator token file found at {}. \
-             This command only works when HUB_OPERATOR_AUTH=token (run `hub up` with a public archetype first).",
-            path.display()
+             This command only works when HUB_OPERATOR_AUTH=token (run `{} up` with a public archetype first).",
+            path.display(),
+            hub_cmd()
         );
     }
     let (new_token, fingerprint) = crate::rest::OperatorAuth::rotate(&hub_dir)?;
@@ -2090,7 +2122,7 @@ async fn run_export_public_identity(hub_dir: PathBuf) -> Result<()> {
     println!("Wrote {}/public-identity.json", hub_dir.display());
     println!("  hub:       {} ({})", hub_name, hub_id);
     println!("  sovereign: {}", founding);
-    println!("  → the hub can now boot as a locked shell and be ignited with `hub unlock`.");
+    println!("  → the hub can now boot as a locked shell and be ignited with `{} unlock`.", hub_cmd());
     Ok(())
 }
 
@@ -2318,6 +2350,67 @@ fn slugify(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `hub_cmd` must name the running binary, not a word that needs `$PATH`.
+    ///
+    /// The defect it replaced: the bare word `hub` resolves only if the binary
+    /// is installed on `$PATH`, and on the fleet's own hub host it deliberately
+    /// is not (that artifact is the unit's `ExecStart`). Every ignition
+    /// instruction the daemon printed was therefore `command not found` at the
+    /// exact moment the operator needed it. Reverting the helper to a literal
+    /// fails this test.
+    #[test]
+    fn hub_cmd_names_the_running_binary_not_a_bare_word() {
+        let cmd = hub_cmd();
+        let exe = std::env::current_exe().expect("current_exe is available under cargo test");
+        assert_eq!(cmd, exe.display().to_string());
+        assert!(
+            std::path::Path::new(&cmd).is_file(),
+            "the spelling we print must exist on disk, got {cmd:?}"
+        );
+        assert_ne!(cmd, "hub", "printing the bare word is the defect this replaced");
+        // Positive control that the property is about `$PATH` and not about
+        // this host: the spelling resolves with `$PATH` emptied, because
+        // `is_file` never consults it. The bare word could not.
+        assert!(std::path::Path::new(&cmd).is_absolute());
+    }
+
+    /// A helper nobody calls fixes nothing. Bind the three call sites that were
+    /// measured failing, by the exact bytes they used to emit.
+    ///
+    /// Scope, stated honestly: this catches a regression at *these* sites, not
+    /// a newly-added site that spells the bare word. The prose references to
+    /// `hub unlock` that explain *when* the check runs (rather than asking the
+    /// reader to type it) are intentionally left alone and are not matched here.
+    #[test]
+    fn the_measured_call_sites_no_longer_emit_the_bare_word() {
+        let src = include_str!("main.rs");
+        // Compose the needles rather than writing them out: a source scanner
+        // whose needle is a literal matches *itself*. The first draft of this
+        // test failed for exactly that reason and nothing was wrong with the
+        // code it was checking.
+        let bare = "hub";
+        let step_needle = format!("{{n}}. {bare} ");
+        let warn_needle = format!("Run `{bare} unlock` to ignite.");
+        let law_needle = format!("Serve a law that validates ({bare} set-law)");
+        // `hub init`'s "Go live" checklist — six steps, all of them typed.
+        assert!(
+            !src.contains(&step_needle),
+            "a Go-live checklist step is back to the bare word"
+        );
+        // The locked shell's own ignition line, printed while the hub is dark.
+        assert!(
+            !src.contains(&warn_needle),
+            "the locked-shell warning is back to the bare word"
+        );
+        // The ignition refusal's own advice — the remedy for a hub that will
+        // not serve. Missed by the first pass of this change; the re-grep that
+        // found it is why the guard now names three sites and not two.
+        assert!(
+            !src.contains(&law_needle),
+            "the unparseable-law remedy is back to the bare word"
+        );
+    }
 
     #[test]
     fn starter_law_folds_rwoa_gradient() {
