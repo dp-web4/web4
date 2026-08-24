@@ -203,6 +203,11 @@ Each trigger defines its own sprint stack. V2 planning is deferred until a trigg
 Three items, parallelizable. R7a is the critical path: the reputation seam (hestia's ~9.5k queued
 deltas) stays closed until it is green.
 
+**Current status (2026-08-23): Phase 0 is not complete.** R7a landed in #703. R7b core landed in #706,
+with witnessed sponsor-vouch completion tracked separately in #707. R7c is **partial**: ratified-artifact
+visibility/self-reporting landed in #708, while deploy-closure protection remains #709 and still gates
+completion. R7d availability parity remains not started in the maintained federated PRD.
+
 **F0.1 — R7a: degraded-verdict recording + delta classification.**
 - A `DegradedEvent` record: class (`infra` vs `conduct`), source (`locked-refusal` |
   `signer-unreachable` | `peer-unreachable` | `gate-timeout`), timestamp, context — recorded
@@ -221,6 +226,12 @@ deltas) stays closed until it is green.
   accumulates zero peer factors.
 
 **F0.3 — R7c: ratified-digest closure + operator surface.**
+
+**Status: partial.** The ratified-artifact manifest, running-digest self-reporting and operator
+visibility portion landed in #708. The deploy path itself is **not yet inside the protected closure**:
+#709 still carries unit/ExecStart, deploy scripts, staged artifact and manifest write protection.
+Until that lands, F0.3 and Phase 0 must not be described as complete.
+
 - Supervisor-owned ratified-digest manifest (extends hub-watch `self_fingerprint`); running hub
   self-reports its executing digest; operator surface shows per-seat `current`/`stale`/`unknown`;
   deploy path (unit, scripts, binary path) joins the gate-protected closure.
