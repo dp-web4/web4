@@ -458,7 +458,7 @@ Compact definitions for every term this paper relies on. The standard's [GLOSSAR
 
 ## Memory and Cognition
 
-[22] Tulving, E. (1985). "Memory and Cognition." Canadian Psychology.
+[22] Tulving, E. (1985). "Memory and Consciousness." Canadian Psychology.
 
 [23] Hassabis, D., Kumaran, D., Summerfield, C., & Botvinick, M. (2017). "Neuroscience-Inspired Artificial Intelligence." Neuron.
 
@@ -515,4 +515,4 @@ To contribute to Web4 development or request access to additional technical docu
 
 ---
 
-*Generated: 2026-08-22 04:38:34*
+*Generated: 2026-08-24 04:38:50*

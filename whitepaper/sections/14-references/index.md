@@ -56,7 +56,7 @@
 
 ## Memory and Cognition
 
-[22] Tulving, E. (1985). "Memory and Cognition." Canadian Psychology.
+[22] Tulving, E. (1985). "Memory and Consciousness." Canadian Psychology.
 
 [23] Hassabis, D., Kumaran, D., Summerfield, C., & Botvinick, M. (2017). "Neuroscience-Inspired Artificial Intelligence." Neuron.
 
