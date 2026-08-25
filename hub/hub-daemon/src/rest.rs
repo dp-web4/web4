@@ -4995,56 +4995,62 @@ async fn request_citizenship(
             anchor_level: anchor.level(),
             trust_ceiling: anchor.ceiling(),
         };
-        if let Some(law) = law_guard.as_ref() {
-            let payload = serde_yaml::to_value(&event)
-                .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {e}")))?;
-            let req = R6Request {
-                role: "applicant".to_string(),
-                action: "member_join_request".to_string(),
-                payload,
-                resource: Default::default(),
-            };
-            let norms = law.evaluate_outcome(&req).decision;
-            let decision = hub_lib::law::tighten_with_sponsor(norms.clone(), &sponsor);
-            if decision != norms {
-                tracing::info!(
-                    "admission tightened {norms:?} → {decision:?} by sponsor verdict ({})",
-                    sponsor.token()
-                );
+        let norms = match law_guard.as_ref() {
+            // Absence of law removes admission authority, not the applicant:
+            // preserve the request for an authorized operator decision.
+            None => Decision::Escalate,
+            Some(law) => {
+                let payload = serde_yaml::to_value(&event).map_err(|e| {
+                    ApiError::internal(anyhow::anyhow!("serializing event for R6: {e}"))
+                })?;
+                law.evaluate_outcome(&R6Request {
+                    role: "applicant".to_string(),
+                    action: "member_join_request".to_string(),
+                    payload,
+                    resource: Default::default(),
+                })
+                .decision
             }
-            drop(law_guard);
-            match decision {
-                Decision::Allow => {}
-                Decision::Warn => {
-                    // Non-blocking flagged-allow: admission proceeds, flagged.
-                    tracing::warn!("member_join_request flagged by hub law (proceeding)");
-                }
-                Decision::Deny => return Err(ApiError {
-                    status: StatusCode::FORBIDDEN,
-                    message: "citizenship denied by hub law".to_string(),
-                }),
-                Decision::Escalate => {
-                    // Queue for operator review (V2-16 admission queue) — witnessed,
-                    // not dropped. The applicant gets the request_id back to poll.
-                    let request_id = Uuid::new_v4();
-                    witness_event(s, HubEvent::MemberJoinRequested {
-                        request_id,
-                        member_lct_id: caller_lct_id,
-                        member_pubkey_hex: pubkey_hex.clone(),
-                        name: args.get("name").and_then(|v| v.as_str()).map(String::from),
-                        message: args.get("message").and_then(|v| v.as_str()).map(String::from),
-                        sponsor_note: sponsor.reason(),
-                        anchor_level: asserted_level,
-                        asserted_trust_ceiling: asserted_ceiling,
-                        requested_at: Utc::now(),
-                    }).await?;
-                    return Ok(serde_json::json!({
-                        "admitted": false,
-                        "status": "pending_review",
-                        "request_id": request_id,
-                        "sponsor": sponsor.token(),
-                    }));
-                }
+        };
+        let decision = hub_lib::law::tighten_with_sponsor(norms.clone(), &sponsor);
+        if decision != norms {
+            tracing::info!(
+                "admission tightened {norms:?} → {decision:?} by sponsor verdict ({})",
+                sponsor.token()
+            );
+        }
+        drop(law_guard);
+        match decision {
+            Decision::Allow => {}
+            Decision::Warn => {
+                // Non-blocking flagged-allow: admission proceeds, flagged.
+                tracing::warn!("member_join_request flagged by hub law (proceeding)");
+            }
+            Decision::Deny => return Err(ApiError {
+                status: StatusCode::FORBIDDEN,
+                message: "citizenship denied by hub law".to_string(),
+            }),
+            Decision::Escalate => {
+                // Queue for operator review (V2-16 admission queue) — witnessed,
+                // not dropped. The applicant gets the request_id back to poll.
+                let request_id = Uuid::new_v4();
+                witness_event(s, HubEvent::MemberJoinRequested {
+                    request_id,
+                    member_lct_id: caller_lct_id,
+                    member_pubkey_hex: pubkey_hex.clone(),
+                    name: args.get("name").and_then(|v| v.as_str()).map(String::from),
+                    message: args.get("message").and_then(|v| v.as_str()).map(String::from),
+                    sponsor_note: sponsor.reason(),
+                    anchor_level: asserted_level,
+                    asserted_trust_ceiling: asserted_ceiling,
+                    requested_at: Utc::now(),
+                }).await?;
+                return Ok(serde_json::json!({
+                    "admitted": false,
+                    "status": "pending_review",
+                    "request_id": request_id,
+                    "sponsor": sponsor.token(),
+                }));
             }
         }
     }
@@ -6038,7 +6044,9 @@ async fn submit_join(
         let sponsor = resolve_sponsor_verdict(
             law_guard.as_ref(), &state, payload.member_lct_id, payload.sponsor_lct_id);
         let norms = match law_guard.as_ref() {
-            None => Decision::Allow, // open-by-default when no law is set
+            // An absent law has no authority to admit. Queue the attributable,
+            // witnessed request so an authorized operator can decide it.
+            None => Decision::Escalate,
             Some(law) => law.evaluate_outcome(&R6Request {
                 role: "applicant".to_string(),
                 action: "member_join_request".to_string(),
@@ -8901,6 +8909,20 @@ pub(crate) mod channel_e2e_tests {
     use web4_core::lct::EntityType;
     use web4_core::pair_channel::{self, Sealed};
 
+    /// Explicit test authority for fixtures that need to admit a member before
+    /// exercising some unrelated citizen behavior. Law absence is deliberately
+    /// not a bootstrap shortcut (#762).
+    const ALLOW_JOIN_LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ALLOW-MEMBER-JOIN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: allow
+    priority: 100
+"#;
+
     /// Witness an event onto the chapter's real ledger (Sovereign-signed, same
     /// path production uses). Lets sibling test modules build a chapter state
     /// without reaching into `HubLedger` or widening `witness_event`.
@@ -8932,6 +8954,10 @@ pub(crate) mod channel_e2e_tests {
             .await
             .unwrap();
         (tmp, state)
+    }
+
+    async fn fresh_open_admission_state() -> (tempfile::TempDir, RestState) {
+        fresh_rest_state(Some(ALLOW_JOIN_LAW)).await
     }
 
     /// C12 — the council-holder pass in `RestState::new` is LOAD-BEARING, and
@@ -9056,7 +9082,7 @@ pub(crate) mod channel_e2e_tests {
     async fn without_anchor_ceilings_in_law_admission_is_unchanged() {
         // The gate is opt-in by law. No `anchor_ceilings` ⇒ admission behaves
         // exactly as before and records no ceiling.
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let applicant = KeyPair::generate();
         let applicant_id = Uuid::new_v4();
         let out = request_citizenship(
@@ -9200,7 +9226,7 @@ pub(crate) mod channel_e2e_tests {
 
     #[tokio::test]
     async fn external_bootstrap_then_citizen_read_over_channel() {
-        let (_tmp, state) = fresh_rest_state(None).await; // open admission
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().expect("local signer exposes a pubkey");
         let applicant = KeyPair::generate();
         let applicant_lct = Uuid::new_v4();
@@ -9246,7 +9272,7 @@ pub(crate) mod channel_e2e_tests {
 
     #[tokio::test]
     async fn profile_visibility_tiers_filter_channel_reads() {
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().expect("local signer exposes a pubkey");
 
         // Admit Alice and Bob as citizens with pinned channel keys.
@@ -9340,7 +9366,7 @@ pub(crate) mod channel_e2e_tests {
 
     #[tokio::test]
     async fn profile_visibility_operator_sees_all_and_external_is_gated() {
-        let (tmp, state) = fresh_rest_state(None).await;
+        let (tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().expect("local signer exposes a pubkey");
 
         // Admit one citizen with a pinned key.
@@ -9400,7 +9426,7 @@ pub(crate) mod channel_e2e_tests {
         // Peer is not just witnessed — it queues a sealed notice in the recipient's
         // mailbox, drained via `notifications`. Self-addressed here so a single
         // pinned member proves the full emit → deliver → drain loop.
-        let (_tmp, state) = fresh_rest_state(None).await; // open admission pins on join
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let member = KeyPair::generate();
         let member_lct = Uuid::new_v4();
@@ -9445,7 +9471,7 @@ pub(crate) mod channel_e2e_tests {
         // the hub relays the ciphertext into the recipient's mailbox WITHOUT
         // re-sealing (content-blind) and stamps sealed_by=sender so the recipient
         // opens with the sender's key. The plaintext never reaches the hub.
-        let (_tmp, state) = fresh_rest_state(None).await; // open admission pins on join
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
 
         // Admit two members: sender + recipient (each pins its key on join).
@@ -9515,7 +9541,7 @@ pub(crate) mod channel_e2e_tests {
         // Capture-and-replay: re-POSTing the identical sealed bytes must be
         // rejected, or a write act would be witnessed twice. seal_req stamps a
         // nonce (H-007 Phase 1), so the replay dedups on the nonce path.
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let member = KeyPair::generate();
         let member_lct = Uuid::new_v4();
@@ -9667,7 +9693,7 @@ pub(crate) mod channel_e2e_tests {
         // H-007 Phase 2: a write-class tool missing `nonce` (or sending an empty
         // one) or missing `issued_at` is fail-closed rejected. Reads keep the
         // back-compat tolerance — a bare {tool,args} presence still works.
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let (m, lct) = pin_member(&state, &hub_pub).await;
         let act_args = serde_json::json!({
@@ -9710,7 +9736,7 @@ pub(crate) mod channel_e2e_tests {
         // H-008 Phase 2: referenced_act must carry a scheme-tagged content_hash
         // (git-sha: | sha256-content: | sha256-pointer:). Raw hex or absent →
         // fail-closed reject; a tagged one is witnessed.
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let (m, lct) = pin_member(&state, &hub_pub).await;
         let base = serde_json::json!({
@@ -9757,7 +9783,7 @@ pub(crate) mod channel_e2e_tests {
     async fn mailbox_is_capped_and_drops_oldest() {
         // Flood protection: a member's mailbox can't grow without bound. Past the
         // cap the oldest notices are dropped (ring), so the newest survive.
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let member = KeyPair::generate();
         let member_lct = Uuid::new_v4();
@@ -9791,7 +9817,7 @@ pub(crate) mod channel_e2e_tests {
         // the party who needs to know (the sender) is the mesh, so a drop queues
         // a `notice-dropped` alarm back to the sender. Two distinct members here
         // (unlike the self-flood cap test), so the alarm path is exercised.
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
 
         // Pin both: the flooded recipient (notices land here) and the sender
@@ -9947,7 +9973,7 @@ admission:
     async fn sponsor_exits_are_distinguished_and_none_auto_admits_unvouched() {
         // Bootstrap order mirrors reality: a founding member exists BEFORE the
         // society amends a sponsor requirement into its law.
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let (_sponsor_kp, sponsor_lct) = pin_member(&state, &hub_pub).await;
         *state.law.write().await = Some(Law::parse_and_validate(SPONSOR_LAW).unwrap());
@@ -10021,7 +10047,7 @@ admission:
     /// the other is not a rule. Same law, the plaintext `/members/join`.
     #[tokio::test]
     async fn plaintext_join_path_enforces_the_same_rule() {
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let (_sponsor_kp, sponsor_lct) = pin_member(&state, &hub_pub).await;
         *state.law.write().await = Some(Law::parse_and_validate(SPONSOR_LAW).unwrap());
@@ -10052,7 +10078,7 @@ admission:
         // Discriminating control on THIS path: with the requirement absent, the
         // same call admits — so these ACCEPTEDs are the sponsor gate, not an
         // unrelated failure.
-        *state.law.write().await = None;
+        *state.law.write().await = Some(Law::parse_and_validate(ALLOW_JOIN_LAW).unwrap());
         let free_kp = KeyPair::generate();
         let free_lct = Uuid::new_v4();
         assert_eq!(post_join(&state, &free_kp, free_lct, None).await.status(),
@@ -10063,7 +10089,7 @@ admission:
     /// exactly as before this sprint (the check is additive, not a new bar).
     #[tokio::test]
     async fn no_sponsor_requirement_leaves_admission_unchanged() {
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let kp = KeyPair::generate();
         let lct = Uuid::new_v4();
@@ -10091,7 +10117,7 @@ admission:
     /// member of this society".
     #[tokio::test]
     async fn naming_the_founding_sovereign_as_sponsor_is_refuted_not_undecidable() {
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         // Control sponsor: an ordinary member, pinned the ordinary way.
         let (_kp, pinned_lct) = pin_member(&state, &hub_pub).await;
@@ -10185,7 +10211,7 @@ admission:
 
     #[tokio::test]
     async fn r7_obligation_opens_then_resolves_on_time() {
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let (m, lct) = pin_member(&state, &hub_pub).await;
 
@@ -10224,7 +10250,7 @@ admission:
 
     #[tokio::test]
     async fn r7_resolve_after_deadline_is_late_and_debits() {
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let (m, lct) = pin_member(&state, &hub_pub).await;
 
@@ -10269,7 +10295,7 @@ admission:
         // The clock-reset attack: open past-due, re-open with a fresh future
         // deadline, then satisfy → "met". The re-open must be rejected, and even
         // if it weren't the keep-first fold preserves the original clock.
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let (m, lct) = pin_member(&state, &hub_pub).await;
         let past = (Utc::now() - chrono::Duration::hours(1)).to_rfc3339();
@@ -10298,7 +10324,7 @@ admission:
     #[tokio::test]
     async fn r7_satisfy_by_non_subject_is_rejected() {
         // Griefing guard: only the obligation's subject may satisfy it.
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let (a, a_lct) = pin_member(&state, &hub_pub).await;
         let (b, b_lct) = pin_member(&state, &hub_pub).await;
@@ -10325,7 +10351,7 @@ admission:
 
     #[tokio::test]
     async fn presence_roster_shows_active_members_online() {
-        let (_tmp, state) = fresh_rest_state(None).await; // open admission
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let a = KeyPair::generate();
         let a_lct = Uuid::new_v4();
@@ -11013,7 +11039,7 @@ norms: []
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap(); });
         std::env::set_var("WEB4_MEMBOX_URL", format!("http://{addr}"));
 
-        let (_tmp, state) = fresh_rest_state(None).await; // open admission
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let applicant = KeyPair::generate();
         let applicant_lct = Uuid::new_v4();
@@ -11071,7 +11097,7 @@ norms: []
 
     #[tokio::test]
     async fn intro_full_loop_mutual_approval_exchanges_pubkeys() {
-        let (_tmp, state) = fresh_rest_state(None).await; // open admission
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
 
         // Admit Alice and Bob over the channel (pins their pubkeys).
@@ -11222,7 +11248,7 @@ norms: []
     async fn constellation_three_tiers_over_channel() {
         use hub_lib::events::HubEvent;
         use hub_lib::constellation::DeviceType as DT;
-        let (_tmp, state) = fresh_rest_state(None).await; // open admission
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let (me, my_lct) = (KeyPair::generate(), Uuid::new_v4());
         let pid0 = Uuid::new_v4();
@@ -11276,7 +11302,7 @@ norms: []
     /// and a foreign owner key (valid channel, someone else's owner key → 403).
     #[tokio::test]
     async fn constellation_reject_paths_over_channel() {
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let hub_pub = state.signer.public_key().unwrap();
         let (me, my_lct) = (KeyPair::generate(), Uuid::new_v4());
         let pid0 = Uuid::new_v4();
@@ -11362,7 +11388,7 @@ norms: []
     async fn hub_issues_membership_credential_only_to_a_member() {
         use web4_core::oid4vc::{build_holder_proof, CredentialRequest};
         use web4_core::sd_jwt_vc::verify_issuer;
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let (alice, alice_lct) = admit(&state, "Alice").await;
         let hub_id = state.hub_id;
         let issuer_url = format!("http://127.0.0.1/v1/hubs/{hub_id}"); // empty-HeaderMap host fallback
@@ -11403,7 +11429,7 @@ norms: []
     async fn hub_verifies_a_member_issued_presentation_from_the_roster() {
         use web4_core::oid4vc::{build_presentation, PresentationResponse};
         use web4_core::sd_jwt_vc::SdJwtVc;
-        let (_tmp, state) = fresh_rest_state(None).await;
+        let (_tmp, state) = fresh_open_admission_state().await;
         let (alice, alice_lct) = admit(&state, "Alice").await;
         let hub_id = state.hub_id;
         let now = Utc::now().timestamp();
@@ -12519,135 +12545,108 @@ norms:
     }
 
 
-    // ---- #762: admission fails OPEN when no law is loaded ----
+    // ---- #762: absence of law removes authority, not the applicant ----
 
-    /// Characterization, not a fix. Issue #762 states that both admission
-    /// surfaces admit when `law` is `None`, contradicting the ratified
-    /// fail-closed+warn default. That claim was prose, and the behaviour was
-    /// unpinned **in either direction** — ~35 tests in this module call
-    /// `fresh_rest_state(None)` and rely on the open door to bootstrap a
-    /// member, but not one of them asserts it as a property, so a change
-    /// either way would have surfaced as an unrelated test's failure.
-    ///
-    /// This pins what the code does TODAY. It deliberately does not decide
-    /// what it should do: flipping the default is a Sovereign call (#762 asks
-    /// dp `Escalate` vs `Deny` vs refuse-to-serve, and "operator-tunable hub
-    /// policy is written to law" is a standing hub-track principle). When the
-    /// ruling lands, this test is the thing that must be edited — which is the
-    /// point. An unpinned default is changed silently; a pinned one is changed
-    /// on purpose.
-    ///
-    /// The second half is the discriminator. The same two calls run against a
-    /// hub carrying the **shipped** `starter-law.yaml` — closed by default —
-    /// and both queue instead of admitting. Without it, the first half is
-    /// satisfied by a harness that admits unconditionally, which would clear on
-    /// an arm where both options behave the same.
-    ///
-    /// What that half does NOT establish is *which* mechanism closed them. The
-    /// shipped law closes admission twice over — `ESCALATE-MEMBER-JOIN` at
-    /// priority 90 and `admission.requires_sponsor: true` — so neither can be
-    /// seen to move while the other stands, and this test stays green with the
-    /// norm flipped to `allow`. That leg lives in
-    /// `the_join_norm_is_the_operative_gate_when_nothing_else_closes_admission`
-    /// below, on a fixture where the norm is the only gate.
-    ///
-    /// One correction to #762 while pinning it: it calls the sealed path "the
-    /// worse of the two." Measured here, the two surfaces are behaviourally
-    /// **identical** under `law = None` — `submit_join` runs
-    /// `tighten_with_sponsor` where `request_citizenship` skips it, but with no
-    /// law there is no `AdmissionPolicy`, so `evaluate_sponsor` returns
-    /// `NotRequired`, `may_auto_admit()` is true, and the tightening is a
-    /// no-op. The sealed path is worse to *read* (an absent `else` says
-    /// nothing) not worse to *run*.
+    /// Same signed join requests, two authority states. With no law, both
+    /// public admission surfaces must preserve the applicant in the witnessed,
+    /// pollable review queue while creating no membership, key pin, or live
+    /// resolver entry. With a valid law that explicitly allows the same act,
+    /// both requests must admit. This differential pins the cause as law
+    /// authority rather than an unconditional handler outcome.
     #[tokio::test]
-    async fn an_unlawed_hub_admits_on_both_surfaces_and_the_shipped_law_closes_both() {
-        // ===== ARM A — no law loaded =====
-        let (_tmp, open_hub) = fresh_rest_state(None).await;
-        assert!(open_hub.law.read().await.is_none(),
-            "fixture precondition: this arm is only meaningful with NO law loaded");
-        let hub_pub = open_hub.signer.public_key().unwrap();
+    async fn unlawful_admission_queues_while_an_allowing_law_admits_on_both_surfaces() {
+        // ===== ARM A — no law: queue, but confer no authority =====
+        let (_tmp, unlawful_hub) = fresh_rest_state(None).await;
+        assert!(unlawful_hub.law.read().await.is_none(),
+            "fixture precondition: this arm has no law loaded");
+        let hub_pub = unlawful_hub.signer.public_key().unwrap();
 
-        // A.1 sealed channel → request_citizenship
         let sealed_kp = KeyPair::generate();
         let sealed_lct = Uuid::new_v4();
         let pid = Uuid::new_v4();
         let sealed = seal_req(&sealed_kp, &hub_pub, pid, "request_citizenship",
             serde_json::json!({ "name": "Unlawed Sealed" }));
-        let r = channel_request(State(open_hub.clone()), Path(open_hub.hub_id), Json(ChannelRequest {
-            caller_lct_id: sealed_lct, pair_id: pid, sealed,
-            caller_pubkey_hex: Some(sealed_kp.verifying_key().to_hex()),
-        })).await.expect("channel call completes");
+        let r = channel_request(
+            State(unlawful_hub.clone()),
+            Path(unlawful_hub.hub_id),
+            Json(ChannelRequest {
+                caller_lct_id: sealed_lct,
+                pair_id: pid,
+                sealed,
+                caller_pubkey_hex: Some(sealed_kp.verifying_key().to_hex()),
+            }),
+        ).await.expect("unlawed sealed request is preserved, not rejected");
         let out = open_resp(&sealed_kp, &hub_pub, pid, &r.0.sealed);
-        assert_eq!(out["admitted"], serde_json::json!(true),
-            "sealed surface admits with no law loaded — the `if let Some(law)` block \
-             is skipped entirely and execution falls through to commit_pair_event");
+        assert_eq!(out["admitted"], serde_json::json!(false));
+        assert_eq!(out["status"], serde_json::json!("pending_review"));
+        let sealed_request_id: Uuid = serde_json::from_value(out["request_id"].clone())
+            .expect("sealed applicant receives a pollable request id");
 
-        // A.2 plaintext /members/join → submit_join
         let plain_kp = KeyPair::generate();
         let plain_lct = Uuid::new_v4();
-        let resp = post_join(&open_hub, &plain_kp, plain_lct, None).await;
-        assert_eq!(resp.status(), StatusCode::OK,
-            "plaintext surface auto-admits (200) with no law loaded — \
-             `None => Decision::Allow`; a queued request would be 202");
+        let resp = post_join(&unlawful_hub, &plain_kp, plain_lct, None).await;
+        assert_eq!(resp.status(), StatusCode::ACCEPTED,
+            "unlawed plaintext request is queued (202), not admitted (200)");
 
-        // What the projection records: both admitted, each pinned under the
-        // applicant's OWN key, and nothing marks either as un-evaluated.
-        let proj = { let l = open_hub.ledger.lock().await; HubState::project(&l) };
-        for (lct, kp, surface) in [
-            (sealed_lct, &sealed_kp, "sealed"),
-            (plain_lct, &plain_kp, "plaintext"),
-        ] {
-            assert!(proj.members.contains_key(&lct),
-                "{surface}: an unlawed hub admitted without evaluating anything");
-            assert_eq!(
-                proj.member_pubkeys.get(&lct).map(String::as_str),
-                Some(kp.verifying_key().to_hex().as_str()),
-                "{surface}: the applicant's own key is pinned — self-vouched end to end, \
-                 which is what makes an admission also a resolvable witness (#762)");
+        let proj = { let l = unlawful_hub.ledger.lock().await; HubState::project(&l) };
+        assert_eq!(proj.pending_joins.len(), 2,
+            "both attributable applications are witnessed and pollable");
+        assert_eq!(
+            proj.pending_joins.get(&sealed_request_id).map(|j| j.member_lct_id),
+            Some(sealed_lct),
+            "the returned request id addresses the witnessed sealed application"
+        );
+        assert!(proj.pending_joins.values().any(|j| j.member_lct_id == plain_lct),
+            "the plaintext application is present in the same durable queue");
+        for (lct, surface) in [(sealed_lct, "sealed"), (plain_lct, "plaintext")] {
+            assert!(!proj.members.contains_key(&lct),
+                "{surface}: no law means no membership authority");
+            assert!(!proj.member_pubkeys.contains_key(&lct),
+                "{surface}: no key pin means the applicant cannot enter witness quorum");
+            assert!(!unlawful_hub.resolver.read().await.0.contains_key(&lct),
+                "{surface}: the live resolver must not confer citizen capability either");
         }
-        assert!(proj.pending_joins.is_empty(),
-            "neither surface asked an operator, so no trace survives that the gate never ran");
 
-        // ===== ARM B — the discriminator: the SHIPPED starter law =====
-        // Same two calls, same harness. If they behaved the same here, arm A
-        // would be measuring the harness rather than law-absence.
-        let (_tmp2, closed_hub) = fresh_rest_state(Some(crate::STARTER_LAW_YAML)).await;
-        assert!(closed_hub.law.read().await.is_some(),
-            "fixture precondition: this arm is only meaningful with law LOADED");
-        let hub_pub2 = closed_hub.signer.public_key().unwrap();
+        // ===== ARM B — valid law explicitly authorizes the same act =====
+        let (_tmp2, lawful_hub) = fresh_rest_state(Some(ALLOW_JOIN_LAW)).await;
+        let hub_pub2 = lawful_hub.signer.public_key().unwrap();
 
         let sealed_kp2 = KeyPair::generate();
         let sealed_lct2 = Uuid::new_v4();
         let pid2 = Uuid::new_v4();
         let sealed2 = seal_req(&sealed_kp2, &hub_pub2, pid2, "request_citizenship",
-            serde_json::json!({ "name": "Lawed Sealed" }));
-        let r2 = channel_request(State(closed_hub.clone()), Path(closed_hub.hub_id), Json(ChannelRequest {
-            caller_lct_id: sealed_lct2, pair_id: pid2, sealed: sealed2,
-            caller_pubkey_hex: Some(sealed_kp2.verifying_key().to_hex()),
-        })).await.expect("channel call completes");
+            serde_json::json!({ "name": "Lawful Sealed" }));
+        let r2 = channel_request(
+            State(lawful_hub.clone()),
+            Path(lawful_hub.hub_id),
+            Json(ChannelRequest {
+                caller_lct_id: sealed_lct2,
+                pair_id: pid2,
+                sealed: sealed2,
+                caller_pubkey_hex: Some(sealed_kp2.verifying_key().to_hex()),
+            }),
+        ).await.expect("law-authorized sealed admission completes");
         let out2 = open_resp(&sealed_kp2, &hub_pub2, pid2, &r2.0.sealed);
-        assert_eq!(out2["admitted"], serde_json::json!(false),
-            "the shipped law closes the sealed surface (it does so twice over — \
-             the join norm AND requires_sponsor; see \
-             the_join_norm_is_the_operative_gate_when_nothing_else_closes_admission \
-             for the leg that pins which)");
-        assert_eq!(out2["status"], serde_json::json!("pending_review"));
+        assert_eq!(out2["admitted"], serde_json::json!(true));
 
         let plain_kp2 = KeyPair::generate();
         let plain_lct2 = Uuid::new_v4();
-        let resp2 = post_join(&closed_hub, &plain_kp2, plain_lct2, None).await;
-        assert_eq!(resp2.status(), StatusCode::ACCEPTED,
-            "the plaintext surface queues (202) rather than admitting (200)");
+        let resp2 = post_join(&lawful_hub, &plain_kp2, plain_lct2, None).await;
+        assert_eq!(resp2.status(), StatusCode::OK,
+            "the explicitly allowed plaintext request admits (200)");
 
-        let proj2 = { let l = closed_hub.ledger.lock().await; HubState::project(&l) };
-        for (lct, surface) in [(sealed_lct2, "sealed"), (plain_lct2, "plaintext")] {
-            assert!(!proj2.members.contains_key(&lct),
-                "{surface}: the shipped law admits nobody automatically");
-            assert!(!proj2.member_pubkeys.contains_key(&lct),
-                "{surface}: and pins no key, so a queued applicant is not yet a witness");
+        let proj2 = { let l = lawful_hub.ledger.lock().await; HubState::project(&l) };
+        for (lct, kp, surface) in [
+            (sealed_lct2, &sealed_kp2, "sealed"),
+            (plain_lct2, &plain_kp2, "plaintext"),
+        ] {
+            assert!(proj2.members.contains_key(&lct),
+                "{surface}: valid law authorizes membership");
+            assert_eq!(proj2.member_pubkeys.get(&lct), Some(&kp.verifying_key().to_hex()),
+                "{surface}: a key is pinned only after law authorizes admission");
         }
-        assert_eq!(proj2.pending_joins.len(), 2,
-            "both surfaces queued for operator review — the outcome arm A never reaches");
+        assert!(proj2.pending_joins.is_empty(),
+            "explicitly authorized admissions do not enter the review queue");
     }
 
     /// The kill switch the shipped-law arm above cannot provide.
