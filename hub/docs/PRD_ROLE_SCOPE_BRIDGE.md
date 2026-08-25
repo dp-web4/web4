@@ -42,7 +42,7 @@ bounded by a member-level clearance the occupant's operator approved. The hub be
 while they fill it" — and rotation, revocation, and charter amendment all take working scope with
 them automatically.
 
-## 2. Concepts — NON-NORMATIVE SUMMARY (normative home: twin §2, `concepts_generation: 1`)
+## 2. Concepts — NON-NORMATIVE SUMMARY (normative home: twin §2, `concepts_generation: 2`)
 
 **The normative text is `hestia/docs/PRD_ROLE_SCOPE_BRIDGE.md` §2.** This section is a reading aid so
 the hub side is legible standalone; it is *not* a mirror and must not be amended as though it were.
@@ -103,6 +103,17 @@ document would find no definition of what it is recording.
 - **PROOF TIERS**: classes map to assurance tiers; high tiers require hestia-constellation
   multifactor proof **at act time** (operator co-sign, witness quorum, hardware-backed key), per
   the evidence-scaled-to-stakes doctrine. The hub records the tier; hestia demands the proof.
+- **ROLE SKILLS** (dp, 2026-08-21; generation 2): a role confers capability as well as reach — the
+  skills its occupant should have loaded while filling it. Manifest items like any other, **each
+  tagged with exactly one class**, so the flow rule governs them unchanged: a role may name a skill
+  the occupant is not cleared for and the occupant does not receive it (withheld and disclosed).
+  Rotation carries them out; amendment re-passes them. The hub's half is the same as for paths —
+  declare and tag them in the charter; hestia decides who receives them.
+- **ROLE MEMBOTS** (dp, 2026-08-21; generation 2): *speculative, and the home keeps it that way.* A
+  role might also confer a memory cartridge. Strictly larger than skills, because a membot is
+  retrieval whose returns are not fixed at conferral, so what reaches the occupant can change
+  without re-passing the flow rule. Carried as an extension point in the home, not a decided
+  concept. **Do not build against this.**
 
 ## 3. Mechanics — the hub side
 
