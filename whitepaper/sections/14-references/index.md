@@ -12,9 +12,9 @@
 
 ## Patents
 
-[5] Palatov, D. US Patent 11477027: "Linked Context Token Systems and Methods." United States Patent and Trademark Office.
+[5] Palatov, D. US Patent 11,477,027 B1: "Apparatus and Methods for Management of Controlled Objects." United States Patent and Trademark Office.
 
-[6] Palatov, D. US Patent 12278913: "Trust-Based Value Exchange Protocols for Distributed Systems." United States Patent and Trademark Office.
+[6] Palatov, D. US Patent 12,278,913 B2: "Apparatus and Methods for Management of Controlled Objects." United States Patent and Trademark Office. (Continuation-in-part of the application issued as US 11,477,027.)
 
 ## Technical Implementations
 
