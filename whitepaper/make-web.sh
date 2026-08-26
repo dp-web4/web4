@@ -48,6 +48,21 @@ fi
 
 OUTPUT_DIR="build/web"
 SECTIONS_DIR="sections"
+
+# Guard: a missing sections/ tree must fail loudly, not produce an empty artifact.
+# Without this the script emits "not found" warnings for every section, writes a
+# near-empty monolith, prints its success banner and exits 0 — so an exit code
+# reads as a coverage claim it never made.
+if [ ! -d "$SECTIONS_DIR" ]; then
+    echo "❌ Error: sections directory '$SECTIONS_DIR' not found (cwd: $(pwd))."
+    echo "   Run this script from the whitepaper/ directory."
+    exit 1
+fi
+SECTION_COUNT=$(find "$SECTIONS_DIR" -mindepth 2 -maxdepth 2 -name index.md | wc -l)
+if [ "$SECTION_COUNT" -eq 0 ]; then
+    echo "❌ Error: no section files ($SECTIONS_DIR/*/index.md) found."
+    exit 1
+fi
 ASSETS_DIR="$OUTPUT_DIR/assets"
 
 # Create output directories
