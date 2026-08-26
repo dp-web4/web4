@@ -32,6 +32,17 @@ echo "Building Web4 whitepaper PDF with improved layout..."
 
 OUTPUT_DIR="build"
 MD_FILE="$OUTPUT_DIR/WEB4_Whitepaper_Complete.md"
+
+# Guard: refuse to build a PDF from a missing or truncated monolith.
+if [ ! -s "$MD_FILE" ]; then
+    echo "❌ Error: '$MD_FILE' is missing or empty. Run make-md.sh first (from whitepaper/)."
+    exit 1
+fi
+MD_LINES=$(wc -l < "$MD_FILE")
+if [ "$MD_LINES" -lt 100 ]; then
+    echo "❌ Error: '$MD_FILE' has only $MD_LINES lines — that is a failed markdown build, not a whitepaper."
+    exit 1
+fi
 PDF_FILE="$OUTPUT_DIR/WEB4_Whitepaper.pdf"
 TEMP_MD="$OUTPUT_DIR/WEB4_Whitepaper_Reordered.md"
 
