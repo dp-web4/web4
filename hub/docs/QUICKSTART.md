@@ -36,14 +36,9 @@ A public profile **refuses to serve** without a law, and in production without a
 HTTPS base URL and an operator token — so a first-time operator cannot accidentally
 stand up an open, unauthenticated, lawless public hub.
 
-One step `hub up`'s printed runbook does **not** list, and you need it:
-
-```bash
-hub export-public-identity ./my-hub     # run BEFORE `hub serve`
-```
-
-Without it a locked hub cannot identify itself on `/.well-known` or accept
-`hub unlock`, and step 6 of that runbook fails.
+The generated `hub up` runbook includes `hub export-public-identity ./my-hub`
+before `hub serve`. This one-time export lets a locked hub identify itself on
+`/.well-known` and accept `hub unlock`.
 
 The rest of this document is the **manual** walkthrough — worth reading once even
 if you use `hub up`, because it explains what each generated file is for.
