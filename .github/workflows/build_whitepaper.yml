@@ -2,8 +2,8 @@ name: Build Web4 Whitepaper (CI-Safe)
 
 # Modeled on the Synchronism whitepaper workflow (dp-web4/Synchronism).
 # Builds markdown, PDF, and navigable HTML from whitepaper/sections/, and
-# commits both the canonical whitepaper/build/ artifacts AND the
-# docs/whitepaper-web/ GitHub Pages mirror back to main.
+# uploads them for inspection. Published artifacts are reviewed in the PR that
+# changes them; this workflow never writes back to the source branch.
 
 on:
   push:
@@ -15,13 +15,14 @@ on:
     branches: [ main ]
     paths:
       - 'whitepaper/**'
+      - '.github/workflows/build_whitepaper.yml'
   workflow_dispatch:  # Allow manual trigger
 
 env:
   CI: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -32,6 +33,21 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Assert read-only publication contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path(".github/workflows/build_whitepaper.yml").read_text()
+          # Construct the tokens so this assertion does not satisfy its own
+          # search. A build must never turn a protected source branch into an
+          # artifact sink; reviewed PRs are the only publication path.
+          forbidden = ("contents:" + " write", "git" + " push", "git" + " commit")
+          present = [token for token in forbidden if token in workflow]
+          if present:
+              raise SystemExit(f"workflow may mutate the source branch: {present}")
+          PY
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -93,25 +109,24 @@ jobs:
           path: whitepaper/build/web/
           if-no-files-found: warn
 
-      - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      - name: Verify PR artifact parity
+        if: github.event_name == 'pull_request'
         run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions@github.com"
+          set -euo pipefail
 
-          # Use -f for whitepaper/build/ because the top-level .gitignore has a
-          # `build/` rule that blocks new files. Existing tracked files are
-          # picked up by the same -f. docs/whitepaper-web/ is not gitignored.
-          git add -f whitepaper/build/ || true
-          git add docs/whitepaper-web/ || true
+          # make-md.sh includes a display-only wall-clock footer. Ignore that
+          # one hunk, but make any source-derived markdown or web drift fail
+          # the PR before it can reach main.
+          git diff -I '^\*Generated:' --exit-code -- \
+            whitepaper/build/WEB4_Whitepaper_Complete.md \
+            whitepaper/build/web/ \
+            docs/whitepaper-web/ \
+            ':!docs/whitepaper-web/WEB4_Whitepaper.pdf'
 
-          if ! git diff --cached --quiet; then
-            echo "Changes detected, committing..."
-            git commit -m "Deploy whitepaper builds to GitHub Pages [skip ci]"
-            git push
-          else
-            echo "No build-artifact changes, skipping commit"
-          fi
+          # PDF bytes are toolchain-dependent, so byte-for-byte regeneration
+          # is not an honest CI claim. The two checked-in publication copies
+          # must nevertheless be identical in every build.
+          cmp whitepaper/build/WEB4_Whitepaper.pdf docs/whitepaper-web/WEB4_Whitepaper.pdf
 
   summary:
     needs: build
