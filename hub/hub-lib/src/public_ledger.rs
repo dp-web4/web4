@@ -24,9 +24,14 @@
 //!
 //! Omitting them entirely would leave gaps in a hash-chained record, and a reader
 //! cannot distinguish "nothing happened at index 41" from "index 41 was removed".
-//! So every entry keeps its `index`, `timestamp`, `entry_hash` and whether the
-//! council authorized it — enough to verify the chain is continuous and unbroken —
-//! while `kind` reads `withheld` and no detail is emitted. Continuity is itself an
+//! So every entry keeps its `index`, `timestamp`, `entry_hash`, `prev_hash` and
+//! whether the council authorized it — enough to verify the chain is continuous and
+//! unbroken — while `kind` reads `withheld` and no detail is emitted.
+//!
+//! `prev_hash` is what makes that sentence true rather than aspirational. With only
+//! `entry_hash` a reader can detect a missing INDEX and nothing else; the linkage
+//! claim needs the link. Both hashes are opaque, so carrying them on a withheld
+//! entry discloses nothing about the act it withholds. Continuity is itself an
 //! accountability property: a chapter cannot quietly drop an inconvenient decision.
 //!
 //! This does disclose *activity timing and volume*, which is a deliberate trade: a
@@ -68,8 +73,21 @@ pub struct PublicDecision {
     pub index: u64,
     /// When the act was committed. Always present.
     pub timestamp: DateTime<Utc>,
-    /// The entry's own hash. Always present — a reader can check the chain.
+    /// The entry's own hash. Always present.
     pub entry_hash: String,
+    /// The PRECEDING entry's hash. Always present, including on withheld entries.
+    ///
+    /// Without this the record advertised a property it could not deliver (GPT/Nova
+    /// blocking review of dd4918b). `entry_hash` alone lets a reader see an ORDINAL gap —
+    /// index 41 missing between 40 and 42 — but nothing more: a public server could
+    /// substitute an arbitrary hash at any index and the response gave the reader nothing
+    /// to compare it against. Ordinal continuity is not hash-chain verification, and the
+    /// module doc claimed the latter.
+    ///
+    /// Emitting it for WITHHELD entries is the half that matters: a hash is opaque, so it
+    /// discloses nothing about the act, and it is precisely the link that lets a reader
+    /// carry verification ACROSS a withheld entry instead of stopping at one.
+    pub prev_hash: String,
     /// Whether the Sovereign Council's M-of-N flow authorized this act. A fact
     /// *about the authorization*, carrying no identity.
     pub council_authorized: bool,
@@ -106,6 +124,7 @@ pub fn public_projection(entry: &LedgerEntry) -> PublicDecision {
         index: entry.index,
         timestamp: entry.timestamp,
         entry_hash: entry.entry_hash.clone(),
+        prev_hash: entry.prev_hash.clone(),
         council_authorized: entry.proposal_ref.is_some(),
         disclosure,
         kind: kind.unwrap_or("withheld").to_string(),
@@ -203,13 +222,69 @@ mod tests {
         LedgerEntry {
             index,
             timestamp: Utc.with_ymd_and_hms(2026, 8, 27, 12, 0, 0).unwrap(),
-            prev_hash: "prev".into(),
+            // CHAINED, not a constant. The fixture used a literal "prev" for every entry,
+            // which cannot express linkage at all: a linkage test written against it would
+            // pass on a record whose hashes do not connect. entry N's prev is entry N-1's
+            // hash, exactly as the real ledger builds it.
+            prev_hash: if index == 0 { "genesis".into() } else { format!("hash{}", index - 1) },
             actor_lct_id: Uuid::nil(),
             event,
             signature: "sig".into(),
             entry_hash: format!("hash{index}"),
             proposal_ref: None,
         }
+    }
+
+    /// ADJACENT LINKAGE IS VERIFIABLE, INCLUDING ACROSS A WITHHELD ENTRY.
+    ///
+    /// GPT/Nova's blocking finding on dd4918b: the record advertised hash-chain
+    /// verification while exposing only `entry_hash`. A reader could see that index 41 was
+    /// missing and could NOT tell whether the hash at index 42 actually followed the one at
+    /// 41 — a public server could substitute any value and nothing in the response
+    /// contradicted it. Ordinal continuity is a weaker property than linkage, and the
+    /// module doc claimed the stronger one.
+    ///
+    /// The middle entry here is WITHHELD on purpose. That is the case the property exists
+    /// for: verification has to carry ACROSS an entry whose content a reader may not see,
+    /// or a chapter could hide a decision by making its neighbours unverifiable.
+    #[test]
+    fn a_reader_can_verify_linkage_across_a_withheld_entry() {
+        let chain = vec![
+            entry(0, HubEvent::Genesis {
+                hub_name: "chapter".into(),
+                charter_hash: "c".into(),
+                founding_sovereign_lct_id: Uuid::nil(),
+                created_at: Utc.with_ymd_and_hms(2026, 8, 27, 12, 0, 0).unwrap(),
+            }),
+            // Not in PUBLIC_KINDS -> withheld, and its hashes must still link.
+            entry(1, HubEvent::PostAdded {
+                topic_id: Uuid::new_v4(),
+                post_id: Uuid::new_v4(),
+                body: "a private post".into(),
+                posted_by: Uuid::new_v4(),
+            }),
+            entry(2, HubEvent::Genesis {
+                hub_name: "chapter".into(),
+                charter_hash: "c".into(),
+                founding_sovereign_lct_id: Uuid::nil(),
+                created_at: Utc.with_ymd_and_hms(2026, 8, 27, 12, 0, 0).unwrap(),
+            }),
+        ];
+        let rec: Vec<_> = chain.iter().map(public_projection).collect();
+
+        assert_eq!(rec[1].disclosure, Disclosure::Withheld, "fixture: middle entry withheld");
+        for w in rec.windows(2) {
+            assert_eq!(
+                w[1].prev_hash, w[0].entry_hash,
+                "entry {} must name entry {}'s hash as its predecessor — without prev_hash \
+                 a reader can only detect a missing INDEX, which is ordinal continuity and \
+                 not the hash-chain verification this record advertises",
+                w[1].index, w[0].index
+            );
+        }
+        assert!(!rec[1].prev_hash.is_empty(),
+            "a WITHHELD entry must still carry its link: a hash is opaque, so omitting it \
+             protects nothing and breaks verification exactly where it is needed");
     }
 
     /// The load-bearing test. A member's post body must not reach a public caller
