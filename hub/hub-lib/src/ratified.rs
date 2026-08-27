@@ -352,9 +352,12 @@ pub(super) mod tests {
     // Full 40-hex commit ids. SHA_A and SHA_PREFIX_TWIN deliberately share the
     // first 7 characters — the abbreviation a human would type — and are
     // otherwise distinct, which is the pair the prefix-identity test needs.
+    // Their LENGTH is asserted in that test: SHA_PREFIX_TWIN was 39 characters
+    // for as long as nothing checked, which is precisely how a fixture stops
+    // being able to reach the state it names.
     pub(super) const SHA_A: &str = "abcdef1234567890abcdef1234567890abcdef12";
     pub(super) const SHA_B: &str = "feedface00000000feedface00000000feedface";
-    pub(super) const SHA_PREFIX_TWIN: &str = "abcdef19999999999999999999999999999999f";
+    pub(super) const SHA_PREFIX_TWIN: &str = "abcdef1999999999999999999999999999999999";
 
     pub(super) fn build_clean_at(sha: &'static str) -> BuildInfo { build(sha, Provenance::Clean) }
     pub(super) fn build_dirty_at(sha: &'static str) -> BuildInfo { build(sha, Provenance::Dirty) }
@@ -454,17 +457,36 @@ pub(super) mod tests {
         assert!(manifest(SHA_A).validate().is_ok());
     }
 
-    /// The pair the prefix bug would have confused: two DISTINCT full commits
-    /// sharing the first 7 hex characters. Ratifying one must never make the
-    /// other `Current`. This cannot pass by accident under a byte-compare-only
-    /// fix, which is why it is the discriminating one.
+    /// The prefix-twin risk is closed at ADMISSION, not at comparison — and this
+    /// test drives the abbreviation on the side the defect actually lived on.
+    ///
+    /// `SHA_A` and `SHA_PREFIX_TWIN` are distinct full commits sharing 7 hex
+    /// characters. The vulnerable shape compared `min(len_a, len_b)` characters,
+    /// so a manifest holding the 7-char *abbreviation* matched BOTH commits and
+    /// made them interchangeable. Refusing the abbreviation at admission removes
+    /// the shorter operand, so the comparison never gets an opinion.
+    ///
+    /// The earlier form of this test pinned the manifest at a full 40 and varied
+    /// only the build, which left `n == 40` and made both implementations agree —
+    /// it passed on the vulnerable code and discriminated nothing. The fixture is
+    /// now asserted to reach the state it names before anything is tested.
     #[test]
-    fn two_commits_sharing_a_prefix_are_never_interchangeable() {
+    fn a_prefix_shared_by_two_commits_is_refused_on_the_manifest_side() {
+        for (name, sha) in [("SHA_A", SHA_A), ("SHA_B", SHA_B), ("SHA_PREFIX_TWIN", SHA_PREFIX_TWIN)] {
+            assert_eq!(sha.len(), 40, "{name} must be a full 40-hex commit id, got {}", sha.len());
+            assert!(sha.chars().all(|c| c.is_ascii_hexdigit()), "{name} must be hex");
+        }
         assert_eq!(&SHA_A[..7], &SHA_PREFIX_TWIN[..7], "the fixture must actually collide");
         assert_ne!(SHA_A, SHA_PREFIX_TWIN);
-        let ratified = manifest(SHA_A);
-        let twin_build = build(SHA_PREFIX_TWIN, Provenance::Clean);
-        let v = evaluate_running(&twin_build, None, Some(&ratified));
+
+        // Discriminating: the colliding prefix cannot be admitted as a manifest.
+        // On the vulnerable shape this validates, and the twin then reads Current.
+        let abbreviated = manifest(&SHA_A[..7]);
+        assert!(abbreviated.validate().is_err(),
+            "a manifest holding a prefix shared by two commits must be refused at admission");
+
+        // And with a properly-admitted full manifest the twin is plainly stale.
+        let v = evaluate_running(&build(SHA_PREFIX_TWIN, Provenance::Clean), None, Some(&manifest(SHA_A)));
         assert!(matches!(v, DeployVerdict::Stale { .. }),
             "a prefix twin must not read as the ratified commit: {v:?}");
         assert!(!v.is_current());
