@@ -132,9 +132,52 @@ not any commit, so ratifying "the commit" would name something that does not
 describe the bytes.
 
 Point the daemon at the manifest with `HUB_RATIFIED_MANIFEST` (else it reads
-`<hub-root>/ratified-build.json`). **Prefer a path the daemon user cannot
-write** — root-owned, `0644`. A ratification record writable by the thing it
-ratifies is not a control.
+`<hub-root>/ratified-build.json`). **Put it where the daemon user cannot write
+it.** A ratification record writable by the thing it ratifies is not a control.
+
+#### The directory is the control, not the file mode
+
+This is the part that is easy to get wrong, and getting it wrong leaves a
+protection that reads as present and is not:
+
+> **`0644` on the manifest protects nothing if the daemon user can write the
+> containing directory.** Replacing a file by `rename(2)` — which is exactly how
+> `ratify-build.sh` writes it, and how any careful writer does — needs write
+> permission on the **directory**, not on the file. So does `unlink(2)`. A
+> daemon-writable directory means the daemon can delete the root-owned manifest
+> and put its own in place, whatever mode the old one carried.
+
+So the deployed shape is:
+
+```bash
+sudo install -d -o root -g root -m 0755 /etc/web4
+sudo install -o root -g root -m 0644 ratified-build.json /etc/web4/ratified-build.json
+```
+
+and the daemon is pointed at it read-only:
+
+```
+Environment=HUB_RATIFIED_MANIFEST=/etc/web4/ratified-build.json
+```
+
+Ratification then becomes an act that needs elevation — which is the point. Run
+`ratify-build.sh` with a writable staging path and install the result, or run the
+script itself under `sudo`; either way the seat cannot certify itself.
+
+**Verify it rather than assuming it.** The check is whether the *daemon's* user
+can write the directory, not whether the file looks right:
+
+```bash
+# as the daemon user (not root):
+test -w "$(dirname "$HUB_RATIFIED_MANIFEST")" \
+  && echo "WRITABLE — the manifest is not protected" \
+  || echo "ok — directory is not writable by this user"
+```
+
+A green Deploy-ratification block on `/admin` says the running image matches the
+manifest. It says **nothing** about whether the process could have written that
+manifest itself — those are different questions, and only the second one is
+answered by the permissions above.
 
 ### What the operator sees
 

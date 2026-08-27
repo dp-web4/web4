@@ -142,3 +142,23 @@ mv -f "$TMP" "$MANIFEST"
 
 echo "ratified $SHA${DIGEST:+ (binary ${DIGEST:0:12}…)} → $MANIFEST"
 echo "the seat's operator page will now compare its running build against this."
+
+# Defence in depth that does not depend on the gate (#709): a ratification record
+# the ratified process can overwrite is not a control.
+#
+# The check is the DIRECTORY, not the file mode. rename(2) and unlink(2) — how any
+# careful writer replaces a file, including this script — need write permission on
+# the containing directory, never on the file. So a 0644 root-owned manifest in a
+# daemon-writable directory can simply be deleted and replaced, and the 0644 reads
+# as a protection that is not there.
+#
+# Warn rather than fail: ratifying into a writable location is legitimate while
+# staging, and refusing here would push operators toward not ratifying at all.
+MANIFEST_DIR=$(cd "$(dirname "$MANIFEST")" && pwd)
+if [ -w "$MANIFEST_DIR" ]; then
+  echo "WARN: $MANIFEST_DIR is writable by $(id -un) — if that is also the daemon's" >&2
+  echo "      user, this seat can rewrite its own ratification record, and the" >&2
+  echo "      Deploy-ratification block will read green while certifying itself." >&2
+  echo "      Install the manifest into a root-owned directory the daemon cannot" >&2
+  echo "      write (see hub/docs/MAINTAINER.md, 'The directory is the control')." >&2
+fi
