@@ -1044,6 +1044,51 @@ fn archetype_ids() -> String {
     ARCHETYPES.iter().map(|a| a.id).collect::<Vec<_>>().join(" | ")
 }
 
+/// Render the exact, ordered operator instructions emitted by `hub up`.
+///
+/// A locked hub must export its public identity before it can identify itself
+/// on `/.well-known` or accept `hub unlock`. Keep that prerequisite in this
+/// single renderer so the printed runbook and its regression test cannot drift.
+fn go_live_runbook(
+    cmd: &str,
+    hub_dir: &std::path::Path,
+    arch: &Archetype,
+    domain: Option<&str>,
+    base_url: Option<&str>,
+    env_path: &std::path::Path,
+) -> String {
+    use std::fmt::Write as _;
+
+    let hub_name = hub_dir
+        .file_name()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty() && *s != ".")
+        .unwrap_or("hub");
+    let mut runbook = String::from("Go live:\n");
+    let mut n = 1;
+    writeln!(runbook, "  {n}. {cmd} gen-lct sovereign.json  # your sovereign identity (prompts for a passphrase — keep both safe)").unwrap();
+    n += 1;
+    writeln!(runbook, "  {n}. {cmd} init \"{hub_name}\" --sovereign-lct sovereign.json --hub-dir {}", hub_dir.display()).unwrap();
+    n += 1;
+    writeln!(runbook, "  {n}. {cmd} set-law {} {}  # ratify the law", hub_dir.display(), hub_dir.join("hub-law.yaml").display()).unwrap();
+    n += 1;
+    if arch.tunnel {
+        writeln!(runbook, "  {n}. cloudflared tunnel run …            # map {} → http://127.0.0.1:8770 (no port-forward)", domain.unwrap_or("<domain>")).unwrap();
+        n += 1;
+    } else if base_url.is_some() {
+        writeln!(runbook, "  {n}. point DNS + TLS at this host       # {} → here (Caddy+LE, or the platform)", domain.unwrap_or("<domain>")).unwrap();
+        n += 1;
+    }
+    writeln!(runbook, "  {n}. set -a; . {}; set +a          # load the profile", env_path.display()).unwrap();
+    n += 1;
+    writeln!(runbook, "  {n}. {cmd} export-public-identity {}  # required before locked serve/unlock", hub_dir.display()).unwrap();
+    n += 1;
+    writeln!(runbook, "  {n}. {cmd} serve {} --bind \"$HUB_BIND\"", hub_dir.display()).unwrap();
+    n += 1;
+    writeln!(runbook, "  {n}. {cmd} unlock  # ignite the vault (passphrase — never stored)").unwrap();
+    runbook
+}
+
 async fn run_up(
     hub_dir: PathBuf,
     profile: Option<String>,
@@ -1149,34 +1194,15 @@ async fn run_up(
         println!("  {}  — operator token (0600)", hub_dir.join("operator.token").display());
     }
     println!();
-    println!("Go live:");
-    // A copy-pasteable hub name: the hub_dir's last component ("./hub" → "hub").
-    let hub_name = hub_dir
-        .file_name()
-        .and_then(|s| s.to_str())
-        .filter(|s| !s.is_empty() && *s != ".")
-        .unwrap_or("hub");
-    let mut n = 1;
-    // Spell every step with the invocation that resolves — see `hub_cmd`. The
-    // comments are no longer hand-aligned: the prefix is now variable-length.
     let cmd = hub_cmd();
-    println!("  {n}. {cmd} gen-lct sovereign.json  # your sovereign identity (prompts for a passphrase — keep both safe)");
-    n += 1;
-    println!("  {n}. {cmd} init \"{hub_name}\" --sovereign-lct sovereign.json --hub-dir {}", hub_dir.display());
-    n += 1;
-    println!("  {n}. {cmd} set-law {} {}  # ratify the law", hub_dir.display(), law_path.display());
-    n += 1;
-    if arch.tunnel {
-        println!("  {n}. cloudflared tunnel run …            # map {} → http://127.0.0.1:8770 (no port-forward)", domain.as_deref().unwrap_or("<domain>"));
-        n += 1;
-    } else if base_url.is_some() {
-        println!("  {n}. point DNS + TLS at this host       # {} → here (Caddy+LE, or the platform)", domain.as_deref().unwrap_or("<domain>"));
-        n += 1;
-    }
-    println!("  {n}. set -a; . {}; set +a          # load the profile", env_path.display());
-    n += 1;
-    println!("     {cmd} serve {} --bind \"$HUB_BIND\"", hub_dir.display());
-    println!("  {n}. {cmd} unlock  # ignite the vault (passphrase — never stored)");
+    print!("{}", go_live_runbook(
+        &cmd,
+        &hub_dir,
+        arch,
+        domain.as_deref(),
+        base_url.as_deref(),
+        &env_path,
+    ));
     println!();
     if let Some(t) = &token {
         println!(
@@ -2451,6 +2477,28 @@ mod tests {
                 assert_eq!(a.operator_auth, "loopback", "non-public uses loopback: {}", a.id);
             }
         }
+    }
+
+    #[test]
+    fn hub_up_runbook_exports_public_identity_before_serving() {
+        let hub_dir = std::path::Path::new("/tmp/first-public-hub");
+        let cmd = "/opt/web4/bin/hub";
+        let runbook = go_live_runbook(
+            cmd,
+            hub_dir,
+            find_archetype("public-managed").expect("public archetype exists"),
+            Some("hub.example.org"),
+            Some("https://hub.example.org"),
+            &hub_dir.join("hub-up.env"),
+        );
+        let export = format!("{cmd} export-public-identity {}", hub_dir.display());
+        let serve = format!("{cmd} serve {} --bind", hub_dir.display());
+        assert!(runbook.contains(&export), "runbook must export the public identity: {runbook}");
+        assert!(runbook.contains(&serve), "runbook must show the serve command: {runbook}");
+        assert!(
+            runbook.find(&export) < runbook.find(&serve),
+            "a locked hub needs its public identity before serve: {runbook}"
+        );
     }
 
     #[test]
