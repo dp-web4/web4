@@ -1863,6 +1863,7 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/vp/response", post(vp_response))
         // tier-0: the hub's law is readable even while the vault is locked
         .route("/v1/hubs/:hub_id/law", get(read_hub_law))
+        .route("/v1/hubs/:hub_id/decisions", get(read_public_decisions))
         // H3: discussion is readable WITHOUT joining. A governance forum whose
         // deliberation you must first be admitted to see cannot be inspected by
         // the people it governs, and the law that decides who may *speak* is
@@ -2826,6 +2827,57 @@ async fn read_hub_law(
         }),
         None => serde_json::json!({ "law": null }),
     }))
+}
+
+/// The PUBLIC decision record (chapter-delivery B9a) — plane D at public exposure.
+///
+/// "Governance opacity" is a confirmed pain point and "transparent" is the promise;
+/// until now the ledger was visible only on the operator plane. This serves the
+/// **projected** record to anyone who can reach the hub.
+///
+/// Two properties carry the safety, both in `hub_lib::public_ledger`:
+///
+/// * the projection **constructs** a `PublicDecision` naming the fields it
+///   discloses — it never serializes a `HubEvent` — so a field added to an event
+///   later cannot reach an anonymous caller;
+/// * unclassified kinds are **withheld** rather than omitted, keeping the chain
+///   continuous so a reader can tell "nothing to disclose here" from "an entry was
+///   removed".
+///
+/// Deliberately unauthenticated: `public` IS the classification, not a check being
+/// skipped. The member-visible record (B9b) is a separate surface with its own
+/// authorization, not a query parameter on this one.
+async fn read_public_decisions(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!("unknown hub {hub_id}")));
+    }
+    const LIMIT: usize = 200;
+    let ledger = s.ledger.lock().await;
+    let all = ledger.entries();
+    let total = all.len();
+    let window: Vec<_> = all.iter().rev().take(LIMIT).rev().cloned().collect();
+    drop(ledger);
+
+    let decisions = hub_lib::public_ledger::public_record(&window);
+    let disclosed = decisions
+        .iter()
+        .filter(|d| d.disclosure == hub_lib::public_ledger::Disclosure::Disclosed)
+        .count();
+
+    Ok(Json(serde_json::json!({
+        // Counts are reported so a reader knows the record is a WINDOW and how much
+        // of it is withheld — a public record that hides its own truncation, or the
+        // proportion it will not describe, is not answering the question it exists for.
+        "total_entries": total,
+        "returned": decisions.len(),
+        "disclosed": disclosed,
+        "withheld": decisions.len().saturating_sub(disclosed),
+        "public_kinds": hub_lib::public_ledger::PUBLIC_KINDS,
+        "decisions": decisions,
+    })))
 }
 
 // ---------- OID4VP verifier (EUDI Phase 2, society scale) ----------
