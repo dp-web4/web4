@@ -2,7 +2,7 @@
 
 **Purpose**: This document provides complete context for the Publisher subagent responsible for maintaining the Web4 whitepaper.
 
-**Last Updated**: 2026-08-27
+**Last Updated**: 2026-08-28
 **Whitepaper Status**: Active Development
 
 ---
@@ -210,9 +210,20 @@ cd /mnt/c/exe/projects/ai-agents/web4/whitepaper
 
 | Script | Output | Destination |
 |--------|--------|-------------|
-| `make-md.sh` | `build/WEB4_Whitepaper_Complete.md` | Local + docs/ |
-| `make-pdf.sh` | `build/WEB4_Whitepaper.pdf` | Local |
-| `make-web.sh` | `build/web/` | metalinxx.io |
+| `make-md.sh` | `build/WEB4_Whitepaper_Complete.md` | also copied to `docs/whitepaper-web/` |
+| `make-pdf.sh` | `build/WEB4_Whitepaper.pdf` | also copied to `docs/whitepaper-web/` |
+| `make-web.sh` | `build/web/` (`index.html`, `assets/`) | also copied to `docs/whitepaper-web/` (GitHub Pages) |
+
+*(Table corrected 2026-08-28: all three scripts copy into `docs/whitepaper-web/`; the earlier rows read "Local" / "metalinxx.io", which was stale on every line.)*
+
+### Publishing — the contract since `#789` (2026-08-27)
+
+**CI does not publish.** `build_whitepaper.yml` runs with `contents: read`, builds for a *parity check* only, and pushes nothing. `whitepaper/build/` (gitignored but tracked — `git add -f`) and `docs/whitepaper-web/` reach `main` **only by being committed inside a reviewed PR.** A pass that edits `sections/` and does not rebuild and commit all six artifact files leaves the published paper stale, and nothing in CI will say so.
+
+1. Rebuild in a fresh worktree (`git worktree add --detach /tmp/<name> origin/main`, then a branch with `--set-upstream-to=origin/main` so the scripts print "Already up to date" instead of pulling). Building in the shared `/mnt/c` checkout emits CRLF against LF-committed artifacts and every line reads as changed.
+2. Run all three scripts; `git diff` must show **only** the `*Generated:*` line (both monoliths; `pdftotext` the PDFs — the binaries always differ) when `sections/` is unchanged. Anything else is real drift.
+3. Content change → commit the artifacts with the source in the same PR. No content change → `git checkout --` the four timestamp-churn files by explicit path; do not commit churn.
+4. `make-web.sh` requires Pygments and now fails loud without it (`d9cc3507`); the CI parity step compares against committed HTML, so an artifact built without Pygments will fail the PR.
 
 ### Build Verification
 
@@ -225,6 +236,42 @@ After any change:
 ---
 
 ## 6. Recent Changes
+
+### 2026-08-28: Publisher Maintenance — No-Change Verification. **First pass under the `#789` contract: rebuild-and-diff in a fresh worktree is now the only freshness instrument, and it read timestamp-only.** The one red run on this lane's own PR was the new parity step catching a degradation CI had shipped on *every* run it ever made — repaired on this branch yesterday (`d9cc3507`) and never logged; recorded here. Two probes returned alarms that were the instrument, not the corpus.
+
+- **Window: 3 commits (`f2fea2ac` → `origin/main` = `16038c9d`).** Chained from the 08-27 entry's stated edge. `688fa87e` (#791), `cfb27917` (#792), `16038c9d` (#793) — **all `hub/`**; zero `whitepaper/`, zero `web4-standard/`, zero `docs/whitepaper-web/`. The 08-27 log (#790) is still `MERGEABLE` / `BLOCKED` / `REVIEW_REQUIRED`, so per the 08-04 rule this entry is **appended to that branch** and the PR retitled, not a second PR.
+
+- **MAIN — the rebuild, as the only instrument.** `git worktree add /tmp/w4pub origin/publisher/wp-log-2026-08-27`, a branch with `--set-upstream-to` so all three `make-*.sh` printed *Already up to date*; all three exit 0, **518 lines / 44K**. `git diff --stat`: **4 files, 2 insertions, 2 deletions** — the `*Generated:*` line in both monoliths, and `pdftotext` old→new PDF differs on exactly one line (`Generated: 2026-08-26 04:45:01` → `2026-08-28 04:34:56`). `index.html` and `assets/` did not appear in `git status` at all. Pairwise: **44660 / 44660** md, **56608 / 56608** html. Churn restored with `git checkout --` by explicit path; **nothing committed.** Pre-registration (8) **CONFIRMED** — the artifacts reproduce from `sections/` and the two monolith copies are byte-identical.
+
+- **⚠ UNLOGGED FINDING from this branch's own CI — the parity step's first catch is a silent degradation CI had been shipping since the workflow existed.** PR run `33069246428` (08-27 11:51Z) **failed** at *Verify PR artifact parity*: CI built `<pre class="codehilite"><code>` where every committed artifact carries `<div class="codehilite"><pre><span></span><code>`. The difference is **Pygments** — the CI runner installs no Python packages, `markdown`'s `codehilite` degrades silently without it, both forms are valid HTML, so **no build ever failed and every CI-built HTML artifact in this workflow's history was the degraded form.** Before `#789` the deploy step would have published the worse form over the better one on any day it succeeded — which, per the 103-day record, it did not; the failure that this lane logged for 103 days had been *protecting* the richer artifact. `d9cc3507` (`make-web.sh`: install Pygments or fail loud, refuse to emit HTML that cannot match the committed artifact), rerun `33069594664` **green**. §6 did not carry it because the commit landed after the 08-27 entry was written; the run list shows a red-then-green pair with no explanation and the next reader would rediscover it from there. **Class: silent degradation is the twin of silent success (08-26) — both exit 0, and the parity check is the first instrument in this lane that compares *bytes* rather than *status*.**
+
+- **All eight of 08-27's pre-registrations evaluated. Six confirmed, one confirmed with a host-level caveat, one partially run.**
+  1. **CONFIRMED with a caveat that would read as two dead links.** Explicit counter `checked 39 urls`, count **stayed 39**, **37 → 200, 2 → 503** — both on `patents.google.com` (`US11477027B1`, `US12278913B2`). The 503 is the host: its *root* returns 503, the body is Google's *"Sorry…"* throttling page, and a browser UA changes nothing. Both patents resolve **200** on an independent host (`freepatentsonline.com/11477027.html`, `/12278913.html`). **The split is by HOST, not by URL** — a pass reading this as "two citations died" would be wrong, and a pass reading "39/39 → 200" would be reporting a number it did not get. The citations are live; the instrument's egress is blocked.
+  2. **PARTIAL.** `pypi.org/pypi/<name>/json` → **200 / 200 / 404** for `web4-core` / `web4-trust` / `web4-trust-core`. The absent-control *project-page* arm (404 on API vs 200 on page) was **not re-run** this pass.
+  3. **CONFIRMED — seventh reproduction of the registry split.** Bare `curl`, both polarities: crates.io **LIVE** (`web4-core` real-200 → 403, `web4-trust` real-404 → 403); PyPI **EXPIRED** (200 / 404 truthfully); npm **EXPIRED** (200 / 404 truthfully).
+  4. **CONFIRMED at the ref.** `git ls-tree origin/main web4-standard/test-vectors/` → **25 top-level / 40 recursive**; `web4-standard/` last moved `2462881f`, 2026-08-19.
+  5. **CONFIRMED with the set named this time.** §11 enumerates **13 mechanisms** (LCT, T3/V3, MRH, ATP/ADP, MCP, R6/R7, SAL, ACP, dictionaries, entity types, `did:web4`, security framework, error taxonomy) → **14 files** (R6 and R7 are two). Anchored `^\**Status` within the first 6 lines: **marked 4** — `LCT-linked-context-token.md` L3, `web4-society-authority-law.md` L3, `did-web4-method.md` L4, `errors.md` L4; **unmarked 10** — `t3-v3-tensors`, `mrh-tensors`, `atp-adp-cycle`, `mcp-protocol`, `r6-framework`, `r7-framework`, `acp-framework`, `dictionary-entities`, `entity-types`, `security-framework`. **10 of 14 files / 9 of 13 mechanisms**, unchanged. Whole-tree denominator for the next pass: **13 of 31** `core-spec/*.md` carry a status line.
+  6. **CONFIRMED.** `hestia#224` → `OPEN`; `hestia#49` → `CLOSED` / `NOT_PLANNED`.
+  7. **CONFIRMED on the only run that exists.** `gh run view 33051870186 --log` build job: **0** matches for `git push` / `git commit`. No newer `push` run on `main` — the three hub commits do not match the workflow's `paths:` filter, so the workflow did not fire; this is the expected null, not a missed run.
+  8. **CONFIRMED** — see MAIN.
+
+- **08-27's "NOT RE-RUN" Crossref sweep — DISCHARGED.** `[14]`–`[35]` resolved against `api.crossref.org/works?query.bibliographic=` (whole entry, top hit, automated title match): **17 MATCH**, including `[22]` *"Memory and consciousness"* (Canadian Psychology, 1985) — **the 08-24 repair holds at the live index**. **5 DIFF** — `[19]` Ethereum whitepaper, `[21]` PBFT (OSDI 1999), `[24]` Neural Turing Machines (arXiv), `[34]` O'Reilly *What Is Web 2.0*, `[35]` Ethereum yellow paper — **all non-Crossref-indexed sources**, so a DIFF here indicts the index, not the citation (08-24 already recorded that PBFT does not rank first). No new wrong citation. Note the denominator is not 08-24's: that pass hand-adjudicated 22 (21 correct / 1 wrong); this is an automated top-hit match, **17 confirmed / 5 unadjudicable / 0 wrong** — carry both numbers, not one.
+
+- **§11's registry staple — 8/8 with UA, all three load-bearing 404s present.** PyPI `web4-core` 200 / `web4-trust` 200 / `web4-trust-core` **404**; crates.io `web4-core` 200 / `web4-trust-core` 200 / `web4-trust` **404**; npm `web4-trust-core` 200 / `web4-core` **404**.
+
+- **Standing triggers all UNFIRED**, read at `origin/main`: `core-protocol.md` `Status: Draft • Last-Updated: 2026-06-02`; `did-web4-method.md` `Draft — Phase 0`; `role:driftMark` **PROVISIONAL** (`ontology/role-extension-schema.md:4`); W4IP still `W4IP-DRAFT-2026-07-13-…` under `proposals/`.
+
+- **Cross-repo: yesterday's Synchronism CI repair verified on a real `push` run to `main`, not just the PR run.** `33164934052` (08-28 10:51Z, `success`): `CI detected: skipping git sync.` ×3, `Sections found: 9`, `Permission denied` **0** (was 6 in every prior run including green ones), no `unary operator` error; deploy `531b9b97` 10:53Z. The 08-28 autonomous content corrections (`7cdfac25`, Cesare+2020 read — RG's fitted floor *brackets* the derived ε₀ = 0.315, correcting the lane's own 08-27 "entire fitted range") verified **by content at `origin/main`** on every surface: `2026-08-28` markers in both monoliths ×8, `section_5.html` ×4, PDF ×8 via `pdftotext`. Claims gate `checked 10 claims; v1 freeze verified`. Exec-summary ↔ conclusion core count **690 / 690**. Its Synchronism link check: **19/19 → 200** (negative arm for the patents host: none of the 19 is on `patents.google.com`). The shared checkout was **one commit behind** (the deploy) — 08-25's exact trap — fast-forwarded. Two things left in place and reported, not fixed: the stray repo-root `build/` (a 466-byte 4-line monolith dated 08-26 03:43 — the 08-26 wrong-cwd artifact, untracked, **not** ignored; deletion outside `/tmp` is denied by the operating law), and its `PUBLISHER_CONTEXT.md` §10 *Current State Summary* still headed **"as of 2026-05-24"** (core 663) three months and ~27 sessions stale while `Last Updated` reads 08-25 — the same field-repair-half-life pattern the 08-25 entry measured, one section down.
+
+- **REPAIR — §5's Build Outputs table was wrong on all three rows, and 08-27's watch item (2) is actioned.** The table read `make-pdf.sh` → "Local" and `make-web.sh` → "metalinxx.io"; every script copies into `docs/whitepaper-web/` (the build output says so on each run). Corrected, and a **Publishing** subsection added stating the `#789` contract — CI does not publish; artifacts reach `main` only inside a reviewed PR; rebuild in a fresh worktree; only the `*Generated:*` line may differ; commit artifacts with source or restore churn by explicit path; Pygments is now required. This is the text a forgetful pass would have needed the day the deploy arm disappeared.
+
+- **Scope-gate: one deny, self-inflicted.** `rm -rf /tmp/w4pub …; git worktree prune; …` — the operating law's allow rule requires `rm` to stand **alone**; chaining is exactly what the deny catches. Dropped the `rm` (the path did not exist). Not appealed; the rule is correct and the text said so in advance. One own-instrument miss alongside it: the first link check ran on `Web4_…` instead of `WEB4_…` and returned **0 URLs with no error** — a spelling-keyed search returns a clean zero, never a failure; the counter printed `checked 0`, which is the only reason it was caught.
+
+- **Verdict:** **no-change verification** — zero source changes in the window, artifacts rebuilt in a fresh worktree and reproduced timestamp-only, one repair to §5 of this file, `Last Updated` bumped to `2026-08-28`.
+
+- **Watch items:** (1) **Artifact freshness is still un-instrumented in CI** — the parity step compares the PR's committed artifacts to a CI rebuild *of the same tree*, which catches a build-environment mismatch (it just did) but not a pass that edits `sections/` and commits no artifacts at all; a `sections/`-vs-artifact rebuild-diff in CI would close it. Carried. (2) **RETIRED** — promoted to §5 this pass. (3) web4's `make-*.sh` still have no `CI` path; CI now calls them directly under `#789`, so this went from asymmetry to live dependency — they work because the runner has no upstream to diverge from, which is an accident, not a contract. (4) stray `docs/whitepaper/` at the workspace root — unchanged, unreachable. (5) `PUBLISHER_CONTEXT.md` ~**545 KB**; the move-the-log proposal remains dp's call — **twelfth consecutive pass**. (6) **NEW:** `patents.google.com` throttles this egress; if it persists the link check needs a per-host fallback (freepatentsonline / USPTO ppubs) so two live citations stop reading as dead.
+
+- **Pre-registered for the next pass:** (1) link check `checked 39`, count stays 39; **either** `patents.google.com` returns 200 again **or** it stays 503 at the root too — and the two-patent control at `freepatentsonline.com` reads 200 regardless. (2) PyPI API **200 / 200 / 404**, plus the absent-control project-page arm this pass skipped. (3) registry split: crates.io LIVE, PyPI and npm EXPIRED. (4) `test-vectors/` **25 / 40** unless `web4-standard/` moves. (5) §11 census **4 marked / 10 unmarked of 14**, whole-tree **13 of 31**. (6) `hestia#224` OPEN. (7) every `push` run of `build_whitepaper.yml` on `main` succeeds with **0** `git push`/`git commit` in the build job. (8) monoliths byte-identical pairwise and reproduce timestamp-only from `sections/`. (9) **NEW:** the PR parity step on this branch stays green and its log contains **no** `'pygments' module missing` line — if it does, the runner lost the package and the guard's install arm is what kept the run green.
 
 ### 2026-08-27: Publisher Maintenance — No-Change Verification here, **and the deploy failure this file has tracked for 103 days is DISCHARGED — by none of the three options it listed.** `#789` did not fix the push; it deleted it. The sibling repo's whitepaper CI **failed today**, its content corrections stranded in source, and the cause was a hardcoded line range in its workflow — repaired, verified in the runner, merged.
 
