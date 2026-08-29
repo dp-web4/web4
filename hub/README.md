@@ -1,6 +1,6 @@
 # Web4 Community Hub
 
-> Minimum-viable Web4 society for a community chapter.
+> **Hub turns a community or organization into a self-governing Web4 society with member-owned identity, roles, law and a witnessed ledger.** Minimum-viable Web4 society for a community chapter.
 
 > **Where development happens.** The canonical home of this code is the
 > [`hub/`](https://github.com/dp-web4/web4/tree/main/hub) directory of the
@@ -155,7 +155,7 @@ to the registry. That wiring is open work, not shipped, and until it lands the
 - Not a *member-facing* public web UI — that's still out of scope. (An **operator/admin web GUI does ship**: a read-only dashboard at `/admin` on the fleet port, plus a write-capable operator plane — admit/deny admissions, add/re-key/remove members — at `/admin/joins` and `/admin/manage`, bound to 127.0.0.1 only on the admin port, default 8772.)
 - Not Slack-integrated (deferred until pilot empirically defines coexistence requirements)
 - Not ACT-anchored (ledger persists to a local `file` backend or a SQLCipher-encrypted `sqlite` backend; ACT anchoring is V2)
-- Not Hardbound-policy-integrated (hub law is text; full enforcement requires resolving Hardbound's canonical Web4 alignment debt)
+- Not the enterprise assurance tier. Hub provides open-tier law-in-the-loop governance. Hardware-rooted, higher-assurance enforcement belongs to Hardbound, the proprietary Metalinxx enterprise tier, and is not part of the open Hub
 
 See `docs/PRD.md` §5 for full out-of-scope rationale.
 

@@ -109,7 +109,7 @@ witnessed ledger, sealed member<->hub channels, and a multi-surface API
 | Path | What it is |
 |---|---|
 | [`hub/`](hub/) | The hub itself: `hub-daemon`, `hub-lib`, `hub-plugin`, docs, examples |
-| [`web4-core/`](web4-core/) | The Web4 core library the hub builds on (MIT-licensed) |
+| [`web4-core/`](web4-core/) | The Web4 core library the hub builds on (AGPL-3.0-or-later) |
 | [`web4-policy/`](web4-policy/) | Policy evaluation (the law gate) |
 | [`web4-trust-core/`](web4-trust-core/) | T3/V3 trust tensor primitives |
 
@@ -134,7 +134,11 @@ paths. **File issues and PRs against
 ## License
 
 Root [`LICENSE`](LICENSE) (AGPL-3.0-or-later) covers `hub/`;
-[`web4-core/`](web4-core/) carries its own MIT license.
+[`web4-core/LICENSE`](web4-core/LICENSE) is the same AGPL-3.0-or-later text
+(the crate declares `license = "AGPL-3.0-or-later"`). The patent grant in
+[`PATENTS.md`](PATENTS.md) is royalty-free for non-commercial use, research and
+academic use, and open-source projects that comply with AGPL-3.0; commercial
+licensing is separate.
 EOF
 git add README.md
 git -c user.name="4-hub mirror" -c user.email="noreply@metalinxx.io" \

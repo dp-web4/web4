@@ -9,7 +9,7 @@
 > **AI is already taking actions in the world. We can't prove what it did.**
 > Web4 is the open standard that closes that gap.
 
-An open standard for verifiable AI presence — proposed by Metalinxx Inc., owned by no one. Research-stage. `web4-core` v0.3.0 public on crates.io + PyPI (`web4-trust-core` at v0.2.0); reference implementation + a runnable society hub public; no production deployment yet. **[STATUS.md](STATUS.md)** is the calibration — read it before judging the claims below.
+**Web4 is the open substrate for agent accountability: persistent identity, contextual trust, witnessed action and machine-readable law.** An open standard designed without a central authority, proposed by Metalinxx Inc. **Open standard, draft in places; core implementation published and running; Hub/Hestia reference deployments operate on the live fleet; DID/EUDI interoperability and higher-assurance enforcement remain in development.** `web4-core` is at 0.4.0 in this repository; the published packages are `web4-core` 0.3.0 on crates.io + PyPI and `web4-trust-core` 0.2.0. **[STATUS.md](STATUS.md)** is the calibration - read it before judging the claims below.
 
 **Proof point**: 0% → 94.85% on ARC-AGI-3 with the same Claude Opus 4.6, structured around Web4 patterns via the [SAGE](https://github.com/dp-web4/SAGE) harness. [Public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4). The model didn't change — the structure around it did. Read precisely: this is real capability under affordances a strict competition run withholds — the harness analyzed the games' public engine source to build solver cartridges, so it shows what the model does *given engine-level context*, not blind from-observation solving. [Honest breakdown](docs/proof/ARC-AGI-3.md).
 
@@ -31,7 +31,7 @@ These four together produce the property: **Web4 is anti-hierarchical by design 
 
 **How societies engage each other**: a society's external surface is its MCP server. Other societies invoke its scoped actions (R6/R7) by calling MCP tools with LCT-signed envelopes; querying its state by reading MCP resources; coordinating across federation depth via witness signatures carried in the MCP exchange. The canonical Web4 equation `Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP` has MCP as the **I/O membrane** for exactly this reason — internal structure is `LCT + T3/V3*MRH + ATP/ADP`; the cross-society interface IS MCP. See [`mcp-protocol.md`](web4-standard/core-spec/mcp-protocol.md) §1.1 and §7 for the inter-society binding spec.
 
-**Standards interop**: Web4 works *with* the existing identity stack rather than replacing it. An LCT resolves as a `did:web4` DID Document (W3C DID Core) and is expressible as an IETF SD-JWT-VC credential, issued/presented over OpenID4VCI/VP — so a Web4 entity is resolvable and credential-bearing by W3C Verifiable Credentials, OpenID, and the EU Digital Identity Wallet (EUDI/eIDAS) tooling, without giving up its native trust layer (T3/V3, witnessing) — which lives outside the credential envelope. The whitepaper [**Web4 and Standard Credentials**](docs/whitepapers/web4-and-standard-credentials.md) covers how Web4 interoperates with eIDAS/EUDI, W3C VC, and OpenID — and what it adds that they don't have. Implementation: [`docs/strategy/eudi-resolvability-plan.md`](docs/strategy/eudi-resolvability-plan.md) + [`web4-standard/core-spec/did-web4-method.md`](web4-standard/core-spec/did-web4-method.md).
+**Standards interop**: Web4 works *with* the existing identity stack rather than replacing it. An LCT resolves as a `did:web4` DID Document (W3C DID Core) and is expressible as an IETF SD-JWT-VC credential, issued/presented over OpenID4VCI/VP, so a Web4 entity is resolvable and credential-bearing by W3C Verifiable Credentials, OpenID, and the EU Digital Identity Wallet (EUDI/eIDAS) tooling, without giving up its native trust layer (T3/V3, witnessing), which lives outside the credential envelope. Maturity: SD-JWT-VC, OpenID4VCI issuance and OID4VP verification are running where implemented; `did:web4` deployment and broader EUDI wallet interoperability are building. The whitepaper [**Web4 and Standard Credentials**](docs/whitepapers/web4-and-standard-credentials.md) covers how Web4 interoperates with eIDAS/EUDI, W3C VC, and OpenID, and what it adds that they don't have. Implementation: [`docs/strategy/eudi-resolvability-plan.md`](docs/strategy/eudi-resolvability-plan.md) + [`web4-standard/core-spec/did-web4-method.md`](web4-standard/core-spec/did-web4-method.md).
 
 ## Five-minute audit
 
@@ -54,7 +54,7 @@ If you want a fast read on whether this is real, in order:
 **Rust** (`Cargo.toml`):
 ```toml
 [dependencies]
-web4-core = "0.2"
+web4-core = "0.3"
 web4-trust-core = "0.2"
 ```
 
@@ -64,7 +64,7 @@ pip install web4-core
 pip install web4-trust
 ```
 
-Both crates and both Python packages are AGPL-3.0-or-later. Patent grant terms in [PATENTS.md](PATENTS.md).
+Both crates and both Python packages are AGPL-3.0-or-later. Patent grant terms in [PATENTS.md](PATENTS.md). Published versions: `web4-core` 0.3.0 and `web4-trust-core` / `web4-trust` 0.2.0; the `web4-core` source in this repository is 0.4.0.
 
 ### 30-second proof of presence
 
@@ -77,7 +77,7 @@ import web4_core
 # Create LCT (presence primitive) and an Ed25519 keypair
 lct, keypair = web4_core.PyLct.new(web4_core.PyEntityType.Human, None)
 
-# Mint into a ledger — LCTs are blockchain tokens; minting is what witnesses presence
+# Mint into a ledger: LCTs are non-transferable, cryptographically witnessed presence records; minting records presence into the ledger
 ledger = web4_core.PyInMemoryLedger()
 receipt = ledger.mint(lct)
 
@@ -104,15 +104,15 @@ assert ledger.verify_proof(proof)
 
 The Linux kernel manages hardware, processes, memory — it's the substrate, and it's not directly usable on its own. GNU userland (shell, utilities, compilers) is what makes the kernel actually operable. Distributions like Ubuntu or Fedora package both together with ecosystem tools. **Linux alone is the engine; GNU provides the controls; together they become the operating system people actually use.**
 
-Web4 specifies the substrate of trust-native AI governance — identity (LCT), trust accounting (T3/V3*MRH), resource accounting (ATP/ADP), action grammar (R6/R7), all expressed over RDF with MCP as the inter-society I/O membrane. It's not directly usable. **[Hardbound](https://github.com/dp-web4/hardbound)** is the canonical userland: PolicyService, SocietyManager, MCP server, dashboard, independent-verification CLI — the tools that make Web4 operationally deployable. A specific deployment in a specific organization is the distribution-equivalent. **Web4 alone is the substrate; Hardbound provides the controls; together they become the governance system you actually run.**
+Web4 specifies the substrate of trust-native AI governance: identity (LCT), trust accounting (T3/V3*MRH), resource accounting (ATP/ADP), action grammar (R6/R7), all expressed over RDF with MCP as the inter-society I/O membrane. It's not directly usable on its own. **Web4 Core is the substrate. [Hestia](https://github.com/dp-web4/hestia) and the [Hub](hub/) are the open operational layers for individuals and societies: Hestia at the person/agent boundary, the Hub as the society daemon with membership, roles, law and a witnessed ledger. Hardbound, the proprietary Metalinxx enterprise tier, is the enterprise assurance layer that adds hardware-rooted enforcement and audit packaging.** A specific deployment in a specific organization is the distribution-equivalent.
 
 This framing tells you where Web4 sits in the stack, and what's deliberately not in scope:
 
 - Web4 doesn't decide *what your application looks like*, any more than the Linux kernel decides what a desktop environment looks like
-- Web4 isn't competing with Hardbound — they're different layers of the same stack
-- Web4 alone is technically usable (via SDK calls) but operationally inert; you build the userland or pick an existing one
-- Alternative userlands beyond Hardbound are expected and welcome; the spec is designed for interoperable implementations
-- A conformance test suite — analogous to POSIX — is what would make alternative userlands provably interoperable; that work is in progress
+- Web4 isn't competing with Hestia, Hub or Hardbound; they are runtime layers of the same stack
+- Web4 alone is technically usable (via SDK calls) but operationally inert; you run an operational layer (Hestia, Hub) or build your own
+- Alternative implementations beyond Hestia, Hub and Hardbound are expected and welcome; the spec is designed for interoperable implementations
+- A conformance test suite, analogous to POSIX, is what would make alternative implementations provably interoperable; that work is in progress
 
 ## Who this is for, and why
 
@@ -120,11 +120,11 @@ If you're one of these people, this is worth your time:
 
 - **AI engineering lead at a lab or platform** building agent frameworks, policy systems, or governance tooling. Web4 primitives compose under your runtime. Cross-language interop (Python and Rust verifying the same on-disk ledger) is shipped; identity, T3/V3 trust, witnessing, and audit-defensible records are published primitives, not slideware.
 
-- **CISO or AI risk lead** in a regulated industry (finance, defense, healthcare) where agentic AI deployments will need to defend their actions to auditors, regulators, or insurers. Web4 turns "we hope nothing went wrong" into "we can prove what happened, on whose authority, by what rules." Enterprise implementation: **[Hardbound](https://github.com/dp-web4/hardbound)** -- provides a plugin that bridges any orchestrator (Claude Code, LangChain, CrewAI, etc.) to a signed policy entity. Every action gets an LCT identity, T3/V3 trust evaluation, and a cryptographically signed policy decision. The open standard is here; the enterprise product makes it deployable.
+- **CISO or AI risk lead** in a regulated industry (finance, defense, healthcare) where agentic AI deployments will need to defend their actions to auditors, regulators, or insurers. Web4 turns "we hope nothing went wrong" into "we can prove what happened, on whose authority, by what rules." Open deployments: [Hestia](https://github.com/dp-web4/hestia) at the agent boundary and the [Hub](hub/) at society scale. Enterprise tier: Hardbound, the proprietary Metalinxx enterprise tier for hardware-bound identity, stronger fail-closed enforcement and audit-ready evidence export.
 
-- **Developer-tooling company** building agent frameworks (LangChain, CrewAI, AG2, etc.) or governance toolkits. Web4 sits *upstream* of runtime policy enforcement — governance for what an agent IS (identity, witness graph, accountability ontology), not what it DOES (runtime gating). The two layers compose; Web4 is the standard your governance toolkit can consume so identity isn't proprietary to the runtime. **Integration path**: install the [Hardbound plugin](https://github.com/dp-web4/hardbound) -- a single `HardboundPlugin` class connects any orchestrator to a Web4 policy entity, giving it an LCT identity and governed action trail. The plugin is the bridge; Web4 is the substrate.
+- **Developer-tooling company** building agent frameworks (LangChain, CrewAI, AG2, etc.) or governance toolkits. Web4 defines the identity, trust, action and law primitives; Hestia, Hub and Hardbound are runtime implementations that apply those primitives at different boundaries and assurance levels. The layers compose; Web4 is the standard your governance toolkit can consume so identity isn't proprietary to the runtime. **Integration path**: the `web4-core` crate and Python package for the primitives, [Hestia](https://github.com/dp-web4/hestia) as the open reference for gating an orchestrator's acts against law before execution, and Hardbound, the proprietary Metalinxx enterprise tier, for hardware-rooted enforcement. Web4 is the substrate.
 
-- **Standards body, regulator, or insurer** trying to figure out what "agentic AI accountability" means technically. Web4 is the open spec + published implementation + reproducible artifacts. AGPL-3.0 with patent grant ([PATENTS.md](PATENTS.md)), owned by no one. Start with [STATUS.md](STATUS.md) and the [whitepaper](whitepaper/).
+- **Standards body, regulator, or insurer** trying to figure out what "agentic AI accountability" means technically. Web4 is the open spec + published implementation + reproducible artifacts. AGPL-3.0 with patent grant ([PATENTS.md](PATENTS.md)); an open standard designed without a central authority. Start with [STATUS.md](STATUS.md) and the [whitepaper](whitepaper/).
 
 If you came here looking for a finished product to install and use, this isn't that. If you came here looking for the layer underneath the products you're building, it is.
 
@@ -170,23 +170,23 @@ The applications come when the substrate exists *and* the present-tense pain for
   passes.
 
 ### Implementation status
-- **Published artifacts**: `web4-core` and `web4-trust-core` on crates.io; `web4-core` and `web4-trust` on PyPI. **Current: `web4-core` v0.3.0** (published 2026-07-09 — role entities + LCT issuance/registry, canonical T3/V3, the Act primitive, EUDI/OID4VC, the vault; `web4-trust-core`/`web4-trust` at v0.2.0), AGPL-3.0-or-later. See [STATUS.md](STATUS.md) for the full version table and [docs/proof/PUBLISHED.md](docs/proof/PUBLISHED.md) for the publish trail.
+- **Published artifacts**: `web4-core` and `web4-trust-core` on crates.io; `web4-core` and `web4-trust` on PyPI. **Published: `web4-core` v0.3.0** (2026-07-09: role entities + LCT issuance/registry, canonical T3/V3, the Act primitive, EUDI/OID4VC, the vault; `web4-trust-core`/`web4-trust` at v0.2.0), AGPL-3.0-or-later. Source in this repository: `web4-core` 0.4.0 (crates.io and PyPI carry 0.3.0). See [STATUS.md](STATUS.md) for the full version table and [docs/proof/PUBLISHED.md](docs/proof/PUBLISHED.md) for the publish trail.
 - **Community Hub** (`web4/hub`): a runnable single-binary Web4 society server — signed law, witnessed hash-chained ledger, sealed member↔hub channel, admission/council, EUDI issuer/verifier. Hardened this cycle under a 3-pass external security review; ships a `hub up` turnkey deploy kit.
-- **EUDI / W3C-DID interop** (code, Phase 0–2): an LCT resolves as a `did:web4` DID Document and issues/presents as an IETF SD-JWT-VC over OpenID4VCI/VP — person-scale (hestia) + society-scale (hub) round trip.
-- **Stage**: research, not production. Packages are public (`web4-core` 0.3.0, trust family 0.2.0); reference implementation, hub, and harness are public; no production deployment yet.
+- **EUDI / W3C-DID interop** (code, Phase 0-2): an LCT resolves as a `did:web4` DID Document and issues/presents as an IETF SD-JWT-VC over OpenID4VCI/VP. Running where implemented: SD-JWT-VC, OpenID4VCI issuance and OID4VP verification (hub as issuer and verifier, hestia at person scale). Building: `did:web4` deployment and broader EUDI wallet interoperability; no external wallet round trip has been demonstrated.
+- **Stage**: open standard, draft in places; core implementation published and running; Hub/Hestia reference deployments operate on the live fleet (eight machines); DID/EUDI interoperability and higher-assurance enforcement remain in development. Packages are public (`web4-core` 0.3.0, trust family 0.2.0); reference implementation, hub, and harness are public.
 - Spec corpus: stable, with two new core specs added 2026-05-13 (see below)
 - **NEW**: [`inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) v0.1.2 DRAFT — society genesis, first-contact (3 sovereign options), ATP-as-unit-of-account, secession
 - **NEW**: [`society-roles.md`](web4-standard/core-spec/society-roles.md) v0.1.0 DRAFT — 7 base-mandatory roles + context-mandatory + optional, with fractal composability
 - Reference Python SDK + 8-tool MCP server: 2,627 tests, mypy --strict clean (`web4-standard/implementation/`)
 - Cognition harness producing the 94.85% result: [SAGE](https://github.com/dp-web4/SAGE)
-- Hardware binding (TPM 2.0 on Linux), policy enforcement, and audit pipeline: shipped in **[Hardbound](https://github.com/dp-web4/hardbound)** — enterprise product with plugin bridge for any orchestrator, PolicyService with signed decisions, multi-witness TrustWeb, HITL escalation, and regulatory evidence generators (EU AI Act Article 12, SOC2 CC6-CC8)
+- Hardware binding (TPM 2.0 on Linux), fail-closed policy enforcement, and audit packaging: Hardbound, the proprietary Metalinxx enterprise tier (building). Signed audit bundles with SIEM/GRC export are deliverable; hardware-bound enforcement is in development
 - Attack simulation suite: 424 vectors across 84 tracks (~85% detection rate). **Honest characterization**: synthetic adversaries only, no red team engagement yet; some "defenses" are standard infosec practices (EM shielding, TEMPEST) documented for completeness, not Web4-novel. See STATUS.md for the breakdown.
 - Formal threat model: [THREAT_MODEL.md v2.0](docs/reference/security/THREAT_MODEL.md)
 
 ### Gaps
 - Economic attack modeling at scale (no real-market testing)
 - Formal Sybil-resistance proofs (empirical defenses only)
-- Hardware binding reference implementation in this public repo (Python `AttestationEnvelope` shipped; Rust port and on-device integration in progress; Hardbound has the production version)
+- Hardware binding reference implementation in this public repo (Python `AttestationEnvelope` shipped; Rust port and on-device integration in progress; the hardware path lives in Hardbound, the proprietary Metalinxx enterprise tier)
 
 ### Open questions
 - Are stake amounts actually deterrent? (no economic modeling)
@@ -312,11 +312,11 @@ written as specification and one as scar tissue.
 
 ---
 
-## ⚠️ Project Status: Research Prototype
+## ⚠️ Project Status
 
-**This is exploratory research, not production software.**
+**Open standard, draft in places; core implementation published and running; Hub/Hestia reference deployments operate on the live fleet; DID/EUDI interoperability and higher-assurance enforcement remain in development.**
 
-Web4 is investigating trust-native architectures for AI coordination. We have interesting ideas, working prototypes, and significant gaps. See [STATUS.md](STATUS.md) for honest assessment.
+Web4 is investigating trust-native architectures for AI coordination. Working primitives, a running society, and significant gaps coexist; each piece carries its own maturity label in [STATUS.md](STATUS.md).
 
 ---
 
@@ -599,7 +599,7 @@ This project is licensed under the **GNU Affero General Public License v3.0 (AGP
 
 ### Patent Notice
 
-This software implements technology covered by patents owned by MetaLINXX Inc. A royalty-free patent license is granted for non-commercial and research use under AGPL-3.0 terms.
+This software implements technology covered by patents owned by MetaLINXX Inc. A royalty-free patent license is granted for non-commercial use, research and academic use, and open-source projects that comply with AGPL-3.0; commercial licensing is separate.
 
 **For commercial licensing**: Contact Metalinxx Inc. via the [project repository](https://github.com/dp-web4/web4) or see [PATENTS.md](PATENTS.md).
 
@@ -607,4 +607,4 @@ See [PATENTS.md](PATENTS.md) for full patent details.
 
 ---
 
-**Research prototype. Interesting ideas. Significant gaps. Honest about both.**
+**Open standard, running core, live reference deployments, and labeled gaps.**
