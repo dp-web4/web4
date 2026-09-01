@@ -2754,6 +2754,46 @@ mod tests {
             }
         }
 
+        /// `/admin/council` on the backend production actually runs.
+        ///
+        /// The transparency enumeration above asserts this page is served, and it
+        /// passed while the live hub answered `500 internal error` on it, because
+        /// every fixture in this file is file-backed and only the file backend
+        /// stores council proposals. Same route, same assertion, different
+        /// backend, opposite result — the fixture was the whole difference.
+        ///
+        /// So this one is sqlite-backed, and it is a REGRESSION test with a known
+        /// failing ancestor: before `supports_proposals()` existed, the handler
+        /// called `list_proposals()` unconditionally and this returned 500.
+        #[tokio::test]
+        async fn the_council_page_is_served_on_a_backend_without_proposal_storage() {
+            let (_tmp, rest) = crate::rest::channel_e2e_tests::fresh_rest_state_sqlite().await;
+            let mut operator = rest.clone();
+            operator.operator_plane = true;
+            let app = admin::router(operator);
+            assert_eq!(
+                status(&app, "GET", "/admin/council").await,
+                StatusCode::OK,
+                "a hub that cannot store proposals must SAY so, not answer 500"
+            );
+        }
+
+        /// And the capability must actually be false there, or the test above is
+        /// green for the wrong reason — a page that renders because storage
+        /// silently started working proves nothing about the branch it is meant
+        /// to cover.
+        #[tokio::test]
+        async fn sqlite_reports_no_proposal_storage_and_file_reports_some() {
+            let tmp = tempfile::tempdir().unwrap();
+            let db = tmp.path().join("hub.db");
+            use hub_lib::store::HubStore;
+            let sqlite = hub_lib::store::SqliteBackend::open(&db, None).unwrap();
+            assert!(!sqlite.supports_proposals(), "sqlite stores no proposals today");
+            let paths = hub_lib::hub::HubPaths::new(tmp.path());
+            let file = hub_lib::store::FileBackend::new(paths);
+            assert!(file.supports_proposals(), "the file backend does store them");
+        }
+
         /// And the operator plane must actually carry every route the first test
         /// banished, or "not on the public plane" would be satisfiable by the
         /// route existing nowhere at all. Not-404 rather than 200: these handlers

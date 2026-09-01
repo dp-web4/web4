@@ -165,6 +165,21 @@ pub trait HubStore: Send + Sync {
 
     // ----- Council proposals (V2-9 Phase 2) -----
 
+    /// Whether this backend actually stores council proposals.
+    ///
+    /// The four methods below default to `bail!`, which is right for a
+    /// programming error and wrong for a *capability* question: a caller that
+    /// only wants to know "can this hub do council governance?" would have to
+    /// provoke an error and read its text. That is how `/admin/council` came to
+    /// answer **500 internal error** with an opaque reference on a hub whose
+    /// only fault was running the sqlite backend. An unimplemented capability is
+    /// not an internal error, and must not be reported as one.
+    ///
+    /// Defaults to `false` so a new backend is honest before it is complete.
+    fn supports_proposals(&self) -> bool {
+        false
+    }
+
     /// Persist a council proposal (insert-or-update). Proposals carry
     /// council-holder signatures awaiting M-of-N threshold; storage
     /// is separate from the ledger because they're not yet committed
@@ -660,6 +675,8 @@ impl FileBackend {
 
 #[async_trait::async_trait]
 impl HubStore for FileBackend {
+    fn supports_proposals(&self) -> bool { true }
+
     fn backend_kind(&self) -> BackendKind {
         BackendKind::File
     }
