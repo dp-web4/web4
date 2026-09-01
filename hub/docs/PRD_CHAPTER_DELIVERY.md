@@ -189,12 +189,16 @@ Plane names per `interface-planes.md`. **Every row is data-first (P1).**
 | B7b | Join status — the state of *my* request, vouching, decision, appeal | C | **applicant** — see §4.4 | **absent** | surface the request's state to the asker |
 | B8a | Group formation — propose, quorum, charter derived from parent | A | member | **absent** (R4 unbuilt) | the act the pilot's phase 2 measures |
 | B8b | Group formation — operator administration of the same act | A | operator | **absent** | — |
-| B9a | **Public decision record** — what was decided, under which law, when (redacted) | D | public | `/admin/ledger` operator-only | public transparency is the deck's promise |
-| B9b | Member decision record — the unredacted projection | D | member | operator-only | — |
+| B9a | **Public decision record** — that acts occurred, and when (§4.5 **tier 1** of the witness channel) | D | public | **shipped**, live; windowing defect measured (§4.5) | window over disclosable acts; report withheld runs as counted spans |
+| B9b | Member decision record — **who participated** (§4.5 tier 2) | D | member | operator-only | — |
+| B9c | Governance record — **substance and outcome** (§4.5 tier 3) | D | role-mediated | **absent** | reached through a role; the inquiry is itself a witnessed act |
 | B10 | Discussion | **see §4.4** | member | `/discuss` exists | scope per group, not chapter-wide |
 | B11 | Discovery + introductions | C | member | **engine live, no UI** (§1.1) | screens for search, candidate review, request, consent, resulting channel |
 | B12a | Export — my own record (R8.2) | D | member | **absent** | "leave without penalty" is a stated success criterion |
 | B12b | Export — the chapter's record (R8.2) | D | operator | **absent** | — |
+| B13a | **Channels gateway** — that the entity has channels, by kind (§4.5 tier 1) | D | public | **absent** | `GET …/channels`; the button beside agents/hubs/devices/govern |
+| B13b | Channel addresses — the handles themselves (tier 2) | D | member | **absent** | `GET …/channels/:id` |
+| B13c | Channel operation — who runs it, verification chain, posting authority (tier 3) | C | operator · role-mediated | **absent** | reached through a role, and the asking is an act |
 
 **Why the rows split.** `interface-planes.md` §2.1 makes it a **MUST** that every surface be assignable
 to exactly one fact plane, §2.2 a **MUST** that it declare exactly one exposure class, and §8.2 a
@@ -263,6 +267,90 @@ on the presentation side.
 Recommend both be raised against `interface-planes.md` rather than resolved here. Until they are,
 B10's plane and B7b's exposure are marked *see §4.4* rather than guessed, so a reader cannot mistake a
 placeholder for a decision.
+
+### 4.5 Tiered disclosure, and channels as the gateway (dp, 2026-09-01)
+
+> **Directive (verbatim).** *"disclosure should be tiered. public->member->governance.
+> event-happened->who-participated->substance-and-outcome. to query deeper the inquiry would have to
+> go through appropriate roles."* … *"'channels' button, alongside the agents/hubs/devices/govern - it
+> would be a gateway for the hestia (or hub) entity's contact/public/social channels. external
+> disclosure would be tiered (with later granularity) as well."* … *"in fact witness log access can be
+> a channel."*
+
+#### The ladder
+
+Disclosure is not a boolean per field, it is a **depth of question answered**:
+
+| tier | the question it answers | a resolved membership request |
+|---|---|---|
+| **public** | *did an act of this kind occur, and when* | "a membership request was resolved, 2026-08-14" |
+| **member** | *who participated* | "resolved by the Administrator; the asker was M" |
+| **governance** | *substance and outcome* | "declined; the reason given; the evidence relied on" |
+
+This is a **third axis**, orthogonal to the two `interface-planes.md` already defines. A surface has a
+fact plane (what kind of fact), an exposure class (who may reach it), and now a **depth** (how much of
+the fact). B9a as shipped is tier 1 of the witness channel — not a partial implementation of the
+whole, but a complete implementation of the first rung.
+
+#### Deepening is role-mediated, never a parameter
+
+**A caller does not get a deeper tier by asking for it. They get it by being routed to a role that
+may disclose it.** This is `PRD_ROLE_SCOPE_BRIDGE.md` §9 pointed at disclosure: standing decides which
+role you reach, and the role's manifest decides what it may reveal. There is no `?tier=governance`,
+because that would be a second authorization vocabulary living beside the roles — the thing §9 exists
+to prevent.
+
+Consequences worth stating because they are easy to lose:
+
+- **Escalating depth is a role transfer**, so it is evaluated afresh and carries nothing but
+  provenance (§9.3). Reaching an officer for tier 3 on one act grants nothing about the next.
+- **The inquiry is itself an act.** A tier-3 request is a governed, witnessed act by the asker. That
+  is the property that makes deep transparency safe for a volunteer organisation: members can find
+  out who decided what, and *the asking leaves a trace*. Transparency without surveillance requires
+  both halves — an unrecorded right to inspect anyone is surveillance with better manners.
+- **Refusals are recorded too**, per §4.3's A-clause: a role that declines to deepen must leave an
+  entry, or "nobody asked" and "asked and refused" become indistinguishable.
+
+#### Channels: one gateway, and the witness log is one of them
+
+`channels` becomes a first-class surface beside **agents / hubs / devices / govern** — the gateway to
+every **addressable surface of an entity**. Two families, one model:
+
+| family | examples | tier 1 | tier 2 | tier 3 |
+|---|---|---|---|---|
+| **contact / social** | Discord, Slack, Matrix, Meetup, GitHub, site | *that a channel of this kind exists* | the address itself | who operates it, verification chain, posting authority |
+| **record** | **the witness log**, the decision record, the ledger head | *that acts occurred, and when* | who participated | substance and outcome |
+
+dp's collapse is the load-bearing move here: **the witness log is a channel**, not a separate feature.
+An entity is reachable through its Discord and readable through its record, and both are addressable
+surfaces with the same disclosure ladder and the same role-mediated deepening. That means B9a's
+endpoint is *the tier-1 view of the witness channel* — and the channels gateway is where a visitor
+discovers that the channel exists at all.
+
+It also gives the fractal story a concrete surface: a community, a working group and a role each have
+their own channels, inherited and overridable exactly as themes are (P4).
+
+#### Reconciling with hestia's existing `Visibility`
+
+`hestia`'s `ProfileLink.visibility` is `{Public, Member, Trusted, Private}` — **who may see a link**.
+The ladder above is **what depth of fact is answered**. They are orthogonal and both are needed: a
+link may be Member-visible (who) while its verification chain is tier-3 (what depth). Neither replaces
+the other, and collapsing them would silently drop one of the two questions. Named here because the
+twin PRD carries the same reconciliation.
+
+#### What this changes about B9a, measured live
+
+The public decision record went live on this chapter's real ledger and returned **`disclosed: 0,
+withheld: 200` out of 1,888 entries**. Not a projection bug — a windowing one. The last 400 entries
+are 398 `referenced_act` (mesh coordination) plus 2 `pairing_requested`; every governance act sits
+1,700+ entries back. A public reader sees two hundred rows of `withheld` on a chapter with a rich
+governance history, which reads as concealment and is the opposite of the surface's purpose.
+
+The tiering makes the fix obvious rather than arbitrary: **tier 1 windows over disclosable acts, not
+over raw entries**, and preserves continuity by reporting the gaps as spans — `247 withheld entries
+between #1488 and #1735` — one line instead of 247 rows. Continuity was the reason withheld rows
+appeared at all; a counted span keeps that property and drops the noise.
+
 
 ---
 
