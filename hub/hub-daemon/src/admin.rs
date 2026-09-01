@@ -564,31 +564,19 @@ async fn roles(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
 async fn channels(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
     let body = r#"
       <h2>Channels</h2>
-      <p class="pill">not implemented yet</p>
-      <p>This is the gateway to every <b>addressable surface</b> of this chapter — the ways the
-         world reaches it, and the ways it reads it. Two families, one model:</p>
+      <p class="pill">not yet implemented</p>
+      <p>One place for every way the world reaches this chapter, and reads it: its
+         <b>social and contact channels</b> (Discord, Slack, Matrix, Meetup, a mailing list,
+         a site) and its <b>witness log</b> &mdash; the chapter's own record is a channel too.</p>
+      <p><b>Access is tiered</b>, each level answering a deeper question:</p>
       <ul>
-        <li><b>Contact &amp; social</b> — Discord, Slack, Matrix, Meetup, a mailing list, a site.
-            Held as <i>verified references</i>, never mirrored: the hub does not become an archive
-            of someone else's chat.</li>
-        <li><b>Record</b> — the <b>witness log</b> and the public decision record. Access to the
-            chapter's own record is itself a channel, on the same footing as the others.</li>
+        <li><b>public</b> &mdash; that it exists, and that acts occurred <span class="muted">(live now: the public decision record)</span></li>
+        <li><b>member</b> &mdash; the address, or who took part</li>
+        <li><b>governance</b> &mdash; the substance and the outcome</li>
       </ul>
-      <p><b>Disclosure is tiered</b>, and each tier answers a deeper question:</p>
-      <ul>
-        <li><b>public</b> — <i>that it exists, and that acts occurred</i>. Already live for the
-            record: see the public decision record.</li>
-        <li><b>member</b> — <i>the address, or who took part</i>.</li>
-        <li><b>governance</b> — <i>substance and outcome</i>: who operates a channel, its
-            verification chain and posting authority; the reason a decision went the way it did,
-            and the evidence relied on.</li>
-      </ul>
-      <p>Going deeper is not a parameter a caller passes. The inquiry is <b>routed through a role</b>
-         that may disclose it, and <b>asking is itself a recorded act</b> — which is what keeps this
-         transparency rather than surveillance: members can find out who decided what, and the
-         asking leaves a trace too.</p>
-      <p class="muted">Spec: <code>docs/PRD_CHAPTER_DELIVERY.md</code> §4.5 (rows B13a/b/c) ·
-         person-scale twin in hestia <code>docs/PRD.md</code> §5.9</p>
+      <p>You reach a deeper level by asking through a role that can grant it &mdash; and the
+         asking is recorded too.</p>
+      <p class="muted">Spec: <code>docs/PRD_CHAPTER_DELIVERY.md</code> &sect;4.5</p>
     "#;
     Ok(layout(&s, "Channels", body))
 }
