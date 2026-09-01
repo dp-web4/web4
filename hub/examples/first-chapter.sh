@@ -134,11 +134,15 @@ HUB_ID=$(printf '%s' "$WELL_KNOWN" | python3 -c \
 [ -n "$HUB_ID" ] || { echo "error: discovery did not return hub_lct_id" >&2; exit 1; }
 echo "Hub LCT:    $HUB_ID"
 
-# 6. Current tool spelling: list_members. This replaces the old first-chapter
-# script's stale query_chapter probe.
-banner "6. Exercise the live member-readable surface"
-echo "GET /tools/list_members"
-curl -fsS "$BASE/tools/list_members" | python3 -m json.tool
+# 6. The PUBLIC plane's own read tool. Not `list_members`: that one is pinned
+# operator-plane-only by `OPERATOR_ONLY` in hub-daemon/src/main.rs (it enumerates
+# the roster), and this demo starts the daemon with `--admin-port 0`, so there is
+# no operator listener for it to answer on. Curling it over $BASE returns 404 by
+# design AND by test, and under `set -e` that aborts the script before steps 7-8
+# — the beats this demo exists to show — ever run.
+banner "6. Exercise the live public read surface"
+echo "GET /tools/query_hub"
+curl -fsS "$BASE/tools/query_hub" | python3 -m json.tool
 
 # 7. Public governance transparency. Since #802, the API windows over disclosed
 # governance acts and compresses private runs into withheld_before spans. This is
