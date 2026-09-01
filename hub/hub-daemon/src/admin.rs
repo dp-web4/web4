@@ -87,7 +87,8 @@ fn layout(s: &RestState, title: &str, body: &str) -> Html<String> {
       <a href="/">Home</a>
       <a href="/admin/roles">Roles</a>
       <a href="/admin/law">Law</a>
-      <a href="/admin/council">Council</a>{operator_nav}
+      <a href="/admin/council">Council</a>
+      <a href="/admin/channels">Channels</a>{operator_nav}
     </nav>"#
     );
     Html(format!(
@@ -136,6 +137,7 @@ pub fn router(state: RestState) -> Router {
         .route("/", get(landing_page))
         .route("/admin/roles", get(roles))
         .route("/admin/law", get(law))
+        .route("/admin/channels", get(channels))
         .route("/admin/council", get(council))
         .with_state(state)
 }
@@ -551,6 +553,44 @@ async fn roles(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
     }
 
     Ok(layout(&s, "Roles", &body))
+}
+
+/// CHANNELS — every addressable surface of this society (PRD_CHAPTER_DELIVERY §4.5,
+/// dp 2026-09-01). Placeholder: the shape is decided, the surface is not built.
+///
+/// It is on the PUBLIC nav deliberately. A chapter's channels are as public as its roles
+/// and its law — how to reach it is the first thing a stranger needs, and the tier-1 answer
+/// ("this chapter has a Discord") discloses nothing a member would not put on a poster.
+async fn channels(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
+    let body = r#"
+      <h2>Channels</h2>
+      <p class="pill">not implemented yet</p>
+      <p>This is the gateway to every <b>addressable surface</b> of this chapter — the ways the
+         world reaches it, and the ways it reads it. Two families, one model:</p>
+      <ul>
+        <li><b>Contact &amp; social</b> — Discord, Slack, Matrix, Meetup, a mailing list, a site.
+            Held as <i>verified references</i>, never mirrored: the hub does not become an archive
+            of someone else's chat.</li>
+        <li><b>Record</b> — the <b>witness log</b> and the public decision record. Access to the
+            chapter's own record is itself a channel, on the same footing as the others.</li>
+      </ul>
+      <p><b>Disclosure is tiered</b>, and each tier answers a deeper question:</p>
+      <ul>
+        <li><b>public</b> — <i>that it exists, and that acts occurred</i>. Already live for the
+            record: see the public decision record.</li>
+        <li><b>member</b> — <i>the address, or who took part</i>.</li>
+        <li><b>governance</b> — <i>substance and outcome</i>: who operates a channel, its
+            verification chain and posting authority; the reason a decision went the way it did,
+            and the evidence relied on.</li>
+      </ul>
+      <p>Going deeper is not a parameter a caller passes. The inquiry is <b>routed through a role</b>
+         that may disclose it, and <b>asking is itself a recorded act</b> — which is what keeps this
+         transparency rather than surveillance: members can find out who decided what, and the
+         asking leaves a trace too.</p>
+      <p class="muted">Spec: <code>docs/PRD_CHAPTER_DELIVERY.md</code> §4.5 (rows B13a/b/c) ·
+         person-scale twin in hestia <code>docs/PRD.md</code> §5.9</p>
+    "#;
+    Ok(layout(&s, "Channels", body))
 }
 
 async fn ledger_list(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
