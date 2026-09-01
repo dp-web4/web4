@@ -198,6 +198,8 @@ impl DynamoDbBackend {
 
 #[async_trait::async_trait]
 impl HubStore for DynamoDbBackend {
+    fn supports_proposals(&self) -> bool { true }
+
     fn backend_kind(&self) -> BackendKind { BackendKind::Dynamodb }
 
     async fn read_charter(&self) -> Result<Option<Charter>> {

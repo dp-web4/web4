@@ -648,12 +648,23 @@ async fn council(State(s): State<RestState>) -> Result<Html<String>, AdminError>
     let ledger = s.ledger.lock().await;
     let projected = HubState::project(&*ledger);
     drop(ledger);
-    let proposals = {
-        let store = s.open_store().await
-            .map_err(|e| AdminError::internal(e.to_string()))?;
+    // A backend that does not store proposals is a MISSING CAPABILITY, not an
+    // internal error. This page used to call `list_proposals()` unconditionally;
+    // on the sqlite backend that bails, and the operator got
+    // `500 internal error ... reference=f17cd53e` on a plain nav link — an error
+    // shape that says "something broke, look in the log" about a hub working
+    // exactly as built. Everything else on this page comes from the ledger
+    // projection and is perfectly renderable, so the page now renders.
+    let store = s.open_store().await
+        .map_err(|e| AdminError::internal(e.to_string()))?;
+    let supported = store.supports_proposals();
+    let proposals = if supported {
         store.list_proposals().await
             .map_err(|e| AdminError::internal(e.to_string()))?
+    } else {
+        Vec::new()
     };
+    drop(store);
 
     let mut body = String::from("<h2>Sovereign Council proposals</h2><dl class=\"grid\">");
     let (m, n) = projected.council_threshold.unwrap_or((1, (projected.council_holders.len() + 1) as u32));
@@ -665,10 +676,26 @@ async fn council(State(s): State<RestState>) -> Result<Html<String>, AdminError>
     }
     body.push_str("</dd>");
     body.push_str(&format!("<dt>Holders eligible to vote</dt><dd>{}</dd>", projected.council_holders.len() + 1));
-    body.push_str(&format!("<dt>Proposals on record</dt><dd>{}</dd>", proposals.len()));
+    if supported {
+        body.push_str(&format!("<dt>Proposals on record</dt><dd>{}</dd>", proposals.len()));
+    } else {
+        body.push_str("<dt>Proposals on record</dt><dd><span class=\"pill pill-warn\">not stored by this backend</span></dd>");
+    }
     body.push_str("</dl>");
 
-    if proposals.is_empty() {
+    if !supported {
+        body.push_str(
+            "<p class=\"pill pill-warn\">council proposals are not implemented on this backend</p>\
+             <p>The threshold and holders above are real — they come from the ledger, and council \
+             <i>enforcement</i> works. What is missing is <b>storage for proposals in flight</b>: the \
+             sqlite backend implements none of the four proposal methods, while the file and DynamoDB \
+             backends implement all four. So a proposal cannot be opened, signed toward threshold, or \
+             listed here.</p>\
+             <p>This hub runs sqlite, so multi-signer council governance cannot be exercised on it \
+             today. Tracked as a hub-track gap; until it lands, a hub that needs the propose/sign flow \
+             must run the file backend.</p>"
+        );
+    } else if proposals.is_empty() {
         body.push_str("<p class=\"muted\">No proposals yet. POST a council_propose envelope to /v1/hubs/{id}/council/propose to create one.</p>");
     } else {
         body.push_str("<table><thead><tr><th>Proposal</th><th>Act</th><th>Proposer</th><th>Votes</th><th>Status</th><th>Proposed</th><th>Expires</th></tr></thead><tbody>");

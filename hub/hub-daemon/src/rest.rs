@@ -6866,9 +6866,25 @@ async fn get_proposal(
 // async fn bodies; future network backends (DynamoDB, Postgres) do real
 // awaits here.
 
+/// A backend without proposal storage is a capability gap, not a fault. Without
+/// this the three helpers below surface `bail!` text through `ApiError::internal`
+/// as **500**, telling a caller their request broke the hub when in fact this hub
+/// cannot do the thing at all. 501 says the true thing, and says it the same way
+/// the tier-2 unlock route already does when its verifier plugin is absent.
+fn proposals_unsupported() -> ApiError {
+    ApiError {
+        status: StatusCode::NOT_IMPLEMENTED,
+        message: "council proposals are not implemented on this hub's storage backend \
+                  (sqlite stores none of them; the file and DynamoDB backends do). \
+                  Council threshold and enforcement still apply — only the \
+                  propose/sign flow is unavailable.".to_string(),
+    }
+}
+
 async fn persist_proposal(s: &RestState, proposal: &CouncilProposal) -> Result<(), ApiError> {
     let mut store = s.open_store().await
         .map_err(ApiError::internal)?;
+    if !store.supports_proposals() { return Err(proposals_unsupported()); }
     store.write_proposal(proposal).await
         .map_err(ApiError::internal)
 }
@@ -6876,6 +6892,7 @@ async fn persist_proposal(s: &RestState, proposal: &CouncilProposal) -> Result<(
 async fn read_proposal(s: &RestState, id: Uuid) -> Result<Option<CouncilProposal>, ApiError> {
     let store = s.open_store().await
         .map_err(ApiError::internal)?;
+    if !store.supports_proposals() { return Err(proposals_unsupported()); }
     store.read_proposal(id).await
         .map_err(ApiError::internal)
 }
@@ -6883,6 +6900,7 @@ async fn read_proposal(s: &RestState, id: Uuid) -> Result<Option<CouncilProposal
 async fn read_all_proposals(s: &RestState) -> Result<Vec<CouncilProposal>, ApiError> {
     let store = s.open_store().await
         .map_err(ApiError::internal)?;
+    if !store.supports_proposals() { return Err(proposals_unsupported()); }
     store.list_proposals().await
         .map_err(ApiError::internal)
 }
@@ -9012,6 +9030,42 @@ norms:
             law_yaml.map(|y| Law::parse_and_validate(y).unwrap()),
         ));
         let store = open_hub_store(&hub_dir).unwrap();
+        let ledger = Arc::new(Mutex::new(HubLedger::open(store).await.unwrap()));
+        let state = RestState::open_with_law_and_ledger(hub_dir, law, ledger)
+            .await
+            .unwrap();
+        (tmp, state)
+    }
+
+    /// Like [`fresh_rest_state`] but on the **sqlite** backend — the one every
+    /// real hub runs.
+    ///
+    /// This exists because the default fixture is not production-shaped. An
+    /// empty temp dir has no `config.toml` and no `hub.db`, so `open_hub_store`
+    /// falls through to `FileBackend`, which implements council proposals.
+    /// Production carries a `hub.db` and gets `SqliteBackend`, which implements
+    /// none of them. `/admin/council` therefore returned **200 in every test and
+    /// 500 in production**, and the enumeration that asserts the page is served
+    /// passed the whole time — on a backend no hub uses.
+    pub(crate) async fn fresh_rest_state_sqlite() -> (tempfile::TempDir, RestState) {
+        let tmp = tempfile::tempdir().unwrap();
+        let sov = tmp.path().join("sovereign.json");
+        IdentityFile::generate(EntityType::Human).save(&sov).unwrap();
+        let hub_dir = tmp.path().join("chapter");
+        init_hub(InitArgs {
+            hub_name: "E2E Sqlite Hub".into(),
+            hub_dir: hub_dir.clone(),
+            sovereign_lct_path: sov,
+            storage: Some(hub_lib::store::BackendKind::Sqlite),
+            dynamodb: None,
+        })
+        .await
+        .unwrap();
+        let law = Arc::new(RwLock::new(None));
+        let store = open_hub_store(&hub_dir).unwrap();
+        assert!(!store.supports_proposals(),
+            "fixture guard: the sqlite backend must be the one WITHOUT proposal storage, \
+             otherwise this fixture has stopped reproducing production");
         let ledger = Arc::new(Mutex::new(HubLedger::open(store).await.unwrap()));
         let state = RestState::open_with_law_and_ledger(hub_dir, law, ledger)
             .await
