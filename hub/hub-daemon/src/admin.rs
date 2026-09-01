@@ -47,6 +47,9 @@ const STYLE: &str = r#"
         margin-bottom: 1.2rem; }
   nav a { margin-right: 1rem; text-decoration: none; color: #5fb89a; }
   nav a:hover { text-decoration: underline; }
+  /* Body links were unstyled and fell back to the browser default -- dark blue
+     on a #2d2d2d background, effectively unreadable. Match the nav link colour. */
+  a { color: #5fb89a; }
   table { border-collapse: collapse; width: 100%; margin: 0.5rem 0 1rem; }
   th, td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid #565656;
            font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85rem; }
@@ -77,18 +80,27 @@ fn layout(s: &RestState, title: &str, body: &str) -> Html<String> {
       <a href="/admin/ledger">Ledger</a>
       <a href="/admin/pairs">Pairs</a>
       <a href="/admin/members">Members</a>
+      <a href="/admin/hubs">Hubs</a>
       <a href="/admin/joins">Joins ⚙</a>
       <a href="/admin/manage">Manage ⚙</a>"#
     } else {
         ""
     };
+    // "Home" pointed at `/`, the chapter's PUBLIC landing page — which is rendered
+    // by a different handler and carries no nav, so clicking it from the console
+    // was a one-way trip out (dp, 2026-09-01: "renders to a screen with no nav").
+    // Inside the console, Home means the console's own index. The public page is
+    // still worth reaching -- it is what a stranger sees -- so it keeps a link of
+    // its own, marked as leaving.
+    let home = if s.operator_plane { "/admin" } else { "/" };
     let nav = format!(
         r#"<nav>
-      <a href="/">Home</a>
+      <a href="{home}">Home</a>
       <a href="/admin/roles">Roles</a>
       <a href="/admin/law">Law</a>
       <a href="/admin/council">Council</a>
       <a href="/admin/channels">Channels</a>{operator_nav}
+      <a href="/" title="The chapter's public landing page — no console nav there">Public page &#8599;</a>
     </nav>"#
     );
     Html(format!(
@@ -579,6 +591,67 @@ async fn channels(State(s): State<RestState>) -> Result<Html<String>, AdminError
       <p class="muted">Spec: <code>docs/PRD_CHAPTER_DELIVERY.md</code> &sect;4.5</p>
     "#;
     Ok(layout(&s, "Channels", body))
+}
+
+/// The chapter's own roster is live; federation with *other* chapters is not.
+///
+/// Two different questions share this page on purpose. "Who is in this chapter"
+/// is answered from the ledger, now. "Which other chapters do we recognise" has
+/// no answer at all -- there is no peer-hub protocol, no registry, and no way to
+/// discover a chapter except by being handed its URL. Splitting them into two
+/// screens would let a reader assume the second was merely empty rather than
+/// absent.
+async fn hubs(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
+    use hub_lib::state::JoinStatus;
+    let ledger = s.ledger.lock().await;
+    let projected = HubState::project(&*ledger);
+    drop(ledger);
+
+    let members = projected.members.len();
+    let pending = projected
+        .pending_joins
+        .values()
+        .filter(|j| j.status == JoinStatus::Pending)
+        .count();
+
+    let body = format!(
+        r#"
+      <h2>This chapter</h2>
+      <p>{members} member{ms} &middot; {pending} join request{ps} awaiting review.</p>
+      <p><a href="/admin/members">Members</a> &mdash; who is enrolled, and whether their
+         key is pinned. <a href="/admin/joins">Joins</a> &mdash; who has asked, and how each
+         request was resolved.</p>
+
+      <h2>Other chapters</h2>
+      <p class="pill">not yet implemented</p>
+      <p>A chapter is not meant to be alone. Federation is how one recognises another:
+         a shared roster of peer hubs, so a member of one can be introduced to another
+         without either chapter surrendering its own law.</p>
+      <p>Four acts, none of which exist yet:</p>
+      <ul>
+        <li><b>discover</b> &mdash; find a chapter you were not handed a URL for.
+            There is no registry; today a hub is reachable only by address.</li>
+        <li><b>apply</b> &mdash; ask a peer chapter to recognise this one.</li>
+        <li><b>withdraw</b> &mdash; end that recognition from this side.
+            <span class="muted">Note the same gap exists for people: a member cannot
+            leave this chapter either &mdash; only an operator can remove them
+            (<a href="https://github.com/dp-web4/web4/issues/804">#804</a>,
+            PRD R8.2 <i>exit without penalty</i>).</span></li>
+        <li><b>remove from list</b> &mdash; forget a peer's address locally, which is
+            <i>not</i> the same as ending recognition, and must never be shown as if
+            it were.</li>
+      </ul>
+      <p>Each act is a witnessed decision, not a config edit &mdash; recognising a peer
+         chapter changes who this chapter will vouch for, so it belongs in the ledger
+         where anyone can see it happen.</p>
+      <p class="muted">Spec: <code>docs/PRD_HUB_V2_FEDERATED.md</code></p>
+    "#,
+        members = members,
+        ms = if members == 1 { "" } else { "s" },
+        pending = pending,
+        ps = if pending == 1 { "" } else { "s" },
+    );
+    Ok(layout(&s, "Hubs", &body))
 }
 
 async fn ledger_list(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
@@ -1620,6 +1693,7 @@ pub fn operator_router(state: RestState) -> Router {
     Router::new()
         .route("/admin", get(overview))
         .route("/admin/members", get(members))
+        .route("/admin/hubs", get(hubs))
         .route("/admin/joins", get(joins_page))
         .route("/admin/manage", get(manage_page))
         // Moved off the public plane (review 2026-07-23): these render act
