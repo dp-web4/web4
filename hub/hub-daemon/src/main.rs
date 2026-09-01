@@ -2700,6 +2700,13 @@ mod tests {
             // would make both directions of this table unfalsifiable.
             ("GET", "/admin/ledger/0"),
             ("GET", "/admin/pairs"),
+            // `/admin/hubs` renders roster cardinality and admission-queue depth
+            // (`projected.members.len()` and the pending-join count) — the same
+            // class `/admin/members` and `/admin/joins` are banished for. It is
+            // the operator-plane twin of the `/admin/channels` gap #803 closed:
+            // the route existed in `operator_router` and in NEITHER enumeration
+            // here, so moving it to the public router failed no test at all.
+            ("GET", "/admin/hubs"),
             // MCP member/skill enumeration (public-release P0).
             ("GET", "/tools/list_members"),
             ("GET", "/tools/find_skill?q=rust"),
