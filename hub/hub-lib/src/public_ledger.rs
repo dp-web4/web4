@@ -97,6 +97,29 @@ pub struct PublicDecision {
     /// A short human description, only for disclosed kinds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
+    /// The run of entries that disclosed nothing between this act and the next MORE
+    /// RECENT disclosed act (or the ledger head, for the newest entry in the window).
+    /// Absent when the two are adjacent. This is how continuity survives windowing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub withheld_before: Option<WithheldSpan>,
+}
+
+/// A run of consecutive entries that disclosed nothing, reported as a counted span.
+///
+/// Withheld entries used to be emitted one row each, to prove the chain is continuous.
+/// On a real ledger that buried every governed act: measured 2026-09-01 on a live chapter,
+/// the newest 200 entries were 100% withheld (398 of the last 400 are mesh `referenced_act`)
+/// while every governance act sat 1,700+ entries back. A public record that renders as an
+/// unbroken wall of "withheld" reads as concealment, which is the opposite of the surface's
+/// purpose. A counted span keeps the continuity property — a reader can still verify no index
+/// is missing — in one line instead of hundreds of rows.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WithheldSpan {
+    /// How many consecutive entries disclosed nothing.
+    pub count: u64,
+    /// Inclusive index range covered, oldest first. `from_index <= to_index`.
+    pub from_index: u64,
+    pub to_index: u64,
 }
 
 /// The kinds classified for public disclosure.
@@ -129,12 +152,43 @@ pub fn public_projection(entry: &LedgerEntry) -> PublicDecision {
         disclosure,
         kind: kind.unwrap_or("withheld").to_string(),
         detail,
+        withheld_before: None,
     }
 }
 
-/// Project a run of entries, newest first.
-pub fn public_record(entries: &[LedgerEntry]) -> Vec<PublicDecision> {
-    entries.iter().rev().map(public_projection).collect()
+/// Project the newest `limit` **disclosable** acts, newest first, annotating each with the
+/// run of withheld entries between it and the next more recent disclosed act.
+///
+/// Windowing over disclosable acts rather than over raw entries is the whole point: a fixed
+/// window of raw entries on a busy ledger contains no governance at all (see [`WithheldSpan`]).
+/// The scan walks newest-first and stops once `limit` acts are found, so the cost is bounded
+/// by how far back the governance is, not by the ledger's size.
+///
+/// Returns the projected acts and the oldest index examined, so a caller can report how much
+/// of the chain the window actually covers.
+pub fn public_record(entries: &[LedgerEntry], limit: usize) -> (Vec<PublicDecision>, Option<u64>) {
+    let mut out: Vec<PublicDecision> = Vec::new();
+    let mut pending: Option<WithheldSpan> = None;
+    let mut scanned_to: Option<u64> = None;
+
+    for e in entries.iter().rev() {
+        scanned_to = Some(e.index);
+        let mut d = public_projection(e);
+        if d.disclosure == Disclosure::Withheld {
+            // Accumulate the run. Entries arrive newest-first, so the span grows downward.
+            pending = Some(match pending {
+                None => WithheldSpan { count: 1, from_index: e.index, to_index: e.index },
+                Some(s) => WithheldSpan { count: s.count + 1, from_index: e.index, to_index: s.to_index },
+            });
+            continue;
+        }
+        d.withheld_before = pending.take();
+        out.push(d);
+        if out.len() >= limit {
+            break;
+        }
+    }
+    (out, scanned_to)
 }
 
 /// Returns `Some(kind)` plus an optional description for classified-public acts.
@@ -328,6 +382,45 @@ mod tests {
         assert!(json.contains("declined"), "the governance outcome must be visible: {json}");
     }
 
+    /// THE REGRESSION TEST for the live defect: a realistic ledger is mostly
+    /// non-disclosable traffic with governance acts far back. Windowing over raw
+    /// entries returned zero governance; windowing over disclosable acts must
+    /// return them, and must account for every skipped entry.
+    #[test]
+    fn a_busy_ledger_still_surfaces_its_governance() {
+        // 1 governance act, then 300 entries of mesh traffic, then another act.
+        let mut entries = vec![entry(1, HubEvent::CouncilThresholdChanged {
+            new_m: 2, initiated_by: Uuid::nil() })];
+        for i in 2..=301 {
+            entries.push(entry(i, HubEvent::PostAdded {
+                topic_id: Uuid::new_v4(), post_id: Uuid::new_v4(),
+                body: "mesh chatter".into(), posted_by: Uuid::new_v4() }));
+        }
+        entries.push(entry(302, HubEvent::LawAmended {
+            new_law_sha256: "sha256:deadbeefcafe0000".into(), amended_by: Uuid::new_v4(),
+            version: "1.1.0".into(), diff_summary: Some("raised quorum".into()) }));
+
+        let (rec, scanned_to) = public_record(&entries, 20);
+
+        // The old behaviour: a 200-entry raw window over this ledger yields NOTHING.
+        let raw_window_disclosed = entries.iter().rev().take(200)
+            .filter(|e| public_projection(e).disclosure == Disclosure::Disclosed).count();
+        assert_eq!(raw_window_disclosed, 1,
+            "fixture must reproduce the shape: a raw window sees almost no governance");
+
+        assert_eq!(rec.len(), 2, "both governance acts must surface: {rec:?}");
+        assert_eq!(rec[0].index, 302);
+        assert_eq!(rec[1].index, 1);
+
+        // Every skipped entry is accounted for, so continuity survives windowing.
+        let span = rec[1].withheld_before.as_ref().expect("the 300-entry run must be reported");
+        assert_eq!(span.count, 300);
+        assert_eq!(span.from_index, 2);
+        assert_eq!(span.to_index, 301);
+        assert!(rec[0].withheld_before.is_none(), "the newest act is adjacent to the head");
+        assert_eq!(scanned_to, Some(1));
+    }
+
     /// Withheld entries keep their chain position, so a reader can verify the
     /// record is continuous and nothing was quietly dropped.
     #[test]
@@ -340,12 +433,14 @@ mod tests {
             }),
             entry(3, HubEvent::CouncilThresholdChanged { new_m: 3, initiated_by: Uuid::nil() }),
         ];
-        let rec = public_record(&entries);
-        assert_eq!(rec.len(), 3, "a withheld entry must still appear");
+        let (rec, _) = public_record(&entries, 10);
+        // Only the two disclosable acts are rows now; the withheld one is accounted
+        // for as a span on the older act, which is what keeps continuity checkable.
         let indices: Vec<u64> = rec.iter().map(|d| d.index).collect();
-        assert_eq!(indices, vec![3, 2, 1], "newest first, no gaps");
+        assert_eq!(indices, vec![3, 1], "newest first, disclosable only");
         assert!(rec.iter().all(|d| !d.entry_hash.is_empty()), "chain hash always present");
-        assert_eq!(rec[1].disclosure, Disclosure::Withheld);
+        let span = rec[1].withheld_before.as_ref().expect("the skipped entry must be reported");
+        assert_eq!((span.count, span.from_index, span.to_index), (1, 2, 2));
     }
 
     /// Pins the disclosed set. A variant classified public without a deliberate

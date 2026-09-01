@@ -2854,27 +2854,38 @@ async fn read_public_decisions(
     if hub_id != s.hub_id {
         return Err(ApiError::not_found(format!("unknown hub {hub_id}")));
     }
-    const LIMIT: usize = 200;
+    // The window is over DISCLOSABLE ACTS, not raw entries. Measured 2026-09-01 on this
+    // chapter's live ledger: a 200-entry raw window returned disclosed=0 of 1888 entries,
+    // because 398 of the last 400 are mesh `referenced_act` and every governance act sits
+    // 1700+ entries back. A public record that renders as an unbroken wall of "withheld"
+    // reads as concealment — the opposite of what this surface exists for.
+    const LIMIT: usize = 100;
     let ledger = s.ledger.lock().await;
-    let all = ledger.entries();
+    let all: Vec<_> = ledger.entries().to_vec();
     let total = all.len();
-    let window: Vec<_> = all.iter().rev().take(LIMIT).rev().cloned().collect();
+    let head_index = all.last().map(|e| e.index);
     drop(ledger);
 
-    let decisions = hub_lib::public_ledger::public_record(&window);
-    let disclosed = decisions
+    let (decisions, scanned_to_index) = hub_lib::public_ledger::public_record(&all, LIMIT);
+    let withheld_in_window: u64 = decisions
         .iter()
-        .filter(|d| d.disclosure == hub_lib::public_ledger::Disclosure::Disclosed)
-        .count();
+        .filter_map(|d| d.withheld_before.as_ref().map(|s| s.count))
+        .sum();
 
     Ok(Json(serde_json::json!({
-        // Counts are reported so a reader knows the record is a WINDOW and how much
-        // of it is withheld — a public record that hides its own truncation, or the
+        // Counts are reported so a reader knows the record is a WINDOW and how much it
+        // did not describe. A public record that hides its own truncation, or the
         // proportion it will not describe, is not answering the question it exists for.
         "total_entries": total,
-        "returned": decisions.len(),
-        "disclosed": disclosed,
-        "withheld": decisions.len().saturating_sub(disclosed),
+        "head_index": head_index,
+        // Every act here is disclosed; withheld runs are carried as spans on each act,
+        // so the chain stays checkable without hundreds of empty rows.
+        "disclosed": decisions.len(),
+        "withheld_in_window": withheld_in_window,
+        // How far back the scan reached. Together with head_index this states the
+        // window's true extent, rather than implying the whole ledger was described.
+        "scanned_to_index": scanned_to_index,
+        "limit": LIMIT,
         "public_kinds": hub_lib::public_ledger::PUBLIC_KINDS,
         "decisions": decisions,
     })))
