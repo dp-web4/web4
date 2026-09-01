@@ -2742,7 +2742,10 @@ mod tests {
         #[tokio::test]
         async fn the_public_plane_still_serves_the_transparency_surface() {
             let (_tmp, public, _op) = planes().await;
-            for path in ["/", "/admin/roles", "/admin/law", "/admin/council", "/tools", "/tools/query_hub"] {
+            // `/admin/channels` is the fifth public transparency page; this repo has
+            // already paid once for an enumeration that named four routes and silently
+            // covered a fifth (rest.rs, the `/admin/law` disclosure).
+            for path in ["/", "/admin/roles", "/admin/law", "/admin/council", "/admin/channels", "/tools", "/tools/query_hub"] {
                 assert_eq!(
                     status(&public, "GET", path).await,
                     StatusCode::OK,
@@ -3550,7 +3553,19 @@ mod tests {
         #[tokio::test]
         async fn the_other_operator_pages_stay_refused_while_locked() {
             let (_tmp, app, _id) = locked_public_app().await;
-            for p in ["/admin/roles", "/admin/council", "/tools", "/tools/query_hub"] {
+            // Including `/admin/channels`: this hub boots LOCKED after every restart,
+            // so an unauthenticated network caller reaches that page in the window that
+            // matters most.
+            //
+            // What this entry does and does not catch, measured rather than assumed.
+            // It FAILS if `/admin/channels` is ever added to `locked_tier0_allows`
+            // (verified by adding it: "must be refused while locked"). It does NOT
+            // fail if the route is deleted, because the lock gate answers 503 ahead
+            // of routing, so an absent path is refused too. The route's existence is
+            // pinned by `the_public_plane_still_serves_the_transparency_surface`,
+            // which does fail on removal — the two together cover both directions,
+            // and neither covers both alone.
+            for p in ["/admin/roles", "/admin/council", "/admin/channels", "/tools", "/tools/query_hub"] {
                 assert_eq!(
                     status(&app, p).await,
                     StatusCode::SERVICE_UNAVAILABLE,

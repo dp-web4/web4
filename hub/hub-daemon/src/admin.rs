@@ -87,7 +87,8 @@ fn layout(s: &RestState, title: &str, body: &str) -> Html<String> {
       <a href="/">Home</a>
       <a href="/admin/roles">Roles</a>
       <a href="/admin/law">Law</a>
-      <a href="/admin/council">Council</a>{operator_nav}
+      <a href="/admin/council">Council</a>
+      <a href="/admin/channels">Channels</a>{operator_nav}
     </nav>"#
     );
     Html(format!(
@@ -136,6 +137,7 @@ pub fn router(state: RestState) -> Router {
         .route("/", get(landing_page))
         .route("/admin/roles", get(roles))
         .route("/admin/law", get(law))
+        .route("/admin/channels", get(channels))
         .route("/admin/council", get(council))
         .with_state(state)
 }
@@ -551,6 +553,32 @@ async fn roles(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
     }
 
     Ok(layout(&s, "Roles", &body))
+}
+
+/// CHANNELS — every addressable surface of this society (PRD_CHAPTER_DELIVERY §4.5,
+/// dp 2026-09-01). Placeholder: the shape is decided, the surface is not built.
+///
+/// It is on the PUBLIC nav deliberately. A chapter's channels are as public as its roles
+/// and its law — how to reach it is the first thing a stranger needs, and the tier-1 answer
+/// ("this chapter has a Discord") discloses nothing a member would not put on a poster.
+async fn channels(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
+    let body = r#"
+      <h2>Channels</h2>
+      <p class="pill">not yet implemented</p>
+      <p>One place for every way the world reaches this chapter, and reads it: its
+         <b>social and contact channels</b> (Discord, Slack, Matrix, Meetup, a mailing list,
+         a site) and its <b>witness log</b> &mdash; the chapter's own record is a channel too.</p>
+      <p><b>Access is tiered</b>, each level answering a deeper question:</p>
+      <ul>
+        <li><b>public</b> &mdash; that it exists, and that acts occurred <span class="muted">(live now: the public decision record)</span></li>
+        <li><b>member</b> &mdash; the address, or who took part</li>
+        <li><b>governance</b> &mdash; the substance and the outcome</li>
+      </ul>
+      <p>You reach a deeper level by asking through a role that can grant it &mdash; and the
+         asking is recorded too.</p>
+      <p class="muted">Spec: <code>docs/PRD_CHAPTER_DELIVERY.md</code> &sect;4.5</p>
+    "#;
+    Ok(layout(&s, "Channels", body))
 }
 
 async fn ledger_list(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
