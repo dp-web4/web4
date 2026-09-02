@@ -56,3 +56,6 @@ htmlcov/
 demurrage.log
 demo_t3_profiles.json
 t3_profiles.json
+
+# per-seat worktrees live under .wt/ (same convention as hestia); never tracked
+.wt/
