@@ -1,0 +1,65 @@
+# Demo-only law for an unattended public judging session.
+#
+# This deliberately auto-admits a newcomer who proves control of a freshly
+# generated Ed25519 identity. It is not the production starter law: use
+# starter-law.yaml when a human Sovereign should review each admission.
+
+version: "1.0.0"
+
+norms:
+  - id: DEFAULT-ALLOW-REVERSIBLE
+    selector: r6.request.action
+    operator: "!="
+    value: __never_match__
+    decision: allow
+    priority: 0
+    description: "Allow low-stakes reversible demo acts unless a specific norm overrides."
+
+  - id: ALLOW-SIGNED-JUDGE-JOIN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: allow
+    priority: 100
+    description: "Auto-admit a judge who proves control of a browser-generated signing key."
+
+  - id: ESCALATE-CHARTER-AMEND
+    selector: r6.request.action
+    operator: "=="
+    value: charter_amended
+    decision: escalate
+    priority: 100
+    description: "A public demo visitor may not change the charter unattended."
+
+  - id: ESCALATE-LAW-AMEND
+    selector: r6.request.action
+    operator: "=="
+    value: law_amended
+    decision: escalate
+    priority: 100
+    description: "A public demo visitor may not change the law unattended."
+
+  - id: ESCALATE-ROLE-ASSIGN
+    selector: r6.request.action
+    operator: "=="
+    value: role_assigned
+    decision: escalate
+    priority: 100
+    description: "A public demo visitor may not assign governance roles unattended."
+
+  - id: ESCALATE-MEMBER-REMOVAL
+    selector: r6.request.action
+    operator: "in"
+    value:
+      - member_removed
+      - member_admission_reset
+    decision: escalate
+    priority: 100
+    description: "A public demo visitor may not remove or reset another member unattended."
+
+admission:
+  open: true
+  requires_sponsor: false
+  min_trust_score: 0.0
+  description: "Time-bounded hackathon judge mode: signed browser identities are auto-admitted."
+
