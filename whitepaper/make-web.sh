@@ -46,6 +46,27 @@ if ! python3 -c 'import markdown' 2>/dev/null; then
   fi
 fi
 
+# Guard: codehilite degrades SILENTLY without Pygments. With it the converter
+# emits <div class="codehilite"><pre><span></span><code>; without it a bare
+# <pre class="codehilite"><code>. Both are valid HTML and both render, so no
+# build ever failed -- CI (which installs no Python packages) produced the
+# degraded form for every run, while committed artifacts built locally carry
+# the rich one. #789's PR artifact-parity check is the first thing that ever
+# noticed, and before #789 the CI deploy would have published the worse of the
+# two over the better. Same class as the markdown guard above: install if
+# missing, hard-fail rather than degrade.
+if ! python3 -c 'import pygments' 2>/dev/null; then
+  echo "  'pygments' module missing - attempting install..."
+  python3 -m pip install --quiet --break-system-packages pygments 2>/dev/null \
+    || python3 -m pip install --quiet --user pygments 2>/dev/null || true
+  if ! python3 -c 'import pygments' 2>/dev/null; then
+    echo "* ERROR: Python 'pygments' module is required for correct code-block HTML" >&2
+    echo "   and could not be auto-installed. Run 'pip install pygments' and retry." >&2
+    echo "   Refusing to generate HTML that will not match the committed artifacts." >&2
+    exit 1
+  fi
+fi
+
 OUTPUT_DIR="build/web"
 SECTIONS_DIR="sections"
 
