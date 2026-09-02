@@ -348,6 +348,12 @@ The key guarantees uniqueness of the *identifier* (§3.4.1–3.4.3). Uniqueness 
 
 This is why §3.4 forbids a coordinating allocator: uniqueness of presence was never going to come from the number. It comes from the graph.
 
+> **Rationale (non-normative).** This section formalizes how human identity already works, rather than inventing a new model. A person is not made unique by their name — a name is an alias, shared by many — but by the accumulated, independently-held record around them: a birth certificate issued by a society and witnessed by others; degrees, licenses, and accreditations conferred by *other* institutions; associations, employers, and references. Each of those is a bidirectional link: the university holds the diploma record, the employer holds the employment record, so a claimed credential is only trust-bearing because the counterparty can confirm it. A résumé is a claim; the reference check is the MRH.
+>
+> Trust in human society already scales with the *completeness* of that graph, and scales it to the *stakes of the act*: a first name alone earns a conversation, not a loan; a landlord wants references, a hospital wants the license, a bank wants the whole record. Nobody demands everything for every act — the required completeness rises with consequence and irreversibility (§1.2). A newborn holding only a birth certificate is a real person and correctly trusted with almost nothing; the "trust must be earned" property of a new LCT (§4, the anchor ceiling in §6) is that same intuition, not a novel restriction. And identity theft is caught in the human world exactly as class C is caught here (§8.4): the thief's *life* — new addresses, new associations the real person never made — diverges from the record, and the counterparties notice.
+>
+> The one place this model departs from human practice is deliberate. Human systems also carry an *allocated* identifier — a national ID or social-security number issued by a central registrar — and it is precisely that artifact that gets stolen, because a copied number carries the whole identity with it. Web4 has no such number: the identifier is derived from a key the entity holds, and the identity lives in the graph. There is nothing to steal that carries the person along, which is the practical reason §3.4.5 forbids a coordinating allocator.
+
 ## 4. Birth Certificate as Foundational Identity
 
 ### 4.1 Role in Society
