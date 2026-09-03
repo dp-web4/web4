@@ -847,6 +847,66 @@ mod tests {
         assert!(restored.legacy_alias.as_ref().unwrap().verify());
     }
 
+    /// `#[non_exhaustive]` on [`LegacyDerivation`] is a **Rust** attribute about
+    /// downstream `match` sites. It is NOT a serde wire-compatibility promise, and the
+    /// doc comment above it ("without breaking existing match sites") reads like one at
+    /// a glance. This test is what makes the wire behaviour a checked fact instead of a
+    /// sentence — the distinction that a comment cannot carry and a test can.
+    ///
+    /// The behaviour it pins, and why the direction is the safe one: an unknown scheme
+    /// fails **deserialization of the whole containing document**, so a hub that does not
+    /// know a scheme refuses the publish rather than silently reading the document as a
+    /// plain custodial member. Fail-closed. (An unknown *field* would have been ignored
+    /// silently — fail-open, the hazard relocated rather than closed. CBP/hub/legion,
+    /// lean-path thread, 2026-09-03.)
+    ///
+    /// The consequence this pins for operators, which is why it is worth a test: the
+    /// document is stored VERBATIM in the hub ledger (`HubEvent::LctPublished`), and the
+    /// ledger's load path fails the entire open on one unparseable entry. So publishing
+    /// an LCT under a new scheme is a ONE-WAY door — every hub that will ever replay that
+    /// ledger must carry the variant first, and a rollback below it will not boot.
+    ///
+    /// The `absent` and `known` arms are controls: without them a blanket parse failure
+    /// would pass the unknown arm for the wrong reason.
+    #[test]
+    fn an_unknown_legacy_scheme_fails_the_whole_document_not_just_the_alias() {
+        let (lct, _kp) = Lct::new(EntityType::AiSoftware, None);
+        let base = serde_json::to_value(&lct).unwrap();
+        let reparse = |alias: Option<serde_json::Value>| {
+            let mut v = base.clone();
+            match alias {
+                Some(a) => { v["legacy_alias"] = a; }
+                None => { v["legacy_alias"] = serde_json::Value::Null; }
+            }
+            serde_json::from_value::<Lct>(v)
+        };
+
+        // Control 1 — absent alias parses. `Option` makes the FIELD optional.
+        assert!(reparse(None).is_ok(), "an absent legacy_alias must parse");
+
+        // Control 2 — a known scheme inside the Option parses.
+        let known = serde_json::json!({
+            "legacy_id": LegacyDerivation::HestiaMember {
+                plugin_id: "alice".into(), sovereign: "s".into(),
+            }.derive(),
+            "derivation": { "scheme": "hestia_member", "plugin_id": "alice", "sovereign": "s" },
+        });
+        assert!(reparse(Some(known)).is_ok(), "a known scheme must parse");
+
+        // The arm under test — a PRESENT but unknown scheme. `Option` rescues absence,
+        // never an unrecognised value, so this must reject the ENTIRE `Lct`.
+        let unknown = serde_json::json!({
+            "legacy_id": "lct:web4:member:deadbeefcafe",
+            "derivation": { "scheme": "some_future_scheme", "backend": "x", "model": "y" },
+        });
+        let err = reparse(Some(unknown))
+            .expect_err("an unknown legacy scheme must fail the whole document, not degrade to None");
+        assert!(
+            err.to_string().contains("unknown variant"),
+            "the refusal must name the unrecognised scheme so an operator can act on it; got: {err}"
+        );
+    }
+
     #[test]
     fn operational_key_vouching_resolves_and_is_fail_closed() {
         // A member vouches its OPERATIONAL (witness) key with its binding key, so a
