@@ -9,16 +9,28 @@ search (cosine + Hamming + keyword rerank) membot ships.
 
 Endpoints (localhost only — the hub mediates all external access):
   GET  /health                      -> {ok, cart, n_members, fingerprint}
-  POST /find_members {query, top_k, temperature}
+  POST /find_members {query, top_k}
         -> {results: [{member_lct, score}], total}
         The cart is a pure index (embeddings + opaque member_lct); the sidecar
         returns only LCT + score. Member name/profile live once in the hub's
         encrypted registry and are re-attached there — no PII flows through here.
 
-temperature is accepted now (locked v1 contract: ship the knob from day one)
-but the underlying multi_cart.search doesn't expose settle-noise yet, so v1 is
-precision-only (temperature is recorded + echoed, wired through when membot
-exposes it). Reserved, not faked.
+temperature is REFUSED, not reserved. v1 accepted it, forwarded it, ignored it
+and echoed it back, on the promise that it would be "wired through when membot
+exposes it" -- but the trigger names a precondition that cannot be met on this
+path: multi_cart.search is declared (query, top_k, scope, role_filter,
+scope_mode) and contains no settle-noise at all, so the wire-through is an
+engine change, not a line here. Meanwhile the reserved knob was worse than a
+live one: the seam signature {query, top_k, temperature} was ALREADY the
+post-change signature, so on the day precision became caller-tunable noise
+there would have been no diff at this seam and every behavioural test would
+have passed before and after.
+
+So the knob is gone and its absence is enforced: retrieval determinism is a
+property of the engine resolved from role law, never a parameter the asker
+tunes. A request carrying `temperature` gets a 400 rather than a silent ignore,
+because a seam that stops honouring a parameter must say so somewhere the
+caller cannot discard.
 """
 import argparse
 import json
@@ -95,13 +107,15 @@ class Handler(BaseHTTPRequestHandler):
         if not query:
             return self._json(400, {"error": "query is required"})
         top_k = int(req.get("top_k") or 12)          # contract default 10-15
-        temperature = float(req.get("temperature") or 0.0)
+        if "temperature" in req:
+            return self._json(400, {"error": "temperature is not supported: "
+                                             "retrieval settle-noise is resolved from role "
+                                             "law inside the engine, never by the caller"})
         try:
             results = do_search(query, top_k)
         except Exception as e:
             return self._json(500, {"error": f"search failed: {e}"})
-        self._json(200, {"results": results, "total": len(results),
-                         "temperature": temperature})
+        self._json(200, {"results": results, "total": len(results)})
 
 
 def main() -> int:

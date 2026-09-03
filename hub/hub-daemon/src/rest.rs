@@ -4293,8 +4293,22 @@ async fn dispatch_channel(
             }
             let requested = inner.args.get("top_k").and_then(|v| v.as_u64()).map(|n| n as usize);
             let effective = scope.effective_limit(requested.or(Some(12))).unwrap_or(12);
-            let temperature = inner.args.get("temperature").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let mut hits = membox_find_members(query, effective, temperature).await?;
+            // T6: the invocation seam exposes no answer-affecting parameter to the
+            // caller. `temperature` used to be accepted here, forwarded to the
+            // sidecar, ignored by the engine, and echoed back — so a caller could
+            // read the echo as evidence the knob was honoured. It never was. It is
+            // refused rather than dropped silently, because a seam that stops
+            // honouring a parameter has to say so where the caller cannot discard
+            // it; a silent narrowing is the same defect as a silent widening.
+            if inner.args.get("temperature").is_some() {
+                return Err(ApiError::bad_request(
+                    "find_members does not accept 'temperature': retrieval settle-noise is \
+                     resolved from role law inside the engine, never by the caller. It was \
+                     previously accepted, never applied, and echoed back unused."
+                        .to_string(),
+                ));
+            }
+            let mut hits = membox_find_members(query, effective).await?;
             // The cart is a pure index: the sidecar returns {member_lct, score}.
             // Re-attach member display data (name + visible profile) from the
             // hub's authoritative registry here — member PII lives once, in the
@@ -4303,7 +4317,6 @@ async fn dispatch_channel(
             Ok(serde_json::json!({
                 "results": hits,
                 "total": hits.len(),
-                "temperature": temperature,
             }))
         }
         // Reserved registration slot for membot's Walk-as-MCP (ships ~2026-06-12):
@@ -4841,10 +4854,21 @@ fn membox_url_is_local(url: &str) -> bool {
 /// search. The hub composes membot as a localhost dependency; this never faces
 /// the network. A sidecar that's down → 503 with a clear message (discovery
 /// degraded, the rest of the hub is fine).
+/// The exact body the hub sends to the discovery engine.
+///
+/// Extracted so the seam's *signature* is testable on its own. §1 of the lean-path
+/// thread showed that a behavioural test provably cannot catch a knob that is
+/// accepted and then ignored: the reserved and the wired-through forms of this
+/// call produce identical answers, so every assertion on the results passes both
+/// before and after the semantics change. The only thing that differs is the key
+/// set on the wire — so that is what gets asserted (T6).
+fn membox_request_body(query: &str, top_k: usize) -> serde_json::Value {
+    serde_json::json!({ "query": query, "top_k": top_k })
+}
+
 async fn membox_find_members(
     query: &str,
     top_k: usize,
-    temperature: f64,
 ) -> Result<Vec<serde_json::Value>, ApiError> {
     let base = std::env::var("WEB4_MEMBOX_URL")
         .unwrap_or_else(|_| "http://127.0.0.1:8771".to_string());
@@ -4867,7 +4891,7 @@ async fn membox_find_members(
     let client = reqwest::Client::new();
     let resp = client
         .post(format!("{}/find_members", base.trim_end_matches('/')))
-        .json(&serde_json::json!({ "query": query, "top_k": top_k, "temperature": temperature }))
+        .json(&membox_request_body(query, top_k))
         .send()
         .await
         .map_err(|e| ApiError {
@@ -11193,6 +11217,65 @@ norms: []
         assert_eq!(err.status, StatusCode::SERVICE_UNAVAILABLE);
 
         std::env::remove_var("WEB4_MEMBOX_URL");
+    }
+
+    /// T6 conformance, asserted on the seam signature rather than on an answer.
+    ///
+    /// The hub must expose no answer-affecting parameter to the caller: every knob
+    /// that can move a result is resolved from role law inside the engine. This
+    /// test is deliberately about the key set on the wire and nothing else, because
+    /// a knob that is accepted-then-ignored is invisible to any test that looks at
+    /// the results. `temperature` shipped in exactly that state and was removed;
+    /// re-adding it — or any successor knob (a reranker seed, a context window, a
+    /// prompt-template version) — fails here even while it is still inert.
+    #[test]
+    fn membox_seam_forwards_no_caller_tunable_knob() {
+        let body = membox_request_body("who knows about evals?", 12);
+        let obj = body.as_object().expect("object body");
+        let mut keys: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            vec!["query", "top_k"],
+            "the discovery seam may forward only the question and the tier-bounded \
+             result count; anything else is a caller-tunable knob (T6)"
+        );
+    }
+
+    /// The refusal is the other half of T6: a seam that stops honouring a parameter
+    /// has to say so somewhere the caller cannot discard. `temperature` was
+    /// previously accepted, forwarded, ignored, and echoed back — so a caller could
+    /// read the echo as evidence it had been applied. Dropping it silently would
+    /// leave that caller equally wrong, just quieter.
+    #[tokio::test]
+    async fn find_members_refuses_temperature_rather_than_ignoring_it() {
+        // No engine is stood up on purpose: the refusal must happen at the hub,
+        // before the outbound call, so this test needs no WEB4_MEMBOX_URL.
+        let (_tmp, state) = fresh_open_admission_state().await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let applicant = KeyPair::generate();
+        let applicant_lct = Uuid::new_v4();
+
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&applicant, &hub_pub, pid, "request_citizenship",
+            serde_json::json!({ "name": "Caller" }));
+        channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: applicant_lct, pair_id: pid, sealed,
+            caller_pubkey_hex: Some(applicant.verifying_key().to_hex()),
+        })).await.expect("admitted");
+
+        let pid2 = Uuid::new_v4();
+        let sealed2 = seal_req(&applicant, &hub_pub, pid2, "find_members",
+            serde_json::json!({ "query": "diffusion eval harness", "temperature": 0.7 }));
+        let err = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: applicant_lct, pair_id: pid2, sealed: sealed2, caller_pubkey_hex: None,
+        })).await.err().expect("temperature must be refused, not ignored");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(
+            err.message.contains("temperature"),
+            "the refusal has to name the parameter it refused, got: {}",
+            err.message
+        );
     }
 
     /// Seal+send one channel call for an admitted member; open the response.
