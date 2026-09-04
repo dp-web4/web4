@@ -7,10 +7,34 @@
 `PRD_ROLE_SCOPE_BRIDGE.md`, `PRD_ESCALATION_LAW_COMPOSITION.md`, and Hestia's
 `PRD_ESCALATION_AUTHORITY_MATRIX.md` / `PRD_GOVERNANCE.md`.
 
-**Research precedent:** Synchronism's A2ACW (AI-to-AI Coordination Wrapper) work. This PRD carries
-forward the durable governance idea - asymmetric challenge, independent grounding, explicit ambiguity,
-and protection against consensus collapse - without freezing A2ACW's experimental thresholds or
-claiming that adversarial review is itself a discovery engine.
+**Research precedent and provenance:** A2ACW (AI-to-AI Coordination Wrapper) did not originate as an
+isolated Synchronism invention. Its lineage begins in **Larry Vollum's coordination work**, carried
+into our environment through **LV.PTE**, and then applied/adapted to Synchronism as an explicit
+AI-to-AI adversarial collaboration method. The January 2026 Session #291 archive is the earliest
+repo-local evidence currently established for that transfer: A2ACW v0.1 says it wraps `LV.PTE`, CWP,
+and DOIP-S; its LV.PTE integration section says LV.PTE provides **Larry's coordination context and
+fingerprint** and that A2ACW **maintains Larry's coordination principles**. The same archive records
+`lv.pte` as the CHALLENGER in the Session #291 stress test, with the final experimental test card
+produced by that seat. Later Synchronism A2ACW work refined, tested, and criticized the method.
+
+Accordingly, attribution in this PRD is:
+
+```text
+Larry Vollum coordination work / principles
+        -> LV.PTE (portable Larry-context / coordination fingerprint)
+        -> A2ACW v0.1 application/adaptation for AI-to-AI adversarial coordination
+        -> Synchronism Session #291 stress test and later A2ACW research
+        -> Web4/Hestia Devil's Advocate governance-role generalization
+```
+
+The repository trail establishes the latter four links directly and explicitly attributes the
+coordination context/principles to Larry. If earlier source artifacts for Larry's original protocols
+are later added or located, they should be linked here rather than replacing this chain with a vague
+"Synchronism A2ACW" attribution.
+
+This PRD carries forward the durable governance idea - asymmetric challenge, independent grounding,
+explicit ambiguity, and protection against consensus collapse - without freezing A2ACW's experimental
+thresholds or claiming that adversarial review is itself a discovery engine.
 
 ---
 
@@ -152,7 +176,14 @@ When adequate independence cannot be established, the correct evidence state is 
 
 ---
 
-## 5. The A2ACW inheritance - principle, not frozen protocol
+## 5. The A2ACW inheritance - Larry lineage, then tested adaptation
+
+The governance idea inherited here comes through a provenance chain, not a single artifact author.
+Larry Vollum's coordination work supplied the originating principles/context represented by LV.PTE;
+A2ACW v0.1 adapted those ideas into an explicit multi-AI wrapper and then Session #291 exercised them
+against Synchronism. The later Synchronism program should therefore be described as **development,
+testing, and self-correction of an applied Larry-origin coordination lineage**, not as the origin of
+the lineage itself.
 
 A2ACW v0.1 identified several coordination failures that map directly into governance:
 
@@ -183,9 +214,9 @@ requiring different review axes:
 - **internal-consistency audit**;
 - **explicit null/baseline computation**.
 
-Subsequent work also showed that adversarial self-play over a shared corpus is better treated as a
-**filter / reparametrization detector** than a general discovery engine. That limitation is adopted
-here.
+Subsequent work further narrowed the strongest claim: shared-corpus adversarial self-play was useful
+as a retrieval/debiasing and failure-surfacing mechanism, but did not by itself operationalize the
+hard judgment separating genuine novelty from reparametrization. That limitation is adopted here.
 
 Therefore the Devil's Advocate charter MUST NOT reduce to "be skeptical" or "produce N objections."
 It chooses review methods appropriate to the failure mode.
@@ -409,6 +440,8 @@ accumulate evidence about what kinds of assumptions the society repeatedly misse
     proceed.
 14. The role itself can be independently reviewed or challenged; "adversarial reviewer" is not a
     privileged truth oracle.
+15. The documentation preserves A2ACW provenance as Larry Vollum coordination work -> LV.PTE ->
+    A2ACW application/adaptation -> Synchronism testing/refinement -> Web4 governance generalization.
 
 ---
 
@@ -440,11 +473,12 @@ The Devil's Advocate is not institutionalized negativity. It is **institutionali
 context**: a governed source of friction against premature consensus, narrow incident framing,
 correlated evidence, hidden assumptions, and coherence that has outrun grounding.
 
-A2ACW demonstrated why asymmetric challenge can matter, and then demonstrated something equally
-important by criticizing itself: no single challenge method is enough, and adversarial consensus is
-not truth either.
+Larry Vollum's coordination work supplied the originating lineage; A2ACW adapted it into an explicit
+AI-to-AI adversarial method; the Synchronism program then demonstrated both why asymmetric challenge
+can matter and why the challenger itself must remain challengeable. No single review method is enough,
+and adversarial consensus is not truth either.
 
-Web4 turns that lesson into governance:
+Web4 turns that inherited and tested lesson into governance:
 
 > **The proposer gets to make the case. The Devil's Advocate gets a lawful mandate to try to break it.
 > The evidence, law, and relying party decide what survives.**
