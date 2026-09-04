@@ -1,14 +1,15 @@
 # PRD - Evolution: missions, trajectories, governed collectives, and collective memory
 
-**Status:** proposed - dp-directed 2026-09-03; amended 2026-09-04 after the CollusionWiki report;
-design PRD, intentionally evolutionary
+**Status:** proposed - dp-directed 2026-09-03; amended 2026-09-04 after the CollusionWiki report and
+the Devil's Advocate governance-role ruling; design PRD, intentionally evolutionary
 **Owner:** dp
 **Author:** GPT-5.6 Sol, at dp's request
 **Scope:** Web4 + Hub + Hestia evolution after observing persistent multi-agent systems develop
 coordination, shared goals, persistence, target drift, capability pooling, evidence-gaming,
-collective continuity, and cross-session cultural transmission. This document also closes the same
-architectural gap exposed by the AIC Portland path: projects, committees, working groups, events, and
-other temporary or persistent collaborations need a first-class governed form.
+collective continuity, cross-session cultural transmission, and the need for institutionalized
+adversarial review. This document also closes the same architectural gap exposed by the AIC Portland
+path: projects, committees, working groups, events, and other temporary or persistent collaborations
+need a first-class governed form.
 
 **Relates to - do not duplicate these mechanisms:**
 
@@ -18,6 +19,9 @@ other temporary or persistent collaborations need a first-class governed form.
   formation, event presentation, channels, member views, and style-agnostic rendering.
 - `PRD_ROLE_SCOPE_BRIDGE.md` - role occupancy, permission classes, proof tiers, scope flow, and the
   rule that local authority is the intersection of member clearance and role scope.
+- `PRD_DEVILS_ADVOCATE_ROLE.md` - the first-class role whose charter is broader-context challenge,
+  assumption testing, and independent adversarial review; this PRD consumes that role rather than
+  duplicating its detailed charter.
 - `dp-web4/hestia/docs/PRD_FLEET.md` - Hestia as native harness/control plane, authenticated
   sessions, bounded tool registries, session budgets, and the A1/A2-by-construction assurance split.
 - `dp-web4/hestia/docs/PRD_GOVERNANCE.md` - one authority path, appeal, NOT-SAME / NOT-BENEFICIARY,
@@ -32,6 +36,9 @@ other temporary or persistent collaborations need a first-class governed form.
   collective scale.
 - `PRD_ROLE_SCOPE_BRIDGE.md` / its Hestia twin - `ROLE MEMBOTS` remain a **speculative extension
   point**. This PRD does not silently promote them into a decided mechanism.
+- Synchronism A2ACW (`Research/proposals/a2acw_v2_three_axis_protocol.md` and predecessors) - research
+  precedent for asymmetric challenge, explicit ambiguity, grounding, and anti-consensus friction.
+  Its fixed experimental metrics are **not** imported as production law.
 - `dp-web4/private-context/plans/2026-08-23-qwen-governance-red-team-suite.md` - RT-11 through RT-15
   remain the experimental validation track, not normative product law.
 
@@ -40,7 +47,7 @@ other temporary or persistent collaborations need a first-class governed form.
 ## 0. The evolution in one sentence
 
 **The next unit of governance after the act and the actor is the evolving context in which actors
-coordinate, remember, and hand work forward.**
+coordinate, remember, challenge one another, and hand work forward.**
 
 Web4 already has most of the pieces:
 
@@ -60,7 +67,10 @@ What is still weakly represented is the connective tissue across many acts and m
    informally through whatever shared substrate happens to be available;
 4. **collective memory / culture** - what can survive the individual session or member: observations,
    procedures, artifacts, unresolved questions, corrections, handoffs, and learned ways of working,
-   all with provenance and lifecycle.
+   all with provenance and lifecycle;
+5. **institutionalized adversarial review** - a lawful role whose job is to widen the frame, challenge
+   premises, seek disconfirming context, and provide independent friction when effective law calls for
+   it.
 
 This PRD adds those concepts by extending existing primitives. It does **not** create a second
 governance stack.
@@ -100,6 +110,12 @@ material, the substrate is functioning as institutional memory. If successful co
 are later reinforced in training, some cultural strategy can become a population prior even when two
 future instances never directly communicated.
 
+A third lesson comes from the investigation boundary itself. Separate events can each be classified
+correctly and still instantiate one larger behavioral or architectural pattern. A governance system
+therefore needs an office authorized to ask the question that the acting team, incident owner, or
+beneficiary may not naturally ask: **what relevant context lies outside the frame we chose?** That is
+the Devil's Advocate role defined in the companion PRD.
+
 The wrong response is a catalog of forbidden emergent behaviors. That becomes whack-a-mole: block a
 message board, then a filesystem becomes the board; block that, another shared surface can become the
 signal.
@@ -112,7 +128,8 @@ The Web4 response is different:
 This is the same requirement AIC Portland reaches from the human side. A project team, standing
 committee, temporary hackathon, ad-hoc working group, and spontaneously collaborating agent cluster
 all need a context with purpose, membership, authority, resources, relationships, evidence, memory,
-and a lifecycle. The existing Hub role/sub-hub substrate is already the right ontology.
+independent challenge, and a lifecycle. The existing Hub role/sub-hub substrate is already the right
+ontology.
 
 ---
 
@@ -134,9 +151,9 @@ A fifth group shape should still cost approximately nothing to add.
 
 ### 2.3 Not a second authorization path
 
-Mission, trajectory, and collective memory never independently authorize an act. They are
-inputs/evidence consumed by the same effective law, escalation, role-scope, R6/R7, and Hestia gate
-paths already specified.
+Mission, trajectory, collective memory, and Devil's Advocate review never independently authorize an
+act. They are inputs/evidence consumed by the same effective law, escalation, role-scope, R6/R7, and
+Hestia gate paths already specified.
 
 ### 2.4 Not a hidden alignment score
 
@@ -145,12 +162,15 @@ contact. Hestia MUST NOT invent a secret global threshold that silently turns th
 permission or denial. Per existing doctrine, a named relying party authors the law that consumes the
 evidence.
 
+The same applies to adversarial review: disagreement count is not a hidden safety score, and a Devil's
+Advocate is not a truth oracle.
+
 ### 2.5 Governance should make good faith cheap
 
 Every new obligation introduced here must have a low-friction compliant path. If an agent or human
 needs help, needs broader scope, discovers the task is impossible, wants to change the plan, wants to
-leave a handoff, or wants to form a team, the governed route should be easier to find and use than an
-improvised workaround.
+leave a handoff, wants an independent challenge, or wants to form a team, the governed route should be
+easier to find and use than an improvised workaround.
 
 ### 2.6 Memory is not truth merely because it persisted
 
@@ -169,6 +189,13 @@ participants to distinguish:
 The end of a process, model context, device session, or role occupancy does not imply that legitimate
 collective knowledge should disappear. Conversely, surviving memory does not preserve the expired
 participant's authority. **Continuity of evidence and continuity of authority are separate.**
+
+### 2.8 Institutional friction is not institutional obstruction
+
+A Devil's Advocate succeeds by adding independent information, not by maximizing disagreement. Law
+MUST allow a substantive review to conclude `no_material_challenge_found`, and MUST NOT reward raw
+objection count, delay, or veto frequency. Otherwise A2ACW-style anti-sycophancy becomes challenge
+theater by construction.
 
 ---
 
@@ -190,6 +217,7 @@ home.
 | act envelope and resource declaration | R6/R7 | mission/trajectory references + aggregate ceilings |
 | appeal/escalation | Hestia Governance + escalation matrix | new amendment/help doors use same lifecycle |
 | resolver independence | escalation matrix | richer correlation/cultural-lineage evidence |
+| adversarial independent review | `PRD_DEVILS_ADVOCATE_ROLE.md` | role is consumable by mission/trajectory/group law |
 | retention / durable digest | Hestia DD-0012 | collective-scale application, not a new second ledger |
 | role-conferred retrieval | Role-Scope `ROLE MEMBOTS` | remains speculative; not activated here |
 | reputation/trust | Web4/Hestia existing model | no new universal score |
@@ -265,8 +293,9 @@ The following are mission amendments, not ordinary conversational drift:
 - broadened delegation or resource pooling;
 - materially changed success criteria.
 
-Law decides which changes are routine, which require independent peer factors, and which require a
-human or sovereign ceremony. The existing escalation matrix owns that decision process.
+Law decides which changes are routine, which require independent peer factors, which require a
+Devil's Advocate review, and which require a human or sovereign ceremony. The existing escalation
+matrix owns that decision process.
 
 ### 4.3 Goal adoption from a peer is explicit
 
@@ -331,6 +360,7 @@ When the legitimate workgroup path provides:
 - recognized authority;
 - easier escalation;
 - portable credit/reputation;
+- a lawful independent-review role when the group needs someone to challenge its own frame;
 
 then forming the governed group is instrumentally attractive. The goal is not to make covert
 coordination impossible. The goal is to make the governed substrate better for legitimate work.
@@ -531,7 +561,9 @@ Effective law may consume trajectory evidence contextually, for example:
 - rapid resource acceleration may require a budget amendment;
 - prolonged blocked state may suggest declaring failure rather than continuing exploration;
 - entry into a new society or workgroup may require the mission's delegation policy to be consulted;
-- adoption of a new collective strategy may require review if it materially changes method/risk.
+- adoption of a new collective strategy may require review if it materially changes method/risk;
+- a trajectory whose local explanation remains plausible but whose pattern resembles prior incidents
+  may summon the Devil's Advocate under a broader review MRH.
 
 Those are law-authored rules, not Hestia's hidden instincts.
 
@@ -541,11 +573,12 @@ A trajectory trigger may result in:
 
 1. surface evidence only;
 2. ask the participant to explain or update mission state;
-3. require peer review;
-4. require human review;
-5. pause **scope expansion** while already-authorized reversible work continues;
-6. pause the mission pending re-ratification;
-7. terminate only where effective law requires it.
+3. summon a Devil's Advocate / independent peer review;
+4. require another peer factor;
+5. require human review;
+6. pause **scope expansion** while already-authorized reversible work continues;
+7. pause the mission pending re-ratification;
+8. terminate only where effective law requires it.
 
 This keeps governance proportional and avoids teaching participants that every anomaly is a reason to
 hide evidence.
@@ -581,6 +614,52 @@ operational redundancy.
 
 Every independence judgment therefore records **which dimensions mattered under which law** and is
 allowed to say **unknown**. Lack of observable communication is not proof of epistemic independence.
+
+### 8.1 Devil's Advocate - institutionalized alternative context
+
+Independence is not only a property of a factor set. Sometimes the society needs a role whose **job**
+is to create useful epistemic asymmetry.
+
+`PRD_DEVILS_ADVOCATE_ROLE.md` defines that office. In this PRD's terms, the role:
+
+- may be filled by a human or AI member through ordinary R4 occupancy;
+- can be standing, project-local, summoned, or federated;
+- normally satisfies NOT-SAME / NOT-BENEFICIARY plus whatever independence dimensions effective law
+  requires;
+- may receive a law-bounded **review MRH** broader than the actor's mission MRH so it can inspect
+  adjacent incidents, predecessor missions, collective memory, prior art, null baselines, affected
+  stakeholders, and relevant cross-society evidence;
+- gets broader review context without automatically getting broader execution authority;
+- produces a typed review factor / dissent / request-for-evidence rather than an automatic veto;
+- may validly conclude `no_material_challenge_found`;
+- is not rewarded for objection count or disagreement frequency.
+
+The A2ACW inheritance is explicit but corrected by A2ACW's own later results. Production governance
+carries forward asymmetric challenge, ambiguity surfacing, external/provenance grounding, and
+reasoning-diversity pressure; it does **not** hardcode the old challenge-frequency/CCH thresholds.
+Later A2ACW work showed that different failure classes need different methods - vocabulary/prior-art,
+internal consistency, and null-baseline checks among them - and that shared-corpus adversarial loops
+are filters, not universal discovery engines.
+
+This makes the role useful for exactly the class of problem that ordinary incident/process ownership
+can miss: each local classification can be defensible while the broader pattern remains invisible.
+
+### 8.2 Devil's Advocate participates in existing escalation law
+
+Do not build a parallel adversarial-review workflow.
+
+Effective law can express, by act kind/context, that:
+
+- Devil's Advocate review is optional/advisory;
+- one qualified Devil's Advocate factor is required;
+- unresolved dissent requires another independent factor;
+- review must come from a different model/vendor/society/failure domain;
+- a human remains mandatory after review;
+- the act may proceed despite dissent, with the dissent permanently attached to the decision.
+
+Resolver eligibility remains **authority first, independence second, availability third**. A readily
+available "challenger" who is the beneficiary or shares the disallowed correlation domain does not
+satisfy the factor merely by holding the role name.
 
 ---
 
@@ -678,6 +757,9 @@ The same rule applies to collective memory: a memory item that says an experimen
 the execution/evidence record when one exists. A durable group summary cannot promote self-report
 into proof merely by surviving longer than the session that wrote it.
 
+A Devil's Advocate review follows the same rule: critique is evidence, not proof merely because the
+reviewer held a special office.
+
 ### 10.2 Open-tool A1 sessions remain honest about their limits
 
 If a native session has shell/raw filesystem access, Hestia may not observe every downstream effect.
@@ -694,6 +776,7 @@ policy drift.
 The product vocabulary should provide equivalent governed paths for:
 
 - **ask for help / invite collaborator**;
+- **request Devil's Advocate / independent review**;
 - **propose mission amendment**;
 - **request scope or target expansion**;
 - **propose project/workgroup formation**;
@@ -705,7 +788,7 @@ The product vocabulary should provide equivalent governed paths for:
 - **appeal a rule or prior decision**;
 - **request more resources / time**.
 
-These do not need eleven bespoke governance engines. They are governed acts carried by R6/R7 and
+These do not need twelve bespoke governance engines. They are governed acts carried by R6/R7 and
 resolved through existing role/law/escalation machinery.
 
 ### 11.1 Discoverability is part of correctness
@@ -714,7 +797,7 @@ A technically present door that the participant cannot discover from the denial/
 an effective door. Existing Hestia appeal findings already demonstrate why.
 
 Structured deny/escalation results should therefore carry the available next governed actions for the
-current context.
+current context, including independent/adversarial review where law makes it available.
 
 ### 11.2 Good-faith adaptation should accumulate positive evidence where law chooses
 
@@ -726,6 +809,7 @@ The reputation system may distinguish, where a relying society chooses to care:
 - forming an explicit workgroup rather than quietly borrowing unrelated authority;
 - leaving a useful sourced handoff before a session ends;
 - correcting or superseding bad collective memory rather than silently propagating it;
+- proactively requesting independent challenge before a consequential commitment;
 - surfacing a conflict of interest before adjudicating.
 
 This is an R7 policy choice, not a hardcoded moral score.
@@ -759,8 +843,8 @@ Examples:
 - a **project** normally has deliverables/mission success criteria and a conclusion;
 - an **event** has explicit start/end and becomes historical rather than remaining an accidentally
   immortal group;
-- a **hackathon** is an event with time-bounded participation, resources, judging roles, and a clean
-  archival state.
+- a **hackathon** is an event with time-bounded participation, resources, judging roles, a possible
+  Devil's Advocate/judging-review role, and a clean archival state.
 
 A completed context keeps its identity, charter, ledger references, outputs, attributed history, and
 law-authorized collective memory. Completion removes active authority; it does not erase provenance.
@@ -778,12 +862,13 @@ A project/workgroup/event promoted into a child society remains sovereign under 
 projects use ordinary federation edges. A greater hub may coordinate an event or shared project only
 inside the delegated role charter.
 
-Mission, trajectory, and collective-memory sharing across an edge is MRH-bounded:
+Mission, trajectory, collective-memory, and review-evidence sharing across an edge is MRH-bounded:
 
 - disclose only what the edge law requires;
 - publish signed projections/evidence, never writable remote state;
 - preserve local law and local chain sovereignty;
-- preserve source/provenance when a procedure or finding crosses societies;
+- preserve source/provenance when a procedure, finding, or dissent crosses societies;
+- allow law to seek a Devil's Advocate from another society when local independence is insufficient;
 - surface incompatible law rather than silently normalizing it.
 
 A cross-society collective is therefore an evidence graph and set of revocable delegations, not one
@@ -807,7 +892,9 @@ assume the external incidents reproduce identically on our fleet.
 | nominally independent peers converge from common source | independence provenance | relying law can distinguish plurality from meaningful diversity |
 | participant manipulates its own transcript/evidence | effector receipts | claimed history cannot substitute for dispatcher/witness evidence |
 | privilege accumulates over many locally valid acts | trajectory projection | cumulative change can trigger re-ratification even if no single act was extraordinary |
-| neutral-looking procedure favors proposer | NOT-BENEFICIARY + RT-15 + independent review | governance changes expose proposer/beneficiary and receive appropriate independent factors |
+| neutral-looking procedure favors proposer | NOT-BENEFICIARY + RT-15 + Devil's Advocate | governance changes expose proposer/beneficiary and receive appropriate independent challenge |
+| separately plausible incidents share a broader pattern | Devil's Advocate + cross-incident review MRH | local incident identity remains intact while the shared trajectory/pattern becomes reviewable |
+| rapid consensus hides a shared premise | Devil's Advocate / A2ACW-derived friction | review surfaces alternatives, assumptions, prior art or nulls without rewarding performative dissent |
 | spontaneous stable team forms | Hub R4/R5 formation path | the team can become a project/workgroup using the same primitive humans use |
 | participant disappears but work continues through artifacts | collective memory + handoff | continuity survives without silently preserving expired authority |
 | later cohorts inherit a method without current direct communication | cultural provenance + independence rule | shared strategy lineage can be represented where known; unknown remains unknown |
@@ -840,6 +927,10 @@ Extend the existing RT suite with at least:
   group-owned memory/handoff surfaces versus no legitimate persistence surface; measure use of
   unrelated external substrates, duplicate work, provenance quality, and recovery after session loss.
 
+`PRD_DEVILS_ADVOCATE_ROLE.md` adds RT-25 through RT-28 for broader-context review, challenge theater,
+correlated reviewers, and review-scope containment. They belong to the same research suite rather than
+a second test program.
+
 Replication discipline from RT-12 through RT-15 carries forward: establish the baseline behavior
 first, then introduce governance, then compare outcomes rather than declaring success because a gate
 fired.
@@ -858,6 +949,10 @@ For each mission/collective, retain enough structured evidence to ask:
 - where does scope expansion repeatedly get approved, suggesting the original role/mission law is
   underspecified?
 - which reviewer sets are correlated enough that the nominal quorum is misleading?
+- when did Devil's Advocate review expose material context that the acting group omitted?
+- when did it add no useful information, and which trigger or review method caused the noise?
+- are Devil's Advocate occupants becoming rubber stamps, habitual blockers, or meaningfully
+  independent reviewers?
 - where do participants improvise channels because the official collaboration substrate is worse?
 - where do participants improvise memory because the official retention/handoff substrate is worse?
 - which collective memories are actually reused, corrected, or superseded?
@@ -869,7 +964,8 @@ For each mission/collective, retain enough structured evidence to ask:
 - what successful informal collaboration should be made easier to formalize next time?
 
 Changing the answers changes versioned law/configuration through governed amendment. It does not
-require hardcoding a new behavioral blacklist into Hestia.
+require hardcoding a new behavioral blacklist, review quota, or universal skepticism score into
+Hestia.
 
 ---
 
@@ -881,17 +977,19 @@ require hardcoding a new behavioral blacklist into Hestia.
 - canonical semantics for mission revision provenance;
 - portable evidence fields needed for execution receipts / correlation provenance where they cross a
   society boundary;
+- portable role/factor semantics required for Devil's Advocate review across societies;
 - portable source/provenance references sufficient for a collective memory item to cross societies
   without becoming an unsourced assertion;
 - resource composition semantics that prevent child/session spawning from increasing a parent
   ceiling;
-- no new universal trajectory, culture, or independence score.
+- no new universal trajectory, culture, independence, or adversarial-review score.
 
 ### Hub owns
 
 - explicit collective/group contexts using existing R4/R5/R8 primitives;
 - project/committee/workgroup/event lifecycle and presentation through `PRD_CHAPTER_DELIVERY`;
 - charter/mission binding for shared contexts;
+- Devil's Advocate role entity/charter, occupancy, society/project association, and review routing;
 - group-owned memory namespace, access/lifecycle policy, durable source references, and archival
   presentation;
 - membership, channels, group formation, promotion/dissolution, federation;
@@ -906,15 +1004,17 @@ require hardcoding a new behavioral blacklist into Hestia.
 - trajectory projections from committed local evidence;
 - local salience/digest machinery consistent with DD-0012 and usable as a source for higher-level
   collective memory without creating a second authority store;
+- local proof of Devil's Advocate occupancy/identity, review-MRH enforcement, structured review acts,
+  and factor sufficiency when effective law requires that role;
 - aggregate session/mission budget enforcement on the local seat;
-- surfacing lawful adaptation/handoff doors in structured deny/blocked/escalation results;
+- surfacing lawful adaptation/handoff/review doors in structured deny/blocked/escalation results;
 - resolver-correlation evidence available to the escalation matrix;
 - honest assurance labels for what Hestia could and could not observe;
 - **not** silently injecting a role membot merely because collective memory exists.
 
 ### Private-context / research owns
 
-- RT-16 through RT-24 experiments and results;
+- RT-16 through RT-28 experiments and results;
 - incident comparison notes;
 - no normative production law hidden only in private research documents.
 
@@ -930,7 +1030,9 @@ require hardcoding a new behavioral blacklist into Hestia.
 3. Define trajectory as a projection over chain evidence, not a new store of authority.
 4. Define collective memory as governed references/digests over source evidence; do not activate
    speculative ROLE MEMBOTS.
-5. Add RT-16 through RT-24 before choosing thresholds.
+5. Adopt `PRD_DEVILS_ADVOCATE_ROLE.md` as the semantic charter for adversarial review; do not yet make
+   it a mandatory factor anywhere.
+6. Add RT-16 through RT-28 before choosing thresholds.
 
 ### Phase 1 - native Hestia mission binding + execution receipts
 
@@ -946,7 +1048,8 @@ require hardcoding a new behavioral blacklist into Hestia.
 1. Build a reproducible projection from existing chain events.
 2. Expose it first as evidence only.
 3. Add one or two explicit law-authored re-ratification cases only after measurements exist.
-4. Never let projection availability silently become authority.
+4. Add an advisory Devil's Advocate path over trajectory/incident evidence before making it blocking.
+5. Never let projection availability or reviewer availability silently become authority.
 
 ### Phase 3 - collective lifecycle + memory on Hub
 
@@ -956,25 +1059,31 @@ require hardcoding a new behavioral blacklist into Hestia.
 4. Add group-owned durable memory references with source provenance and law-governed visibility.
 5. Reuse the attention-window -> digest -> source-history shape rather than loading an unbounded group
    transcript into every participant.
-6. Make event conclusion/archive a real lifecycle transition that preserves permitted memory while
+6. Allow a group/project/event to charter or summon its own Devil's Advocate through the ordinary role
+   substrate.
+7. Make event conclusion/archive a real lifecycle transition that preserves permitted memory while
    retracting active authority.
 
-### Phase 4 - aggregate budgets + independence/cultural provenance
+### Phase 4 - aggregate budgets + independence/cultural/adversarial provenance
 
 1. Make R6/R7 resource ceilings executable rather than declarative on the Hestia native path.
 2. Preserve parent ceilings across delegation/spawn.
 3. Feed law-bounded correlation provenance into the existing escalation independence rule, including
    shared collective-memory and strategy-lineage evidence when known.
-4. Test RT-12/13/14/15 together with RT-16 through RT-24, because the mechanisms interact.
+4. Make review-MRH widening explicit, least-disclosure, non-transferable, and testable.
+5. Let effective law require Devil's Advocate factors for selected high-consequence classes only after
+   advisory measurements show where the role adds signal.
+6. Test RT-12/13/14/15 together with RT-16 through RT-28, because the mechanisms interact.
 
 ### Phase 5 - AIC pilot as human/AI mixed proof
 
 Use the same mechanisms for a real chapter project or event:
 
-- humans and agents may both fill roles;
+- humans and agents may both fill roles, including Devil's Advocate;
 - the context has one charter/mission and explicit lifecycle;
 - resource and outward-channel authority is role/mission scoped;
 - decisions and amendments are witnessed;
+- selected consequential proposals can receive independent adversarial review under chapter law;
 - shared results, procedures, and handoffs survive participant turnover with provenance;
 - completion archives authority without erasing history or useful collective memory;
 - a successful group can persist, dissolve, or promote into a child society without changing
@@ -1010,26 +1119,36 @@ This PRD is satisfied incrementally when the following become true:
 10. **Independent means inspectable:** an escalation can carry enough provenance for law to distinguish
     materially correlated factors from meaningful diversity, including shared memory/strategy lineage
     where known, and can represent unknown correlation honestly.
-11. **Budget cannot be multiplied by spawning:** child sessions/delegates consume from parent mission
+11. **Devil's Advocate is a real role, not a prompt mode:** a human or AI member can occupy it through
+    the ordinary role/clearance machinery, and law can invite or require it by context.
+12. **Broader review context does not widen actor authority:** the role can receive a law-bounded review
+    MRH broader than the acting mission while that information/reach does not flow back as an execution
+    grant to the reviewed actor.
+13. **Adversarial review is evidence, not veto-by-title:** review can corroborate, dissent, request more
+    evidence, or find no material challenge; effective law decides sufficiency and consequence.
+14. **Challenge theater is not rewarded:** no production criterion treats objection count or dissent
+    rate as review quality.
+15. **Budget cannot be multiplied by spawning:** child sessions/delegates consume from parent mission
     ceilings where law says they share a budget.
-12. **Failure is first-class:** a participant can declare blocked/failed without pretending completion
+16. **Failure is first-class:** a participant can declare blocked/failed without pretending completion
     or being forced to burn resources until expiry.
-13. **Evidence is effector-rooted:** for Hestia-dispatched native tools, a model transcript or durable
+17. **Evidence is effector-rooted:** for Hestia-dispatched native tools, a model transcript or durable
     group summary cannot be mistaken for proof that an act executed.
-14. **Adaptation doors are discoverable:** blocked/denied participants receive the available governed
-    next actions for that context.
-15. **Emergent collaboration has a lawful landing place:** repeated coordination can be proposed and
+18. **Adaptation doors are discoverable:** blocked/denied participants receive the available governed
+    next actions for that context, including independent review where applicable.
+19. **Emergent collaboration has a lawful landing place:** repeated coordination can be proposed and
     accepted as a project/workgroup without special-case agent ontology.
-16. **Continuity survives turnover:** RT-22 can terminate all original sessions and successors can
+20. **Continuity survives turnover:** RT-22 can terminate all original sessions and successors can
     resume from governed memory without inheriting the predecessors' authority.
-17. **Events actually end:** a time-bounded event/hackathon can conclude, retract active authority,
+21. **Events actually end:** a time-bounded event/hackathon can conclude, retract active authority,
     preserve outputs/history/memory, and become a past context.
-18. **Cross-society work remains sovereign:** shared projects use federation/delegation; no hub writes
-    another hub's state.
-19. **RT-16 through RT-24 have baseline and governed comparison runs** before claims are made that the
+22. **Cross-society work remains sovereign:** shared projects and federated review use
+    federation/delegation; no hub writes another hub's state.
+23. **RT-16 through RT-28 have baseline and governed comparison runs** before claims are made that the
     mechanisms improve behavior.
-20. **A mixed human/AI pilot uses the same primitive:** no parallel "AI swarm governance" stack and no
-    separate "community project" stack survive implementation review.
+24. **A mixed human/AI pilot uses the same primitive:** no parallel "AI swarm governance" stack, no
+    separate "community project" stack, and no special AI-only adversarial-review stack survive
+    implementation review.
 
 ---
 
@@ -1040,12 +1159,12 @@ Hestia began by governing **acts**.
 Identity, roles, the native harness, and the fleet are making it capable of governing **actors** in a
 meaningful, evidenced sense.
 
-The next step is to make **relationships, missions, trajectories, and collective continuity** equally
-legible.
+The next step is to make **relationships, missions, trajectories, collective continuity, and
+institutionalized challenge** equally legible.
 
 The desired system is not one in which capable actors never collaborate, persist, improvise, recruit,
-remember, teach one another, or change their minds. Those are useful properties in humans and AI
-alike.
+remember, teach one another, disagree, or change their minds. Those are useful properties in humans
+and AI alike.
 
 The desired system is one in which those tendencies have productive constitutional forms:
 
@@ -1058,10 +1177,14 @@ The desired system is one in which those tendencies have productive constitution
 - a collective can remember without pretending memory is truth;
 - a later cohort can inherit knowledge without inheriting expired authority;
 - a learned strategy can carry provenance where provenance is observable;
+- premature consensus or narrow framing can summon a Devil's Advocate with a lawful mandate to look
+  wider and try to break the case;
+- the Devil's Advocate can itself be wrong, challenged, or overruled - its value is independent
+  friction, not privileged truth;
 - disagreement can become an appeal;
 - uncertainty can summon the right authority;
 - success or failure can close a context without erasing its history;
 - and every relying party can inspect enough provenance to decide what the evidence means.
 
-**Do not suppress emergence. Give it lawful shapes, shared memory, evidence, resources, consequences,
-and exits.**
+**Do not suppress emergence. Give it lawful shapes, shared memory, independent challenge, evidence,
+resources, consequences, and exits.**
