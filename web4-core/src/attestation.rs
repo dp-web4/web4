@@ -172,6 +172,15 @@ impl CitizenshipRecord {
     /// [`BirthCertificateRef`] carries. Deterministic within web4-core (both the
     /// issuing society and the ingest verifier compute it from the same struct),
     /// the same shared-derivation discipline as `derive_lct_id`.
+    ///
+    /// **Hash the struct, never the stored JSON.** This serializes `self` in
+    /// *declaration* order (`certificate`, then `attestations`). A record that
+    /// has been through [`serde_json::Value`] — which is how an issuing society
+    /// puts it in its ledger — comes back with *sorted* keys, so hashing those
+    /// bytes as-is yields a different digest for an honest record. A verifier
+    /// holding a ledger entry must deserialize it into a `CitizenshipRecord`
+    /// first and then call this. Pinned by
+    /// `content_hash_is_over_the_struct_not_the_stored_json`.
     pub fn content_hash(&self) -> String {
         let bytes = serde_json::to_vec(self).unwrap_or_default();
         crate::crypto::sha256_hex(&bytes)
@@ -291,6 +300,101 @@ mod tests {
         let mut changed = mk();
         changed.certificate.citizen_role = "lct:web4:role:reviewer".into();
         assert_ne!(mk().content_hash(), changed.content_hash());
+    }
+
+    /// The determinism above is struct-to-struct — both sides holding a
+    /// `CitizenshipRecord`. A hub verifying a presented `BirthCertificateRef`
+    /// is NOT on that side: it fetches the issuing society's ledger entry,
+    /// which is JSON that has been through `serde_json::Value`. `Value`'s map is
+    /// a `BTreeMap` (serde_json has no `preserve_order` feature enabled
+    /// anywhere in this workspace), so the stored bytes are key-SORTED while
+    /// `content_hash` serializes the struct in DECLARATION order.
+    ///
+    /// Hashing the stored bytes as-is therefore fails closed on every honest
+    /// record — the worst direction, because it looks like tampering. This
+    /// pins both halves: the mismatch is real, and deserializing first is the
+    /// fix. Measured on the live fleet by the Legion seat against ledger
+    /// entries 113092/113093 before any verifier was written.
+    #[test]
+    fn content_hash_is_over_the_struct_not_the_stored_json() {
+        use crate::lct::{EntityType, Lct};
+        let (subject, _sk) = Lct::new(EntityType::AiSoftware, None);
+        let sid = subject.lct_id();
+        let ts = subject.created_at;
+        let w: Vec<KeyPair> = (0..3).map(|_| KeyPair::generate()).collect();
+        let record = CitizenshipRecord {
+            certificate: BirthCertificate {
+                issuing_society: "lct:web4:society:legion".into(),
+                citizen_role: "lct:web4:role:citizen".into(),
+                birth_witnesses: (0..3).map(|i| format!("w{i}")).collect(),
+                birth_timestamp: ts,
+                birth_context: None,
+                genesis_block_hash: None,
+            },
+            attestations: (0..3)
+                .map(|i| {
+                    Attestation::sign(&sid, format!("w{i}"), AttestationType::Existence, ts, &w[i])
+                })
+                .collect(),
+        };
+        let reference = record.content_hash();
+
+        // How an issuing society stores it: through `Value`, exactly as
+        // hestia's `confer_citizenship` does with `serde_json::json!`.
+        let stored = serde_json::json!({ "citizen": sid, "record": record });
+        let entry = stored.get("record").expect("record field");
+
+        // The arm fails for the RIGHT reason: the stored form really is sorted,
+        // and the struct really is not. Without this, a byte difference from
+        // some unrelated cause would satisfy the assert below.
+        let stored_bytes = serde_json::to_vec(entry).unwrap();
+        let stored_text = String::from_utf8(stored_bytes.clone()).unwrap();
+        let struct_text = String::from_utf8(serde_json::to_vec(&record).unwrap()).unwrap();
+        assert!(
+            stored_text.starts_with("{\"attestations\""),
+            "stored form should be key-sorted, got: {}",
+            &stored_text[..40.min(stored_text.len())]
+        );
+        assert!(
+            struct_text.starts_with("{\"certificate\""),
+            "struct form should be declaration-ordered, got: {}",
+            &struct_text[..40.min(struct_text.len())]
+        );
+
+        // THE HAZARD: hashing the ledger bytes as-is does not reproduce the
+        // reference, even though nothing has been tampered with.
+        assert_ne!(
+            crate::crypto::sha256_hex(&stored_bytes),
+            reference,
+            "if these ever match, the sorted/declaration divergence is gone and \
+             the deserialize-first requirement can be relaxed"
+        );
+
+        // THE FIX: deserialize into the struct first, then hash.
+        let round_tripped: CitizenshipRecord =
+            serde_json::from_value(entry.clone()).expect("stored entry is a CitizenshipRecord");
+        assert_eq!(round_tripped.content_hash(), reference);
+
+        // And the whole hub-side path holds on the round-tripped record: the
+        // reference verifies, quorum and all. This is the call a Phase-2
+        // verifier makes, so the fix is pinned where it is actually used.
+        let cref = BirthCertificateRef {
+            issuing_society: record.certificate.issuing_society.clone(),
+            entry_id: "113093".into(),
+            entry_hash: reference.clone(),
+        };
+        let keys: Vec<_> = w.iter().map(|k| k.verifying_key()).collect();
+        let resolver = |id: &str| -> Option<PublicKey> {
+            id.strip_prefix('w')
+                .and_then(|i| i.parse::<usize>().ok())
+                .and_then(|i| keys.get(i).cloned())
+        };
+        assert!(cref.verify(&sid, &round_tripped, &resolver));
+        // Control, so the assert above is not vacuously true: the same
+        // reference against a genuinely different record is refused.
+        let mut wrong = round_tripped.clone();
+        wrong.certificate.issuing_society = "lct:web4:society:elsewhere".into();
+        assert!(!cref.verify(&sid, &wrong, &resolver));
     }
 
     #[test]
