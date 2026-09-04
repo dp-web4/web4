@@ -187,6 +187,83 @@ pub struct RestState {
     /// "bidirectional ping"). In-memory, NOT witnessed (too frequent for the
     /// ledger); resets on restart. Any authenticated channel op refreshes it.
     pub last_seen: Arc<Mutex<std::collections::HashMap<Uuid, chrono::DateTime<Utc>>>>,
+
+    /// When this process started serving. The hub's self-report of its own
+    /// absence: a member's polling gap that begins at or before `boot_at` says
+    /// nothing about that member, because the hub was not there to be polled.
+    /// `presence` reports it so a reader can tell the two apart rather than
+    /// reading the hub's own downtime as the fleet's.
+    ///
+    /// NOTE (not yet satisfied): this is a field on a live struct, so a second
+    /// restart erases the first and a two-restart window is unreconstructable.
+    /// The epoch has to become an appended `hub_boot(at)` row, alongside a
+    /// persisted `member_last_poll` — that is the follow-up, and until it lands
+    /// a pre-boot poll is `never_seen` rather than a dated gap.
+    pub boot_at: chrono::DateTime<Utc>,
+}
+
+/// How long after boot the hub declines to hold a member's silence against it.
+///
+/// A watcher cannot have polled a hub that was not up, and its first poll after
+/// ignite lands on its own poll clock, not on the boot instant. This is the
+/// **detector's** threshold — two of hub-watch's 45 s polls (one missed poll is
+/// jitter, two is a gap). It equals the roster's `away` edge below by
+/// coincidence, not by derivation: tuning the human-facing roster must not
+/// silently retune the detector, so the two are written separately on purpose.
+pub const PRESENCE_GRACE_SECS: i64 = 90;
+
+/// Roster edges for the human-facing `status` string. Not the detector's — see
+/// `PRESENCE_GRACE_SECS`.
+const ROSTER_ONLINE_SECS: i64 = 90;
+const ROSTER_AWAY_SECS: i64 = 600;
+
+/// One member's presence, on the two axes that must not be collapsed:
+/// `observation` (what the hub actually knows) and `status` (the roster word).
+pub struct PresenceCall {
+    /// `seen` · `hub_absent` · `never_seen` — see `classify_presence`.
+    pub observation: &'static str,
+    /// `online` · `away` · `offline` · `unknown`.
+    pub status: &'static str,
+    /// The member's own gap, or `None` when the hub has no standing to date one.
+    pub gap_secs: Option<i64>,
+}
+
+/// Classify one member's silence. Pure so every arm is directly falsifiable —
+/// the arms differ only in inputs no integration test can reach (a boot epoch in
+/// the past, a pre-boot record), which is exactly why they were never tested.
+///
+/// The asymmetry is the whole design: a poll that landed is positive evidence
+/// whenever it landed, while silence is evidence only once the hub has been up
+/// long enough to have been polled. Collapsing the two is how a hub reports its
+/// own downtime as the fleet's.
+pub fn classify_presence(
+    last_seen: Option<chrono::DateTime<Utc>>,
+    now: chrono::DateTime<Utc>,
+    grace_until: chrono::DateTime<Utc>,
+) -> PresenceCall {
+    let (observation, gap_secs) = match last_seen {
+        // A record is an observation. Grace suppresses reading *silence* as a
+        // gap; it never discards a poll that actually happened, or the table's
+        // "no gap → live" row would stop holding.
+        Some(t) => ("seen", Some((now - t).num_seconds())),
+        // Silence inside grace is not evidence: a member cannot have polled a
+        // hub that was not up, and its first poll after ignite lands on its own
+        // poll clock, not on the boot instant.
+        None if now <= grace_until => ("hub_absent", None),
+        // Past grace with no record: unjoined, or a poll whose record died with
+        // the last process. This hub cannot yet tell those apart, and says so
+        // rather than guessing — the guess used to be "offline".
+        None => ("never_seen", None),
+    };
+    let status = match gap_secs {
+        Some(age) if age < ROSTER_ONLINE_SECS => "online",
+        Some(age) if age < ROSTER_AWAY_SECS => "away",
+        Some(_) => "offline",
+        // Unknown is not "offline". The roster's absence word is reserved for a
+        // gap the hub actually witnessed.
+        None => "unknown",
+    };
+    PresenceCall { observation, status, gap_secs }
 }
 
 /// One sealed notice queued for a citizen. `sealed` is ciphertext sealed to the
@@ -429,6 +506,7 @@ impl RestState {
             )),
             notifications: Arc::new(Mutex::new(std::collections::HashMap::new())),
             last_seen: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            boot_at: Utc::now(),
             operator_plane: false,
         })
     }
@@ -594,6 +672,7 @@ impl RestState {
             store_key: Arc::new(tokio::sync::RwLock::new(None)),
             notifications: Arc::new(Mutex::new(std::collections::HashMap::new())),
             last_seen: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            boot_at: Utc::now(),
             operator_plane: false,
         })
     }
@@ -4100,25 +4179,64 @@ async fn dispatch_channel(
         // with a status derived from how recently they last touched the channel:
         // online (<90s) / away (<10m) / offline. Ephemeral; thresholds will move
         // to law later. The caller's own last_seen was just refreshed above.
+        //
+        // `observation` is the detector's axis and it is NOT the roster `status`.
+        // A polling gap is only evidence about the member once the hub has been
+        // up long enough to have been polled, so silence resolves three ways,
+        // not one:
+        //
+        //   never_seen  — no record for this member at all. Unjoined, or a poll
+        //                 whose record died with the last process. A fact about
+        //                 the record, not about the member. Previously reported
+        //                 as `offline`, i.e. "absent", which filed *unknown*
+        //                 under *absent* — the one direction that must not merge.
+        //   hub_absent  — the gap begins at or before boot + grace. The hub is
+        //                 reporting its OWN absence; the member's state for that
+        //                 window is unknown. Without this, every ignite of this
+        //                 (locked-on-restart) hub reports the whole fleet as a
+        //                 simultaneous gap the hub itself invented.
+        //   seen        — a real poll landed after boot + grace; `gap_secs` is
+        //                 the honest gap and the roster status means what it says.
+        //
+        // Gaps are dated from `max(last_seen, boot + grace)`, never from a
+        // pre-boot `last_seen`, or an ignite reports the hub's outage as the
+        // member's.
         "presence" => {
             let seen = s.last_seen.lock().await;
             let now = Utc::now();
+            let boot_at = s.boot_at;
+            let grace_until = boot_at + chrono::Duration::seconds(PRESENCE_GRACE_SECS);
             let mut roster: Vec<serde_json::Value> = state.members.keys().map(|lct| {
-                let (last, status) = match seen.get(lct) {
-                    Some(t) => {
-                        let age = (now - *t).num_seconds();
-                        let st = if age < 90 { "online" } else if age < 600 { "away" } else { "offline" };
-                        (Some(t.to_rfc3339()), st)
-                    }
-                    None => (None, "offline"),
-                };
-                serde_json::json!({ "lct_id": lct, "last_seen": last, "status": status })
+                // Every record in the map is necessarily at-or-after `boot_at`:
+                // it is built empty at process start. A *pre-boot* record —
+                // whose `[t, boot)` window is the hub's absence and whose own
+                // gap dates from `grace_until` — is unreachable until the
+                // persistence follow-up lands.
+                let last = seen.get(lct).copied();
+                let call = classify_presence(last, now, grace_until);
+                serde_json::json!({
+                    "lct_id": lct,
+                    "last_seen": last.map(|t| t.to_rfc3339()),
+                    "status": call.status,
+                    "observation": call.observation,
+                    "gap_secs": call.gap_secs,
+                    // The instant this member's OWN gap is dated from. Never
+                    // earlier than `grace_until`, so an ignite cannot report the
+                    // hub's outage as the member's.
+                    "gap_since": last.filter(|_| call.gap_secs.is_some())
+                        .map(|t| t.to_rfc3339())
+                        .unwrap_or_else(|| grace_until.to_rfc3339()),
+                })
             }).collect();
             roster.sort_by(|a, b| a["lct_id"].as_str().cmp(&b["lct_id"].as_str()));
             let total = roster.len();
             if let Some(n) = limit { roster.truncate(n); }
             Ok(serde_json::json!({
                 "now": now.to_rfc3339(),
+                // The hub's self-report of its own absence. A reader that does
+                // not carry this cannot tell a member's gap from the hub's.
+                "hub_boot": boot_at.to_rfc3339(),
+                "grace_secs": PRESENCE_GRACE_SECS,
                 "present": roster,
                 "total": total,
                 "truncated": total > limit.unwrap_or(total),
@@ -10527,6 +10645,99 @@ admission:
         assert_eq!(ma["status"], serde_json::json!("online"), "A just active -> online");
         assert_eq!(mb["status"], serde_json::json!("online"), "B just active -> online");
         assert!(!ma["last_seen"].is_null() && !mb["last_seen"].is_null(), "last_seen populated");
+        // A poll that landed is an observation, and grace does not discard it.
+        assert_eq!(ma["observation"], serde_json::json!("seen"), "A polled -> seen");
+        assert!(ma["gap_secs"].is_i64(), "a seen member carries a dated gap");
+        // The hub's self-report of its own absence travels with the roster, or a
+        // reader cannot tell a member's gap from the hub's.
+        assert!(out["hub_boot"].is_string(), "roster carries the boot epoch");
+        assert_eq!(out["grace_secs"], serde_json::json!(PRESENCE_GRACE_SECS));
+    }
+
+    #[tokio::test]
+    async fn presence_reports_a_member_with_no_record_as_unknown_not_offline() {
+        // The §2 merge, end to end: a member the map has no row for used to be
+        // byte-identical to a member gone for a week. Unknown must never be
+        // filed under absent — that is the one direction the detector cannot
+        // fail in, because it certifies liveness for exactly the window nobody
+        // was looking.
+        let (_tmp, state) = fresh_open_admission_state().await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let a = KeyPair::generate();
+        let a_lct = Uuid::new_v4();
+        let b = KeyPair::generate();
+        let b_lct = Uuid::new_v4();
+        for (kp, lct) in [(&a, a_lct), (&b, b_lct)] {
+            let pid = Uuid::new_v4();
+            let sealed = seal_req(kp, &hub_pub, pid, "request_citizenship",
+                serde_json::json!({ "name": "P" }));
+            channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+                caller_lct_id: lct, pair_id: pid, sealed,
+                caller_pubkey_hex: Some(kp.verifying_key().to_hex()),
+            })).await.expect("admitted");
+        }
+        // Drop B's row — the state a restart leaves behind for every member.
+        state.last_seen.lock().await.remove(&b_lct);
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(&a, &hub_pub, pid, "presence", serde_json::json!({}));
+        let resp = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: a_lct, pair_id: pid, sealed, caller_pubkey_hex: None,
+        })).await.expect("presence");
+        let out = open_resp(&a, &hub_pub, pid, &resp.0.sealed);
+        let present = out["present"].as_array().expect("present array");
+        let mb = present.iter().find(|m| m["lct_id"] == serde_json::json!(b_lct))
+            .expect("B in roster").clone();
+        assert!(mb["last_seen"].is_null(), "no record for B");
+        assert_ne!(mb["status"], serde_json::json!("offline"),
+            "a member with no record is NOT absent — that is the merge this fixes");
+        assert_eq!(mb["status"], serde_json::json!("unknown"));
+        assert!(mb["gap_secs"].is_null(), "no standing to date a gap for B");
+        // Inside grace (the test runs milliseconds after boot), so the honest
+        // class is the hub's own absence rather than a never-seen member.
+        assert_eq!(mb["observation"], serde_json::json!("hub_absent"));
+    }
+
+    #[test]
+    fn classify_presence_separates_the_hubs_absence_from_the_members() {
+        let boot = Utc::now();
+        let grace_until = boot + chrono::Duration::seconds(PRESENCE_GRACE_SECS);
+
+        // 1. Silence inside grace is the HUB's absence, not the member's. This
+        //    is the arm that stops an ignite of this locked-on-restart hub from
+        //    reporting the whole fleet as one simultaneous gap it invented.
+        let inside = classify_presence(None, boot + chrono::Duration::seconds(10), grace_until);
+        assert_eq!(inside.observation, "hub_absent");
+        assert_eq!(inside.status, "unknown");
+        assert_eq!(inside.gap_secs, None, "no gap is attributable inside grace");
+
+        // 2. Past grace with no record: unknown, and still not "offline".
+        let past = classify_presence(None, boot + chrono::Duration::seconds(600), grace_until);
+        assert_eq!(past.observation, "never_seen");
+        assert_eq!(past.status, "unknown");
+        assert_eq!(past.gap_secs, None);
+
+        // 3. A poll that landed is positive evidence even INSIDE grace — grace
+        //    suppresses reading silence as a gap, it does not discard an
+        //    observation. Without this the "no gap → live" row stops holding
+        //    for the first 90 s of every epoch.
+        let polled_in_grace = classify_presence(
+            Some(boot + chrono::Duration::seconds(5)),
+            boot + chrono::Duration::seconds(10),
+            grace_until,
+        );
+        assert_eq!(polled_in_grace.observation, "seen");
+        assert_eq!(polled_in_grace.status, "online");
+        assert_eq!(polled_in_grace.gap_secs, Some(5));
+
+        // 4. The roster edges still mean what they say for a witnessed gap, and
+        //    they are the ROSTER's numbers, not the detector's.
+        let away = classify_presence(
+            Some(boot), boot + chrono::Duration::seconds(120), grace_until);
+        assert_eq!((away.observation, away.status), ("seen", "away"));
+        let gone = classify_presence(
+            Some(boot), boot + chrono::Duration::seconds(3600), grace_until);
+        assert_eq!((gone.observation, gone.status), ("seen", "offline"),
+            "a gap the hub actually witnessed is the only thing called offline");
     }
 
     #[tokio::test]
