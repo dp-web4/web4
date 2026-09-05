@@ -71,7 +71,7 @@ lockstep with `HubEvent::kind()` by a test that reads the function's own source.
 | group | actions |
 |---|---|
 | founding | `genesis`, `charter_amended`, `law_amended` |
-| membership | `member_added`, `member_removed`, `member_admission_reset`, `member_key_pinned`, `member_profile_updated`, `member_skill_declared` |
+| membership | `member_added`, `member_removed`, `member_renamed`, `member_admission_reset`, `member_key_pinned`, `member_profile_updated`, `member_skill_declared` |
 | admission queue | `member_join_requested`, `member_join_resolved`, `member_join_review_requested`, `member_join_review_resolved` |
 | roles | `role_assigned` |
 | council | `council_member_added`, `council_member_removed`, `council_threshold_changed` |

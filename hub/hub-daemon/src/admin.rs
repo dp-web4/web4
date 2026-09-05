@@ -129,6 +129,16 @@ fn public_layout(hub_name: &str, hub_id: &str, body: &str) -> Html<String> {
     ))
 }
 
+/// A string destined for a single-quoted JS literal INSIDE an HTML attribute
+/// (`onclick="f('…')"`). Two contexts, two escapes, in this order: JS first
+/// (`\\` and `\'`), then HTML — because the HTML parser decodes entities
+/// BEFORE the JS engine sees the text, so HTML-escaping a quote to `&#39;`
+/// would hand JS a bare quote and break the literal. `html_escape` deliberately
+/// leaves `'` alone, which is why it cannot be used for this on its own.
+fn js_attr_escape(s: &str) -> String {
+    html_escape(&s.replace('\\', "\\\\").replace('\'', "\\'"))
+}
+
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -1022,6 +1032,13 @@ fn event_summary(event: &HubEvent) -> String {
         HubEvent::MemberKeyPinned { member_lct_id, .. } => {
             format!("Channel key pinned for {}", short(member_lct_id))
         }
+        HubEvent::MemberRenamed { member_lct_id, name, previous_name, reason, .. } => format!(
+            "Member {} renamed {} → \"{}\"{}",
+            short(member_lct_id),
+            previous_name.as_deref().map(|p| format!("\"{}\"", html_escape(p))).unwrap_or_else(|| "(unnamed)".into()),
+            html_escape(name),
+            reason.as_deref().map(|r| format!(" — {}", html_escape(r))).unwrap_or_default(),
+        ),
         HubEvent::DeviceEnrolled { owner_lct_id, device_lct_id, device_class, .. } => format!(
             "Device {} ({:?}) enrolled by {}",
             short(device_lct_id), device_class, short(owner_lct_id)
@@ -1246,6 +1263,7 @@ async function hubAct(url, body) {
 function admit(id){ if(confirm('Admit this applicant as a member? Their key is pinned live.')) hubAct('/admin/api/joins/'+id+'/admit'); }
 function deny(id){ const reason=prompt('Deny — reason (optional):'); if(reason!==null) hubAct('/admin/api/joins/'+id+'/deny',{reason:reason||null}); }
 function rekey(id){ const k=prompt('New 64-hex Ed25519 public key for member '+id+':'); if(k) hubAct('/admin/api/members/'+id+'/key',{pubkey_hex:k.trim()}); }
+function renameMember(id,current){ const n=prompt('Rename member '+id+' (currently: '+current+'). New name:', current); if(n===null) return; if(!n.trim()){ alert('A name is required. Renaming to nothing is not a thing this does.'); return; } const reason=prompt('Reason (optional, goes on the ledger):'); if(reason!==null) hubAct('/admin/api/members/'+id+'/rename',{name:n.trim(),reason:reason||null}); }
 function removeMember(id){ const reason=prompt('Remove member '+id+' — reason (optional):'); if(reason!==null) hubAct('/admin/api/members/'+id+'/remove',{reason:reason||null}); }
 function addMember(){
   const lct=document.getElementById('add-lct').value.trim();
@@ -1502,12 +1520,14 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
             };
             body.push_str(&format!(
                 "<tr><td><code>{}</code></td><td>{}</td><td>{}</td>\
-                 <td><button onclick=\"rekey('{id}')\">Re-key</button>\
+                 <td><button onclick=\"renameMember('{id}','{name_js}')\">Rename</button>\
+                 <button onclick=\"rekey('{id}')\">Re-key</button>\
                  <button class=\"danger\" onclick=\"removeMember('{id}')\">Remove</button></td></tr>",
                 m.lct_id,
                 html_escape(name),
                 pk_pill,
                 id = m.lct_id,
+                name_js = js_attr_escape(name),
             ));
         }
         body.push_str("</tbody></table>");

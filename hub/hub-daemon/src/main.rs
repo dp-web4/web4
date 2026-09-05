@@ -2719,6 +2719,7 @@ mod tests {
             ("POST", "/admin/api/members/add"),
             ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/key"),
             ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/remove"),
+            ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/rename"),
             ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/admission-reset"),
             ("POST", "/admin/api/admission-limits"),
             ("POST", "/admin/api/joins/00000000-0000-0000-0000-000000000000/admit"),

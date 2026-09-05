@@ -5611,6 +5611,47 @@ async fn pin_member_key(s: &RestState, member_lct_id: Uuid, pubkey_hex: &str) ->
     Ok(index)
 }
 
+/// Upper bound on a member name. New precedent — `MemberAdded` and the join
+/// path never bounded `name` — chosen to fit a roster cell and refuse the
+/// obvious abuse (a paragraph, or a name that IS the ledger). Titles and post
+/// bodies already carry their own bounds nearby.
+const MAX_MEMBER_NAME_LEN: usize = 64;
+
+/// Rename a member **through the daemon**: witness `MemberRenamed`, carrying the
+/// previous name so the ledger row reads "X → Y" without a replay. Nothing about
+/// the member's key, membership or profile changes — only the roster label, and
+/// only after the act is on the chain (the projection is what the roster reads).
+async fn rename_member(s: &RestState, member_lct_id: Uuid, name: &str, reason: Option<String>) -> Result<u64, ApiError> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(ApiError::bad_request("name must not be empty — to clear a name is not a rename".to_string()));
+    }
+    if name.chars().count() > MAX_MEMBER_NAME_LEN {
+        return Err(ApiError::bad_request(format!(
+            "name is {} characters; the maximum is {MAX_MEMBER_NAME_LEN}", name.chars().count())));
+    }
+    if name.chars().any(|c| c.is_control()) {
+        return Err(ApiError::bad_request("name must not contain control characters".to_string()));
+    }
+    let previous_name = {
+        let ledger = s.ledger.lock().await;
+        match HubState::project(&ledger).members.get(&member_lct_id) {
+            Some(m) => m.name.clone(),
+            None => return Err(ApiError::not_found(format!("no member {member_lct_id} to rename"))),
+        }
+    };
+    if previous_name.as_deref() == Some(name) {
+        return Err(ApiError::bad_request(format!("{member_lct_id} is already named {name:?}; nothing to witness")));
+    }
+    witness_event(s, HubEvent::MemberRenamed {
+        member_lct_id,
+        name: name.to_string(),
+        previous_name,
+        renamed_by: s.sovereign_lct_id,
+        reason,
+    }).await
+}
+
 /// Remove a member **through the daemon**: witness `MemberRemoved` and evict them
 /// from the LIVE resolver — no restart; their envelopes stop verifying as a
 /// member immediately. (The projection also drops their pinned key, so a future
@@ -5735,6 +5776,27 @@ async fn admin_remove_member(
     require_loopback(&peer)?;
     let entry_index = remove_member_live(&s, lct_id, body.reason).await?;
     Ok(Json(serde_json::json!({ "removed": true, "entry_index": entry_index })))
+}
+
+#[derive(Deserialize)]
+struct RenameBody {
+    name: String,
+    #[serde(default)]
+    reason: Option<String>,
+}
+
+/// `POST /admin/api/members/:lct_id/rename` — rename a member (live). A
+/// Sovereign act, witnessed as `MemberRenamed`; not law-gated, same stance as
+/// re-key and remove beside it.
+async fn admin_rename_member(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(lct_id): Path<Uuid>,
+    Json(body): Json<RenameBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let entry_index = rename_member(&s, lct_id, &body.name, body.reason).await?;
+    Ok(Json(serde_json::json!({ "renamed": true, "entry_index": entry_index, "name": body.name.trim() })))
 }
 
 #[derive(Deserialize)]
@@ -6145,6 +6207,7 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/reviews/:review_id/grant", post(admin_grant_review))
         .route("/admin/api/reviews/:review_id/refuse", post(admin_refuse_review))
         .route("/admin/api/members/add", post(admin_add_member))
+        .route("/admin/api/members/:lct_id/rename", post(admin_rename_member))
         .route("/admin/api/members/:lct_id/key", post(admin_pin_key))
         .route("/admin/api/members/:lct_id/remove", post(admin_remove_member))
         .route("/admin/api/members/:lct_id/admission-reset", post(admin_admission_reset))
@@ -11306,6 +11369,67 @@ norms:
         assert!(law.ext.admission.as_ref().unwrap().anchor_ceilings.is_none());
         let persisted = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
         assert!(!persisted.contains("anchor_ceilings"), "cleared means absent from the law text, not `{{}}`");
+    }
+
+    /// Rename is a witnessed act with its own event class, and the roster reads
+    /// the projection — so the name changes only because the ledger says so.
+    #[tokio::test]
+    async fn operator_renames_a_member_and_the_act_is_on_the_ledger() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let remote: SocketAddr = "10.0.0.9:5555".parse().unwrap();
+        // A member to rename, admitted through the operator plane.
+        let kp = KeyPair::generate();
+        let lct = Uuid::new_v4();
+        admin_add_member(State(state.clone()), ConnectInfo(loop_addr),
+            Json(AddMemberBody { lct_id: lct, pubkey_hex: kp.verifying_key().to_hex(), name: Some("nomad".into()) })).await.unwrap();
+        // Remote caller refused.
+        assert_eq!(admin_rename_member(State(state.clone()), ConnectInfo(remote), Path(lct),
+            Json(RenameBody { name: "Nomad (Jetson)".into(), reason: None })).await.err().unwrap().status, StatusCode::FORBIDDEN);
+        // Operator renames.
+        let out = admin_rename_member(State(state.clone()), ConnectInfo(loop_addr), Path(lct),
+            Json(RenameBody { name: "  Nomad (Jetson)  ".into(), reason: Some("demo rig label".into()) })).await.unwrap();
+        assert_eq!(out.0["name"], "Nomad (Jetson)", "trimmed");
+        let ledger = state.ledger.lock().await;
+        let projected = HubState::project(&ledger);
+        assert_eq!(projected.members[&lct].name.as_deref(), Some("Nomad (Jetson)"));
+        let ev = ledger.entries().iter().rev().find(|e| e.event.kind() == "member_renamed").expect("witnessed");
+        match &ev.event {
+            HubEvent::MemberRenamed { previous_name, name, renamed_by, reason, .. } => {
+                assert_eq!(previous_name.as_deref(), Some("nomad"), "the row is self-describing: X → Y");
+                assert_eq!(name, "Nomad (Jetson)");
+                assert_eq!(*renamed_by, state.sovereign_lct_id);
+                assert_eq!(reason.as_deref(), Some("demo rig label"));
+            }
+            other => panic!("wrong event: {other:?}"),
+        }
+    }
+
+    /// What rename refuses, and that each refusal witnesses NOTHING.
+    #[tokio::test]
+    async fn rename_refuses_empty_oversize_control_unknown_and_noop_without_witnessing() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let kp = KeyPair::generate();
+        let lct = Uuid::new_v4();
+        admin_add_member(State(state.clone()), ConnectInfo(loop_addr),
+            Json(AddMemberBody { lct_id: lct, pubkey_hex: kp.verifying_key().to_hex(), name: Some("nomad".into()) })).await.unwrap();
+        let before = state.ledger.lock().await.entries().len();
+        let cases: Vec<(Uuid, String, StatusCode, &str)> = vec![
+            (lct, "   ".into(), StatusCode::BAD_REQUEST, "must not be empty"),
+            (lct, "x".repeat(65), StatusCode::BAD_REQUEST, "maximum is 64"),
+            (lct, "no\u{0}mad".into(), StatusCode::BAD_REQUEST, "control characters"),
+            (lct, "nomad".into(), StatusCode::BAD_REQUEST, "already named"),
+            (Uuid::new_v4(), "ghost".into(), StatusCode::NOT_FOUND, "no member"),
+        ];
+        for (id, name, status, expect) in cases {
+            let err = admin_rename_member(State(state.clone()), ConnectInfo(loop_addr), Path(id),
+                Json(RenameBody { name: name.clone(), reason: None })).await.err().expect("refused");
+            assert_eq!(err.status, status, "{expect}");
+            assert!(err.message.contains(expect), "{expect}: got {}", err.message);
+        }
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "no refusal reached the ledger");
+        assert_eq!(HubState::project(&*state.ledger.lock().await).members[&lct].name.as_deref(), Some("nomad"));
     }
 
     const ADMISSION_TEST_BASE_LAW: &str = r#"
