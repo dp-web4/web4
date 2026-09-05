@@ -839,6 +839,14 @@ impl HubState {
                     }
                 }
             }
+            HubEvent::MemberRenamed { member_lct_id, name, .. } => {
+                // Renaming a member who has since been removed is a no-op on
+                // projection, same as every other per-member event: the ledger
+                // keeps the act, the roster does not resurrect the member.
+                if let Some(member) = self.members.get_mut(member_lct_id) {
+                    member.name = Some(name.clone());
+                }
+            }
             HubEvent::MemberProfileUpdated { member_lct_id, fields, visibilities, .. } => {
                 if let Some(member) = self.members.get_mut(member_lct_id) {
                     for (k, v) in fields {

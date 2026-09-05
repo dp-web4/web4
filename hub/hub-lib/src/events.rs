@@ -296,6 +296,27 @@ pub enum HubEvent {
         pinned_by: Uuid,
     },
 
+    /// An operator renamed a member. Its own event class rather than a
+    /// `MemberProfileUpdated` field on purpose: `name` is the member's roster
+    /// identity (shown on the public transparency page, used in every
+    /// operator-facing list), not a profile field with a visibility tier, and
+    /// the projection has never read profile fields into `Member::name`.
+    /// Reusing that event would have retroactively turned every historical
+    /// profile write carrying a "name" key into a rename.
+    ///
+    /// `previous_name` is carried in the event so the ledger row is
+    /// self-describing — an auditor reads "X → Y" from the entry without
+    /// replaying the chain to find what X was.
+    MemberRenamed {
+        member_lct_id: Uuid,
+        name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        previous_name: Option<String>,
+        renamed_by: Uuid,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+    },
+
     /// The owner (a member) commits — or rotates — a device into their
     /// constellation: the device's pubkey + class become AUTHORITATIVE state the
     /// constellation verifier resolves against, established before any challenge
@@ -696,6 +717,7 @@ impl HubEvent {
         "member_join_review_requested",
         "member_join_review_resolved",
         "member_key_pinned",
+    "member_renamed",
         "member_profile_updated",
         "member_removed",
         "member_skill_declared",
@@ -733,6 +755,7 @@ impl HubEvent {
             Self::TopicCreated { .. } => "topic_created",
             Self::PostAdded { .. } => "post_added",
             Self::MemberKeyPinned { .. } => "member_key_pinned",
+            Self::MemberRenamed { .. } => "member_renamed",
             Self::DeviceEnrolled { .. } => "device_enrolled",
             Self::DeviceRevoked { .. } => "device_revoked",
             Self::IntroRequested { .. } => "intro_requested",
