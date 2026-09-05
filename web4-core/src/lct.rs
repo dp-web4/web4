@@ -84,11 +84,32 @@ pub struct HardwareBinding {
 
 impl Default for HardwareBinding {
     fn default() -> Self {
-        // Default to software binding (level 4)
+        // Default to software binding (level 4).
+        //
+        // The ceiling was 0.85, which is INDEFENSIBLE under either reading of the
+        // 0-5 scale and was the more flattering number both times:
+        //
+        //   * against canon's capability ladder
+        //     (`web4-standard/core-spec/lct-capability-levels.md` 2.1), level 4
+        //     FULL is 0.6-0.8 and level 5 HARDWARE is 0.8-1.0 -- so 0.85 sat
+        //     inside the band canon reserves for hardware-anchored identity,
+        //     while this struct's own `description` says "development";
+        //   * against the custody ladder this struct actually documents
+        //     (4 = software keys, 5 = TPM/SE), software-bound development keys
+        //     claiming near-hardware trust is the same overstatement said twice.
+        //
+        // 0.75 is unambiguously inside level 4 under canon's bands (0.8 is the
+        // shared boundary and would be ambiguous), and it is a REDUCTION, which
+        // is the direction a default should fail when the evidence is absent.
+        //
+        // The two ladders genuinely disagree about what levels 0-4 mean, and that
+        // is a canon ruling, not a code change -- see web4#730 defect 3. This
+        // value may move again once the ladders are reconciled; what must not
+        // recur is a default sitting in a band it has no evidence for.
         Self {
             level: 4,
             description: "Software-bound keys (development)".into(),
-            trust_ceiling: 0.85,
+            trust_ceiling: 0.75,
         }
     }
 }
@@ -718,6 +739,66 @@ impl LctBuilder {
 
 #[cfg(test)]
 mod tests {
+    /// Canon's capability bands, from
+    /// `web4-standard/core-spec/lct-capability-levels.md` 2.1. Duplicated here
+    /// deliberately: a guard that reads the same constant the code reads cannot
+    /// catch the code disagreeing with canon, which is exactly what happened.
+    #[allow(dead_code)]
+    const CANON_BANDS: [(u8, f64, f64); 6] = [
+        (0, 0.0, 0.2),
+        (1, 0.0, 0.2),
+        (2, 0.2, 0.4),
+        (3, 0.4, 0.6),
+        (4, 0.6, 0.8),
+        (5, 0.8, 1.0),
+    ];
+
+    /// The default binding must sit inside the band its own level claims.
+    ///
+    /// It did not. `HardwareBinding::default()` was level 4 with a ceiling of
+    /// 0.85 -- above level 4's 0.6-0.8 and inside level 5's 0.8-1.0, the band
+    /// canon reserves for hardware-anchored identity -- while describing itself
+    /// as software development keys. Nothing asserted the relationship, so the
+    /// number and the level drifted apart silently and the drift ran in the
+    /// flattering direction.
+    ///
+    /// This is a strict `<` on the upper bound on purpose: 0.8 is the boundary
+    /// level 4 and level 5 share, so a default sitting exactly there would be
+    /// ambiguous evidence rather than wrong evidence, and a guard that admits
+    /// ambiguity is how the next 0.85 arrives.
+    #[test]
+    fn the_default_binding_ceiling_is_inside_its_own_canon_band() {
+        let b = super::HardwareBinding::default();
+        let (_, lo, hi) = CANON_BANDS
+            .iter()
+            .find(|(l, _, _)| *l == b.level)
+            .copied()
+            .expect("default binding level must be a level canon defines");
+        assert!(
+            b.trust_ceiling >= lo && b.trust_ceiling < hi,
+            "default binding is level {} with ceiling {}, outside canon's band [{}, {}) \
+             for that level -- see web4#730",
+            b.level,
+            b.trust_ceiling,
+            lo,
+            hi,
+        );
+    }
+
+    /// And the default must not be the level that requires evidence it cannot
+    /// carry. `HardwareBinding` has no `hardware_anchor` / `hardware_type` field
+    /// (web4#730 defect 2), so level 5 is unfalsifiable by construction; until it
+    /// has a carrier, defaulting into it would mint unauditable hardware claims.
+    #[test]
+    fn the_default_binding_does_not_claim_hardware() {
+        assert_ne!(
+            super::HardwareBinding::default().level,
+            5,
+            "level 5 asserts hardware anchoring and this struct has no field to \
+             evidence it -- defaulting there would make the claim free"
+        );
+    }
+
     use super::*;
 
     /// Cross-implementation TEST VECTOR for the lct_id derivation — the hub
