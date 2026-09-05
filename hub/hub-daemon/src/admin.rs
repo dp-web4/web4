@@ -1263,8 +1263,24 @@ function setLimits(){
   const body={};
   if(rt!=='') body.repeat_limit=parseInt(rt,10);
   if(rv!=='') body.review_limit=parseInt(rv,10);
-  if(Object.keys(body).length===0){ alert('Enter at least one limit to set.'); return; }
-  if(confirm('Write these admission limits to hub law? (witnessed amendment)')) hubAct('/admin/api/admission-limits',body);
+  const ac=document.getElementById('lim-ceilings').value.trim();
+  if(ac!==''){
+    // "4=0.6, 5=0.6" -> {"4":0.6,"5":0.6}; "clear" -> {} (clears the gate).
+    // Parsing is deliberately dumb: law's Rule 9b is the validator and its
+    // refusal text comes back verbatim, so this only has to produce a map.
+    const m={};
+    if(ac.toLowerCase()!=='clear'){
+      for(const part of ac.split(',')){
+        const kv=part.split('='); if(kv.length!==2){ alert('Ceilings: use level=ceiling pairs, e.g. 4=0.6, 5=0.6 (or "clear").'); return; }
+        const k=parseInt(kv[0].trim(),10), v=parseFloat(kv[1].trim());
+        if(!Number.isInteger(k)||Number.isNaN(v)){ alert('Ceilings: "'+part.trim()+'" is not level=number.'); return; }
+        m[k]=v;
+      }
+    }
+    body.anchor_ceilings=m;
+  }
+  if(Object.keys(body).length===0){ alert('Enter at least one limit or ceiling to set.'); return; }
+  if(confirm('Write this to hub law? (witnessed amendment)')) hubAct('/admin/api/admission-limits',body);
 }
 </script>"#;
 
@@ -1299,6 +1315,23 @@ pub(crate) async fn joins_page(State(s): State<RestState>) -> Result<Html<String
         ),
     };
 
+    // Anchor ceilings — the society's own grant per hardware-binding level.
+    // Rendered as it is actually enforced: an absent or empty map means the gate
+    // is NOT in force and every applicant is uncapped, and that state must read
+    // as a warning rather than as "nothing to see" (web4#730).
+    let ceilings_html = match s.law.read().await.as_ref()
+        .and_then(|l| l.ext.admission.as_ref())
+        .and_then(|a| a.anchor_ceilings.as_ref())
+        .filter(|c| !c.is_empty())
+    {
+        Some(c) => {
+            let rows: Vec<String> = c.iter().map(|(l, v)| format!("level {l} → <b>{v}</b>")).collect();
+            format!("<span class=\"pill\">in force</span> {}", rows.join(" · "))
+        }
+        None => "<span class=\"pill pill-warn\">not configured — gate not in force</span> \
+                 every applicant's asserted level is accepted uncapped; a level-5 claim is free to make \
+                 and buys the top band".to_string(),
+    };
     let mut body = String::from(OPERATOR_BANNER);
     body.push_str("<h2>Admission policy</h2>");
     body.push_str(&format!(
@@ -1310,8 +1343,13 @@ pub(crate) async fn joins_page(State(s): State<RestState>) -> Result<Html<String
         "<div style=\"display:grid;grid-template-columns:max-content 1fr;gap:0.4rem 0.6rem;max-width:520px;align-items:center;\">\
          <label>Retries (repeat_limit)</label><input id=\"lim-repeat\" type=\"number\" min=\"1\" placeholder=\"{repeat_limit}\" style=\"padding:0.3rem;width:6rem;\">\
          <label>Appeals (review_limit)</label><input id=\"lim-review\" type=\"number\" min=\"0\" placeholder=\"{review_limit}\" style=\"padding:0.3rem;width:6rem;\">\
+         <label>Anchor ceilings (anchor_ceilings)</label><input id=\"lim-ceilings\" type=\"text\" placeholder=\"4=0.6, 5=0.6  (or: clear)\" style=\"padding:0.3rem;width:16rem;\">\
          <span></span><span><button onclick=\"setLimits()\">Write to hub law</button></span>\
-         </div>"
+         </div>\
+         <p class=\"muted\" style=\"max-width:640px\">Anchor ceilings: {ceilings_html}. \
+         The map is the society's <i>own</i> maximum trust per hardware-binding level (0–3 weak, 4 software, 5 hardware); \
+         an applicant's asserted ceiling is clamped to it, and a level the map does not name is refused. \
+         Law requires it monotonic: a stronger anchor is never granted less than a weaker one.</p>"
     ));
 
     body.push_str("<h2 style=\"margin-top:1.5rem\">Admission queue</h2>");
