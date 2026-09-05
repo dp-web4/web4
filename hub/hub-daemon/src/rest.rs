@@ -5851,6 +5851,14 @@ struct AdmissionLimitsBody {
     repeat_limit: Option<u32>,
     #[serde(default)]
     review_limit: Option<u32>,
+    /// `admission.anchor_ceilings` — the society's own grant per hardware-binding
+    /// level (web4#730). Absent ⇒ untouched. Present ⇒ REPLACES the map, so an
+    /// operator can also shrink or clear it (`{}` clears: an empty map reads as
+    /// "not configured" — see `evaluate_anchor_ceiling`). Validated by law's
+    /// Rule 9b before anything is witnessed: keys 0..=5, values in [0,1],
+    /// monotonic non-decreasing in level.
+    #[serde(default)]
+    anchor_ceilings: Option<std::collections::BTreeMap<u8, f64>>,
 }
 
 /// Advance a law version on amendment: increment the trailing numeric component
@@ -5992,26 +6000,40 @@ async fn admin_set_admission_limits(
         let adm = law.ext.admission.get_or_insert_with(Default::default);
         if let Some(r) = body.repeat_limit { adm.repeat_limit = Some(r); }
         if let Some(r) = body.review_limit { adm.review_limit = Some(r); }
+        if let Some(c) = body.anchor_ceilings {
+            // An empty map is stored as None on purpose: the projection treats an
+            // empty map and an absent one identically (NotConfigured), and
+            // persisting `anchor_ceilings: {}` would make the law text SAY a
+            // gate exists that the evaluator does not enforce.
+            adm.anchor_ceilings = if c.is_empty() { None } else { Some(c) };
+        }
     }
     // Each amendment advances the version (semver patch bump); the witnessed
     // LawAmended records who/when/sha alongside.
     law.version = bump_law_version(&law.version);
     let yaml = serde_yaml::to_string(&law)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing law: {e}")))?;
-    // Sanity: the amended law must still parse + validate.
+    // The amended law must still parse + validate. A failure here is the
+    // OPERATOR'S input being refused by law (Rule 9b: a level web4-core does not
+    // define, a ceiling outside [0,1], a stronger anchor granted less than a
+    // weaker one) — 400 with law's own words, not a 500 that sends them to the
+    // daemon log for a defect that does not exist. Nothing has been written or
+    // witnessed at this point, so refusing is free.
     hub_lib::law::Law::parse_and_validate(&yaml)
-        .map_err(|e| ApiError::internal(anyhow::anyhow!("amended law invalid: {e:#}")))?;
-    let entry_index = witness_law_amendment(
-        &s,
-        &yaml,
-        law.version.clone(),
-        Some("admission limits set via operator plane".to_string()),
-    ).await?;
+        .map_err(|e| ApiError::bad_request(format!("amended law refused by validation: {e:#}")))?;
+    let summary = match (&body.repeat_limit, &body.review_limit, law.ext.admission.as_ref().and_then(|a| a.anchor_ceilings.as_ref())) {
+        (None, None, Some(c)) => format!("admission.anchor_ceilings set via operator plane: {:?}", c),
+        (_, _, Some(c)) => format!("admission limits + anchor_ceilings set via operator plane: {:?}", c),
+        _ => "admission limits set via operator plane".to_string(),
+    };
+    let entry_index = witness_law_amendment(&s, &yaml, law.version.clone(), Some(summary)).await?;
     let (repeat_limit, review_limit) = (law.admission_repeat_limit(), law.admission_review_limit());
+    let ceilings = law.ext.admission.as_ref().and_then(|a| a.anchor_ceilings.clone());
     *s.law.write().await = Some(law);
     Ok(Json(serde_json::json!({
         "updated": true, "entry_index": entry_index,
         "repeat_limit": repeat_limit, "review_limit": review_limit,
+        "anchor_ceilings": ceilings,
     })))
 }
 
@@ -11202,6 +11224,101 @@ norms:
         assert!(html.contains("setLimits(") && html.contains("Write to hub law"), "limits form wired to law");
     }
 
+    /// The society's per-level identity-evidence grant is set the same way the
+    /// admission limits are: a loopback operator call that amends law and is
+    /// witnessed. Until this route existed the only way to configure
+    /// `anchor_ceilings` was `hub set-law` with a hand-edited YAML and the
+    /// passphrase — which is why the live fleet hub had never configured it and
+    /// `evaluate_anchor_ceiling` returned NotConfigured for everyone (web4#730).
+    #[tokio::test]
+    async fn operator_sets_anchor_ceilings_by_amending_law() {
+        let (_tmp, state) = fresh_rest_state(Some(ADMISSION_TEST_BASE_LAW)).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let mut ceilings = std::collections::BTreeMap::new();
+        ceilings.insert(4u8, 0.6);
+        ceilings.insert(5u8, 0.6);
+        let out = admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
+            Json(AdmissionLimitsBody { repeat_limit: None, review_limit: None, anchor_ceilings: Some(ceilings.clone()) }))
+            .await.unwrap();
+        assert_eq!(out.0["anchor_ceilings"]["4"], 0.6, "the response echoes what law now holds");
+        let law = state.law.read().await.clone().unwrap();
+        let p = law.ext.admission.as_ref().unwrap();
+        assert_eq!(p.anchor_ceilings.as_ref(), Some(&ceilings));
+        assert_eq!(law.version, "1.0.1", "an amendment advances the version");
+        // The gate is now IN FORCE: a level-4 applicant asserting nothing gets 0.6,
+        // and a level-5 claim — free to make, since level 5 has no evidence
+        // carrier — buys exactly nothing more than software.
+        use hub_lib::law::{evaluate_anchor_ceiling, AnchorCeilingVerdict};
+        assert_eq!(evaluate_anchor_ceiling(Some(p), 4, None), AnchorCeilingVerdict::Granted { level: 4, ceiling: 0.6 });
+        assert_eq!(evaluate_anchor_ceiling(Some(p), 5, None), AnchorCeilingVerdict::Granted { level: 5, ceiling: 0.6 });
+        assert_eq!(evaluate_anchor_ceiling(Some(p), 4, Some(0.85)), AnchorCeilingVerdict::Refused { level: 4, asserted: 0.85, granted: 0.6 },
+            "the old flattering default (0.85) is clamped by the society's grant");
+        assert!(matches!(evaluate_anchor_ceiling(Some(p), 3, None), AnchorCeilingVerdict::LevelNotGranted { level: 3 }),
+            "a level the map does not name is fail-closed once the map exists");
+        let amended = { let l = state.ledger.lock().await; l.entries().iter().any(|e| e.event.kind() == "law_amended") };
+        assert!(amended, "witnessed as a LawAmended");
+        let persisted = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
+        let reparsed = hub_lib::law::Law::parse_and_validate(&persisted).unwrap();
+        assert_eq!(reparsed.ext.admission.unwrap().anchor_ceilings, Some(ceilings), "round-trips through the store");
+    }
+
+    /// Law's Rule 9b refuses an incoherent map BEFORE anything is written or
+    /// witnessed, and the refusal is the operator's 400, not a daemon 500.
+    /// Three shapes, each the exact text law gives; the store and the ledger are
+    /// checked bit-for-bit unchanged after every refusal, because "refused" that
+    /// still wrote something would be the worse outcome.
+    #[tokio::test]
+    async fn an_incoherent_anchor_ceiling_map_is_refused_before_it_is_witnessed() {
+        let (_tmp, state) = fresh_rest_state(Some(ADMISSION_TEST_BASE_LAW)).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let before_law = state.open_store().await.unwrap().read_law().await.unwrap();
+        let before_len = state.ledger.lock().await.entries().len();
+        let cases: [(&[(u8, f64)], &str); 3] = [
+            (&[(4, 0.8), (5, 0.6)], "not monotonic"),
+            (&[(4, 0.6), (6, 1.0)], "names hardware-binding level 6"),
+            (&[(4, 1.5)],           "out of range"),
+        ];
+        for (entries, expect) in cases {
+            let map: std::collections::BTreeMap<u8, f64> = entries.iter().copied().collect();
+            let err = admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
+                Json(AdmissionLimitsBody { repeat_limit: None, review_limit: None, anchor_ceilings: Some(map) }))
+                .await.err().expect("must be refused");
+            assert_eq!(err.status, StatusCode::BAD_REQUEST, "{expect}: operator input, not a fault");
+            assert!(err.message.contains(expect), "{expect}: law's own words reach the operator, got: {}", err.message);
+            assert_eq!(state.open_store().await.unwrap().read_law().await.unwrap(), before_law, "{expect}: store untouched");
+            assert_eq!(state.ledger.lock().await.entries().len(), before_len, "{expect}: nothing witnessed");
+            assert!(state.law.read().await.as_ref().unwrap().ext.admission.as_ref().map(|a| a.anchor_ceilings.is_none()).unwrap_or(true), "{expect}: live law untouched");
+        }
+    }
+
+    /// `{}` clears the map, and clearing stores None rather than an empty map, so
+    /// the law text never claims a gate the evaluator does not enforce.
+    #[tokio::test]
+    async fn an_empty_anchor_ceiling_map_clears_the_gate_and_stores_none() {
+        let (_tmp, state) = fresh_rest_state(Some(ADMISSION_TEST_BASE_LAW)).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let mut c = std::collections::BTreeMap::new(); c.insert(4u8, 0.6);
+        admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
+            Json(AdmissionLimitsBody { repeat_limit: None, review_limit: None, anchor_ceilings: Some(c) })).await.unwrap();
+        admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
+            Json(AdmissionLimitsBody { repeat_limit: None, review_limit: None, anchor_ceilings: Some(Default::default()) })).await.unwrap();
+        let law = state.law.read().await.clone().unwrap();
+        assert!(law.ext.admission.as_ref().unwrap().anchor_ceilings.is_none());
+        let persisted = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
+        assert!(!persisted.contains("anchor_ceilings"), "cleared means absent from the law text, not `{{}}`");
+    }
+
+    const ADMISSION_TEST_BASE_LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ADMISSION-REQUIRES-SOVEREIGN
+    selector: r6.request.action
+    operator: "=="
+    value: member_join_request
+    decision: escalate
+    priority: 100
+"#;
+
     #[tokio::test]
     async fn operator_sets_admission_limits_by_amending_law() {
         const BASE_LAW: &str = r#"
@@ -11224,13 +11341,13 @@ norms:
         // Remote caller rejected.
         assert_eq!(
             admin_set_admission_limits(State(state.clone()), ConnectInfo(remote),
-                Json(AdmissionLimitsBody { repeat_limit: Some(5), review_limit: Some(2) }))
+                Json(AdmissionLimitsBody { repeat_limit: Some(5), review_limit: Some(2), anchor_ceilings: None }))
                 .await.err().unwrap().status,
             StatusCode::FORBIDDEN,
         );
         // Operator sets them → written to law (live + witnessed).
         admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
-            Json(AdmissionLimitsBody { repeat_limit: Some(5), review_limit: Some(2) }))
+            Json(AdmissionLimitsBody { repeat_limit: Some(5), review_limit: Some(2), anchor_ceilings: None }))
             .await.unwrap();
         let law = state.law.read().await.clone().unwrap();
         assert_eq!(law.admission_repeat_limit(), 5);
@@ -11282,7 +11399,7 @@ norms:
         // diverge from. Without this the ledger has no LawAmended at all and the
         // integrity verdict is "unverifiable", which does not block.
         admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
-            Json(AdmissionLimitsBody { repeat_limit: Some(5), review_limit: Some(2) }))
+            Json(AdmissionLimitsBody { repeat_limit: Some(5), review_limit: Some(2), anchor_ceilings: None }))
             .await.unwrap();
         let before = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
         assert_eq!(state.verify_law_integrity().await, "ok", "witnessed == served going in");
@@ -11291,7 +11408,7 @@ norms:
         state.signer.swap(Arc::new(LockedSigner::new(state.sovereign_lct_id)));
 
         let err = admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
-            Json(AdmissionLimitsBody { repeat_limit: Some(9), review_limit: Some(9) }))
+            Json(AdmissionLimitsBody { repeat_limit: Some(9), review_limit: Some(9), anchor_ceilings: None }))
             .await
             .expect_err("a locked signer cannot witness a LawAmended");
         assert_eq!(err.status, StatusCode::UNAUTHORIZED, "denied, not committed");
@@ -11330,7 +11447,7 @@ norms: []
         let (tmp, state) = fresh_rest_state(Some(BASE_LAW)).await;
         let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
         admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
-            Json(AdmissionLimitsBody { repeat_limit: Some(5), review_limit: Some(2) }))
+            Json(AdmissionLimitsBody { repeat_limit: Some(5), review_limit: Some(2), anchor_ceilings: None }))
             .await.unwrap();
         let before = state.open_store().await.unwrap().read_law().await.unwrap().unwrap();
         assert_eq!(state.verify_law_integrity().await, "ok");
@@ -11342,7 +11459,7 @@ norms: []
 
         // Ok here would make every assertion below vacuous.
         admin_set_admission_limits(State(state.clone()), ConnectInfo(loop_addr),
-            Json(AdmissionLimitsBody { repeat_limit: Some(9), review_limit: Some(9) }))
+            Json(AdmissionLimitsBody { repeat_limit: Some(9), review_limit: Some(9), anchor_ceilings: None }))
             .await
             .expect_err("append must fail against a read-only ledger");
 
