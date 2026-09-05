@@ -24,13 +24,14 @@ rerank).
 | File | Role |
 |------|------|
 | `ingest.py` | Reads hub members → builds free-form prose passages → embeds (pinned **nomic-embed-text-v1.5**) → writes a `.cart.npz` whose stored "text" is the **opaque member LCT** (not the prose) + a passage-index-aligned `members.json` holding only `{member_lct, profile_version}`. The prose is used to compute embeddings in RAM and discarded. |
-| `sidecar.py` | Long-lived localhost HTTP service. Mounts the cart + holds the model once. `POST /find_members {query, top_k, temperature}` → ranked `{member_lct, score}` (plus the echoed `temperature`) — no name, no tags. `GET /health` → `{ok, cart, n_members, fingerprint}`. |
+| `sidecar.py` | Long-lived localhost HTTP service. Mounts the cart + holds the model once. `POST /find_members {query, top_k}` → ranked `{member_lct, score}` — no name, no tags. `GET /health` → `{ok, cart, n_members, fingerprint}`. |
 | `test_ingest.py` | Passage/index contract tests (no model load). |
 
 The Rust hub-side `find_members` channel tool (in `hub-daemon/src/rest.rs`)
 calls the sidecar over localhost, gated by hub law (`read:find_members`) and
-bounded by tier (`ReadScope`). A `walk_members` slot is reserved for membot's
-forthcoming Walk-as-MCP (register-and-gate, not reimplement).
+bounded by tier (`ReadScope`). It refuses a `temperature` argument at that
+boundary, before the sidecar is reached. A `walk_members` slot is reserved for
+membot's forthcoming Walk-as-MCP (register-and-gate, not reimplement).
 
 ## Locked v1 contract (the three adds)
 
@@ -41,8 +42,16 @@ forthcoming Walk-as-MCP (register-and-gate, not reimplement).
    exactly when a member's profile changes, without storing the content). The
    `find_members` response is just `{member_lct, score}`; the hub enriches it
    with name/profile from its encrypted registry.
-3. **Temperature knob from day one** — accepted at the API boundary now;
-   precision-only until membot exposes settle-noise in search (then wired through).
+3. **No caller-tunable retrieval knob.** v1 shipped `temperature` on the promise
+   that it would be "wired through when membot exposes settle-noise" — but
+   `multi_cart.search` is `(query, top_k, scope, role_filter, scope_mode)` and has
+   no settle-noise at all, so the trigger named a precondition this path cannot
+   meet. Meanwhile the knob was accepted, forwarded, ignored, and echoed back, and
+   the echo read as evidence it was honoured. It is now **refused, not reserved**:
+   a request carrying `temperature` gets a `400`, because a seam that stops
+   honouring a parameter has to say so somewhere the caller cannot discard.
+   Retrieval determinism is a property of the engine, resolved from role law —
+   never a parameter the asker tunes.
 
 Passage shape (RAM only, fed to the embedder and discarded): `{Name}. {free-form
 skills/interests prose}.`
