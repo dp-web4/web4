@@ -157,6 +157,7 @@ fn html_escape(s: &str) -> String {
 pub fn router(state: RestState) -> Router {
     Router::new()
         .route("/", get(landing_page))
+        .route("/record", get(public_record_page))
         .route("/admin/roles", get(roles))
         .route("/admin/law", get(law))
         .route("/admin/channels", get(channels))
@@ -208,82 +209,184 @@ impl AdminError {
 /// Public landing page for the hub. This is the first thing an external visitor
 /// sees; it explains what the hub is, how to install Hestia, and how to request
 /// membership, without exposing member rosters or skills.
+/// `GET /record` — B1's third half: the public decision record, for a human.
+///
+/// A reference UI over the SAME `public_record` projection `/v1/hubs/:id/decisions`
+/// serializes. The renderer classifies nothing: it receives acts already marked disclosed or
+/// withheld and draws what it is given. If this page ever showed a fact the JSON withheld,
+/// the bug would be here, so there is deliberately no branch here that can disclose.
+///
+/// The withheld runs are the point. They are drawn as counted spans *in sequence*, so a
+/// reader sees that the chain is continuous and that nothing was quietly dropped — the
+/// difference between "private" and "deleted" is the whole credibility of the surface.
+/// Hashes are present but visually subordinate: they are what makes verification possible,
+/// and they are not what a person came to read.
+///
+/// surface: GET /record   act: none (read-only public projection)
+/// S: low/reversible [construct: no state mutated]   R: n/a [construct: public by classification]
+/// W: n/a   O: n/a   A: n/a   V: n/a   verdict: PASS
+async fn public_record_page(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
+    const LIMIT: usize = 100;
+    let ledger = s.ledger.lock().await;
+    let all: Vec<_> = ledger.entries().to_vec();
+    let total = all.len();
+    drop(ledger);
+    let (decisions, _scanned) = hub_lib::public_ledger::public_record(&all, LIMIT);
+    let withheld: u64 = decisions.iter().filter_map(|d| d.withheld_before.as_ref().map(|w| w.count)).sum();
+
+    let mut body = String::from("<div style=\"max-width:820px\">");
+    body.push_str(&format!(
+        "<h2>Governance record</h2>\
+         <p>Every consequential act this chapter takes is appended to a hash-chained ledger. \
+            Below are the <b>{}</b> governing acts in the most recent window, newest first, out of \
+            <b>{}</b> total entries. The other <b>{}</b> entries in this window are member business \
+            and disclose nothing here — they are shown as counted gaps, in sequence, so you can see \
+            the chain is unbroken rather than edited.</p>\
+         <p class=\"muted\">Same data as <a href=\"/v1/hubs/{}/decisions\">the JSON record</a>. \
+            <a href=\"/\">About this chapter</a> &middot; <a href=\"/v1/hubs/{}/law\">the law it follows</a>.</p>",
+        decisions.len(), total, withheld, s.hub_id, s.hub_id,
+    ));
+
+    if decisions.is_empty() {
+        body.push_str("<p class=\"muted\">No public governing acts recorded yet.</p></div>");
+        return Ok(public_layout(&s.hub_name, &s.hub_id.to_string(), &body));
+    }
+
+    body.push_str("<table><thead><tr><th>#</th><th>When (UTC)</th><th>Act</th><th>Detail</th></tr></thead><tbody>");
+    for d in &decisions {
+        // The withheld run sits ABOVE the act it precedes, because the list is newest-first and
+        // the span describes what lies between this act and the next more recent one.
+        if let Some(w) = &d.withheld_before {
+            body.push_str(&format!(
+                "<tr><td colspan=\"4\" class=\"muted\" style=\"padding:0.5rem 0.6rem\">\
+                 &#8942; <b>{}</b> entr{} withheld (#{}&ndash;#{}) &mdash; recorded and hash-linked, \
+                 not disclosed at this tier</td></tr>",
+                w.count, if w.count == 1 { "y" } else { "ies" }, w.from_index, w.to_index,
+            ));
+        }
+        let council = if d.council_authorized {
+            " <span class=\"pill\">council-authorized</span>"
+        } else { "" };
+        body.push_str(&format!(
+            "<tr><td><code>{}</code></td><td>{}</td><td><b>{}</b>{}</td><td>{}</td></tr>",
+            d.index,
+            d.timestamp.format("%Y-%m-%d %H:%M"),
+            html_escape(&d.kind),
+            council,
+            html_escape(d.detail.as_deref().unwrap_or("")),
+        ));
+    }
+    body.push_str("</tbody></table>");
+    body.push_str(&format!(
+        "<p class=\"muted\" style=\"margin-top:1rem\">Each entry carries its own hash and the \
+         preceding entry's, including withheld ones &mdash; which is what lets you verify continuity \
+         <i>across</i> a gap rather than stopping at it. The hashes are in \
+         <a href=\"/v1/hubs/{}/decisions\">the JSON</a>.</p></div>",
+        s.hub_id,
+    ));
+    Ok(public_layout(&s.hub_name, &s.hub_id.to_string(), &body))
+}
+
 async fn landing_page(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
-    let locked = s.is_locked();
+    // B1: the page is a REFERENCE UI over the public projection, not a second description of
+    // the chapter. Every fact below comes from `chapter_profile`, the same value
+    // `GET /v1/hubs/:id/chapter` serializes — so HTML and JSON cannot disagree about
+    // disclosure, which is the acceptance criterion this page exists to meet. Adding a fact
+    // here means adding it to the projection, where the allowlist is.
     let law_guard = s.law.read().await;
-    let law_version = law_guard
-        .as_ref()
-        .map(|l| l.version.clone())
-        .unwrap_or_else(|| "(none set)".to_string());
-    // Truthful by construction: evaluate the SAME synthetic R6 the join path
-    // runs (rest.rs submit_join), instead of the advisory `admission.open`
-    // display knob — the knob is consumed by no gate, and rendering it let
-    // the page claim "closed admission" while the law auto-admitted
-    // (review 2026-07-23).
-    let admission_decision = law_guard
-        .as_ref()
-        .map(|law| {
-            law.evaluate_outcome(&hub_lib::law::R6Request {
-                role: "applicant".to_string(),
-                action: "member_join_request".to_string(),
-                payload: serde_yaml::Value::Null,
-                resource: Default::default(),
-            })
-            .decision
-        })
-        // No law loaded → the join path allows (open-by-default): say so.
-        .unwrap_or(hub_lib::law::Decision::Allow);
+    let admission = crate::rest::admission_posture(law_guard.as_ref());
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger)
+    };
+    let c = hub_lib::public_chapter::chapter_profile(
+        s.hub_id, &s.hub_name, &projected, law_guard.as_ref(), s.is_locked(), admission,
+    );
     drop(law_guard);
 
-    let status = if locked {
-        r#"<span class="pill pill-warn">🔒 locked</span> — the hub vault is locked. Only the operator can unlock it."#
+    let status = if c.locked {
+        r#"<span class="pill pill-warn">🔒 sealed</span> The vault is locked, so most routes answer 503 until an operator ignites it. This is a safety posture, not an outage."#
     } else {
-        r#"<span class="pill">unlocked</span> — the hub is active and accepting sealed requests."#
+        r#"<span class="pill">open</span> The hub is running and accepting sealed requests."#
     };
-
-    let admission_note = match admission_decision {
-        hub_lib::law::Decision::Allow | hub_lib::law::Decision::Warn => {
-            "This chapter currently allows open admission: anyone with a Web4 LCT can request citizenship."
-        }
-        hub_lib::law::Decision::Escalate => {
-            "This chapter uses closed admission: membership requests queue for operator review."
-        }
-        hub_lib::law::Decision::Deny => {
-            "This chapter is not accepting membership requests right now."
-        }
+    // Three states, never two: law present, no law loaded, and SEALED. Collapsing the third
+    // into the second is what made a locked hub advertise open admission.
+    let law_line = match &c.law {
+        Some(l) if l.present => format!(
+            "Version <b>{}</b> &mdash; {} norm{}, {} procedure{}. <a href=\"{}\">Read the law in force</a>.",
+            html_escape(l.version.as_deref().unwrap_or("?")),
+            l.norms, if l.norms == 1 { "" } else { "s" },
+            l.procedures, if l.procedures == 1 { "" } else { "s" },
+            html_escape(&c.links.law),
+        ),
+        Some(_) => "<span class=\"pill pill-warn\">no law loaded</span> Nothing constrains admission \
+                    here yet, so requests are allowed by default. That is a real state, not a missing \
+                    page.".to_string(),
+        None => "<span class=\"pill pill-warn\">sealed</span> The law is encrypted with the vault \
+                 and cannot be read until an operator ignites this hub.".to_string(),
+    };
+    let admission_line = match &c.admission {
+        Some(a) => a.describe().to_string(),
+        None => "Not disclosed while the vault is sealed. The chapter's admission rule is part of \
+                 its law, and the law is encrypted &mdash; so this page will not guess at it."
+                 .to_string(),
+    };
+    let charter_line = match &c.charter_hash {
+        Some(h) => format!(
+            "<dt>Charter</dt><dd><code>{}</code> <span class=\"muted\">— the hash of the founding \
+             charter. Compare it against any copy you were handed.</span></dd>",
+            html_escape(h)
+        ),
+        // ABSENT IS NOT UNFOUNDED. A sealed hub has an empty projection, so a missing
+        // charter hash means "cannot say" far more often than "never founded".
+        None if c.locked => "<dt>Charter</dt><dd class=\"muted\">sealed &mdash; not disclosed while the vault is locked</dd>".to_string(),
+        None => "<dt>Charter</dt><dd class=\"muted\">not yet founded</dd>".to_string(),
     };
 
     let body = format!(
-        r#"<div style="max-width:700px">
-<h2>Welcome to {hub_name}</h2>
-<p>This is a <strong>Web4 community hub</strong> — a self-sovereign society server. Members join with a Web4 LCT, communicate through end-to-end encrypted channels, declare skills, and build reputation.</p>
+        r#"<div style="max-width:760px">
+<h2>About this chapter</h2>
+<p>A <strong>Web4 chapter</strong> — a self-governing society with its own law, its own members,
+   and an append-only record of every consequential act it takes. This page is the whole of what
+   it discloses publicly.</p>
 
-<h3>Status</h3>
-<p>{status}</p>
+<dl class="grid">
+  <dt>Status</dt><dd>{status}</dd>
+  <dt>Society</dt><dd><code>{hub_id}</code></dd>
+  {charter_line}
+  <dt>Law</dt><dd>{law_line}</dd>
+  <dt>Joining</dt><dd>{admission}</dd>
+</dl>
 
-<h3>Membership</h3>
-<p>{admission_note}</p>
+<h3>What has this chapter decided?</h3>
+<p>Every consequential act is written to a hash-chained ledger. The public record shows the
+   governing acts in sequence; member business stays private, and where it does, the record says
+   so and stays continuous rather than silently skipping.</p>
+<p><a class="button" href="/record">Read the governance record</a></p>
 
-<h3>Get started</h3>
+<h3>Joining</h3>
 <ol>
-  <li><strong>Install Hestia</strong> — the local app that holds your identity and talks to this hub.<br>
+  <li><strong>Install Hestia</strong>, the local app that holds your identity and speaks to this hub.<br>
       <a class="button" href="https://github.com/dp-web4/hestia/releases">Download Hestia</a></li>
-  <li><strong>Request citizenship</strong> — from Hestia, run:<br>
-      <code>hestia connect-hub https://&lt;this-host&gt;</code></li>
-  <li><strong>Wait for review</strong> — the operator will admit or decline your request.</li>
+  <li><strong>Request citizenship</strong>: <code>hestia connect-hub https://&lt;this-host&gt;</code></li>
 </ol>
 
-<h3>Transparency</h3>
+<h3>Machine-readable</h3>
 <ul>
-  <li><a href="/.well-known/web4-hub.json">Machine-readable hub descriptor</a></li>
-  <li><a href="/v1/hubs/{hub_id}/law">Current hub law</a> (version {law_version})</li>
+  <li><a href="/v1/hubs/{hub_id}/chapter">This page as JSON</a> — the same projection, byte for byte</li>
+  <li><a href="{decisions}">The governance record as JSON</a></li>
+  <li><a href="{descriptor}">Hub descriptor</a></li>
 </ul>
 
-<p class="muted">Operators: the dashboard lives on the loopback operator plane (<code>/admin</code> on the operator port).</p>
+<p class="muted">Operators: the dashboard is on the loopback operator plane (<code>/admin</code>).</p>
 </div>"#,
-        hub_name = html_escape(&s.hub_name),
-        hub_id = s.hub_id,
-        law_version = html_escape(&law_version),
+        hub_id = html_escape(&c.hub_id),
+        status = status,
+        charter_line = charter_line,
+        law_line = law_line,
+        admission = admission_line,
+        decisions = html_escape(&c.links.decisions),
+        descriptor = html_escape(&c.links.descriptor),
     );
 
     Ok(public_layout(&s.hub_name, &s.hub_id.to_string(), &body))
