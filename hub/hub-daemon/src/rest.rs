@@ -1942,6 +1942,7 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/vp/response", post(vp_response))
         // tier-0: the hub's law is readable even while the vault is locked
         .route("/v1/hubs/:hub_id/law", get(read_hub_law))
+        .route("/v1/hubs/:hub_id/chapter", get(read_public_chapter))
         .route("/v1/hubs/:hub_id/decisions", get(read_public_decisions))
         // H3: discussion is readable WITHOUT joining. A governance forum whose
         // deliberation you must first be admitted to see cannot be inspected by
@@ -2252,6 +2253,13 @@ fn locked_tier0_allows(hub_id: Uuid, path: &str) -> bool {
         // The signed law is tier-0 — served from the clear in-memory
         // projection. NOT `/admin/law`, which needs the protected store.
         || path == format!("/v1/hubs/{hub_id}/law")
+        // B1's chapter profile. Tier-0 because it is the JSON twin of the landing page,
+        // which is already tier-0 above: it is built from configured identity and the
+        // in-memory law projection, touches no protected store, and publishes `locked: true`
+        // — the fact a stranger at a sealed hub most needs. Serving `/` and refusing its own
+        // machine-readable form would disclose the same facts while pretending otherwise.
+        // Its sibling `/record` is deliberately NOT here; see the locked route test.
+        || path == format!("/v1/hubs/{hub_id}/chapter")
         // Public issuer metadata (OID4VCI discovery).
         || path == format!("/v1/hubs/{hub_id}/.well-known/openid-credential-issuer")
 }
@@ -2926,6 +2934,71 @@ async fn read_hub_law(
 /// Deliberately unauthenticated: `public` IS the classification, not a check being
 /// skipped. The member-visible record (B9b) is a separate surface with its own
 /// authorization, not a query parameter on this one.
+/// Evaluate what a membership request would actually meet, by running the SAME synthetic R6
+/// the join path runs (`submit_join`) rather than reading `admission.open`.
+///
+/// The knob is consumed by no gate. Rendering it let the landing page claim "closed
+/// admission" while the law auto-admitted (review 2026-07-23). Deriving the posture means the
+/// public answer cannot disagree with the gate, because it IS the gate's answer.
+pub(crate) fn admission_posture(law: Option<&hub_lib::law::Law>) -> hub_lib::public_chapter::AdmissionPosture {
+    use hub_lib::law::Decision;
+    use hub_lib::public_chapter::AdmissionPosture;
+    let decision = match law {
+        Some(l) => l.evaluate_outcome(&hub_lib::law::R6Request {
+            role: "applicant".to_string(),
+            action: "member_join_request".to_string(),
+            payload: serde_yaml::Value::Null,
+            resource: Default::default(),
+        }).decision,
+        // No law loaded → the join path allows. Say the true thing.
+        None => Decision::Allow,
+    };
+    match decision {
+        Decision::Allow | Decision::Warn => AdmissionPosture::Open,
+        Decision::Escalate => AdmissionPosture::Reviewed,
+        Decision::Deny => AdmissionPosture::Closed,
+    }
+}
+
+/// `GET /v1/hubs/:hub_id/chapter` — B1: the public chapter profile.
+///
+/// The identity half of the public plane; `/decisions` is the acts half. Built by
+/// [`hub_lib::public_chapter::chapter_profile`], which is an allowlist by construction — see
+/// that module for what is excluded and why.
+///
+/// Deliberately unauthenticated, on the same terms as `/decisions`: `public` IS the
+/// classification, not a check being skipped.
+///
+/// surface: GET /v1/hubs/:hub_id/chapter   act: none (read-only public projection)
+/// S: low/reversible [construct: no state mutated, no signature, no send]
+/// R: n/a [construct: public plane by classification]   W: n/a [construct: no authority exercised]
+/// O: n/a [construct: no side effect to order]   A: n/a [construct: nothing to witness]
+/// V: n/a   verdict: PASS
+async fn read_public_chapter(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+) -> Result<Json<hub_lib::public_chapter::ChapterProfile>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!("unknown hub {hub_id}")));
+    }
+    let law_guard = s.law.read().await;
+    let admission = admission_posture(law_guard.as_ref());
+    let projected = {
+        let ledger = s.ledger.lock().await;
+        HubState::project(&ledger)
+    };
+    let profile = hub_lib::public_chapter::chapter_profile(
+        s.hub_id,
+        &s.hub_name,
+        &projected,
+        law_guard.as_ref(),
+        s.is_locked(),
+        admission,
+    );
+    drop(law_guard);
+    Ok(Json(profile))
+}
+
 async fn read_public_decisions(
     State(s): State<RestState>,
     Path(hub_id): Path<Uuid>,

@@ -2753,7 +2753,7 @@ mod tests {
             // `/admin/channels` is the fifth public transparency page; this repo has
             // already paid once for an enumeration that named four routes and silently
             // covered a fifth (rest.rs, the `/admin/law` disclosure).
-            for path in ["/", "/admin/roles", "/admin/law", "/admin/council", "/admin/channels", "/tools", "/tools/query_hub"] {
+            for path in ["/", "/record", "/admin/roles", "/admin/law", "/admin/council", "/admin/channels", "/tools", "/tools/query_hub"] {
                 assert_eq!(
                     status(&public, "GET", path).await,
                     StatusCode::OK,
@@ -3620,6 +3620,36 @@ mod tests {
                     "{p} must be refused while locked"
                 );
             }
+        }
+
+        /// B1's split while the vault is sealed, pinned as a route test rather than a
+        /// routing comment (the acceptance criterion asks for exactly this).
+        ///
+        /// `/chapter` IS tier-0: it answers "what is this society" from configured identity
+        /// and in-memory law, needs no store, and publishes `locked: true` — which is most
+        /// useful precisely when locked. A stranger arriving at a sealed hub should still be
+        /// able to learn what it is; `/` already serves those same facts while locked, so
+        /// refusing the JSON twin would be incoherent.
+        ///
+        /// `/record` deliberately is NOT. It reads the ledger, and a sealed hub's projection
+        /// is EMPTY — so it would render "no public governing acts recorded yet" while the
+        /// store holds hundreds. That sentence is false, and a public transparency surface
+        /// that answers a question it cannot answer is worse than one that declines. 503 is
+        /// the honest reply.
+        #[tokio::test]
+        async fn while_locked_the_chapter_profile_is_served_and_the_record_is_refused() {
+            let (_tmp, app, id) = locked_public_app().await;
+            assert_eq!(
+                status(&app, &format!("/v1/hubs/{id}/chapter")).await,
+                StatusCode::OK,
+                "/chapter is tier-0: it needs no store and a sealed hub must still say what it is",
+            );
+            assert_eq!(
+                status(&app, "/record").await,
+                StatusCode::SERVICE_UNAVAILABLE,
+                "/record must NOT be tier-0: an empty projection would read as 'no acts', \
+                 which is false while the store is merely sealed",
+            );
         }
 
         /// And the tier-0 surface must keep working, or the fix is just a hub
