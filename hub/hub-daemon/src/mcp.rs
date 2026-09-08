@@ -535,68 +535,13 @@ fn require_loopback(peer: &SocketAddr) -> Result<(), ApiError> {
 /// then call [`append_signed_event`]. Otherwise a council/law rejection can leave
 /// state ahead of the witnessed ledger. Handlers with no side effects can use the
 /// combined [`append_with_sovereign`].
+/// One gate, shared with the operator plane. The body used to live here; it moved to
+/// `rest::governance_gate` when the operator plane gained council routes, so the two
+/// paths cannot drift on what "governed" means. This is a thin adapter over McpState.
 async fn check_governance(s: &McpState, event: &HubEvent) -> Result<(), ApiError> {
-    // HUB-001 (parity with REST): refuse governed writes while the served law
-    // diverges from the witnessed LawAmended head — the law we'd evaluate below
-    // may be rolled-back/tampered. Override: HUB_ALLOW_LAW_MISMATCH=1.
-    crate::rest::law_integrity_write_gate(&s.ledger, s.open_store().await.ok())
+    crate::rest::governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, event)
         .await
-        .map_err(|message| ApiError { status: StatusCode::CONFLICT, message })?;
-
-    // Council gate (parity with REST /events, V2-9 Phase 2): if a council
-    // threshold of 2+ is active, a single-signer Sovereign commit is not
-    // permitted — governed acts must flow through council propose/sign (H-002).
-    let council_threshold_active = {
-        let ledger = s.ledger.lock().await;
-        matches!(
-            hub_lib::state::HubState::project(&*ledger).council_threshold,
-            Some((m, _)) if m >= 2
-        )
-    };
-    if council_threshold_active {
-        return Err(ApiError {
-            status: StatusCode::CONFLICT,
-            message: "council mode active (threshold >= 2-of-N): submit governed acts via \
-                      POST /v1/hubs/{hub_id}/council/propose + /sign, not the MCP write tools"
-                .to_string(),
-        });
-    }
-
-    // PolicyEntity gate (V2-8 §4): if a hub law is loaded, evaluate before signing.
-    let law_guard = s.law.read().await;
-    if let Some(law) = law_guard.as_ref() {
-        let req = R6Request {
-            role: "sovereign".to_string(),
-            action: event.kind().to_string(),
-            payload: serde_yaml::to_value(event)
-                .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {}", e)))?,
-            resource: Default::default(),
-        };
-        let outcome = law.evaluate_outcome(&req);
-        match outcome.decision {
-            Decision::Allow => { /* proceed */ }
-            Decision::Warn => {
-                tracing::warn!(
-                    "act flagged by hub law (norm: {})",
-                    outcome.winning_norm.as_deref().unwrap_or("?")
-                );
-            }
-            Decision::Deny => {
-                return Err(ApiError::forbidden(format!(
-                    "act denied by hub law (norm: {})",
-                    outcome.winning_norm.as_deref().unwrap_or("?")
-                )));
-            }
-            Decision::Escalate => {
-                return Err(ApiError::accepted_escalation(format!(
-                    "act requires escalation to {} ({}); admin review queue is V2-16",
-                    outcome.escalate_to.as_deref().unwrap_or("sovereign"),
-                    outcome.winning_norm.as_deref().unwrap_or("escalation trigger"),
-                )));
-            }
-        }
-    }
-    Ok(())
+        .map_err(|e| { let (status, message) = e.into_parts(); ApiError { status, message } })
 }
 
 /// Sign `event` as the Sovereign and append it to the ledger. Assumes

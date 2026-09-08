@@ -1158,6 +1158,74 @@ pub(crate) async fn law_integrity_write_gate(
     Ok(())
 }
 
+/// The ONE governance gate for a Sovereign-signed write, shared by the MCP write tools
+/// and the operator plane. Extracted from mcp.rs `check_governance` so the two paths
+/// cannot drift: the operator plane's council routes MUST carry exactly the gate the
+/// MCP tools carry, or changing the council itself — the most consequential act on the
+/// hub — would be the least gated one.
+///
+/// Three checks, in order:
+///   1. law integrity — refuse if the served law diverges from the witnessed head;
+///   2. council mode — if a threshold of 2+ is active, a single-signer commit is not
+///      permitted: governed acts go through /council/propose + /sign. This applies to
+///      council changes too, which is the point: once a society has a quorum, the quorum
+///      amends the quorum, not the Sovereign alone;
+///   3. hub law — evaluate the act as R6 and honour Allow/Warn/Deny/Escalate.
+pub(crate) async fn governance_gate(
+    ledger: &tokio::sync::Mutex<HubLedger>,
+    store: Option<Box<dyn hub_lib::store::HubStore>>,
+    law: &tokio::sync::RwLock<Option<hub_lib::law::Law>>,
+    event: &HubEvent,
+) -> Result<(), ApiError> {
+    law_integrity_write_gate(ledger, store)
+        .await
+        .map_err(|message| ApiError { status: StatusCode::CONFLICT, message })?;
+
+    let council_threshold_active = {
+        let l = ledger.lock().await;
+        matches!(HubState::project(&*l).council_threshold, Some((m, _)) if m >= 2)
+    };
+    if council_threshold_active {
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: "council mode active (threshold >= 2-of-N): submit governed acts via \
+                      POST /v1/hubs/{hub_id}/council/propose + /sign, not a single-signer write"
+                .to_string(),
+        });
+    }
+
+    let law_guard = law.read().await;
+    if let Some(law) = law_guard.as_ref() {
+        use hub_lib::law::Decision;
+        let req = hub_lib::law::R6Request {
+            role: "sovereign".to_string(),
+            action: event.kind().to_string(),
+            payload: serde_yaml::to_value(event)
+                .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {}", e)))?,
+            resource: Default::default(),
+        };
+        let outcome = law.evaluate_outcome(&req);
+        match outcome.decision {
+            Decision::Allow => {}
+            Decision::Warn => tracing::warn!(
+                "act flagged by hub law (norm: {})", outcome.winning_norm.as_deref().unwrap_or("?")),
+            Decision::Deny => return Err(ApiError {
+                status: StatusCode::FORBIDDEN,
+                message: format!("act denied by hub law (norm: {})",
+                    outcome.winning_norm.as_deref().unwrap_or("?")),
+            }),
+            // 202: the act is neither refused nor done — it is waiting on a human.
+            Decision::Escalate => return Err(ApiError {
+                status: StatusCode::ACCEPTED,
+                message: format!("act requires escalation to {} ({}); admin review queue is V2-16",
+                    outcome.escalate_to.as_deref().unwrap_or("sovereign"),
+                    outcome.winning_norm.as_deref().unwrap_or("escalation trigger")),
+            }),
+        }
+    }
+    Ok(())
+}
+
 /// Witness a hub event to the signed ledger (build → sign as Sovereign →
 /// append). Returns the committed entry index. Requires an ignited signer.
 /// HUB-001: refuses on law-integrity mismatch — except `LawAmended` itself,
@@ -2008,12 +2076,19 @@ pub fn router(state: RestState) -> Router {
 // ---------- error wrapper ----------
 
 #[derive(Debug)]
-struct ApiError {
+pub(crate) struct ApiError {
     status: StatusCode,
     message: String,
 }
 
 impl ApiError {
+    /// The two ApiError types (rest, mcp) are distinct and their fields private to their
+    /// modules; the shared governance gate is defined here and consumed there, so it
+    /// needs one crate-visible way out. Status and message, nothing else — there is
+    /// nothing else.
+    pub(crate) fn into_parts(self) -> (StatusCode, String) {
+        (self.status, self.message)
+    }
     fn bad_request(msg: impl Into<String>) -> Self {
         Self { status: StatusCode::BAD_REQUEST, message: msg.into() }
     }
@@ -5874,6 +5949,144 @@ async fn admin_rename_member(
 }
 
 #[derive(Deserialize)]
+struct CouncilAddBody {
+    lct_id: Uuid,
+    pubkey_hex: String,
+    #[serde(default)]
+    name: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct CouncilRemoveBody {
+    /// "resigned" (default) | "ejected" | "elected" — the CLI's vocabulary, mapped
+    /// explicitly rather than deserialised straight into web4-core's enum so the wire
+    /// shape is this surface's decision and not a derive's.
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    reason: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ThresholdBody {
+    m: u32,
+}
+
+/// `POST /admin/api/council/add` — admit a Sovereign Council holder, live.
+///
+/// dp, 2026-09-08: "i don't see a ui to edit council or roles". There was none: council
+/// membership was `hub council add <dir> …`, an offline store write with the passphrase,
+/// behind the running daemon's back. This is the same act on the operator plane, through
+/// the SAME governance gate the MCP write tools carry, with the new holder inserted into
+/// the LIVE resolver so they can sign a council envelope immediately — the property the
+/// CLI could not provide without a restart, and the one the end-to-end test proves.
+///
+/// surface: POST /admin/api/council/add   act: co-Sovereign admission (CouncilMemberAdded)
+/// S: high/irreversible-ish [construct: a holder can then co-sign governed acts]
+/// R: weak-only [construct: require_loopback]   W: pass [construct: Sovereign signer via witness_event; governance_gate]
+/// O: pass [construct: governance_gate before witness_event]   A: pass [construct: signed chain entry]
+/// V: present [construct: council mode routes this act itself through propose/sign once M>=2]
+/// verdict: PASS
+async fn admin_council_add(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Json(body): Json<CouncilAddBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let lct = hub_lib::hub::hestia_sovereign_lct(body.lct_id, &body.pubkey_hex)
+        .map_err(|e| ApiError::bad_request(format!("invalid pubkey_hex: {}", e)))?;
+    {
+        let ledger = s.ledger.lock().await;
+        if HubState::project(&ledger).council_holders.contains(&body.lct_id) {
+            return Err(ApiError::bad_request(format!("{} is already a Sovereign Council holder", body.lct_id)));
+        }
+    }
+    let event = HubEvent::CouncilMemberAdded {
+        member_lct_id: body.lct_id,
+        member_pubkey_hex: body.pubkey_hex.clone(),
+        added_by: s.sovereign_lct_id,
+        member_name: body.name.clone(),
+    };
+    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &event).await?;
+    let entry_index = witness_event(&s, event).await?;
+    // Live resolver insert — the whole point of doing this on the daemon rather than
+    // offline: the holder's next council envelope verifies without a restart.
+    s.resolver.write().await.insert(lct);
+    let (holders, threshold) = { let l = s.ledger.lock().await; project_council(&s, &*l) };
+    Ok(Json(serde_json::json!({
+        "added": true, "entry_index": entry_index,
+        "holders": holders.len(), "threshold_m": threshold.0, "threshold_n": threshold.1,
+    })))
+}
+
+/// `POST /admin/api/council/:lct_id/remove` — remove a council holder, live.
+async fn admin_council_remove(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(lct_id): Path<Uuid>,
+    Json(body): Json<CouncilRemoveBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    if lct_id == s.sovereign_lct_id {
+        return Err(ApiError::bad_request(
+            "the founding Sovereign is not a removable council holder".to_string()));
+    }
+    {
+        let ledger = s.ledger.lock().await;
+        if !HubState::project(&ledger).council_holders.contains(&lct_id) {
+            return Err(ApiError::not_found(format!("{lct_id} is not a Sovereign Council holder")));
+        }
+    }
+    use web4_core::role::RoleEventKind;
+    let removal_kind = match body.kind.as_deref().unwrap_or("resigned") {
+        "resigned" => RoleEventKind::FillerResigned,
+        "ejected" => RoleEventKind::FillerEjected,
+        "elected" => RoleEventKind::FillerElected,
+        other => return Err(ApiError::bad_request(format!(
+            "kind must be resigned, ejected or elected (got {other:?})"))),
+    };
+    let event = HubEvent::CouncilMemberRemoved {
+        member_lct_id: lct_id,
+        removed_by: s.sovereign_lct_id,
+        removal_kind,
+        reason: body.reason,
+    };
+    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &event).await?;
+    let entry_index = witness_event(&s, event).await?;
+    let (holders, threshold) = { let l = s.ledger.lock().await; project_council(&s, &*l) };
+    Ok(Json(serde_json::json!({
+        "removed": true, "entry_index": entry_index,
+        "holders": holders.len(), "threshold_m": threshold.0, "threshold_n": threshold.1,
+    })))
+}
+
+/// `POST /admin/api/council/threshold` — set M for M-of-N, live. The projection clamps
+/// M into [1, N], so the response reports the EFFECTIVE threshold, not the requested one.
+///
+/// Note the ratchet this creates on purpose: once M >= 2 is in force, this route (and
+/// add/remove above) is refused by the council-mode check and the change must go
+/// through propose/sign. The Sovereign can raise the bar alone; lowering it back needs
+/// the council it created.
+async fn admin_council_set_threshold(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Json(body): Json<ThresholdBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    if body.m == 0 {
+        return Err(ApiError::bad_request("threshold m must be at least 1".to_string()));
+    }
+    let event = HubEvent::CouncilThresholdChanged { new_m: body.m, initiated_by: s.sovereign_lct_id };
+    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &event).await?;
+    let entry_index = witness_event(&s, event).await?;
+    let (holders, threshold) = { let l = s.ledger.lock().await; project_council(&s, &*l) };
+    Ok(Json(serde_json::json!({
+        "set": true, "entry_index": entry_index, "requested_m": body.m,
+        "holders": holders.len(), "threshold_m": threshold.0, "threshold_n": threshold.1,
+    })))
+}
+
+#[derive(Deserialize)]
 struct AddMemberBody {
     lct_id: Uuid,
     pubkey_hex: String,
@@ -6282,6 +6495,9 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/reviews/:review_id/refuse", post(admin_refuse_review))
         .route("/admin/api/members/add", post(admin_add_member))
         .route("/admin/api/members/:lct_id/rename", post(admin_rename_member))
+        .route("/admin/api/council/add", post(admin_council_add))
+        .route("/admin/api/council/:lct_id/remove", post(admin_council_remove))
+        .route("/admin/api/council/threshold", post(admin_council_set_threshold))
         .route("/admin/api/members/:lct_id/key", post(admin_pin_key))
         .route("/admin/api/members/:lct_id/remove", post(admin_remove_member))
         .route("/admin/api/members/:lct_id/admission-reset", post(admin_admission_reset))
@@ -7101,7 +7317,7 @@ fn summarize(p: &CouncilProposal, threshold: (u32, u32)) -> ProposalSummary {
 /// Project the current set of valid council holders (founding Sovereign
 /// included) + the threshold from the ledger. Used by both propose
 /// and sign to know who counts as a vote.
-fn project_council(
+pub(crate) fn project_council(
     s: &RestState,
     ledger: &hub_lib::ledger::HubLedger,
 ) -> (std::collections::BTreeSet<Uuid>, (u32, u32)) {
@@ -11846,6 +12062,91 @@ norms:
         let projected = { let l = state.ledger.lock().await; HubState::project(&l) };
         assert!(projected.members.contains_key(&a) && projected.members.contains_key(&b),
             "and both memberships are intact");
+    }
+
+    /// THE OPERATOR-PLANE COUNCIL FLOW, on sqlite, ending in the thing the CLI could not
+    /// do: a holder added through the daemon signs a council envelope IMMEDIATELY, with no
+    /// restart and no manual resolver reseed. Then the threshold is raised and the ratchet
+    /// closes — the very routes that built the council are refused, and the council itself
+    /// is what must approve further changes.
+    #[tokio::test]
+    async fn operator_adds_council_holders_who_can_sign_at_once_and_the_ratchet_closes() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let remote: SocketAddr = "10.0.0.9:5555".parse().unwrap();
+        let (kp_a, kp_b) = (KeyPair::generate(), KeyPair::generate());
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
+
+        assert_eq!(admin_council_add(State(state.clone()), ConnectInfo(remote),
+            Json(CouncilAddBody { lct_id: a, pubkey_hex: kp_a.verifying_key().to_hex(), name: None }))
+            .await.err().unwrap().status, StatusCode::FORBIDDEN, "remote caller refused");
+
+        let out = admin_council_add(State(state.clone()), ConnectInfo(loop_addr),
+            Json(CouncilAddBody { lct_id: a, pubkey_hex: kp_a.verifying_key().to_hex(), name: Some("Holder A".into()) }))
+            .await.unwrap();
+        assert_eq!(out.0["holders"], 2, "sovereign + A");
+        assert_eq!(admin_council_add(State(state.clone()), ConnectInfo(loop_addr),
+            Json(CouncilAddBody { lct_id: a, pubkey_hex: kp_a.verifying_key().to_hex(), name: None }))
+            .await.err().unwrap().status, StatusCode::BAD_REQUEST, "already a holder");
+        admin_council_add(State(state.clone()), ConnectInfo(loop_addr),
+            Json(CouncilAddBody { lct_id: b, pubkey_hex: kp_b.verifying_key().to_hex(), name: Some("Holder B".into()) }))
+            .await.unwrap();
+
+        // The live-resolver guarantee: A proposes RIGHT NOW, through the real handler,
+        // with NO reseed. (The #810 fixture had to reseed by hand after a raw witness;
+        // this route exists so that step is the daemon's, not the operator's.)
+        let proposed = serde_json::to_value(HubEvent::EventRecorded {
+            event_kind: "decision".into(), title: "operator-plane council fixture".into(),
+            attended_by: vec![a, b], recorded_by: a, held_at: Utc::now(),
+        }).unwrap();
+        let env = council_envelope(&state, &kp_a, a,
+            serde_json::json!({"action": "council_propose", "proposed_event": proposed})).await;
+        let opened = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env))
+            .await.expect("a holder added via the operator plane can sign immediately");
+        assert!(matches!(read_proposal(&state, opened.0.id).await.unwrap().unwrap().status,
+            ProposalStatus::Committed { .. }), "threshold is still 1-of-3 here, so it commits at once");
+
+        // Raise the bar: 2-of-3. Response reports the EFFECTIVE threshold.
+        let out = admin_council_set_threshold(State(state.clone()), ConnectInfo(loop_addr),
+            Json(ThresholdBody { m: 2 })).await.unwrap();
+        assert_eq!((out.0["threshold_m"].as_u64(), out.0["threshold_n"].as_u64()), (Some(2), Some(3)));
+
+        // THE RATCHET: with M>=2 in force, every single-signer council change is refused
+        // by the shared gate and routed to propose/sign — including lowering M back.
+        for (what, res) in [
+            ("add", admin_council_add(State(state.clone()), ConnectInfo(loop_addr),
+                Json(CouncilAddBody { lct_id: Uuid::new_v4(), pubkey_hex: KeyPair::generate().verifying_key().to_hex(), name: None })).await.map(|_| ())),
+            ("remove", admin_council_remove(State(state.clone()), ConnectInfo(loop_addr), Path(b),
+                Json(CouncilRemoveBody { kind: None, reason: None })).await.map(|_| ())),
+            ("threshold", admin_council_set_threshold(State(state.clone()), ConnectInfo(loop_addr),
+                Json(ThresholdBody { m: 1 })).await.map(|_| ())),
+        ] {
+            let err = res.err().unwrap_or_else(|| panic!("{what} must be refused in council mode"));
+            assert_eq!(err.status, StatusCode::CONFLICT, "{what}");
+            assert!(err.message.contains("council mode active"), "{what}: {}", err.message);
+        }
+        // And nothing changed under those refusals.
+        let (holders, threshold) = { let l = state.ledger.lock().await; project_council(&state, &*l) };
+        assert_eq!((holders.len(), threshold), (3, (2, 3)));
+    }
+
+    /// Guard rails that do not depend on council mode.
+    #[tokio::test]
+    async fn council_routes_refuse_the_sovereign_and_bad_input_without_witnessing() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let before = state.ledger.lock().await.entries().len();
+        assert_eq!(admin_council_remove(State(state.clone()), ConnectInfo(loop_addr), Path(state.sovereign_lct_id),
+            Json(CouncilRemoveBody { kind: None, reason: None })).await.err().unwrap().status, StatusCode::BAD_REQUEST,
+            "the founding Sovereign cannot be removed");
+        assert_eq!(admin_council_remove(State(state.clone()), ConnectInfo(loop_addr), Path(Uuid::new_v4()),
+            Json(CouncilRemoveBody { kind: None, reason: None })).await.err().unwrap().status, StatusCode::NOT_FOUND);
+        assert_eq!(admin_council_add(State(state.clone()), ConnectInfo(loop_addr),
+            Json(CouncilAddBody { lct_id: Uuid::new_v4(), pubkey_hex: "nothex".into(), name: None })).await.err().unwrap().status,
+            StatusCode::BAD_REQUEST);
+        assert_eq!(admin_council_set_threshold(State(state.clone()), ConnectInfo(loop_addr),
+            Json(ThresholdBody { m: 0 })).await.err().unwrap().status, StatusCode::BAD_REQUEST);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "no refusal reached the ledger");
     }
 
     const ADMISSION_TEST_BASE_LAW: &str = r#"
