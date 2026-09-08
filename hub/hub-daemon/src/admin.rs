@@ -241,7 +241,7 @@ async fn public_record_page(State(s): State<RestState>) -> Result<Html<String>, 
             Below are the <b>{}</b> governing acts in the most recent window, newest first, out of \
             <b>{}</b> total entries. The other <b>{}</b> entries in this window are member business \
             and disclose nothing here — they are shown as counted gaps, in sequence, so you can see \
-            the chain is unbroken rather than edited.</p>\
+            that no index is missing rather than quietly dropped.</p>\
          <p class=\"muted\">Same data as <a href=\"/v1/hubs/{}/decisions\">the JSON record</a>. \
             <a href=\"/\">About this chapter</a> &middot; <a href=\"/v1/hubs/{}/law\">the law it follows</a>.</p>",
         decisions.len(), total, withheld, s.hub_id, s.hub_id,
@@ -259,8 +259,8 @@ async fn public_record_page(State(s): State<RestState>) -> Result<Html<String>, 
         if let Some(w) = &d.withheld_before {
             body.push_str(&format!(
                 "<tr><td colspan=\"4\" class=\"muted\" style=\"padding:0.5rem 0.6rem\">\
-                 &#8942; <b>{}</b> entr{} withheld (#{}&ndash;#{}) &mdash; recorded and hash-linked, \
-                 not disclosed at this tier</td></tr>",
+                 &#8942; <b>{}</b> entr{} withheld (#{}&ndash;#{}) &mdash; recorded and \
+                 accounted for, not disclosed at this tier</td></tr>",
                 w.count, if w.count == 1 { "y" } else { "ies" }, w.from_index, w.to_index,
             ));
         }
