@@ -7174,10 +7174,11 @@ async fn get_proposal(
 fn proposals_unsupported() -> ApiError {
     ApiError {
         status: StatusCode::NOT_IMPLEMENTED,
-        message: "council proposals are not implemented on this hub's storage backend \
-                  (sqlite stores none of them; the file and DynamoDB backends do). \
-                  Council threshold and enforcement still apply — only the \
-                  propose/sign flow is unavailable.".to_string(),
+        message: "council proposals are not implemented on this hub's storage backend. \
+                  The file, sqlite and DynamoDB backends all store them (web4#810); a \
+                  backend answering this has not implemented the four proposal methods. \
+                  Council threshold and enforcement still apply — only the propose/sign \
+                  flow is unavailable here.".to_string(),
     }
 }
 
@@ -9363,9 +9364,9 @@ norms:
         .unwrap();
         let law = Arc::new(RwLock::new(None));
         let store = open_hub_store(&hub_dir).unwrap();
-        assert!(!store.supports_proposals(),
-            "fixture guard: the sqlite backend must be the one WITHOUT proposal storage, \
-             otherwise this fixture has stopped reproducing production");
+        assert_eq!(store.backend_kind(), hub_lib::store::BackendKind::Sqlite,
+            "fixture guard: this must be the sqlite backend — the one production runs — or \
+             every test built on it proves something about a backend no hub uses");
         let ledger = Arc::new(Mutex::new(HubLedger::open(store).await.unwrap()));
         let state = RestState::open_with_law_and_ledger(hub_dir, law, ledger)
             .await
@@ -11503,6 +11504,130 @@ norms:
         }
         assert_eq!(state.ledger.lock().await.entries().len(), before, "no refusal reached the ledger");
         assert_eq!(HubState::project(&*state.ledger.lock().await).members[&lct].name.as_deref(), Some("nomad"));
+    }
+
+    /// Build and sign a council envelope exactly as a holder's client would: real
+    /// challenge nonce, real signing bytes, real Ed25519 signature. Deliberately not a
+    /// shortcut around `verify_envelope` — the point of the fixture is that the whole
+    /// gate fires on the production path.
+    async fn council_envelope(
+        state: &RestState,
+        kp: &KeyPair,
+        signer: Uuid,
+        payload: serde_json::Value,
+    ) -> hub_lib::envelope::SignedEnvelope {
+        let challenge = state.nonces.issue(signer, Utc::now());
+        let mut env = hub_lib::envelope::SignedEnvelope {
+            challenge_nonce: challenge.nonce.clone(),
+            payload,
+            signature: String::new(),
+            signer_lct_id: signer,
+        };
+        let bytes = env.signing_bytes().expect("signing bytes");
+        env.signature = kp.sign(&bytes).to_hex();
+        env
+    }
+
+    /// THE PRODUCTION-SHAPED COUNCIL FIXTURE dp asked for on web4#810: a proposal is
+    /// opened, signed to threshold, committed to the ledger, and survives the store
+    /// being closed and reopened — on SQLITE, the backend every real hub runs.
+    ///
+    /// Before this PR the same sequence returned 501 at the first step on sqlite, and
+    /// the only test that exercised council flow ran on FileBackend, which is how a
+    /// society could REFUSE a unilateral act at M>=2 while being unable to CONDUCT the
+    /// vote that authorises one, on every production hub, without a red test anywhere.
+    /// The fixture asserts its own backend so it cannot quietly become that again.
+    #[tokio::test]
+    async fn on_sqlite_a_proposal_is_opened_signed_to_threshold_committed_and_survives_reopen() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let root = state.paths.root.clone();
+
+        // Two council holders with real keys, threshold 2-of-3 (holders + the Sovereign).
+        let (kp_a, kp_b) = (KeyPair::generate(), KeyPair::generate());
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
+        for (id, kp, name) in [(a, &kp_a, "Holder A"), (b, &kp_b, "Holder B")] {
+            witness_for_test(&state, HubEvent::CouncilMemberAdded {
+                member_lct_id: id,
+                member_pubkey_hex: kp.verifying_key().to_hex(),
+                added_by: state.sovereign_lct_id,
+                member_name: Some(name.into()),
+            }).await;
+        }
+        witness_for_test(&state, HubEvent::CouncilThresholdChanged {
+            new_m: 2, initiated_by: state.sovereign_lct_id,
+        }).await;
+        // A raw test witness appends to the ledger and nothing else. The daemon reseeds
+        // the envelope resolver from the projection on every council commit and at
+        // startup (see commit_proposed_event); a holder added by witness_for_test is
+        // therefore on the chain but unknown to verify_envelope until that runs. This
+        // is the daemon's own reseed, copied rather than approximated, so the fixture
+        // reaches the state a live hub is in after the same events.
+        {
+            let ledger = state.ledger.lock().await;
+            let projected = hub_lib::state::HubState::project(&*ledger);
+            let mut resolver = state.resolver.write().await;
+            for (lct_id, pk) in projected.member_pubkeys.iter().chain(projected.council_pubkeys.iter()) {
+                if let Ok(lct) = hub_lib::hub::hestia_sovereign_lct(*lct_id, pk) {
+                    resolver.insert(lct);
+                }
+            }
+        }
+        {
+            let ledger = state.ledger.lock().await;
+            let (holders, threshold) = project_council(&state, &*ledger);
+            assert_eq!(holders.len(), 3, "fixture: sovereign + A + B");
+            assert_eq!(threshold, (2, 3), "fixture: 2-of-3, so one signature must NOT commit");
+        }
+
+        // The act under vote: a witnessed event a member could not append alone at M>=2.
+        let proposed = serde_json::to_value(HubEvent::EventRecorded {
+            event_kind: "decision".into(),
+            title: "council-backed decision (web4#810 fixture)".into(),
+            attended_by: vec![a, b],
+            recorded_by: a,
+            held_at: Utc::now(),
+        }).unwrap();
+
+        // 1. OPEN — A proposes. One signature of two: stays open, is persisted on sqlite.
+        let env = council_envelope(&state, &kp_a, a,
+            serde_json::json!({"action": "council_propose", "proposed_event": proposed})).await;
+        let opened = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env))
+            .await.expect("propose succeeds on sqlite — this is the call that returned 501 before");
+        assert_eq!(opened.0.signatures, 1);
+        assert!(matches!(read_proposal(&state, opened.0.id).await.unwrap().unwrap().status,
+            ProposalStatus::Open), "one of two signatures: still open");
+
+        // 2. SIGN TO THRESHOLD — B signs. Threshold met: committed to the ledger.
+        let env = council_envelope(&state, &kp_b, b,
+            serde_json::json!({"action": "council_sign", "proposal_id": opened.0.id})).await;
+        let signed = sign_proposal(State(state.clone()), Path(state.hub_id), Json(env))
+            .await.expect("sign succeeds");
+        assert_eq!(signed.0.signatures, 2);
+        let committed_at_index = match read_proposal(&state, opened.0.id).await.unwrap().unwrap().status {
+            ProposalStatus::Committed { entry_index, .. } => entry_index,
+            other => panic!("threshold met but status is {other:?}"),
+        };
+        {
+            let ledger = state.ledger.lock().await;
+            let entry = ledger.entries().iter().find(|e| e.index == committed_at_index)
+                .expect("the committed act is on the chain");
+            assert_eq!(entry.event.kind(), "event_recorded");
+            assert_eq!(entry.proposal_ref, Some(opened.0.id),
+                "the ledger entry names the proposal that authorised it");
+        }
+
+        // 3. SURVIVES REOPEN — close everything, reopen the same store, the proposal and
+        //    its committed status are still there. This is the property that had nowhere
+        //    to live before: a daemon restart mid-vote used to lose the vote.
+        let id = opened.0.id;
+        drop(state);
+        let store = open_hub_store(&root).unwrap();
+        assert_eq!(store.backend_kind(), hub_lib::store::BackendKind::Sqlite,
+            "fixture guard: still the production backend after reopen");
+        let back = store.read_proposal(id).await.unwrap().expect("survives reopen");
+        assert!(matches!(back.status, ProposalStatus::Committed { entry_index, .. } if entry_index == committed_at_index));
+        assert_eq!(back.unique_signers().len(), 2, "both signatures survived with it");
+        assert_eq!(store.list_proposals().await.unwrap().len(), 1);
     }
 
     const ADMISSION_TEST_BASE_LAW: &str = r#"

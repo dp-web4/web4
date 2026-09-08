@@ -2774,7 +2774,7 @@ mod tests {
         /// failing ancestor: before `supports_proposals()` existed, the handler
         /// called `list_proposals()` unconditionally and this returned 500.
         #[tokio::test]
-        async fn the_council_page_is_served_on_a_backend_without_proposal_storage() {
+        async fn the_council_page_is_served_on_the_sqlite_backend() {
             let (_tmp, rest) = crate::rest::channel_e2e_tests::fresh_rest_state_sqlite().await;
             let mut operator = rest.clone();
             operator.operator_plane = true;
@@ -2782,24 +2782,23 @@ mod tests {
             assert_eq!(
                 status(&app, "GET", "/admin/council").await,
                 StatusCode::OK,
-                "a hub that cannot store proposals must SAY so, not answer 500"
+                "the council page renders on the backend production runs"
             );
         }
 
-        /// And the capability must actually be false there, or the test above is
-        /// green for the wrong reason — a page that renders because storage
-        /// silently started working proves nothing about the branch it is meant
-        /// to cover.
+        /// Both production-shaped backends now store proposals (web4#810 closed the
+        /// sqlite gap). Pinned in both directions so the capability flag cannot drift from
+        /// the implementation again: the flag is what /admin/council and the REST helpers
+        /// branch on, and a backend that stores proposals while reporting it does not
+        /// would put the honest-degradation page in front of a working society.
         #[tokio::test]
-        async fn sqlite_reports_no_proposal_storage_and_file_reports_some() {
-            let tmp = tempfile::tempdir().unwrap();
-            let db = tmp.path().join("hub.db");
+        async fn every_production_backend_reports_proposal_storage() {
             use hub_lib::store::HubStore;
-            let sqlite = hub_lib::store::SqliteBackend::open(&db, None).unwrap();
-            assert!(!sqlite.supports_proposals(), "sqlite stores no proposals today");
-            let paths = hub_lib::hub::HubPaths::new(tmp.path());
-            let file = hub_lib::store::FileBackend::new(paths);
-            assert!(file.supports_proposals(), "the file backend does store them");
+            let tmp = tempfile::tempdir().unwrap();
+            let sqlite = hub_lib::store::SqliteBackend::open(&tmp.path().join("hub.db"), None).unwrap();
+            assert!(sqlite.supports_proposals(), "sqlite stores proposals now (web4#810)");
+            let file = hub_lib::store::FileBackend::new(hub_lib::hub::HubPaths::new(tmp.path()));
+            assert!(file.supports_proposals(), "the file backend always did");
         }
 
         /// And the operator plane must actually carry every route the first test

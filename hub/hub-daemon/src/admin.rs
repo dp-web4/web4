@@ -877,13 +877,12 @@ async fn council(State(s): State<RestState>) -> Result<Html<String>, AdminError>
         body.push_str(
             "<p class=\"pill pill-warn\">council proposals are not implemented on this backend</p>\
              <p>The threshold and holders above are real — they come from the ledger, and council \
-             <i>enforcement</i> works. What is missing is <b>storage for proposals in flight</b>: the \
-             sqlite backend implements none of the four proposal methods, while the file and DynamoDB \
-             backends implement all four. So a proposal cannot be opened, signed toward threshold, or \
-             listed here.</p>\
-             <p>This hub runs sqlite, so multi-signer council governance cannot be exercised on it \
-             today. Tracked as a hub-track gap; until it lands, a hub that needs the propose/sign flow \
-             must run the file backend.</p>"
+             <i>enforcement</i> works. What is missing is <b>storage for proposals in flight</b>: this \
+             hub's storage backend has not implemented the four proposal methods, so a proposal cannot \
+             be opened, signed toward threshold, or listed here.</p>\
+             <p>The file, sqlite and DynamoDB backends all store proposals (web4#810). Seeing this \
+             page means the hub is on a backend that does not, and multi-signer council governance \
+             cannot be exercised on it until that backend implements them.</p>"
         );
     } else if proposals.is_empty() {
         body.push_str("<p class=\"muted\">No proposals yet. POST a council_propose envelope to /v1/hubs/{id}/council/propose to create one.</p>");

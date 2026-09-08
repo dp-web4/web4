@@ -1075,6 +1075,23 @@ impl SqliteBackend {
                  seq      INTEGER NOT NULL,
                  msg_json TEXT NOT NULL,
                  PRIMARY KEY (pair_id, seq)
+             );
+             -- Council proposals (web4#810). Proposals are NOT ledger entries: they are
+             -- acts in flight, carrying council-holder signatures toward an M-of-N
+             -- threshold, and only the committed act reaches the chain. Until this table
+             -- existed the sqlite backend — the one every production hub runs — fell
+             -- through to the trait's bail!, so a society could REFUSE a unilateral act
+             -- at M>=2 but could not CONDUCT the vote that authorises one.
+             -- Stored as the serialized CouncilProposal, same bytes FileBackend writes to
+             -- proposals/{id}.json, so the two backends cannot drift in what a proposal
+             -- is. Living in this DB means it is SQLCipher-keyed with the ledger: the
+             -- signatures in flight are never at rest in the clear beside the encrypted
+             -- acts they authorise. CREATE IF NOT EXISTS is the migration — an existing
+             -- hub.db gains the table on next open with nothing else touched.
+             CREATE TABLE IF NOT EXISTS proposals (
+                 id            TEXT PRIMARY KEY,
+                 proposed_at   TEXT NOT NULL,
+                 proposal_json TEXT NOT NULL
              );",
         ).context("initializing sqlite schema")?;
         Ok(Self { conn: std::sync::Mutex::new(conn), db_path })
@@ -1393,6 +1410,85 @@ impl HubStore for SqliteBackend {
         Ok(out)
     }
 
+    fn supports_proposals(&self) -> bool { true }
+
+    // ----- Council proposals (web4#810) -----
+    //
+    // Semantics mirror FileBackend's exactly, because the REST layer above was
+    // written against those: insert-or-update on write, None on a missing read,
+    // list-all newest-first (the admin UI shows recent activity at the top and the
+    // caller filters by status), idempotent delete. proposed_at is denormalised
+    // into its own column purely so the ORDER BY does not have to parse JSON.
+
+    async fn write_proposal(&mut self, proposal: &crate::proposal::CouncilProposal) -> Result<()> {
+        let json = serde_json::to_string(proposal).context("serializing proposal")?;
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO proposals (id, proposed_at, proposal_json) VALUES (?1, ?2, ?3)
+             ON CONFLICT(id) DO UPDATE SET
+                 proposed_at = excluded.proposed_at,
+                 proposal_json = excluded.proposal_json",
+            rusqlite::params![
+                proposal.id.to_string(),
+                proposal.proposed_at.to_rfc3339(),
+                json,
+            ],
+        )
+        .with_context(|| format!("writing proposal {}", proposal.id))?;
+        Ok(())
+    }
+
+    async fn read_proposal(&self, id: uuid::Uuid) -> Result<Option<crate::proposal::CouncilProposal>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn
+            .prepare("SELECT proposal_json FROM proposals WHERE id = ?1")
+            .context("preparing proposal read")?;
+        let mut rows = stmt
+            .query(rusqlite::params![id.to_string()])
+            .with_context(|| format!("reading proposal {id}"))?;
+        match rows.next()? {
+            Some(row) => {
+                let json: String = row.get(0)?;
+                let p = serde_json::from_str(&json)
+                    .with_context(|| format!("parsing stored proposal {id}"))?;
+                Ok(Some(p))
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn list_proposals(&self) -> Result<Vec<crate::proposal::CouncilProposal>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn
+            .prepare("SELECT id, proposal_json FROM proposals ORDER BY proposed_at DESC")
+            .context("preparing proposal list")?;
+        let rows = stmt
+            .query_map([], |row| {
+                let id: String = row.get(0)?;
+                let json: String = row.get(1)?;
+                Ok((id, json))
+            })
+            .context("listing proposals")?;
+        let mut out = Vec::new();
+        for r in rows {
+            let (id, json) = r?;
+            match serde_json::from_str::<crate::proposal::CouncilProposal>(&json) {
+                Ok(p) => out.push(p),
+                // Same posture as FileBackend: one unparseable row must not hide the
+                // rest of the queue. It is logged, not swallowed.
+                Err(e) => tracing::warn!("skipping unparseable stored proposal {id}: {e}"),
+            }
+        }
+        Ok(out)
+    }
+
+    async fn delete_proposal(&mut self, id: uuid::Uuid) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM proposals WHERE id = ?1", rusqlite::params![id.to_string()])
+            .with_context(|| format!("deleting proposal {id}"))?;
+        Ok(())
+    }
+
     async fn mailbox_put(&mut self, recipient: uuid::Uuid, blob: &[u8]) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
@@ -1530,6 +1626,89 @@ mod tests {
         assert!(b.read_society().await.unwrap().is_none());
         assert!(b.ledger_load_all().await.unwrap().is_empty());
         assert!(b.ledger_is_empty().await.unwrap());
+    }
+
+    fn sample_proposal(when: chrono::DateTime<chrono::Utc>) -> crate::proposal::CouncilProposal {
+        crate::proposal::CouncilProposal {
+            id: uuid::Uuid::new_v4(),
+            proposed_event: crate::events::HubEvent::CouncilThresholdChanged {
+                new_m: 2,
+                initiated_by: uuid::Uuid::nil(),
+            },
+            proposed_by: uuid::Uuid::nil(),
+            proposed_at: when,
+            expires_at: when + chrono::Duration::hours(24),
+            votes: Vec::new(),
+            status: crate::proposal::ProposalStatus::Open,
+        }
+    }
+
+    /// The four methods, on the backend production runs, with FileBackend's semantics:
+    /// insert-or-update, None on missing, newest-first list, idempotent delete.
+    #[tokio::test]
+    async fn sqlite_stores_proposals_with_file_backend_semantics() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut s = SqliteBackend::open(&tmp.path().join("hub.db"), None).unwrap();
+        let t0 = chrono::Utc::now();
+        let older = sample_proposal(t0 - chrono::Duration::minutes(5));
+        let newer = sample_proposal(t0);
+        assert!(s.read_proposal(older.id).await.unwrap().is_none(), "None on missing, not an error");
+        s.write_proposal(&older).await.unwrap();
+        s.write_proposal(&newer).await.unwrap();
+        let listed = s.list_proposals().await.unwrap();
+        assert_eq!(listed.iter().map(|p| p.id).collect::<Vec<_>>(), vec![newer.id, older.id], "newest first");
+        // insert-or-update: re-writing the same id with a new status replaces, never duplicates
+        let mut signed = older.clone();
+        signed.status = crate::proposal::ProposalStatus::Committed { entry_index: 7, committed_at: t0 };
+        s.write_proposal(&signed).await.unwrap();
+        assert_eq!(s.list_proposals().await.unwrap().len(), 2, "update, not insert");
+        assert!(matches!(s.read_proposal(older.id).await.unwrap().unwrap().status,
+            crate::proposal::ProposalStatus::Committed { entry_index: 7, .. }));
+        s.delete_proposal(older.id).await.unwrap();
+        s.delete_proposal(older.id).await.unwrap(); // idempotent
+        assert_eq!(s.list_proposals().await.unwrap().len(), 1);
+    }
+
+    /// The property dp named as the one that matters: a proposal in flight survives the
+    /// daemon closing and reopening the store. Before #810 there was nowhere for it to
+    /// survive INTO.
+    #[tokio::test]
+    async fn sqlite_proposals_survive_reopen() {
+        let tmp = tempfile::tempdir().unwrap();
+        let db = tmp.path().join("hub.db");
+        let p = sample_proposal(chrono::Utc::now());
+        {
+            let mut s = SqliteBackend::open(&db, None).unwrap();
+            s.write_proposal(&p).await.unwrap();
+        }
+        let s = SqliteBackend::open(&db, None).unwrap();
+        let back = s.read_proposal(p.id).await.unwrap().expect("survives reopen");
+        assert_eq!(back.id, p.id);
+        assert_eq!(s.list_proposals().await.unwrap().len(), 1);
+    }
+
+    /// An existing hub.db from before #810 has no proposals table. Opening it must add
+    /// the table and touch nothing else — that IS the migration, and the live fleet hub's
+    /// 2.3 MB store with 2,200 ledger entries is the thing it must not disturb.
+    #[tokio::test]
+    async fn an_old_hub_db_gains_the_proposals_table_on_open_without_losing_the_ledger() {
+        let tmp = tempfile::tempdir().unwrap();
+        let db = tmp.path().join("hub.db");
+        {
+            // A pre-#810 store: every table except proposals.
+            let conn = rusqlite::Connection::open(&db).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                 CREATE TABLE ledger_entries (idx INTEGER PRIMARY KEY, entry_json TEXT NOT NULL);
+                 INSERT INTO ledger_entries VALUES (0, '{\"pre\":\"existing\"}');",
+            ).unwrap();
+        }
+        let mut s = SqliteBackend::open(&db, None).unwrap();
+        s.write_proposal(&sample_proposal(chrono::Utc::now())).await.unwrap();
+        assert_eq!(s.list_proposals().await.unwrap().len(), 1, "table was created on open");
+        let conn = rusqlite::Connection::open(&db).unwrap();
+        let n: i64 = conn.query_row("SELECT count(*) FROM ledger_entries", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 1, "the pre-existing ledger row is untouched");
     }
 
     #[tokio::test]
