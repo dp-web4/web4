@@ -278,10 +278,14 @@ async fn public_record_page(State(s): State<RestState>) -> Result<Html<String>, 
     }
     body.push_str("</tbody></table>");
     body.push_str(&format!(
-        "<p class=\"muted\" style=\"margin-top:1rem\">Each entry carries its own hash and the \
-         preceding entry's, including withheld ones &mdash; which is what lets you verify continuity \
-         <i>across</i> a gap rather than stopping at it. The hashes are in \
-         <a href=\"/v1/hubs/{}/decisions\">the JSON</a>.</p></div>",
+        "<p class=\"muted\" style=\"margin-top:1rem\">Each disclosed act carries its own hash and \
+         the preceding entry's, so consecutive disclosed acts can be checked against one another. \
+         A withheld <i>run</i> is published as a counted range only: you can see that no index is \
+         silently omitted, but the hashes inside the run are not published, so linkage \
+         <i>through</i> a run is not independently verifiable here. That is a known rung rather \
+         than the finished contract &mdash; the stronger property is tracked as \
+         <a href=\"https://github.com/dp-web4/web4/issues/807\">web4#807</a>. The hashes that are \
+         published are in <a href=\"/v1/hubs/{}/decisions\">the JSON</a>.</p></div>",
         s.hub_id,
     ));
     Ok(public_layout(&s.hub_name, &s.hub_id.to_string(), &body))
@@ -373,7 +377,7 @@ async fn landing_page(State(s): State<RestState>) -> Result<Html<String>, AdminE
 
 <h3>Machine-readable</h3>
 <ul>
-  <li><a href="/v1/hubs/{hub_id}/chapter">This page as JSON</a> — the same projection, byte for byte</li>
+  <li><a href="/v1/hubs/{hub_id}/chapter">This page as JSON</a> — the same projection this page reads</li>
   <li><a href="{decisions}">The governance record as JSON</a></li>
   <li><a href="{descriptor}">Hub descriptor</a></li>
 </ul>
