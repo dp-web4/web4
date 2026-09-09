@@ -1,111 +1,211 @@
 # Web4 Implementation Status
 
-**Last Updated**: August 8, 2026
+**Last updated:** September 8, 2026
 
 ---
 
 ## Headline
 
-Web4 is a **working ontology** with **real proof points** and **real gaps**. R&D, not production. The spec corpus is stable; reference implementations exist; some demonstrations have moved from inferred to measured. **As of 2026-04-28, the core primitives are publicly installable.**
+Web4 is a **working open substrate with published core packages and live reference deployments**, plus substantial unfinished work in assurance, interoperability and conformance.
 
-**The architectural shape is now explicitly specified.** Three core-spec updates (2026-05-13 + 2026-05-14) make the previously-inferable structural properties normative:
-- [`inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) — society genesis (self-bootstrapped + federation-based), first-contact protocol (three sovereign options), ATP as unit-of-account with society-sovereign reification, secession/dissolution
-- [`society-roles.md`](web4-standard/core-spec/society-roles.md) — seven base-mandatory roles (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen) + context-mandatory (forced by outward role) + optional, with fractal composability semantics
-- [`mcp-protocol.md`](web4-standard/core-spec/mcp-protocol.md) — **v0.1.3 amendment (2026-05-14)** adds explicit cross-society binding (§1.1, §7.3 R7, §7.4 cross-society LCT envelope, §7.5 witnessing + Reputation propagation). **Cross-society R6/R7 action protocol is now spec'd** — and the spec recognizes that MCP IS the inter-society interface per the canonical equation, not a missing layer. Three previously-deferred inter-society gaps (cross-society actions, society-society trust tensors, exchange-rate negotiation transport) are resolved by this amendment.
+The most useful evidence today is operational rather than benchmark-based:
 
-The Web4 anti-hierarchical-by-design property is now stated normatively in spec rather than inferred from the ontology.
+- `web4-core` and the trust family are publicly installable;
+- the **Hub** runs as a Web4 society daemon with membership, roles, signed law, sealed channels and a witnessed ledger;
+- **Hestia** governs multiple agent vendors on the local machine boundary under one law, with witnessed actions, human escalation and trust derived from the chain;
+- the lab developing the standard uses those same mechanisms in its own fleet;
+- the current open assurance profile is explicitly **A1** - cooperative and tamper-evident, not adversary-proof containment.
 
-The strongest single proof point: **the same Claude Opus 4.6 you can use today scores 0% on ARC-AGI-3 by default and 94.85% with a Web4-shaped harness around it**. The model didn't change. The structure around the model did. Honest characterization: this is real, verifiable capability achieved with affordances *outside strict competition play* — the harness analyzed the games' public engine source to build per-game solver cartridges the model could draw on. Read the delta as "what the model does given engine-level context and tooling," not blind from-observation solving or structure-alone-replacing-the-model. Full breakdown: `docs/proof/ARC-AGI-3.md`.
+**R&D, not production.** The core is real; the assurance ceiling and remaining gaps are real too.
 
-Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4
+## Current stack
 
-The strongest single external validation: a 2026-05-13 three-round Kimi 2.6 cross-model review scored architectural coherence 8.5/10 and bootstrap-story 8/10, while sharpening the unit-of-account framing for ATP and surfacing the inter-society protocol gap that the two new specs now address. Verbatim transcript: [`forum/kimi2_6_review.md`](forum/kimi2_6_review.md).
-
-**Recent (June 2026): standards interop + a storage doctrine.**
-
-- **EUDI / W3C-DID interop (code; Phase 0–2 done).** An LCT is now resolvable as a `did:web4` DID Document (W3C DID Core) and expressible as an IETF **SD-JWT-VC** credential, issued/presented over **OpenID4VCI / OpenID4VP** — all in `web4-core` (`did`, `sd_jwt_vc`, `oid4vc`). Person-scale (hestia) and society-scale (hub) issuers, plus a society-scale verifier, complete the round trip. The honest framing: inside the EUDI envelope Web4 is a *credential-format + protocol citizen*; its native trust layer (T3/V3, witnessing) lives outside the envelope, and the remaining gate is **trusted-list membership — governance/legal, not code**. Plan: [`docs/strategy/eudi-resolvability-plan.md`](docs/strategy/eudi-resolvability-plan.md); method spec: [`web4-standard/core-spec/did-web4-method.md`](web4-standard/core-spec/did-web4-method.md).
-- **Vault doctrine (code; in progress).** All settings, identity, and state across the stack move into an encrypted, **recursive, memory-only-unlock** vault (`web4_core::vault`): no plaintext secrets or config at rest, per-item independent locking + liveness gating, and fresh-launch naivety (nothing instance-specific is readable until unlock). Reference substrate is in `web4-core`; rollout is underway across hub/hestia/hardbound.
+| Layer | Purpose | Status |
+|---|---|---|
+| **Web4 core / standard** | Identity, trust, roles, action grammar, resource accounting, law, witnessing, federation | Core packages published; standard draft in places |
+| **Hestia** | Local human/agent governance, vault, delegation, policy, witnessing, escalation | Running daily; A1 assurance |
+| **Hub** | Society/community runtime: membership, roles, law, sealed channels, ledger | Running reference implementation |
+| **Hardbound** | Metalinxx enterprise assurance: hardware roots, stronger fail-closed enforcement, evidence packaging | Private/proprietary; building |
+| **SAGE** | Persistent cognition / embodiment research under the same identity and governance model | Public architecture + active research |
 
 ---
 
-## Published artifacts (current: `web4-core` v0.3.0, trust family v0.2.0)
+## Published artifacts
+
+Current published package line:
 
 | Package | Registry | Version | Install |
-|---|---|---|---|
+|---|---|---:|---|
 | **web4-core** (Rust) | [crates.io](https://crates.io/crates/web4-core) | **0.3.0** | `cargo add web4-core` |
 | **web4-core** (Python) | [PyPI](https://pypi.org/project/web4-core/) | **0.3.0** | `pip install web4-core` |
-| **web4-trust-core** (Rust) | [crates.io](https://crates.io/crates/web4-trust-core) | 0.2.0 | `cargo add web4-trust-core` |
-| **web4-trust** (Python) | [PyPI](https://pypi.org/project/web4-trust/) | 0.2.0 | `pip install web4-trust` |
+| **web4-trust-core** (Rust) | [crates.io](https://crates.io/crates/web4-trust-core) | **0.2.0** | `cargo add web4-trust-core` |
+| **web4-trust** (Python) | [PyPI](https://pypi.org/project/web4-trust/) | **0.2.0** | `pip install web4-trust` |
 
-> **`web4-core` 0.3.0 published 2026-07-09** (crates.io + PyPI, cp312 manylinux wheel) — closes the 18-commit gap past 0.2.0: **role entities** (`RoleEntity`/`RoleExtension`/`RoleRegistry` + LCT issuance, incl. the fail-closed `affords()` fix #492), canonical T3/V3, the **Act** primitive, the **EUDI/OID4VC/DID stack**, and the recursive **vault**. 171 tests green at publish; tags `web4-core-rust-v0.3.0` / `web4-core-py-v0.3.0`.
->
-> *Historical:* v0.1.0 was yanked (Python wheel shipped without `__init__.py`); fixed in 0.1.1. Use the latest.
+`web4-core` source on `main` is **0.4.0**. The publication trail, including the yanked 0.1.0 Python wheel and subsequent correction, is in [`docs/proof/PUBLISHED.md`](docs/proof/PUBLISHED.md).
 
-All AGPL-3.0-or-later. Patent grant terms: [PATENTS.md](PATENTS.md). Commercial licensing: contact Metalinxx Inc. via the [project repository](https://github.com/dp-web4/web4).
-
-`web4-core` provides LCT (Linked Context Token) primitives + T3/V3 trust tensors (canonical, since 0.2) + identity coherence + ledger anchoring (`InMemoryLedger`, `LocalLedger`). As of the 0.2/0.3 line it also carries the **Act** primitive (witnessed action grammar) + `ReputationDelta`, **role entities** (`RoleEntity`/`RoleExtension`/`RoleRegistry`, LCT issuance), the **EUDI/W3C-DID stack** (`did` / `sd_jwt_vc` / `oid4vc`), and the recursive **vault**. `web4-trust-core` adds trust persistence, witnessing, and decay. The Python wheels are PyO3-built bindings over the same Rust core.
+All packages are AGPL-3.0-or-later unless a subdirectory states otherwise. Patent terms and commercial licensing boundaries are in [PATENTS.md](PATENTS.md).
 
 ---
 
-## What's working
+## What is working
 
-| Layer | Status | Where |
-|---|---|---|
-| **Spec corpus** (LCT, T3/V3, MRH, ATP/ADP, R6/R7) | Stable | [`web4-standard/core-spec/`](web4-standard/core-spec/) |
-| **Inter-society protocol spec** (genesis, first-contact, federation, secession) | v0.1.2 DRAFT, 2026-05-13 | [`web4-standard/core-spec/inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) |
-| **Society roles spec** (7 base-mandatory + context-mandatory + optional) | v0.1.0 DRAFT, 2026-05-13 | [`web4-standard/core-spec/society-roles.md`](web4-standard/core-spec/society-roles.md) |
-| **`web4-core`** | **Published v0.3.0** (crates.io + PyPI, 2026-07-09). LCT, canonical T3/V3, Coherence, Ledger + 2 backends, plus **Act**, **role entities** (fail-closed `affords()`), the **EUDI/DID stack**, and the **vault**. 171 tests. | [`web4-core/`](web4-core/) |
-| **`web4-trust-core`** | **Published v0.2.0** (crates.io + PyPI). Trust storage, witnessing, decay. | [`web4-trust-core/`](web4-trust-core/) |
-| **Community Hub** (`web4/hub`) | Runnable single-binary Web4 society server: signed law + witnessed hash-chained ledger, sealed member↔hub channel, admission/council, EUDI issuer/verifier. Hardened this cycle (external security review: MCP-writes→loopback operator plane, council-gate-before-persist, pluggable operator-auth token, freshness enforcement, production profile, law-integrity fail-closed) + a `hub up` turnkey deploy kit.  Plus a **governed discussion surface**: topics and posts are envelope actions on the ordinary write path, so a post passes the same law gate and lands in the same hash-chained ledger as any other act — the discussion *is* the record, readable unauthenticated at `/discuss`. | [`hub/`](hub/) |
-| **Runnable proof of presence** | `python identity_bootstrap.py` — bootstraps a host LCT (keypair on disk, hash-chained `LocalLedger`, public `lct.json` sidecar); `--verify` re-checks the chain on re-run. ~30 sec. | [`web4-core/python/examples/identity_bootstrap.py`](web4-core/python/examples/identity_bootstrap.py) |
-| **Cross-language interop demo** | Python mints an LCT to a hash-chained ledger; a Rust binary reads the same `ledger.jsonl` and verifies chain integrity + anchor proof. The on-disk format is the contract. | [`web4-core/examples/cross_language_verify/`](web4-core/examples/cross_language_verify/) |
-| **Reference Python SDK** | 2,627 tests, mypy --strict clean (not yet on PyPI separately) | [`web4-standard/implementation/`](web4-standard/implementation/) |
-| **Cognition harness producing 94.85%** | Open source | [SAGE](https://github.com/dp-web4/SAGE) |
-| **Attack simulation suite** | 424 vectors / 84 tracks, ~85% detection rate against **synthetic** adversaries. No red team engagement yet; some "defenses" are standard infosec practices (TEMPEST, Faraday) documented for completeness rather than as Web4-novel mechanisms. See [`simulations/README.md`](simulations/README.md) for honest breakdown. | [`simulations/`](simulations/) |
-| **Threat model** | v2.0 | [`docs/reference/security/THREAT_MODEL.md`](docs/reference/security/THREAT_MODEL.md) |
-| **Authorization layer** | PostgreSQL schemas + security mitigations | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) |
-| **Coordination framework** (Phase 2a–2d) | Validated | [`web4-standard/implementation/reference/`](web4-standard/implementation/reference/) |
+### Core identity and trust primitives
+
+`web4-core` provides:
+
+- LCT presence and key binding;
+- canonical T3/V3 trust/value tensors;
+- identity coherence;
+- local and in-memory ledger anchoring;
+- witnessed `Act` primitives and reputation deltas;
+- first-class role entities and role issuance;
+- DID / SD-JWT-VC / OpenID4VCI/VP implementation paths;
+- recursive encrypted vault substrate.
+
+Cross-language examples demonstrate Python and Rust reading/verifying the same hash-chained ledger format.
+
+### Hub: Web4 society runtime
+
+[`hub/`](hub/) is a runnable Rust society daemon with:
+
+- LCT-pinned membership;
+- seven base roles;
+- signed machine-readable law;
+- append-only witnessed ledger;
+- sealed member-to-hub channels;
+- MCP, REST and admin surfaces;
+- council/admission governance paths;
+- governance decisions written into the same record as other consequential acts.
+
+A standalone mirror is published at [dp-web4/4-hub](https://github.com/dp-web4/4-hub).
+
+### Hestia: local governance runtime
+
+[Hestia](https://github.com/dp-web4/hestia) is the local governance layer at the human/agent boundary. The reference deployment is used daily across multiple agent vendors.
+
+Measured / exercised areas include:
+
+- persistent local identity;
+- one policy surface across different agent vendors;
+- scoped delegation;
+- encrypted vault;
+- witnessed allow/deny/outcome records;
+- human escalation;
+- peer-arbitration paths;
+- trust derived from the witnessed chain rather than self-reported.
+
+**Assurance ceiling:** A1. The gate runs cooperatively in the same user security domain. It is useful for governance, attribution and stopping ordinary mistakes, but a sufficiently capable same-UID process can route around it. Hestia documents known bypasses rather than treating them as impossible.
+
+### Standards interoperability
+
+The repository includes implementation/spec work for:
+
+- `did:web4`;
+- SD-JWT-VC;
+- OpenID4VCI / OpenID4VP;
+- EUDI-oriented credential interoperability.
+
+The honest boundary: protocol/code paths exist, but broad wallet interoperability, trust-list/legal acceptance and conformance are not finished.
+
+### Security research
+
+The simulation corpus contains **424 attack vectors across 84 tracks**, with roughly **85% synthetic detection** in the current test suite. This is useful regression/security research, **not a substitute for an external red team or production assurance certification**.
 
 ---
 
-## What's missing (this public repo)
+## Architectural shape now specified
 
-| Gap | Where it stands | Where production lives |
-|---|---|---|
-| Hardware binding reference (TPM 2.0 on real devices) | Python `AttestationEnvelope` shipped; Rust port and on-device integration in progress | **Hardbound** (Metalinxx Inc. enterprise; inquire via [project repository](https://github.com/dp-web4/web4)) |
-| Economic attack modeling at scale | Empirical defenses only; no real-market testing | Open research |
-| Formal Sybil-resistance proofs | Empirical defenses only | Open research |
-| Production deployment | All testing is synthetic | Hardbound for regulated environments |
+Three properties that were once mostly conceptual are now explicit in the spec corpus:
 
----
+1. **Self-sovereign societies.** Societies can bootstrap, federate and secede; higher-order societies are overlays formed by constituent consent, not owners of the members below them.
+2. **First-class roles.** Seven base roles provide a common authority skeleton; roles may be filled by humans, AI agents, sub-societies or federations, and role law composes with society law.
+3. **Cross-society action over MCP.** MCP is the inter-society I/O membrane for scoped actions/resources, with LCT-bound evidence and witnessing carried across the exchange.
 
-## Where it landed publicly
+See:
 
-- **AI Demo Day 4** (2026-04-26): Web4 presented as "verifiable presence" for agentic AI. See [`docs/why/DEMO_DAY_2026-04.md`](docs/why/DEMO_DAY_2026-04.md). Slides + narration archived at https://4-gov.org/demo.
-- **Public scorecard**: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4 (verifiable from any browser).
-
----
-
-## Open questions
-
-These are not gaps to fix; they are research questions:
-
-- Are stake amounts actually deterrent? (no economic modeling at scale)
-- Does witness diversity resist sophisticated cartels?
-- What's the minimal viable Web4 for a public pilot?
-- How does the harness-effect (the 94.85% delta) generalize across reasoning tasks beyond ARC-AGI-3?
-- How does the same harness perform with smaller models?
+- [`web4-standard/core-spec/inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md)
+- [`web4-standard/core-spec/society-roles.md`](web4-standard/core-spec/society-roles.md)
+- [`web4-standard/core-spec/mcp-protocol.md`](web4-standard/core-spec/mcp-protocol.md)
+- [`web4-standard/core-spec/web4-society-authority-law.md`](web4-standard/core-spec/web4-society-authority-law.md)
 
 ---
 
-## Pointers for deeper reading
+## What is not finished
 
-- **Public framing**: [`docs/why/DEMO_DAY_2026-04.md`](docs/why/DEMO_DAY_2026-04.md)
-- **The proof point in detail**: [`docs/proof/ARC-AGI-3.md`](docs/proof/ARC-AGI-3.md)
-- **Ecosystem map**: [`docs/reference/RELATED_REPOS.md`](docs/reference/RELATED_REPOS.md)
-- **Conceptual foundation**: [`whitepaper/`](whitepaper/)
-- **Full historical status (Q4 2025 – Q1 2026)**: [`docs/history/STATUS-2026-02.md`](docs/history/STATUS-2026-02.md)
+| Gap | Current state |
+|---|---|
+| **A2+ isolation** | Not available in the open reference stack; separate principals / stronger OS boundaries remain roadmap work |
+| **Kernel / relying-party enforcement** | Architectural target, not current open implementation |
+| **Enterprise hardware roots** | Higher-assurance implementation belongs to Hardbound; open reference work remains partial |
+| **DID/EUDI interoperability** | Code/spec paths exist; broad real-wallet / trust-list interoperability incomplete |
+| **Conformance suite** | In progress; alternative implementations are not yet provably interoperable end to end |
+| **Formal Sybil resistance** | Empirical defenses; no complete formal proof |
+| **Economic attacks at scale** | Research/simulation only, no real-market validation |
+| **External red team** | Not yet a substitute for the synthetic attack corpus |
+| **Production certification** | Not claimed |
 
 ---
 
-*This is the living STATUS.md, kept short and current. Long-form historical detail lives in `docs/history/`.*
+## Assurance model
+
+A recurring design principle is to keep **governance** distinct from **containment**.
+
+A1 can make rules explicit, record whether they were followed, stop many ordinary mistakes and make some bypass behavior attributable. It should not be sold as a prison for a capable process that shares the operator's privileges.
+
+The higher-assurance path is layered:
+
+```text
+A1  cooperative user-space governance + witnessing
+A2  separate principal / process isolation
+A3+ stronger relying-party, hardware and OS enforcement
+```
+
+Exact profiles continue to evolve, but the direction is fixed: **the more consequential the act, the less the relying party should depend on the actor voluntarily honoring its own gate.**
+
+---
+
+## Historical ARC-AGI-3 note
+
+A spring-2026 SAGE/ARC harness produced a published **94.85%** public scorecard using Claude Opus 4.6.
+
+That artifact remains public because it was a real research milestone and because provenance matters. It is **not a current Web4 proof point or a current competition claim**:
+
+- it used a frontier model;
+- it used public engine-source / per-game solver affordances outside strict competition play;
+- it did not establish the local/edge SAGE thesis;
+- current competition-legal local-model work is well behind the leaders.
+
+The archived record is in [`docs/proof/ARC-AGI-3.md`](docs/proof/ARC-AGI-3.md) and [ARC-SAGE](https://github.com/dp-web4/ARC-SAGE).
+
+The useful historical lesson was simply that **the structure around a model can materially change behavior**. The current program is about making that structure persistent, governable, learnable and defensible under real operational constraints.
+
+---
+
+## Current evidence hierarchy
+
+For evaluating Web4 today, prefer evidence in this order:
+
+1. **Published artifacts** - crates/PyPI packages and reproducible examples.
+2. **Running reference deployments** - Hub and Hestia.
+3. **Measured operational behavior** - witnessed records, escalation paths, trust derivation and failure artifacts.
+4. **Synthetic security simulations** - useful but limited.
+5. **Specs / PRDs** - statements of intended behavior, not proof of deployment.
+6. **Historical benchmark results** - provenance and research history, not current maturity evidence.
+7. **Aspirational architecture** - roadmap only until exercised.
+
+---
+
+## Pointers
+
+- **Start here:** [`docs/START_HERE.md`](docs/START_HERE.md)
+- **Published packages:** [`docs/proof/PUBLISHED.md`](docs/proof/PUBLISHED.md)
+- **Hub:** [`hub/`](hub/)
+- **Hestia:** https://github.com/dp-web4/hestia
+- **Ecosystem map:** [`docs/reference/RELATED_REPOS.md`](docs/reference/RELATED_REPOS.md)
+- **Security:** [`SECURITY.md`](SECURITY.md)
+- **Standard:** [`web4-standard/core-spec/`](web4-standard/core-spec/)
+- **Historical ARC artifact:** [`docs/proof/ARC-AGI-3.md`](docs/proof/ARC-AGI-3.md)
+
+---
+
+*This is the living status document. Historical detail belongs in dated audit/history files rather than being allowed to masquerade as current state.*
