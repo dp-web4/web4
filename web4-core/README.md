@@ -115,13 +115,15 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the rationale on why Web4 is implem
 
 ## Status
 
-Working ontology with growing proof points. Demonstrated 0% → 94.85% on ARC-AGI-3 (same Claude Opus 4.6, structured around Web4 patterns via the SAGE harness) — real, verifiable capability achieved with affordances outside strict competition play (the harness analyzed the games' public engine source to build solver cartridges), not blind from-observation solving. Public scorecard: <https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4>. Honest breakdown: <https://github.com/dp-web4/web4/blob/main/docs/proof/ARC-AGI-3.md>.
+**Published and actively developed.** `web4-core` 0.3.0 is published on crates.io and PyPI; the source on `main` is 0.4.0. The broader Web4 stack is exercised through the running [Hub](../hub/) society daemon and [Hestia](https://github.com/dp-web4/hestia) local governance runtime.
 
-R&D — not production. See parent repo [STATUS.md](https://github.com/dp-web4/web4/blob/main/STATUS.md) for honest assessment.
+This crate is a primitive layer, not a claim that the full Web4 standard or its higher-assurance enforcement is production-complete. See parent repo [STATUS.md](https://github.com/dp-web4/web4/blob/main/STATUS.md) for the calibrated split between shipped, implemented, specified and aspirational work.
+
+The spring-2026 ARC-AGI-3 result remains in the repository's historical proof archive, but it is no longer used as this crate's status or headline proof point.
 
 ## Patent notice
 
-This software implements technology covered by US Patents 11,477,027 and 12,278,913, and pending application 19/178,619 (assigned to MetaLINXX Inc.). A royalty-free patent license is granted under AGPL-3.0 terms for non-commercial / research / open-source use. For commercial licensing, see [PATENTS.md](PATENTS.md) for full terms.
+This software implements technology covered by US Patents 11,477,027 and 12,278,913, and pending application 19/178,619 (assigned to MetaLINNX Inc.). A royalty-free patent license is granted under AGPL-3.0 terms for non-commercial / research / open-source use. For commercial licensing, see [PATENTS.md](PATENTS.md) for full terms.
 
 ## License
 
