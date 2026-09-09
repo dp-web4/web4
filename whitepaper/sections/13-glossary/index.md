@@ -8,13 +8,17 @@ Compact definitions for every term this paper relies on. The standard's [GLOSSAR
 
 **RDF — Resource Description Framework.** The W3C standard for typed subject–predicate–object statements. Web4's ontological backbone: every relationship (trust, witnessing, delegation, relevance) is an RDF triple, extensible without central coordination.
 
-**LCT — Linked Context Token.** Web4's presence primitive: a non-transferable, cryptographically anchored record permanently bound to one entity, accumulating witnessed history over its lifecycle (created → active → void/slashed). The foundation every other mechanism builds on.
+**LCT — Linked Context Token.** Web4's presence primitive: a non-transferable, cryptographically anchored record permanently bound to one entity, accumulating witnessed history over its lifecycle (genesis → active → rotation → void/slashed). Every LCT *contains* six required components — identity, binding, MRH, policy, T3, V3 — so each presence carries its own horizon and tensors. The foundation every other mechanism builds on.
+
+**LCT capability levels.** The six-grade ladder of presence maturity: STUB, MINIMAL, BASIC, STANDARD, FULL, HARDWARE. Levels 0–4 accrete with the record; level 5 (hardware anchor) requires re-issuance, since the anchor must sit inside the binding proof the identifier hashes.
+
+**Device constellation.** A Root LCT plus its Device LCTs, each bound to one hardware anchor and cross-witnessing the others. Trust is capped by anchor composition (single software key 0.40 → three-plus diverse hardware 0.98); recovery follows a quorum of the constellation. Identity as coherence across witnesses.
 
 **T3 — Trust Tensor.** Capability measured along three root dimensions — **T**alent, **T**raining, **T**emperament — each an open-ended RDF sub-graph of context-specific sub-dimensions. Always bound to an entity-*role* pair, never to an entity alone.
 
 **V3 — Value Tensor.** Contribution measured along three root dimensions — **V**aluation, **V**eracity, **V**alidity — same fractal RDF pattern. The verification side of `T3/V3`: claimed capability checked against delivered value.
 
-**MRH — Markov Relevancy Horizon.** An entity's zone of relevance — what it can perceive, act on, and be affected by — implemented as a typed RDF relationship graph with bounded traversal. The `*` in the equation: all trust is contextualized by horizon.
+**MRH — Markov Relevancy Horizon.** An entity's zone of relevance — what it can perceive, act on, and be affected by — implemented as a typed RDF relationship graph inside the LCT, with three canonical edge kinds (`boundTo`, `pairedWith`, `witnessedBy`) and bounded traversal (default depth 3). The `*` in the equation: all trust is contextualized by horizon.
 
 **ATP/ADP — Allocation Transfer / Discharge Packets.** The value-feedback cycle, modeled on cellular energy metabolism: work discharges ATP into ADP; witnessed, recognized contribution recharges ADP into ATP. Semi-fungible (units equivalent, histories distinct). A feedback layer on the foundation — not a foundation.
 

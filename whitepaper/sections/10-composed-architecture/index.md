@@ -10,12 +10,14 @@ Every action in Web4 — from a tool call to a governance decision — has the s
 Rules + Role + Request + Reference + Resource → Result
 ```
 
-- **Rules** — what governs the action (law, contracts, protocol constraints)
-- **Role** — the capacity in which the actor acts (with that role's T3/V3 and permissions)
-- **Request** — the explicit intent: what is to be achieved, with acceptance criteria
-- **Reference** — the context brought to bear: history, memory, relevant precedent
-- **Resource** — what the action consumes (ATP allocation, compute, attention)
-- **Result** — what actually happened, signed and witnessed
+- **Rules** — what governs the action: the society's law by hash (`lawHash`), plus constraints, permissions, and prohibitions
+- **Role** — the capacity in which the actor acts: the actor's LCT paired to the role's LCT, carrying that pairing's own `t3InRole` / `v3InRole` and permissions
+- **Request** — the explicit intent: the action verb, target, parameters, acceptance criteria, a nonce, the `atpStake` backing it, and — for delegated acts — a `proofOfAgency` over the grant
+- **Reference** — the context brought to bear: precedent, interpretations, witnesses, and an `mrhContext` (relevant entities and trust paths within a depth bound)
+- **Resource** — what the action consumes: required and available ATP, compute, bandwidth — with the stake locked in `escrow` under a release condition
+- **Result** — what actually happened: status, output, resources consumed, tensor updates, attestations, and a ledger proof — signed and witnessed
+
+A Request moves through the stack in three phases. **Pre-execution validation**: the role pairing is verified in the actor's own MRH, the agency grant and its scope are checked, the law in the Rules slot is applied, resources are confirmed, and the escrow locks. **Execution**: metered, inside the role context, output validated against the rules. **Settlement**: atomic — costs computed, ATP transferred or escrow refunded, the role-pairing's T3/V3 updated, the ledger entry written with its witnesses, and the actor's MRH updated with the act. A Request rejected before execution is an `error` (never attempted); a Request that fails mid-execution is a `failure` (attempted, metered, settled) — the distinction is part of the record, because the two carry different trust meaning.
 
 **R7** extends the grammar with a seventh element as first-class *output*: **Reputation**. The delta between Request and Result feeds back into the actor's T3/V3 tensors — every action doesn't just produce an outcome, it *updates the trust record*. This is the mechanism behind the earlier claim that trust is computed rather than declared: R7 is where the computation happens, one action at a time.
 
