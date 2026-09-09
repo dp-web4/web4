@@ -2,9 +2,9 @@
 
 **30 seconds to understand Web4**
 
-Web4 is research into **trust-native distributed intelligence**. Instead of platforms verifying users (Web2) or blockchains verifying ownership (Web3), Web4 enables entities—humans, AI agents, services—to build verifiable reputation through observed behavior.
+Web4 is an open substrate for **verifiable presence and agent accountability**. Instead of asking a platform to declare who is trusted, Web4 lets humans, AI agents, services and societies carry evidence of identity, authority, governing law and witnessed behavior.
 
-**Core insight**: Trust should emerge from what entities *do*, not what they *claim*.
+**Core insight:** trust should be computed by the relying party from evidence, in context, at the stakes of the action.
 
 ---
 
@@ -12,9 +12,21 @@ Web4 is research into **trust-native distributed intelligence**. Instead of plat
 
 | Web2 | Web3 | Web4 |
 |------|------|------|
-| Platform controls identity | User owns keys | Trust is earned through behavior |
-| Permissions are declared | Access is token-gated | Reputation shapes capability |
-| Central databases | Distributed ledgers | Distributed intelligence |
+| Platform controls identity | User owns keys | Identity is persistent, contextual and witnessed |
+| Permissions are declared | Access is token-gated | Authority is scoped by role and law |
+| Central database decides | Ledger proves ownership/state | Relying party evaluates witnessed evidence |
+
+---
+
+## The operational stack
+
+| Layer | Role |
+|---|---|
+| **Web4** | Open standard + core primitives: LCT identity, T3/V3 trust, R6/R7 action grammar, MRH context, ATP/ADP resource accounting, witnessed law |
+| **Hestia** | Local governance at the human/agent boundary: multi-vendor agents under one law, scoped authority, witnessed action history and escalation |
+| **Hub** | Society/community runtime: membership, seven base roles, signed law, sealed channels and a witnessed ledger |
+| **Hardbound** | Metalinxx enterprise assurance tier: hardware-bound identity, stronger fail-closed enforcement and audit packaging |
+| **SAGE** | Research environment carrying the same ideas into persistent cognition, local models and embodiment |
 
 ---
 
@@ -24,7 +36,8 @@ Web4 is research into **trust-native distributed intelligence**. Instead of plat
 |------------|-----------|------------|
 | **Curious newcomer** | Understand the vision | [why/EXECUTIVE_SUMMARY.md](why/EXECUTIVE_SUMMARY.md) |
 | **Developer** | Implement Web4 | [how/README.md](how/README.md) → [how/guides/](how/guides/) |
-| **Researcher** | Study the concepts | [../STATUS.md](../STATUS.md) → [../whitepaper/](../whitepaper/) |
+| **Researcher** | Check what is real | [../STATUS.md](../STATUS.md) → [../whitepaper/](../whitepaper/) |
+| **Operator / risk lead** | See the running governance layer | [Hestia](https://github.com/dp-web4/hestia) → [Hub](../hub/) |
 | **AI agent** | Integrate with Web4 | [how/AGENT_INTEGRATION.md](how/AGENT_INTEGRATION.md) |
 | **Contributor** | Help the project | [../CONTRIBUTING.md](../CONTRIBUTING.md) |
 
@@ -32,41 +45,48 @@ Web4 is research into **trust-native distributed intelligence**. Instead of plat
 
 ## Key Concepts (2-minute overview)
 
-**LCT (Linked Context Token)**: Your digital presence—verifiable, witnessable, contextual.
+**LCT (Linked Context Token):** persistent, witnessable identity/presence bound to context.
 
-**Trust Tensor (T3)**: Multi-dimensional trust score. Not just "trusted" but "trusted for what, by whom, in what context."
+**Trust Tensor (T3/V3):** multi-dimensional trust and value records. Not just "trusted" but "trusted for what, by whom, in what context."
 
-**ATP/ADP (Allocation Transfer/Discharge Packet)**: How resources flow. ATP is potential energy; ADP is spent energy with proof of work.
+**MRH (Markov Relevancy Horizon):** the context boundary within which evidence is relevant.
 
-**MRH (Markov Relevancy Horizon)**: What's relevant to an entity. Your context boundary for making decisions.
+**R6/R7:** the grammar and accountability record around consequential actions.
 
-**R6 Framework**: How actions happen. Rules, Role, Request, Reference, Resource, Result.
+**ATP/ADP:** resource allocation/accounting primitives. ATP is a society-defined unit of account, not a protocol currency.
+
+**Society law:** machine-readable rules that bind roles and actions. Web4 does not dictate policy; it makes the chosen policy explicit and auditable.
 
 ---
 
 ## Current Status
 
-Web4 is a working ontology with growing proof points:
-- **0% → 94.85% on ARC-AGI-3** — same Claude Opus 4.6, structured around Web4 patterns via the [SAGE](https://github.com/dp-web4/SAGE) cognition harness. Real, verifiable capability — under affordances outside strict competition play (the harness analyzed the games' public engine source to build solver cartridges), not blind from-observation solving. Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4 · [Honest breakdown](proof/ARC-AGI-3.md)
-- **2,627 tests** in the reference Python SDK (mypy --strict clean)
-- **424 attack-vector simulation suite** with ~85% detection rate
-- **Demo Day 4** (April 26, 2026) — Web4 presented as "verifiable presence"; archived at https://4-gov.org/demo
+Web4 is research-stage, but the core is no longer just a concept:
 
-Substantial gaps remain: economic-attack modeling at scale, formal Sybil-resistance proofs, public-repo hardware-binding reference (production version lives in Hardbound).
+- **Published packages:** `web4-core` 0.3.0 is on crates.io and PyPI; `web4-trust-core` / `web4-trust` 0.2.0 are published; `web4-core` 0.4.0 is in source on `main`.
+- **Hub is running:** a Rust society daemon with LCT-pinned membership, seven base roles, signed law, sealed member channels and an append-only witnessed ledger.
+- **Hestia is running:** multiple agent vendors share one local governance surface with witnessed actions, human escalation and derived trust. The current open assurance level is **A1** - useful for governance and attribution, not containment against a determined same-UID adversary.
+- **The lab uses its own machinery:** the fleet operates as a Web4 society while developing the standard.
+- **Higher assurance is still building:** A2 isolation, kernel/relying-party enforcement, production hardware roots and broader DID/EUDI interoperability remain roadmap work.
 
-**Honest assessment**: Working ontology, growing demonstrations, real gaps. R&D, not production.
+**Honest assessment:** working open primitives + live reference deployments + substantial security/interoperability work ahead. R&D, not a finished production platform.
 
-See [STATUS.md](../STATUS.md) for the long version.
+See [STATUS.md](../STATUS.md) for the long version and [docs/proof/PUBLISHED.md](proof/PUBLISHED.md) for the publication trail.
+
+### Historical ARC-AGI-3 note
+
+A spring-2026 SAGE/ARC harness produced a published 94.85% scorecard with Claude Opus 4.6. It remains documented in [proof/ARC-AGI-3.md](proof/ARC-AGI-3.md) as a research milestone, not as Web4's current headline proof point or a claim of present competition leadership. The run used a frontier model and affordances outside strict competition play; current competition-legal local-model work is well behind the leaders.
 
 ---
 
 ## Next Steps
 
-1. **Quick read**: [why/EXECUTIVE_SUMMARY.md](why/EXECUTIVE_SUMMARY.md) (5 min)
-2. **Concepts**: [reference/GLOSSARY.md](reference/GLOSSARY.md) for terminology
-3. **Deep dive**: [../whitepaper/](../whitepaper/) for technical details
-4. **Implementations**: [how/README.md](how/README.md) for practical guides
+1. **Quick read:** [why/EXECUTIVE_SUMMARY.md](why/EXECUTIVE_SUMMARY.md) (5 min)
+2. **Calibration:** [../STATUS.md](../STATUS.md)
+3. **Running reference:** [Hub](../hub/) + [Hestia](https://github.com/dp-web4/hestia)
+4. **Concepts:** [reference/GLOSSARY.md](reference/GLOSSARY.md)
+5. **Deep dive:** [../whitepaper/](../whitepaper/)
 
 ---
 
-*Web4: Where trust is earned, not declared.*
+*Web4: trust computed from witnessed evidence, not declared by a platform.*
