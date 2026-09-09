@@ -4,68 +4,76 @@
 
 ## TL;DR
 
-Web4 is the open standard ontology for verifiable presence in agentic AI. Provides identity (LCT), reputation (T3/V3 tensors), resource allocation (ATP), context scoping (MRH), and federation protocols. Working specs + reference implementations. Demonstrated 0% → 94.85% on ARC-AGI-3 with same model + Web4-shaped context (via SAGE; with engine-source affordances a strict run withholds — see `docs/proof/ARC-AGI-3.md`). R&D — not production.
+Web4 is the open substrate for verifiable presence and agent accountability: persistent identity (LCT), contextual trust/value (T3/V3), scoped context (MRH), action/accountability grammar (R6/R7), resource accounting (ATP/ADP), machine-readable society law and witnessed ledgers. Core packages are published; Hub and Hestia are the running open reference deployments. **R&D, not production; current open assurance is A1, not adversary-proof containment.**
+
+A spring-2026 ARC-AGI-3 scorecard remains documented as a historical SAGE research milestone. It is not the current headline proof point or a claim of competition leadership; see `docs/proof/ARC-AGI-3.md` only if that history is relevant.
 
 ## Quick Assessment
 
 | Question | Answer |
 |----------|--------|
-| What is this? | Trust-native ontology for distributed AI |
-| Is it production-ready? | No — R&D, ontology stable, hardware integration in progress |
-| Primary language | Python SDK + Rust core (`web4-core`, `web4-trust-core`); specs in Markdown |
+| What is this? | Open trust/accountability substrate for humans, AI agents and societies |
+| Is it production-ready? | No - published core + live references, substantial assurance/interoperability work remains |
+| Primary language | Rust core + Python bindings/SDKs; specs in Markdown |
 | Active development? | Yes |
-| License | AGPL-3.0-or-later |
+| License | AGPL-3.0-or-later; see package directories + `PATENTS.md` |
 
 ## Core Concepts (Know These)
 
 | Term | What It Is | Why It Matters |
 |------|-----------|----------------|
-| **LCT** | Linked Context Token | Hardware-bound verifiable presence |
-| **T3** | Trust Tensor — 3 root dimensions (Talent / Training / Temperament), each a fractal RDF sub-graph of context-specific sub-dimensions via `web4:subDimensionOf` | Open-ended multidimensional reputation, not a fixed-size vector |
-| **V3** | Value Tensor — 3 root dimensions (Valuation / Veracity / Validity), same fractal RDF pattern | Bound to entity-role pairs via RDF triples |
-| **ATP** | Allocation Transfer Packet | Resource/energy accounting (bio-inspired metabolism) |
-| **MRH** | Markov Relevancy Horizon | Fractal context scoping (RDF graphs) |
-| **R6** | Action grammar | Rules → Role → Request → Reference → Resource → Result |
+| **LCT** | Linked Context Token | Persistent, non-transferable, witnessable entity presence |
+| **T3** | Trust Tensor - Talent / Training / Temperament roots with contextual subdimensions | Multidimensional reputation, not a scalar "trusted" bit |
+| **V3** | Value Tensor - Valuation / Veracity / Validity roots | Contextual value evidence bound to entity-role relationships |
+| **MRH** | Markov Relevancy Horizon | Context/relevance scoping |
+| **R6/R7** | Action and accountability grammar | Makes consequential acts, authority, evidence and outcomes legible |
+| **ATP/ADP** | Resource accounting primitives | Society-defined units of account, not a protocol currency |
+| **Society law** | Signed machine-readable law | Roles and acts are governed under explicit, auditable rules |
 
 ## Entry Points by Goal
 
 | Your Goal | Start Here |
 |-----------|------------|
-| Understand concepts | `docs/reference/GLOSSARY.md` |
+| Understand concepts | `docs/START_HERE.md` → `docs/reference/GLOSSARY.md` |
 | Check project status | `STATUS.md` |
 | See specifications | `web4-standard/core-spec/` |
-| Run simulations | `simulations/` (formerly `game/`) |
+| See the running society runtime | `hub/` |
+| See local agent governance | `https://github.com/dp-web4/hestia` |
 | Integration guide | `docs/how/AGENT_INTEGRATION.md` |
-| Security posture | `SECURITY.md` |
+| Security posture | `SECURITY.md` + Hestia's bypass catalog |
 
-## What's Implemented
+## What's Implemented / Running
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| LCT presence system | Working | `simulations/` |
-| Trust tensors (T3/V3) | Working | `simulations/`, `web4-trust-core/` |
-| ATP economics | Working | `simulations/` |
-| Federation/consensus | Working | `simulations/` |
-| Authorization layer | Working | `web4-standard/implementation/` |
-| Formal threat model | Partial | `SECURITY.md` |
-| Adversarial testing | 424 attack vectors across 84 tracks (~85% detection) | `simulations/attack_simulations.py` |
+| Core LCT / trust primitives | Published + active source | `web4-core/`, `web4-trust-core/` |
+| Hub society daemon | Running reference | `hub/` |
+| Hestia local governance | Running reference, A1 assurance | `https://github.com/dp-web4/hestia` |
+| Signed / witnessed society law | Implemented in reference stack | `hub/`, `web4-standard/core-spec/` |
+| Sealed member channels + witnessed ledger | Implemented / exercised in Hub stack | `hub/` |
+| Standards interop | Partial / building | `docs/strategy/`, credential / DID specs |
+| Higher-assurance enforcement | Roadmap / proprietary enterprise tier | Hardbound |
 
-## What's Missing (in this public repo)
+## What's Missing / Still Building
 
-- Economic attack modeling at scale (no real-market testing)
-- Formal Sybil-resistance proofs (empirical defenses only)
-- Hardware-binding reference implementation (Python `AttestationEnvelope` shipped in `web4-core/python/web4/trust/attestation/`; Rust port and on-device integration in progress)
-- Note: production hardware binding (TPM 2.0 on Linux) and policy enforcement live in **Hardbound** — Metalinxx Inc.'s enterprise product; inquire via the [project repository](https://github.com/dp-web4/web4) or see [PATENTS.md](PATENTS.md)
+- A2+ process/OS isolation and enforcement against determined same-UID agents
+- Kernel / relying-party enforcement for policy-signed acts
+- Broader DID/EUDI wallet interoperability and conformance coverage
+- Formal Sybil/economic attack analysis at scale
+- Production assurance/certification for enterprise deployments
+
+Hardbound is Metalinxx Inc.'s proprietary enterprise assurance tier for hardware-bound identity, stronger fail-closed enforcement and audit-ready evidence packaging. It is not evidence that the open A1 reference already provides those properties.
 
 ## Related Repositories
 
 | Repo | Relationship |
 |------|--------------|
-| `ACT` | Distributed ledger for ATP/LCT (Cosmos SDK, 81K lines Go) |
-| `Hardbound` | Enterprise product layer |
-| `HRM` | Edge AI kernel with MoE |
-| `Synchronism` | Theoretical physics foundation |
-| `4-life` | Interactive explainer |
+| `hestia` | Local human/agent governance runtime |
+| `4-hub` | Standalone Hub society runtime mirror |
+| `SAGE` | Persistent cognition / embodiment research |
+| `4-life` | Interactive Web4 explainer |
+| `Synchronism` | Blue-sky conceptual lineage; not an engineering dependency |
+| `ARC-SAGE` | Historical spring-2026 ARC research snapshot |
 
 ## Machine-Readable Metadata
 
@@ -75,14 +83,14 @@ See `repo-index.yaml` for structured data.
 
 | Depth | Files | Tokens |
 |-------|-------|--------|
-| Minimal | This file | ~500 |
-| Standard | + `STATUS.md`, `README.md` | ~3,000 |
-| Concepts | + `docs/reference/GLOSSARY.md` | ~5,000 |
+| Minimal | This file | ~700 |
+| Standard | + `STATUS.md`, `README.md` | ~3,000+ |
+| Concepts | + `docs/reference/GLOSSARY.md` | ~5,000+ |
 | Full specs | + `web4-standard/core-spec/` | ~50,000 |
 
 ---
 
-*This document optimized for AI agent discovery. Last updated: 2026-04-27*
+*Human-facing framing should prefer current runtime evidence (Web4 packages, Hestia, Hub) over historical benchmark results.*
 
 <!-- gitnexus:start -->
 <!-- gitnexus:keep -->
