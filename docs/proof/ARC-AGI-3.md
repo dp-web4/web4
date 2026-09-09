@@ -1,60 +1,50 @@
-# ARC-AGI-3: 0% → 94.85% with Same Model + Web4-Shaped Context
+# ARC-AGI-3 historical research artifact — spring 2026
 
-**Headline result**: The same Claude Opus 4.6 you can sign up for today scores **0%** on the public ARC-AGI-3 benchmark in default configuration. Wrapped in a context-shaping harness built on Web4 patterns, the same model scores **94.85%**.
+> **Status, September 2026:** preserved for provenance. This page documents a real spring-2026 SAGE/ARC result, but **it is not a current competition claim, current Web4 proof point, or evidence that this lab is near the top of the ARC-AGI-3 leaderboard today.** Current competition-legal local-model work is well behind the leaders.
 
-**Public scorecard**: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4
+## The result
 
-**Read the delta precisely — it is real capability, under affordances a strict competition run would not grant.** The score is genuine and publicly verifiable. But the harness earned it using affordances *outside strict, from-observation play*: it analyzed the games' (public) engine source and built per-game solver cartridges the model could draw on. So 94.85% demonstrates what the model does **given engine-level context and tooling** — not blind from-observation solving, and not "structure alone substituting for the model." The capability is real; the affordances that unlocked it are ones strict competition rules withhold. We state this up front because the honest version is the more interesting claim, and because eliding it would be exactly the over-reach this project tries to avoid.
+A Phase-1 SAGE/ARC harness around Claude Opus 4.6 produced a published **94.85%** scorecard on the public ARC-AGI-3 environments.
 
-**Methodology**: No fine-tuning. No reinforcement learning. No additional training. The model weights are unchanged. What changed is the structure of context, identity, memory, and accountability around the model.
+**Public scorecard:** https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4
 
----
+The number is genuine and publicly verifiable. It should also be read with the affordances that produced it:
 
-## What ARC-AGI-3 is
+- the model was a frontier Claude Opus 4.6 instance;
+- the harness analyzed the public game-engine source;
+- per-game solver/world-model cartridges were built from that engine-level information;
+- the run therefore used affordances outside strict from-observation competition play.
 
-[ARC-AGI-3](https://arcprize.org) is the latest version of François Chollet's reasoning benchmark — 25 interactive games requiring novel reasoning that resists pattern-matching from training data. It's the hardest public reasoning benchmark currently maintained.
+So the result shows what that **model + harness + engine-level context** could do. It does not show blind generalization from observation, and it does not show that structure can substitute for model capability.
 
-Default frontier-model performance on the benchmark hovers around 0% out of the box. The benchmark is specifically designed to require *reasoning under novel conditions*, not retrieval.
+## Why it was useful
 
-## What we changed
+At the time, the experiment supplied an important methodological result: changing the machinery around an unchanged model can materially change behavior.
 
-The model didn't change. The harness around it did. Specifically, the [SAGE](https://github.com/dp-web4/SAGE) cognition harness wraps the LLM with:
+The Phase-1 workflow made several useful ideas concrete:
 
-- **Structured perception** — visual frames passed through a small CNN-based router that produces typed embeddings, not raw pixels-as-text.
-- **World-model schema population** — typed slots (objects, actions, causal rules, win conditions, predict, verify) the model fills based on observation, rather than free-form prose narration.
-- **Skill registry with verified invocation** — the model dispatches to motor skills with explicit pre/post-conditions, and failures surface as parse-failure events, not silent no-ops.
-- **Trust-calibrated dispatch** — T3/V3 trust tensors track per-action evidence; high-irreversibility actions require corresponding trust before commit.
-- **Contextual identity and memory** — the LCT presence layer keeps the agent's accumulated context coherent across turns and levels.
+- structured world models rather than free-form narration;
+- persistent knowledge between sessions;
+- explicit skill invocation;
+- prediction and verification around actions;
+- multi-agent accumulation of research context.
 
-These are concrete instantiations of the Web4 ontology (`Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP`). The harness is the architecture; the model is the engine.
+Those ideas influenced later SAGE work. The current research program has moved beyond the scorecard itself toward a harder target: persistent agents that can form hypotheses, run their own experiments, learn from outcomes, retain reusable procedures, and act under explicit governance.
 
-## Why this matters
+## What changed since spring 2026
 
-The headline finding isn't about ARC-AGI-3 specifically. It's about where the leverage in agentic AI actually lives.
+The field moved quickly. Stronger models and stronger competition harnesses now outperform this lab's competition-legal local-model work by a wide margin.
 
-> **The bottleneck isn't the model. It's the structure around the model.**
+That changes the correct use of this artifact:
 
-Whatever you're building with AI today, scaling the model is one axis of improvement and probably not the most important one. Structuring context, identity, memory, and accountability around the model is a different axis — and it's the one Web4 systematizes.
+- **then:** an externally verifiable milestone and useful demonstration of harness leverage;
+- **now:** a historical research record and provenance trail;
+- **not now:** investor-facing competitive positioning or Web4's primary evidence of maturity.
 
-## Caveats and honest gaps
+The current Web4 proof is increasingly operational: published core packages, a running Hub society runtime, Hestia governing multiple agent vendors under one local law, witnessed action records, escalation paths, and an explicit A1 assurance boundary. See [STATUS.md](../../STATUS.md) and the root [README](../../README.md).
 
-- **Single-machine result**: This run was produced by one orchestrated configuration. The methodology is reproducible from the SAGE codebase, but cross-machine validation (running the same config on different hardware to confirm the numbers hold) is part of the ongoing work.
-- **One benchmark**: ARC-AGI-3 is hard but it is one benchmark. Generalization to other reasoning tasks under the same harness is open research.
-- **Model substitutability**: The same harness with smaller models has not been measured at the same level of rigor. The architecture-over-scale thesis predicts the harness should improve smaller models too, but the improvement curve hasn't been characterized publicly yet.
+## Reproduction / source
 
-## How to verify
+The frozen Phase-1 research snapshot is preserved in [ARC-SAGE](https://github.com/dp-web4/ARC-SAGE). The public [SAGE](https://github.com/dp-web4/SAGE) repository preserves the broader architecture and historical experiment record.
 
-1. **Click the scorecard**: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4 — public, time-stamped.
-2. **Read the harness code**: https://github.com/dp-web4/SAGE
-3. **Reproduce the run**: SAGE's repo includes the play_lean driver and per-game world models. Bring your own ARC-AGI-3 access and run it.
-4. **Stress-test it**: find the games or levels where the harness fails and tell us where. Negative results are as useful as positive ones — see CONTRIBUTING.md.
-
-## Where this fits in the Web4 narrative
-
-This result is the most concrete public proof point for the architecture-over-scale thesis. It is not the only one — the broader Web4 standard supports much more than reasoning benchmarks (identity, accountability, federation, oversight). But it is the one that is fastest to verify and hardest to dismiss: the scorecard is public, the model is the same one anyone can use, and the methodology is open.
-
-For the public framing in which this result was presented to a mixed audience, see [DEMO_DAY_2026-04.md](../why/DEMO_DAY_2026-04.md).
-
-For the conceptual foundation, see the [whitepaper](../../whitepaper/).
-
-For implementation, see [SAGE](https://github.com/dp-web4/SAGE) and [`web4-standard/`](../../web4-standard/).
+The artifact remains public precisely so later framing can change **without rewriting what actually happened**.
