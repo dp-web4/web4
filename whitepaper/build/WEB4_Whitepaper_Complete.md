@@ -83,6 +83,8 @@ A pipe moves bytes. A membrane is selective — it knows what is inside, what is
 
 Plain MCP answers "how do I call this tool?" Web4's MCP profile adds the trust questions: *who* is calling (LCT-bound identity rather than a bearer credential), *in what capacity* (role), *within what scope* (MRH), and *on what record* (the call and its result become witnessed history that feeds trust). The [ACP framework](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/acp-framework.md), covered later, extends this from *responding* agents to agents that *initiate* — with plans, approvals, and accountability.
 
+The membrane also faces *inward*. The [presence protocol](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/presence-protocol.md) specifies the MCP wire between an orchestrator and its own presence layer — a software vault (Hestia) or a hardware vault (Hardbound) exposing the same eight tools, from `connect` (which mints the session's *soft LCT*, giving even ephemeral sessions attributable presence) through `begin_action` / `record_outcome` (the R6 lifecycle at agent scale) to `request_witness`. The same grammar that governs societies governs a single agent's afternoon — the membrane pattern applied to the boundary between deciding and doing.
+
 The design principle carried throughout: **cooperation flows through the membrane; the membrane never relies on cooperation.** Structured, low-friction channels make the compliant path the easy path, while enforcement stays at the boundary itself.
 
 *Normative reference: [`core-spec/mcp-protocol.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/mcp-protocol.md).*
@@ -96,25 +98,32 @@ A trust-native internet is, above all, a system of *statements*: "this agent is 
 
 ## Why an ontology and not a database
 
-The difference matters more than it first appears. A protocol defines message formats; a database holds rows; an **ontology defines what things mean and how they relate**. When Web4 says "trust," it does not mean a number in someone's table — it means a typed relationship in a graph that any RDF-speaking system can query, extend, and reason over:
+The difference matters more than it first appears. A protocol defines message formats; a database holds rows; an **ontology defines what things mean and how they relate**. When Web4 says "trust," it does not mean a number in someone's table — it means a typed relationship in a graph that any RDF-speaking system can query, extend, and reason over.
 
+This is not a metaphor layered over a conventional store; the vocabulary is concrete and published. Web4's statements live under two namespaces — `web4:` for the ontology, `lct:` for presence instances — and the canonical relationships are real predicates with defined semantics:
+
+```turtle
+@prefix web4: <https://web4.io/ontology#> .
+@prefix lct:  <https://web4.io/lct/> .
+
+lct:alice   web4:boundTo      lct:device-anchor-1 .   # permanent hierarchical attachment
+lct:bob     web4:pairedWith   lct:surgeon-role .      # authorized operational connection
+lct:carol   web4:witnessedBy  lct:audit-oracle-7 .    # trust through observation
 ```
-Alice  —is-bound-to→        Hardware-Anchor-1
-Bob    —is-paired-with→     Surgeon-Role
-Carol  —witnessed→          DataAnalysis-Act-7
-```
+
+Each root predicate fans out into sub-properties — `web4:parentBinding`, `web4:energyPairing`, `web4:timeWitness`, and their siblings, all `rdfs:subPropertyOf web4:hasRelationship` — so a query can ask the coarse question ("is there *any* relationship?") or the precise one ("is there a *witnessing* relationship of the *audit* kind?") against the same graph. Edge metadata (what kind of binding, since when, how many times observed) rides on the triples through RDF reification, so the graph carries not just *that* two entities relate, but the witnessed terms on which they do.
 
 Three properties follow directly:
 
-- **Extensibility without central coordination.** Anyone can add a new trust sub-dimension, a new relationship type, or a new witness kind by adding vocabulary — no core-protocol change, no permission from a registry. This is what keeps the standard small while the ecosystem grows.
-- **Semantic interoperability.** Web4 statements compose with the existing semantic-web world (W3C vocabularies, SPARQL, linked data) rather than creating another silo.
+- **Extensibility without central coordination.** Anyone can add a new trust sub-dimension, a new relationship type, or a new witness kind by adding vocabulary — no core-protocol change, no permission from a registry. This is what keeps the standard small while the ecosystem grows. The pattern that makes this safe is `web4:subDimensionOf`: new terms declare what they refine, so extensions slot *into* the existing graph instead of forking it (the T3/V3 section uses this to make trust itself open-ended).
+- **Semantic interoperability.** Web4 statements compose with the existing semantic-web world (W3C vocabularies, SPARQL, linked data) rather than creating another silo. A relevancy query is a SPARQL traversal with a depth bound, not a proprietary API call.
 - **Fractal structure.** The same triple pattern describes a sensor reading, a role assignment, and an inter-society treaty. Meaning scales without changing shape.
 
 ## Where the backbone shows up
 
-Every other term in the equation is *realized* in RDF: trust tensors are RDF sub-graphs (not fixed vectors), relevancy horizons are typed relationship graphs (not access-control lists), and presence tokens link into the graph as first-class nodes. The backbone is why the equation's components interlock instead of merely coexisting.
+Every other term in the equation is *realized* in RDF. The LCT itself is a JSON-LD node (`@type: web4:LinkedContextToken`) whose identifier resolves into the graph. Its MRH — the relevancy horizon — is exactly the subgraph of typed `boundTo` / `pairedWith` / `witnessedBy` edges rooted at that node, traversable within a bounded depth. Trust and value tensors are RDF sub-graphs rooted at three dimensions each (not fixed vectors), with scores attached as witnessed, timestamped statements. The backbone is why the equation's components interlock instead of merely coexisting: they are all the same graph, viewed from different terms.
 
-*Normative reference: the ontology artifacts at [`web4-standard/ontology/`](https://github.com/dp-web4/web4/tree/main/web4-standard/ontology) (Turtle + JSON-LD), with the graph model specified in [`MRH_RDF_SPECIFICATION.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/MRH_RDF_SPECIFICATION.md).*
+*Normative reference: the ontology artifacts at [`web4-standard/ontology/`](https://github.com/dp-web4/web4/tree/main/web4-standard/ontology) (Turtle + JSON-LD), with the relationship vocabulary in [`core-spec/mrh-tensors.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/mrh-tensors.md) and the graph model in [`MRH_RDF_SPECIFICATION.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/MRH_RDF_SPECIFICATION.md).*
 
 
 # LCT: The Presence Substrate
@@ -122,6 +131,8 @@ Every other term in the equation is *realized* in RDF: trust tensors are RDF sub
 **The question it answers: who is present?**
 
 The **Linked Context Token (LCT)** is Web4's foundational primitive: a non-transferable, cryptographically anchored record permanently bound to exactly one entity for the duration of its participation. It is not an account, not a wallet, and not merely an identifier — it is the **reification of presence itself**. An LCT crystallizes when an entity enters Web4 and accompanies it until its participation ends.
+
+The standard puts the distinction in one sentence: *an LCT is not an identity; it is a presence.* An identity answers "who are you?" A presence answers "who is here, acting, accumulating a record?" — and it is the record, not the claim, that everything else in Web4 computes on.
 
 ## What can be present
 
@@ -133,28 +144,63 @@ Web4 deliberately widens what counts as an entity — anything that can leave a 
 - **Tasks and resources** (things that exist, execute, complete, or get consumed)
 - **Devices** (hardware that senses and acts)
 
+## The anatomy: what an LCT contains
+
+An LCT is a JSON-LD document (`@type: web4:LinkedContextToken`) with **six required components**, and the list is the single most structural fact in this paper:
+
+1. **Identity** — the `lct_id` and the subject's DID.
+2. **Binding** — the cryptographic anchor and its `binding_proof`.
+3. **MRH** — the entity's Markov Relevancy Horizon: its typed relationship graph.
+4. **Policy** — the constraints under which the presence acts.
+5. **T3** — the trust tensor (talent / training / temperament).
+6. **V3** — the value tensor (valuation / veracity / validity).
+
+Read that list against the equation. The `LCT` term and the `T3/V3 * MRH` term are not separate systems that reference each other — **the token is the container**: every LCT *carries* its own relevancy horizon and its own trust and value tensors as mandatory fields. The MRH section and the tensor section that follow describe the contents of every LCT ever minted, not auxiliary databases beside it.
+
+The identifier is **self-certifying**. The binding (entity, key, optional hardware anchor) is serialized as deterministic CBOR, signed as a COSE_Sign1 `binding_proof`, and the LCT's identifier is derived from the proof itself: `lct:web4:` + multibase32(sha256(binding_proof)). The name cannot be pointed at anything other than the binding that produced it — the identifier *is* a hash of the anchoring act.
+
+## Birth: witnessed, or bootstrapped
+
+The primary issuance path is a **society-issued birth certificate**. An entity requests presence; its society validates citizenship; a binding ceremony runs with a quorum of **at least three birth witnesses**; and the new LCT's MRH is initialized from the ceremony itself — the witnesses become its first `witnessing` edges, the citizen role becomes a permanent `paired` edge, the hardware anchor becomes a `bound` edge. Presence begins *already woven into* the witnessing fabric, with initial T3/V3 computed and the token published to the society's registry.
+
+A bootstrap path exists for entities without a society: the **self-issued LCT** — self-signed binding proof, empty MRH, minimal trust. It is real presence, but presence that has corroborated nothing yet. The distance between the two paths is exactly the distance trust must travel, and the capability ladder below makes that distance legible rather than binary.
+
+## The capability ladder
+
+LCTs are graded into six **capability levels** (0–5), each with explicit required fields: **STUB** (a placeholder), **MINIMAL** (self-issued), **BASIC** (at least one MRH relationship), **STANDARD** (witnessed, with oracle-computed tensors and attestation), **FULL** (birth certificate, ≥3 witnesses, permanent citizen pairing), and **HARDWARE** (a hardware-anchored EAT attestation). Levels 0→4 are additive — an LCT accretes capability as its record grows. Level 4→5 is **re-issuance**: hardware binding cannot be bolted on after the fact, because the anchor must be inside the binding proof the identifier hashes. Unimplemented components are carried as explicit stubs (`{stub: true, reason}`) — partial presence is declared, not hidden.
+
+## One presence, many devices
+
+A modern entity acts through several devices, and Web4's answer inverts the usual instinct that more endpoints mean more attack surface. A **Root LCT** carries a *device constellation*; each device holds its own **Device LCT** bound to one hardware anchor (phone secure enclave, FIDO2 key, TPM, or software fallback), cross-witnessing the others. Trust is **capped by anchor composition**: a single software key tops out at 0.40, a phone enclave or TPM alone at 0.75, and three or more diverse hardware anchors at 0.98. Recovery follows a quorum of the constellation itself. The design principle: **identity is coherence across witnesses** — a presence that many independent anchors keep agreeing on is *stronger*, not weaker, for each device added.
+
 ## Core properties
 
 **Permanently bound and non-transferable.** An LCT cannot be sold, given away, or moved between entities. This is not a limitation but the structural guarantee that makes reputation *mean* something: every witnessed interaction traces back to the entity that actually participated. Trust histories cannot be bought, inherited, or laundered.
 
 **Cryptographically anchored.** Each LCT roots in keypair-backed identity, with an optional hardware-binding ladder (from software keys up to TPM- and secure-enclave-anchored attestation). "I am the entity bound to this LCT, here is a fresh signature over your challenge" is a claim cryptography can check — unlike "I am @alice," which is a claim a platform accepts.
 
-**Witness-hardened.** An LCT's strength is not secrecy but *accumulated corroboration*. Every interaction can be witnessed by other entities; every witness link makes the presence harder to forge and its history harder to dispute. Trust in Web4 is built from this witnessing fabric — presence that has been repeatedly, independently observed. The lifecycle is explicit: an LCT is created, accumulates witnessed history, and concludes (*void* for natural ending, *slashed* for trust violation) — with the record persisting beyond conclusion, so accountability outlives participation.
+**Witness-hardened.** An LCT's strength is not secrecy but *accumulated corroboration*. Every interaction can be witnessed by other entities; every witness link makes the presence harder to forge and its history harder to dispute. Trust in Web4 is built from this witnessing fabric — presence that has been repeatedly, independently observed.
 
-**Linked and contextual.** LCTs form malleable links to other LCTs — trust webs, delegation chains, parent/child lineage. The token is permanent; its *expression* is contextual (the same doctor's presence carries different weight in a medical forum than a book club — a fact made precise by the MRH, two sections ahead).
+**Linked and contextual.** LCTs form malleable links to other LCTs — trust webs, delegation chains, parent/child lineage. The token is permanent; its *expression* is contextual (the same doctor's presence carries different weight in a medical forum than a book club — a fact made precise by the MRH, two sections ahead, which lives inside the token itself).
+
+## Lifecycle: rotation, revocation, and a record that outlives participation
+
+An LCT is created (genesis), lives (active), and can **rotate**: keys change by issuing a successor LCT under the same subject DID, with explicit lineage to the parent and a 24–48 hour overlap before the parent is marked superseded. It can be **revoked** — for compromise, supersession, expiry, or violation — which disables its capabilities while preserving its MRH read-only: the graph of what it touched remains queryable evidence. Participation ends in one of two states — *void* for a natural ending, *slashed* for a trust violation — and in both cases **the record persists beyond conclusion**. Accountability outlives participation; that is the point of presence rather than identity.
+
+Underneath the entire mechanism runs one discipline the standard states explicitly: **inspectable evidence, not prescribed trust.** The protocol's job is to make the evidence unforgeable — the binding, the witnesses, the history. Whether to trust, and for what, remains the relying party's contextual call.
 
 ## Why this is the foundation
 
-Every subsequent term in the equation presupposes this one. Trust tensors describe *an LCT's* capability. Relevancy horizons scope *an LCT's* context. Value cycles reward *an LCT's* contribution. Verifiable presence is the move that converts "trust as declaration" into "trust as computable record" — the rest of the architecture is the machinery that computes it.
+Every subsequent term in the equation presupposes this one. Trust tensors describe *an LCT's* capability — and live inside it. Relevancy horizons scope *an LCT's* context — and live inside it. Value cycles reward *an LCT's* contribution. Verifiable presence is the move that converts "trust as declaration" into "trust as computable record" — the rest of the architecture is the machinery that computes it.
 
-*Normative reference: [`core-spec/LCT-linked-context-token.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/LCT-linked-context-token.md) (Core Specification v1.0.0), with [`entity-types.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/entity-types.md) for the entity taxonomy and [`did-web4-method.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/did-web4-method.md) for the DID-standard bridge.*
+*Normative reference: [`core-spec/LCT-linked-context-token.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/LCT-linked-context-token.md) (Core Specification v1.0.0), with [`lct-capability-levels.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/lct-capability-levels.md) for the capability ladder, [`multi-device-lct-binding.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/multi-device-lct-binding.md) for device constellations, [`entity-types.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/entity-types.md) for the entity taxonomy, and [`did-web4-method.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/did-web4-method.md) for the DID-standard bridge.*
 
 
 # T3/V3: The Trust and Value Tensors
 
 **The question they answer: what can an entity be trusted to do — and what is its work worth?**
 
-Presence alone says *who is here*, not *what they're good for*. Web4 measures capability and contribution with two three-dimensional tensors, each dimension itself extensible into finer structure.
+Presence alone says *who is here*, not *what they're good for*. Web4 measures capability and contribution with two three-dimensional tensors, each dimension itself extensible into finer structure. Both tensors are **required components of every LCT** — they ship inside the presence token, not in a separate reputation service — and, as this section shows, the same tensors are simultaneously *bound into the graph* at entity-role pairs. That dual residence is the design's center of gravity.
 
 ## T3 — the Trust Tensor
 
@@ -174,17 +220,47 @@ Presence alone says *who is here*, not *what they're good for*. Web4 measures ca
 
 The equation writes the pair as **T3/V3** — trust *verified by* value. Claimed capability is continuously checked against delivered contribution: an entity whose T3 says "expert" but whose V3 record shows little validated value will see the gap; sustained delivery closes it. Verification, not assertion.
 
-## Three structural properties
+## Bound to entity-role pairs, in the graph
 
-**Tensors, not scores — fractal, not fixed.** Each root dimension is the root of an open-ended RDF sub-graph of context-specific sub-dimensions (a surgeon's *Training* can refine into `surgical-technique`, `diagnostic-accuracy`, …). Domains extend the vocabulary without touching the standard — this is the RDF backbone doing its job.
+There is no "Alice's trust score." The standard is a hard invariant here: implementations **must not** compute global, role-agnostic trust. Tensors exist only within role contexts, and the binding is an RDF fact, not a convention:
 
-**Bound to entity-role pairs, never to entities alone.** There is no "Alice's trust score." There is Alice-as-surgeon, Alice-as-reviewer, Alice-as-citizen — each accumulating its own tensor from its own witnessed history. Trust is a *relationship*, not a property; competence in one capacity is evidence of nothing in another.
+```turtle
+_:tensor1 a web4:T3Tensor ;
+    web4:entity      lct:alice ;
+    web4:role        web4:Surgeon ;
+    web4:talent      0.95 ;
+    web4:training    0.92 ;
+    web4:temperament 0.88 .
+```
 
-**Earned through witnessed history, changed by outcomes.** Tensor values move when witnessed interactions complete: delivered-as-promised raises the relevant dimensions, failures lower them, and unexercised Training and Temperament decay. **Talent does not** — inherent aptitude is not spent by disuse, and the standard makes its stability a protocol invariant. The inputs are the LCT's witness fabric — which is what makes the tensors *computable from the record* rather than declared.
+Alice-as-surgeon, Alice-as-reviewer, Alice-as-citizen each accumulate their own tensor from their own witnessed history. (V3 rides on the same pairing: the value tensor derives its entity-role context from the co-located T3 tensor, so "Alice-as-surgeon's delivered value" is the same node in the graph.) A new role starts at minimal trust; competence in one capacity is evidence of nothing in another, and cross-role transfer requires an explicit, inspectable bridge.
+
+## Fractal, not fixed: the open-ended sub-graph
+
+Each root dimension is the root node of an **open-ended RDF sub-graph** of context-specific sub-dimensions, declared with the `web4:subDimensionOf` pattern:
+
+```turtle
+analytics:StatisticalModeling a web4:Dimension ;
+    web4:subDimensionOf web4:Talent .
+analytics:BayesianInference a web4:Dimension ;
+    web4:subDimensionOf analytics:StatisticalModeling .   # fractal depth
+```
+
+A medical society can refine *Training* into `surgical-technique` and `diagnostic-accuracy` without touching the standard — and so can any other domain, indefinitely deep. Individual scores attach as **witnessed, timestamped statements** (dimension, score, `observedAt`, `witnessedBy`), so every number in a tensor carries its provenance. The shorthand form (`web4:talent 0.85`) is the aggregate of the sub-graph rooted at that dimension; composite scores fold the three roots together with published weights (T3: 0.4/0.3/0.3; V3: 0.3/0.35/0.35).
+
+## How the numbers move
+
+Tensor values change only on **witnessed outcomes**, through two normative paths. The categorical outcome table maps result classes to deltas — a novel success is worth +0.02–0.05 on the relevant capability; an ethics violation costs −0.05 talent and −0.10 temperament. The continuous path adjusts by delivered quality: `delta = 0.02 × (quality − 0.5)`, scaled per dimension (temperament moves slowest — reliability is demonstrated over time, not in a single act). All deltas clamp to [0,1].
+
+Decay is asymmetric by design: unexercised **Training** erodes (−0.001/month), **Temperament** recovers slowly (+0.01/month — the path back from a violation is deliberately longer than the fall), and **Talent never decays** — inherent aptitude is not spent by disuse, and the standard pins this as a protocol invariant guarded by conformance vectors.
+
+At the society scale, R7 transactions emit **reputation deltas** triggered by published Law Oracle rules — which action types, result statuses, and quality thresholds move which dimensions, by how much. Deltas are witnessed (selected from MRH-proximate entities), time-weighted onto a 0.5 neutral baseline with exponential decay, and deliberately **asymmetric**: violation costs are large relative to success gains, so reputation cannot be farmed to launder later coercion. In Web4, trust is not a side effect of the record — computing it *is* the product.
+
+Two honest caveats. First, legacy flat six-dimension schemas from the project's early lineage are reconciled through a normative 6D→3D bridge rather than silently coexisting. Second, the range of V3 **Valuation** is a declared open question in the standard — the specification permits values above 1.0 (exceptional worth), the reference SDK currently clamps to [0,1], and the discrepancy is tracked as an operator decision rather than papered over.
 
 Because the tensors route real decisions (who gets the role, whose output is accepted, where value flows), and because they are always role- and context-scoped, they resist the two classic reputation failures: the global score that follows you where it shouldn't, and the purchased reputation that was never earned.
 
-*Normative reference: [`core-spec/t3-v3-tensors.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/t3-v3-tensors.md), with the ontology at [`ontology/t3v3-ontology.ttl`](https://github.com/dp-web4/web4/blob/main/web4-standard/ontology/t3v3-ontology.ttl).*
+*Normative reference: [`core-spec/t3-v3-tensors.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/t3-v3-tensors.md) and [`core-spec/reputation-computation.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/reputation-computation.md), with the ontology at [`ontology/t3v3-ontology.ttl`](https://github.com/dp-web4/web4/blob/main/web4-standard/ontology/t3v3-ontology.ttl).*
 
 
 # MRH: The Markov Relevancy Horizon
@@ -192,6 +268,8 @@ Because the tensors route real decisions (who gets the role, whose output is acc
 **The question it answers: within what context does any of this apply?**
 
 Nothing in Web4 is global — not trust, not authorization, not attention. The **Markov Relevancy Horizon (MRH)** is each entity's zone of relevance: what it can perceive, act on, and be affected by. The equation's central term is `T3/V3 * MRH` — trust *contextualized by* horizon — and the `*` is doing the heaviest lifting in the whole equation.
+
+The MRH is not an external structure consulted about an entity. As the LCT section established, it is a **required component inside every LCT** — each presence carries its own horizon, and the horizon travels with the token.
 
 ## The idea
 
@@ -202,39 +280,55 @@ The name borrows deliberately from the Markov property: just as a Markov process
 - Which other entities fall within its sphere?
 - Over what time horizon do its concerns extend?
 
-## Implemented as a graph, not a wall
+## The three canonical relationships
 
-An MRH is not a perimeter or an access-control list. It is a **typed RDF relationship graph**: entities are nodes; edges carry relationship types (binding, pairing, witnessing, delegation, and others); relevance is computed by *traversal* — what can be reached, through which edge types, within a bounded number of hops. Trust propagates along the same edges with decay: a direct witness relationship carries more weight than one three hops removed.
+An MRH is a **typed RDF relationship graph**, and its edges come in exactly three canonical kinds — the same three predicates the RDF section introduced — each with its own trust semantics:
+
+- **`web4:boundTo` — permanent hierarchical attachments.** Parent, child, and sibling bindings: the entity's own hardware anchors, its device constellation, its lineage. Trust flows bidirectionally and strongly — these are the edges an entity cannot disown without ceasing to be itself.
+- **`web4:pairedWith` — authorized operational connections.** Pairings to roles and counterparties, created by explicit authorization. Birth-certificate pairings (the citizen role granted at issuance) are permanent; ordinary operational pairings need not be.
+- **`web4:witnessedBy` — trust through observation.** The witnessing fabric made graph-shaped. Witness edges carry a *kind* — time, audit, oracle, existence, action, state, quality — plus a running count and a last-attestation timestamp. Trust flows one way: from the witness toward the witnessed, as accumulated corroboration.
+
+Relevance is computed by **traversal**: what can be reached from this LCT's node, through which edge types, within a bounded number of hops. The bound has a default — `horizon_depth: 3` — and it is where the "Markov" in the name becomes literal: beyond the depth bound, relationships are *defined as irrelevant*. Not distrusted — out of scope.
+
+## Trust propagates along the edges
+
+The horizon is not only a filter; it is a medium. Confidence in a distant entity is computed over the paths that reach it, and the standard defines three propagation algorithms a relying party can choose among: **multiplicative** (path trust decays hop by hop, default factor 0.7 — a direct witness outweighs a friend of a friend of a friend), **probabilistic** (independent paths combine noisy-OR style: `1 − ∏(1 − path_trust)` — corroboration along genuinely independent routes accumulates), and **maximal** (the best single path governs). Because paths are graph objects, provenance is inspectable: two paths that secretly share an origin can be discounted as one.
+
+The graph is **dynamic by obligation**, not by convention: the standard requires the MRH to be updated on every new binding, pairing, witness event, revocation, and trust recomputation. Horizons grow and shrink with demonstrated behavior — a new agent starts narrow and earns reach; a misbehaving one contracts.
 
 This gives the horizon three properties a flat boundary cannot have:
 
 - **Asymmetry.** A can be within B's horizon while B is outside A's — delegation and witnessing are directional.
 - **Multi-path trust.** Confidence in a distant entity can accumulate along independent graph paths, and be discounted where paths share provenance.
-- **Dynamism.** Horizons grow and shrink with demonstrated behavior — a new agent starts narrow and earns reach; a misbehaving one contracts.
+- **Dynamism.** Reach is earned and lost on the record, in both directions.
 
 ## Why the horizon is load-bearing
 
-Two consequences make MRH more than bookkeeping. First, **contextualized trust becomes enforceable**: `T3/V3 * MRH` means the surgeon's tensor simply *does not apply* outside the medical horizon — misapplied reputation is a type error, not a policy violation. Second, **reachability stops implying authorization**: an entity may be network-reachable and still be outside the horizon for an action. In an internet of autonomous agents, that inversion — context as the gate, not connectivity — is the security model.
+Two consequences make MRH more than bookkeeping. First, **contextualized trust becomes enforceable**. Role-scoped trust queries evaluate *inside* the graph: ask for an entity's trust as a surgeon outside the medical horizon and the defined answer is not "low" — it is 0.0, out of context. `T3/V3 * MRH` means the surgeon's tensor simply *does not apply* elsewhere; misapplied reputation is a type error, not a policy violation. Second, **reachability stops implying authorization**: an entity may be network-reachable and still be outside the horizon for an action. The same scoping disciplines the trust machinery itself — reputation witnesses, for instance, are drawn from MRH-proximate entities rather than the open network. In an internet of autonomous agents, that inversion — context as the gate, not connectivity — is the security model.
 
-*Normative reference: [`core-spec/mrh-tensors.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/mrh-tensors.md), with the graph model in [`MRH_RDF_SPECIFICATION.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/MRH_RDF_SPECIFICATION.md).*
+*Normative reference: [`core-spec/mrh-tensors.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/mrh-tensors.md), with the graph model in [`MRH_RDF_SPECIFICATION.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/MRH_RDF_SPECIFICATION.md) and the MRH's residence inside the token in [`core-spec/LCT-linked-context-token.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/LCT-linked-context-token.md).*
 
 
 # ATP/ADP: The Value Cycle
 
 **The question it answers: how does value flow back to contribution?**
 
-The final term of the equation closes the loop. With presence established (LCT), capability measured (T3/V3), and context bounded (MRH), one question remains: how does the system *allocate* — energy, attention, resources — so that contribution is rewarded and waste is not? Web4's answer is the **ATP/ADP cycle**, named for the molecule that carries energy in every living cell.
+The final term of the equation closes the loop. With presence established (LCT), capability measured (T3/V3), and context bounded (MRH), one question remains: how does the system *allocate* — energy, attention, compute, resources — so that contribution is rewarded and waste is not? Web4's answer is the **ATP/ADP cycle**, named for the molecule that carries energy in every living cell.
 
 ## The cycle
 
 **Allocation Transfer Packets** exist in two states, forever cycling:
 
 - **ATP (charged)** — allocation ready to fuel work
-- **ADP (discharged)** — allocation spent, carrying the record of what it was spent on, awaiting recognition
+- **ADP (Allocation Discharge Packet)** — allocation spent, carrying the record of what it was spent on, awaiting recognition
 
-Work *discharges* ATP into ADP. Witnessed, recognized contribution *recharges* ADP back into ATP. The tokens are **semi-fungible**: units are equivalent as energy, but each carries its history — what was attempted, by whom, to what result — context that matters when value is assessed.
+Work *discharges* ATP into ADP. Witnessed, recognized contribution *recharges* ADP back into ATP. The tokens are **semi-fungible**: units are equivalent as allocation, but each carries its history — what was attempted, by whom, to what result — context that matters when value is assessed.
 
-Recognition is not automatic. Whether discharged work recharges depends on the *receivers* of the value attesting it through the V3 lens (was it valuable? was it accurate? did it arrive?). That is the equation's structure made operational: the value cycle runs *through* the trust layer, not beside it.
+The mechanics are deliberately conservative. Societies **mint** the supply (in the discharged ADP state) and hold it in governed pools; the cycle obeys a strict **conservation invariant** — total supply always equals charged plus discharged, and every transfer balances to the unit, fees recycled to the pool rather than destroyed. The one sanctioned exception is **slashing**: witnessed, evidence-backed destruction for violations — the economic analogue of the tensor's asymmetric accrual, and equally deliberate.
+
+Two rules weld the cycle into everything that came before it. First, **discharge happens only through the R6 action grammar**: spending allocation *is* transacting — every R6 Request carries an `atpStake`, locked in escrow at validation and settled atomically with the action's costs, so allocation can never move without a governed, witnessed act attached. Second, **recharge requires proof**: charging ADP back to ATP demands producer authorization under society law plus a cryptographic value proof — recognition is not automatic. Whether discharged work recharges depends on the *receivers* of the value attesting it through the V3 lens (was it valuable? was it accurate? did it arrive?). That is the equation's structure made operational: the value cycle runs *through* the trust layer, not beside it.
+
+And the weld runs both directions: every ATP event feeds the tensors — recognized charging raises Training and Valuation; slashing cuts Temperament and Veracity. An entity's economic record and its trust record are one record, viewed through two terms of the equation. (An LCT may even surface its allocation position as an `energy_balance` sub-dimension of V3 Valuation — capability level 3 expects it — so "does this entity do recognized work?" is a graph query, not an audit.)
 
 ## Why a metabolism, not a market
 
@@ -242,15 +336,15 @@ The deliberate contrast is with mining and staking. Proof-of-work rewards burnin
 
 - **You cannot accumulate allocation without contributing** — recharge requires witnessed, recognized value delivery. There is no "early holder" position to speculate from.
 - **You cannot fake contribution** — the discharge record and its witnesses are part of the trust fabric; gaming attempts damage the T3/V3 tensors that gate future allocation.
-- **Hoarding is self-limiting** — allocation that never discharges does no work and earns no recognition; the system favors flow over accumulation, as metabolisms do.
+- **Hoarding is self-limiting** — allocation that never discharges does no work and earns no recognition, and societies may levy **demurrage**: a maintenance discharge on idle charge, so dormant allocation slowly returns to the pool. The system favors flow over accumulation, as metabolisms do.
 
 The design intent is sometimes summarized as *anti-Ponzi*: value in the system tracks work performed for identifiable beneficiaries, not the recruitment of later participants.
 
 ## Feedback, not foundation — and maturity, honestly
 
-Two clarifications this paper owes the reader. First, ATP/ADP is **the feedback layer, not the foundation**: it presupposes every prior term of the equation, and nothing in presence, trust, or context *depends on* it — which is why it is the last term, not the first. Second, it is the **least-implemented core component**: the cycle's mechanics have been validated in protocol-development work, but a public reference implementation is still pending. The specification is normative; the running code, as of this writing, is not yet public.
+Two clarifications this paper owes the reader. First, ATP/ADP is **the feedback layer, not the foundation**: it presupposes every prior term of the equation, and nothing in presence, trust, or context *depends on* it — which is why it is the last term, not the first. Second, its maturity is honestly mixed. The *mechanism* now ships in public: the account model and conservation invariants are implemented in the published `web4-core` crate and the Python SDK, validated against the standard's test vectors. What does not yet exist is a *live economy* — no deployment circulates real allocation at scale, and large-scale economic attack modeling remains open research. The accounting runs; the metabolism it is meant to govern is still ahead.
 
-*Normative reference: [`core-spec/atp-adp-cycle.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/atp-adp-cycle.md).*
+*Normative reference: [`core-spec/atp-adp-cycle.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/atp-adp-cycle.md), with the discharge weld in [`core-spec/r6-framework.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/r6-framework.md).*
 
 
 # Built on the Foundation
@@ -265,12 +359,14 @@ Every action in Web4 — from a tool call to a governance decision — has the s
 Rules + Role + Request + Reference + Resource → Result
 ```
 
-- **Rules** — what governs the action (law, contracts, protocol constraints)
-- **Role** — the capacity in which the actor acts (with that role's T3/V3 and permissions)
-- **Request** — the explicit intent: what is to be achieved, with acceptance criteria
-- **Reference** — the context brought to bear: history, memory, relevant precedent
-- **Resource** — what the action consumes (ATP allocation, compute, attention)
-- **Result** — what actually happened, signed and witnessed
+- **Rules** — what governs the action: the society's law by hash (`lawHash`), plus constraints, permissions, and prohibitions
+- **Role** — the capacity in which the actor acts: the actor's LCT paired to the role's LCT, carrying that pairing's own `t3InRole` / `v3InRole` and permissions
+- **Request** — the explicit intent: the action verb, target, parameters, acceptance criteria, a nonce, the `atpStake` backing it, and — for delegated acts — a `proofOfAgency` over the grant
+- **Reference** — the context brought to bear: precedent, interpretations, witnesses, and an `mrhContext` (relevant entities and trust paths within a depth bound)
+- **Resource** — what the action consumes: required and available ATP, compute, bandwidth — with the stake locked in `escrow` under a release condition
+- **Result** — what actually happened: status, output, resources consumed, tensor updates, attestations, and a ledger proof — signed and witnessed
+
+A Request moves through the stack in three phases. **Pre-execution validation**: the role pairing is verified in the actor's own MRH, the agency grant and its scope are checked, the law in the Rules slot is applied, resources are confirmed, and the escrow locks. **Execution**: metered, inside the role context, output validated against the rules. **Settlement**: atomic — costs computed, ATP transferred or escrow refunded, the role-pairing's T3/V3 updated, the ledger entry written with its witnesses, and the actor's MRH updated with the act. A Request rejected before execution is an `error` (never attempted); a Request that fails mid-execution is a `failure` (attempted, metered, settled) — the distinction is part of the record, because the two carry different trust meaning.
 
 **R7** extends the grammar with a seventh element as first-class *output*: **Reputation**. The delta between Request and Result feeds back into the actor's T3/V3 tensors — every action doesn't just produce an outcome, it *updates the trust record*. This is the mechanism behind the earlier claim that trust is computed rather than declared: R7 is where the computation happens, one action at a time.
 
@@ -315,13 +411,17 @@ Specification status is marked unevenly. Some documents carry an explicit status
 
 Concepts prove themselves by running. Three public codebases currently implement the standard, at different layers:
 
-**Core packages — the primitives as libraries.** [`web4-core` and `web4-trust-core`](https://github.com/dp-web4/web4) ship the LCT presence primitive, T3/V3 tensors, ledger backends, and attestation envelope as installable packages. Both are published Rust crates on crates.io, and both ship Python wheels on PyPI — `web4-core` under its own name, the trust crate under the distribution name `web4-trust` rather than `web4-trust-core`. `web4-trust-core` additionally ships WASM browser bindings on npm. The one unfilled cell is a browser build of `web4-core`, which has no WASM target in-tree; because a package's registry name is not always its crate name, resolve the name on the registry before depending on it.
+**Core packages — the primitives as libraries.** [`web4-core` and `web4-trust-core`](https://github.com/dp-web4/web4) ship the LCT presence primitive, T3/V3 tensors, the ATP account model with its conservation invariants, the R6/R7 grammar, ledger backends, and the attestation envelope as installable packages. Both are published Rust crates on crates.io, and both ship Python wheels on PyPI — `web4-core` under its own name, the trust crate under the distribution name `web4-trust` rather than `web4-trust-core`. `web4-trust-core` additionally ships WASM browser bindings on npm. The one unfilled cell is a browser build of `web4-core`, which has no WASM target in-tree; because a package's registry name is not always its crate name, resolve the name on the registry before depending on it.
+
+**The reference SDK — pure Python, offline, test-vector-driven.** Alongside the Rust core, [`web4-standard/implementation/sdk`](https://github.com/dp-web4/web4/tree/main/web4-standard/implementation) (PyPI: `web4-sdk`) implements the standard in dependency-free Python: LCTs, T3/V3, **MRH graphs** (the relevancy horizon's reference home — the one core primitive not yet ported to the Rust crate), ATP, R6/R7, federation data structures, and capabilities. It is validated directly against the standard's conformance vectors, which makes it the executable reading of the specs: when prose and code disagree, the vectors arbitrate.
 
 **The Hub — a running Web4 society.** [`web4/hub`](https://github.com/dp-web4/web4/tree/main/hub) is a live society implementation: LCT-pinned membership, sealed member-to-member channels, a witnessed hash-chained ledger as the society's collective memory, law published as inspectable data gating actions, and role assignment through governance. It is where the SAL pattern, the witnessing fabric, and the membrane security model run as a daemon rather than a diagram — and the project runs it daily for its own multi-agent coordination. Its own README scopes that status precisely: the public tree is a **reference proof-of-concept** (`0.1.0-alpha.0`; MVP complete and pilot-ready, with the first community-chapter deployment still ahead), and production development continues in a separate private repository. The daily self-operation is the checkable part; "production" would be a label.
 
 **Hestia — agent governance at the membrane.** [`hestia`](https://github.com/dp-web4/hestia) implements the trust architecture at the individual-agent boundary: policy evaluation gating agent tool use (the MCP membrane made enforceable), role-scoped law for autonomous sessions, and a witnessed record of every governed decision. It is the reference for Web4's answer to the question this paper opened with — how an agent is bounded *before* it acts.
 
 It is also the reference for how to state what a mechanism does *not* do. Its maintainers publish the gate's limits as a first-class artifact ([hestia#49](https://github.com/dp-web4/hestia/issues/49) — preserved as evidence and superseded for tracking by the open readiness index [hestia#224](https://github.com/dp-web4/hestia/issues/224) — and its [bypass catalogue](https://github.com/dp-web4/hestia/blob/main/docs/GATE_BYPASS_CATALOG.md)): the gate stops accidents rather than adversaries; its posture when the policy daemon returns no verdict is fail-open unless a deployment explicitly configures it closed; the record covers *governed* activity, so silence in it is not evidence that nothing happened. Those limits are this paper's own thesis turned on the implementation — a gate that **declares** itself safe hands the relying party no evidence. What a relying party can compute on is the witnessed record and the named gaps, which is precisely why they are named.
+
+**Simulations — the adversarial gym.** The [`simulations/`](https://github.com/dp-web4/web4/tree/main/simulations) suite exercises the mechanisms at scale against synthetic actors: trust networks, decay and economics, federation lifecycle, metabolic states — and an attack catalog of several hundred vectors across dozens of tracks, with roughly 85% detection. The number deserves its caveat in the paper, not just the repo: those adversaries are *synthetic*. The suite demonstrates that the defenses fire against the attacks anyone thought to write down; it is not a red-team result, and no live federation has yet been attacked by reality. Relatedly, inter-society federation is **specified but not yet built between live hubs** — the protocol documents exist, the SDK carries the data structures, and the first real society-to-society link is still ahead. This paper's honesty rule applies to the project itself: presence, tensors, grammar, and hub run today; live federation and a live ATP economy are the open frontier.
 
 These are research-stage implementations, offered as existence proofs and starting points — not finished products. They are also the standard's proving ground: several normative requirements (fail-closed evaluation on invalid law, role-scoped trust, law-as-data) were hardened *by* operating these systems and folding what broke back into the specification.
 
@@ -340,7 +440,7 @@ Web4 = MCP + RDF + LCT + T3/V3 * MRH + ATP/ADP
 
 Read back with its meaning now unpacked: entities interact through a **trust-aware membrane** (MCP), speaking statements with **verifiable meaning** (RDF), as **presences that cannot be transferred or faked** (LCT), trusted **for what their witnessed record shows** (T3/V3), **within the contexts where that record applies** (MRH), in a system where **allocation flows back to recognized contribution** (ATP/ADP). On those six primitives, the standard composes an action grammar (R6/R7), roles with their own presence, self-governing societies with inspectable law, and semantic bridges between domains.
 
-The claims are testable and the artifacts are public. The [standard](https://github.com/dp-web4/web4/tree/main/web4-standard) is versioned in the open; the [core packages](https://github.com/dp-web4/web4), the [Hub society](https://github.com/dp-web4/web4/tree/main/hub), and [Hestia](https://github.com/dp-web4/hestia) run today as research-stage reference implementations. Status is marked honestly throughout: some mechanisms are v1.0 specifications with shipped code, others are drafts, and the value cycle awaits its public reference implementation. This is research in progress, developed in the open, and evaluable on its own terms.
+The claims are testable and the artifacts are public. The [standard](https://github.com/dp-web4/web4/tree/main/web4-standard) is versioned in the open; the [core packages](https://github.com/dp-web4/web4), the [Hub society](https://github.com/dp-web4/web4/tree/main/hub), and [Hestia](https://github.com/dp-web4/hestia) run today as research-stage reference implementations. Status is marked honestly throughout: some mechanisms are v1.0 specifications with shipped code, others are drafts, and the value cycle — now shipped as a reference implementation — still awaits its first live economy. This is research in progress, developed in the open, and evaluable on its own terms.
 
 ## Legal and organizational framework
 
@@ -363,13 +463,17 @@ Compact definitions for every term this paper relies on. The standard's [GLOSSAR
 
 **RDF — Resource Description Framework.** The W3C standard for typed subject–predicate–object statements. Web4's ontological backbone: every relationship (trust, witnessing, delegation, relevance) is an RDF triple, extensible without central coordination.
 
-**LCT — Linked Context Token.** Web4's presence primitive: a non-transferable, cryptographically anchored record permanently bound to one entity, accumulating witnessed history over its lifecycle (created → active → void/slashed). The foundation every other mechanism builds on.
+**LCT — Linked Context Token.** Web4's presence primitive: a non-transferable, cryptographically anchored record permanently bound to one entity, accumulating witnessed history over its lifecycle (genesis → active → rotation → void/slashed). Every LCT *contains* six required components — identity, binding, MRH, policy, T3, V3 — so each presence carries its own horizon and tensors. The foundation every other mechanism builds on.
+
+**LCT capability levels.** The six-grade ladder of presence maturity: STUB, MINIMAL, BASIC, STANDARD, FULL, HARDWARE. Levels 0–4 accrete with the record; level 5 (hardware anchor) requires re-issuance, since the anchor must sit inside the binding proof the identifier hashes.
+
+**Device constellation.** A Root LCT plus its Device LCTs, each bound to one hardware anchor and cross-witnessing the others. Trust is capped by anchor composition (single software key 0.40 → three-plus diverse hardware 0.98); recovery follows a quorum of the constellation. Identity as coherence across witnesses.
 
 **T3 — Trust Tensor.** Capability measured along three root dimensions — **T**alent, **T**raining, **T**emperament — each an open-ended RDF sub-graph of context-specific sub-dimensions. Always bound to an entity-*role* pair, never to an entity alone.
 
 **V3 — Value Tensor.** Contribution measured along three root dimensions — **V**aluation, **V**eracity, **V**alidity — same fractal RDF pattern. The verification side of `T3/V3`: claimed capability checked against delivered value.
 
-**MRH — Markov Relevancy Horizon.** An entity's zone of relevance — what it can perceive, act on, and be affected by — implemented as a typed RDF relationship graph with bounded traversal. The `*` in the equation: all trust is contextualized by horizon.
+**MRH — Markov Relevancy Horizon.** An entity's zone of relevance — what it can perceive, act on, and be affected by — implemented as a typed RDF relationship graph inside the LCT, with three canonical edge kinds (`boundTo`, `pairedWith`, `witnessedBy`) and bounded traversal (default depth 3). The `*` in the equation: all trust is contextualized by horizon.
 
 **ATP/ADP — Allocation Transfer / Discharge Packets.** The value-feedback cycle, modeled on cellular energy metabolism: work discharges ATP into ADP; witnessed, recognized contribution recharges ADP into ATP. Semi-fungible (units equivalent, histories distinct). A feedback layer on the foundation — not a foundation.
 
@@ -515,4 +619,4 @@ To contribute to Web4 development or request access to additional technical docu
 
 ---
 
-*Generated: 2026-08-26 04:45:01*
+*Generated: 2026-09-09 05:12:51*

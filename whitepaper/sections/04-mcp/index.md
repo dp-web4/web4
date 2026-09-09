@@ -16,6 +16,8 @@ A pipe moves bytes. A membrane is selective — it knows what is inside, what is
 
 Plain MCP answers "how do I call this tool?" Web4's MCP profile adds the trust questions: *who* is calling (LCT-bound identity rather than a bearer credential), *in what capacity* (role), *within what scope* (MRH), and *on what record* (the call and its result become witnessed history that feeds trust). The [ACP framework](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/acp-framework.md), covered later, extends this from *responding* agents to agents that *initiate* — with plans, approvals, and accountability.
 
+The membrane also faces *inward*. The [presence protocol](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/presence-protocol.md) specifies the MCP wire between an orchestrator and its own presence layer — a software vault (Hestia) or a hardware vault (Hardbound) exposing the same eight tools, from `connect` (which mints the session's *soft LCT*, giving even ephemeral sessions attributable presence) through `begin_action` / `record_outcome` (the R6 lifecycle at agent scale) to `request_witness`. The same grammar that governs societies governs a single agent's afternoon — the membrane pattern applied to the boundary between deciding and doing.
+
 The design principle carried throughout: **cooperation flows through the membrane; the membrane never relies on cooperation.** Structured, low-friction channels make the compliant path the easy path, while enforcement stays at the boundary itself.
 
 *Normative reference: [`core-spec/mcp-protocol.md`](https://github.com/dp-web4/web4/blob/main/web4-standard/core-spec/mcp-protocol.md).*
