@@ -3015,6 +3015,12 @@ mod tests {
             "/v1/hubs/:hub_id/events",
             "/v1/hubs/:hub_id/lcts/publish",
             "/v1/hubs/:hub_id/members/join",
+            // web4#804. Exempt from the SWEEP only: the sweep cannot mint a signed
+            // envelope, so it stops at the body extractor. The handler behind it is driven
+            // end-to-end by `a_member_can_withdraw_themselves_and_the_hub_cannot_decline_it`
+            // and `nobody_can_withdraw_anybody_else_and_no_refusal_reaches_the_ledger`,
+            // which is the route-specific coverage this list asks authors to prefer.
+            "/v1/hubs/:hub_id/members/withdraw",
             "/v1/hubs/:hub_id/pairs/:pair_id/confirm",
             "/v1/hubs/:hub_id/pairs/:pair_id/messages",
             "/v1/hubs/:hub_id/pairs/:pair_id/revoke",

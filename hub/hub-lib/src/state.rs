@@ -681,7 +681,12 @@ impl HubState {
                     self.member_ceilings.insert(*member_lct_id, *ceiling);
                 }
             }
-            HubEvent::MemberRemoved { member_lct_id, .. } => {
+            // A withdrawal ends membership exactly as a removal does: same projection
+            // consequences, different actor. Anything that treated them differently here
+            // would leave a withdrawn member half-present — still keyed in the resolver on
+            // the next restart, still counted in the skill index.
+            HubEvent::MemberWithdrew { member_lct_id, .. }
+            | HubEvent::MemberRemoved { member_lct_id, .. } => {
                 if let Some(removed) = self.members.remove(member_lct_id) {
                     // Also drop from skill index.
                     for skill in &removed.skills {

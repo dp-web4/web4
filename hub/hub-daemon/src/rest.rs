@@ -1972,6 +1972,7 @@ pub fn router(state: RestState) -> Router {
         // (AEAD open) AND decrypts in one step; the response is sealed back.
         .route("/v1/hubs/:hub_id/channel", post(channel_request))
         .route("/v1/hubs/:hub_id/members/join", post(submit_join))
+        .route("/v1/hubs/:hub_id/members/withdraw", post(submit_withdraw))
         // V2-9 Phase 2: Sovereign Council proposal + aggregation flow.
         .route("/v1/hubs/:hub_id/council/propose", post(submit_proposal))
         .route("/v1/hubs/:hub_id/council/sign", post(sign_proposal))
@@ -6285,6 +6286,120 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/members/:lct_id/remove", post(admin_remove_member))
         .route("/admin/api/members/:lct_id/admission-reset", post(admin_admission_reset))
         .with_state(state)
+}
+
+#[derive(Deserialize)]
+struct WithdrawPayload {
+    /// MUST be "member_withdraw", so a misrouted envelope cannot end a membership.
+    action: String,
+    /// MUST equal `envelope.signer_lct_id`. Belt and braces: the signature already
+    /// establishes the subject, and requiring the payload to agree means a mismatch is a
+    /// loud 400 rather than a silent disagreement about whose membership just ended.
+    member_lct_id: Uuid,
+    #[serde(default)]
+    reason: Option<String>,
+}
+
+/// `POST /v1/hubs/:hub_id/members/withdraw` — a member ends their own membership (web4#804).
+///
+/// R8.2 of PRD_HUB_V2_FEDERATED requires **exit without penalty**. Until now the only way
+/// out was operator-only `POST /admin/api/members/:id/remove`: exit was not a member's act
+/// at all but a petition to an operator, granted or not, through a channel outside the
+/// protocol. A membership you cannot end unilaterally is not the thing the PRD describes.
+///
+/// # The hub does not get a say, and that is the design
+///
+/// This route has no law gate and no refusal for held roles, open obligations, or anything
+/// else. Every such check is a way for the society to decline someone's departure, and an
+/// exit that can be declined is not exit without penalty. The one thing the hub does is
+/// **record what the departure left vacant** (`roles_vacated`), so the society learns what
+/// it must now refill rather than getting a veto it should not have.
+///
+/// Mirrors `/members/join`: the subject is the envelope's signer, not a path segment. That
+/// is deliberate — a `:lct_id` in the path would create a path-vs-signer mismatch surface on
+/// the one route whose entire security property is "only you can end your membership".
+///
+/// surface: POST /v1/hubs/:hub_id/members/withdraw   act: end own membership (MemberWithdrew)
+/// S: med/irreversible-ish [construct: re-joining is a new admission, not a restore]
+/// R: n/a [construct: public plane; identity-gated, not reachability-gated]
+/// W: pass [construct: verify_envelope against the member's PINNED key via s.resolver — only
+///          the key the hub itself pinned at admission can sign this]
+/// O: pass [construct: membership + signature checked before witness_event; refusals witness nothing]
+/// A: pass [construct: signed chain entry naming the member and the roles vacated]
+/// V: n/a [construct: a veto over someone's exit is the thing R8.2 forbids]
+/// verdict: PASS
+async fn submit_withdraw(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!(
+            "hub id {} does not match this hub {}", hub_id, s.hub_id
+        )));
+    }
+    let payload: WithdrawPayload = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("withdraw payload not parseable: {}", e)))?;
+    if payload.action != "member_withdraw" {
+        return Err(ApiError::bad_request(format!(
+            "withdraw endpoint requires action='member_withdraw', got '{}'", payload.action
+        )));
+    }
+    if payload.member_lct_id != envelope.signer_lct_id {
+        return Err(ApiError::bad_request(format!(
+            "envelope.signer_lct_id ({}) must match payload.member_lct_id ({}) — a member may \
+             only withdraw themselves",
+            envelope.signer_lct_id, payload.member_lct_id,
+        )));
+    }
+    // Verified against the LIVE resolver, which holds the key the hub pinned when it
+    // admitted them. Unlike join there is no adhoc resolver here: a withdrawal is only
+    // meaningful from someone the hub already knows, and accepting a caller-supplied key
+    // would let anyone end anyone's membership.
+    {
+        let resolver = s.resolver.read().await;
+        let _redeemed = verify_envelope(&envelope, &s.nonces, &*resolver, Utc::now())?;
+    }
+    let roles_vacated = {
+        let ledger = s.ledger.lock().await;
+        if !HubState::project(&ledger).members.contains_key(&payload.member_lct_id) {
+            // Idempotent by intent: someone who is already gone asked to leave. 404 rather
+            // than 200 because "you are not a member" and "you have just left" are
+            // different facts, and the caller may be discovering that an operator already
+            // removed them.
+            return Err(ApiError::not_found(format!(
+                "{} is not a member of {}", payload.member_lct_id, s.hub_name
+            )));
+        }
+        // Best effort: the society doc is the role authority and may be unreadable while
+        // sealed. An empty list means "none recorded here", never "none held" — the
+        // withdrawal proceeds either way, because the roles are a NOTICE, not a gate.
+        match s.open_store().await {
+            Ok(store) => match store.read_society().await {
+                Ok(Some(society)) => society.roles.iter()
+                    .filter(|(_, a)| a.filling_entity_lct_id == payload.member_lct_id)
+                    .map(|(k, _)| k.clone())
+                    .collect(),
+                _ => Vec::new(),
+            },
+            Err(_) => Vec::new(),
+        }
+    };
+    let entry_index = witness_event(&s, HubEvent::MemberWithdrew {
+        member_lct_id: payload.member_lct_id,
+        reason: payload.reason,
+        roles_vacated: roles_vacated.clone(),
+    }).await?;
+    // Live eviction, same as the operator path: their envelopes stop verifying now, not at
+    // the next restart.
+    s.resolver.write().await.0.remove(&payload.member_lct_id);
+    Ok(Json(serde_json::json!({
+        "withdrawn": true,
+        "member_lct_id": payload.member_lct_id,
+        "entry_index": entry_index,
+        "roles_vacated": roles_vacated,
+        "note": "membership ended. Re-joining is a new admission, not a restore.",
+    })))
 }
 
 async fn submit_join(
@@ -11628,6 +11743,109 @@ norms:
         assert!(matches!(back.status, ProposalStatus::Committed { entry_index, .. } if entry_index == committed_at_index));
         assert_eq!(back.unique_signers().len(), 2, "both signatures survived with it");
         assert_eq!(store.list_proposals().await.unwrap().len(), 1);
+    }
+
+    /// Build and sign a withdraw envelope the way a member's client would.
+    async fn withdraw_envelope(
+        state: &RestState, kp: &KeyPair, signer: Uuid, subject: Uuid, reason: Option<&str>,
+    ) -> hub_lib::envelope::SignedEnvelope {
+        let challenge = state.nonces.issue(signer, Utc::now());
+        let mut payload = serde_json::json!({
+            "action": "member_withdraw", "member_lct_id": subject,
+        });
+        if let Some(r) = reason { payload["reason"] = serde_json::json!(r); }
+        let mut env = hub_lib::envelope::SignedEnvelope {
+            challenge_nonce: challenge.nonce.clone(), payload,
+            signature: String::new(), signer_lct_id: signer,
+        };
+        let bytes = env.signing_bytes().expect("signing bytes");
+        env.signature = kp.sign(&bytes).to_hex();
+        env
+    }
+
+    /// R8.2: a member ends their OWN membership, and the hub does not get a say
+    /// (web4#804). The act is witnessed, the projection drops them, and the live resolver
+    /// evicts them at once — their next envelope stops verifying without a restart.
+    #[tokio::test]
+    async fn a_member_can_withdraw_themselves_and_the_hub_cannot_decline_it() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let kp = KeyPair::generate();
+        let me = Uuid::new_v4();
+        admin_add_member(State(state.clone()), ConnectInfo(loop_addr),
+            Json(AddMemberBody { lct_id: me, pubkey_hex: kp.verifying_key().to_hex(), name: Some("Leaver".into()) }))
+            .await.unwrap();
+        assert!(state.resolver.read().await.lookup(me).is_some(), "fixture: admitted and resolvable");
+
+        let env = withdraw_envelope(&state, &kp, me, me, Some("moving on")).await;
+        let out = submit_withdraw(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .expect("a member may always leave");
+        assert_eq!(out.0["withdrawn"], true);
+
+        let projected = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert!(!projected.members.contains_key(&me), "membership ended in the projection");
+        assert!(!projected.member_pubkeys.contains_key(&me), "…and their pinned key is dropped");
+        assert!(state.resolver.read().await.lookup(me).is_none(),
+            "evicted from the LIVE resolver — no restart needed for the departure to bind");
+
+        let l = state.ledger.lock().await;
+        let ev = l.entries().iter().rev().find(|e| e.event.kind() == "member_withdrew").expect("witnessed");
+        match &ev.event {
+            HubEvent::MemberWithdrew { member_lct_id, reason, .. } => {
+                assert_eq!(*member_lct_id, me);
+                assert_eq!(reason.as_deref(), Some("moving on"));
+            }
+            other => panic!("wrong event: {other:?}"),
+        }
+    }
+
+    /// The security property of this route, stated as a test: only the holder of the key
+    /// the HUB pinned can end that membership. A different member cannot evict a peer, and
+    /// a payload naming someone else is refused even when the signature is valid.
+    #[tokio::test]
+    async fn nobody_can_withdraw_anybody_else_and_no_refusal_reaches_the_ledger() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (kp_a, kp_b) = (KeyPair::generate(), KeyPair::generate());
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
+        for (id, kp) in [(a, &kp_a), (b, &kp_b)] {
+            admin_add_member(State(state.clone()), ConnectInfo(loop_addr),
+                Json(AddMemberBody { lct_id: id, pubkey_hex: kp.verifying_key().to_hex(), name: None }))
+                .await.unwrap();
+        }
+        let before = state.ledger.lock().await.entries().len();
+
+        // A signs, but names B as the subject: the payload/signer mismatch is caught.
+        let env = withdraw_envelope(&state, &kp_a, a, b, None).await;
+        let err = submit_withdraw(State(state.clone()), Path(state.hub_id), Json(env)).await.err()
+            .expect("A must not be able to withdraw B");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("may only withdraw themselves"), "{}", err.message);
+
+        // A signs as B (claiming B's identity) with A's key: the signature does not verify
+        // against B's PINNED key, so the impersonation is refused by the envelope, not by
+        // an application check that could be forgotten.
+        let env = withdraw_envelope(&state, &kp_a, b, b, None).await;
+        assert!(submit_withdraw(State(state.clone()), Path(state.hub_id), Json(env)).await.is_err(),
+            "a forged signature must not end B's membership");
+
+        // Wrong action on an otherwise valid envelope.
+        let mut env = withdraw_envelope(&state, &kp_a, a, a, None).await;
+        env.payload["action"] = serde_json::json!("member_join_request");
+        env.signature = kp_a.sign(&env.signing_bytes().unwrap()).to_hex();
+        assert_eq!(submit_withdraw(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .err().unwrap().status, StatusCode::BAD_REQUEST);
+
+        // A stranger who is not a member at all.
+        let kp_c = KeyPair::generate();
+        let c = Uuid::new_v4();
+        let env = withdraw_envelope(&state, &kp_c, c, c, None).await;
+        assert!(submit_withdraw(State(state.clone()), Path(state.hub_id), Json(env)).await.is_err());
+
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "no refusal reached the ledger");
+        let projected = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert!(projected.members.contains_key(&a) && projected.members.contains_key(&b),
+            "and both memberships are intact");
     }
 
     const ADMISSION_TEST_BASE_LAW: &str = r#"

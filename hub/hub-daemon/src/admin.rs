@@ -1086,6 +1086,14 @@ fn event_summary(event: &HubEvent) -> String {
             format!("Member {} added{}", html_escape(name), pk)
                 + &format!(" <span class=\"muted\">[{}]</span>", short(member_lct_id))
         }
+        HubEvent::MemberWithdrew { member_lct_id, reason, roles_vacated } => format!(
+            "Member {} withdrew{}{}",
+            short(member_lct_id),
+            reason.as_deref().map(|r| format!(" — {}", html_escape(r))).unwrap_or_default(),
+            if roles_vacated.is_empty() { String::new() } else {
+                format!(" (vacating {})", html_escape(&roles_vacated.join(", ")))
+            },
+        ),
         HubEvent::MemberRemoved { member_lct_id, reason, .. } => format!(
             "Member {} removed{}",
             short(member_lct_id),

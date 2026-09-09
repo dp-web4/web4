@@ -111,6 +111,27 @@ pub enum HubEvent {
         reason: Option<String>,
     },
 
+    /// A member left of their own accord (R8.2 — exit without penalty).
+    ///
+    /// Its own class rather than a `MemberRemoved` with a flag, because WHO ENDED THE
+    /// MEMBERSHIP is the whole fact. Joins are witnessed and adjudicated; before this,
+    /// departures were an operator-only `MemberRemoved`, so a reader of the chain saw
+    /// people arrive and never saw anyone leave *by choice* — a record that is
+    /// systematically flattering to the society. Collapsing the two would keep that.
+    ///
+    /// There is no `removed_by`: the member is the actor, and the signature on the
+    /// envelope is the authority. The hub does not get a say — see the handler.
+    MemberWithdrew {
+        member_lct_id: Uuid,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        /// Roles this member held at the moment they left, so the record says what the
+        /// departure left VACANT. The withdrawal is never refused on account of them
+        /// (that would be a penalty for exiting); the society is told instead.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        roles_vacated: Vec<String>,
+    },
+
     /// A prospective member submitted a join request that hub law **escalated**
     /// to operator review (V2-16 admission queue). The applicant self-vouches
     /// `member_pubkey_hex` (the hub bootstraps signature verification from it);
@@ -720,6 +741,7 @@ impl HubEvent {
     "member_renamed",
         "member_profile_updated",
         "member_removed",
+    "member_withdrew",
         "member_skill_declared",
         "obligation_opened",
         "obligation_resolved",
@@ -743,6 +765,7 @@ impl HubEvent {
             Self::Genesis { .. } => "genesis",
             Self::MemberAdded { .. } => "member_added",
             Self::MemberRemoved { .. } => "member_removed",
+            Self::MemberWithdrew { .. } => "member_withdrew",
             Self::MemberJoinRequested { .. } => "member_join_requested",
             Self::MemberJoinResolved { .. } => "member_join_resolved",
             Self::MemberJoinReviewRequested { .. } => "member_join_review_requested",
