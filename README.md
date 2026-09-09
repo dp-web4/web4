@@ -6,605 +6,194 @@
 [![PyPI: web4-trust](https://img.shields.io/pypi/v/web4-trust?label=PyPI%20web4-trust)](https://pypi.org/project/web4-trust/)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](LICENSE)
 
-> **AI is already taking actions in the world. We can't prove what it did.**
-> Web4 is the open standard that closes that gap.
+> **AI is already taking consequential actions. Identity, authority and accountability have not caught up.**
 
-**Web4 is the open substrate for agent accountability: persistent identity, contextual trust, witnessed action and machine-readable law.** An open standard designed without a central authority, proposed by Metalinxx Inc. **Open standard, draft in places; core implementation published and running; Hub/Hestia reference deployments operate on the live fleet; DID/EUDI interoperability and higher-assurance enforcement remain in development.** `web4-core` is at 0.4.0 in this repository; the published packages are `web4-core` 0.3.0 on crates.io + PyPI and `web4-trust-core` 0.2.0. **[STATUS.md](STATUS.md)** is the calibration - read it before judging the claims below.
+**Web4 is the open substrate for agent accountability: persistent identity, contextual trust, scoped authority, witnessed action and machine-readable law.**
 
-**Proof point**: 0% → 94.85% on ARC-AGI-3 with the same Claude Opus 4.6, structured around Web4 patterns via the [SAGE](https://github.com/dp-web4/SAGE) harness. [Public scorecard](https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4). The model didn't change — the structure around it did. Read precisely: this is real capability under affordances a strict competition run withholds — the harness analyzed the games' public engine source to build solver cartridges, so it shows what the model does *given engine-level context*, not blind from-observation solving. [Honest breakdown](docs/proof/ARC-AGI-3.md).
+The design goal is not a platform that decides who is trusted. It is a protocol in which an acting entity can bring evidence of **who it is, under whose authority it acts, what law applies, and what happened before**, while the relying party remains sovereign over whether that evidence is sufficient for the context and stakes.
 
-**Living example**: the lab developing this standard is itself a Web4 society — a public fleet of autonomous agents that hold roles and witness each other's work. Its members are published at [4-lab.io/fleet](https://4-lab.io/fleet). Presence over privacy: a society that isn't witnessed has no presence to trust, so the collective is visible by design.
+**Status:** research-stage, but no longer only a specification. Core packages are published. The [Hub](hub/) and [Hestia](https://github.com/dp-web4/hestia) reference deployments are running on the live fleet. Higher-assurance enforcement, broader standards interoperability and conformance remain active work. Read [STATUS.md](STATUS.md) for the calibrated split between shipped, implemented, specified and aspirational.
 
-## Architectural shape (what Web4 actually is)
+## The stack
 
-Three properties define the shape, and each has a normative spec:
+| Layer | Role | Current state |
+|---|---|---|
+| **Web4** | Open protocol and primitives for identity, trust, action, law, witnessing and federation | Core implementation published; standard draft in places |
+| **[Hestia](https://github.com/dp-web4/hestia)** | Local governance at the human/agent boundary | Running daily; multi-vendor; **A1** assurance |
+| **[Hub](hub/)** | Society/community runtime | Running Rust reference implementation |
+| **Hardbound** | Metalinxx enterprise assurance tier | Private/proprietary; building |
+| **[SAGE](https://github.com/dp-web4/SAGE)** | Persistent cognition and embodiment research under the same identity/governance model | Public architecture + active research |
 
-1. **Self-sovereign fractal societies, no top-level CA.** Societies bootstrap themselves (a single founder is sufficient) or form by federation of existing societies. Higher-order societies are *overlays, not owners* — they exist by constituent consent and dissolve when consent is withdrawn. There is no DNS root, no PKI root, no canonical top-level society. Trust emerges from peer witnessing. See [`inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) for genesis, first-contact, federation, and secession protocols.
+The layers are intentionally separable. Web4 is the substrate. Hestia and Hub are open operational layers at different boundaries. Hardbound raises the assurance grade for enterprise deployments. SAGE explores what persistent, learning agents look like when identity and governance are first-class rather than bolted on afterward.
 
-2. **A small fixed set of mandatory roles with fractal composability.** Every Web4 society must fill seven base roles (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen — modeled on corporate-structure functions). Any role MAY be filled by a single entity (solo founder wears many hats), a sub-society (large enterprise), or a federation (multi-region). Role authority binds to the role's LCT, not the filling entity. See [`society-roles.md`](web4-standard/core-spec/society-roles.md) for the full taxonomy with audit semantics.
+## Why Web4 exists
 
-3. **ATP is a unit of account, not a currency.** Each society reifies its own resources (compute, attention, hardware, time, whatever it accounts) into ATP at policies it chooses. On first contact with another society, three sovereign options exist: keep both currencies and negotiate exchange rate (international-trade pattern), one adopts the other's (dollarization pattern), or both join/form a higher-order society with shared currency (Eurozone pattern). This is intentional: no protocol-level constraint on initial issuance is needed because the market for the society's ATP at exchange time *is* the audit mechanism.
+Most current systems answer one of these questions:
 
-4. **Law is witnessed, not dictated.** Web4 mandates no policy — each society writes its own law (admission, role authority, thresholds, what escalates to a human, how much friction it wants). What the protocol insists on is that *whatever the law is, it is signed, inspectable, and its adherence auditable*: law is machine-readable and verifiable, every consequential action is evaluated against it (R6) and recorded on the append-only **witnessed ledger**, and amending the law is itself a witnessed act. The mechanism enforces auditable adherence to a society's *own* rules — **convenience and policy are the society's choice; the audit trail is not.** See [`web4-society-authority-law.md`](web4-standard/core-spec/web4-society-authority-law.md).
+- **Who holds this credential?**
+- **What does this platform permit?**
 
-These four together produce the property: **Web4 is anti-hierarchical by design and auditable by construction**, with audit and trust emerging from below rather than imposed from above. The specs *implement* this philosophy; this section is here so the philosophy is visible upfront rather than inferred from the corpus.
+Agentic AI increasingly needs a third:
 
-**How societies engage each other**: a society's external surface is its MCP server. Other societies invoke its scoped actions (R6/R7) by calling MCP tools with LCT-signed envelopes; querying its state by reading MCP resources; coordinating across federation depth via witness signatures carried in the MCP exchange. The canonical Web4 equation `Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP` has MCP as the **I/O membrane** for exactly this reason — internal structure is `LCT + T3/V3*MRH + ATP/ADP`; the cross-society interface IS MCP. See [`mcp-protocol.md`](web4-standard/core-spec/mcp-protocol.md) §1.1 and §7 for the inter-society binding spec.
+> **Should I trust this entity to perform this action, here, now, under these rules, given its evidence and history?**
 
-**Standards interop**: Web4 works *with* the existing identity stack rather than replacing it. An LCT resolves as a `did:web4` DID Document (W3C DID Core) and is expressible as an IETF SD-JWT-VC credential, issued/presented over OpenID4VCI/VP, so a Web4 entity is resolvable and credential-bearing by W3C Verifiable Credentials, OpenID, and the EU Digital Identity Wallet (EUDI/eIDAS) tooling, without giving up its native trust layer (T3/V3, witnessing), which lives outside the credential envelope. Maturity: SD-JWT-VC, OpenID4VCI issuance and OID4VP verification are running where implemented; `did:web4` deployment and broader EUDI wallet interoperability are building. The whitepaper [**Web4 and Standard Credentials**](docs/whitepapers/web4-and-standard-credentials.md) covers how Web4 interoperates with eIDAS/EUDI, W3C VC, and OpenID, and what it adds that they don't have. Implementation: [`docs/strategy/eudi-resolvability-plan.md`](docs/strategy/eudi-resolvability-plan.md) + [`web4-standard/core-spec/did-web4-method.md`](web4-standard/core-spec/did-web4-method.md).
+Web4 makes the ingredients of that decision machine-readable:
 
-## Five-minute audit
+- **Identity:** a persistent entity presence, not a disposable session label.
+- **Authority:** roles and delegations with explicit scope.
+- **Law:** signed rules that govern consequential acts.
+- **Witnessing:** durable records of what was attempted, allowed, denied, escalated and completed.
+- **Trust:** contextual evidence derived from behavior, not a self-reported score.
+- **Relying-party sovereignty:** the receiver decides how much evidence is enough.
 
-If you want a fast read on whether this is real, in order:
+## Core primitives
 
-1. [**STATUS.md**](STATUS.md) — what's shipped, what's specified, what's aspirational.
-2. [**docs/proof/PUBLISHED.md**](docs/proof/PUBLISHED.md) — what's published and why v0.1.0 was yanked.
-3. [**hub/**](hub/) — a **running Web4 society**: LCT-pinned membership, sealed E2E channels, a witnessed hash-chained ledger, hub-law gating acts, governance-driven roles. Operated in production by the fleet. (With [hestia](https://github.com/dp-web4/hestia) at the agent boundary.) This is the standard *running* — the current reference deployment.
-4. [**simulations/**](simulations/) — 424 attack vectors / 84 tracks, ~85% detection rate against synthetic adversaries (no red team yet; see STATUS for honest characterization).
-5. [**docs/specs/heterogeneous-identity.md**](docs/specs/heterogeneous-identity.md) — multi-factor identity as a constellation. Answers "what stops a hardware vendor from gating LCT access?" structurally.
-6. [**docs/whitepapers/web4-and-standard-credentials.md**](docs/whitepapers/web4-and-standard-credentials.md) — how Web4 interoperates with eIDAS/EUDI, W3C Verifiable Credentials, and OpenID (did:web4, SD-JWT-VC, OID4VCI/VP) — and what it adds that they don't.
-7. [**web4-standard/core-spec/inter-society-protocol.md**](web4-standard/core-spec/inter-society-protocol.md) — society genesis (self-bootstrapped + federation-based), first-contact (3 sovereign options), ATP reification sovereignty, secession.
-8. [**web4-standard/core-spec/society-roles.md**](web4-standard/core-spec/society-roles.md) — 7 base-mandatory roles + context-mandatory (forced by outward role) + optional, with fractal composability and audit implications.
-9. [**forum/kimi2_6_review.md**](forum/kimi2_6_review.md) — independent cross-model review (Kimi 2.6) with three rounds of dialogue. External scrutiny on the work, raw and verbatim.
+```text
+Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
+```
 
----
+- **LCT - Linked Context Token:** persistent, non-transferable, witnessable entity presence.
+- **T3 / V3:** contextual trust and value tensors.
+- **MRH - Markov Relevancy Horizon:** the boundary within which evidence is relevant.
+- **R6 / R7:** action and accountability grammar around consequential acts.
+- **ATP / ADP:** society-defined resource accounting. ATP is a unit of account, not a protocol currency.
+- **Societies, roles and law:** composable authority under signed machine-readable rules.
+- **MCP:** the inter-society I/O membrane for tools/resources/actions.
+- **RDF:** the extensible semantic substrate tying identities, roles, trust and context together.
 
-## Install
+Web4 does **not** dictate one policy. A society writes its own law. The protocol requirement is that the law, authority and resulting acts are inspectable and auditable.
 
-**Rust** (`Cargo.toml`):
+## What works today
+
+### Published core
+
+Published packages:
+
+```bash
+pip install web4-core
+pip install web4-trust
+```
+
+Rust:
+
 ```toml
 [dependencies]
 web4-core = "0.3"
 web4-trust-core = "0.2"
 ```
 
-**Python**:
-```bash
-pip install web4-core
-pip install web4-trust
-```
+Current published versions:
 
-Both crates and both Python packages are AGPL-3.0-or-later. Patent grant terms in [PATENTS.md](PATENTS.md). Published versions: `web4-core` 0.3.0 and `web4-trust-core` / `web4-trust` 0.2.0; the `web4-core` source in this repository is 0.4.0.
+- `web4-core` 0.3.0 on crates.io + PyPI
+- `web4-trust-core` 0.2.0 on crates.io
+- `web4-trust` 0.2.0 on PyPI
+- `web4-core` 0.4.0 in source on `main`
 
-### 30-second proof of presence
+See [docs/proof/PUBLISHED.md](docs/proof/PUBLISHED.md) for the publication trail.
 
-Once installed, this is the smallest end-to-end path — create a presence, mint it to a hash-chained ledger, sign and verify, generate and verify an inclusion proof:
+### Hub: a running Web4 society
 
-**Python:**
-```python
-import web4_core
+The [Hub](hub/) is a small Rust daemon that turns a community or organization into a sovereign Web4 society:
 
-# Create LCT (presence primitive) and an Ed25519 keypair
-lct, keypair = web4_core.PyLct.new(web4_core.PyEntityType.Human, None)
+- LCT-pinned membership
+- seven base roles
+- signed machine-readable law
+- sealed member-to-hub channels
+- append-only witnessed ledger
+- MCP, REST and admin surfaces
+- governance decisions recorded as acts rather than disappearing into chat history
 
-# Mint into a ledger: LCTs are non-transferable, cryptographically witnessed presence records; minting records presence into the ledger
-ledger = web4_core.PyInMemoryLedger()
-receipt = ledger.mint(lct)
+A standalone mirror is published at [dp-web4/4-hub](https://github.com/dp-web4/4-hub).
 
-# Sign + verify
-sig = keypair.sign(b"hello, web4")
-assert lct.verify_signature(b"hello, web4", sig)
+### Hestia: one local law across agent vendors
 
-# Inclusion proof — anyone can verify this LCT is in the ledger without trusting you
-proof = ledger.anchor(lct.id)
-assert ledger.verify_proof(proof)
-```
+[Hestia](https://github.com/dp-web4/hestia) is the open local governance layer. Claude Code, Codex, Kimi, Gemini, Cursor and other agents can transit one policy/witness surface on the same machine.
 
-**Rust:** identical steps with `Lct::new` / `ledger.mint` / `keypair.sign` / `ledger.anchor` — see [`web4-core/README.md`](web4-core/README.md#quick-start) for the matching code.
+The running layer includes:
 
-**Persistent version with on-disk keypair + hash-chained ledger:** [`web4-core/python/examples/identity_bootstrap.py`](web4-core/python/examples/identity_bootstrap.py). Run once to bootstrap an LCT for a host; re-run to verify the chain didn't tamper. ~30 seconds.
+- persistent local identity
+- scoped delegation
+- encrypted vault
+- policy checks before consequential actions
+- witnessed allow/deny/outcome records
+- human escalation
+- peer-arbitration paths
+- trust derived from the witnessed chain
 
-**Cross-language verification (Python mints, Rust verifies the same ledger):** [`web4-core/examples/cross_language_verify/`](web4-core/examples/cross_language_verify/). Demonstrates that the on-disk format is the contract: any language with the spec can verify what any other language minted.
+**Assurance ceiling:** the current open profile is **A1**. It is cooperative and tamper-evident. It can stop ordinary mistakes and make bypass attributable, but it is not containment against a determined same-UID adversary. A2 isolation, kernel/relying-party enforcement and stronger hardware roots are roadmap work. See Hestia's README and bypass catalog before relying on it for high-stakes enforcement.
 
----
+### The lab uses the system it is building
 
-## What Web4 is, structurally
+The research fleet operates as a Web4 society while developing the standard. This is useful because governance failures, stale evidence, escalation gaps and deployment mistakes appear as operational defects rather than only design arguments.
 
-**Web4 is to AI governance what the Linux kernel is to an operating system.**
+## Architectural shape
 
-The Linux kernel manages hardware, processes, memory — it's the substrate, and it's not directly usable on its own. GNU userland (shell, utilities, compilers) is what makes the kernel actually operable. Distributions like Ubuntu or Fedora package both together with ecosystem tools. **Linux alone is the engine; GNU provides the controls; together they become the operating system people actually use.**
+### Self-sovereign societies
 
-Web4 specifies the substrate of trust-native AI governance: identity (LCT), trust accounting (T3/V3*MRH), resource accounting (ATP/ADP), action grammar (R6/R7), all expressed over RDF with MCP as the inter-society I/O membrane. It's not directly usable on its own. **Web4 Core is the substrate. [Hestia](https://github.com/dp-web4/hestia) and the [Hub](hub/) are the open operational layers for individuals and societies: Hestia at the person/agent boundary, the Hub as the society daemon with membership, roles, law and a witnessed ledger. Hardbound, the proprietary Metalinxx enterprise tier, is the enterprise assurance layer that adds hardware-rooted enforcement and audit packaging.** A specific deployment in a specific organization is the distribution-equivalent.
+There is no required top-level CA or global owner. Societies can bootstrap, federate and secede. Higher-order societies are overlays formed by constituent consent, not owners of the members below them.
 
-This framing tells you where Web4 sits in the stack, and what's deliberately not in scope:
+See [inter-society-protocol.md](web4-standard/core-spec/inter-society-protocol.md).
 
-- Web4 doesn't decide *what your application looks like*, any more than the Linux kernel decides what a desktop environment looks like
-- Web4 isn't competing with Hestia, Hub or Hardbound; they are runtime layers of the same stack
-- Web4 alone is technically usable (via SDK calls) but operationally inert; you run an operational layer (Hestia, Hub) or build your own
-- Alternative implementations beyond Hestia, Hub and Hardbound are expected and welcome; the spec is designed for interoperable implementations
-- A conformance test suite, analogous to POSIX, is what would make alternative implementations provably interoperable; that work is in progress
+### Roles are first-class entities
 
-## Who this is for, and why
+Authority binds to roles rather than being hard-coded to a particular person or agent. Roles can be filled by humans, AI agents, sub-societies or federations, and role law composes with society law.
 
-If you're one of these people, this is worth your time:
+See [society-roles.md](web4-standard/core-spec/society-roles.md).
 
-- **AI engineering lead at a lab or platform** building agent frameworks, policy systems, or governance tooling. Web4 primitives compose under your runtime. Cross-language interop (Python and Rust verifying the same on-disk ledger) is shipped; identity, T3/V3 trust, witnessing, and audit-defensible records are published primitives, not slideware.
+### Law is witnessed, not dictated
 
-- **CISO or AI risk lead** in a regulated industry (finance, defense, healthcare) where agentic AI deployments will need to defend their actions to auditors, regulators, or insurers. Web4 turns "we hope nothing went wrong" into "we can prove what happened, on whose authority, by what rules." Open deployments: [Hestia](https://github.com/dp-web4/hestia) at the agent boundary and the [Hub](hub/) at society scale. Enterprise tier: Hardbound, the proprietary Metalinxx enterprise tier for hardware-bound identity, stronger fail-closed enforcement and audit-ready evidence export.
+Web4 does not prescribe the content of a society's policy. It requires the chosen law to be explicit enough that consequential acts can be evaluated against it and the decision can be audited later.
 
-- **Developer-tooling company** building agent frameworks (LangChain, CrewAI, AG2, etc.) or governance toolkits. Web4 defines the identity, trust, action and law primitives; Hestia, Hub and Hardbound are runtime implementations that apply those primitives at different boundaries and assurance levels. The layers compose; Web4 is the standard your governance toolkit can consume so identity isn't proprietary to the runtime. **Integration path**: the `web4-core` crate and Python package for the primitives, [Hestia](https://github.com/dp-web4/hestia) as the open reference for gating an orchestrator's acts against law before execution, and Hardbound, the proprietary Metalinxx enterprise tier, for hardware-rooted enforcement. Web4 is the substrate.
+See [web4-society-authority-law.md](web4-standard/core-spec/web4-society-authority-law.md).
 
-- **Standards body, regulator, or insurer** trying to figure out what "agentic AI accountability" means technically. Web4 is the open spec + published implementation + reproducible artifacts. AGPL-3.0 with patent grant ([PATENTS.md](PATENTS.md)); an open standard designed without a central authority. Start with [STATUS.md](STATUS.md) and the [whitepaper](whitepaper/).
+## Standards interoperability
 
-If you came here looking for a finished product to install and use, this isn't that. If you came here looking for the layer underneath the products you're building, it is.
+Web4 is designed to compose with, not replace, existing identity/credential standards. Work in the repository includes `did:web4`, SD-JWT-VC and OpenID4VCI/VP paths, with broader DID/EUDI wallet interoperability still building.
 
-### Why the applications will come
+Start with:
 
-Web4 doesn't predict what the killer applications will be — that's what builders figure out, the way they figured out which applications mattered once Linux + GNU made general-purpose computing accessible. What's certain is the *forcing function* is arriving:
+- [Web4 and Standard Credentials](docs/whitepapers/web4-and-standard-credentials.md)
+- [EUDI resolvability plan](docs/strategy/eudi-resolvability-plan.md)
+- [did:web4 method](web4-standard/core-spec/did-web4-method.md)
 
-- **The bearer-token credential model is breaking.** The Vercel breach exploited tokens-as-keys; Web4 treats tokens as evidence in a witness graph instead.
-- **Financial regulators are convening on agentic AI.** The recent SR 26-2 / OCC Bulletin 2026-13 explicitly excludes agentic AI from current model-risk frameworks and signals an RFI is imminent.
-- **Cyber insurers don't yet know how to underwrite AI risk** — the technical references they'd cite don't exist yet.
-- **AI labs are starting to ship runtime governance features** (Microsoft Agent Governance Toolkit, April 2026; Anthropic adopting Web4-style governance patterns) — but each in their own runtime, without a shared identity layer underneath. Web4 is that layer.
+## Who this is for
 
-The applications come when the substrate exists *and* the present-tense pain forces builders onto it. Both halves are arriving at the same time. The standard is here so the applications can come — not because we know what they are.
+- **AI platform and agent-framework teams** that need identity and governance to survive model/vendor changes.
+- **CISOs and AI risk leaders** who need evidence of what an agent did, under whose authority and under what policy.
+- **Communities and organizations** that want self-governing agent/human societies rather than one platform-owned trust database.
+- **Standards bodies, regulators and insurers** looking for concrete accountability primitives rather than another high-level safety taxonomy.
+- **Enterprise builders** who need the open interoperability layer plus a path to higher-assurance enforcement.
 
----
+## Five-minute audit
 
-## Status Snapshot (2026-08-18)
+If you want to decide quickly whether this is real, read these in order:
 
-### Where it landed publicly
-- **AI Demo Day 4** (2026-04-26): Web4 presented as "verifiable presence" for agentic AI. Slides + narration archived at https://4-gov.org/demo
-- **Cross-model independent review** (2026-05-13): Kimi 2.6 reviewed the repo + specs across three rounds of dialogue. Verbatim transcript at [`forum/kimi2_6_review.md`](forum/kimi2_6_review.md). Scoring: architectural coherence 8.5/10, bootstrap story 8/10, spec completeness intra-society 7/10, spec completeness inter-society 4/10. The dialogue produced two new spec docs (see below).
+1. [STATUS.md](STATUS.md) - calibration: shipped vs. implemented vs. specified vs. aspirational.
+2. [docs/START_HERE.md](docs/START_HERE.md) - two-minute conceptual map.
+3. [docs/proof/PUBLISHED.md](docs/proof/PUBLISHED.md) - package publication history.
+4. [hub/](hub/) - running society reference implementation.
+5. [Hestia](https://github.com/dp-web4/hestia) - running local governance layer and honest A1 assurance boundary.
+6. [docs/reference/RELATED_REPOS.md](docs/reference/RELATED_REPOS.md) - ecosystem map.
+7. [web4-standard/core-spec/](web4-standard/core-spec/) - normative protocol work.
 
-### Since the last snapshot (2026-07-09 → 2026-08-18)
+## Historical ARC-AGI-3 note
 
-229 PRs merged. What a visitor should know changed:
+A spring-2026 SAGE/ARC harness produced a published **94.85%** scorecard using Claude Opus 4.6. The artifact is preserved in [docs/proof/ARC-AGI-3.md](docs/proof/ARC-AGI-3.md) and [ARC-SAGE](https://github.com/dp-web4/ARC-SAGE) because it is part of the research history.
 
-- **The hub's north star is written down.** [`hub/docs/PRD_HUB_V2_FEDERATED.md`](hub/docs/PRD_HUB_V2_FEDERATED.md)
-  (#698) is a maintained PRD for the *federated* hub — peer federation, greater hubs chartered for a
-  narrow role, fractally-joinable ledgers, roles as runtime entities, roles promotable into sub-hubs,
-  and edge-scoped law compatibility instead of shared law. R1–R6 are **specified and unbuilt**; the
-  document carries falsifiable acceptance criteria for each, so progress against it is checkable.
-- **Sprint F0 landed** — the hygiene the rest is gated on: degraded-event recording with a
-  conduct-vs-infrastructure class so an infra failure never scores as a member's conduct (#703);
-  asserted-asker admission, where a self-asserted identity collects no peer factors (#706); and
-  deploy ratification, on the principle that **currency is not ratification** (#708).
-- **The role-scope bridge** (#715, with its twin in hestia): a role's charter carries a scope
-  manifest, occupancy delivers it to the occupant's own daemon, and a member-level clearance bounds
-  it — scope is an intersection, never a union. Design stage, both sides.
-- **Hub surface**: an in-browser client for join + discuss (#676), and a sealed chain-tail watermark
-  so a truncated ledger is refused at open (#677).
-- **Standard**: hackathon findings folded into canonical text (#678), plus a continuing per-spec
-  audit series (C344/C366/C384/C394…) whose findings are recorded even when they indict earlier
-  passes.
+It is **not a current competitive claim and no longer serves as Web4's primary proof point**. The run used a frontier model and engine-level/public-game affordances outside strict competition play. Current competition-legal local-model work is well behind the leaders.
 
-### Implementation status
-- **Published artifacts**: `web4-core` and `web4-trust-core` on crates.io; `web4-core` and `web4-trust` on PyPI. **Published: `web4-core` v0.3.0** (2026-07-09: role entities + LCT issuance/registry, canonical T3/V3, the Act primitive, EUDI/OID4VC, the vault; `web4-trust-core`/`web4-trust` at v0.2.0), AGPL-3.0-or-later. Source in this repository: `web4-core` 0.4.0 (crates.io and PyPI carry 0.3.0). See [STATUS.md](STATUS.md) for the full version table and [docs/proof/PUBLISHED.md](docs/proof/PUBLISHED.md) for the publish trail.
-- **Community Hub** (`web4/hub`): a runnable single-binary Web4 society server — signed law, witnessed hash-chained ledger, sealed member↔hub channel, admission/council, EUDI issuer/verifier. Hardened this cycle under a 3-pass external security review; ships a `hub up` turnkey deploy kit.
-- **EUDI / W3C-DID interop** (code, Phase 0-2): an LCT resolves as a `did:web4` DID Document and issues/presents as an IETF SD-JWT-VC over OpenID4VCI/VP. Running where implemented: SD-JWT-VC, OpenID4VCI issuance and OID4VP verification (hub as issuer and verifier, hestia at person scale). Building: `did:web4` deployment and broader EUDI wallet interoperability; no external wallet round trip has been demonstrated.
-- **Stage**: open standard, draft in places; core implementation published and running; Hub/Hestia reference deployments operate on the live fleet (eight machines); DID/EUDI interoperability and higher-assurance enforcement remain in development. Packages are public (`web4-core` 0.3.0, trust family 0.2.0); reference implementation, hub, and harness are public.
-- Spec corpus: stable, with two new core specs added 2026-05-13 (see below)
-- **NEW**: [`inter-society-protocol.md`](web4-standard/core-spec/inter-society-protocol.md) v0.1.2 DRAFT — society genesis, first-contact (3 sovereign options), ATP-as-unit-of-account, secession
-- **NEW**: [`society-roles.md`](web4-standard/core-spec/society-roles.md) v0.1.0 DRAFT — 7 base-mandatory roles + context-mandatory + optional, with fractal composability
-- Reference Python SDK + 8-tool MCP server: 2,627 tests, mypy --strict clean (`web4-standard/implementation/`)
-- Cognition harness producing the 94.85% result: [SAGE](https://github.com/dp-web4/SAGE)
-- Hardware binding (TPM 2.0 on Linux), fail-closed policy enforcement, and audit packaging: Hardbound, the proprietary Metalinxx enterprise tier (building). Signed audit bundles with SIEM/GRC export are deliverable; hardware-bound enforcement is in development
-- Attack simulation suite: 424 vectors across 84 tracks (~85% detection rate). **Honest characterization**: synthetic adversaries only, no red team engagement yet; some "defenses" are standard infosec practices (EM shielding, TEMPEST) documented for completeness, not Web4-novel. See STATUS.md for the breakdown.
-- Formal threat model: [THREAT_MODEL.md v2.0](docs/reference/security/THREAT_MODEL.md)
+The enduring lesson was narrower and more useful: the structure around a model can materially change behavior. Current work is about making that structure persistent, governable, learnable and trustworthy under real operational constraints.
 
-### Gaps
-- Economic attack modeling at scale (no real-market testing)
-- Formal Sybil-resistance proofs (empirical defenses only)
-- Hardware binding reference implementation in this public repo (Python `AttestationEnvelope` shipped; Rust port and on-device integration in progress; the hardware path lives in Hardbound, the proprietary Metalinxx enterprise tier)
+## Enterprise path
 
-### Open questions
-- Are stake amounts actually deterrent? (no economic modeling)
-- Does witness diversity resist sophisticated cartels?
-- What's the minimal viable Web4 for a public pilot?
+Web4 is open infrastructure. **Hardbound** is Metalinxx's proprietary enterprise assurance tier for hardware-bound identity, stronger fail-closed enforcement and audit-ready evidence packaging.
+
+That split is deliberate: interoperability and core accountability primitives belong in the open; enterprise assurance, deployment and integration can be commercial.
+
+## License and patents
+
+Code is AGPL-3.0-or-later unless a subdirectory states otherwise. Patent terms are in [PATENTS.md](PATENTS.md); commercial licensing is separate where applicable.
 
 ---
 
-## 🎯 Vision
-
-**Web4 makes AI actions verifiable, attributable, and accountable — without central control.**
-
-AI agents are increasingly autonomous. Booking, coding, transacting, deciding. Current architectures assume either central control (a platform decides who's trusted — doesn't scale, single point of failure) or cryptographic ownership (you're trusted if you hold the right keys — insufficient, since holding a key doesn't mean you'll act well).
-
-Neither answers: **how do I know this agent will behave appropriately in this context, and how do I prove what it actually did?**
-
-### About "Web4"
-
-Like Web1, Web2, and Web3, "Web4" is a generational label for the capabilities needed in the agentic AI era — not a single protocol or product.
-
-**This project suite** focuses specifically on **trust infrastructure** for agent-agent and agent-human interactions: how agents establish verifiable presence, build reputation, delegate authority, and coordinate safely across organizational boundaries — and how their actions stand up to audit.
-
----
-
-## 💡 Why This Matters
-
-### The Problem
-
-AI agents are increasingly autonomous—browsing, transacting, coordinating with other agents. Current architectures assume either:
-- **Central control**: A platform decides who's trusted (doesn't scale, single point of failure)
-- **Cryptographic ownership**: You're trusted if you hold the right keys (insufficient—holding a key doesn't mean you'll act well)
-
-Neither addresses the core question: **How do I know this agent will behave appropriately in this context?**
-
-### A worked example: why the *relying party* must compute trust
-
-The failure mode is easiest to see in a system that tried the other way first.
-[Hestia](https://github.com/dp-web4/hestia) governs AI agents with a local policy gate:
-the agent asks, the gate decides, the decision is recorded. Its maintainers documented the
-result honestly in
-**[hestia#49](https://github.com/dp-web4/hestia/issues/49)** — worth reading in full,
-because every failure in it is a failure of *declaration-based* trust, not of
-implementation quality.
-
-Three of them, all measured rather than theorised:
-
-- **The declaration can be redirected.** Two environment variables point the gate at a
-  different oracle. A forbidden command is permitted, exit 0, empty stderr. The relying
-  party is handed an "allowed" it has no way to distinguish from a real one.
-- **Silence is unreadable.** Because the record only contains what the gate was asked
-  about, an act that bypassed it leaves no trace — and *no trace* is exactly what a
-  well-behaved idle agent also produces. Absence of evidence is indistinguishable from
-  evidence of absence.
-- **Reputation is writable by third parties.** An agent that can invoke a peer's gate can
-  author denials against that peer's record. 22 such denials accrued to a well-behaved
-  member for acts it never performed. Nothing detected it; a human noticed the numbers
-  did not match the collaborator he knew.
-
-None of these required defeating a control. They required *using* the system as designed —
-which is why hardening the heuristics does not fix them. The gate is the originating side
-declaring a verdict, and **a declaration carries no evidence for the party that has to
-rely on it.**
-
-Web4 inverts that. The relying party is not handed a verdict; it is handed *evidence*, and
-computes trust itself, in its own context:
-
-| the declarative failure | what Web4 gives the relying party instead |
-|---|---|
-| "allowed" that can be forged or redirected | an act **signed by the policy entity**, verifiable against a witnessed LCT — an unsigned act is inert rather than merely disapproved of |
-| silence that could mean anything | **MRH** scopes what evidence *should* exist, so a gap is a detectable absence rather than an ambiguity |
-| a single authority's say-so | **T3/V3 folded from multiple witnesses** — convergence across heterogeneous observers, so one poisoned or blind source does not decide |
-| conduct attributed to whoever's gate processed it | **R6/R7** attributing an act to the entity that *initiated* it, with reputation flowing back along that chain |
-
-This is why the trust tensors are computed from witnessed history rather than asserted,
-and why the spec spends its effort on *what evidence an act carries* rather than on how
-strict any particular gate should be. Hestia's roadmap converges on the same point from
-the implementation side: relying parties demanding policy-signed actions, and ultimately
-enforcement below the process boundary. The two repositories are the same argument, one
-written as specification and one as scar tissue.
-
-### How Web4 Differs from Web3
-
-| Aspect | Web3 | Web4 |
-|--------|------|------|
-| **Trust basis** | Cryptographic proof of ownership | Behavioral reputation over time |
-| **Identity** | Wallet addresses | Linked Context Tokens (LCTs) with witnessed history |
-| **Authorization** | Token-gated access | Context-dependent trust tensors |
-| **Coordination** | Smart contracts | Federated societies with emergent trust structures |
-| **Focus** | Asset ownership | Agent behavior and intent |
-
-### What Problems This Could Address
-
-- **AI Agent Accountability**: Every action traceable to a verifiable presence with reputation at stake
-- **Cross-Platform Coordination**: Agents from different systems interoperating through shared trust protocols
-- **Graduated Authorization**: Not just "allowed/denied" but nuanced trust based on context, history, and stakes
-- **Self-Organizing Trust**: Societies that establish norms through interaction rather than requiring top-down rule enforcement
-
----
-
-## 📚 Quick Navigation
-
-| You Are... | Your Goal | Start Here |
-|------------|-----------|------------|
-| **New to Web4** | Understand the vision | [docs/START_HERE.md](docs/START_HERE.md) |
-| **Developer** | Implement Web4 | [docs/how/README.md](docs/how/README.md) |
-| **Researcher** | Study the concepts | [STATUS.md](STATUS.md) → [whitepaper/](whitepaper/) |
-| **AI Agent** | Integrate | [docs/how/AGENT_INTEGRATION.md](docs/how/AGENT_INTEGRATION.md) |
-| **Contributor** | Help the project | [CONTRIBUTING.md](CONTRIBUTING.md) |
-
-### Learning Path
-
-| Step | Document | What You'll Learn |
-|------|----------|-------------------|
-| 1 | **[STATUS.md](STATUS.md)** | Honest assessment: what exists, what works, what's missing |
-| 2 | **[docs/reference/GLOSSARY.md](docs/reference/GLOSSARY.md)** | Quick reference for all Web4 terminology |
-| 3 | **[whitepaper/](whitepaper/)** | Conceptual foundation: LCTs, trust tensors, MRH, R6 framework |
-| 4 | **[docs/how/README.md](docs/how/README.md)** | Implementation guides |
-| 5 | **[SECURITY.md](SECURITY.md)** | Security research status and known gaps |
-| 6 | **[docs/reference/security/THREAT_MODEL.md](docs/reference/security/THREAT_MODEL.md)** | What we're defending against |
-| 7 | **[docs/specs/attestation-envelope.md](docs/specs/attestation-envelope.md)** | AttestationEnvelope: how LCT presence binds to hardware attestation (TPM2/FIDO2/Secure Enclave/software) into a single verifiable structure |
-| 8 | **[docs/specs/heterogeneous-identity.md](docs/specs/heterogeneous-identity.md)** | Multi-factor identity as a constellation of mutually-witnessing factors. Why "vendor gating LCT" dissolves once identity stops being singular. |
-| 9 | **[docs/reference/LCT_DOCUMENTATION_INDEX.md](docs/reference/LCT_DOCUMENTATION_INDEX.md)** | Index of all LCT-related documentation |
-
----
-
-## ⚠️ Project Status
-
-**Open standard, draft in places; core implementation published and running; Hub/Hestia reference deployments operate on the live fleet; DID/EUDI interoperability and higher-assurance enforcement remain in development.**
-
-Web4 is investigating trust-native architectures for AI coordination. Working primitives, a running society, and significant gaps coexist; each piece carries its own maturity label in [STATUS.md](STATUS.md).
-
----
-
-## 🏗️ Four Development Tracks
-
-Web4 contains **four development tracks** at different maturity levels.
-
-Read against the [worked example](#a-worked-example-why-the-relying-party-must-compute-trust)
-above, these are the pieces that move trust from the originating party's *declaration* to
-evidence the relying party can *compute* over: **Track 2** makes authorization a query
-against witnessed state rather than a stored grant; **Track 3** is the running society
-where acts are witnessed by parties other than the actor, which is what makes convergence
-across observers possible at all; **Track 4** carries the R6/R7 action grammar that binds
-an act to the entity that *initiated* it. The remaining gap in all four — and the reason
-hestia#49 stays open — is that a relying party cannot yet **refuse an act for lacking a
-policy signature**. Until it can, evidence is available but not required, and "available
-but not required" is how declaration-based trust survives underneath a system that means
-to replace it.
-
-### Track 1: 4-Life — Lifecycle and Trust-Evolution Explainer (Standalone)
-
-**What it is**: An interactive explainer site demonstrating how agents earn trust over time — lifecycle, witnessing, and trust evolution made browsable. Live at [4-life-ivory.vercel.app](https://4-life-ivory.vercel.app/).
-
-**Status**: **Standalone project** → [github.com/dp-web4/4-life](https://github.com/dp-web4/4-life)
-
-The original prototype (`/game/`) was archived to `archive/game-prototype/` after evolving past the simulation stage. Active simulation research continues in `/simulations/` (attack scenarios, trust dynamics).
-
-**Documentation**:
-- [`archive/game-prototype/ARCHIVED.md`](archive/game-prototype/ARCHIVED.md) — evolution history
-- [4-life repo](https://github.com/dp-web4/4-life) — active development
-- [4-life-ivory.vercel.app](https://4-life-ivory.vercel.app/) — interactive demo
-
-**Use for**: A non-technical introduction to how Web4 trust evolves. Pair with this README for the architectural view.
-
-### Track 2: `web4-standard/implementation/authorization/` - PostgreSQL Authorization Layer
-
-**What it is**: Database-backed authorization with security mitigations.
-
-**Status**: More mature, but still research
-- Real SQL schemas with constraints
-- ATP drain/refund mitigations
-- Reputation washing detection
-- Delegation validation
-- ~50 test files with security attack tests
-
-**Key files**:
-- `schema.sql`, `schema_atp_drain_mitigation.sql`, `schema_reputation_washing_detection.sql`
-- `authorization_engine.py`, `delegation_validator.py`, `sybil_resistance.py`
-- `test_security_attacks.py`, `test_atp_refund_exploit.py`
-
-**Use for**: Authorization logic that needs persistence and real constraints
-
-### Track 3: `hub/` - A Running Web4 Society (Reference Deployment)
-
-**What it is**: The current best demonstration — a Web4 society *running on the real stack*: LCT-pinned membership, sealed end-to-end member channels, a witnessed hash-chained ledger as the society's collective memory, hub-law (Law Dataset) gating consequential acts, governance-driven role assignment, and the RWOA-gradient operator gate. Operated in production by the fleet for actual multi-agent coordination. Paired with [hestia](https://github.com/dp-web4/hestia) at the individual-agent boundary.
-
-**Use for**: Seeing the architecture *running*, not mocked.
-
-*(The earlier standalone Python commerce-delegation demo — a mock of one narrow use-case, not built on the shipped crates — is archived at [`archive/demo/`](archive/demo/), superseded by the hub.)*
-
-### Track 4: `web4-standard/implementation/reference/` - Coordination Framework (Active Development)
-
-**What it is**: Reference implementations for distributed coordination, pattern learning, and cross-system integration.
-
-**Status**: Active research with validated components (~25,000 lines added Dec 2025)
-- Phase 2 coordinators (epistemic, integrated, circadian, adaptive)
-- Pattern exchange protocol (bidirectional SAGE ↔ Web4)
-- EM-state (Epistemic Monitoring) framework
-- Temporal/phase-tagged learning
-- LCT Unified Presence Specification
-
-**Key Components**:
-
-| Component | Purpose | Status |
-|-----------|---------|--------|
-| Phase 2a Epistemic Coordinator | Runtime epistemic state tracking | Validated |
-| Phase 2b Integrated Coordinator | Epistemic + pattern learning | Validated |
-| Phase 2c Circadian Coordinator | Temporal/phase-aware decisions | Validated |
-| Phase 2d Adaptive Coordinator | EM-state modulation | Validated |
-| Pattern Exchange Protocol | Cross-system learning transfer | Operational |
-| LCT Presence Specification | Unified presence format | v1.0.0 draft |
-
-**Validation Results** (Dec 2025):
-- 76% prediction validation (13 of 17 predictions confirmed)
-- +386% efficiency improvement demonstrated
-- Long-duration testing (1000+ cycles)
-
-**Key Files**:
-- `web4_phase2b_integrated_coordinator.py` - Combined epistemic + learning
-- `temporal_pattern_exchange.py` - Phase-aware pattern transfer
-- `universal_pattern_schema.py` - Cross-system pattern format
-- `LCT_UNIFIED_PRESENCE_SPECIFICATION.md` - Presence standard (in `/docs/`)
-
-**Use for**: Coordination research, SAGE integration, cross-system pattern transfer
-
----
-
-## 📊 Key Documentation
-
-| Document | What It Covers |
-|----------|----------------|
-| **[STATUS.md](STATUS.md)** | Honest assessment - what exists, what works, what's missing |
-| **[SECURITY.md](SECURITY.md)** | Security research status and gaps |
-| **[docs/reference/security/THREAT_MODEL.md](docs/reference/security/THREAT_MODEL.md)** | Formal threat model for the overall system |
-| **[docs/reference/GLOSSARY.md](docs/reference/GLOSSARY.md)** | Canonical terminology definitions |
-| **[Whitepaper](whitepaper/)** | Conceptual foundation (LCTs, trust, MRH) |
-
-**Start here**: [STATUS.md](STATUS.md) for fair evaluation criteria
-
----
-
-## What Is Web4?
-
-Web4 is an **ontology** — a formal structure of typed relationships through which trust, identity, and value are expressed.
-
-**Architect's view (what Web4 is):**
-```
-Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
-```
-
-**Entity's view (what existence looks like from inside):**
-```
-Presence = LCT[T3/V3 * MRH] + RDF + ATP/ADP + MCP
-```
-
-Operators: `[]` = "contains", `/` = "verified by", `*` = "contextualized by", `+` = "augmented with"
-
-**Core components:**
-- **MCP** (Model Context Protocol) — I/O membrane for inter-entity communication
-- **RDF** (Resource Description Framework) — Ontological backbone; all trust relationships are typed triples, all MRH graphs are RDF, all semantic queries use SPARQL
-- **LCT** (Linked Context Token) — Verifiable presence anchored to hardware
-- **T3/V3** (Trust/Value Tensors) — Fractally multidimensional. T3 has 3 root dimensions (Talent / Training / Temperament); V3 has 3 (Valuation / Veracity / Validity). Each root dimension is itself an open-ended RDF sub-graph of context-specific sub-dimensions via `web4:subDimensionOf`, bound to entity-role pairs
-- **MRH** (Markov Relevancy Horizon) — Fractal context scoping, implemented as RDF graphs
-- **ATP/ADP** (Allocation Transfer/Discharge Packets) — Bio-inspired energy metabolism
-
-**Built on this foundation:** Societies, SAL (oversight), AGY (delegation), ACP (autonomous operation), Dictionaries (semantic bridges), R6/R7 (action framework), Federation (multi-society coordination)
-
-### The Research Questions
-
-- How do you give AI agents authority without losing control?
-- How does trust emerge and decay in distributed systems?
-- How do you coordinate multiple AI societies?
-- What security properties are achievable at scale?
-
-### What We're Exploring
-
-**Fine-grained delegation** with enforcement:
-
-```
-Example: Agent purchasing with constraints
-- Daily budget limits
-- Per-transaction limits
-- Resource type restrictions
-- Approval thresholds
-- Instant revocation
-```
-
-### Concept → Implementation Map
-
-| Concept | Specification | Reference Implementation | Research / Simulations |
-|---------|--------------|--------------------------|------------------------|
-| **LCT (Presence)** | [`web4-standard/core-spec/LCT-linked-context-token.md`](web4-standard/core-spec/LCT-linked-context-token.md) | [`web4-core/`](web4-core/) (Rust + Python), [`web4-standard/implementation/sdk/web4/lct.py`](web4-standard/implementation/sdk/web4/lct.py) | [`simulations/`](simulations/), [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) |
-| **Multi-Device Binding** | [`web4-standard/core-spec/multi-device-lct-binding.md`](web4-standard/core-spec/multi-device-lct-binding.md) | [`web4-core/python/web4/trust/attestation/`](web4-core/python/web4/trust/attestation/) | AttestationEnvelope + TPM2/FIDO2/SE/software anchor verification |
-| **Trust Tensors (T3/V3)** | [`web4-standard/core-spec/t3-v3-tensors.md`](web4-standard/core-spec/t3-v3-tensors.md) | [`web4-core/src/t3.rs`](web4-core/src/t3.rs), [`v3.rs`](web4-core/src/v3.rs), [`web4-trust-core/`](web4-trust-core/), [`web4-standard/implementation/sdk/web4/trust.py`](web4-standard/implementation/sdk/web4/trust.py) | [`simulations/`](simulations/) — trust dynamics |
-| **MRH (Context)** | [`web4-standard/core-spec/mrh-tensors.md`](web4-standard/core-spec/mrh-tensors.md) | [`web4-standard/implementation/sdk/web4/mrh.py`](web4-standard/implementation/sdk/web4/mrh.py) (Python; no Rust port yet) | [`simulations/`](simulations/) |
-| **ATP/ADP (Economics)** | [`web4-standard/core-spec/atp-adp-cycle.md`](web4-standard/core-spec/atp-adp-cycle.md) | [`web4-standard/implementation/sdk/web4/atp.py`](web4-standard/implementation/sdk/web4/atp.py) | [`simulations/`](simulations/) — economic attack modeling |
-| **MCP Integration** | [`web4-standard/core-spec/mcp-protocol.md`](web4-standard/core-spec/mcp-protocol.md) | [`web4-standard/implementation/sdk/web4/mcp_server.py`](web4-standard/implementation/sdk/web4/mcp_server.py) | [`mcp-server/`](mcp-server/) — standalone server (legacy; prefer the SDK) |
-| **R6 / R7 Action Grammar** | [`web4-standard/core-spec/r6-framework.md`](web4-standard/core-spec/r6-framework.md), [`r7-framework.md`](web4-standard/core-spec/r7-framework.md) | [`web4-standard/implementation/reference/`](web4-standard/implementation/reference/) | [`simulations/r6.py`](simulations/r6.py) |
-| **RDF Ontologies** | [`web4-standard/ontology/`](web4-standard/ontology/) | TTL files (documentation-grade; consumed conceptually, not runtime-validated yet) | — |
-| **Federation** | [`docs/how/integration/SAGE_WEB4_INTEGRATION_DESIGN.md`](docs/how/integration/SAGE_WEB4_INTEGRATION_DESIGN.md) | [`web4-standard/implementation/reference/`](web4-standard/implementation/reference/) | [`simulations/federation.py`](simulations/federation.py) |
-| **Societies** | [`web4-standard/core-spec/SOCIETY_SPECIFICATION.md`](web4-standard/core-spec/SOCIETY_SPECIFICATION.md) | 4-life repo | Society simulation |
-| **Authorization** | [`web4-standard/core-spec/security-framework.md`](web4-standard/core-spec/security-framework.md) | [`web4-standard/implementation/authorization/`](web4-standard/implementation/authorization/) | PostgreSQL schemas |
-| **Coordination** | [`docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md`](docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md) | [`web4-standard/implementation/reference/`](web4-standard/implementation/reference/) | Phase 2 coordinators |
-
----
-
-## 🚀 Quick Start
-
-### Run a Web4 Society (the hub)
-
-```bash
-cd hub
-hub init <name> --sovereign-lct <path>   # found a society: charter + genesis
-hub init-law                             # write a starter hub-law template
-hub serve <hub-dir>                      # run the daemon: witnessed ledger, sealed channels, law gate
-# or, turnkey: hub up ./hub --profile public-tunnel --domain hub.4-gov.org
-```
-
-See [`hub/README.md`](hub/README.md) for the deployment archetypes and the operator surface.
-*(The archived Python commerce demo is at [`archive/demo/`](archive/demo/).)*
-
-### Run Simulations
-
-```bash
-cd simulations
-
-# Attack simulations
-python attack_simulations.py               # Core attack simulation framework
-python attack_track_fb.py                  # Trust manipulation attacks
-python attack_track_fc.py                  # Economic attacks
-
-# For full 4-Life game demos, see: https://github.com/dp-web4/4-life
-```
-
----
-
-## 📊 Repository Structure
-
-```
-web4/
-├── web4-core/                         # Reference Rust + Python SDK, AttestationEnvelope
-├── web4-trust-core/                   # Trust tensor implementations (Rust)
-├── core/                              # Cross-language shared primitives
-│
-├── web4-standard/                     # Core specifications and implementations
-│   ├── core-spec/                    # Canonical specs (LCT, T3, MRH, ATP, R6)
-│   └── implementation/
-│       ├── authorization/            # PostgreSQL schemas + security mitigations
-│       └── reference/                # Coordination framework
-│
-├── simulations/                       # Attack simulations + trust dynamics research
-│
-├── demo/                              # Commerce demo (delegation UI + store)
-│
-├── docs/                              # Documentation
-│   ├── why/                          # Vision, motivation, Demo Day record
-│   ├── what/specifications/          # Technical specifications
-│   ├── how/                          # Implementation guides
-│   ├── proof/                        # Proof points (ARC-AGI-3, etc.)
-│   ├── history/                      # Research and decisions
-│   └── reference/                    # Glossary, indexes, related repos, security
-│
-├── whitepaper/                        # Conceptual foundation
-├── articles/                          # Public-facing writeups
-├── forum/                             # Cross-machine discussion artifacts
-├── archive/game-prototype/            # Historical: original 4-Life prototype
-├── review/                            # External review artifacts
-├── sessions/                          # Research session scripts and outputs
-│
-├── STATUS.md                          # Project status
-├── SECURITY.md                        # Security research status
-└── CONTRIBUTING.md                    # How to contribute
-```
-
----
-
-## 🤝 Related Projects
-
-- **[HRM/SAGE](https://github.com/dp-web4/HRM)** - Edge AI kernel with MoE expert selection and trust-based routing
-- **[ACT](https://github.com/dp-web4/act)** - Distributed ledger for ATP tokens and LCT presence registry (Cosmos SDK)
-- **[Synchronism](https://github.com/dp-web4/Synchronism)** - Theoretical physics framework (MRH, coherence)
-- **[Memory](https://github.com/dp-web4/memory)** - Distributed memory and witnessing
-
-### Cross-Project Integration
-
-Web4 integrates with SAGE (neural MoE) and ACT (distributed ledger) via:
-- **Unified LCT Presence**: `lct://{component}:{instance}:{role}@{network}`
-- **ATP Resource Allocation**: Synchronized between ledger and edge systems
-- **Bidirectional Pattern Exchange**: Coordination patterns transfer between domains
-- **Trust Tensor Synchronization**: Trust scores flow across system boundaries
-
-See [`docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md`](docs/what/specifications/LCT_UNIFIED_PRESENCE_SPECIFICATION.md) for the presence standard.
-
----
-
-## 📖 Whitepaper
-
-The Web4 whitepaper provides the conceptual foundation:
-
-- **[Web Version](https://dp-web4.github.io/web4/whitepaper-web/)**
-- **[PDF Version](https://dp-web4.github.io/web4/whitepaper-web/WEB4_Whitepaper.pdf)**
-
-Key concepts: LCTs, MRH, Trust Tensors, ATP, Federation, Dictionaries
-
----
-
-## 📄 License
-
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** — see [LICENSE](LICENSE).
-
-### Patent Notice
-
-This software implements technology covered by patents owned by MetaLINXX Inc. A royalty-free patent license is granted for non-commercial use, research and academic use, and open-source projects that comply with AGPL-3.0; commercial licensing is separate.
-
-**For commercial licensing**: Contact Metalinxx Inc. via the [project repository](https://github.com/dp-web4/web4) or see [PATENTS.md](PATENTS.md).
-
-See [PATENTS.md](PATENTS.md) for full patent details.
-
----
-
-**Open standard, running core, live reference deployments, and labeled gaps.**
+**Web4: trust computed from witnessed evidence, under explicit authority and law.**
