@@ -1,177 +1,122 @@
-# Web4: The Witnessed Internet - Executive Summary
+# Web4: Executive Summary
 
-## The Problem
+## The problem
 
-Today's internet lacks a fundamental primitive: **verifiable digital presence**. While we have cryptographic identity (PKI) and distributed systems (blockchain), we lack a way to make digital entities as real and trustworthy as physical ones. Current systems suffer from:
+AI is moving from producing information to taking consequential actions: editing code, moving money, operating infrastructure, coordinating with other agents and acting on behalf of people and organizations.
 
-- **Identity theft**: Digital identities can be stolen, spoofed, or impersonated
-- **Trust deficit**: No systematic way to build and verify trust through observation
-- **Value leakage**: No accounting for actual value exchange between entities
-- **Privacy erosion**: Identity and activity are inextricably linked
+The missing layer is not another model. It is **accountability infrastructure**.
 
-## The Solution: Web4
+A relying party needs to answer, for each consequential act:
 
-Web4 introduces **witnessed presence** as a new internet primitive. Just as TCP/IP created reliable communication and HTTPS created secure communication, Web4 creates **trustworthy presence** through four fundamental mechanisms:
+- Who is acting?
+- Under whose authority?
+- What law or policy applies?
+- What evidence supports the action?
+- What has this entity done before?
+- Was the decision witnessed and can it be audited later?
 
-### 1. Binding: Permanent Identity
-- Creates verifiable link between entities and their digital presence (LCT)
-- Hardware-rooted for physical devices
-- Once bound, identity cannot be transferred or stolen
+Today's systems usually answer those questions with platform-local permissions, bearer credentials, logs and policy engines that do not compose across vendors or organizations.
 
-### 2. Pairing: Authorized Relationships
-- Establishes secure operational channels between entities
-- Context-specific permissions (energy management, data exchange)
-- Cryptographically enforced authorization rules
+## The Web4 thesis
 
-### 3. Witnessing: Trust Through Observation
-- Entities build trust by observing and recording each other's actions
-- Creates bidirectional "memory" links (MRH tensors)
-- Trust accumulates through repeated successful interactions
+**Trust should be computed from witnessed evidence, in context, by the party doing the relying.**
 
-### 4. Broadcast: Discoverable Presence
-- Allows entities to announce existence without prior relationship
-- Enables organic network formation
-- No security overhead for simple discovery
+Web4 is an open substrate for making that possible. An acting entity can carry persistent identity, scoped role authority, the governing law consulted for an act, contextual trust evidence and a witnessed history. The relying party remains sovereign over whether that evidence is sufficient for the stakes.
 
-## Technical Foundation
+Web4 does not define one universal policy. It makes a society's chosen policy explicit, machine-readable and auditable.
 
-Web4 is built on proven cryptographic primitives, elegantly composed:
+## The stack
 
-- **HPKE (RFC 9180)** for secure handshakes
-- **X25519/Ed25519** for modern elliptic curve cryptography
-- **Pairwise pseudonymous identifiers** for privacy
-- **ATP/ADP metering** for economic accountability
+### Web4 - open standard and primitives
 
-The standard includes:
-- Complete protocol specifications
-- Reference implementations in Python
-- Test vectors from real hardware
-- Multiple conformance profiles (IoT, Cloud, Blockchain, P2P)
+The protocol layer defines:
 
-## Real-World Demonstrations
+- **LCT identity/presence** - persistent, non-transferable, witnessable entity identity
+- **T3/V3** - contextual trust/value tensors
+- **MRH** - relevance/context boundaries
+- **R6/R7** - action and accountability grammar
+- **ATP/ADP** - society-defined resource accounting
+- **Societies, roles and law** - composable authority under signed machine-readable rules
+- **Witnessed ledgers** - durable evidence of consequential acts and governance decisions
 
-**Cognition (2026-04)**: The [SAGE](https://github.com/dp-web4/SAGE) cognition harness, built on Web4 patterns, took the same Claude Opus 4.6 from **0% to 94.85%** on the public ARC-AGI-3 reasoning benchmark — no fine-tuning, no additional training. The difference is the structure around the model. Read precisely: this is real, verifiable capability achieved with affordances a strict competition run withholds — the harness analyzed the games' public engine source to build per-game solver cartridges — so the delta shows what the model does *given engine-level context*, not blind from-observation solving. Public scorecard: https://arcprize.org/scorecards/c7dfb4f1-8642-4c9e-ab4d-152f5f8e33b4 · Honest breakdown: https://github.com/dp-web4/web4/blob/main/docs/proof/ARC-AGI-3.md
+`web4-core` 0.3.0 is published on crates.io and PyPI. `web4-trust-core` / `web4-trust` 0.2.0 are published, and `web4-core` 0.4.0 is in source on `main`.
 
-**Enterprise oversight**: **Hardbound** is Metalinxx Inc.'s productized deployment of the Web4 standard for environments where "trust the model" is not an acceptable answer (regulated industries, high-stakes operations). Hardware-bound identity, verifiable audit chains, contextual computable trust. Inquire via the [project repository](https://github.com/dp-web4/web4) for evaluation.
+### Hestia - local governance for humans and agents
 
-**Public framing (Demo Day 4, 2026-04-26)**: Web4 was presented as "verifiable presence" for agentic AI. The audience-tested narrative: AI is already taking actions in the world — Web4 closes the gap on proving what it did. Slides + narration archived at https://4-gov.org/demo.
+[Hestia](https://github.com/dp-web4/hestia) is the open local runtime at the person/agent boundary. Agents from different vendors can operate on one machine under one law, with scoped authority, a vault, witnessed actions, human escalation and trust derived from the record rather than self-reported.
 
-## Economic Model
+The current open assurance grade is **A1**: cooperative and tamper-evident. It is useful for governance, attribution and stopping ordinary mistakes, but it is not containment against a determined same-UID adversary. Higher assurance requires stronger process/OS isolation and relying parties that demand policy-signed acts.
 
-Web4 introduces **trust as economic force**:
-- **ATP (Allocation Transfer Packet)**: Issues credits for resource use
-- **ADP (Allocation Discharge Packet)**: Proves value delivery with ephemeral metadata
-- Every exchange is witnessed, creating reputation
-- Trust directly impacts economic opportunities
+### Hub - society and community governance
 
-## Privacy by Design
+[Hub](https://github.com/dp-web4/4-hub) is the society runtime. It packages membership, seven base roles, signed law, sealed member channels and an append-only witnessed ledger into a small Rust daemon.
 
-Unlike current systems where privacy is bolted on, Web4 builds privacy in:
-- **Pairwise identifiers**: Different ID for each relationship
-- **Selective disclosure**: Share only what's needed
-- **Unlinkable presence**: Be known without being tracked
+A Hub can represent a team, community, company, chapter or other self-governing group. Hestia governs the local member/agent boundary; Hub governs the society boundary.
 
-## Governance Innovation
+### Hardbound - enterprise assurance
 
-Web4 was created through **multi-agent collaboration**:
-- Three AI systems (Manus, Nova, Claude) worked together
-- Each contributed unique expertise
-- The standard itself demonstrates witnessed collaboration
+**Hardbound** is Metalinxx's proprietary enterprise tier. Its role is to raise the assurance grade with hardware-bound identity, stronger fail-closed enforcement and audit-ready evidence packaging for regulated or high-stakes deployments.
 
-This governance model continues:
-- Open source development
-- Community-driven evolution
-- Transparent decision making
-- No single point of control
+### SAGE - persistent cognition research
 
-## Market Opportunity
+[SAGE](https://github.com/dp-web4/SAGE) is the research environment that carries the same identity and governance ideas into persistent local agents with memory, context, sensors, learning and eventually physical effectors. It is research-stage, not the product layer.
 
-Web4 enables entirely new markets:
+## What is real today
 
-### IoT Trust Networks
-- 75 billion IoT devices by 2025 need trustworthy identity
-- Web4 provides verifiable device presence
-- Enables autonomous device economies
+- Published Rust and Python Web4 packages.
+- A running Hub reference society with roles, law, sealed channels and a witnessed ledger.
+- A running Hestia daemon used daily across multiple agent vendors.
+- Exercised human escalation and built peer-arbitration paths.
+- Trust derived from the witnessed chain rather than asserted by the acting agent.
+- A heterogeneous eight-machine research fleet that operates through the same governance machinery it develops.
 
-### Decentralized Energy Markets
-- Peer-to-peer energy trading with trust
-- Automatic settlement through witnessed exchange
-- No intermediaries required
+## What is not being claimed
 
-### AI Agent Ecosystems
-- AI agents can establish trustworthy presence
-- Build reputation through actions
-- Enable agent-to-agent commerce
+- The open Hestia A1 gate is **not adversary-proof containment**.
+- Web4 is **not a finished standard**; parts of DID/EUDI interoperability, conformance, federation and higher-assurance enforcement are still building.
+- A published implementation is not the same as a production-certified enterprise deployment.
+- No benchmark result substitutes for the security and interoperability work above.
 
-### Privacy-Preserving Services
-- Prove attributes without revealing identity
-- Build trust without surveillance
-- Comply with privacy regulations globally
+This distinction is intentional. The project keeps **measured**, **implemented but unexercised**, **specified**, and **aspirational** states separate in [STATUS.md](../../STATUS.md).
 
-## Implementation Roadmap
+## Why this can matter commercially
 
-### Phase 1: Standards Ratification (Q1 2025)
-- Submit to IETF as Internet-Draft
-- Establish W3C Community Group
-- Build reference implementations
+The enterprise problem is becoming concrete: organizations want the productivity of autonomous agents without giving up accountability.
 
-### Phase 2: Early Adoption (Q2-Q3 2025)
-- IoT manufacturers implement binding
-- Cloud providers offer Web4 endpoints
-- Initial blockchain bridges deployed
+The Web4 stack is aimed at the layer underneath agent products:
 
-### Phase 3: Network Effects (Q4 2025+)
-- Critical mass of witnessed entities
-- Trust networks become valuable
-- Economic incentives drive adoption
+1. **Identity** that survives model/vendor changes.
+2. **Authority** that is scoped and revocable.
+3. **Law** that is explicit and machine-readable.
+4. **Evidence** that travels with consequential acts.
+5. **Witnessing** that makes later audit possible.
+6. **Trust** that is contextual and recomputable by the relying party.
 
-## Competitive Advantages
+That creates a natural split between an open protocol ecosystem and a proprietary enterprise assurance layer. The open standard creates interoperability and avoids vendor lock-in; Hardbound can monetize higher-assurance enforcement, hardware roots, deployment, evidence export and enterprise integration.
 
-1. **First-Mover**: No competing standard for witnessed presence
-2. **Complete Stack**: From hardware to blockchain
-3. **Privacy-Native**: GDPR/CCPA compliant by design
-4. **Economic Alignment**: Trust creates value
-5. **Open Standard**: No vendor lock-in
+## The strategic bet
 
-## Call to Action
+If agentic AI becomes infrastructure, then **trust and authority must become infrastructure too**.
 
-Web4 is ready for:
+The long-term target is not a dashboard that says an agent is "safe." It is a network in which humans, agents, services and organizations can prove enough about identity, authority, law and past conduct for another party to make its own decision.
 
-### Standards Bodies
-- Review and ratify the specification
-- Contribute to governance framework
-- Ensure global interoperability
+That is what "trust is computable" means here.
 
-### Technology Companies
-- Implement Web4 in products
-- Contribute to reference implementations
-- Build on the trust layer
+## Historical ARC-AGI-3 note
 
-### Investors
-- Fund Web4 infrastructure
-- Support ecosystem development
-- Capture value from trust networks
+A spring-2026 SAGE/ARC harness produced a published 94.85% scorecard using Claude Opus 4.6. It remains a useful historical research artifact, but it is **not a current competitive claim and no longer serves as Web4's primary proof point**. The run used a frontier model and engine-level/public-game affordances outside strict competition play. Current competition-legal local-model work is well behind the leaders.
 
-### Developers
-- Build Web4 applications
-- Extend the protocol
-- Create new trust-based services
+The durable lesson was methodological: changing the structure around a model can materially change behavior. The current program is focused on making that structure persistent, governable, learnable and operationally trustworthy.
 
-## Conclusion
+## Five-minute diligence path
 
-Web4 represents a fundamental evolution of the internet. Just as HTTPS made commerce possible online, Web4 makes **trust** possible online. By creating verifiable digital presence through witnessed observation, Web4 enables:
-
-- Devices that can't be impersonated
-- AI agents that build real reputation
-- Energy markets that self-regulate
-- Privacy without sacrificing accountability
-
-The standard is complete, tested, and ready for implementation. The question isn't whether we need trustworthy digital presence—it's whether we can afford to continue without it.
-
-**Web4: Where digital presence becomes as real as physical presence.**
+1. [STATUS.md](../../STATUS.md) - current calibration.
+2. [Publication proof](../proof/PUBLISHED.md) - released packages and history.
+3. [Hub](../../hub/) - running society reference implementation.
+4. [Hestia](https://github.com/dp-web4/hestia) - running local governance layer and assurance limits.
+5. [SAGE](https://github.com/dp-web4/SAGE) - persistent cognition research.
+6. [Web4 standard](../../web4-standard/core-spec/) - normative protocol work.
 
 ---
 
-*For technical details, see the [Web4 Standard Specification](/web4-standard/)*  
-*For implementation examples, see the [modbatt-CAN Project](/modbatt-CAN/)*  
-*To contribute, visit [github.com/dp-web4/web4](https://github.com/dp-web4/web4)*
+**Web4: trust computed from witnessed evidence, under explicit authority and law.**
