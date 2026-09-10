@@ -439,9 +439,29 @@ and it is dp's.
 - A single witnessed migration act derives `council` + one `council-member` sub-role per
   current holder from the existing projection.
 - `project_council` gains a role-derived implementation **beside** the legacy one.
+- The founding Sovereign's protection lands **as law**, per §4.3.1 — not as a field on
+  `ProjectedRole`. Its falsifier is a law amendment permitting succession followed by a
+  succession that executes, a test that could not be written at all if the protection were
+  a type property.
+- **Public vacancy state opens here.** Ruled 2026-09-10: once the role-derived council is
+  authoritative enough to agree with the existing public council view, the public pages
+  publish **N established / O occupied / M required**, and say *"quorum currently
+  unreachable"* when `O < M`.
+
+  Two reasons this is the right direction rather than the cautious-looking one. First,
+  `/admin/council` already publishes M-of-N and the eligible holders, so after cutover the
+  occupied count is derivable from what is public and hiding it is theatre. Second, and the
+  stronger one: **governance transparency exists to tell participants whether a constituted
+  body can presently reach a verdict.** A vacancy list alone does not answer that; N/O/M
+  does. The thing worth publishing is the reachability, not the roster.
+
+  A vacancy table published *before* the role-derived council is authoritative would be the
+  bad version — two transparency pages disagreeing about whether the body can act. Which is
+  why this is a Sprint 3 item and not a Sprint 2 one.
 - **Acceptance:** a differential test asserts the two implementations agree — same holder
   set, same threshold — on a fixture shaped like the live fleet hub. Disagreement fails the
-  build. The legacy path is still what the gate consults.
+  build. The legacy path is still what the gate consults. The public N/O/M panel is driven
+  by the same projection the differential covers, so the two pages cannot disagree.
 
 ### Sprint 4 — Authority derives from occupancy *(the switch)*
 
