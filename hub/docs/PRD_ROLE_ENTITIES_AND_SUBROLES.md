@@ -335,12 +335,20 @@ measurement in this document.
 - `POST /admin/api/roles/create`, `/:id/fill`, `/:id/vacate`, `/:id/retire`, and
   `GET /admin/api/roles` — all loopback-only, all through the same governance gate the
   council routes use, all enumerated in the plane-split guard.
-- The **two kinds are created differently**, because dp's rule about them is a rule and
-  not a description. A Capacity names its holder in the creating act; an Office may not,
-  because an Office is constituted first and filled second.
-- **Retiring an occupied role is refused.** Vacate first. This is the surface's V clause:
-  a live council cannot be shrunk in a single act, and a retire that quietly evicted its
-  occupant would re-fuse N and O at the surface after the substrate had split them.
+- The **four Capacity rules from §3 G2a are enforced here**, one construct each: creation
+  is atomic (`initial_occupant` inside `RoleCreated`), `fill` refuses a Capacity, `vacate`
+  refuses a Capacity, and `retire` requires an occupied Capacity while refusing an occupied
+  Office. The falsifier drives every route that could reach the forbidden state, because
+  "unreachable" is a claim about all paths and not about the one that was fixed.
+- **Retiring an Office that is occupied is refused.** Vacate first. This is the surface's V
+  clause: a live council cannot be shrunk in a single act, and a retire that quietly evicted
+  its occupant would re-fuse N and O at the surface after the substrate had split them. The
+  same verb on a Capacity is the opposite — it *is* the act of spending one, so it requires
+  a holder and leaves them on the record.
+- The UI follows the kinds. A held Capacity offers **Spend** and nothing else; it is never
+  shown a Fill or Vacate button. An earlier cut offered Fill on a spent Capacity, which
+  invites the operator to do the one thing the model forbids — a UI that offers an act the
+  surface refuses is a UI that teaches the wrong model.
 - `parent_role_lct_id` is **not accepted** here. The verb carries it; the invariants that
   make a parent safe are Sprint 2, and a surface that accepted a parent before its
   invariants existed would be this PRD's own gap, freshly dug.

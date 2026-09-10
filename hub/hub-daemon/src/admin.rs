@@ -1432,6 +1432,7 @@ function roleCreate(){
 }
 function roleFill(id){ const lct=prompt('Fill role '+id+' — member LCT id:'); if(!lct) return; hubAct('/admin/api/roles/'+id+'/fill',{member_lct_id:lct.trim()}); }
 function roleVacate(id){ const reason=prompt('Vacate role '+id+' — reason (optional). The role and its whole occupancy log survive:'); if(reason!==null) hubAct('/admin/api/roles/'+id+'/vacate',{kind:'resigned',reason:reason||null}); }
+function roleSpend(id){ const reason=prompt('SPEND capacity '+id+' — reason (optional). Its holder stays on the record; a new holder needs a new instance:'); if(reason!==null) hubAct('/admin/api/roles/'+id+'/retire',{reason:reason||null}); }
 function roleRetire(id){ const reason=prompt('RETIRE role '+id+' — reason (optional). This strikes the seat from the constitution and there is no un-retire:'); if(reason!==null) hubAct('/admin/api/roles/'+id+'/retire',{reason:reason||null}); }
 function admissionReset(){ const lct=prompt('Admission-reset which LCT id? (clears denial + review standing)'); if(!lct) return; const reason=prompt('Reason (optional):'); if(reason!==null) hubAct('/admin/api/members/'+lct.trim()+'/admission-reset',{reason:reason||null}); }
 function setLimits(){
@@ -1790,23 +1791,34 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
                 }
                 None => "<span class=\"muted\">—</span>".to_string(),
             };
-            let state_pill = if r.retired {
-                "<span class=\"pill\">retired</span>"
-            } else if r.can_act() {
-                "<span class=\"pill\">filled</span>"
-            } else if kind == "office" {
-                "<span class=\"pill pill-warn\">vacant</span>"
-            } else {
-                "<span class=\"pill pill-warn\">spent</span>"
+            // The kinds get DIFFERENT pills and different buttons, because they have
+            // different lifecycles. Offering Fill on a spent capacity — which an earlier
+            // cut did — invites the operator to do the one thing the model forbids, and a
+            // UI that offers an act the surface refuses is a UI that teaches the wrong
+            // model.
+            let is_capacity = r.role_kind == hub_lib::events::RoleKind::Capacity;
+            let state_pill = match (is_capacity, r.retired, r.occupant.is_some()) {
+                (false, true, _)      => "<span class=\"pill\">retired</span>",
+                (false, false, true)  => "<span class=\"pill\">filled</span>",
+                (false, false, false) => "<span class=\"pill pill-warn\">vacant</span>",
+                (true, true, _)       => "<span class=\"pill\">spent</span>",
+                (true, false, true)   => "<span class=\"pill\">held</span>",
+                // `is_incoherent_capacity()` — reported, never repaired.
+                (true, false, false)  => "<span class=\"pill pill-warn\">unheld — invalid</span>",
             };
-            let actions = if r.retired {
-                "<span class=\"muted\">readable, not usable</span>".to_string()
-            } else if r.occupant.is_some() {
-                format!("<button onclick=\"roleFill('{id}')\">Rotate</button> \
-                         <button onclick=\"roleVacate('{id}')\">Vacate</button>")
-            } else {
-                format!("<button onclick=\"roleFill('{id}')\">Fill</button> \
-                         <button class=\"danger\" onclick=\"roleRetire('{id}')\">Retire</button>")
+            let actions = match (is_capacity, r.retired, r.occupant.is_some()) {
+                (_, true, _) => "<span class=\"muted\">readable, not usable</span>".to_string(),
+                (false, false, true) =>
+                    format!("<button onclick=\"roleFill('{id}')\">Rotate</button> \
+                             <button onclick=\"roleVacate('{id}')\">Vacate</button>"),
+                (false, false, false) =>
+                    format!("<button onclick=\"roleFill('{id}')\">Fill</button> \
+                             <button class=\"danger\" onclick=\"roleRetire('{id}')\">Retire</button>"),
+                // A held capacity has exactly one act: end it. Not vacate, not rotate.
+                (true, false, true) =>
+                    format!("<button class=\"danger\" onclick=\"roleSpend('{id}')\">Spend</button>"),
+                (true, false, false) =>
+                    "<span class=\"muted\">invalid state; not repaired here</span>".to_string(),
             };
             body.push_str(&format!(
                 "<tr><td>{}</td><td>{kind}</td><td><code>{id}</code></td><td>{occupant}</td>\

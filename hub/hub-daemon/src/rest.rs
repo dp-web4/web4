@@ -6214,36 +6214,24 @@ async fn admin_role_create(
         }
     }
     let role_lct_id = Uuid::new_v4();
+    // ONE witnessed act, holder included. An earlier cut wrote RoleCreated and then a
+    // separate RoleAssigned, and tolerated the second failing — which left a live
+    // unoccupied Capacity, the precise state this axis exists to forbid. There is no
+    // ordering to get wrong now, because there is no second act.
     let create = HubEvent::RoleCreated {
         role_lct_id,
         role: body.role.clone(),
         role_kind,
         charter: body.charter.clone(),
         parent_role_lct_id: None,
+        initial_occupant: occupant,
         created_by: s.sovereign_lct_id,
     };
     governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &create).await?;
     let entry_index = witness_event(&s, create).await?;
-    // A capacity's founding fill is a SECOND witnessed act, not a hidden half of the
-    // first. If it fails, what survives is an unoccupied capacity — inert, because
-    // `can_act()` is false for it, and either fillable or retirable by hand. That is a
-    // recoverable state; a half-written single event would not be.
-    let fill_index = match occupant {
-        None => None,
-        Some(member) => {
-            let fill = HubEvent::RoleAssigned {
-                role: body.role.clone(),
-                role_lct_id,
-                assigned_to: member,
-                assigned_by: s.sovereign_lct_id,
-            };
-            governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &fill).await?;
-            Some(witness_event(&s, fill).await?)
-        }
-    };
     Ok(Json(serde_json::json!({
         "created": true, "role_lct_id": role_lct_id, "entry_index": entry_index,
-        "role_kind": body.role_kind, "occupant": occupant, "fill_entry_index": fill_index,
+        "role_kind": body.role_kind, "occupant": occupant,
     })))
 }
 
@@ -6278,6 +6266,15 @@ async fn admin_role_fill(
                 "{} is not a member of this hub", body.member_lct_id)));
         }
         let r = projected_role(&state, role_lct_id)?;
+        // Filling is an OFFICE act. A capacity instance belongs to one entity for its whole
+        // existence: a new holder gets a new instance, which is what "minted on demand"
+        // means. Allowing a rotation here would make a capacity transferable and a spent one
+        // refillable, collapsing the kind axis back into the ambiguity it removes.
+        if r.role_kind == hub_lib::events::RoleKind::Capacity {
+            return Err(ApiError::bad_request(format!(
+                "role {role_lct_id} is a capacity: capacities are not filled or rotated. \
+                 Create a new one for the holder, or retire this one to spend it")));
+        }
         if r.occupant == Some(body.member_lct_id) {
             return Err(ApiError::bad_request(format!(
                 "{} already occupies this role", body.member_lct_id)));
@@ -6320,6 +6317,15 @@ async fn admin_role_vacate(
         let ledger = s.ledger.lock().await;
         let state = HubState::project(&ledger);
         let r = projected_role(&state, role_lct_id)?;
+        // Vacating is an OFFICE act too, and for the symmetric reason. An office is emptied
+        // and awaits its next occupant; a capacity is FINISHED when its holder is done with
+        // it. Emptying one would produce `Capacity && occupant == None && !retired`, which
+        // dp's rule says cannot exist — so the route that could produce it refuses.
+        if r.role_kind == hub_lib::events::RoleKind::Capacity {
+            return Err(ApiError::bad_request(format!(
+                "role {role_lct_id} is a capacity: a capacity is not vacated, it is spent. \
+                 Retire it, which keeps its holder on the record")));
+        }
         r.occupant.ok_or_else(|| ApiError::bad_request(format!(
             "role {role_lct_id} is already unoccupied; there is nothing to vacate")))?
     };
@@ -6364,9 +6370,22 @@ async fn admin_role_retire(
         let ledger = s.ledger.lock().await;
         let state = HubState::project(&ledger);
         let r = projected_role(&state, role_lct_id)?;
-        if let Some(occ) = r.occupant {
-            return Err(ApiError::bad_request(format!(
-                "role {role_lct_id} is occupied by {occ}; vacate it before retiring it")));
+        // Same verb, opposite precondition, because the kinds END differently. Retiring an
+        // OFFICE abolishes a constituted position, so it must be empty first — that refusal
+        // is this surface's V clause, keeping a live council from being shrunk in one act.
+        // Retiring a CAPACITY *is* the act of spending it, so it requires an occupant and
+        // deliberately leaves them on the record: the chain has to say who spent it.
+        match (r.role_kind.clone(), r.occupant) {
+            (hub_lib::events::RoleKind::Office, Some(occ)) => {
+                return Err(ApiError::bad_request(format!(
+                    "role {role_lct_id} is occupied by {occ}; vacate it before retiring it")));
+            }
+            (hub_lib::events::RoleKind::Capacity, None) => {
+                return Err(ApiError::bad_request(format!(
+                    "capacity {role_lct_id} has no holder to spend; this state should not \
+                     exist and is not repaired here")));
+            }
+            _ => {}
         }
     }
     let event = HubEvent::RoleRetired {
@@ -6397,6 +6416,10 @@ async fn admin_roles_list(
         "occupant": r.occupant,
         "retired": r.retired,
         "can_act": r.can_act(),
+        "spent": r.is_spent(),
+        // Reported, not repaired — a live capacity with nobody in it cannot be produced by
+        // these routes, and a foreign ledger that contains one should say so out loud.
+        "invalid_unheld_capacity": r.is_incoherent_capacity(),
         "occupancy_changes": r.occupancy_log.len(),
     })).collect();
     Ok(Json(serde_json::json!({ "roles": roles, "count": roles.len() })))
@@ -12130,7 +12153,7 @@ norms:
                 role_kind: "office".into(), charter: Some("one seat of the council".into()),
                 occupant_lct_id: None })).await.unwrap();
         let seat: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
-        assert!(out.0["fill_entry_index"].is_null(), "an office is constituted unfilled");
+        assert!(out.0["occupant"].is_null(), "an office is constituted unfilled");
 
         // Born vacant: it exists, and it cannot act.
         {
@@ -12211,13 +12234,133 @@ norms:
             Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
                 charter: None, occupant_lct_id: Some(citizen) })).await.unwrap();
         let id: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
-        assert!(!out.0["fill_entry_index"].is_null(), "the founding fill is its own witnessed act");
+        // ONE act. GPT's #845 blocker: create-then-fill leaves a window in which a live
+        // unoccupied capacity exists, and the model says that state cannot exist. So the
+        // holder rides inside RoleCreated and the chain grows by exactly one entry. The two
+        // refusals above witnessed nothing, so `before` is still the right baseline.
+        assert_eq!(state.ledger.lock().await.entries().len(), before + 1,
+            "a capacity is created in one witnessed act, not two");
+        match state.ledger.lock().await.entries().last().unwrap().event.clone() {
+            HubEvent::RoleCreated { initial_occupant, role_kind, .. } => {
+                assert_eq!(initial_occupant, Some(citizen), "the holder is IN the creating act");
+                assert_eq!(role_kind, hub_lib::events::RoleKind::Capacity);
+            }
+            other => panic!("wrong event: {other:?}"),
+        }
         let l = state.ledger.lock().await;
         let st = HubState::project(&l);
         let r = role_of(&st, id);
         assert_eq!(r.occupant, Some(citizen));
         assert!(r.can_act(), "no unfilled capacity ever exists");
         assert_eq!(r.role_kind, hub_lib::events::RoleKind::Capacity);
+    }
+
+    /// GPT's #845 blocker, as an executable invariant rather than a paragraph.
+    ///
+    /// The claim under test is that `Capacity && occupant == None && !retired` is not a
+    /// reachable valid state through ANY of these routes. Reachability is a claim about
+    /// every path, so every path is driven: creation without a holder, filling, rotating,
+    /// vacating, and spending-then-refilling.
+    #[tokio::test]
+    async fn no_route_can_produce_a_live_capacity_that_nobody_holds() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let holder = member(&state, "holder").await;
+        let other = member(&state, "other").await;
+
+        let cap: Uuid = serde_json::from_value(
+            admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+                Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
+                    charter: None, occupant_lct_id: Some(holder) })).await
+                .unwrap().0["role_lct_id"].clone()).unwrap();
+
+        let before = state.ledger.lock().await.entries().len();
+
+        // Rotating a capacity to someone else: refused.
+        let err = admin_role_fill(State(state.clone()), ConnectInfo(loop_addr), Path(cap),
+            Json(RoleFillBody { member_lct_id: other })).await.err().expect("refused");
+        assert!(err.message.contains("not filled or rotated"), "got: {}", err.message);
+
+        // Vacating a capacity: refused. This is the route that would have produced the
+        // forbidden state directly.
+        let err = admin_role_vacate(State(state.clone()), ConnectInfo(loop_addr), Path(cap),
+            Json(RoleVacateBody { kind: None, reason: None })).await.err().expect("refused");
+        assert!(err.message.contains("not vacated, it is spent"), "got: {}", err.message);
+
+        assert_eq!(state.ledger.lock().await.entries().len(), before,
+            "both refusals leave the chain bit-identical");
+        {
+            let l = state.ledger.lock().await;
+            let st = HubState::project(&l);
+            assert!(!st.roles[&cap].is_incoherent_capacity(), "still held");
+        }
+
+        // Spending it is the ONE act available, and it keeps the holder on the record.
+        admin_role_retire(State(state.clone()), ConnectInfo(loop_addr), Path(cap),
+            Json(RoleRetireBody { reason: Some("left the society".into()) })).await.unwrap();
+        {
+            let l = state.ledger.lock().await;
+            let st = HubState::project(&l);
+            let r = &st.roles[&cap];
+            assert!(r.is_spent() && !r.can_act());
+            assert_eq!(r.occupant, Some(holder), "the chain says who spent it");
+            assert!(!r.is_incoherent_capacity(), "spent is accounted for, not incoherent");
+        }
+
+        // And a spent capacity is not refillable — the retired guard and the kind guard
+        // both stand in the way, so this holds even if one were removed.
+        for who in [holder, other] {
+            let err = admin_role_fill(State(state.clone()), ConnectInfo(loop_addr), Path(cap),
+                Json(RoleFillBody { member_lct_id: who })).await.err().expect("refused");
+            assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        }
+
+        // Finally: across every role this test created, the forbidden state is absent.
+        let l = state.ledger.lock().await;
+        let st = HubState::project(&l);
+        assert!(st.roles.values().all(|r| !r.is_incoherent_capacity()),
+            "the invariant is a property of the whole projection, not of one role");
+    }
+
+    /// A capacity with no holder cannot be spent either, and the refusal says so without
+    /// pretending to fix it. Reported, never repaired — because a projection that quietly
+    /// normalised a foreign ledger would hide the corruption it should be surfacing.
+    #[tokio::test]
+    async fn spending_a_capacity_nobody_holds_is_refused_rather_than_repaired() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let holder = member(&state, "holder").await;
+        let cap: Uuid = serde_json::from_value(
+            admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+                Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
+                    charter: None, occupant_lct_id: Some(holder) })).await
+                .unwrap().0["role_lct_id"].clone()).unwrap();
+
+        // Reach the forbidden state the only way left: append straight to the chain, as a
+        // foreign or older writer would. These routes cannot do it.
+        witness_event(&state, HubEvent::RoleVacated { role_lct_id: cap,
+            previous_occupant: holder, vacation_kind: web4_core::role::RoleEventKind::FillerResigned,
+            reason: None, vacated_by: state.sovereign_lct_id }).await.unwrap();
+        {
+            let l = state.ledger.lock().await;
+            assert!(HubState::project(&l).roles[&cap].is_incoherent_capacity(),
+                "the fixture reached the state under test");
+        }
+
+        let before = state.ledger.lock().await.entries().len();
+        let err = admin_role_retire(State(state.clone()), ConnectInfo(loop_addr), Path(cap),
+            Json(RoleRetireBody { reason: None })).await.err().expect("refused");
+        assert!(err.message.contains("no holder to spend"), "got: {}", err.message);
+        assert!(err.message.contains("not repaired here"),
+            "the refusal says what it is NOT doing: {}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing witnessed");
+
+        // The API surfaces it rather than hiding it.
+        let listed = admin_roles_list(State(state.clone()), ConnectInfo(loop_addr)).await.unwrap();
+        let row = listed.0["roles"].as_array().unwrap().iter()
+            .find(|r| r["role_lct_id"] == serde_json::json!(cap)).expect("listed");
+        assert_eq!(row["invalid_unheld_capacity"], serde_json::json!(true));
+        assert_eq!(row["can_act"], serde_json::json!(false), "inert, so reporting is enough");
     }
 
     /// The measurement that motivated the whole PRD, driven rather than asserted.
@@ -13009,10 +13152,13 @@ norms: []
         assert!(!v.contains("roleVacate("), "nothing to vacate: {v}");
 
         let h = row(held);
-        assert!(h.contains("filled"), "an occupied capacity renders as filled: {h}");
-        assert!(h.contains("roleVacate("), "{h}");
-        assert!(!h.contains("roleRetire("), "an occupied role offers no retire button — \
-            the surface refuses it, so the UI must not invite it: {h}");
+        assert!(h.contains("held"), "an occupied capacity renders as HELD, not filled: {h}");
+        assert!(h.contains("roleSpend("), "the one act available to it is to be spent: {h}");
+        assert!(!h.contains("roleVacate("),
+            "a capacity is never vacated — the surface refuses it, so the UI must not \
+             invite it: {h}");
+        assert!(!h.contains("roleFill("),
+            "and never filled or rotated: a new holder gets a new instance: {h}");
         assert!(h.contains("occupant"), "the holder's name is on the row: {h}");
 
         assert!(html.contains("Role entities"), "the section has a heading");
