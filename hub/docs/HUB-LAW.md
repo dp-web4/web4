@@ -73,7 +73,7 @@ lockstep with `HubEvent::kind()` by a test that reads the function's own source.
 | founding | `genesis`, `charter_amended`, `law_amended` |
 | membership | `member_added`, `member_removed`, `member_withdrew`, `member_renamed`, `member_admission_reset`, `member_key_pinned`, `member_profile_updated`, `member_skill_declared` |
 | admission queue | `member_join_requested`, `member_join_resolved`, `member_join_review_requested`, `member_join_review_resolved` |
-| roles | `role_created`, `role_assigned`, `role_vacated` |
+| roles | `role_created`, `role_assigned`, `role_vacated`, `role_retired` |
 | council | `council_member_added`, `council_member_removed`, `council_threshold_changed` |
 | discussion | `topic_created`, `post_added` |
 | pairing + channels | `pairing_requested`, `pairing_confirmed`, `pairing_revoked`, `pair_message_posted`, `intro_requested`, `intro_responded` |

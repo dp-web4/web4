@@ -1092,6 +1092,11 @@ fn event_summary(event: &HubEvent) -> String {
             short(role_lct_id),
             parent_role_lct_id.map(|p| format!(" — a seat within {}", short(&p))).unwrap_or_default(),
         ),
+        HubEvent::RoleRetired { role_lct_id, reason, .. } => format!(
+            "Role {} retired — struck from the constitution, record kept{}",
+            short(role_lct_id),
+            reason.as_deref().map(|r| format!(" — {}", html_escape(r))).unwrap_or_default(),
+        ),
         HubEvent::RoleVacated { role_lct_id, previous_occupant, vacation_kind, reason, .. } => format!(
             "Role {} vacated by {} ({:?}){}",
             short(role_lct_id),

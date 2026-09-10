@@ -21,8 +21,13 @@ Council onto that substrate.
 
 ## 0. The evolution in one sentence
 
-**A role is an entity, a role may contain sub-roles, and authority to act for a role comes
-from occupying one of its seats — not from appearing on a list kept beside it.**
+**A role is an entity, a role may contain sub-roles, a role is FILLED only while paired with
+an entity, and authority to act comes from that occupancy — not from appearing on a list kept
+beside it.**
+
+An unfilled role cannot act. The only act available to it is *to be filled*, by pairing or
+binding as its law directs. That rule is fractal by construction: it asks nothing about
+depth, parentage or kind, only whether someone is in the chair.
 
 The Sovereign Council is the worked example: `council` is a role, each seat is a
 `council-member` sub-role, and the M-of-N signature check becomes *"M distinct entities, each
@@ -43,30 +48,34 @@ societies) is explicitly **after** this and out of scope here.
 
 ---
 
-## 2. Correcting the record: the substrate is richer than reported
+## 2. Correcting the record — twice
 
-web4#831 measured the ledger's act vocabulary and reported R4/R5 as having "no event kind,
-no type, no handler". That measurement was correct about the **ledger** and wrong as a
-description of the **substrate**. `web4-core`'s `RoleAssignment` already carries:
+`web4-core`'s `RoleAssignment` already carries `role_lct_id` (its comment says "authority
+binds here"), its own `T3`/`V3`, `multi_holder`, `additional_holders`,
+`threshold: Option<(u32, u32)>`, a lifecycle event log, and a working `rotate()`.
+`SocietyRole::Custom(String)` already permits roles beyond the founding nine. So web4#831's
+report of "no event kind, no type, no handler" was true of the **ledger** and wrong as a
+description of the **substrate**.
 
-| field | what it already gives us |
-|---|---|
-| `role_lct_id` | the role's **own LCT** — the comment says "authority binds here" |
-| `filling_entity_lct_id` | the current occupant, distinct from the role |
-| `role_trust: T3` / `role_value: V3` | the **role's own tensor**, not the occupant's |
-| `multi_holder: bool` | a role fillable by several entities at once |
-| `additional_holders: Vec<Uuid>` | those entities |
-| `threshold: Option<(u32, u32)>` | **M-of-N on the role**, for consequential acts |
-| `events: Vec<RoleEvent>` | filler added/removed/resigned/ejected/elected/rotated |
-| `rotate()` | occupancy change that preserves the role and appends an event |
+**And that correction was itself overstated.** GPT's review of #844 measured the part that
+matters here, and it is decisive:
 
-`SocietyRole::Custom(String)` already permits roles beyond the founding nine.
+- `filling_entity_lct_id: Uuid` — **not** an `Option`. The core object **cannot represent a
+  role that exists while vacant**, which is the single thing this design most needs.
+- `set_threshold()` does `n = holder_count()` then `m.min(n)`, and `holder_count()` is
+  `1 + additional_holders.len()`. So **N is recomputed from whoever is currently present and
+  M is clamped to it** — losing a member *lowers the bar*. Resignation is an implicit
+  quorum-reduction mechanism in the substrate today.
 
-**So R4 is largely built in `web4-core` and largely unused by the Hub.** That reframes this
-work from "invent role entities" to "stop maintaining a second mechanism and start using the
-one we have". It also explains the shape of the problem: three gaps, not a missing pillar.
+So the honest position is the middle one: R4's *identity and tensor* half is built and
+unused; its *existence-independent-of-occupancy* half is not built at all. This PRD must add
+that half rather than claim to be merely re-wiring.
 
----
+**Three role shapes now exist and that is the risk to manage** (GPT's first point): the
+society document, `web4-core::RoleAssignment`, and the Hub's projection. This PRD's answer:
+the Hub struct is named `ProjectedRole` and documented as a **lossy read model**, explicitly
+not the semantic object, and §4.1 makes promoting the canonical entity in `web4-core` the
+resolution rather than leaving three.
 
 ## 3. The three gaps
 
@@ -81,7 +90,41 @@ diverged, role state could not be rebuilt from a chain that contains every assig
 is the same class as a witnessed act whose consequence lives somewhere the witness cannot
 reach, and it is the reason a role's tensor cannot currently be audited from the record.
 
-### G2. There is no containment relation between roles
+### G2a. Roles have no kind, so a vacancy has no meaning
+
+dp, 2026-09-10: *"we also need to account for 'fungible' roles — that are not limited in
+number and any filled role can act in its scope, and new ones can be created on demand so
+there are no unfilled fungible roles — citizen role is a good example — whereas
+'non-fungible' roles are unique and predetermined, and may be vacant."*
+
+The axis underneath is **whether the role instance exists before its occupant**, and the
+consequence is that *vacant* means two different things:
+
+| | **Office** (dp's "non-fungible") | **Capacity** (dp's "fungible") |
+|---|---|---|
+| constituted by | the society, in advance | the act of filling it |
+| cardinality | enumerated, predetermined | unbounded, minted on demand |
+| unoccupied means | **vacant** — awaiting a fill, still counted | **spent** — the holder is gone, never refilled |
+| counts toward quorum | yes, even while empty | no |
+| example | Treasurer; one seat on a council | Citizen |
+
+**On the naming.** dp asked for a better term than fungible/non-fungible and the words
+chosen here are **Office** and **Capacity**: an office is a constituted position one
+*occupies*; a capacity is a standing one *holds* ("acting in the capacity of a citizen").
+Both are ordinary institutional English, neither collides with existing web4 or hestia
+vocabulary — unlike "standing", which is already spoken for by standing grants. `seat` and
+`class` were the plainer runner-up.
+
+**An observation offered, not ruled on:** dp says a role is filled "by pairing or binding
+(depending on role law)", and those are already canon's two entity-relationship mechanisms.
+The kinds may turn out to be that same axis — an Office is *paired* (revocable, the office
+outlives the pairing, rotation is re-pairing) while a Capacity is *bound* (comes into being
+with its holder and ends with them). If that holds, the canon already has the words and
+`RoleKind` should collapse into them. It is left as a question because "binding" carries a
+hardware-custody meaning elsewhere and collapsing them prematurely would be exactly the
+terminology error this section is fixing.
+
+### G2b. There is no containment relation between roles
 
 Nothing expresses "this role is a seat within that role". `Custom(String)` gives new names,
 not structure. A council of nine is representable only as one role with eight
@@ -134,28 +177,56 @@ fractal: a sub-role may itself have sub-roles, with the same verbs at every dept
 - deleting is not a thing: a role is **vacated**, never removed, so its tensor and history
   survive. A role with no occupant is a real and useful state (a vacant seat).
 
-### 4.3 Authority by occupancy
+### 4.3 Authority by occupancy, with N, O and M kept apart
 
 The M-of-N check becomes:
 
-> **M distinct entities, each filling a sub-role of role R, have signed.**
+> **M distinct entities, each currently occupying a seat of role R, have signed.**
 
-The threshold lives on the **parent** role. The seats are the sub-roles. A signature counts
-if and only if its signer is the current occupant of a sub-role of R — which is the
-substantive change dp asked for: *"the multi-sign can then only be done by entities paired
-with (filling) the council-member roles."*
+A seat is a sub-role of R that is an **Office** and is not **retired**. Three quantities,
+never conflated (GPT's third point):
+
+- **N — established cardinality.** Seats that exist and are not retired. *Only retiring a
+  seat changes N.*
+- **O — occupancy.** Seats with someone in them. *Vacating changes O and nothing else.*
+- **M — required signatures.** From the parent role's law. *Never derived from O or N.*
+
+If **O < M** the body simply **cannot reach a verdict** until a seat is filled or a governed
+change occurs. That is a real, reportable state and the honest answer. The alternative —
+recomputing N from who happens to be present — turns every resignation into a quorum
+reduction, which is the defect `set_threshold()` has today and which this design must not
+inherit.
 
 Consequences that fall out rather than being designed:
 
-- **A seat can be vacant.** A 5-seat council with 2 vacancies is 2-of-3 against the seats
-  that exist, or fails to reach M — and the record says which. Today an empty holder set is
-  indistinguishable from a threshold that cannot be met.
-- **A seat has its own tensor.** "This seat has been reliable across three occupants" becomes
-  expressible, and is exactly the merit ruling applied one level down.
-- **Rotation is per-seat.** Replacing one council member touches one sub-role and leaves the
-  other seats' histories alone.
-- **It generalises.** Any role with sub-roles gets M-of-N for free. The council stops being
+- **A seat's history is its own.** Rotation touches one sub-role and leaves the other seats'
+  records alone; the merit ruling applies one level down.
+- **It generalises.** Any role with Office sub-roles gets M-of-N. The council stops being
   special.
+- **Vacating and retiring are different acts**, and only one of them is allowed to make the
+  body easier to command.
+
+#### 4.3.1 The founding Sovereign — a ruling, because the alternatives contradict
+
+GPT's fourth point is correct and cannot be deferred: today `project_council()` includes the
+founding Sovereign in the holder set and in N. Sprint 3 requires the legacy and role-derived
+projections to agree; Sprint 4 says only seat occupants sign; §5 said the Sovereign stays
+outside the seats. **All three cannot hold.**
+
+**Ruling for this PRD: the founding Sovereign occupies a protected council seat.** It is a
+`council-member` Office like any other, with one difference — it may not be vacated or
+retired. Chosen because:
+
+- the differential gate in Sprint 3 becomes *possible*: both projections yield the same
+  holder set and the same N;
+- "only seat occupants sign" stays literally true, with no constitutional signer class
+  living beside the rule;
+- the protection is **encoded and testable** rather than emergent from the Sovereign's
+  absence from a list.
+
+This changes §5's earlier wording, which said the Sovereign remains outside the seats. It is
+dp's to overturn — it is a constitutional question, not an implementation one — but the
+migration gate must encode *a* rule rather than discover the contradiction at cutover.
 
 ### 4.4 The council, after
 
@@ -198,8 +269,10 @@ independently revertible. No sprint may leave the council unable to reach a verd
 
 - `RoleCreated` and `RoleVacated` ledger verbs; `RoleAssigned` gains a real projection.
 - `HubState.roles: BTreeMap<Uuid, RoleEntity>` — keyed by role LCT, rebuilt from the chain.
-- Operator surface: create a role (including custom), list roles with LCT and occupant,
-  vacate a seat.
+- **Sprint 1 is the substrate only: ledger verbs, projection, and event rendering.** The
+  operator surfaces (create / list / vacate / retire) are **Sprint 1b** and land separately.
+  GPT's fifth point: the acceptance contract must match what actually lands, and the first
+  draft of this PRD promised surfaces the first slice did not contain.
 - **Acceptance:** role state after a cold replay of the ledger equals role state before it,
   on a fixture containing create → assign → rotate → vacate. Rotation preserves the role's
   tensor and appends an event. The society document remains authoritative for anything that

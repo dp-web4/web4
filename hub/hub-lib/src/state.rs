@@ -61,33 +61,88 @@ where
     Ok(out)
 }
 
-/// A role as the LEDGER sees it (Sprint 1 of `PRD_ROLE_ENTITIES_AND_SUBROLES.md`).
+/// A role as the LEDGER sees it — **a read projection, not the semantic object**.
 ///
-/// Roles used to live ONLY in the society document — `RoleAssigned` was projected as a
-/// no-op, so a chain containing every assignment could not rebuild role state. Members were
-/// re-derivable and roles were not. This is the projection that closes that.
+/// GPT's review of #844 was right to insist this be named: the society document holds roles,
+/// `web4_core::role::RoleAssignment` holds roles, and this holds roles. Three shapes for one
+/// concept is what the council migration exists to REDUCE, so this one declares its status.
+/// It is a lossy read model rebuilt from the chain — it deliberately omits the core object's
+/// T3/V3, `multi_holder`, `additional_holders` and threshold machinery, and it is not where
+/// those should end up. Promoting the canonical entity in `web4-core` is the resolution
+/// (PRD §4.1); until that lands, nothing may treat this as authoritative for anything the
+/// society document already answers.
 ///
-/// It does not replace the society doc, which stays authoritative for everything reading it
-/// today; Sprint 1 adds a second, ledger-derived view and switches no consumer over.
+/// What it IS authoritative for is the thing the core object cannot express at all:
+/// **a role that exists while vacant.** `RoleAssignment::filling_entity_lct_id` is a bare
+/// `Uuid`, so vacancy is unrepresentable there, and `set_threshold()` recomputes N from the
+/// live holder count — meaning a resignation silently lowers the bar. Those two facts are
+/// why this projection exists rather than the Hub simply reading the core type.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RoleEntity {
+pub struct ProjectedRole {
     /// The role's own identity. Stable across every occupant it ever has.
     pub role_lct_id: Uuid,
     pub role: web4_core::role::SocietyRole,
+    /// Office or Capacity. Decides what a vacancy MEANS — see [`crate::events::RoleKind`].
+    pub role_kind: crate::events::RoleKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub charter: Option<String>,
-    /// `Some` makes this a SEAT within another role — the fractal hinge (Sprint 2).
+    /// `Some` makes this a SEAT within another role — the fractal hinge.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_role_lct_id: Option<Uuid>,
-    /// `None` is a VACANT seat: a real state, not a missing one. A council with an empty
-    /// chair is exactly this, and it is what the legacy holder-set could not express.
+    /// `None` is unoccupied. For an Office that means VACANT — awaiting a fill, still
+    /// counted. For a Capacity it means SPENT — its holder is gone and nobody will fill it.
+    /// Read it with `role_kind`; the two vacancies are not the same fact.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub occupant: Option<Uuid>,
+    /// A retired office is struck from the constitution: still readable, no longer counted.
+    /// Distinct from unoccupied, which GPT's review separated correctly.
+    #[serde(default)]
+    pub retired: bool,
     /// Every occupancy change, oldest first. The role's institutional memory: rotation
     /// appends here and never rewrites, because the merit ruling makes this the thing that
     /// must survive an occupant leaving.
     #[serde(default)]
     pub occupancy_log: Vec<RoleOccupancyChange>,
+}
+
+/// Quorum arithmetic over a role's seats, with **N, O and M kept apart**.
+///
+/// GPT's review of #844: *"Vacating a seat should change O, not silently N or M. Otherwise
+/// resignation/removal can become an implicit quorum-reduction mechanism."* That is not
+/// hypothetical — `RoleAssignment::set_threshold()` recomputes N from the live holder count
+/// and clamps M to it, so losing a member LOWERS the bar today. This type exists so the Hub
+/// never inherits that.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SeatQuorum {
+    /// **N** — established seat cardinality: sub-role Offices that exist and are not
+    /// retired. Unchanged by anyone resigning.
+    pub established: usize,
+    /// **O** — seats with an occupant right now.
+    pub occupied: usize,
+    /// **M** — signatures required, from the parent role's law. Never derived from O.
+    pub required: u32,
+}
+
+impl SeatQuorum {
+    /// Whether the body could reach a verdict *at all* as currently staffed.
+    ///
+    /// `false` is a real and reportable state, not an error: too many empty chairs. The
+    /// honest response is "this body cannot act until a seat is filled", never a quietly
+    /// lowered threshold.
+    pub fn reachable(&self) -> bool {
+        self.occupied as u32 >= self.required
+    }
+}
+
+impl ProjectedRole {
+    /// **Can this role act?** dp, 2026-09-10: *"an unfilled/vacant role cannot act, the only
+    /// action available to it is 'be filled' by pairing or binding."*
+    ///
+    /// This is the whole authority rule in one predicate, and it is fractal by construction:
+    /// it asks nothing about depth, parentage or kind, only whether someone is in the chair.
+    pub fn can_act(&self) -> bool {
+        !self.retired && self.occupant.is_some()
+    }
 }
 
 /// One change of occupancy on a role, as witnessed.
@@ -109,7 +164,7 @@ pub struct RoleOccupancyChange {
     /// `council-member` sub-roles are nine distinct entities, which a name-keyed map cannot
     /// represent.
     #[serde(default)]
-    pub roles: BTreeMap<Uuid, RoleEntity>,
+    pub roles: BTreeMap<Uuid, ProjectedRole>,
     pub founding_sovereign_lct_id: Option<Uuid>,
     pub charter_hash: Option<String>,
 
@@ -672,6 +727,47 @@ pub struct Post {
 }
 
 impl HubState {
+    /// What counts as a SEAT of `parent`, stated once.
+    ///
+    /// Extracted the moment `capacities_are_not_seats_and_do_not_count_toward_quorum`
+    /// caught the two callers disagreeing: `seat_quorum` filtered by Office and
+    /// `seat_occupants` did not, so a citizenship holder would have counted as a council
+    /// signer. One rule expressed in two places is one rule that will drift.
+    ///
+    /// A seat is a sub-role of `parent` that is an **Office** and is **not retired**. A
+    /// Capacity under the same parent is fractal and legitimate — it is simply not a chair
+    /// anyone sits in on the body's behalf.
+    fn seats_of(&self, parent: Uuid) -> impl Iterator<Item = &ProjectedRole> {
+        self.roles.values().filter(move |r| {
+            r.parent_role_lct_id == Some(parent)
+                && !r.retired
+                && r.role_kind == crate::events::RoleKind::Office
+        })
+    }
+
+    /// The seats of `parent`, counted with N, O and M kept apart.
+    ///
+    /// Only sub-role **Offices** are seats. A Capacity sub-role is not a chair anyone can
+    /// sit in on the body's behalf — it is a standing its holder carries — so it is not
+    /// counted, and a retired Office is not counted either.
+    pub fn seat_quorum(&self, parent: Uuid, required: u32) -> SeatQuorum {
+        let (mut established, mut occupied) = (0usize, 0usize);
+        for s in self.seats_of(parent) {
+            established += 1;
+            if s.occupant.is_some() { occupied += 1; }
+        }
+        SeatQuorum { established, occupied, required }
+    }
+
+    /// The entities that may sign for `parent` right now: the occupants of its seats.
+    ///
+    /// dp, 2026-09-10: *"the multi-sign can then only be done by entities paired with
+    /// (filling) the council-member roles."* This is that sentence as a function — and it
+    /// reads occupancy, never a list, which is the whole point of the migration.
+    pub fn seat_occupants(&self, parent: Uuid) -> std::collections::BTreeSet<Uuid> {
+        self.seats_of(parent).filter(|r| r.can_act()).filter_map(|r| r.occupant).collect()
+    }
+
     /// Build the projection from a ledger.
     pub fn project(ledger: &HubLedger) -> Self {
         let mut state = HubState::default();
@@ -954,17 +1050,19 @@ impl HubState {
                 }
             }
             // ── Role entities (PRD_ROLE_ENTITIES_AND_SUBROLES Sprint 1) ──────────────
-            HubEvent::RoleCreated { role_lct_id, role, charter, parent_role_lct_id, .. } => {
+            HubEvent::RoleCreated { role_lct_id, role, role_kind, charter, parent_role_lct_id, .. } => {
                 // Idempotent on replay: a second create for the same LCT must not wipe an
                 // occupancy log the later events already built. A ledger is replayed from
                 // zero on every boot, so "insert only if absent" is the difference between
                 // rebuilding state and destroying it.
-                self.roles.entry(*role_lct_id).or_insert_with(|| RoleEntity {
+                self.roles.entry(*role_lct_id).or_insert_with(|| ProjectedRole {
                     role_lct_id: *role_lct_id,
                     role: role.clone(),
+                    role_kind: role_kind.clone(),
                     charter: charter.clone(),
                     parent_role_lct_id: *parent_role_lct_id,
                     occupant: None,
+                    retired: false,
                     occupancy_log: Vec::new(),
                 });
             }
@@ -973,18 +1071,31 @@ impl HubState {
                 // RoleAssigned with no preceding create, so the role is materialised here
                 // rather than dropped — otherwise every historical assignment on the live
                 // fleet hub would project to nothing.
-                let e = self.roles.entry(*role_lct_id).or_insert_with(|| RoleEntity {
+                let e = self.roles.entry(*role_lct_id).or_insert_with(|| ProjectedRole {
                     role_lct_id: *role_lct_id,
                     role: role.clone(),
+                    // A pre-RoleCreated ledger says nothing about kind. Office is the
+                    // conservative default: it keeps the role COUNTED, where guessing
+                    // Capacity would quietly drop it out of any future quorum cardinality.
+                    role_kind: crate::events::RoleKind::Office,
                     charter: None,
                     parent_role_lct_id: None,
                     occupant: None,
+                    retired: false,
                     occupancy_log: Vec::new(),
                 });
                 e.occupant = Some(*assigned_to);
                 e.occupancy_log.push(RoleOccupancyChange {
                     entry_index: index, at: ts, occupant: Some(*assigned_to), by: *assigned_by,
                 });
+            }
+            HubEvent::RoleRetired { role_lct_id, .. } => {
+                // Struck from the constitution, not deleted: identity, tensor and history
+                // stay readable. Only its standing in the present changes, which is what
+                // keeps N honest when a seat is genuinely abolished rather than emptied.
+                if let Some(e) = self.roles.get_mut(role_lct_id) {
+                    e.retired = true;
+                }
             }
             HubEvent::RoleVacated { role_lct_id, vacated_by, .. } => {
                 // The role SURVIVES: only the seat empties. Nothing is removed from the map,
@@ -1314,6 +1425,7 @@ mod tests {
             }),
             (sov.lct.id, &kp, HubEvent::RoleCreated {
                 role_lct_id: role, role: SocietyRole::Custom("council-member".into()),
+                role_kind: crate::events::RoleKind::Office,
                 charter: Some("one seat on the council".into()),
                 parent_role_lct_id: None, created_by: sov.lct.id,
             }),
@@ -1384,8 +1496,8 @@ mod tests {
         let role = Uuid::new_v4();
         let holder = Uuid::new_v4();
         let mk = |r: SocietyRole| HubEvent::RoleCreated {
-            role_lct_id: role, role: r, charter: None,
-            parent_role_lct_id: None, created_by: sov.lct.id,
+            role_lct_id: role, role: r, role_kind: crate::events::RoleKind::Office,
+            charter: None, parent_role_lct_id: None, created_by: sov.lct.id,
         };
         let (_tmp, ledger) = make_ledger_with(vec![
             (sov.lct.id, &kp, HubEvent::Genesis {
@@ -1402,6 +1514,173 @@ mod tests {
         let e = HubState::project(&ledger).roles.remove(&role).expect("role present");
         assert_eq!(e.occupant, Some(holder), "the later create did not vacate the seat");
         assert_eq!(e.occupancy_log.len(), 1, "…nor erase its history");
+    }
+
+    /// dp, 2026-09-10: *"an unfilled/vacant role cannot act, the only action available to it
+    /// is 'be filled'."* The whole authority rule, and it asks nothing about depth or kind —
+    /// which is what makes it fractal.
+    #[tokio::test]
+    async fn a_role_can_act_only_while_someone_is_in_the_chair() {
+        use crate::events::RoleKind;
+        use web4_core::role::{RoleEventKind, SocietyRole};
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let (seat, holder) = (Uuid::new_v4(), Uuid::new_v4());
+        let ev = |e| (sov.lct.id, &kp, e);
+        let (_tmp, ledger) = make_ledger_with(vec![
+            ev(HubEvent::Genesis { hub_name: "T".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now() }),
+            ev(HubEvent::RoleCreated { role_lct_id: seat, role: SocietyRole::Treasurer,
+                role_kind: RoleKind::Office, charter: None, parent_role_lct_id: None,
+                created_by: sov.lct.id }),
+        ]).await;
+        assert!(!HubState::project(&ledger).roles[&seat].can_act(),
+            "an office exists on creation and CANNOT act until filled");
+
+        let (_tmp, ledger) = make_ledger_with(vec![
+            ev(HubEvent::Genesis { hub_name: "T".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now() }),
+            ev(HubEvent::RoleCreated { role_lct_id: seat, role: SocietyRole::Treasurer,
+                role_kind: RoleKind::Office, charter: None, parent_role_lct_id: None,
+                created_by: sov.lct.id }),
+            ev(HubEvent::RoleAssigned { role: SocietyRole::Treasurer, role_lct_id: seat,
+                assigned_to: holder, assigned_by: sov.lct.id }),
+        ]).await;
+        assert!(HubState::project(&ledger).roles[&seat].can_act(), "filled: it can act");
+
+        let (_tmp, ledger) = make_ledger_with(vec![
+            ev(HubEvent::Genesis { hub_name: "T".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now() }),
+            ev(HubEvent::RoleCreated { role_lct_id: seat, role: SocietyRole::Treasurer,
+                role_kind: RoleKind::Office, charter: None, parent_role_lct_id: None,
+                created_by: sov.lct.id }),
+            ev(HubEvent::RoleAssigned { role: SocietyRole::Treasurer, role_lct_id: seat,
+                assigned_to: holder, assigned_by: sov.lct.id }),
+            ev(HubEvent::RoleVacated { role_lct_id: seat, previous_occupant: holder,
+                vacation_kind: RoleEventKind::FillerResigned, reason: None,
+                vacated_by: sov.lct.id }),
+        ]).await;
+        let st = HubState::project(&ledger);
+        assert!(!st.roles[&seat].can_act(), "vacated: it cannot act again until refilled");
+        assert!(st.roles.contains_key(&seat), "…but the office itself still exists");
+    }
+
+    /// THE QUORUM SAFETY PROPERTY GPT's review asked for: **vacating changes O, never N or
+    /// M.** Otherwise resignation becomes an implicit quorum-reduction mechanism — a body
+    /// could lower its own bar by losing members, which is the behaviour
+    /// `RoleAssignment::set_threshold()` has today (it recomputes N from the live holder
+    /// count and clamps M to it).
+    #[tokio::test]
+    async fn resigning_a_seat_lowers_occupancy_and_never_the_bar() {
+        use crate::events::RoleKind;
+        use web4_core::role::{RoleEventKind, SocietyRole};
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let council = Uuid::new_v4();
+        let seats: Vec<Uuid> = (0..3).map(|_| Uuid::new_v4()).collect();
+        let holders: Vec<Uuid> = (0..3).map(|_| Uuid::new_v4()).collect();
+        let mut evs = vec![
+            (sov.lct.id, &kp, HubEvent::Genesis { hub_name: "T".into(),
+                charter_hash: "sha256:0".into(), founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now() }),
+            (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: council,
+                role: SocietyRole::Custom("council".into()), role_kind: RoleKind::Office,
+                charter: None, parent_role_lct_id: None, created_by: sov.lct.id }),
+        ];
+        for (i, seat) in seats.iter().enumerate() {
+            evs.push((sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: *seat,
+                role: SocietyRole::Custom("council-member".into()), role_kind: RoleKind::Office,
+                charter: None, parent_role_lct_id: Some(council), created_by: sov.lct.id }));
+            evs.push((sov.lct.id, &kp, HubEvent::RoleAssigned {
+                role: SocietyRole::Custom("council-member".into()), role_lct_id: *seat,
+                assigned_to: holders[i], assigned_by: sov.lct.id }));
+        }
+        evs.push((sov.lct.id, &kp, HubEvent::RoleVacated { role_lct_id: seats[0],
+            previous_occupant: holders[0], vacation_kind: RoleEventKind::FillerResigned,
+            reason: None, vacated_by: sov.lct.id }));
+        let (_tmp, ledger) = make_ledger_with(evs).await;
+        let st = HubState::project(&ledger);
+
+        let q = st.seat_quorum(council, 3);
+        assert_eq!(q.established, 3, "N is unchanged by a resignation — the seat still exists");
+        assert_eq!(q.occupied, 2, "O fell by one");
+        assert_eq!(q.required, 3, "M is law, never recomputed from who happens to be present");
+        assert!(!q.reachable(),
+            "3-of-3 with one empty chair CANNOT act — and that is the honest answer, not a \
+             silently relaxed 2-of-2");
+        assert_eq!(st.seat_occupants(council).len(), 2,
+            "only occupied seats may sign; the vacant one confers nothing");
+        assert!(!st.seat_occupants(council).contains(&holders[0]),
+            "a resigned holder is not a signer, even though their seat remains");
+    }
+
+    /// Retiring a seat is NOT vacating it: retirement is the only thing that may change N.
+    /// Keeping them apart is what stops "abolish the seat" and "the seat is empty" from
+    /// being the same act.
+    #[tokio::test]
+    async fn retiring_a_seat_is_the_only_thing_that_changes_established_cardinality() {
+        use crate::events::RoleKind;
+        use web4_core::role::SocietyRole;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let council = Uuid::new_v4();
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
+        let mk = |seat: Uuid| HubEvent::RoleCreated { role_lct_id: seat,
+            role: SocietyRole::Custom("council-member".into()), role_kind: RoleKind::Office,
+            charter: None, parent_role_lct_id: Some(council), created_by: sov.lct.id };
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis { hub_name: "T".into(),
+                charter_hash: "sha256:0".into(), founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now() }),
+            (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: council,
+                role: SocietyRole::Custom("council".into()), role_kind: RoleKind::Office,
+                charter: None, parent_role_lct_id: None, created_by: sov.lct.id }),
+            (sov.lct.id, &kp, mk(a)),
+            (sov.lct.id, &kp, mk(b)),
+            (sov.lct.id, &kp, HubEvent::RoleRetired { role_lct_id: b,
+                reason: Some("council shrunk by governed act".into()), retired_by: sov.lct.id }),
+        ]).await;
+        let st = HubState::project(&ledger);
+        assert_eq!(st.seat_quorum(council, 1).established, 1, "the retired seat leaves N");
+        assert!(st.roles.contains_key(&b), "…but is not deleted: its record stays readable");
+        assert!(st.roles[&b].retired);
+    }
+
+    /// A Capacity is not a seat. Citizen roles are unbounded and minted per holder, so
+    /// counting them toward a body's quorum would make N a fact about the membership rather
+    /// than about the constitution.
+    #[tokio::test]
+    async fn capacities_are_not_seats_and_do_not_count_toward_quorum() {
+        use crate::events::RoleKind;
+        use web4_core::role::SocietyRole;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let council = Uuid::new_v4();
+        let (seat, citizenship) = (Uuid::new_v4(), Uuid::new_v4());
+        let holder = Uuid::new_v4();
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis { hub_name: "T".into(),
+                charter_hash: "sha256:0".into(), founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now() }),
+            (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: council,
+                role: SocietyRole::Custom("council".into()), role_kind: RoleKind::Office,
+                charter: None, parent_role_lct_id: None, created_by: sov.lct.id }),
+            (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: seat,
+                role: SocietyRole::Custom("council-member".into()), role_kind: RoleKind::Office,
+                charter: None, parent_role_lct_id: Some(council), created_by: sov.lct.id }),
+            // A citizenship minted under the same parent: fractal, but not a chair.
+            (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: citizenship,
+                role: SocietyRole::Citizen, role_kind: RoleKind::Capacity,
+                charter: None, parent_role_lct_id: Some(council), created_by: sov.lct.id }),
+            (sov.lct.id, &kp, HubEvent::RoleAssigned { role: SocietyRole::Citizen,
+                role_lct_id: citizenship, assigned_to: holder, assigned_by: sov.lct.id }),
+        ]).await;
+        let st = HubState::project(&ledger);
+        assert_eq!(st.seat_quorum(council, 1).established, 1,
+            "only the Office is a seat — the Capacity is a standing its holder carries");
+        assert!(!st.seat_occupants(council).contains(&holder),
+            "and holding a capacity confers no signature on the body");
+        assert!(st.roles[&citizenship].can_act(), "the capacity itself can still act in ITS scope");
     }
 
     #[tokio::test]
