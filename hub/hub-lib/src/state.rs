@@ -105,6 +105,29 @@ pub struct ProjectedRole {
     pub occupancy_log: Vec<RoleOccupancyChange>,
 }
 
+/// What a role's upward walk actually found — the three outcomes, named.
+///
+/// GPT's review of #846: `role_lineage` already distinguished a dangling parent from a
+/// ring, and then every consumer collapsed it back to one boolean, so a role whose
+/// parent is missing rendered as an ordinary top-level role. Modelling a distinction and
+/// then discarding it at every read is worse than not modelling it: the code claims a
+/// property the operator can never see.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case", tag = "state")]
+pub enum Lineage {
+    /// No parent: a root of the forest. The ordinary case for a top-level role.
+    Root,
+    /// Reached a root through parents that all exist.
+    Rooted,
+    /// A parent is named that this hub does not hold. **Partial, not corrupt** — the
+    /// creating act may be on a chapter not replayed here. Carries the missing id so an
+    /// operator can go and find it.
+    Dangling { missing_parent: Uuid },
+    /// The walk re-entered a role it had already visited. **Corrupt**: no well-formed
+    /// ledger written by these surfaces can contain this.
+    Circular,
+}
+
 /// Quorum arithmetic over a role's seats, with **N, O and M kept apart**.
 ///
 /// GPT's review of #844: *"Vacating a seat should change O, not silently N or M. Otherwise
@@ -856,6 +879,31 @@ impl HubState {
                 return (out, false);
             }
             cur = parent;
+        }
+    }
+
+    /// The lineage outcome for one role, as the three-way fact the model already knows.
+    ///
+    /// Every consumer reads this rather than re-deriving from `role_lineage`'s boolean.
+    /// The renderer, the API and any future quorum check must agree about what a missing
+    /// parent means, and they will only agree if they ask the same function.
+    pub fn lineage_of(&self, role: Uuid) -> Lineage {
+        let parent = match self.roles.get(&role).and_then(|r| r.parent_role_lct_id) {
+            None => return Lineage::Root,
+            Some(p) => p,
+        };
+        let (walk, cyclic) = self.role_lineage(role);
+        if cyclic {
+            return Lineage::Circular;
+        }
+        // The walk stops at the first parent it does not hold; that id is the break.
+        match walk.last() {
+            Some(last) if !self.roles.contains_key(last) => {
+                Lineage::Dangling { missing_parent: *last }
+            }
+            // A one-hop walk that found nothing is the same break, named directly.
+            None => Lineage::Dangling { missing_parent: parent },
+            _ => Lineage::Rooted,
         }
     }
 
@@ -2030,6 +2078,59 @@ mod tests {
         assert_eq!(line, vec![absent_parent], "the edge is reported even though its target is not held");
         assert_eq!(st.role_depth(child), 2);
     }
+    /// The three lineage outcomes are three ANSWERS, not one boolean and a shrug.
+    ///
+    /// GPT's #846 point: the projection distinguished dangling from circular and then every
+    /// consumer collapsed it, so a role with a missing parent rendered exactly like an
+    /// ordinary root. All four states are driven here, including the two that used to be
+    /// indistinguishable.
+    #[tokio::test]
+    async fn a_missing_parent_and_a_ring_and_a_root_are_three_different_answers() {
+        use crate::events::RoleKind;
+        use web4_core::role::SocietyRole;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let (root, child, orphan, absent) =
+            (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
+        let mk = |id: Uuid, parent: Option<Uuid>| HubEvent::RoleCreated {
+            role_lct_id: id, role: SocietyRole::Custom("r".into()), role_kind: RoleKind::Office,
+            charter: None, parent_role_lct_id: parent, created_by: sov.lct.id,
+            initial_occupant: None };
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis { hub_name: "T".into(),
+                charter_hash: "sha256:0".into(), founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now() }),
+            (sov.lct.id, &kp, mk(root, None)),
+            (sov.lct.id, &kp, mk(child, Some(root))),
+            (sov.lct.id, &kp, mk(orphan, Some(absent))),
+            (sov.lct.id, &kp, mk(a, Some(b))),
+            (sov.lct.id, &kp, mk(b, Some(a))),
+        ]).await;
+        let st = HubState::project(&ledger);
+
+        assert_eq!(st.lineage_of(root), Lineage::Root, "no parent at all");
+        assert_eq!(st.lineage_of(child), Lineage::Rooted, "a parent, and it is held");
+        assert_eq!(st.lineage_of(orphan), Lineage::Dangling { missing_parent: absent },
+            "PARTIAL: the id is carried so an operator can go and find it");
+        assert_eq!(st.lineage_of(a), Lineage::Circular, "CORRUPT");
+        assert_eq!(st.lineage_of(b), Lineage::Circular);
+
+        // The distinction that was being thrown away: an orphan is NOT a root, even though
+        // the tree walk reaches neither of them from the roots.
+        assert_ne!(st.lineage_of(orphan), Lineage::Root,
+            "a missing parent must never masquerade as a top-level role");
+        assert_ne!(st.lineage_of(orphan), st.lineage_of(a),
+            "partial and corrupt are different diagnoses and must not share an answer");
+
+        // And it serialises as a tagged state, so an API consumer reads a word, not a flag.
+        let j = serde_json::to_value(st.lineage_of(orphan)).unwrap();
+        assert_eq!(j["state"], "dangling");
+        assert_eq!(j["missing_parent"], serde_json::json!(absent));
+        assert_eq!(serde_json::to_value(st.lineage_of(a)).unwrap()["state"], "circular");
+        assert_eq!(serde_json::to_value(st.lineage_of(root)).unwrap()["state"], "root");
+    }
+
     #[tokio::test]
     async fn project_genesis_seeds_sovereign_as_member() {
         let sov = IdentityFile::generate(EntityType::Human);

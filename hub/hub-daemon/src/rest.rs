@@ -6449,7 +6449,11 @@ async fn admin_roles_list(
         "invalid_unheld_capacity": r.is_incoherent_capacity(),
         "occupancy_changes": r.occupancy_log.len(),
         "depth": state.role_depth(r.role_lct_id),
-        "lineage_is_circular": state.role_lineage(r.role_lct_id).1,
+        // The three-way answer, not a boolean. `lineage_is_circular` reported only the
+        // corrupt case, so a role whose parent this hub does not hold was indistinguishable
+        // from an ordinary top-level role — the distinction the projection models and every
+        // consumer was discarding.
+        "lineage": state.lineage_of(r.role_lct_id),
         "seats": state.seat_quorum(r.role_lct_id, 0).established,
     })).collect();
     Ok(Json(serde_json::json!({ "roles": roles, "count": roles.len() })))
@@ -13269,6 +13273,10 @@ norms: []
         assert!(!h.contains("roleFill("),
             "and never filled or rotated: a new holder gets a new instance: {h}");
         assert!(h.contains("occupant"), "the holder's name is on the row: {h}");
+        assert!(!h.contains("roleSeat("),
+            "and no Add seat: a capacity is minted per holder and unbounded, so constituted \
+             seats beneath one would multiply with its holders. There is no coherent \
+             reading of \"a seat within a citizenship\": {h}");
 
         assert!(html.contains("Role entities"), "the section has a heading");
         assert!(html.contains("roleCreate()"), "and a create form");
@@ -13318,6 +13326,32 @@ norms: []
         assert!(council_row.contains("roleSeat("),
             "every usable role offers Add seat — the fractal step has to be one click, \
              not a hand-copied uuid: {council_row}");
+
+        // A DANGLING role: parent named, parent absent. It is also unreachable from the
+        // roots, so before this it was appended at depth 0 with no warning — visually
+        // identical to an ordinary top-level role. GPT's #846 point.
+        let (orphan, absent) = (Uuid::new_v4(), Uuid::new_v4());
+        witness_event(&state, HubEvent::RoleCreated { role_lct_id: orphan,
+            role: SocietyRole::Custom("orphan".into()),
+            role_kind: hub_lib::events::RoleKind::Office, charter: None,
+            parent_role_lct_id: Some(absent), created_by: state.sovereign_lct_id,
+            initial_occupant: None }).await.unwrap();
+
+        let html = crate::admin::manage_page(State(state.clone())).await.unwrap().0;
+        let pos = |id: Uuid| html.find(&format!("<code>{id}</code>")).unwrap_or_else(|| panic!("{id} absent"));
+        let row_of = |id: Uuid| {
+            let st = html[..pos(id)].rfind("<tr>").unwrap();
+            html[st..st + html[st..].find("</tr>").unwrap()].to_string()
+        };
+        let o = row_of(orphan);
+        assert!(o.contains("dangling parent"), "the missing-parent case gets its OWN warning: {o}");
+        assert!(o.contains(&absent.to_string()),
+            "…naming the id to go and look for — a warning that does not say what is \
+             missing is most of the way to no warning: {o}");
+        assert!(!o.contains("circular"), "partial is not corrupt: {o}");
+        let r = row_of(council);
+        assert!(!r.contains("dangling") && !r.contains("circular"),
+            "an ordinary root carries no warning, or the warning means nothing: {r}");
 
         // The ring: both ends present, both flagged. The tree walk never reached them.
         for id in [x, y] {

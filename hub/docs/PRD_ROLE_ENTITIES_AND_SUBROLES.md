@@ -401,9 +401,27 @@ keeps a ring out of the render, because a ring has no root — which would make 
 **invisible**. Unreached roles are therefore appended and flagged, since invisible
 corruption is worse than rendered corruption.
 
-**A dangling parent is not a cycle.** A parent naming a role this hub has not replayed is a
-*partial* ledger; a ring is a *corrupt* one. They are reported differently on purpose,
-because collapsing them would make an ordinary partial read look like corruption.
+**A dangling parent is not a cycle, and every consumer has to say so.** A parent naming a
+role this hub has not replayed is a *partial* ledger; a ring is a *corrupt* one.
+
+The first cut modelled that distinction and then discarded it at every read: `role_lineage`
+returned a single `cyclic` boolean, so a role with a missing parent was appended after the
+tree walk at depth 0 with no warning — visually identical to an ordinary top-level role.
+GPT's #846 point, and the general form is worth keeping: **modelling a distinction and
+collapsing it at every consumer is worse than not modelling it**, because the code then
+claims a property the operator can never see.
+
+`Lineage` is now the three-way answer — `root` / `rooted` / `dangling { missing_parent }` /
+`circular` — read through one function so the renderer, the API and any future quorum check
+cannot disagree about what a missing parent means. The dangling warning **names the id it is
+missing**: a warning that does not say what to go and look for is most of the way to no
+warning at all. A dangling lineage does not block replay and is not corruption; it simply
+may not masquerade as a valid root.
+
+**"Add seat" is offered on Offices only.** A Capacity is minted per holder and unbounded, so
+constituted seats beneath one would multiply with its holders, and "a seat within a
+citizenship" has no coherent reading. The earlier "every usable role" wording was broader
+than the definition `seats_of()` actually uses.
 
 - **Acceptance:** a three-level tree projects with depth measured from the root; a ring
   truncates the walk and is reported; a dangling edge ends the walk without claiming a

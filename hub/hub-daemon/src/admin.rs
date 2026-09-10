@@ -1807,7 +1807,7 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
             <th>Occupant</th><th>State</th><th>Actions</th></tr></thead><tbody>");
         for (depth, r) in role_entities {
             let id = r.role_lct_id;
-            let unreachable = projected.role_lineage(id).1;
+            let lineage = projected.lineage_of(id);
             let indent = "&nbsp;&nbsp;&nbsp;&nbsp;".repeat(depth);
             let kind = match r.role_kind {
                 hub_lib::events::RoleKind::Office => "office",
@@ -1865,9 +1865,16 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
             let rendered_name = format!("{}{}{}", indent,
                 if depth > 0 { "└ " } else { "" },
                 html_escape(&format!("{:?}", r.role)));
-            let flag = if unreachable {
-                " <span class=\"pill pill-warn\">circular lineage</span>"
-            } else { "" };
+            // Partial and corrupt get DIFFERENT warnings, and the dangling one names the
+            // id it is missing — a warning that does not say what to go and look for is
+            // most of the way to no warning at all.
+            let flag = match &lineage {
+                hub_lib::state::Lineage::Circular =>
+                    " <span class=\"pill pill-warn\">circular lineage</span>".to_string(),
+                hub_lib::state::Lineage::Dangling { missing_parent } =>
+                    format!(" <span class=\"pill pill-warn\">dangling parent {missing_parent}</span>"),
+                _ => String::new(),
+            };
             body.push_str(&format!(
                 "<tr><td>{rendered_name}{flag}</td><td>{kind}</td><td><code>{id}</code></td><td>{occupant}</td>\
                  <td>{state_pill}</td><td>{actions}</td></tr>"));
