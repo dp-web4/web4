@@ -317,7 +317,7 @@ independently revertible. No sprint may leave the council unable to reach a verd
 ### Sprint 1 — Roles become ledger-derived entities *(no council changes)*
 
 - `RoleCreated` and `RoleVacated` ledger verbs; `RoleAssigned` gains a real projection.
-- `HubState.roles: BTreeMap<Uuid, RoleEntity>` — keyed by role LCT, rebuilt from the chain.
+- `HubState.roles: BTreeMap<Uuid, ProjectedRole>` — keyed by role LCT, rebuilt from the chain.
 - **Sprint 1 is the substrate only: ledger verbs, projection, and event rendering.** The
   operator surfaces (create / list / vacate / retire) are **Sprint 1b** and land separately.
   GPT's fifth point: the acceptance contract must match what actually lands, and the first
@@ -326,6 +326,43 @@ independently revertible. No sprint may leave the council unable to reach a verd
   on a fixture containing create → assign → rotate → vacate. Rotation preserves the role's
   tensor and appends an event. The society document remains authoritative for anything that
   reads it today — this sprint *adds* a projection, it does not switch consumers over.
+
+### Sprint 1b — The operator surfaces *(no council changes)*
+
+Split out of Sprint 1 on GPT's fifth point, and it turned out to carry the sharpest
+measurement in this document.
+
+- `POST /admin/api/roles/create`, `/:id/fill`, `/:id/vacate`, `/:id/retire`, and
+  `GET /admin/api/roles` — all loopback-only, all through the same governance gate the
+  council routes use, all enumerated in the plane-split guard.
+- The **two kinds are created differently**, because dp's rule about them is a rule and
+  not a description. A Capacity names its holder in the creating act; an Office may not,
+  because an Office is constituted first and filled second.
+- **Retiring an occupied role is refused.** Vacate first. This is the surface's V clause:
+  a live council cannot be shrunk in a single act, and a retire that quietly evicted its
+  occupant would re-fuse N and O at the surface after the substrate had split them.
+- `parent_role_lct_id` is **not accepted** here. The verb carries it; the invariants that
+  make a parent safe are Sprint 2, and a surface that accepted a parent before its
+  invariants existed would be this PRD's own gap, freshly dug.
+- Manage renders the entities: a vacant office as **present and empty**, never as absent.
+  Held at the operator tier, not published on `/admin/roles` — a public vacancy table
+  announces exactly when a council cannot reach quorum, and holding it back is the
+  reversible direction.
+
+**What this sprint measured.** `Society::assign_role` keys its map by `role_key(&role)`,
+the role's *name*, and calls `existing.rotate(...)` when the key is already present. Two
+consequences, both live:
+
+1. A society holds **at most one assignment per role name**. The fleet hub has **twelve
+   members and exactly one `citizen`**, and that is why.
+2. Granting a role that is already granted **revokes it from the previous holder**. For an
+   Office that is correct — it is a rotation. For a Capacity it is the opposite of what the
+   word means.
+
+The second is pinned by a test that runs the old behaviour as a control and the new surface
+beside it, so the claim is executed rather than asserted. It is also the concrete answer to
+*why the Sovereign Council needed a parallel mechanism*: the society document cannot hold
+nine council members, because it cannot hold two of anything.
 
 ### Sprint 2 — Sub-roles *(structure only, council untouched)*
 

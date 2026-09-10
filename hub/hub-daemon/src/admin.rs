@@ -1421,6 +1421,18 @@ function assignRole(){
   if(!lct){ alert('Member LCT id is required.'); return; }
   if(confirm('Assign role '+role+' to '+lct+'? Witnessed as RoleAssigned.')) hubAct('/tools/assign_role',{role:role,member_lct_id:lct});
 }
+function roleCreate(){
+  const role=document.getElementById('re-role').value.trim(), kind=document.getElementById('re-kind').value;
+  const charter=document.getElementById('re-charter').value.trim(), occ=document.getElementById('re-occ').value.trim();
+  if(!role){ alert('A role name is required.'); return; }
+  if(kind==='capacity' && !occ){ alert('A capacity is created for a holder: give the member LCT id.'); return; }
+  if(kind==='office' && occ){ alert('An office is constituted before it is filled. Leave the holder blank, then Fill it.'); return; }
+  const body={role:(role.indexOf(':')<0 && ['sovereign','law_oracle','policy_entity','treasurer','administrator','archivist','citizen','witness','auditor'].indexOf(role)>=0)?role:{custom:role}, role_kind:kind, charter:charter||null, occupant_lct_id:occ||null};
+  if(confirm('Constitute '+role+' as a '+kind+'? Witnessed as RoleCreated. No verb deletes a role.')) hubAct('/admin/api/roles/create',body);
+}
+function roleFill(id){ const lct=prompt('Fill role '+id+' — member LCT id:'); if(!lct) return; hubAct('/admin/api/roles/'+id+'/fill',{member_lct_id:lct.trim()}); }
+function roleVacate(id){ const reason=prompt('Vacate role '+id+' — reason (optional). The role and its whole occupancy log survive:'); if(reason!==null) hubAct('/admin/api/roles/'+id+'/vacate',{kind:'resigned',reason:reason||null}); }
+function roleRetire(id){ const reason=prompt('RETIRE role '+id+' — reason (optional). This strikes the seat from the constitution and there is no un-retire:'); if(reason!==null) hubAct('/admin/api/roles/'+id+'/retire',{reason:reason||null}); }
 function admissionReset(){ const lct=prompt('Admission-reset which LCT id? (clears denial + review standing)'); if(!lct) return; const reason=prompt('Reason (optional):'); if(reason!==null) hubAct('/admin/api/members/'+lct.trim()+'/admission-reset',{reason:reason||null}); }
 function setLimits(){
   const rt=document.getElementById('lim-repeat').value.trim();
@@ -1737,6 +1749,82 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
          </select>\
          <label>Member LCT id</label><input id=\"rl-lct\" placeholder=\"uuid\" style=\"font-family:monospace;padding:0.3rem;\">\
          <span></span><span><button onclick=\"assignRole()\">Assign role</button></span>\
+         </div>",
+    );
+
+    // ---- Role entities (Sprint 1b). Distinct from "Assign a role" above, and the
+    // difference is the whole PRD: `/tools/assign_role` writes the society document,
+    // whose map is keyed by the role's NAME, so it holds one assignment per name and
+    // rotates on the second. These write ledger ENTITIES keyed by the role's own LCT,
+    // which is what lets a role exist while vacant and lets many entities hold one
+    // capacity.
+    //
+    // Rendered on the OPERATOR page and deliberately not on public `/admin/roles`:
+    // a vacancy table publishes exactly when a council cannot reach quorum. That is a
+    // tiered-disclosure call, and holding it at the operator tier is the reversible
+    // direction — dp can open it, nobody can un-publish it.
+    body.push_str("<h2 style=\"margin-top:1.5rem\">Role entities</h2>");
+    body.push_str("<p class=\"muted\">A role is <em>filled</em> only while paired with an entity. \
+        A vacant role exists and cannot act; the only act available to it is to be filled. \
+        An <strong>office</strong> is constituted first and may sit vacant. A <strong>capacity</strong> \
+        is created for its holder and there is no unfilled one. Retiring is the only exit, and it \
+        erases nothing.</p>");
+    let role_entities: Vec<_> = projected.roles.values().collect();
+    if role_entities.is_empty() {
+        body.push_str("<p class=\"muted\">No role entities yet. The roles on \
+            <a href=\"/admin/roles\">Roles</a> are society-document assignments, which predate this.</p>");
+    } else {
+        body.push_str("<table><thead><tr><th>Role</th><th>Kind</th><th>Role LCT</th>\
+            <th>Occupant</th><th>State</th><th>Actions</th></tr></thead><tbody>");
+        for r in role_entities {
+            let id = r.role_lct_id;
+            let name = format!("{:?}", r.role);
+            let kind = match r.role_kind {
+                hub_lib::events::RoleKind::Office => "office",
+                hub_lib::events::RoleKind::Capacity => "capacity",
+            };
+            let occupant = match r.occupant {
+                Some(o) => {
+                    let who = projected.members.get(&o).and_then(|m| m.name.as_deref()).unwrap_or("");
+                    format!("<code>{o}</code> {}", html_escape(who))
+                }
+                None => "<span class=\"muted\">—</span>".to_string(),
+            };
+            let state_pill = if r.retired {
+                "<span class=\"pill\">retired</span>"
+            } else if r.can_act() {
+                "<span class=\"pill\">filled</span>"
+            } else if kind == "office" {
+                "<span class=\"pill pill-warn\">vacant</span>"
+            } else {
+                "<span class=\"pill pill-warn\">spent</span>"
+            };
+            let actions = if r.retired {
+                "<span class=\"muted\">readable, not usable</span>".to_string()
+            } else if r.occupant.is_some() {
+                format!("<button onclick=\"roleFill('{id}')\">Rotate</button> \
+                         <button onclick=\"roleVacate('{id}')\">Vacate</button>")
+            } else {
+                format!("<button onclick=\"roleFill('{id}')\">Fill</button> \
+                         <button class=\"danger\" onclick=\"roleRetire('{id}')\">Retire</button>")
+            };
+            body.push_str(&format!(
+                "<tr><td>{}</td><td>{kind}</td><td><code>{id}</code></td><td>{occupant}</td>\
+                 <td>{state_pill}</td><td>{actions}</td></tr>",
+                html_escape(&name)));
+        }
+        body.push_str("</tbody></table>");
+    }
+    body.push_str(
+        "<div style=\"display:grid;grid-template-columns:max-content 1fr;gap:0.4rem 0.6rem;max-width:760px;align-items:center;margin-top:0.6rem\">\
+         <label>Role name</label><input id=\"re-role\" placeholder=\"council-member, citizen, auditor…\" style=\"padding:0.3rem;\">\
+         <label>Kind</label><select id=\"re-kind\" style=\"padding:0.3rem;\">\
+           <option value=\"office\">office — constituted, may be vacant, counts toward quorum</option>\
+           <option value=\"capacity\">capacity — per-holder, created on demand, never vacant</option>\
+         </select>\
+         <label>Charter</label><input id=\"re-charter\" placeholder=\"(optional) what this role may do\" style=\"padding:0.3rem;\">\
+         <label>Holder LCT id</label><input id=\"re-occ\" placeholder=\"required for a capacity, blank for an office\" style=\"font-family:monospace;padding:0.3rem;\">\
+         <span></span><span><button onclick=\"roleCreate()\">Constitute role</button></span>\
          </div>",
     );
 

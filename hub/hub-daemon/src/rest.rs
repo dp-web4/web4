@@ -6086,6 +6086,322 @@ async fn admin_council_set_threshold(
     })))
 }
 
+// ---------------------------------------------------------------------------
+// Sprint 1b — the operator surfaces for role ENTITIES.
+//
+// dp, 2026-09-08: "do i have a ui to edit/add roles yet?" The honest answer was no.
+// `/tools/assign_role` existed, but it writes through `Society::assign_role`, whose
+// map is keyed by `role_key(&role)` — the role's NAME. Two consequences, both live on
+// this hub right now and both measured before these routes were written:
+//
+//   1. A society can hold at most ONE assignment per role name. The fleet hub has
+//      twelve members and exactly one `citizen`, because the second assignment would
+//      not have been a second citizen.
+//   2. Assigning an already-assigned role ROTATES it — `existing.rotate(...)` — so the
+//      second act silently evicts the first holder. For an Office that is correct.
+//      For a Capacity it is the opposite of what the word means.
+//
+// These routes write role entities to the LEDGER, keyed by the role's own LCT, where
+// both of those constraints are absent. They do NOT write the society document, which
+// cannot represent what they create; `/tools/assign_role` keeps that job unchanged.
+//
+// The seam that leaves is deliberate and bounded: a role created here is invisible to
+// `Society::has_role_authority`. Nothing consults role entities for authority until
+// Sprint 4 switches signer resolution onto occupancy, so an entity created today
+// decides nothing. That is why this sprint can land before the council is touched.
+
+#[derive(Deserialize)]
+struct RoleCreateBody {
+    /// Serde shape of `SocietyRole` — `"citizen"`, or `{"custom":"council-member"}`.
+    role: web4_core::role::SocietyRole,
+    /// `"office"` | `"capacity"`. No default: the kind decides what a vacancy MEANS,
+    /// and a default here would pick that meaning for the operator silently.
+    role_kind: String,
+    #[serde(default)]
+    charter: Option<String>,
+    /// Required for a Capacity, refused for an Office — see `admin_role_create`.
+    #[serde(default)]
+    occupant_lct_id: Option<Uuid>,
+}
+
+#[derive(Deserialize)]
+struct RoleFillBody {
+    member_lct_id: Uuid,
+}
+
+#[derive(Deserialize)]
+struct RoleVacateBody {
+    /// "resigned" (default) | "ejected" | "elected", the same vocabulary
+    /// `admin_council_remove` established, mapped explicitly for the same reason.
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    reason: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct RoleRetireBody {
+    #[serde(default)]
+    reason: Option<String>,
+}
+
+fn parse_role_kind(s: &str) -> Result<hub_lib::events::RoleKind, ApiError> {
+    match s {
+        "office" => Ok(hub_lib::events::RoleKind::Office),
+        "capacity" => Ok(hub_lib::events::RoleKind::Capacity),
+        other => Err(ApiError::bad_request(format!(
+            "role_kind must be \"office\" or \"capacity\" (got {other:?})"))),
+    }
+}
+
+fn parse_vacation_kind(s: Option<&str>) -> Result<web4_core::role::RoleEventKind, ApiError> {
+    use web4_core::role::RoleEventKind;
+    match s.unwrap_or("resigned") {
+        "resigned" => Ok(RoleEventKind::FillerResigned),
+        "ejected" => Ok(RoleEventKind::FillerEjected),
+        "elected" => Ok(RoleEventKind::FillerElected),
+        other => Err(ApiError::bad_request(format!(
+            "kind must be resigned, ejected or elected (got {other:?})"))),
+    }
+}
+
+/// Look a role up in the projection, or say which of the two ways it is unusable.
+fn projected_role(state: &HubState, role_lct_id: Uuid) -> Result<&hub_lib::state::ProjectedRole, ApiError> {
+    match state.roles.get(&role_lct_id) {
+        None => Err(ApiError::not_found(format!("no role entity {role_lct_id}"))),
+        Some(r) if r.retired => Err(ApiError::bad_request(format!(
+            "role {role_lct_id} is retired; a retired role is readable, not usable"))),
+        Some(r) => Ok(r),
+    }
+}
+
+/// `POST /admin/api/roles/create` — constitute a role entity.
+///
+/// The two kinds are created DIFFERENTLY on purpose, because dp's rule about them is a
+/// rule and not a description: *"there are no unfilled fungible roles"*. So a Capacity
+/// must name its holder in the creating act and an Office must not — an Office is
+/// constituted first and filled second, which is exactly the state the old one-call
+/// `assign_role` could not represent.
+///
+/// Not accepted here: `parent_role_lct_id`. The verb carries it, but the cycle, existence
+/// and depth invariants that make a parent safe are Sprint 2. A surface that accepted a
+/// parent before its invariants existed would be the gap this PRD is about.
+///
+/// surface: POST /admin/api/roles/create   act: constitute a role entity (RoleCreated)
+/// S: med/irreversible [construct: no verb deletes a role — retiring is the only exit]
+/// R: weak-only [construct: require_loopback]   W: pass [construct: Sovereign signer via witness_event; governance_gate]
+/// O: pass [construct: governance_gate before witness_event]   A: pass [construct: signed chain entry carries created_by]
+/// V: n/a [construct: a created role decides nothing until Sprint 4; can_act() gates it meanwhile]
+/// verdict: PASS
+async fn admin_role_create(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Json(body): Json<RoleCreateBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let role_kind = parse_role_kind(&body.role_kind)?;
+    let occupant = match (role_kind.clone(), body.occupant_lct_id) {
+        (hub_lib::events::RoleKind::Capacity, None) => return Err(ApiError::bad_request(
+            "a capacity is created for a holder: occupant_lct_id is required".to_string())),
+        (hub_lib::events::RoleKind::Office, Some(_)) => return Err(ApiError::bad_request(
+            "an office is constituted before it is filled: create it, then POST /fill".to_string())),
+        (_, occ) => occ,
+    };
+    if let Some(member) = occupant {
+        let ledger = s.ledger.lock().await;
+        if !HubState::project(&ledger).members.contains_key(&member) {
+            return Err(ApiError::bad_request(format!("{member} is not a member of this hub")));
+        }
+    }
+    let role_lct_id = Uuid::new_v4();
+    let create = HubEvent::RoleCreated {
+        role_lct_id,
+        role: body.role.clone(),
+        role_kind,
+        charter: body.charter.clone(),
+        parent_role_lct_id: None,
+        created_by: s.sovereign_lct_id,
+    };
+    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &create).await?;
+    let entry_index = witness_event(&s, create).await?;
+    // A capacity's founding fill is a SECOND witnessed act, not a hidden half of the
+    // first. If it fails, what survives is an unoccupied capacity — inert, because
+    // `can_act()` is false for it, and either fillable or retirable by hand. That is a
+    // recoverable state; a half-written single event would not be.
+    let fill_index = match occupant {
+        None => None,
+        Some(member) => {
+            let fill = HubEvent::RoleAssigned {
+                role: body.role.clone(),
+                role_lct_id,
+                assigned_to: member,
+                assigned_by: s.sovereign_lct_id,
+            };
+            governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &fill).await?;
+            Some(witness_event(&s, fill).await?)
+        }
+    };
+    Ok(Json(serde_json::json!({
+        "created": true, "role_lct_id": role_lct_id, "entry_index": entry_index,
+        "role_kind": body.role_kind, "occupant": occupant, "fill_entry_index": fill_index,
+    })))
+}
+
+/// `POST /admin/api/roles/:role_lct_id/fill` — pair an entity with a role.
+///
+/// dp: *"a role is 'filled' only when paired with an entity filling it"*. This is that
+/// pairing, addressed by the ROLE's LCT — which is the whole difference from
+/// `/tools/assign_role`, where the address is the role's name and a second call to the
+/// same name evicts the first holder instead of filling a second seat.
+///
+/// Filling an occupied role is a ROTATION and is allowed: the outgoing occupant stays in
+/// the occupancy log, which is what the merit ruling protects.
+///
+/// surface: POST /admin/api/roles/:id/fill   act: pair an entity with a role (RoleAssigned)
+/// S: med/reversible [construct: vacate is the inverse; the log keeps both]
+/// R: weak-only [construct: require_loopback]   W: pass [construct: governance_gate; witness_event signs]
+/// O: pass [construct: projected_role + membership check + gate, all before witness_event]
+/// A: pass [construct: signed chain entry carries assigned_by]   V: n/a [construct: decides nothing until Sprint 4]
+/// verdict: PASS
+async fn admin_role_fill(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(role_lct_id): Path<Uuid>,
+    Json(body): Json<RoleFillBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let (role, previous) = {
+        let ledger = s.ledger.lock().await;
+        let state = HubState::project(&ledger);
+        if !state.members.contains_key(&body.member_lct_id) {
+            return Err(ApiError::bad_request(format!(
+                "{} is not a member of this hub", body.member_lct_id)));
+        }
+        let r = projected_role(&state, role_lct_id)?;
+        if r.occupant == Some(body.member_lct_id) {
+            return Err(ApiError::bad_request(format!(
+                "{} already occupies this role", body.member_lct_id)));
+        }
+        (r.role.clone(), r.occupant)
+    };
+    let event = HubEvent::RoleAssigned {
+        role, role_lct_id,
+        assigned_to: body.member_lct_id,
+        assigned_by: s.sovereign_lct_id,
+    };
+    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &event).await?;
+    let entry_index = witness_event(&s, event).await?;
+    Ok(Json(serde_json::json!({
+        "filled": true, "role_lct_id": role_lct_id, "entry_index": entry_index,
+        "occupant": body.member_lct_id, "rotated_from": previous,
+    })))
+}
+
+/// `POST /admin/api/roles/:role_lct_id/vacate` — empty the seat, keep the role.
+///
+/// This moves O and nothing else. It is the verb GPT's third point separated from
+/// retirement: *"vacating a seat should change O, not silently N or M"*.
+///
+/// surface: POST /admin/api/roles/:id/vacate   act: empty a role (RoleVacated)
+/// S: med/reversible [construct: fill is the inverse; the role and its log survive]
+/// R: weak-only [construct: require_loopback]   W: pass [construct: governance_gate; witness_event signs]
+/// O: pass [construct: projected_role + occupancy check before witness_event]
+/// A: pass [construct: signed entry carries previous_occupant and vacated_by]   V: n/a
+/// verdict: PASS
+async fn admin_role_vacate(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(role_lct_id): Path<Uuid>,
+    Json(body): Json<RoleVacateBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let vacation_kind = parse_vacation_kind(body.kind.as_deref())?;
+    let previous_occupant = {
+        let ledger = s.ledger.lock().await;
+        let state = HubState::project(&ledger);
+        let r = projected_role(&state, role_lct_id)?;
+        r.occupant.ok_or_else(|| ApiError::bad_request(format!(
+            "role {role_lct_id} is already unoccupied; there is nothing to vacate")))?
+    };
+    let event = HubEvent::RoleVacated {
+        role_lct_id, previous_occupant, vacation_kind,
+        reason: body.reason, vacated_by: s.sovereign_lct_id,
+    };
+    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &event).await?;
+    let entry_index = witness_event(&s, event).await?;
+    Ok(Json(serde_json::json!({
+        "vacated": true, "role_lct_id": role_lct_id,
+        "entry_index": entry_index, "previous_occupant": previous_occupant,
+    })))
+}
+
+/// `POST /admin/api/roles/:role_lct_id/retire` — strike the role from the constitution.
+///
+/// **An occupied role is refused.** Vacate first. The two verbs exist precisely so that
+/// "the seat is empty" and "the seat is abolished" cannot be the same act, and a retire
+/// that quietly evicted its occupant would re-fuse them at the surface after the
+/// substrate had separated them.
+///
+/// Retiring is the only thing that moves N. It does not delete: the role, its charter and
+/// its whole occupancy log stay readable.
+///
+/// surface: POST /admin/api/roles/:id/retire   act: abolish a role (RoleRetired)
+/// S: high/irreversible [construct: no un-retire verb exists; N drops for every quorum over it]
+/// R: weak-only [construct: require_loopback]   W: pass [construct: governance_gate; witness_event signs]
+/// O: pass [construct: occupancy refusal + gate before witness_event]
+/// A: pass [construct: signed entry carries retired_by]
+/// V: present [construct: the occupancy refusal is the veto — an abolition cannot be
+///    performed on a seat someone is sitting in, so a live council cannot be shrunk in one act]
+/// verdict: PASS
+async fn admin_role_retire(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(role_lct_id): Path<Uuid>,
+    Json(body): Json<RoleRetireBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    {
+        let ledger = s.ledger.lock().await;
+        let state = HubState::project(&ledger);
+        let r = projected_role(&state, role_lct_id)?;
+        if let Some(occ) = r.occupant {
+            return Err(ApiError::bad_request(format!(
+                "role {role_lct_id} is occupied by {occ}; vacate it before retiring it")));
+        }
+    }
+    let event = HubEvent::RoleRetired {
+        role_lct_id, reason: body.reason, retired_by: s.sovereign_lct_id,
+    };
+    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &event).await?;
+    let entry_index = witness_event(&s, event).await?;
+    Ok(Json(serde_json::json!({
+        "retired": true, "role_lct_id": role_lct_id, "entry_index": entry_index,
+    })))
+}
+
+/// `GET /admin/api/roles` — the projection, including what the society document cannot
+/// hold: vacant offices, retired roles, and more than one holder of a role name.
+async fn admin_roles_list(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let ledger = s.ledger.lock().await;
+    let state = HubState::project(&ledger);
+    let roles: Vec<_> = state.roles.values().map(|r| serde_json::json!({
+        "role_lct_id": r.role_lct_id,
+        "role": r.role,
+        "role_kind": r.role_kind,
+        "charter": r.charter,
+        "parent_role_lct_id": r.parent_role_lct_id,
+        "occupant": r.occupant,
+        "retired": r.retired,
+        "can_act": r.can_act(),
+        "occupancy_changes": r.occupancy_log.len(),
+    })).collect();
+    Ok(Json(serde_json::json!({ "roles": roles, "count": roles.len() })))
+}
+
 #[derive(Deserialize)]
 struct AddMemberBody {
     lct_id: Uuid,
@@ -6498,6 +6814,11 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/council/add", post(admin_council_add))
         .route("/admin/api/council/:lct_id/remove", post(admin_council_remove))
         .route("/admin/api/council/threshold", post(admin_council_set_threshold))
+        .route("/admin/api/roles", get(admin_roles_list))
+        .route("/admin/api/roles/create", post(admin_role_create))
+        .route("/admin/api/roles/:role_lct_id/fill", post(admin_role_fill))
+        .route("/admin/api/roles/:role_lct_id/vacate", post(admin_role_vacate))
+        .route("/admin/api/roles/:role_lct_id/retire", post(admin_role_retire))
         .route("/admin/api/members/:lct_id/key", post(admin_pin_key))
         .route("/admin/api/members/:lct_id/remove", post(admin_remove_member))
         .route("/admin/api/members/:lct_id/admission-reset", post(admin_admission_reset))
@@ -11776,6 +12097,322 @@ norms:
         assert!(!persisted.contains("anchor_ceilings"), "cleared means absent from the law text, not `{{}}`");
     }
 
+    // ---- Sprint 1b: the role-entity operator surfaces -------------------------
+
+    use web4_core::role::SocietyRole;
+
+    /// Admit a member on the operator plane and hand back their LCT.
+    async fn member(state: &RestState, name: &str) -> Uuid {
+        let kp = KeyPair::generate();
+        let lct = Uuid::new_v4();
+        admin_add_member(State(state.clone()), ConnectInfo("127.0.0.1:5555".parse().unwrap()),
+            Json(AddMemberBody { lct_id: lct, pubkey_hex: kp.verifying_key().to_hex(), name: Some(name.into()) }))
+            .await.unwrap();
+        lct
+    }
+
+    fn role_of(state: &HubState, id: Uuid) -> &hub_lib::state::ProjectedRole {
+        state.roles.get(&id).expect("role is projected")
+    }
+
+    /// dp: *"an unfilled/vacant role cannot act, the only action available to it is
+    /// 'be filled'."* Driven end to end through the surfaces, checking `can_act()` at
+    /// every stage rather than only at the ends — a lifecycle test that samples only
+    /// the endpoints cannot tell "vacant" from "never existed".
+    #[tokio::test]
+    async fn an_office_is_born_vacant_acts_only_while_filled_and_survives_being_emptied() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let holder = member(&state, "nomad").await;
+
+        let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(RoleCreateBody { role: SocietyRole::Custom("council-member".into()),
+                role_kind: "office".into(), charter: Some("one seat of the council".into()),
+                occupant_lct_id: None })).await.unwrap();
+        let seat: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
+        assert!(out.0["fill_entry_index"].is_null(), "an office is constituted unfilled");
+
+        // Born vacant: it exists, and it cannot act.
+        {
+            let l = state.ledger.lock().await;
+            let st = HubState::project(&l);
+            let r = role_of(&st, seat);
+            assert_eq!(r.occupant, None);
+            assert!(!r.can_act(), "a vacant office cannot act");
+            assert!(!r.retired, "vacant is not retired");
+            assert_eq!(r.charter.as_deref(), Some("one seat of the council"));
+        }
+
+        admin_role_fill(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+            Json(RoleFillBody { member_lct_id: holder })).await.unwrap();
+        {
+            let l = state.ledger.lock().await;
+            let st = HubState::project(&l);
+            let r = role_of(&st, seat);
+            assert_eq!(r.occupant, Some(holder));
+            assert!(r.can_act(), "filled by pairing, so it can act");
+        }
+
+        admin_role_vacate(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+            Json(RoleVacateBody { kind: Some("resigned".into()), reason: Some("rotated off".into()) }))
+            .await.unwrap();
+        {
+            let l = state.ledger.lock().await;
+            let st = HubState::project(&l);
+            let r = role_of(&st, seat);
+            assert_eq!(r.occupant, None, "emptied");
+            assert!(!r.can_act());
+            assert!(!r.retired, "vacating never abolishes — GPT's O-not-N separation, at the surface");
+            assert_eq!(r.occupancy_log.len(), 2, "fill then vacate; the record survives its occupant");
+            assert_eq!(r.occupancy_log[0].occupant, Some(holder));
+            assert_eq!(r.occupancy_log[1].occupant, None);
+        }
+
+        admin_role_retire(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+            Json(RoleRetireBody { reason: Some("council shrunk by law".into()) })).await.unwrap();
+        {
+            let l = state.ledger.lock().await;
+            let st = HubState::project(&l);
+            let r = role_of(&st, seat);
+            assert!(r.retired && !r.can_act());
+            assert_eq!(r.occupancy_log.len(), 2, "retiring reads the record, it does not erase it");
+        }
+    }
+
+    /// The two kinds are created differently because dp's rule about them IS a rule:
+    /// *"there are no unfilled fungible roles"*. So a capacity names its holder in the
+    /// creating act, and an office may not — an office is constituted, then filled.
+    /// Both directions, because a one-sided check would pass on a surface that ignored
+    /// the field entirely.
+    #[tokio::test]
+    async fn a_capacity_is_born_filled_and_an_office_may_not_be() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let citizen = member(&state, "sprout").await;
+        let before = state.ledger.lock().await.entries().len();
+
+        // Capacity with no holder: refused, nothing witnessed.
+        let err = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
+                charter: None, occupant_lct_id: None })).await.err().expect("refused");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("occupant_lct_id is required"), "got: {}", err.message);
+
+        // Office WITH a holder: refused too, and for the opposite reason.
+        let err = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(RoleCreateBody { role: SocietyRole::Custom("chair".into()), role_kind: "office".into(),
+                charter: None, occupant_lct_id: Some(citizen) })).await.err().expect("refused");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("constituted before it is filled"), "got: {}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "neither refusal witnessed anything");
+
+        // Capacity with a holder: born occupied, in one operator act.
+        let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
+                charter: None, occupant_lct_id: Some(citizen) })).await.unwrap();
+        let id: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
+        assert!(!out.0["fill_entry_index"].is_null(), "the founding fill is its own witnessed act");
+        let l = state.ledger.lock().await;
+        let st = HubState::project(&l);
+        let r = role_of(&st, id);
+        assert_eq!(r.occupant, Some(citizen));
+        assert!(r.can_act(), "no unfilled capacity ever exists");
+        assert_eq!(r.role_kind, hub_lib::events::RoleKind::Capacity);
+    }
+
+    /// The measurement that motivated the whole PRD, driven rather than asserted.
+    ///
+    /// `Society::assign_role` keys its map by `role_key(&role)` — the role's NAME — and
+    /// rotates when the key is already present. So the society document can hold exactly
+    /// one citizen, and granting citizenship to a second member REVOKES it from the first.
+    /// The live fleet hub has twelve members and one citizen for this reason.
+    ///
+    /// Both halves run here: the old behaviour as a control, and the new surface holding
+    /// what the old one could not.
+    #[tokio::test]
+    async fn a_capacity_is_held_by_many_where_the_society_document_holds_one() {
+        // Control: the society document, unchanged, evicts.
+        let founder = Uuid::new_v4();
+        let (mut society, _) = web4_core::society::Society::bootstrap(
+            "control".into(), "sha256:0".into(), founder);
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let first = society.assign_role(SocietyRole::Citizen, a, founder).unwrap();
+        let second = society.assign_role(SocietyRole::Citizen, b, founder).unwrap();
+        assert_eq!(first, second, "same role LCT: the second call did not make a second citizen");
+        assert!(society.has_role_authority(b, &SocietyRole::Citizen));
+        assert!(!society.has_role_authority(a, &SocietyRole::Citizen),
+            "granting citizenship to B REVOKED it from A — the defect the role entity removes");
+
+        // The new surface: two citizens, two entities, both able to act.
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let m_a = member(&state, "alpha").await;
+        let m_b = member(&state, "beta").await;
+        let mut ids = Vec::new();
+        for who in [m_a, m_b] {
+            let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+                Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
+                    charter: None, occupant_lct_id: Some(who) })).await.unwrap();
+            ids.push(serde_json::from_value::<Uuid>(out.0["role_lct_id"].clone()).unwrap());
+        }
+        assert_ne!(ids[0], ids[1], "two citizenships are two entities, not one rotated one");
+        let l = state.ledger.lock().await;
+        let st = HubState::project(&l);
+        assert_eq!(role_of(&st, ids[0]).occupant, Some(m_a), "A still holds it after B was granted");
+        assert_eq!(role_of(&st, ids[1]).occupant, Some(m_b));
+        assert!(role_of(&st, ids[0]).can_act() && role_of(&st, ids[1]).can_act());
+        // And a capacity is not a seat: neither counts toward a council's quorum.
+        assert_eq!(st.seat_quorum(Uuid::new_v4(), 2).established, 0);
+    }
+
+    /// Retiring an occupied role is refused. The verbs exist so that "the seat is empty"
+    /// and "the seat is abolished" cannot be one act; a retire that quietly evicted its
+    /// occupant would re-fuse them at the surface after the substrate had split them.
+    /// This refusal is also this surface's V clause: a live council cannot be shrunk in
+    /// a single call.
+    #[tokio::test]
+    async fn retiring_an_occupied_role_is_refused_and_witnesses_nothing() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let holder = member(&state, "thor").await;
+        let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(RoleCreateBody { role: SocietyRole::Custom("seat".into()), role_kind: "office".into(),
+                charter: None, occupant_lct_id: None })).await.unwrap();
+        let seat: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
+        admin_role_fill(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+            Json(RoleFillBody { member_lct_id: holder })).await.unwrap();
+
+        let before = state.ledger.lock().await.entries().len();
+        let err = admin_role_retire(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+            Json(RoleRetireBody { reason: None })).await.err().expect("refused");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("vacate it before retiring"), "got: {}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "a refused act leaves state bit-identical");
+        {
+            let l = state.ledger.lock().await;
+            let st = HubState::project(&l);
+            assert!(!role_of(&st, seat).retired && role_of(&st, seat).can_act());
+        }
+
+        // Vacate, then retire, and the same call now succeeds — so the refusal above is
+        // about occupancy and not about the route being broken.
+        admin_role_vacate(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+            Json(RoleVacateBody { kind: None, reason: None })).await.unwrap();
+        admin_role_retire(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+            Json(RoleRetireBody { reason: None })).await.unwrap();
+        let l = state.ledger.lock().await;
+        assert!(role_of(&HubState::project(&l), seat).retired);
+    }
+
+    /// A retired role is readable and unusable. Every write verb refuses it with the same
+    /// sentence, because one rule stated four times is one rule that drifts.
+    #[tokio::test]
+    async fn a_retired_role_refuses_every_write_and_an_unknown_role_is_a_404() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let holder = member(&state, "pub").await;
+        let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(RoleCreateBody { role: SocietyRole::Custom("abolished".into()), role_kind: "office".into(),
+                charter: None, occupant_lct_id: None })).await.unwrap();
+        let seat: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
+        admin_role_retire(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+            Json(RoleRetireBody { reason: None })).await.unwrap();
+
+        for (what, err) in [
+            ("fill", admin_role_fill(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+                Json(RoleFillBody { member_lct_id: holder })).await.err()),
+            ("vacate", admin_role_vacate(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+                Json(RoleVacateBody { kind: None, reason: None })).await.err()),
+            ("retire", admin_role_retire(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+                Json(RoleRetireBody { reason: None })).await.err()),
+        ] {
+            let err = err.unwrap_or_else(|| panic!("{what} on a retired role must be refused"));
+            assert_eq!(err.status, StatusCode::BAD_REQUEST, "{what}");
+            assert!(err.message.contains("is retired"), "{what}: got {}", err.message);
+        }
+
+        let unknown = Uuid::new_v4();
+        for (what, err) in [
+            ("fill", admin_role_fill(State(state.clone()), ConnectInfo(loop_addr), Path(unknown),
+                Json(RoleFillBody { member_lct_id: holder })).await.err()),
+            ("vacate", admin_role_vacate(State(state.clone()), ConnectInfo(loop_addr), Path(unknown),
+                Json(RoleVacateBody { kind: None, reason: None })).await.err()),
+            ("retire", admin_role_retire(State(state.clone()), ConnectInfo(loop_addr), Path(unknown),
+                Json(RoleRetireBody { reason: None })).await.err()),
+        ] {
+            let err = err.unwrap_or_else(|| panic!("{what} on a nonexistent role must 404"));
+            assert_eq!(err.status, StatusCode::NOT_FOUND, "{what}: absent and retired are different answers");
+        }
+    }
+
+    /// Every new route is loopback-only, checked one by one. The plane-split guard in
+    /// main.rs proves they are not MOUNTED on the public listener; this proves the
+    /// handlers refuse a remote peer even if they ever were.
+    #[tokio::test]
+    async fn every_role_route_refuses_a_remote_caller() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let remote: SocketAddr = "10.0.0.9:5555".parse().unwrap();
+        let id = Uuid::new_v4();
+        let before = state.ledger.lock().await.entries().len();
+        let statuses = vec![
+            ("create", admin_role_create(State(state.clone()), ConnectInfo(remote),
+                Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
+                    charter: None, occupant_lct_id: Some(id) })).await.err().map(|e| e.status)),
+            ("fill", admin_role_fill(State(state.clone()), ConnectInfo(remote), Path(id),
+                Json(RoleFillBody { member_lct_id: id })).await.err().map(|e| e.status)),
+            ("vacate", admin_role_vacate(State(state.clone()), ConnectInfo(remote), Path(id),
+                Json(RoleVacateBody { kind: None, reason: None })).await.err().map(|e| e.status)),
+            ("retire", admin_role_retire(State(state.clone()), ConnectInfo(remote), Path(id),
+                Json(RoleRetireBody { reason: None })).await.err().map(|e| e.status)),
+            ("list", admin_roles_list(State(state.clone()), ConnectInfo(remote)).await.err().map(|e| e.status)),
+        ];
+        for (what, st) in statuses {
+            assert_eq!(st, Some(StatusCode::FORBIDDEN), "{what} answered a remote caller");
+        }
+        assert_eq!(state.ledger.lock().await.entries().len(), before,
+            "a refused remote call leaves the chain bit-identical");
+    }
+
+    /// A role may only be filled by a member of this hub, and filling an occupied role is
+    /// a rotation that keeps the outgoing occupant in the record.
+    #[tokio::test]
+    async fn filling_takes_a_member_and_rotation_keeps_the_predecessor() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let first = member(&state, "first").await;
+        let second = member(&state, "second").await;
+        let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(RoleCreateBody { role: SocietyRole::Custom("chair".into()), role_kind: "office".into(),
+                charter: None, occupant_lct_id: None })).await.unwrap();
+        let seat: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
+
+        let err = admin_role_fill(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+            Json(RoleFillBody { member_lct_id: Uuid::new_v4() })).await.err().expect("refused");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("not a member"), "got: {}", err.message);
+
+        admin_role_fill(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+            Json(RoleFillBody { member_lct_id: first })).await.unwrap();
+        // Re-filling with the SAME occupant is a no-op act and is refused rather than
+        // written, so the occupancy log stays a record of changes.
+        let err = admin_role_fill(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+            Json(RoleFillBody { member_lct_id: first })).await.err().expect("refused");
+        assert!(err.message.contains("already occupies"), "got: {}", err.message);
+
+        let out = admin_role_fill(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
+            Json(RoleFillBody { member_lct_id: second })).await.unwrap();
+        assert_eq!(serde_json::from_value::<Uuid>(out.0["rotated_from"].clone()).unwrap(), first,
+            "the response names who was displaced");
+        let l = state.ledger.lock().await;
+        let st = HubState::project(&l);
+        let r = role_of(&st, seat);
+        assert_eq!(r.occupant, Some(second));
+        assert_eq!(r.occupancy_log.len(), 2, "both fills recorded");
+        assert_eq!(r.occupancy_log[0].occupant, Some(first),
+            "the predecessor survives the rotation — the merit ruling applied to the role");
+    }
+
     /// Rename is a witnessed act with its own event class, and the roster reads
     /// the projection — so the name changes only because the ledger says so.
     #[tokio::test]
@@ -12328,6 +12965,58 @@ norms: []
         assert!(html.contains("Manageable"));
         assert!(html.contains("rekey("), "Re-key button wired");
         assert!(html.contains("removeMember("), "Remove button wired");
+    }
+
+    /// dp, 2026-09-08: *"do i have a ui to edit/add roles yet?"* This is that UI, and the
+    /// assertion that matters is the one about a VACANT office: the page has to render a
+    /// role that nobody occupies as present-and-empty. Rendering it as absent is what the
+    /// society document did, and it is the reason a council needed its own mechanism.
+    ///
+    /// Asserted per row, not against the whole page — with two roles on it, a page-wide
+    /// `contains` would let the filled one satisfy the vacant one's assertion.
+    #[tokio::test]
+    async fn the_manage_page_renders_a_vacant_office_as_present_and_empty() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let holder = member(&state, "occupant").await;
+
+        let vacant = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(RoleCreateBody { role: SocietyRole::Custom("empty-seat".into()),
+                role_kind: "office".into(), charter: None, occupant_lct_id: None })).await.unwrap();
+        let vacant: Uuid = serde_json::from_value(vacant.0["role_lct_id"].clone()).unwrap();
+        let held = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
+                charter: None, occupant_lct_id: Some(holder) })).await.unwrap();
+        let held: Uuid = serde_json::from_value(held.0["role_lct_id"].clone()).unwrap();
+
+        let html = crate::admin::manage_page(State(state.clone())).await.unwrap().0;
+        let row = |id: Uuid| -> String {
+            let needle = format!("<code>{id}</code>");
+            let start = html.rfind("<tr>").filter(|_| html.contains(&needle))
+                .and_then(|_| {
+                    html.match_indices("<tr>").filter(|(i, _)| {
+                        html[*i..].find("</tr>").map(|e| html[*i..*i + e].contains(&needle)).unwrap_or(false)
+                    }).map(|(i, _)| i).next()
+                }).unwrap_or_else(|| panic!("no row for {id}"));
+            let end = html[start..].find("</tr>").unwrap();
+            html[start..start + end].to_string()
+        };
+
+        let v = row(vacant);
+        assert!(v.contains("vacant"), "a vacant office renders as vacant: {v}");
+        assert!(v.contains("roleFill("), "the only act available to it is to be filled: {v}");
+        assert!(v.contains("roleRetire("), "and to be retired: {v}");
+        assert!(!v.contains("roleVacate("), "nothing to vacate: {v}");
+
+        let h = row(held);
+        assert!(h.contains("filled"), "an occupied capacity renders as filled: {h}");
+        assert!(h.contains("roleVacate("), "{h}");
+        assert!(!h.contains("roleRetire("), "an occupied role offers no retire button — \
+            the surface refuses it, so the UI must not invite it: {h}");
+        assert!(h.contains("occupant"), "the holder's name is on the row: {h}");
+
+        assert!(html.contains("Role entities"), "the section has a heading");
+        assert!(html.contains("roleCreate()"), "and a create form");
     }
 
     #[tokio::test]
