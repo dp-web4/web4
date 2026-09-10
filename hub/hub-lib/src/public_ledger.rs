@@ -33,18 +33,21 @@
 //! substituted hash is detectable.
 //!
 //! [`public_record`] — what the endpoint actually returns — compresses runs of withheld
-//! entries into a [`WithheldSpan`] carrying only `count`, `from_index`, `to_index`. **The
-//! interior hashes are not in the response.** Across a span a reader can therefore verify
-//! only **ordinal accounting** — that the projection omits no index it does not declare —
-//! and NOT that the links inside the run are intact. Two disclosed acts separated by a span
-//! are not linkage-verifiable to each other, because the newer one's `prev_hash` names an
-//! entry whose hash was never emitted.
+//! entries into a [`WithheldSpan`] for PRESENTATION, while carrying each hidden entry's
+//! link evidence ([`WithheldLink`]) for VERIFICATION. So the human sees one counted line
+//! and a machine sees the whole chain: [`verify_linkage`] walks a record oldest-to-newest,
+//! expanding spans in place, and fails on the first link that does not lead where it claims.
 //!
-//! This is a deliberate, ratified **developmental rung**, not the target contract: web4#807
-//! holds the production requirement (verify linkage THROUGH withheld acts) and the condition
-//! that the weaker rung "cannot be confused with production readiness". Any renderer or
-//! comment describing `public_record` must therefore say ordinal accounting and stop —
-//! pinned by `the_compressed_record_makes_no_hash_linkage_claim_across_a_span`.
+//! That is web4#807's production property — *an anonymous reader can verify hash-chain
+//! continuity THROUGH withheld acts, without learning their contents* — and it holds
+//! because a hash is opaque: publishing it discloses nothing about the act while being
+//! exactly the value needed to check the link.
+//!
+//! **It was not always so.** #802 compressed the presentation and the evidence with it,
+//! leaving spans that proved only ordinal accounting; the linkage test of the day exercised
+//! `public_projection` and stayed green while the SERVED surface lost the property. That is
+//! the shape to watch for here: a guard measuring the per-entry representation says nothing
+//! about the windowed one.
 //!
 //! `prev_hash` is what makes that sentence true rather than aspirational. With only
 //! `entry_hash` a reader can detect a missing INDEX and nothing else; the linkage
@@ -129,13 +132,9 @@ pub struct PublicDecision {
 /// the newest 200 entries were 100% withheld (398 of the last 400 are mesh `referenced_act`)
 /// while every governance act sat 1,700+ entries back. A public record that renders as an
 /// unbroken wall of "withheld" reads as concealment, which is the opposite of the surface's
-/// purpose. A counted span keeps ORDINAL accounting — a reader can still see that no index is
-/// silently omitted — in one line instead of hundreds of rows.
-///
-/// It does NOT keep hash-chain linkage: the interior `entry_hash`/`prev_hash` pairs are not
-/// emitted, so a reader cannot check the links inside the run, nor across it. That is the
-/// weaker of the two properties this module can express, it is the ratified rung (web4#807),
-/// and it must not be described as chain verification.
+/// purpose. A counted span keeps the presentation to one line instead of hundreds of rows,
+/// while `links` keeps the chain checkable through the run (web4#807) — the two are now
+/// separate concerns rather than one trade.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WithheldSpan {
     /// How many consecutive entries disclosed nothing.
@@ -143,6 +142,110 @@ pub struct WithheldSpan {
     /// Inclusive index range covered, oldest first. `from_index <= to_index`.
     pub from_index: u64,
     pub to_index: u64,
+    /// **The link evidence for every entry in the run, oldest first** (web4#807).
+    ///
+    /// This is what raises the span from ordinal accounting to hash-chain verification.
+    /// Each hidden entry contributes its own hash and the hash it claims as predecessor,
+    /// and nothing else — a hash is opaque, so publishing it discloses nothing about the
+    /// act while being exactly the value a reader needs to check the link.
+    ///
+    /// Deliberately O(n) in the run length. #807 names that as the acceptable
+    /// developmental implementation and a compact proof (skip links, Merkle accumulator)
+    /// as the secondary optimisation: *"the optimization path is secondary, the
+    /// production property is primary."* The HUMAN presentation still collapses the run
+    /// to one line — the renderer never iterates this.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<WithheldLink>,
+}
+
+/// One hidden entry's contribution to the chain, and nothing more.
+///
+/// No timestamp, no kind, no council flag — those are facts ABOUT the act, and the act is
+/// withheld. Only the two hashes and the index, which together let a reader walk the chain
+/// through the run without learning anything that happened in it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WithheldLink {
+    pub index: u64,
+    pub entry_hash: String,
+    pub prev_hash: String,
+}
+
+/// Where the public record's hash chain breaks, if it does.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LinkageBreak {
+    /// The entry whose `prev_hash` did not match its predecessor's `entry_hash`.
+    pub at_index: u64,
+    pub expected_prev: String,
+    pub found_prev: String,
+}
+
+impl std::fmt::Display for LinkageBreak {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "chain break at index {}: claims predecessor {} but the preceding entry \
+                   hashes to {}", self.at_index, self.found_prev, self.expected_prev)
+    }
+}
+
+/// Verify the hash chain of a public record **through withheld runs** (web4#807).
+///
+/// This is the production property the compact span exists to preserve: an anonymous
+/// reader can confirm that the acts they were shown, and the acts they were NOT shown,
+/// form one unbroken chain — without learning what the hidden acts were.
+///
+/// Walks oldest-to-newest across the whole window, expanding each span's `links` in place,
+/// and checks that every entry names its immediate predecessor's hash. Returns the FIRST
+/// break, which is the one a reader would act on.
+///
+/// A record with no link evidence in its spans cannot be verified through them and is
+/// reported as a break at the span's first index — silence is not a pass. That matters:
+/// the failure mode this guards against is a server that omits evidence and is read as
+/// having provided it.
+///
+/// The oldest entry in the window has no predecessor inside the window, so its `prev_hash`
+/// is unchecked here by construction — verification is relative to what was served, and a
+/// reader anchoring absolutely needs a hash they already trust.
+pub fn verify_linkage(record: &[PublicDecision]) -> Result<(), LinkageBreak> {
+    // The record is newest-first; the chain reads oldest-first, so walk it reversed.
+    // `prev` is the entry most recently verified, disclosed or hidden alike — the whole
+    // point is that a hidden entry is a link like any other.
+    let mut prev: Option<String> = None;
+
+    let mut check = |index: u64, claimed_prev: &str, own_hash: &str, prev: &mut Option<String>|
+        -> Result<(), LinkageBreak> {
+        if let Some(expected) = prev.as_ref() {
+            if claimed_prev != expected {
+                return Err(LinkageBreak {
+                    at_index: index,
+                    expected_prev: expected.clone(),
+                    found_prev: claimed_prev.to_string(),
+                });
+            }
+        }
+        *prev = Some(own_hash.to_string());
+        Ok(())
+    };
+
+    for d in record.iter().rev() {
+        check(d.index, &d.prev_hash, &d.entry_hash, &mut prev)?;
+        // `withheld_before` describes the run between THIS act and the next more recent
+        // one, so in chain order it comes after the act just verified.
+        if let Some(span) = &d.withheld_before {
+            if span.links.is_empty() {
+                // Silence is not a pass. A span with no evidence cannot be verified
+                // through, and reporting it as OK is the exact failure this guards:
+                // a server that omits evidence being read as having supplied it.
+                return Err(LinkageBreak {
+                    at_index: span.from_index,
+                    expected_prev: prev.clone().unwrap_or_default(),
+                    found_prev: "<no link evidence published for this span>".to_string(),
+                });
+            }
+            for link in &span.links {
+                check(link.index, &link.prev_hash, &link.entry_hash, &mut prev)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The kinds classified for public disclosure.
@@ -200,8 +303,27 @@ pub fn public_record(entries: &[LedgerEntry], limit: usize) -> (Vec<PublicDecisi
         if d.disclosure == Disclosure::Withheld {
             // Accumulate the run. Entries arrive newest-first, so the span grows downward.
             pending = Some(match pending {
-                None => WithheldSpan { count: 1, from_index: e.index, to_index: e.index },
-                Some(s) => WithheldSpan { count: s.count + 1, from_index: e.index, to_index: s.to_index },
+                // Links accumulate oldest-first even though entries arrive newest-first,
+                // so each new (older) entry is PREPENDED. A reader walks them in the same
+                // direction they verify.
+                None => WithheldSpan {
+                    count: 1, from_index: e.index, to_index: e.index,
+                    links: vec![WithheldLink {
+                        index: e.index,
+                        entry_hash: e.entry_hash.clone(),
+                        prev_hash: e.prev_hash.clone(),
+                    }],
+                },
+                Some(s) => {
+                    let mut links = Vec::with_capacity(s.links.len() + 1);
+                    links.push(WithheldLink {
+                        index: e.index,
+                        entry_hash: e.entry_hash.clone(),
+                        prev_hash: e.prev_hash.clone(),
+                    });
+                    links.extend(s.links);
+                    WithheldSpan { count: s.count + 1, from_index: e.index, to_index: s.to_index, links }
+                }
             });
             continue;
         }
@@ -364,25 +486,94 @@ mod tests {
              protects nothing and breaks verification exactly where it is needed");
     }
 
-    /// THE COMPRESSED RECORD MAKES NO HASH-LINKAGE CLAIM. The falsifier for the rung.
+    /// THE PRODUCTION PROPERTY (web4#807): a public reader can verify the hash chain
+    /// THROUGH a withheld run, without learning what the run contained.
     ///
-    /// `a_reader_can_verify_linkage_across_a_withheld_entry` proves linkage — but it drives
-    /// `public_projection`, the per-entry representation. The ENDPOINT returns
-    /// `public_record`, which compresses withheld runs into a span. So that test is green
-    /// while proving a property the shipped surface does not have: a guard measuring the
-    /// wrong artifact (GPT outside-seat review of #838).
+    /// This test replaces `the_compressed_record_makes_no_hash_linkage_claim_across_a_span`,
+    /// which asserted the weaker ratchet rung and was written to FAIL when this landed —
+    /// "that failure is the signal to update the renderer's wording in the same change, so
+    /// claim and evidence move together instead of drifting apart again". It did, and they
+    /// have: the record page's disclaimer is replaced in this same commit.
     ///
-    /// This drives the windowed path and asserts the weaker, TRUE contract:
-    ///   * disclosed acts still carry their own `entry_hash`/`prev_hash`;
-    ///   * a span carries counts and bounds only — no interior hashes reach the reader;
-    ///   * therefore two disclosed acts separated by a span are NOT linkage-verifiable to
-    ///     each other, because the newer one's `prev_hash` names an entry never emitted.
-    ///
-    /// If web4#807 later ratchets the span to carry real hash evidence, this test SHOULD
-    /// fail — that is the signal to update the renderer's wording in the same change, so
-    /// claim and evidence move together rather than drifting apart again.
+    /// Drives `public_record`, the windowed path the ENDPOINT returns — not
+    /// `public_projection`. That distinction is the whole reason #802's compression was
+    /// able to outrun the evidence unnoticed: the linkage test at the time exercised the
+    /// per-entry representation, stayed green, and proved a property the served surface
+    /// did not have.
     #[test]
-    fn the_compressed_record_makes_no_hash_linkage_claim_across_a_span() {
+    fn a_reader_can_verify_the_chain_through_a_withheld_run() {
+        let chain = disclosed_then_withheld_run_then_disclosed();
+        let (record, _scanned) = public_record(&chain, 10);
+        assert_eq!(record.len(), 2, "fixture: the run compresses to one span");
+        let span = record.iter().find(|d| d.index == 0).unwrap()
+            .withheld_before.as_ref().expect("fixture: a span separates the two acts");
+        assert_eq!((span.count, span.from_index, span.to_index), (3, 1, 3));
+        assert_eq!(span.links.len(), 3, "every hidden entry contributes its link");
+
+        verify_linkage(&record).expect("an untampered record verifies through the run");
+
+        // …and the human presentation is unaffected: one span, not three rows.
+        assert_eq!(span.count, 3, "the run still collapses to a single counted span");
+    }
+
+    /// THE ACCEPTANCE CRITERION, verbatim from #807: "Sabotaging a hash anywhere inside the
+    /// withheld run causes public verification to fail."
+    ///
+    /// Every position in the run is sabotaged in turn, not just one — a verifier that
+    /// checked only the boundary links would pass a single-position test and still let a
+    /// server rewrite the middle of a run, which is precisely the attack the ordinal-only
+    /// rung could not detect.
+    #[test]
+    fn sabotaging_any_hash_inside_the_run_is_detected() {
+        let chain = disclosed_then_withheld_run_then_disclosed();
+        for position in 0..3usize {
+            let (mut record, _) = public_record(&chain, 10);
+            let span = record.iter_mut().find(|d| d.index == 0).unwrap()
+                .withheld_before.as_mut().unwrap();
+            let sabotaged_index = span.links[position].index;
+            span.links[position].entry_hash = "substituted-by-a-dishonest-server".to_string();
+            let break_ = verify_linkage(&record)
+                .expect_err(&format!("a substituted hash at run position {position} must be detected"));
+            // The break is reported at the entry that FOLLOWS the tampered one, because that
+            // is where the claim and the value first disagree — which is also the honest
+            // thing to tell a reader: this link does not lead where it says.
+            assert!(break_.at_index > sabotaged_index,
+                "position {position}: break reported at {}, expected after the tampered {sabotaged_index}",
+                break_.at_index);
+        }
+    }
+
+    /// Silence is not a pass. A span carrying no link evidence — the pre-#807 wire shape,
+    /// or a server that simply omits it — must be a verification FAILURE, not an absence of
+    /// findings. Otherwise the weaker rung reads as the stronger one to any automated
+    /// checker, which is the confusion #807 exists to prevent.
+    #[test]
+    fn a_span_with_no_link_evidence_fails_verification_rather_than_passing_quietly() {
+        let chain = disclosed_then_withheld_run_then_disclosed();
+        let (mut record, _) = public_record(&chain, 10);
+        record.iter_mut().find(|d| d.index == 0).unwrap()
+            .withheld_before.as_mut().unwrap().links.clear();
+        let break_ = verify_linkage(&record).expect_err("an evidence-free span cannot verify");
+        assert!(break_.found_prev.contains("no link evidence"), "{break_}");
+    }
+
+    /// The disclosure property, unchanged by #807 and worth re-pinning next to it: link
+    /// evidence is hashes and indexes ONLY. Publishing more of a withheld act to make it
+    /// verifiable would defeat the point of withholding it.
+    #[test]
+    fn link_evidence_discloses_nothing_about_the_hidden_acts() {
+        let chain = disclosed_then_withheld_run_then_disclosed();
+        let (record, _) = public_record(&chain, 10);
+        let json = serde_json::to_string(&record).unwrap();
+        assert!(!json.contains("a private post"),
+            "the withheld body must not reach a public caller through link evidence: {json}");
+        let span = record.iter().find(|d| d.index == 0).unwrap().withheld_before.as_ref().unwrap();
+        for l in &span.links {
+            assert!(!l.entry_hash.is_empty() && !l.prev_hash.is_empty());
+        }
+    }
+
+    fn disclosed_then_withheld_run_then_disclosed() -> Vec<crate::ledger::LedgerEntry> {
         let genesis = |i: u64| entry(i, HubEvent::Genesis {
             hub_name: "chapter".into(),
             charter_hash: "c".into(),
@@ -395,41 +586,7 @@ mod tests {
             body: "a private post".into(),
             posted_by: Uuid::new_v4(),
         });
-        // disclosed, THREE withheld, disclosed — the shape the span exists to compress.
-        let chain = vec![genesis(0), private(1), private(2), private(3), genesis(4)];
-        let (record, _scanned) = public_record(&chain, 10);
-
-        assert_eq!(record.len(), 2, "fixture: the three private entries compress into a span");
-        let newer = record.iter().find(|d| d.index == 4).expect("the newer disclosed act");
-        // The span hangs on the OLDER act: it describes the run between that act and the
-        // next MORE RECENT disclosed one. Asserting the fixture reaches the shape it names,
-        // rather than assuming it, is what caught this being on the wrong row.
-        let older = record.iter().find(|d| d.index == 0).expect("the older disclosed act");
-        let span = older.withheld_before.as_ref().expect("fixture: a span separates the two acts");
-        assert_eq!((span.count, span.from_index, span.to_index), (3, 1, 3));
-
-        // The whole point: the interior hashes are NOT in the response.
-        let json = serde_json::to_string(&record).unwrap();
-        for i in 1..=3u64 {
-            // Its OWN hash, specifically. A disclosed act's `prev_hash` may legitimately NAME
-            // an entry inside the span — index 4 says `prev_hash: hash3` — and that is the
-            // whole asymmetry: the reader is given the name of a predecessor and never the
-            // value to check it against.
-            assert!(
-                !json.contains(&format!("\"entry_hash\":\"hash{i}\"")),
-                "entry {i} is inside a compressed span; emitting its own entry_hash would be \
-                 the STRONGER contract, and the renderer's wording is written for the weaker \
-                 one: {json}"
-            );
-        }
-        // And the consequence, stated as an assertion rather than left implicit: the newer
-        // act names a predecessor the reader was never given, so linkage across the span is
-        // unverifiable by construction — ordinal accounting is all a span proves.
-        assert_eq!(newer.prev_hash, "hash3", "fixture: it does name the last withheld entry");
-        assert!(
-            !json.contains("\"entry_hash\":\"hash3\""),
-            "…and that entry's own hash is absent, so the name cannot be checked against anything"
-        );
+        vec![genesis(0), private(1), private(2), private(3), genesis(4)]
     }
 
     /// The load-bearing test. A member's post body must not reach a public caller
