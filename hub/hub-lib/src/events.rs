@@ -222,6 +222,50 @@ pub enum HubEvent {
         assigned_by: Uuid,
     },
 
+    /// A role entity was brought into existence (Sprint 1 of
+    /// `PRD_ROLE_ENTITIES_AND_SUBROLES.md`).
+    ///
+    /// CREATING a role and FILLING it are different acts. Until this verb they were the
+    /// same call, so a role could not exist unfilled and could not be chartered before it
+    /// was staffed — which makes a vacant seat unrepresentable, and a vacant seat is
+    /// exactly what a council with an empty chair is.
+    ///
+    /// `parent_role_lct_id` is the fractal hinge (Sprint 2): a sub-role is simply a role
+    /// whose parent is another role's LCT, with the same verbs at every depth. It is
+    /// carried from Sprint 1 so that a ledger written now can express a tree later without
+    /// a second migration.
+    RoleCreated {
+        /// The role's OWN LCT. Authority binds here, not to whoever fills it.
+        role_lct_id: Uuid,
+        role: SocietyRole,
+        /// What this role may do, in the hub-law gate's own vocabulary. Free text for now;
+        /// the policy-action set is R4's target and is not decided by this verb.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        charter: Option<String>,
+        /// `None` for a top-level role; `Some(parent)` makes this a seat within that role.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        parent_role_lct_id: Option<Uuid>,
+        created_by: Uuid,
+    },
+
+    /// A role's seat was emptied without destroying the role.
+    ///
+    /// There is no verb for DELETING a role, deliberately: a role's tensor and occupancy
+    /// history are the institutional record the merit ruling protects, and a role with no
+    /// occupant is a real state (a vacant seat), not an absent one. Vacating is the only
+    /// exit.
+    RoleVacated {
+        role_lct_id: Uuid,
+        /// Who held it until now. Carried on the event so the row reads without a replay.
+        previous_occupant: Uuid,
+        /// Not `kind`: that name collides with HubEvent's own internal serde tag. Mirrors
+        /// `CouncilMemberRemoved::removal_kind`, which solved this first.
+        vacation_kind: web4_core::role::RoleEventKind,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        vacated_by: Uuid,
+    },
+
     /// A chapter event was held + recorded (demo night, workshop, etc.).
     EventRecorded {
         event_kind: String,
@@ -753,6 +797,8 @@ impl HubEvent {
         "referenced_act",
         "reputation_recorded",
         "role_assigned",
+    "role_created",
+    "role_vacated",
         "topic_created",
         "vault_unlock_attested",
         "vault_unlock_requested",
@@ -772,6 +818,8 @@ impl HubEvent {
             Self::MemberJoinReviewResolved { .. } => "member_join_review_resolved",
             Self::MemberAdmissionReset { .. } => "member_admission_reset",
             Self::RoleAssigned { .. } => "role_assigned",
+            Self::RoleCreated { .. } => "role_created",
+            Self::RoleVacated { .. } => "role_vacated",
             Self::EventRecorded { .. } => "event_recorded",
             Self::CharterAmended { .. } => "charter_amended",
             Self::MemberSkillDeclared { .. } => "member_skill_declared",

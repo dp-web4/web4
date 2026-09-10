@@ -1086,6 +1086,19 @@ fn event_summary(event: &HubEvent) -> String {
             format!("Member {} added{}", html_escape(name), pk)
                 + &format!(" <span class=\"muted\">[{}]</span>", short(member_lct_id))
         }
+        HubEvent::RoleCreated { role_lct_id, role, parent_role_lct_id, .. } => format!(
+            "Role {:?} created as {}{}",
+            role,
+            short(role_lct_id),
+            parent_role_lct_id.map(|p| format!(" — a seat within {}", short(&p))).unwrap_or_default(),
+        ),
+        HubEvent::RoleVacated { role_lct_id, previous_occupant, vacation_kind, reason, .. } => format!(
+            "Role {} vacated by {} ({:?}){}",
+            short(role_lct_id),
+            short(previous_occupant),
+            vacation_kind,
+            reason.as_deref().map(|r| format!(" — {}", html_escape(r))).unwrap_or_default(),
+        ),
         HubEvent::MemberWithdrew { member_lct_id, reason, roles_vacated } => format!(
             "Member {} withdrew{}{}",
             short(member_lct_id),

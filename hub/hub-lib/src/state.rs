@@ -61,10 +61,55 @@ where
     Ok(out)
 }
 
+/// A role as the LEDGER sees it (Sprint 1 of `PRD_ROLE_ENTITIES_AND_SUBROLES.md`).
+///
+/// Roles used to live ONLY in the society document — `RoleAssigned` was projected as a
+/// no-op, so a chain containing every assignment could not rebuild role state. Members were
+/// re-derivable and roles were not. This is the projection that closes that.
+///
+/// It does not replace the society doc, which stays authoritative for everything reading it
+/// today; Sprint 1 adds a second, ledger-derived view and switches no consumer over.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoleEntity {
+    /// The role's own identity. Stable across every occupant it ever has.
+    pub role_lct_id: Uuid,
+    pub role: web4_core::role::SocietyRole,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub charter: Option<String>,
+    /// `Some` makes this a SEAT within another role — the fractal hinge (Sprint 2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_role_lct_id: Option<Uuid>,
+    /// `None` is a VACANT seat: a real state, not a missing one. A council with an empty
+    /// chair is exactly this, and it is what the legacy holder-set could not express.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub occupant: Option<Uuid>,
+    /// Every occupancy change, oldest first. The role's institutional memory: rotation
+    /// appends here and never rewrites, because the merit ruling makes this the thing that
+    /// must survive an occupant leaving.
+    #[serde(default)]
+    pub occupancy_log: Vec<RoleOccupancyChange>,
+}
+
+/// One change of occupancy on a role, as witnessed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoleOccupancyChange {
+    pub entry_index: u64,
+    pub at: DateTime<Utc>,
+    /// `Some` for a fill or rotation, `None` for a vacating.
+    pub occupant: Option<Uuid>,
+    pub by: Uuid,
+}
+
+
 /// Projected current state of a chapter, derived from ledger events.
-#[derive(Clone, Debug, Default, Serialize)]
-pub struct HubState {
+#[derive(Clone, Debug, Default, Serialize)]pub struct HubState {
     pub hub_name: String,
+    /// Role entities, keyed by the ROLE's own LCT (not by role name, and not by occupant).
+    /// Keying by role LCT is what lets several seats share a role kind — nine
+    /// `council-member` sub-roles are nine distinct entities, which a name-keyed map cannot
+    /// represent.
+    #[serde(default)]
+    pub roles: BTreeMap<Uuid, RoleEntity>,
     pub founding_sovereign_lct_id: Option<Uuid>,
     pub charter_hash: Option<String>,
 
@@ -908,8 +953,51 @@ impl HubState {
                     }
                 }
             }
-            HubEvent::RoleAssigned { .. }
-            | HubEvent::EventRecorded { .. }
+            // ── Role entities (PRD_ROLE_ENTITIES_AND_SUBROLES Sprint 1) ──────────────
+            HubEvent::RoleCreated { role_lct_id, role, charter, parent_role_lct_id, .. } => {
+                // Idempotent on replay: a second create for the same LCT must not wipe an
+                // occupancy log the later events already built. A ledger is replayed from
+                // zero on every boot, so "insert only if absent" is the difference between
+                // rebuilding state and destroying it.
+                self.roles.entry(*role_lct_id).or_insert_with(|| RoleEntity {
+                    role_lct_id: *role_lct_id,
+                    role: role.clone(),
+                    charter: charter.clone(),
+                    parent_role_lct_id: *parent_role_lct_id,
+                    occupant: None,
+                    occupancy_log: Vec::new(),
+                });
+            }
+            HubEvent::RoleAssigned { role, role_lct_id, assigned_to, assigned_by } => {
+                // Fill OR rotate. A ledger written before RoleCreated existed carries
+                // RoleAssigned with no preceding create, so the role is materialised here
+                // rather than dropped — otherwise every historical assignment on the live
+                // fleet hub would project to nothing.
+                let e = self.roles.entry(*role_lct_id).or_insert_with(|| RoleEntity {
+                    role_lct_id: *role_lct_id,
+                    role: role.clone(),
+                    charter: None,
+                    parent_role_lct_id: None,
+                    occupant: None,
+                    occupancy_log: Vec::new(),
+                });
+                e.occupant = Some(*assigned_to);
+                e.occupancy_log.push(RoleOccupancyChange {
+                    entry_index: index, at: ts, occupant: Some(*assigned_to), by: *assigned_by,
+                });
+            }
+            HubEvent::RoleVacated { role_lct_id, vacated_by, .. } => {
+                // The role SURVIVES: only the seat empties. Nothing is removed from the map,
+                // which is what keeps the tensor and the history that the merit ruling
+                // protects.
+                if let Some(e) = self.roles.get_mut(role_lct_id) {
+                    e.occupant = None;
+                    e.occupancy_log.push(RoleOccupancyChange {
+                        entry_index: index, at: ts, occupant: None, by: *vacated_by,
+                    });
+                }
+            }
+            HubEvent::EventRecorded { .. }
             | HubEvent::CharterAmended { .. }
             | HubEvent::LawAmended { .. }
             // Vault-unlock events are audit-only: the witnessed record of a
@@ -1204,6 +1292,116 @@ mod tests {
             ledger.append(actor, kp, event).await.unwrap();
         }
         (tmp, ledger)
+    }
+
+    /// SPRINT 1's ACCEPTANCE: role state is re-derivable from the chain.
+    ///
+    /// Before this, `RoleAssigned` was projected as a NO-OP — roles lived only in the
+    /// society document, so a ledger containing every assignment could not rebuild them.
+    /// Members were re-derivable and roles were not. This drives the full lifecycle
+    /// (create -> assign -> rotate -> vacate) and asserts the projection is the record.
+    #[tokio::test]
+    async fn a_roles_whole_lifecycle_is_rebuilt_from_the_ledger_alone() {
+        use web4_core::role::{RoleEventKind, SocietyRole};
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let role = Uuid::new_v4();
+        let (alice, bob) = (Uuid::new_v4(), Uuid::new_v4());
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::RoleCreated {
+                role_lct_id: role, role: SocietyRole::Custom("council-member".into()),
+                charter: Some("one seat on the council".into()),
+                parent_role_lct_id: None, created_by: sov.lct.id,
+            }),
+            (sov.lct.id, &kp, HubEvent::RoleAssigned {
+                role: SocietyRole::Custom("council-member".into()), role_lct_id: role,
+                assigned_to: alice, assigned_by: sov.lct.id,
+            }),
+            // Rotation: same role, new occupant. The ROLE must not change identity.
+            (sov.lct.id, &kp, HubEvent::RoleAssigned {
+                role: SocietyRole::Custom("council-member".into()), role_lct_id: role,
+                assigned_to: bob, assigned_by: sov.lct.id,
+            }),
+            (sov.lct.id, &kp, HubEvent::RoleVacated {
+                role_lct_id: role, previous_occupant: bob,
+                vacation_kind: RoleEventKind::FillerResigned,
+                reason: Some("stepped down".into()), vacated_by: sov.lct.id,
+            }),
+        ]).await;
+
+        let state = HubState::project(&ledger);
+        let e = state.roles.get(&role).expect("the role is rebuilt from the chain alone");
+        assert_eq!(e.role_lct_id, role, "identity is the ROLE's, stable across occupants");
+        assert_eq!(e.charter.as_deref(), Some("one seat on the council"));
+        assert_eq!(e.occupant, None, "vacated: an empty SEAT, and the role still exists");
+        assert!(state.roles.contains_key(&role),
+            "vacating must never delete the role — its history is the institutional record");
+        assert_eq!(
+            e.occupancy_log.iter().map(|c| c.occupant).collect::<Vec<_>>(),
+            vec![Some(alice), Some(bob), None],
+            "every occupancy change survives, oldest first: fill, rotate, vacate"
+        );
+    }
+
+    /// A ledger written BEFORE `RoleCreated` existed carries `RoleAssigned` with no
+    /// preceding create. The live fleet hub's ledger is exactly that. Such a role must
+    /// still project, or every historical assignment would rebuild to nothing.
+    #[tokio::test]
+    async fn a_legacy_assignment_with_no_create_still_projects_the_role() {
+        use web4_core::role::SocietyRole;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let role = Uuid::new_v4();
+        let holder = Uuid::new_v4();
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, HubEvent::RoleAssigned {
+                role: SocietyRole::Archivist, role_lct_id: role,
+                assigned_to: holder, assigned_by: sov.lct.id,
+            }),
+        ]).await;
+        let state = HubState::project(&ledger);
+        let e = state.roles.get(&role).expect("materialised from the assignment itself");
+        assert_eq!(e.occupant, Some(holder));
+        assert_eq!(e.charter, None, "no charter is honest — none was ever witnessed");
+    }
+
+    /// Replay is idempotent: a duplicated `RoleCreated` must not wipe an occupancy log the
+    /// later events already built. A ledger is replayed from zero on every boot, so this is
+    /// the difference between rebuilding state and destroying it.
+    #[tokio::test]
+    async fn a_repeated_create_does_not_erase_occupancy_already_projected() {
+        use web4_core::role::SocietyRole;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let role = Uuid::new_v4();
+        let holder = Uuid::new_v4();
+        let mk = |r: SocietyRole| HubEvent::RoleCreated {
+            role_lct_id: role, role: r, charter: None,
+            parent_role_lct_id: None, created_by: sov.lct.id,
+        };
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis {
+                hub_name: "Test".into(), charter_hash: "sha256:0".into(),
+                founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now(),
+            }),
+            (sov.lct.id, &kp, mk(SocietyRole::Auditor)),
+            (sov.lct.id, &kp, HubEvent::RoleAssigned {
+                role: SocietyRole::Auditor, role_lct_id: role,
+                assigned_to: holder, assigned_by: sov.lct.id,
+            }),
+            (sov.lct.id, &kp, mk(SocietyRole::Auditor)),
+        ]).await;
+        let e = HubState::project(&ledger).roles.remove(&role).expect("role present");
+        assert_eq!(e.occupant, Some(holder), "the later create did not vacate the seat");
+        assert_eq!(e.occupancy_log.len(), 1, "…nor erase its history");
     }
 
     #[tokio::test]
