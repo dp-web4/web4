@@ -143,6 +143,33 @@ impl ProjectedRole {
     pub fn can_act(&self) -> bool {
         !self.retired && self.occupant.is_some()
     }
+
+    /// A Capacity whose holder is done with it. Terminal, and never refilled.
+    ///
+    /// The two kinds end differently and the difference is the point. An Office is
+    /// *vacated* — emptied, still constituted, awaiting the next occupant. A Capacity is
+    /// *spent* — its whole existence was one entity's standing, so when that ends the
+    /// instance ends with it and a new holder gets a new instance. Retirement is what
+    /// records that, which is why the retire surface refuses an occupied Office and
+    /// requires an occupied Capacity.
+    pub fn is_spent(&self) -> bool {
+        self.retired && self.role_kind == crate::events::RoleKind::Capacity
+    }
+
+    /// `true` for a Capacity that is alive with nobody in it — a state dp's rule says
+    /// cannot exist and the well-formed verbs cannot produce.
+    ///
+    /// Checked rather than assumed, because a ledger is not only written by this daemon's
+    /// surfaces. `initial_occupant` puts the holder inside the creating act and the write
+    /// paths refuse to vacate a Capacity, so this is unreachable from anything this code
+    /// writes; a hand-written or foreign chain can still contain it, and a projection that
+    /// silently normalised it away would hide the corruption rather than show it. Such a
+    /// role is already inert — `can_act()` is false — so this reports, it does not repair.
+    pub fn is_incoherent_capacity(&self) -> bool {
+        self.role_kind == crate::events::RoleKind::Capacity
+            && self.occupant.is_none()
+            && !self.retired
+    }
 }
 
 /// One change of occupancy on a role, as witnessed.
@@ -1050,20 +1077,35 @@ impl HubState {
                 }
             }
             // ── Role entities (PRD_ROLE_ENTITIES_AND_SUBROLES Sprint 1) ──────────────
-            HubEvent::RoleCreated { role_lct_id, role, role_kind, charter, parent_role_lct_id, .. } => {
+            HubEvent::RoleCreated {
+                role_lct_id, role, role_kind, charter, parent_role_lct_id, initial_occupant, created_by,
+            } => {
                 // Idempotent on replay: a second create for the same LCT must not wipe an
                 // occupancy log the later events already built. A ledger is replayed from
                 // zero on every boot, so "insert only if absent" is the difference between
                 // rebuilding state and destroying it.
+                //
+                // `initial_occupant` makes a Capacity's founding fill part of the CREATING
+                // act rather than a second entry that might never be written. That is what
+                // makes `Capacity && occupant.is_none() && !retired` unreachable from a
+                // well-formed ledger — see `RoleCreated::initial_occupant`.
                 self.roles.entry(*role_lct_id).or_insert_with(|| ProjectedRole {
                     role_lct_id: *role_lct_id,
                     role: role.clone(),
                     role_kind: role_kind.clone(),
                     charter: charter.clone(),
                     parent_role_lct_id: *parent_role_lct_id,
-                    occupant: None,
+                    occupant: *initial_occupant,
                     retired: false,
-                    occupancy_log: Vec::new(),
+                    occupancy_log: match initial_occupant {
+                        None => Vec::new(),
+                        // The founding fill is a real occupancy change and belongs in the
+                        // log: "held from creation" must be readable, or a capacity's record
+                        // would start with its END.
+                        Some(who) => vec![RoleOccupancyChange {
+                            entry_index: index, at: ts, occupant: Some(*who), by: *created_by,
+                        }],
+                    },
                 });
             }
             HubEvent::RoleAssigned { role, role_lct_id, assigned_to, assigned_by } => {
@@ -1427,7 +1469,7 @@ mod tests {
                 role_lct_id: role, role: SocietyRole::Custom("council-member".into()),
                 role_kind: crate::events::RoleKind::Office,
                 charter: Some("one seat on the council".into()),
-                parent_role_lct_id: None, created_by: sov.lct.id,
+                parent_role_lct_id: None, created_by: sov.lct.id, initial_occupant: None,
             }),
             (sov.lct.id, &kp, HubEvent::RoleAssigned {
                 role: SocietyRole::Custom("council-member".into()), role_lct_id: role,
@@ -1497,7 +1539,7 @@ mod tests {
         let holder = Uuid::new_v4();
         let mk = |r: SocietyRole| HubEvent::RoleCreated {
             role_lct_id: role, role: r, role_kind: crate::events::RoleKind::Office,
-            charter: None, parent_role_lct_id: None, created_by: sov.lct.id,
+            charter: None, parent_role_lct_id: None, created_by: sov.lct.id, initial_occupant: None,
         };
         let (_tmp, ledger) = make_ledger_with(vec![
             (sov.lct.id, &kp, HubEvent::Genesis {
@@ -1532,7 +1574,7 @@ mod tests {
                 founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now() }),
             ev(HubEvent::RoleCreated { role_lct_id: seat, role: SocietyRole::Treasurer,
                 role_kind: RoleKind::Office, charter: None, parent_role_lct_id: None,
-                created_by: sov.lct.id }),
+                created_by: sov.lct.id, initial_occupant: None }),
         ]).await;
         assert!(!HubState::project(&ledger).roles[&seat].can_act(),
             "an office exists on creation and CANNOT act until filled");
@@ -1542,7 +1584,7 @@ mod tests {
                 founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now() }),
             ev(HubEvent::RoleCreated { role_lct_id: seat, role: SocietyRole::Treasurer,
                 role_kind: RoleKind::Office, charter: None, parent_role_lct_id: None,
-                created_by: sov.lct.id }),
+                created_by: sov.lct.id, initial_occupant: None }),
             ev(HubEvent::RoleAssigned { role: SocietyRole::Treasurer, role_lct_id: seat,
                 assigned_to: holder, assigned_by: sov.lct.id }),
         ]).await;
@@ -1553,7 +1595,7 @@ mod tests {
                 founding_sovereign_lct_id: sov.lct.id, created_at: Utc::now() }),
             ev(HubEvent::RoleCreated { role_lct_id: seat, role: SocietyRole::Treasurer,
                 role_kind: RoleKind::Office, charter: None, parent_role_lct_id: None,
-                created_by: sov.lct.id }),
+                created_by: sov.lct.id, initial_occupant: None }),
             ev(HubEvent::RoleAssigned { role: SocietyRole::Treasurer, role_lct_id: seat,
                 assigned_to: holder, assigned_by: sov.lct.id }),
             ev(HubEvent::RoleVacated { role_lct_id: seat, previous_occupant: holder,
@@ -1585,12 +1627,12 @@ mod tests {
                 created_at: Utc::now() }),
             (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: council,
                 role: SocietyRole::Custom("council".into()), role_kind: RoleKind::Office,
-                charter: None, parent_role_lct_id: None, created_by: sov.lct.id }),
+                charter: None, parent_role_lct_id: None, created_by: sov.lct.id, initial_occupant: None }),
         ];
         for (i, seat) in seats.iter().enumerate() {
             evs.push((sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: *seat,
                 role: SocietyRole::Custom("council-member".into()), role_kind: RoleKind::Office,
-                charter: None, parent_role_lct_id: Some(council), created_by: sov.lct.id }));
+                charter: None, parent_role_lct_id: Some(council), created_by: sov.lct.id, initial_occupant: None }));
             evs.push((sov.lct.id, &kp, HubEvent::RoleAssigned {
                 role: SocietyRole::Custom("council-member".into()), role_lct_id: *seat,
                 assigned_to: holders[i], assigned_by: sov.lct.id }));
@@ -1627,14 +1669,14 @@ mod tests {
         let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
         let mk = |seat: Uuid| HubEvent::RoleCreated { role_lct_id: seat,
             role: SocietyRole::Custom("council-member".into()), role_kind: RoleKind::Office,
-            charter: None, parent_role_lct_id: Some(council), created_by: sov.lct.id };
+            charter: None, parent_role_lct_id: Some(council), created_by: sov.lct.id, initial_occupant: None };
         let (_tmp, ledger) = make_ledger_with(vec![
             (sov.lct.id, &kp, HubEvent::Genesis { hub_name: "T".into(),
                 charter_hash: "sha256:0".into(), founding_sovereign_lct_id: sov.lct.id,
                 created_at: Utc::now() }),
             (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: council,
                 role: SocietyRole::Custom("council".into()), role_kind: RoleKind::Office,
-                charter: None, parent_role_lct_id: None, created_by: sov.lct.id }),
+                charter: None, parent_role_lct_id: None, created_by: sov.lct.id, initial_occupant: None }),
             (sov.lct.id, &kp, mk(a)),
             (sov.lct.id, &kp, mk(b)),
             (sov.lct.id, &kp, HubEvent::RoleRetired { role_lct_id: b,
@@ -1664,14 +1706,14 @@ mod tests {
                 created_at: Utc::now() }),
             (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: council,
                 role: SocietyRole::Custom("council".into()), role_kind: RoleKind::Office,
-                charter: None, parent_role_lct_id: None, created_by: sov.lct.id }),
+                charter: None, parent_role_lct_id: None, created_by: sov.lct.id, initial_occupant: None }),
             (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: seat,
                 role: SocietyRole::Custom("council-member".into()), role_kind: RoleKind::Office,
-                charter: None, parent_role_lct_id: Some(council), created_by: sov.lct.id }),
+                charter: None, parent_role_lct_id: Some(council), created_by: sov.lct.id, initial_occupant: None }),
             // A citizenship minted under the same parent: fractal, but not a chair.
             (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: citizenship,
                 role: SocietyRole::Citizen, role_kind: RoleKind::Capacity,
-                charter: None, parent_role_lct_id: Some(council), created_by: sov.lct.id }),
+                charter: None, parent_role_lct_id: Some(council), created_by: sov.lct.id, initial_occupant: None }),
             (sov.lct.id, &kp, HubEvent::RoleAssigned { role: SocietyRole::Citizen,
                 role_lct_id: citizenship, assigned_to: holder, assigned_by: sov.lct.id }),
         ]).await;
@@ -1681,6 +1723,142 @@ mod tests {
         assert!(!st.seat_occupants(council).contains(&holder),
             "and holding a capacity confers no signature on the body");
         assert!(st.roles[&citizenship].can_act(), "the capacity itself can still act in ITS scope");
+    }
+
+    /// A Capacity is born occupied, in ONE witnessed act.
+    ///
+    /// GPT's review of #845: create-then-fill is two events, the second can fail, and what
+    /// survives is a live unoccupied Capacity — precisely the state the Office/Capacity axis
+    /// exists to make impossible. With the holder inside `RoleCreated`, there is no window
+    /// between the two facts, because there are no longer two acts.
+    #[tokio::test]
+    async fn a_capacity_is_occupied_by_the_act_that_creates_it() {
+        use crate::events::RoleKind;
+        use web4_core::role::SocietyRole;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let (citizenship, holder) = (Uuid::new_v4(), Uuid::new_v4());
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis { hub_name: "T".into(),
+                charter_hash: "sha256:0".into(), founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now() }),
+            (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: citizenship,
+                role: SocietyRole::Citizen, role_kind: RoleKind::Capacity, charter: None,
+                parent_role_lct_id: None, created_by: sov.lct.id,
+                initial_occupant: Some(holder) }),
+        ]).await;
+        let st = HubState::project(&ledger);
+        let r = &st.roles[&citizenship];
+        assert_eq!(r.occupant, Some(holder), "no gap between existing and being held");
+        assert!(r.can_act());
+        assert!(!r.is_incoherent_capacity());
+        assert!(!r.is_spent());
+        assert_eq!(r.occupancy_log.len(), 1,
+            "the founding fill is a real occupancy change — a capacity's record must not \
+             begin with its end");
+        assert_eq!(r.occupancy_log[0].occupant, Some(holder));
+
+        // An Office is NOT created this way: it is constituted first and filled second,
+        // because a vacant Office is a legitimate state and a vacant Capacity is not.
+        let office = Uuid::new_v4();
+        let (_tmp2, l2) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis { hub_name: "T".into(),
+                charter_hash: "sha256:0".into(), founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now() }),
+            (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: office,
+                role: SocietyRole::Custom("chair".into()), role_kind: RoleKind::Office,
+                charter: None, parent_role_lct_id: None, created_by: sov.lct.id,
+                initial_occupant: None }),
+        ]).await;
+        let st2 = HubState::project(&l2);
+        assert_eq!(st2.roles[&office].occupant, None);
+        assert!(st2.roles[&office].occupancy_log.is_empty(), "nothing has happened to it yet");
+    }
+
+    /// The two kinds END differently, and `spent` is not `vacant`.
+    ///
+    /// An Office is emptied and awaits its next occupant. A Capacity is finished: its whole
+    /// existence was one entity's standing. Retiring is what records that, and the occupant
+    /// stays on the record so the chain says WHO spent it.
+    #[tokio::test]
+    async fn a_spent_capacity_keeps_its_holder_on_the_record_and_a_vacated_office_does_not() {
+        use crate::events::RoleKind;
+        use web4_core::role::SocietyRole;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        use web4_core::role::RoleEventKind;
+        let (citizenship, office) = (Uuid::new_v4(), Uuid::new_v4());
+        let holder = Uuid::new_v4();
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis { hub_name: "T".into(),
+                charter_hash: "sha256:0".into(), founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now() }),
+            (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: citizenship,
+                role: SocietyRole::Citizen, role_kind: RoleKind::Capacity, charter: None,
+                parent_role_lct_id: None, created_by: sov.lct.id,
+                initial_occupant: Some(holder) }),
+            (sov.lct.id, &kp, HubEvent::RoleRetired { role_lct_id: citizenship,
+                reason: Some("holder left the society".into()), retired_by: sov.lct.id }),
+            (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: office,
+                role: SocietyRole::Custom("chair".into()), role_kind: RoleKind::Office,
+                charter: None, parent_role_lct_id: None, created_by: sov.lct.id,
+                initial_occupant: None }),
+            (sov.lct.id, &kp, HubEvent::RoleAssigned { role: SocietyRole::Custom("chair".into()),
+                role_lct_id: office, assigned_to: holder, assigned_by: sov.lct.id }),
+            (sov.lct.id, &kp, HubEvent::RoleVacated { role_lct_id: office,
+                previous_occupant: holder, vacation_kind: RoleEventKind::FillerResigned,
+                reason: None, vacated_by: sov.lct.id }),
+        ]).await;
+        let st = HubState::project(&ledger);
+
+        let spent = &st.roles[&citizenship];
+        assert!(spent.is_spent(), "a retired capacity is spent");
+        assert!(!spent.can_act(), "and confers nothing");
+        assert_eq!(spent.occupant, Some(holder),
+            "the holder stays on the record: the chain must say who spent it");
+        assert!(!spent.is_incoherent_capacity(), "retired accounts for the state");
+
+        let vacant = &st.roles[&office];
+        assert!(!vacant.is_spent(), "an Office is never spent, whatever happens to it");
+        assert!(!vacant.can_act());
+        assert_eq!(vacant.occupant, None, "vacating empties the chair");
+        assert!(!vacant.retired, "…and does not abolish it");
+    }
+
+    /// The state dp's rule forbids is REPORTED rather than normalised away.
+    ///
+    /// `initial_occupant` and the write-path refusals mean this daemon cannot produce a
+    /// live unoccupied Capacity. A ledger is not only written by this daemon, so the read
+    /// model checks instead of assuming — and a projection that quietly repaired it would
+    /// hide corruption rather than show it.
+    #[tokio::test]
+    async fn a_live_unoccupied_capacity_is_inert_and_flagged_rather_than_repaired() {
+        use crate::events::RoleKind;
+        use web4_core::role::SocietyRole;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        use web4_core::role::RoleEventKind;
+        let (bad, holder) = (Uuid::new_v4(), Uuid::new_v4());
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis { hub_name: "T".into(),
+                charter_hash: "sha256:0".into(), founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now() }),
+            // Two ways a foreign writer gets here: a create with no holder, and a vacate
+            // aimed at a capacity. Both are refused by this daemon's surfaces.
+            (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: bad,
+                role: SocietyRole::Citizen, role_kind: RoleKind::Capacity, charter: None,
+                parent_role_lct_id: None, created_by: sov.lct.id,
+                initial_occupant: Some(holder) }),
+            (sov.lct.id, &kp, HubEvent::RoleVacated { role_lct_id: bad,
+                previous_occupant: holder, vacation_kind: RoleEventKind::FillerResigned,
+                reason: None, vacated_by: sov.lct.id }),
+        ]).await;
+        let st = HubState::project(&ledger);
+        let r = &st.roles[&bad];
+        assert!(r.is_incoherent_capacity(), "the read model names the state it cannot produce");
+        assert!(!r.can_act(), "and it is already inert, so reporting is enough — no repair");
+        assert!(!r.is_spent(), "not spent either: spent is retired, this is neither");
+        assert_eq!(r.occupant, None, "the projection records what the chain says, unaltered");
     }
 
     #[tokio::test]

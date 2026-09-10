@@ -281,6 +281,21 @@ pub enum HubEvent {
         /// `None` for a top-level role; `Some(parent)` makes this a seat within that role.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         parent_role_lct_id: Option<Uuid>,
+        /// The holder this role is constituted **for**, in the same witnessed act.
+        ///
+        /// Required for a [`RoleKind::Capacity`] and absent for an Office, and that
+        /// asymmetry is the whole reason the field exists. dp's rule is that there are no
+        /// unfilled capacities; GPT's review of #845 showed that a create-then-fill pair of
+        /// events cannot honour it, because the second act can fail and leave a live
+        /// unoccupied Capacity behind — the exact state the Office/Capacity axis was
+        /// introduced to make impossible.
+        ///
+        /// With the holder inside the creating act, `Capacity && occupant.is_none() &&
+        /// !retired` is unreachable **by the shape of the ledger** rather than by a
+        /// surface's promise to write two entries in order. An Office is still constituted
+        /// first and filled second, because a vacant Office is a legitimate state.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        initial_occupant: Option<Uuid>,
         created_by: Uuid,
     },
 
@@ -288,8 +303,13 @@ pub enum HubEvent {
     ///
     /// There is no verb for DELETING a role, deliberately: a role's tensor and occupancy
     /// history are the institutional record the merit ruling protects, and a role with no
-    /// occupant is a real state (a vacant seat), not an absent one. Vacating is the only
-    /// exit.
+    /// occupant is a real state (a vacant seat), not an absent one.
+    ///
+    /// **No role record is ever deleted, and there are two different exits.** Vacating ends
+    /// *occupancy*; [`HubEvent::RoleRetired`] ends *present constitutional standing*. An
+    /// earlier draft of this comment said "vacating is the only exit", written before
+    /// `RoleRetired` existed, and it survived the edit that added the verb — contradicting
+    /// the very separation the verb was introduced to make.
     /// An OFFICE was struck from the society's constitution: the society no longer has this
     /// position at all.
     ///

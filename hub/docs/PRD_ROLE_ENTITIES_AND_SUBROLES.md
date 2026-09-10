@@ -108,6 +108,30 @@ consequence is that *vacant* means two different things:
 | counts toward quorum | yes, even while empty | no |
 | example | Treasurer; one seat on a council | Citizen |
 
+**The lifecycle is an invariant, not a description — GPT's #845 blocker.** The table above
+was true of what the verbs *meant* and false of what the surfaces *allowed*. A first cut
+created a Capacity as `RoleCreated` followed by `RoleAssigned`, tolerated the second act
+failing, let `fill` rotate any non-retired role of either kind, and let `vacate` empty a
+Capacity. So `Capacity && occupant == None && !retired` was reachable, a spent Capacity was
+refillable, and the axis collapsed back into the ambiguity it was introduced to remove —
+about a day after being introduced.
+
+Four rules make it executable, and they are stated once each:
+
+1. **A Capacity is created occupied, in one act.** `RoleCreated` carries
+   `initial_occupant`, required for a Capacity and absent for an Office. There is no window
+   between existing and being held because there is no longer a second act to fail.
+2. **A Capacity is never filled or rotated.** A new holder gets a new instance; that is
+   what "minted on demand" means. `fill` applies to Offices.
+3. **A Capacity is never vacated — it is spent.** Ending one retires it, with the holder
+   left on the record so the chain says who spent it. So `retire` refuses an *occupied
+   Office* (vacate first) and *requires* an occupied Capacity. The verb is the same; the
+   kind decides which state it is legal from.
+4. **The forbidden state is reported, never repaired.** `is_incoherent_capacity()` exists
+   because a ledger is not only written by this daemon. Such a role is already inert —
+   `can_act()` is false — so the read model names it and leaves it; a projection that
+   quietly normalised it would hide corruption rather than show it.
+
 **On the naming.** dp asked for a better term than fungible/non-fungible and the words
 chosen here are **Office** and **Capacity**: an office is a constituted position one
 *occupies*; a capacity is a standing one *holds* ("acting in the capacity of a citizen").
@@ -213,20 +237,33 @@ founding Sovereign in the holder set and in N. Sprint 3 requires the legacy and 
 projections to agree; Sprint 4 says only seat occupants sign; §5 said the Sovereign stays
 outside the seats. **All three cannot hold.**
 
-**Ruling for this PRD: the founding Sovereign occupies a protected council seat.** It is a
-`council-member` Office like any other, with one difference — it may not be vacated or
-retired. Chosen because:
+**Ruling: the founding Sovereign occupies an ordinary `council-member` Office, and its
+protection is a rule of current law rather than a property of the role type.** Chosen
+because:
 
 - the differential gate in Sprint 3 becomes *possible*: both projections yield the same
   holder set and the same N;
 - "only seat occupants sign" stays literally true, with no constitutional signer class
   living beside the rule;
-- the protection is **encoded and testable** rather than emergent from the Sovereign's
-  absence from a list.
+- the protection is **stated somewhere amendable**, which is what keeps the model fractal.
 
-This changes §5's earlier wording, which said the Sovereign remains outside the seats. It is
-dp's to overturn — it is a constitutional question, not an implementation one — but the
-migration gate must encode *a* rule rather than discover the contradiction at cutover.
+**The revision, and why it matters more than it looks.** This PRD first ruled a *protected*
+seat — an Office carrying a flag that made it permanently unvacatable. GPT's follow-up
+rejected the flag and not the seat, and the objection is the sharper one: a protection
+living in the role **type** is a permanent special case in the substrate, and it says
+"this particular founder is special" in the one place no future society can amend. Every
+chapter that ever instantiates this model would inherit it.
+
+Protection by **law** gets the identical behaviour today — current law forbids ordinary
+vacate and retire on that seat — while leaving governed succession reachable through the
+mechanism that already exists for changing law. The role type learns nothing about founders.
+Nothing about the Sovereign is unusual except the rule pointing at their seat, and that rule
+is amendable by the body it constitutes.
+
+Concretely, Sprint 3 must land the rule **as law**, not as a `bool` on `ProjectedRole`, and
+its falsifier is a law amendment that permits succession and then a succession that
+executes. If the protection were a type property, that test could not be written at all —
+which is the real test of where a rule belongs.
 
 ### 4.4 The council, after
 
@@ -250,13 +287,25 @@ governance gate, the escalation matrix, or the proposal flow.
   next rung and is out of scope. This PRD builds what it stands on.
 - **Not a new authorization path.** Authority still resolves through the existing gate; only
   the *source* of "who may sign" changes, from a list to an occupancy query.
-- **Not a rewrite of `web4-core`'s role model.** It is largely right. This adds a parent
-  pointer and moves the Hub onto what already exists.
-- **No role is ever deleted.** Vacating is the only exit, so tensor and history survive.
+- **Not a rewrite of `web4-core`'s role model — but not a parent pointer either.** An
+  earlier draft of this line said the core was "largely right" and that this work "adds a
+  parent pointer". That was written before the occupancy and threshold findings in §2, and
+  it understates what remains. The canonical entity needs **existence separated from
+  occupancy** (`filling_entity_lct_id` is a bare `Uuid`) and **quorum semantics that do not
+  derive N from who is present** (`set_threshold` clamps M to `holder_count()`). Those are
+  the two things the Hub projection is standing in for. `ProjectedRole` is a legitimate
+  interim read model; it is not a substitute for that work, and this PRD should not read as
+  if it were.
+- **No role record is ever deleted.** Vacating ends *occupancy*; retirement ends *present
+  constitutional standing*. Both preserve identity, tensor and history. An earlier draft
+  said "vacating is the only exit", which survived from before `RoleRetired` existed and
+  contradicted the very separation that verb was added to make.
 - **A role's tensor never resets on rotation** and is never transferred to an occupant.
   Ratified; re-pinned here because sub-roles multiply the places it could be violated.
-- **The founding Sovereign remains outside the council seats.** It is not a seat that can be
-  vacated, and the migration must not make it one.
+- **The founding Sovereign occupies an ordinary council-member Office.** Its protection is
+  a rule of *current law*, not a property of the role type — see §4.3.1. An earlier draft of
+  this line said the Sovereign remains outside the council seats and that the migration must
+  not make it one; that directly contradicted §4.3.1 and is withdrawn.
 
 ---
 
@@ -303,7 +352,11 @@ independently revertible. No sprint may leave the council unable to reach a verd
   across a real ledger replay.
 - **Acceptance:** the existing end-to-end council fixture (propose → sign to threshold →
   commit → survive reopen) passes unchanged against the new resolution. A signer who is not
-  a seat occupant is refused. A vacant seat does not count toward N.
+  a seat occupant is refused. A vacant established Office **counts toward N and not toward
+  O**: it confers no signer and so contributes nothing to reachability, but it remains part
+  of established cardinality until it is retired. (An earlier draft said "a vacant seat does
+  not count toward N" — the old bug restated in prose, in the same document that corrects
+  it.)
 
 ### Sprint 5 — Retire the parallel mechanism, and the UI
 
