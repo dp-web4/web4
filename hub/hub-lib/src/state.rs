@@ -795,6 +795,75 @@ impl HubState {
         self.seats_of(parent).filter(|r| r.can_act()).filter_map(|r| r.occupant).collect()
     }
 
+    /// The deepest role tree the hub will constitute, roots counted as 1.
+    ///
+    /// Roles are fractal in principle and bounded in practice: every traversal here is
+    /// cycle-safe, but a tree that can grow without limit still turns rendering and
+    /// quorum arithmetic into unbounded work driven by an operator's typing. Eight is
+    /// generous — council → seat is two — and the number is named in the refusal so an
+    /// operator who hits it learns the bound rather than the failure.
+    pub const MAX_ROLE_DEPTH: usize = 8;
+
+    /// The immediate sub-roles of `parent`, of either kind, retired included.
+    ///
+    /// Broader than [`Self::seats_of`] on purpose: rendering the structure must show what
+    /// is there, and quorum arithmetic must count only chairs. Two questions, two
+    /// functions, so neither answer can be borrowed for the other.
+    pub fn children_of(&self, parent: Uuid) -> impl Iterator<Item = &ProjectedRole> {
+        self.roles.values().filter(move |r| r.parent_role_lct_id == Some(parent))
+    }
+
+    /// The roles with no parent, in id order — the roots of the forest.
+    pub fn root_roles(&self) -> impl Iterator<Item = &ProjectedRole> {
+        self.roles.values().filter(|r| r.parent_role_lct_id.is_none())
+    }
+
+    /// `role`'s ancestors, nearest first, stopping at a root — **or at a cycle**.
+    ///
+    /// The cycle stop is not defensive decoration. Nothing in the ledger format prevents
+    /// two `RoleCreated` entries from naming each other as parent: the ids are minted
+    /// before the events are written, so a buggy or hostile writer can produce a ring, and
+    /// a hub that cannot replay its own history is a hub that cannot boot. Every traversal
+    /// in this file goes through this function for that reason.
+    ///
+    /// A cycle truncates the walk; it does not panic and does not loop. Callers that need
+    /// to know *whether* they were truncated use [`Self::role_lineage`].
+    pub fn role_ancestors(&self, role: Uuid) -> Vec<Uuid> {
+        self.role_lineage(role).0
+    }
+
+    /// Ancestors nearest-first, plus whether the walk ended in a **cycle** rather than at
+    /// a root. `true` means this role's lineage is unusable, which is a fact a renderer
+    /// and a quorum both need and must not each rediscover.
+    pub fn role_lineage(&self, role: Uuid) -> (Vec<Uuid>, bool) {
+        let mut seen = std::collections::BTreeSet::new();
+        seen.insert(role);
+        let mut out = Vec::new();
+        let mut cur = role;
+        loop {
+            let parent = match self.roles.get(&cur).and_then(|r| r.parent_role_lct_id) {
+                None => return (out, false),
+                Some(p) => p,
+            };
+            if !seen.insert(parent) {
+                return (out, true);
+            }
+            out.push(parent);
+            // A parent that names a role we do not have is a dangling edge, not a cycle:
+            // the walk simply ends. Distinguishing the two matters — a dangling edge is a
+            // partial ledger, a cycle is a corrupt one.
+            if !self.roles.contains_key(&parent) {
+                return (out, false);
+            }
+            cur = parent;
+        }
+    }
+
+    /// How deep `role` sits: a root is 1. A role in a cycle reports the length of the walk
+    /// before the ring closed, so the number is always finite.
+    pub fn role_depth(&self, role: Uuid) -> usize {
+        self.role_ancestors(role).len() + 1
+    }
     /// Build the projection from a ledger.
     pub fn project(ledger: &HubLedger) -> Self {
         let mut state = HubState::default();
@@ -1861,6 +1930,106 @@ mod tests {
         assert_eq!(r.occupant, None, "the projection records what the chain says, unaltered");
     }
 
+    /// Sprint 2. A three-level tree projects, and depth is measured from the chain rather
+    /// than from where the renderer happens to start walking.
+    #[tokio::test]
+    async fn a_three_level_tree_projects_with_depth_measured_from_the_root() {
+        use crate::events::RoleKind;
+        use web4_core::role::SocietyRole;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let (society, council, seat) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let mk = |id: Uuid, name: &str, parent: Option<Uuid>| HubEvent::RoleCreated {
+            role_lct_id: id, role: SocietyRole::Custom(name.into()), role_kind: RoleKind::Office,
+            charter: None, parent_role_lct_id: parent, created_by: sov.lct.id , initial_occupant: None};
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis { hub_name: "T".into(),
+                charter_hash: "sha256:0".into(), founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now() }),
+            (sov.lct.id, &kp, mk(society, "society", None)),
+            (sov.lct.id, &kp, mk(council, "council", Some(society))),
+            (sov.lct.id, &kp, mk(seat, "council-member", Some(council))),
+        ]).await;
+        let st = HubState::project(&ledger);
+
+        assert_eq!(st.role_depth(society), 1, "a root is depth 1");
+        assert_eq!(st.role_depth(council), 2);
+        assert_eq!(st.role_depth(seat), 3);
+        assert_eq!(st.role_ancestors(seat), vec![council, society],
+            "nearest first — the seat's council, then the council's society");
+        assert_eq!(st.root_roles().count(), 1, "one root in this forest");
+        assert_eq!(st.children_of(council).count(), 1);
+        assert_eq!(st.children_of(seat).count(), 0);
+        // The fractal claim, stated as an equality rather than as prose: the council is a
+        // body with seats, and so is the society.
+        assert_eq!(st.seat_quorum(society, 1).established, 1, "the council is the society's seat");
+        assert_eq!(st.seat_quorum(council, 1).established, 1, "and the member seat is the council's");
+    }
+
+    /// A ring in the ledger must truncate the walk, not hang the daemon.
+    ///
+    /// This is constructible: role ids are minted before their events are written, so a
+    /// buggy or hostile writer can append two `RoleCreated` entries naming each other as
+    /// parent. The operator surface refuses to *create* one (the parent must already
+    /// exist), but a projection that trusted that guarantee would loop forever on a ledger
+    /// written by anything else — and a hub that cannot replay its own history cannot boot.
+    #[tokio::test]
+    async fn a_cycle_in_the_ledger_truncates_the_walk_instead_of_looping() {
+        use crate::events::RoleKind;
+        use web4_core::role::SocietyRole;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
+        let mk = |id: Uuid, parent: Option<Uuid>| HubEvent::RoleCreated {
+            role_lct_id: id, role: SocietyRole::Custom("ring".into()), role_kind: RoleKind::Office,
+            charter: None, parent_role_lct_id: parent, created_by: sov.lct.id , initial_occupant: None};
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis { hub_name: "T".into(),
+                charter_hash: "sha256:0".into(), founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now() }),
+            (sov.lct.id, &kp, mk(a, Some(b))),
+            (sov.lct.id, &kp, mk(b, Some(a))),
+        ]).await;
+        let st = HubState::project(&ledger);
+
+        // Terminates, and says so. Without the `seen` set this call does not return.
+        let (line, cyclic) = st.role_lineage(a);
+        assert!(cyclic, "the walk must REPORT the ring, not just survive it");
+        assert_eq!(line, vec![b], "b was reached; a closed the ring and stopped the walk");
+        assert!(st.role_depth(a) <= HubState::MAX_ROLE_DEPTH + 1, "finite");
+        let (_, cyclic_b) = st.role_lineage(b);
+        assert!(cyclic_b, "both ends of a ring are in it");
+        // And neither is a root, so a renderer that walks roots downward never enters it.
+        assert_eq!(st.root_roles().count(), 0,
+            "a ring has no root — which is exactly how a tree renderer stays out of it");
+    }
+
+    /// A parent naming a role the ledger does not contain is a DANGLING edge, not a ring.
+    /// The two need different answers: dangling is a partial ledger (a sub-role whose
+    /// parent's creation is on a chapter this hub has not replayed), a ring is a corrupt
+    /// one. Reporting dangling as cyclic would make a normal partial read look like
+    /// corruption.
+    #[tokio::test]
+    async fn a_dangling_parent_ends_the_walk_without_claiming_a_cycle() {
+        use crate::events::RoleKind;
+        use web4_core::role::SocietyRole;
+        let sov = IdentityFile::generate(EntityType::Human);
+        let kp = sov.keypair().unwrap();
+        let (child, absent_parent) = (Uuid::new_v4(), Uuid::new_v4());
+        let (_tmp, ledger) = make_ledger_with(vec![
+            (sov.lct.id, &kp, HubEvent::Genesis { hub_name: "T".into(),
+                charter_hash: "sha256:0".into(), founding_sovereign_lct_id: sov.lct.id,
+                created_at: Utc::now() }),
+            (sov.lct.id, &kp, HubEvent::RoleCreated { role_lct_id: child,
+                role: SocietyRole::Custom("orphan".into()), role_kind: RoleKind::Office,
+                charter: None, parent_role_lct_id: Some(absent_parent), created_by: sov.lct.id , initial_occupant: None}),
+        ]).await;
+        let st = HubState::project(&ledger);
+        let (line, cyclic) = st.role_lineage(child);
+        assert!(!cyclic, "an absent parent is missing, not circular");
+        assert_eq!(line, vec![absent_parent], "the edge is reported even though its target is not held");
+        assert_eq!(st.role_depth(child), 2);
+    }
     #[tokio::test]
     async fn project_genesis_seeds_sovereign_as_member() {
         let sov = IdentityFile::generate(EntityType::Human);

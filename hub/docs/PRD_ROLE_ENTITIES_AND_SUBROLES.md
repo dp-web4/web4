@@ -374,11 +374,47 @@ nine council members, because it cannot hold two of anything.
 
 ### Sprint 2 — Sub-roles *(structure only, council untouched)*
 
-- `parent_role_lct_id` on `RoleCreated` and on the projected entity.
-- Cycle, existence and depth invariants, each with a falsifier.
-- `/admin/roles` renders the tree; a vacant seat renders as vacant, never as absent.
-- **Acceptance:** a three-level tree projects correctly; a cycle is refused at creation and
-  witnesses nothing; depth beyond the bound is refused with the bound named.
+- `parent_role_lct_id` accepted at creation, **with** its invariants and not before them:
+  the parent must exist, must not be retired, must not sit in a corrupt lineage, and the
+  resulting depth must stay within `HubState::MAX_ROLE_DEPTH` (8), whose value is named in
+  the refusal so an operator learns the bound rather than only that something failed.
+- Cycle-safe traversal in the projection: `role_lineage`, `role_ancestors`, `role_depth`,
+  `children_of`, `root_roles`.
+- Manage renders the tree, walked from the roots, with a vacant seat shown as **present and
+  empty** and one-click *Add seat* on every usable role.
+
+**Where the cycle invariant actually lives — a correction to this document's first draft.**
+The draft said a cycle is *refused at creation*. It cannot arise there: the role's id is
+minted server-side and its parent must already exist, so a new role has no descendants to
+close a ring with. Writing a creation-time cycle check would have produced a guard that can
+never fire — a green test proving nothing.
+
+The reachable cycle is in the **ledger**, and it is constructible: ids are minted before
+their events are written, so anything that appends directly can write two `RoleCreated`
+entries naming each other as parent. A projection that trusted the surface's guarantee
+would loop forever on such a chain, and *a hub that cannot replay its own history cannot
+boot*. So the defence is in `role_lineage`, and its falsifier is the strongest one in this
+sprint: with the `seen` set removed, the test does not fail — **it hangs**.
+
+The renderer inherits a second-order version of the same problem. Walking from the roots
+keeps a ring out of the render, because a ring has no root — which would make corruption
+**invisible**. Unreached roles are therefore appended and flagged, since invisible
+corruption is worse than rendered corruption.
+
+**A dangling parent is not a cycle.** A parent naming a role this hub has not replayed is a
+*partial* ledger; a ring is a *corrupt* one. They are reported differently on purpose,
+because collapsing them would make an ordinary partial read look like corruption.
+
+- **Acceptance:** a three-level tree projects with depth measured from the root; a ring
+  truncates the walk and is reported; a dangling edge ends the walk without claiming a
+  cycle; depth beyond the bound is refused with the bound named and nothing witnessed.
+
+**Deferred to dp, deliberately.** Public `/admin/roles` is unchanged. The public council
+page already publishes M-of-N and the eligible holders, so once Sprint 3 mirrors the
+council, seat occupancy is derivable from what is already public and withholding it would
+be theatre. But *publishing is not reversible*, and the two transparency pages must not
+disagree about whether a body can reach a verdict. That is one decision about both pages,
+and it is dp's.
 
 ### Sprint 3 — Council mirrored onto roles *(dual-read, nothing switched)*
 
