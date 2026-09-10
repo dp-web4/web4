@@ -1388,6 +1388,21 @@ function addMember(){
 }
 function grantReview(id){ if(confirm('Grant this review? Clears the applicant’s auto-block so they can apply again.')) hubAct('/admin/api/reviews/'+id+'/grant'); }
 function refuseReview(id){ const reason=prompt('Refuse review — reason (optional):'); if(reason!==null) hubAct('/admin/api/reviews/'+id+'/refuse',{reason:reason||null}); }
+function councilAdd(){
+  const lct=document.getElementById('cc-lct').value.trim(), key=document.getElementById('cc-key').value.trim(), name=document.getElementById('cc-name').value.trim();
+  if(!lct||!key){ alert('LCT id and pubkey (64 hex) are required.'); return; }
+  if(confirm('Admit '+lct+' as a Sovereign Council holder? They can then co-sign governed acts.')) hubAct('/admin/api/council/add',{lct_id:lct,pubkey_hex:key,name:name||null});
+}
+function councilRemove(id){ const reason=prompt('Remove council holder '+id+' — reason (optional):'); if(reason!==null) hubAct('/admin/api/council/'+id+'/remove',{kind:'resigned',reason:reason||null}); }
+function councilThreshold(){
+  const m=parseInt(document.getElementById('cc-m').value.trim(),10); if(!(m>=1)){ alert('M must be at least 1.'); return; }
+  if(confirm('Set the council threshold to '+m+'-of-N? At 2 or more, every governed act — including changing the council — must go through propose/sign.')) hubAct('/admin/api/council/threshold',{m:m});
+}
+function assignRole(){
+  const role=document.getElementById('rl-role').value, lct=document.getElementById('rl-lct').value.trim();
+  if(!lct){ alert('Member LCT id is required.'); return; }
+  if(confirm('Assign role '+role+' to '+lct+'? Witnessed as RoleAssigned.')) hubAct('/tools/assign_role',{role:role,member_lct_id:lct});
+}
 function admissionReset(){ const lct=prompt('Admission-reset which LCT id? (clears denial + review standing)'); if(!lct) return; const reason=prompt('Reason (optional):'); if(reason!==null) hubAct('/admin/api/members/'+lct.trim()+'/admission-reset',{reason:reason||null}); }
 function setLimits(){
   const rt=document.getElementById('lim-repeat').value.trim();
@@ -1647,6 +1662,66 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
         body.push_str("</tbody></table>");
     }
     body.push_str(OPERATOR_JS);
+    // ---- Sovereign Council (dp 2026-09-08: "i don't see a ui to edit council or roles") ----
+    // Council changes were CLI-only (an offline store write with the passphrase). They are
+    // now operator-plane acts through the same governance gate the MCP tools carry, live.
+    let (holders, threshold) = {
+        let l = s.ledger.lock().await;
+        crate::rest::project_council(&s, &*l)
+    };
+    let council_mode = threshold.0 >= 2;
+    body.push_str("<h2 style=\"margin-top:1.5rem\">Sovereign Council</h2>");
+    body.push_str(&format!(
+        "<p class=\"muted\">Threshold <b>{}-of-{}</b>. {}</p>",
+        threshold.0, threshold.1,
+        if council_mode {
+            "<span class=\"pill\">council mode</span> Governed acts — including changes to this \
+             council — go through <code>/council/propose</code> + <code>/sign</code>; the \
+             single-signer controls below are refused by the gate while this holds."
+        } else {
+            "<span class=\"pill pill-warn\">single-signer</span> The Sovereign acts alone. Raising \
+             the threshold to 2 or more hands further council changes to the council itself."
+        }
+    ));
+    body.push_str("<table><thead><tr><th>Holder LCT</th><th>Name</th><th>Actions</th></tr></thead><tbody>");
+    for h in &holders {
+        let name = projected.members.get(h).and_then(|m| m.name.as_deref()).unwrap_or("");
+        let action = if *h == s.sovereign_lct_id {
+            "<span class=\"pill\">founding Sovereign</span>".to_string()
+        } else {
+            format!("<button class=\"danger\" onclick=\"councilRemove('{h}')\">Remove</button>")
+        };
+        body.push_str(&format!("<tr><td><code>{h}</code></td><td>{}</td><td>{action}</td></tr>", html_escape(name)));
+    }
+    body.push_str("</tbody></table>");
+    body.push_str(
+        "<div style=\"display:grid;grid-template-columns:max-content 1fr;gap:0.4rem 0.6rem;max-width:760px;align-items:center;margin-top:0.6rem\">\
+         <label>Holder LCT id</label><input id=\"cc-lct\" placeholder=\"uuid\" style=\"font-family:monospace;padding:0.3rem;\">\
+         <label>Pubkey (64 hex)</label><input id=\"cc-key\" placeholder=\"Ed25519 public key, hex\" style=\"font-family:monospace;padding:0.3rem;\">\
+         <label>Name</label><input id=\"cc-name\" placeholder=\"(optional)\" style=\"padding:0.3rem;\">\
+         <span></span><span><button onclick=\"councilAdd()\">Add council holder</button></span>\
+         <label>Threshold M</label><input id=\"cc-m\" type=\"number\" min=\"1\" style=\"padding:0.3rem;width:6rem;\">\
+         <span></span><span><button onclick=\"councilThreshold()\">Set threshold</button></span>\
+         </div>",
+    );
+
+    // ---- Roles: a form over the EXISTING /tools/assign_role write tool (same plane, same
+    // gate). No new route — the tool already existed; only the form did not.
+    body.push_str("<h2 style=\"margin-top:1.5rem\">Assign a role</h2>");
+    body.push_str("<p class=\"muted\">Witnessed as <code>RoleAssigned</code>; web4-core enforces who may hold what. Current fills are on <a href=\"/admin/roles\">Roles</a>.</p>");
+    body.push_str(
+        "<div style=\"display:grid;grid-template-columns:max-content 1fr;gap:0.4rem 0.6rem;max-width:760px;align-items:center;\">\
+         <label>Role</label><select id=\"rl-role\" style=\"padding:0.3rem;\">\
+           <option value=\"law_oracle\">law_oracle</option><option value=\"policy_entity\">policy_entity</option>\
+           <option value=\"treasurer\">treasurer</option><option value=\"administrator\">administrator</option>\
+           <option value=\"archivist\">archivist</option><option value=\"citizen\">citizen</option>\
+           <option value=\"witness\">witness</option><option value=\"auditor\">auditor</option>\
+         </select>\
+         <label>Member LCT id</label><input id=\"rl-lct\" placeholder=\"uuid\" style=\"font-family:monospace;padding:0.3rem;\">\
+         <span></span><span><button onclick=\"assignRole()\">Assign role</button></span>\
+         </div>",
+    );
+
     Ok(layout(&s, "Manage members", &body))
 }
 
