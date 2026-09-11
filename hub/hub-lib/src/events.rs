@@ -60,6 +60,39 @@ impl std::str::FromStr for ProfileVisibility {
     }
 }
 
+/// Whether a role is **constituted independently of whoever fills it**.
+///
+/// dp, 2026-09-10, reaching for the distinction: *"'fungible' roles — not limited in number,
+/// any filled role can act in its scope, new ones created on demand so there are no unfilled
+/// ones — citizen is a good example — whereas 'non-fungible' roles are unique and
+/// predetermined, and may be vacant."*
+///
+/// The axis underneath those words is **whether the role instance exists before its
+/// occupant**, which is why the two kinds have different vacancy semantics — and conflating
+/// those is the bug this enum exists to prevent:
+///
+/// - an **Office** is vacant *awaiting* an occupant. The society should notice and fill it.
+///   It counts toward quorum cardinality even while empty.
+/// - a **Capacity** is never vacant-awaiting. When its holder goes, the instance is *spent*:
+///   a historical record that this entity held this standing between these dates. Nobody
+///   will ever fill it again, and it counts toward nothing.
+///
+/// One `Option<Uuid>` occupant field cannot tell those apart, which is why the kind is
+/// carried on the creating act rather than inferred later.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RoleKind {
+    /// A constituted position: enumerated, unique, persists across occupants, may sit
+    /// vacant. Treasurer; one seat on a council. Filling it is a separate act from creating
+    /// it, and rotation replaces the occupant while the office and its record continue.
+    Office,
+    /// A standing an entity holds: unbounded in number, minted on demand, never awaiting an
+    /// occupant. Citizen. Every holder has their own instance with its own identity and
+    /// tensor, and "how many citizen roles exist" is a fact about the membership rather than
+    /// about the society's constitution.
+    Capacity,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum HubEvent {
@@ -220,6 +253,92 @@ pub enum HubEvent {
         role_lct_id: Uuid,
         assigned_to: Uuid,
         assigned_by: Uuid,
+    },
+
+    /// A role entity was brought into existence (Sprint 1 of
+    /// `PRD_ROLE_ENTITIES_AND_SUBROLES.md`).
+    ///
+    /// CREATING a role and FILLING it are different acts. Until this verb they were the
+    /// same call, so a role could not exist unfilled and could not be chartered before it
+    /// was staffed — which makes a vacant seat unrepresentable, and a vacant seat is
+    /// exactly what a council with an empty chair is.
+    ///
+    /// `parent_role_lct_id` is the fractal hinge (Sprint 2): a sub-role is simply a role
+    /// whose parent is another role's LCT, with the same verbs at every depth. It is
+    /// carried from Sprint 1 so that a ledger written now can express a tree later without
+    /// a second migration.
+    RoleCreated {
+        /// The role's OWN LCT. Authority binds here, not to whoever fills it.
+        role_lct_id: Uuid,
+        role: SocietyRole,
+        /// Office or Capacity — see [`RoleKind`]. Named `role_kind` because `kind` is
+        /// HubEvent's own internal serde tag.
+        role_kind: RoleKind,
+        /// What this role may do, in the hub-law gate's own vocabulary. Free text for now;
+        /// the policy-action set is R4's target and is not decided by this verb.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        charter: Option<String>,
+        /// `None` for a top-level role; `Some(parent)` makes this a seat within that role.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        parent_role_lct_id: Option<Uuid>,
+        /// The holder this role is constituted **for**, in the same witnessed act.
+        ///
+        /// Required for a [`RoleKind::Capacity`] and absent for an Office, and that
+        /// asymmetry is the whole reason the field exists. dp's rule is that there are no
+        /// unfilled capacities; GPT's review of #845 showed that a create-then-fill pair of
+        /// events cannot honour it, because the second act can fail and leave a live
+        /// unoccupied Capacity behind — the exact state the Office/Capacity axis was
+        /// introduced to make impossible.
+        ///
+        /// With the holder inside the creating act, `Capacity && occupant.is_none() &&
+        /// !retired` is unreachable **by the shape of the ledger** rather than by a
+        /// surface's promise to write two entries in order. An Office is still constituted
+        /// first and filled second, because a vacant Office is a legitimate state.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        initial_occupant: Option<Uuid>,
+        created_by: Uuid,
+    },
+
+    /// A role's seat was emptied without destroying the role.
+    ///
+    /// There is no verb for DELETING a role, deliberately: a role's tensor and occupancy
+    /// history are the institutional record the merit ruling protects, and a role with no
+    /// occupant is a real state (a vacant seat), not an absent one.
+    ///
+    /// **No role record is ever deleted, and there are two different exits.** Vacating ends
+    /// *occupancy*; [`HubEvent::RoleRetired`] ends *present constitutional standing*. An
+    /// earlier draft of this comment said "vacating is the only exit", written before
+    /// `RoleRetired` existed, and it survived the edit that added the verb — contradicting
+    /// the very separation the verb was introduced to make.
+    /// An OFFICE was struck from the society's constitution: the society no longer has this
+    /// position at all.
+    ///
+    /// Distinct from vacating, which GPT's review of #844 was right to separate. Vacating
+    /// empties a seat that still exists and still counts toward quorum cardinality;
+    /// retiring removes the seat from the count. Collapsing them would let a resignation
+    /// silently shrink the council — which is precisely the defect `set_threshold()` has
+    /// today, recomputing N from the live holder count so that losing a member lowers the
+    /// bar rather than making it harder to clear.
+    ///
+    /// A retired role is not deleted: its identity, tensor and occupancy history remain
+    /// readable. Only its standing in the present changes.
+    RoleRetired {
+        role_lct_id: Uuid,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        retired_by: Uuid,
+    },
+
+    RoleVacated {
+        role_lct_id: Uuid,
+        /// Who held it until now. Carried on the event so the row reads without a replay.
+        previous_occupant: Uuid,
+        /// Not `kind`: that name collides with HubEvent's own internal serde tag. Mirrors
+        /// `CouncilMemberRemoved::removal_kind`, which solved this first.
+        vacation_kind: web4_core::role::RoleEventKind,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+        vacated_by: Uuid,
     },
 
     /// A chapter event was held + recorded (demo night, workshop, etc.).
@@ -753,6 +872,9 @@ impl HubEvent {
         "referenced_act",
         "reputation_recorded",
         "role_assigned",
+    "role_created",
+    "role_vacated",
+    "role_retired",
         "topic_created",
         "vault_unlock_attested",
         "vault_unlock_requested",
@@ -772,6 +894,9 @@ impl HubEvent {
             Self::MemberJoinReviewResolved { .. } => "member_join_review_resolved",
             Self::MemberAdmissionReset { .. } => "member_admission_reset",
             Self::RoleAssigned { .. } => "role_assigned",
+            Self::RoleCreated { .. } => "role_created",
+            Self::RoleVacated { .. } => "role_vacated",
+            Self::RoleRetired { .. } => "role_retired",
             Self::EventRecorded { .. } => "event_recorded",
             Self::CharterAmended { .. } => "charter_amended",
             Self::MemberSkillDeclared { .. } => "member_skill_declared",
