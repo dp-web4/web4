@@ -2723,6 +2723,15 @@ mod tests {
             ("POST", "/admin/api/council/add"),
             ("POST", "/admin/api/council/00000000-0000-0000-0000-000000000000/remove"),
             ("POST", "/admin/api/council/threshold"),
+            // Sprint 1b role-entity write API. These constitute, fill, empty and
+            // abolish roles — every one of them signs as the Sovereign, and
+            // `/admin/api/roles` enumerates vacancies and retirements the public
+            // `/admin/roles` page deliberately does not.
+            ("GET", "/admin/api/roles"),
+            ("POST", "/admin/api/roles/create"),
+            ("POST", "/admin/api/roles/00000000-0000-0000-0000-000000000000/fill"),
+            ("POST", "/admin/api/roles/00000000-0000-0000-0000-000000000000/vacate"),
+            ("POST", "/admin/api/roles/00000000-0000-0000-0000-000000000000/retire"),
             ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/admission-reset"),
             ("POST", "/admin/api/admission-limits"),
             ("POST", "/admin/api/joins/00000000-0000-0000-0000-000000000000/admit"),
