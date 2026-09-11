@@ -240,8 +240,8 @@ async fn public_record_page(State(s): State<RestState>) -> Result<Html<String>, 
          <p>Every consequential act this chapter takes is appended to a hash-chained ledger. \
             Below are the <b>{}</b> governing acts in the most recent window, newest first, out of \
             <b>{}</b> total entries. The other <b>{}</b> entries in this window are member business \
-            and disclose nothing here — they are shown as counted gaps, in sequence, so you can see \
-            that no index is missing rather than quietly dropped.</p>\
+            and disclose nothing here — they are shown as counted gaps, in sequence, and each gap \
+            publishes its hash links — so the chain is checkable straight through them.</p>\
          <p class=\"muted\">Same data as <a href=\"/v1/hubs/{}/decisions\">the JSON record</a>. \
             <a href=\"/\">About this chapter</a> &middot; <a href=\"/v1/hubs/{}/law\">the law it follows</a>.</p>",
         decisions.len(), total, withheld, s.hub_id, s.hub_id,
@@ -259,8 +259,8 @@ async fn public_record_page(State(s): State<RestState>) -> Result<Html<String>, 
         if let Some(w) = &d.withheld_before {
             body.push_str(&format!(
                 "<tr><td colspan=\"4\" class=\"muted\" style=\"padding:0.5rem 0.6rem\">\
-                 &#8942; <b>{}</b> entr{} withheld (#{}&ndash;#{}) &mdash; recorded and \
-                 accounted for, not disclosed at this tier</td></tr>",
+                 &#8942; <b>{}</b> entr{} withheld (#{}&ndash;#{}) &mdash; hash-linked and \
+                 verifiable, not disclosed at this tier</td></tr>",
                 w.count, if w.count == 1 { "y" } else { "ies" }, w.from_index, w.to_index,
             ));
         }
@@ -278,14 +278,13 @@ async fn public_record_page(State(s): State<RestState>) -> Result<Html<String>, 
     }
     body.push_str("</tbody></table>");
     body.push_str(&format!(
-        "<p class=\"muted\" style=\"margin-top:1rem\">Each disclosed act carries its own hash and \
-         the preceding entry's, so consecutive disclosed acts can be checked against one another. \
-         A withheld <i>run</i> is published as a counted range only: you can see that no index is \
-         silently omitted, but the hashes inside the run are not published, so linkage \
-         <i>through</i> a run is not independently verifiable here. That is a known rung rather \
-         than the finished contract &mdash; the stronger property is tracked as \
-         <a href=\"https://github.com/dp-web4/web4/issues/807\">web4#807</a>. The hashes that are \
-         published are in <a href=\"/v1/hubs/{}/decisions\">the JSON</a>.</p></div>",
+        "<p class=\"muted\" style=\"margin-top:1rem\">Every entry here is hash-linked to the one \
+         before it, <b>including the ones withheld</b>: each withheld run publishes its \
+         hashes even though it publishes nothing about the acts. A hash discloses nothing on \
+         its own, and it is exactly what lets you check that the chain runs unbroken \
+         <i>through</i> the private stretches rather than stopping at them. Substitute any \
+         hash inside a run and verification fails at the next link. The evidence is in \
+         <a href=\"/v1/hubs/{}/decisions\">the JSON</a>.</p></div>",
         s.hub_id,
     ));
     Ok(public_layout(&s.hub_name, &s.hub_id.to_string(), &body))
