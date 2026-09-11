@@ -6122,6 +6122,10 @@ struct RoleCreateBody {
     /// Required for a Capacity, refused for an Office — see `admin_role_create`.
     #[serde(default)]
     occupant_lct_id: Option<Uuid>,
+    /// Sprint 2. `Some` makes this a SEAT within that role. Validated against existence,
+    /// retirement, lineage integrity and depth before anything is witnessed.
+    #[serde(default)]
+    parent_role_lct_id: Option<Uuid>,
 }
 
 #[derive(Deserialize)]
@@ -6183,9 +6187,15 @@ fn projected_role(state: &HubState, role_lct_id: Uuid) -> Result<&hub_lib::state
 /// constituted first and filled second, which is exactly the state the old one-call
 /// `assign_role` could not represent.
 ///
-/// Not accepted here: `parent_role_lct_id`. The verb carries it, but the cycle, existence
-/// and depth invariants that make a parent safe are Sprint 2. A surface that accepted a
-/// parent before its invariants existed would be the gap this PRD is about.
+/// **Sprint 2 opened `parent_role_lct_id`**, and only alongside its invariants: the parent
+/// must exist, must not be retired, must not sit in a corrupt lineage, and the resulting
+/// depth must stay within `HubState::MAX_ROLE_DEPTH`, whose value is named in the refusal.
+/// A surface that accepted a parent before those existed would have been the gap this PRD
+/// is about, freshly dug.
+///
+/// A cycle cannot be created THROUGH this route — the id is minted here and the parent must
+/// already exist, so the new role has no descendants to close a ring with. The cycle
+/// defence lives in the projection, where a ledger written by anything else is replayed.
 ///
 /// surface: POST /admin/api/roles/create   act: constitute a role entity (RoleCreated)
 /// S: med/irreversible [construct: no verb deletes a role — retiring is the only exit]
@@ -6213,6 +6223,22 @@ async fn admin_role_create(
             return Err(ApiError::bad_request(format!("{member} is not a member of this hub")));
         }
     }
+    if let Some(parent) = body.parent_role_lct_id {
+        let ledger = s.ledger.lock().await;
+        let state = HubState::project(&ledger);
+        let p = projected_role(&state, parent)?;
+        let (_, cyclic) = state.role_lineage(parent);
+        if cyclic {
+            return Err(ApiError::bad_request(format!(
+                "role {parent} sits in a circular lineage; nothing may be constituted under it")));
+        }
+        let depth = state.role_depth(p.role_lct_id) + 1;
+        if depth > HubState::MAX_ROLE_DEPTH {
+            return Err(ApiError::bad_request(format!(
+                "that would put the role at depth {depth}; the bound is {} \
+                 (roots count as 1, so council → seat is 2)", HubState::MAX_ROLE_DEPTH)));
+        }
+    }
     let role_lct_id = Uuid::new_v4();
     // ONE witnessed act, holder included. An earlier cut wrote RoleCreated and then a
     // separate RoleAssigned, and tolerated the second failing — which left a live
@@ -6223,7 +6249,7 @@ async fn admin_role_create(
         role: body.role.clone(),
         role_kind,
         charter: body.charter.clone(),
-        parent_role_lct_id: None,
+        parent_role_lct_id: body.parent_role_lct_id,
         initial_occupant: occupant,
         created_by: s.sovereign_lct_id,
     };
@@ -6232,6 +6258,7 @@ async fn admin_role_create(
     Ok(Json(serde_json::json!({
         "created": true, "role_lct_id": role_lct_id, "entry_index": entry_index,
         "role_kind": body.role_kind, "occupant": occupant,
+        "parent_role_lct_id": body.parent_role_lct_id,
     })))
 }
 
@@ -6421,6 +6448,13 @@ async fn admin_roles_list(
         // these routes, and a foreign ledger that contains one should say so out loud.
         "invalid_unheld_capacity": r.is_incoherent_capacity(),
         "occupancy_changes": r.occupancy_log.len(),
+        "depth": state.role_depth(r.role_lct_id),
+        // The three-way answer, not a boolean. `lineage_is_circular` reported only the
+        // corrupt case, so a role whose parent this hub does not hold was indistinguishable
+        // from an ordinary top-level role — the distinction the projection models and every
+        // consumer was discarding.
+        "lineage": state.lineage_of(r.role_lct_id),
+        "seats": state.seat_quorum(r.role_lct_id, 0).established,
     })).collect();
     Ok(Json(serde_json::json!({ "roles": roles, "count": roles.len() })))
 }
@@ -12151,7 +12185,7 @@ norms:
         let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
             Json(RoleCreateBody { role: SocietyRole::Custom("council-member".into()),
                 role_kind: "office".into(), charter: Some("one seat of the council".into()),
-                occupant_lct_id: None })).await.unwrap();
+                occupant_lct_id: None, parent_role_lct_id: None })).await.unwrap();
         let seat: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
         assert!(out.0["occupant"].is_null(), "an office is constituted unfilled");
 
@@ -12217,14 +12251,14 @@ norms:
         // Capacity with no holder: refused, nothing witnessed.
         let err = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
             Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
-                charter: None, occupant_lct_id: None })).await.err().expect("refused");
+                charter: None, occupant_lct_id: None, parent_role_lct_id: None })).await.err().expect("refused");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
         assert!(err.message.contains("occupant_lct_id is required"), "got: {}", err.message);
 
         // Office WITH a holder: refused too, and for the opposite reason.
         let err = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
             Json(RoleCreateBody { role: SocietyRole::Custom("chair".into()), role_kind: "office".into(),
-                charter: None, occupant_lct_id: Some(citizen) })).await.err().expect("refused");
+                charter: None, occupant_lct_id: Some(citizen), parent_role_lct_id: None })).await.err().expect("refused");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
         assert!(err.message.contains("constituted before it is filled"), "got: {}", err.message);
         assert_eq!(state.ledger.lock().await.entries().len(), before, "neither refusal witnessed anything");
@@ -12232,7 +12266,7 @@ norms:
         // Capacity with a holder: born occupied, in one operator act.
         let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
             Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
-                charter: None, occupant_lct_id: Some(citizen) })).await.unwrap();
+                charter: None, occupant_lct_id: Some(citizen), parent_role_lct_id: None })).await.unwrap();
         let id: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
         // ONE act. GPT's #845 blocker: create-then-fill leaves a window in which a live
         // unoccupied capacity exists, and the model says that state cannot exist. So the
@@ -12271,7 +12305,7 @@ norms:
         let cap: Uuid = serde_json::from_value(
             admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
                 Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
-                    charter: None, occupant_lct_id: Some(holder) })).await
+                    charter: None, occupant_lct_id: Some(holder), parent_role_lct_id: None })).await
                 .unwrap().0["role_lct_id"].clone()).unwrap();
 
         let before = state.ledger.lock().await.entries().len();
@@ -12333,7 +12367,7 @@ norms:
         let cap: Uuid = serde_json::from_value(
             admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
                 Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
-                    charter: None, occupant_lct_id: Some(holder) })).await
+                    charter: None, occupant_lct_id: Some(holder), parent_role_lct_id: None })).await
                 .unwrap().0["role_lct_id"].clone()).unwrap();
 
         // Reach the forbidden state the only way left: append straight to the chain, as a
@@ -12396,7 +12430,7 @@ norms:
         for who in [m_a, m_b] {
             let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
                 Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
-                    charter: None, occupant_lct_id: Some(who) })).await.unwrap();
+                    charter: None, occupant_lct_id: Some(who), parent_role_lct_id: None })).await.unwrap();
             ids.push(serde_json::from_value::<Uuid>(out.0["role_lct_id"].clone()).unwrap());
         }
         assert_ne!(ids[0], ids[1], "two citizenships are two entities, not one rotated one");
@@ -12421,7 +12455,7 @@ norms:
         let holder = member(&state, "thor").await;
         let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
             Json(RoleCreateBody { role: SocietyRole::Custom("seat".into()), role_kind: "office".into(),
-                charter: None, occupant_lct_id: None })).await.unwrap();
+                charter: None, occupant_lct_id: None, parent_role_lct_id: None })).await.unwrap();
         let seat: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
         admin_role_fill(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
             Json(RoleFillBody { member_lct_id: holder })).await.unwrap();
@@ -12457,7 +12491,7 @@ norms:
         let holder = member(&state, "pub").await;
         let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
             Json(RoleCreateBody { role: SocietyRole::Custom("abolished".into()), role_kind: "office".into(),
-                charter: None, occupant_lct_id: None })).await.unwrap();
+                charter: None, occupant_lct_id: None, parent_role_lct_id: None })).await.unwrap();
         let seat: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
         admin_role_retire(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
             Json(RoleRetireBody { reason: None })).await.unwrap();
@@ -12501,7 +12535,7 @@ norms:
         let statuses = vec![
             ("create", admin_role_create(State(state.clone()), ConnectInfo(remote),
                 Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
-                    charter: None, occupant_lct_id: Some(id) })).await.err().map(|e| e.status)),
+                    charter: None, occupant_lct_id: Some(id), parent_role_lct_id: None })).await.err().map(|e| e.status)),
             ("fill", admin_role_fill(State(state.clone()), ConnectInfo(remote), Path(id),
                 Json(RoleFillBody { member_lct_id: id })).await.err().map(|e| e.status)),
             ("vacate", admin_role_vacate(State(state.clone()), ConnectInfo(remote), Path(id),
@@ -12527,7 +12561,7 @@ norms:
         let second = member(&state, "second").await;
         let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
             Json(RoleCreateBody { role: SocietyRole::Custom("chair".into()), role_kind: "office".into(),
-                charter: None, occupant_lct_id: None })).await.unwrap();
+                charter: None, occupant_lct_id: None, parent_role_lct_id: None })).await.unwrap();
         let seat: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
 
         let err = admin_role_fill(State(state.clone()), ConnectInfo(loop_addr), Path(seat),
@@ -13110,6 +13144,85 @@ norms: []
         assert!(html.contains("removeMember("), "Remove button wired");
     }
 
+    /// Sprint 2 at the surface: a parent is accepted, and the three things that make one
+    /// safe are each refused with the ledger untouched.
+    #[tokio::test]
+    async fn a_seat_is_constituted_within_a_parent_and_the_invariants_refuse_the_rest() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let office = |name: &str, parent: Option<Uuid>| RoleCreateBody {
+            role: SocietyRole::Custom(name.into()), role_kind: "office".into(),
+            charter: None, occupant_lct_id: None, parent_role_lct_id: parent };
+
+        let council: Uuid = serde_json::from_value(
+            admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+                Json(office("council", None))).await.unwrap().0["role_lct_id"].clone()).unwrap();
+        let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(office("council-member", Some(council)))).await.unwrap();
+        let seat: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
+        assert_eq!(serde_json::from_value::<Uuid>(out.0["parent_role_lct_id"].clone()).unwrap(), council);
+        {
+            let l = state.ledger.lock().await;
+            let st = HubState::project(&l);
+            assert_eq!(st.roles[&seat].parent_role_lct_id, Some(council));
+            assert_eq!(st.role_depth(seat), 2);
+            assert_eq!(st.seat_quorum(council, 1).established, 1,
+                "the sub-role is a seat of its parent — quorum reads the tree, not a list");
+        }
+
+        // Existence: a parent that was never constituted.
+        let err = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(office("orphan", Some(Uuid::new_v4())))).await.err().expect("refused");
+        assert_eq!(err.status, StatusCode::NOT_FOUND, "an absent parent is not found, not bad input");
+
+        // Retirement: a parent that has been struck from the constitution.
+        let dead: Uuid = serde_json::from_value(
+            admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+                Json(office("abolished", None))).await.unwrap().0["role_lct_id"].clone()).unwrap();
+        admin_role_retire(State(state.clone()), ConnectInfo(loop_addr), Path(dead),
+            Json(RoleRetireBody { reason: None })).await.unwrap();
+        let before = state.ledger.lock().await.entries().len();
+        let err = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(office("under-a-dead-parent", Some(dead)))).await.err().expect("refused");
+        assert!(err.message.contains("is retired"), "got: {}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before,
+            "a refused creation witnesses nothing");
+    }
+
+    /// The depth bound is enforced and NAMED. An operator who hits it must learn the
+    /// bound, not just that something failed — a refusal that does not say the limit makes
+    /// the limit undiscoverable.
+    #[tokio::test]
+    async fn the_role_tree_is_bounded_and_the_refusal_names_the_bound() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let mut parent: Option<Uuid> = None;
+        for depth in 1..=HubState::MAX_ROLE_DEPTH {
+            let out = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+                Json(RoleCreateBody { role: SocietyRole::Custom(format!("level-{depth}")),
+                    role_kind: "office".into(), charter: None, occupant_lct_id: None,
+                    parent_role_lct_id: parent })).await
+                .unwrap_or_else(|e| panic!("depth {depth} is within the bound: {}", e.message));
+            let id: Uuid = serde_json::from_value(out.0["role_lct_id"].clone()).unwrap();
+            {
+                let l = state.ledger.lock().await;
+                assert_eq!(HubState::project(&l).role_depth(id), depth, "depth {depth} projects");
+            }
+            parent = Some(id);
+        }
+        let before = state.ledger.lock().await.entries().len();
+        let err = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+            Json(RoleCreateBody { role: SocietyRole::Custom("one-too-deep".into()),
+                role_kind: "office".into(), charter: None, occupant_lct_id: None,
+                parent_role_lct_id: parent })).await.err().expect("the bound holds");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains(&HubState::MAX_ROLE_DEPTH.to_string()),
+            "the refusal must name the bound; got: {}", err.message);
+        assert!(err.message.contains(&format!("depth {}", HubState::MAX_ROLE_DEPTH + 1)),
+            "and what the request would have made it; got: {}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing witnessed");
+    }
+
     /// dp, 2026-09-08: *"do i have a ui to edit/add roles yet?"* This is that UI, and the
     /// assertion that matters is the one about a VACANT office: the page has to render a
     /// role that nobody occupies as present-and-empty. Rendering it as absent is what the
@@ -13125,11 +13238,11 @@ norms: []
 
         let vacant = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
             Json(RoleCreateBody { role: SocietyRole::Custom("empty-seat".into()),
-                role_kind: "office".into(), charter: None, occupant_lct_id: None })).await.unwrap();
+                role_kind: "office".into(), charter: None, occupant_lct_id: None, parent_role_lct_id: None })).await.unwrap();
         let vacant: Uuid = serde_json::from_value(vacant.0["role_lct_id"].clone()).unwrap();
         let held = admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
             Json(RoleCreateBody { role: SocietyRole::Citizen, role_kind: "capacity".into(),
-                charter: None, occupant_lct_id: Some(holder) })).await.unwrap();
+                charter: None, occupant_lct_id: Some(holder), parent_role_lct_id: None })).await.unwrap();
         let held: Uuid = serde_json::from_value(held.0["role_lct_id"].clone()).unwrap();
 
         let html = crate::admin::manage_page(State(state.clone())).await.unwrap().0;
@@ -13160,9 +13273,93 @@ norms: []
         assert!(!h.contains("roleFill("),
             "and never filled or rotated: a new holder gets a new instance: {h}");
         assert!(h.contains("occupant"), "the holder's name is on the row: {h}");
+        assert!(!h.contains("roleSeat("),
+            "and no Add seat: a capacity is minted per holder and unbounded, so constituted \
+             seats beneath one would multiply with its holders. There is no coherent \
+             reading of \"a seat within a citizenship\": {h}");
 
         assert!(html.contains("Role entities"), "the section has a heading");
         assert!(html.contains("roleCreate()"), "and a create form");
+    }
+
+    /// Sprint 2's rendering, and the property that matters is NOT the indentation — it is
+    /// that a role the tree walk cannot reach still appears.
+    ///
+    /// The walk starts at the roots, which is what keeps a ring out of it. That defence
+    /// makes a ring INVISIBLE, and invisible corruption is worse than rendered corruption,
+    /// so anything unreached is appended and flagged. This test builds a ring directly on
+    /// the ledger, because the create surface refuses to make one.
+    #[tokio::test]
+    async fn the_tree_renders_nested_and_a_ring_is_shown_rather_than_silently_skipped() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let loop_addr: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let council: Uuid = serde_json::from_value(
+            admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+                Json(RoleCreateBody { role: SocietyRole::Custom("council".into()),
+                    role_kind: "office".into(), charter: None, occupant_lct_id: None,
+                    parent_role_lct_id: None })).await.unwrap().0["role_lct_id"].clone()).unwrap();
+        let seat: Uuid = serde_json::from_value(
+            admin_role_create(State(state.clone()), ConnectInfo(loop_addr),
+                Json(RoleCreateBody { role: SocietyRole::Custom("council-member".into()),
+                    role_kind: "office".into(), charter: None, occupant_lct_id: None,
+                    parent_role_lct_id: Some(council) })).await.unwrap().0["role_lct_id"].clone()).unwrap();
+
+        // A ring, appended straight to the chain — the surface will not build one.
+        let (x, y) = (Uuid::new_v4(), Uuid::new_v4());
+        for (id, parent) in [(x, y), (y, x)] {
+            witness_event(&state, HubEvent::RoleCreated { role_lct_id: id,
+                role: SocietyRole::Custom("ring".into()),
+                role_kind: hub_lib::events::RoleKind::Office, charter: None,
+                parent_role_lct_id: Some(parent), created_by: state.sovereign_lct_id, initial_occupant: None }).await.unwrap();
+        }
+
+        let html = crate::admin::manage_page(State(state.clone())).await.unwrap().0;
+        let pos = |id: Uuid| html.find(&format!("<code>{id}</code>")).unwrap_or_else(|| panic!("{id} absent"));
+        assert!(pos(council) < pos(seat), "a child renders under its parent, not before it");
+        let seat_row_start = html[..pos(seat)].rfind("<tr>").unwrap();
+        let seat_row = &html[seat_row_start..pos(seat)];
+        assert!(seat_row.contains("&nbsp;"), "the seat is indented beneath the council");
+        let council_row_start = html[..pos(council)].rfind("<tr>").unwrap();
+        assert!(!html[council_row_start..pos(council)].contains("&nbsp;"), "a root is not");
+        let council_row = &html[council_row_start
+            ..council_row_start + html[council_row_start..].find("</tr>").unwrap()];
+        assert!(council_row.contains("roleSeat("),
+            "every usable role offers Add seat — the fractal step has to be one click, \
+             not a hand-copied uuid: {council_row}");
+
+        // A DANGLING role: parent named, parent absent. It is also unreachable from the
+        // roots, so before this it was appended at depth 0 with no warning — visually
+        // identical to an ordinary top-level role. GPT's #846 point.
+        let (orphan, absent) = (Uuid::new_v4(), Uuid::new_v4());
+        witness_event(&state, HubEvent::RoleCreated { role_lct_id: orphan,
+            role: SocietyRole::Custom("orphan".into()),
+            role_kind: hub_lib::events::RoleKind::Office, charter: None,
+            parent_role_lct_id: Some(absent), created_by: state.sovereign_lct_id,
+            initial_occupant: None }).await.unwrap();
+
+        let html = crate::admin::manage_page(State(state.clone())).await.unwrap().0;
+        let pos = |id: Uuid| html.find(&format!("<code>{id}</code>")).unwrap_or_else(|| panic!("{id} absent"));
+        let row_of = |id: Uuid| {
+            let st = html[..pos(id)].rfind("<tr>").unwrap();
+            html[st..st + html[st..].find("</tr>").unwrap()].to_string()
+        };
+        let o = row_of(orphan);
+        assert!(o.contains("dangling parent"), "the missing-parent case gets its OWN warning: {o}");
+        assert!(o.contains(&absent.to_string()),
+            "…naming the id to go and look for — a warning that does not say what is \
+             missing is most of the way to no warning: {o}");
+        assert!(!o.contains("circular"), "partial is not corrupt: {o}");
+        let r = row_of(council);
+        assert!(!r.contains("dangling") && !r.contains("circular"),
+            "an ordinary root carries no warning, or the warning means nothing: {r}");
+
+        // The ring: both ends present, both flagged. The tree walk never reached them.
+        for id in [x, y] {
+            let start = html[..pos(id)].rfind("<tr>").unwrap();
+            let end = start + html[start..].find("</tr>").unwrap();
+            assert!(html[start..end].contains("circular lineage"),
+                "a role the walk cannot reach must be shown AND flagged: {}", &html[start..end]);
+        }
     }
 
     #[tokio::test]

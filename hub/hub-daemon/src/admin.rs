@@ -1427,9 +1427,12 @@ function roleCreate(){
   if(!role){ alert('A role name is required.'); return; }
   if(kind==='capacity' && !occ){ alert('A capacity is created for a holder: give the member LCT id.'); return; }
   if(kind==='office' && occ){ alert('An office is constituted before it is filled. Leave the holder blank, then Fill it.'); return; }
-  const body={role:(role.indexOf(':')<0 && ['sovereign','law_oracle','policy_entity','treasurer','administrator','archivist','citizen','witness','auditor'].indexOf(role)>=0)?role:{custom:role}, role_kind:kind, charter:charter||null, occupant_lct_id:occ||null};
-  if(confirm('Constitute '+role+' as a '+kind+'? Witnessed as RoleCreated. No verb deletes a role.')) hubAct('/admin/api/roles/create',body);
+  const parent=document.getElementById('re-parent').value.trim();
+  const body={role:(role.indexOf(':')<0 && ['sovereign','law_oracle','policy_entity','treasurer','administrator','archivist','citizen','witness','auditor'].indexOf(role)>=0)?role:{custom:role}, role_kind:kind, charter:charter||null, occupant_lct_id:occ||null, parent_role_lct_id:parent||null};
+  const where=parent?(' as a seat within '+parent):' as a top-level role';
+  if(confirm('Constitute '+role+' as a '+kind+where+'? Witnessed as RoleCreated. No verb deletes a role.')) hubAct('/admin/api/roles/create',body);
 }
+function roleSeat(id){ document.getElementById('re-parent').value=id; document.getElementById('re-role').focus(); window.scrollTo(0,document.body.scrollHeight); }
 function roleFill(id){ const lct=prompt('Fill role '+id+' — member LCT id:'); if(!lct) return; hubAct('/admin/api/roles/'+id+'/fill',{member_lct_id:lct.trim()}); }
 function roleVacate(id){ const reason=prompt('Vacate role '+id+' — reason (optional). The role and its whole occupancy log survive:'); if(reason!==null) hubAct('/admin/api/roles/'+id+'/vacate',{kind:'resigned',reason:reason||null}); }
 function roleSpend(id){ const reason=prompt('SPEND capacity '+id+' — reason (optional). Its holder stays on the record; a new holder needs a new instance:'); if(reason!==null) hubAct('/admin/api/roles/'+id+'/retire',{reason:reason||null}); }
@@ -1770,16 +1773,42 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
         An <strong>office</strong> is constituted first and may sit vacant. A <strong>capacity</strong> \
         is created for its holder and there is no unfilled one. Retiring is the only exit, and it \
         erases nothing.</p>");
-    let role_entities: Vec<_> = projected.roles.values().collect();
+    // Sprint 2: rendered as a TREE, walked from the roots downward. That walk is also the
+    // cycle defence at this layer — a ring has no root, so it is never entered. But
+    // "never entered" would make a ring INVISIBLE, so anything the walk did not reach is
+    // appended afterwards and flagged, because a corrupt lineage is the one thing an
+    // operator most needs to see.
+    let mut role_entities: Vec<(usize, &hub_lib::state::ProjectedRole)> = Vec::new();
+    {
+        let mut stack: Vec<(usize, uuid::Uuid)> =
+            projected.root_roles().map(|r| (0usize, r.role_lct_id)).collect();
+        stack.reverse();
+        let mut seen = std::collections::BTreeSet::new();
+        while let Some((depth, id)) = stack.pop() {
+            if !seen.insert(id) { continue; }
+            if let Some(r) = projected.roles.get(&id) {
+                role_entities.push((depth, r));
+                if depth + 1 < hub_lib::state::HubState::MAX_ROLE_DEPTH {
+                    let mut kids: Vec<_> = projected.children_of(id).map(|c| c.role_lct_id).collect();
+                    kids.reverse();
+                    stack.extend(kids.into_iter().map(|k| (depth + 1, k)));
+                }
+            }
+        }
+        for r in projected.roles.values() {
+            if !seen.contains(&r.role_lct_id) { role_entities.push((0, r)); }
+        }
+    }
     if role_entities.is_empty() {
         body.push_str("<p class=\"muted\">No role entities yet. The roles on \
             <a href=\"/admin/roles\">Roles</a> are society-document assignments, which predate this.</p>");
     } else {
         body.push_str("<table><thead><tr><th>Role</th><th>Kind</th><th>Role LCT</th>\
             <th>Occupant</th><th>State</th><th>Actions</th></tr></thead><tbody>");
-        for r in role_entities {
+        for (depth, r) in role_entities {
             let id = r.role_lct_id;
-            let name = format!("{:?}", r.role);
+            let lineage = projected.lineage_of(id);
+            let indent = "&nbsp;&nbsp;&nbsp;&nbsp;".repeat(depth);
             let kind = match r.role_kind {
                 hub_lib::events::RoleKind::Office => "office",
                 hub_lib::events::RoleKind::Capacity => "capacity",
@@ -1806,24 +1835,49 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
                 // `is_incoherent_capacity()` — reported, never repaired.
                 (true, false, false)  => "<span class=\"pill pill-warn\">unheld — invalid</span>",
             };
+            // "Add seat" is offered on OFFICES only. A capacity is minted per holder and
+            // unbounded, so constituted seats under one would multiply with its holders —
+            // there is no coherent reading of "a seat within a citizenship". GPT's #846
+            // note: the earlier "every usable role" wording was broader than the seat
+            // definition `seats_of()` actually uses.
+            let seat_btn = if !is_capacity {
+                format!(" <button onclick=\"roleSeat('{id}')\">Add seat</button>")
+            } else { String::new() };
             let actions = match (is_capacity, r.retired, r.occupant.is_some()) {
                 (_, true, _) => "<span class=\"muted\">readable, not usable</span>".to_string(),
                 (false, false, true) =>
                     format!("<button onclick=\"roleFill('{id}')\">Rotate</button> \
-                             <button onclick=\"roleVacate('{id}')\">Vacate</button>"),
+                             <button onclick=\"roleVacate('{id}')\">Vacate</button>{seat_btn}"),
                 (false, false, false) =>
-                    format!("<button onclick=\"roleFill('{id}')\">Fill</button> \
+                    format!("<button onclick=\"roleFill('{id}')\">Fill</button>{seat_btn} \
                              <button class=\"danger\" onclick=\"roleRetire('{id}')\">Retire</button>"),
-                // A held capacity has exactly one act: end it. Not vacate, not rotate.
+                // A held capacity has exactly one act: end it. Not vacate, not rotate, and
+                // no seats beneath it.
                 (true, false, true) =>
                     format!("<button class=\"danger\" onclick=\"roleSpend('{id}')\">Spend</button>"),
                 (true, false, false) =>
                     "<span class=\"muted\">invalid state; not repaired here</span>".to_string(),
             };
+            // `name` carries the indent markup this function built plus a `{:?}` of the
+            // role, and `SocietyRole::Custom` holds operator free text — so escape the
+            // ROLE and concatenate the markup, rather than escaping the whole string and
+            // rendering the indent as literal `&amp;nbsp;`.
+            let rendered_name = format!("{}{}{}", indent,
+                if depth > 0 { "└ " } else { "" },
+                html_escape(&format!("{:?}", r.role)));
+            // Partial and corrupt get DIFFERENT warnings, and the dangling one names the
+            // id it is missing — a warning that does not say what to go and look for is
+            // most of the way to no warning at all.
+            let flag = match &lineage {
+                hub_lib::state::Lineage::Circular =>
+                    " <span class=\"pill pill-warn\">circular lineage</span>".to_string(),
+                hub_lib::state::Lineage::Dangling { missing_parent } =>
+                    format!(" <span class=\"pill pill-warn\">dangling parent {missing_parent}</span>"),
+                _ => String::new(),
+            };
             body.push_str(&format!(
-                "<tr><td>{}</td><td>{kind}</td><td><code>{id}</code></td><td>{occupant}</td>\
-                 <td>{state_pill}</td><td>{actions}</td></tr>",
-                html_escape(&name)));
+                "<tr><td>{rendered_name}{flag}</td><td>{kind}</td><td><code>{id}</code></td><td>{occupant}</td>\
+                 <td>{state_pill}</td><td>{actions}</td></tr>"));
         }
         body.push_str("</tbody></table>");
     }
@@ -1836,6 +1890,7 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
          </select>\
          <label>Charter</label><input id=\"re-charter\" placeholder=\"(optional) what this role may do\" style=\"padding:0.3rem;\">\
          <label>Holder LCT id</label><input id=\"re-occ\" placeholder=\"required for a capacity, blank for an office\" style=\"font-family:monospace;padding:0.3rem;\">\
+         <label>Within role</label><input id=\"re-parent\" placeholder=\"(optional) parent role LCT — makes this a seat\" style=\"font-family:monospace;padding:0.3rem;\">\
          <span></span><span><button onclick=\"roleCreate()\">Constitute role</button></span>\
          </div>",
     );

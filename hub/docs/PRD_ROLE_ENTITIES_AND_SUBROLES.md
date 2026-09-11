@@ -374,20 +374,94 @@ nine council members, because it cannot hold two of anything.
 
 ### Sprint 2 — Sub-roles *(structure only, council untouched)*
 
-- `parent_role_lct_id` on `RoleCreated` and on the projected entity.
-- Cycle, existence and depth invariants, each with a falsifier.
-- `/admin/roles` renders the tree; a vacant seat renders as vacant, never as absent.
-- **Acceptance:** a three-level tree projects correctly; a cycle is refused at creation and
-  witnesses nothing; depth beyond the bound is refused with the bound named.
+- `parent_role_lct_id` accepted at creation, **with** its invariants and not before them:
+  the parent must exist, must not be retired, must not sit in a corrupt lineage, and the
+  resulting depth must stay within `HubState::MAX_ROLE_DEPTH` (8), whose value is named in
+  the refusal so an operator learns the bound rather than only that something failed.
+- Cycle-safe traversal in the projection: `role_lineage`, `role_ancestors`, `role_depth`,
+  `children_of`, `root_roles`.
+- Manage renders the tree, walked from the roots, with a vacant seat shown as **present and
+  empty** and one-click *Add seat* on every usable role.
+
+**Where the cycle invariant actually lives — a correction to this document's first draft.**
+The draft said a cycle is *refused at creation*. It cannot arise there: the role's id is
+minted server-side and its parent must already exist, so a new role has no descendants to
+close a ring with. Writing a creation-time cycle check would have produced a guard that can
+never fire — a green test proving nothing.
+
+The reachable cycle is in the **ledger**, and it is constructible: ids are minted before
+their events are written, so anything that appends directly can write two `RoleCreated`
+entries naming each other as parent. A projection that trusted the surface's guarantee
+would loop forever on such a chain, and *a hub that cannot replay its own history cannot
+boot*. So the defence is in `role_lineage`, and its falsifier is the strongest one in this
+sprint: with the `seen` set removed, the test does not fail — **it hangs**.
+
+The renderer inherits a second-order version of the same problem. Walking from the roots
+keeps a ring out of the render, because a ring has no root — which would make corruption
+**invisible**. Unreached roles are therefore appended and flagged, since invisible
+corruption is worse than rendered corruption.
+
+**A dangling parent is not a cycle, and every consumer has to say so.** A parent naming a
+role this hub has not replayed is a *partial* ledger; a ring is a *corrupt* one.
+
+The first cut modelled that distinction and then discarded it at every read: `role_lineage`
+returned a single `cyclic` boolean, so a role with a missing parent was appended after the
+tree walk at depth 0 with no warning — visually identical to an ordinary top-level role.
+GPT's #846 point, and the general form is worth keeping: **modelling a distinction and
+collapsing it at every consumer is worse than not modelling it**, because the code then
+claims a property the operator can never see.
+
+`Lineage` is now the three-way answer — `root` / `rooted` / `dangling { missing_parent }` /
+`circular` — read through one function so the renderer, the API and any future quorum check
+cannot disagree about what a missing parent means. The dangling warning **names the id it is
+missing**: a warning that does not say what to go and look for is most of the way to no
+warning at all. A dangling lineage does not block replay and is not corruption; it simply
+may not masquerade as a valid root.
+
+**"Add seat" is offered on Offices only.** A Capacity is minted per holder and unbounded, so
+constituted seats beneath one would multiply with its holders, and "a seat within a
+citizenship" has no coherent reading. The earlier "every usable role" wording was broader
+than the definition `seats_of()` actually uses.
+
+- **Acceptance:** a three-level tree projects with depth measured from the root; a ring
+  truncates the walk and is reported; a dangling edge ends the walk without claiming a
+  cycle; depth beyond the bound is refused with the bound named and nothing witnessed.
+
+**Deferred to dp, deliberately.** Public `/admin/roles` is unchanged. The public council
+page already publishes M-of-N and the eligible holders, so once Sprint 3 mirrors the
+council, seat occupancy is derivable from what is already public and withholding it would
+be theatre. But *publishing is not reversible*, and the two transparency pages must not
+disagree about whether a body can reach a verdict. That is one decision about both pages,
+and it is dp's.
 
 ### Sprint 3 — Council mirrored onto roles *(dual-read, nothing switched)*
 
 - A single witnessed migration act derives `council` + one `council-member` sub-role per
   current holder from the existing projection.
 - `project_council` gains a role-derived implementation **beside** the legacy one.
+- The founding Sovereign's protection lands **as law**, per §4.3.1 — not as a field on
+  `ProjectedRole`. Its falsifier is a law amendment permitting succession followed by a
+  succession that executes, a test that could not be written at all if the protection were
+  a type property.
+- **Public vacancy state opens here.** Ruled 2026-09-10: once the role-derived council is
+  authoritative enough to agree with the existing public council view, the public pages
+  publish **N established / O occupied / M required**, and say *"quorum currently
+  unreachable"* when `O < M`.
+
+  Two reasons this is the right direction rather than the cautious-looking one. First,
+  `/admin/council` already publishes M-of-N and the eligible holders, so after cutover the
+  occupied count is derivable from what is public and hiding it is theatre. Second, and the
+  stronger one: **governance transparency exists to tell participants whether a constituted
+  body can presently reach a verdict.** A vacancy list alone does not answer that; N/O/M
+  does. The thing worth publishing is the reachability, not the roster.
+
+  A vacancy table published *before* the role-derived council is authoritative would be the
+  bad version — two transparency pages disagreeing about whether the body can act. Which is
+  why this is a Sprint 3 item and not a Sprint 2 one.
 - **Acceptance:** a differential test asserts the two implementations agree — same holder
   set, same threshold — on a fixture shaped like the live fleet hub. Disagreement fails the
-  build. The legacy path is still what the gate consults.
+  build. The legacy path is still what the gate consults. The public N/O/M panel is driven
+  by the same projection the differential covers, so the two pages cannot disagree.
 
 ### Sprint 4 — Authority derives from occupancy *(the switch)*
 
