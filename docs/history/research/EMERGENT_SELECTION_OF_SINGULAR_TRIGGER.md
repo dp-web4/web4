@@ -177,6 +177,146 @@ This distinction is important:
 
 A singular trigger can therefore be the seed of a new authority structure.
 
+## Behavioral Trajectories and Selective Deference
+
+Static behavioral labels are not enough to identify emergent authority.
+
+An agent may be described along axes such as exploratory/conclusive, cooperative/adversarial, deferential/assertive, or cautious/risk-tolerant, but these are most useful when treated as **trajectories through time**, not fixed personality labels.
+
+The governance-relevant event is often not:
+
+```text
+participant A is authoritative
+```
+
+but:
+
+```text
+participant A changes state
+    -> participants B, C, and D subsequently change behavior
+```
+
+Repeated temporal coupling of that kind is a stronger signal of effective authority than a high score on any single behavioral axis.
+
+For example, under a shared tension a flock may move through:
+
+```text
+distributed exploration
+    -> one participant becomes locally conclusive
+    -> that participant proposes a course of action
+    -> peers challenge, test, or adopt it
+    -> coordination reorganizes around the proposal
+```
+
+The critical question is whether the participant's transition predicts downstream behavioral change in others.
+
+This suggests that effective authority can be operationalized as **causal deference**: the demonstrated ability of one participant's acts, framing, or recommendations to alter the decisions of others.
+
+### Selective reduction in pushback
+
+A particularly useful signal may be **selective reduction in challenge**.
+
+Suppose participant B normally challenges suggestions from most peers. If B continues challenging C, D, and E at the usual rate but increasingly accepts A's proposals in domain X, that is not generalized submissiveness. It is evidence of **contextual deference to A**.
+
+This distinction matters:
+
+```text
+general compliance != contextual authority
+```
+
+A participant can remain highly independent overall while recognizing another participant's authority in a narrow domain.
+
+Potential measurements include:
+
+- challenge rate toward each peer before and after demonstrated success;
+- acceptance rate conditioned on source participant and domain;
+- time-to-challenge or time-to-adoption;
+- whether objections disappear after a specific reputation event;
+- whether recommendations from one participant require less supporting evidence over time;
+- whether peers begin proactively seeking that participant's judgment.
+
+These measurements may reveal authority before explicit task assignment, routing centrality, or formal role changes make it obvious.
+
+### Authority escaping context
+
+The same instrumentation may expose a more dangerous transition: deference earned in one context beginning to generalize into unrelated contexts.
+
+For example:
+
+```text
+A demonstrates exceptional competence in domain X
+    -> B/C/D reduce challenge toward A in X
+    -> A's recommendations begin receiving preferential uptake in Y
+    -> challenge declines in Z despite little supporting evidence there
+```
+
+This is not simply rising reputation. It is **authority escaping the context in which it was earned**.
+
+In Web4 terms, this resembles authority exceeding its effective MRH.
+
+A useful observability system should therefore distinguish:
+
+- deference that is local to the evidence-bearing context;
+- deference that transfers through a justified adjacent context;
+- deference that generalizes without corresponding evidence.
+
+The last category is a plausible precursor to authority cascades, institutional capture, or uncritical follower behavior.
+
+### Style is not authority
+
+Behavioral style and effective authority should remain separate concepts.
+
+An effective coordinator may be linguistically tentative, highly cooperative, and willing to yield frequently while still exerting large causal influence on the flock. Conversely, an assertive or adversarial participant may attract little actual uptake.
+
+Therefore candidate-leadership models should not equate combinations of style axes with authority.
+
+Behavioral axes can identify candidate states worth inspecting. Authority should be inferred from **interaction effects**: who changes whom, in which context, with what persistence, and supported by what evidence.
+
+### Framing and protocol formation as authority signals
+
+Coordination authority may also appear through control of shared representation rather than explicit direction.
+
+In persistent groups, participants often develop compressed task-specific language, shorthand, markers, naming conventions, or interaction protocols. A participant whose terminology or symbolic conventions become adopted by others may be exercising a subtle but consequential form of authority.
+
+This suggests another measurable signal:
+
+> **Who gets to define the compression?**
+
+A participant that introduces a shorthand, category, marker, or framing subsequently used by the flock may be shaping the group's internal representation of the problem.
+
+That can matter even when the participant issues no direct commands.
+
+Possible measurements include:
+
+- first introduction of a novel marker or shorthand;
+- rate and breadth of peer adoption;
+- persistence after the originator stops using it;
+- behavioral changes associated with adoption;
+- whether the convention remains task-local or becomes a general interaction norm.
+
+This may expose a deeper form of emergent authority: not simply directing action, but shaping the representational substrate through which the group coordinates.
+
+### Implication for temporal replay
+
+A useful authority replay should therefore animate more than graph centrality.
+
+It should seek to show:
+
+```text
+participant behavioral transition
+    + proposal / framing / artifact
+    + peer challenge or acceptance
+    + downstream behavioral change
+    + persistence or decay of deference
+    + domain boundary of that deference
+```
+
+The resulting question becomes:
+
+> What behavioral transition occurred in participant A immediately before the flock reorganized around A, and what changed in the flock afterward?
+
+That is closer to observing authority formation than simply observing communication density.
+
 ## Selection, Not Appointment
 
 The word **selection** is intentional.
@@ -343,6 +483,18 @@ Within the same persistent population, changing the dominant problem or tension 
 
 This would support the view that authority is relational and contextual rather than a permanent property of an entity.
 
+### H7: Contextual authority appears as selective deference
+
+A participant acquiring effective authority in domain X will produce a measurable reduction in peer challenge or increase in uptake toward that participant within X without requiring a comparable reduction toward other participants or in unrelated domains.
+
+### H8: Authority formation is better predicted by interaction effects than by behavioral style
+
+Measures of downstream behavioral change caused by a participant's proposals or framing will predict effective authority more accurately than static combinations of behavioral-axis scores.
+
+### H9: Representational adoption can precede explicit deference
+
+When a participant's terminology, shorthand, or task representation is adopted by peers, that representational convergence may predict later coordination centrality or authority before explicit task-direction behavior appears.
+
 ## Measurement Questions
 
 A serious test of this hypothesis should avoid reducing leadership to graph centrality alone.
@@ -357,6 +509,8 @@ Useful measurements may include:
 - persistence of influence after the immediate problem is solved;
 - cross-domain spillover of deference;
 - peer challenge rate before and after demonstrated success;
+- source-conditioned acceptance and challenge rates;
+- adoption and persistence of participant-originated shorthand or framing;
 - formal-authority/effective-authority divergence;
 - historical experiences uniquely associated with later trigger behavior.
 
@@ -385,6 +539,8 @@ persistent identity history
     + trust/reputation evidence
     + proposals and responses
     + behavioral uptake
+    + selective challenge/deference
+    + representational adoption
     -> emergent authority trajectory
 ```
 
