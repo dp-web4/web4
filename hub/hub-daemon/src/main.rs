@@ -3311,7 +3311,7 @@ mod tests {
         const BINDS: &[&str] = &[
             "127.0.0.1",      // dev / public-tunnel archetypes
             "0.0.0.0",        // this hub (tailnet) + private-vpn + both public archetypes
-            "100.65.206.122", // a concrete public/tailnet interface
+            "100.64.0.1",     // a concrete tailnet-range interface (CGNAT 100.64.0.0/10)
             "[::1]",          // IPv6 loopback, bracketed
         ];
 
@@ -3374,7 +3374,7 @@ mod tests {
         /// would still get right, so the concrete interface IP carries the test.
         #[test]
         fn a_network_reachable_bind_is_never_classified_as_loopback() {
-            for bind in ["0.0.0.0", "[::]", "100.65.206.122", "192.168.1.10"] {
+            for bind in ["0.0.0.0", "[::]", "100.64.0.1", "192.168.1.10"] {
                 let (public, _) = plane_addrs(bind, 8770, 8772).unwrap();
                 assert!(
                     !public_bind_is_loopback(&public),
