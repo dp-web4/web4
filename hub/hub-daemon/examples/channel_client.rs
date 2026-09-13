@@ -17,7 +17,7 @@
 //!
 //! e.g.
 //!   cargo run -q --release --example channel_client -- \
-//!     http://100.65.206.122:8770 83810b44-…-ae5114f747cf ~/.web4/cbp/keypair.bin \
+//!     http://<hub-host>:8770 <your-member-lct-uuid> ~/.web4/<name>/keypair.bin \
 //!     find_members '{"query":"who knows about evals?","top_k":5}'
 //!
 //! KEYPAIR_FILE = the 32-byte Ed25519 secret seed (e.g. ~/.web4/<name>/keypair.bin

@@ -29,10 +29,18 @@
 
 set -euo pipefail
 
-# The hub's network address — override via env for your deployment.
-HUB_HOST="${HUB_HOST:-100.65.206.122}"
+# The hub's network address. There is deliberately no default host: a script meant to
+# prove PEER reachability must be told which hub it is proving, and a baked-in address
+# both points every reader at one specific node and silently tests the wrong one.
+# Set HUB_URL, or HUB_HOST (+ optional HUB_PORT).
 HUB_PORT="${HUB_PORT:-8770}"
-HUB_URL="${HUB_URL:-http://${HUB_HOST}:${HUB_PORT}}"
+if [ -z "${HUB_URL:-}" ]; then
+    if [ -z "${HUB_HOST:-}" ]; then
+        echo "error: set HUB_URL=http://<host>:<port> or HUB_HOST=<host> (the hub to probe)" >&2
+        exit 2
+    fi
+    HUB_URL="http://${HUB_HOST}:${HUB_PORT}"
+fi
 TIMEOUT="${TIMEOUT:-5}"
 
 if ! command -v curl >/dev/null 2>&1; then

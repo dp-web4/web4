@@ -130,7 +130,7 @@ This is an active LCT. It has identity (charter hash), members (RDF triples), an
 ### 4.2 The MCP server (the contract)
 
 ```
-Endpoint:       http://100.65.206.122:8770  (Tailscale-bound)
+Endpoint:       http://<hub-host>:8770  (tailnet-bound)
 Service:        web4-hub.service (systemd)
 Implementation: web4/hub/target/release/hub
 ```
