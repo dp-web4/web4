@@ -61,6 +61,18 @@ where
     Ok(out)
 }
 
+/// The only normalisation M ever receives: **the lower bound, and nothing else.**
+///
+/// A body that needs zero signatures is not a body, so M < 1 never enters the role substrate
+/// — from a threshold event, a mirror, or a quorum-set, whether written by this daemon or
+/// found on an older chain. The UPPER value is preserved exactly: an M above the seats that
+/// currently exist is the law asking for more than is present, which is precisely what must
+/// survive a vacancy rather than be clamped down by it. Two different bounds, two different
+/// meanings, and only this one is a normalisation.
+pub fn normalize_required_m(m: u32) -> u32 {
+    m.max(1)
+}
+
 /// Role name of the body a mirrored Sovereign Council is constituted as.
 pub const COUNCIL_ROLE_NAME: &str = "council";
 /// Role name of each seat within it.
@@ -1318,7 +1330,7 @@ impl HubState {
                     occupant: None,
                     retired: false,
                     occupancy_log: Vec::new(),
-                    quorum_m: Some(*required_m),
+                    quorum_m: Some(normalize_required_m(*required_m)),
                 });
                 for seat in seats {
                     self.roles.entry(seat.seat_role_lct_id).or_insert_with(|| ProjectedRole {
@@ -1340,7 +1352,7 @@ impl HubState {
                 // retired role decides nothing, so this does not resurrect it.
                 if let Some(e) = self.roles.get_mut(role_lct_id) {
                     if !e.retired {
-                        e.quorum_m = Some(*required_m);
+                        e.quorum_m = Some(normalize_required_m(*required_m));
                     }
                 }
             }
@@ -1502,7 +1514,7 @@ impl HubState {
                 let n = (self.council_holders.len() + 1) as u32;
                 let m = (*new_m).clamp(1, n.max(1));
                 self.council_threshold = Some((m, n));
-                self.council_threshold_requested = Some(*new_m);
+                self.council_threshold_requested = Some(normalize_required_m(*new_m));
             }
             HubEvent::PairingRequested {
                 pair_id, initiator_lct_id, counterparty_lct_id,

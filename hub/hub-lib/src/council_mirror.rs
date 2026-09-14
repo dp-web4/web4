@@ -207,7 +207,7 @@ pub fn build_mirror(
     Ok(HubEvent::CouncilMirrored {
         council_role_lct_id: Uuid::new_v4(),
         seats,
-        required_m: legacy.requested_m.unwrap_or(legacy.m),
+        required_m: crate::state::normalize_required_m(legacy.requested_m.unwrap_or(legacy.m)),
         legacy_basis_index: state.last_index,
         mirrored_by,
     })
@@ -280,7 +280,7 @@ pub fn counterparts(state: &HubState, legacy_event: &HubEvent) -> Vec<HubEvent> 
             .collect(),
         HubEvent::CouncilThresholdChanged { new_m, initiated_by } => vec![HubEvent::RoleQuorumSet {
             role_lct_id: council,
-            required_m: *new_m,
+            required_m: crate::state::normalize_required_m(*new_m),
             set_by: *initiated_by,
         }],
         _ => Vec::new(),
@@ -559,6 +559,68 @@ mod tests {
         assert_eq!(st.mirrored_council, Some(first), "the first tree stands");
         assert_eq!(st.roles.len(), seats_before, "and the second one constituted nothing");
         assert!(c.diff().agrees());
+    }
+
+    /// GPT's #848 HOLD: M = 0 must never enter the role substrate. The legacy arm clamps a
+    /// zero to 1, but the requested value used to be stored raw, so a CLI-authored or
+    /// historical `new_m: 0` would have mirrored as a council requiring NO signatures. Every
+    /// door is driven: the requested value, the mirror, the threshold counterpart, and a raw
+    /// quorum-set and raw mirror a foreign chain could carry.
+    #[tokio::test]
+    async fn a_zero_threshold_never_becomes_a_zero_signature_body() {
+        let mut c = Chain::new().await;
+        c.change(add(c.sov, Uuid::new_v4())).await;
+        c.append(threshold(c.sov, 0)).await; // historical / foreign: the CLI now refuses this
+
+        let d = c.diff();
+        assert_eq!(d.legacy.m, 1, "legacy clamps a zero up");
+        assert_eq!(d.legacy.requested_m, Some(1), "and the request is stored with its lower bound, not raw");
+
+        c.mirror().await;
+        let d = c.diff();
+        assert_eq!(d.roles.as_ref().unwrap().quorum.required, 1, "the mirror constitutes a 1-signature body");
+        assert!(d.agrees(), "{:?}", d.divergences);
+
+        let council = c.state().mirrored_council.unwrap();
+        let parts = counterparts(&c.state(), &threshold(c.sov, 0));
+        assert!(matches!(parts.as_slice(), [HubEvent::RoleQuorumSet { required_m: 1, .. }]),
+            "the counterpart of a zero asks for one");
+
+        c.append(HubEvent::RoleQuorumSet { role_lct_id: council, required_m: 0, set_by: c.sov }).await;
+        assert_eq!(c.state().roles[&council].quorum_m, Some(1), "a raw zero quorum-set is normalised on replay");
+
+        let mut fresh = Chain::new().await;
+        let raw_council = Uuid::new_v4();
+        fresh.append(HubEvent::CouncilMirrored {
+            council_role_lct_id: raw_council,
+            seats: vec![MirroredSeat { seat_role_lct_id: Uuid::new_v4(), occupant: fresh.sov }],
+            required_m: 0, legacy_basis_index: 0, mirrored_by: fresh.sov,
+        }).await;
+        assert_eq!(fresh.state().roles[&raw_council].quorum_m, Some(1), "so is a raw zero mirror");
+    }
+
+    /// The other half of the same HOLD: the lower-bound normalisation must not become a clamp.
+    /// An M above the seats that exist is the law asking for more than is present, and it is
+    /// kept EXACTLY — which is what lets a vacancy report the body unable to act instead of
+    /// quietly lowering what the law requires.
+    #[tokio::test]
+    async fn a_threshold_above_the_seats_is_kept_exactly() {
+        let mut c = Chain::new().await;
+        c.change(add(c.sov, Uuid::new_v4())).await;
+        c.change(add(c.sov, Uuid::new_v4())).await;
+        c.change(threshold(c.sov, 5)).await; // three seats, the law asks for five
+        let d = c.diff();
+        assert_eq!((d.legacy.m, d.legacy.requested_m), (3, Some(5)), "legacy clamps to N; the request is kept");
+
+        c.mirror().await;
+        let d = c.diff();
+        let q = d.roles.as_ref().unwrap().quorum;
+        assert_eq!((q.established, q.occupied, q.required), (3, 3, 5), "M above N survives the mirror untouched");
+        assert!(!q.reachable());
+        assert_eq!(d.divergences, vec![CouncilDivergence::LegacyClampedThreshold {
+            requested: 5, legacy_effective: 3, role_required: 5,
+        }]);
+        assert!(d.cutover_permitted());
     }
 
     #[tokio::test]

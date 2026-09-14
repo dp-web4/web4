@@ -480,6 +480,16 @@ Two consequences of the same finding:
   the effective value would write the lowered bar into the new constitution, where no later
   check could see it had been lowered.
 
+**M has a lower bound and no upper clamp — GPT's #848 HOLD.** The first cut stored the
+requested M raw so a vacancy could not lower it. That was right above N and wrong at zero: a
+CLI-authored `new_m: 0` (the operator route always refused it; the CLI did not) would have
+mirrored as a council requiring no signatures. One function, `normalize_required_m`, now
+raises M to at least 1 at every door — the requested value, the mirror, the threshold
+counterpart, and a raw quorum-set or mirror on a foreign chain — and the CLI refuses zero at
+the boundary. The upper value is preserved exactly: M = 5 over three seats stays 5 and reports
+the body unable to act. Both pinned, and each induced: without the lower bound the zero test
+fails; with the request clamped to N the above-N test fails.
+
 **The founding Sovereign's seat is not special in 3a.** It is an ordinary seat filled by the
 Sovereign. Its protection lands in 3b, as law.
 

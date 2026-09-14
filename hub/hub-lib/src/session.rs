@@ -385,6 +385,12 @@ impl HubSession {
     }
 
     pub async fn set_council_threshold(&mut self, new_m: u32) -> Result<&LedgerEntry> {
+        // The operator route has always refused 0; the CLI did not, and a zero written here is
+        // a "no signatures required" council on the chain forever. Refused at the boundary;
+        // replay still normalises any historical zero (see `normalize_required_m`).
+        if new_m == 0 {
+            anyhow::bail!("threshold m must be at least 1: a council that requires no signatures is not a council");
+        }
         let event = HubEvent::CouncilThresholdChanged {
             new_m,
             initiated_by: self.sovereign_lct_id,
@@ -881,5 +887,17 @@ mod tests {
             "the operator is told how to look at the bytes that stopped them: {msg}"
         );
         assert_eq!(session.ledger.len(), before, "and nothing was appended");
+    }
+
+    /// The CLI refuses a zero threshold at the boundary, as the operator route always has.
+    #[tokio::test]
+    async fn the_cli_refuses_a_zero_council_threshold() {
+        let (_tmp, dir) = fresh_hub().await;
+        let mut session = HubSession::open(&dir).await.unwrap();
+        let before = session.ledger.len();
+        let err = session.set_council_threshold(0).await.err().expect("refused");
+        assert!(err.to_string().contains("at least 1"), "{err}");
+        assert_eq!(session.ledger.len(), before, "nothing appended");
+        session.set_council_threshold(1).await.expect("one is fine");
     }
 }
