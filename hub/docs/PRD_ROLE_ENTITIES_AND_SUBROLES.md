@@ -539,6 +539,41 @@ signatures, already on `/admin/council` — never occupants.
   falsifier passes; the public N/O/M panel reads from whichever projection the gate consults,
   so it cannot disagree with the authority it describes.
 
+**What 3b found while building it.** Each is recorded because it changes what the protection
+above can honestly claim.
+
+1. **The council path never evaluated hub law's norms** — only who signed and the law's hash.
+   At the default threshold a holder's proposal commits on their own signature, so a norm like
+   the Sovereign-seat protection bound single-signer acts and nothing a council did. Closed in
+   its own PR (#849), red test first, because a law norm the council path never reads protects
+   nothing once a council exists. Deny binds the council; Escalate is satisfied by the vote.
+2. **The priority tie.** The engine takes the highest-priority matching norm and breaks ties by
+   list order, and the seat norm is appended last. At a fixed priority it would lose a tie to
+   any earlier norm on the same act — and on the council path an escalation is satisfied by the
+   vote, so a council could vacate the seat. The mirror sets the norm's priority strictly above
+   every existing norm; a test pins it against an escalation at the old floor.
+3. **Two public pages already disagreed about the council.** The roles page counted holders
+   without the founding Sovereign and the council page with, and the roles page still said the
+   threshold was "recorded only; Phase 2 will enforce". Both now render one panel over
+   `authoritative_quorum`, and a test renders both and requires the same bytes.
+4. **A succession before cutover is not real, and the differential says so.** Once law permits
+   it, vacating the founding seat executes on the role tree — the falsifier — but the legacy gate
+   still counts the founding Sovereign, who can therefore still sign. The differential reports
+   `HolderSets` and refuses cutover. Succession becomes authoritative only at Sprint 4.
+5. **Recorded, not fixed — a design question for dp.** Operator-plane law amendments
+   (`witness_law_amendment`) do not pass the council-mode ratchet. At M ≥ 2 the Sovereign alone
+   can still amend the law, including removing this protection. How a council amends law is a
+   design question — a proposal commits an event but does not write the law text — so it is
+   named here rather than patched.
+6. **Recorded — the starter law and the missing review queue.** The starter law escalates
+   `role_assigned` and council membership changes, and a single-signer escalation returns 202
+   with no queue behind it (V2-16). On a hub running that law, operator role fills, and council
+   changes after mirroring, cannot complete single-signer. The fleet hub's law has neither norm.
+7. **Limitation.** At M ≥ 2 the mirror route is refused by the ratchet. Mirroring an established
+   council is a council act, and the protecting law amendment does not happen through a proposal
+   today (see 5). The fleet hub is at 1-of-1, so the intended order there is: mirror, then enrol
+   the council, then raise the threshold — every step after the mirror carries its counterparts.
+
 ### Sprint 4 — Authority derives from occupancy *(the switch)*
 
 - `submit_proposal` / `sign_proposal` resolve signers by sub-role occupancy.

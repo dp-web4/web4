@@ -130,6 +130,21 @@ pub fn role_council(state: &HubState) -> Option<RoleCouncilView> {
     })
 }
 
+/// The quorum the governance gate enforces RIGHT NOW, as N established / O occupied / M
+/// required — the one reading every public page renders, so no two of them can disagree
+/// about whether this council can reach a verdict.
+///
+/// Sprint 3: the legacy council is the authority, and it has no notion of an empty seat, so
+/// O always equals N and the body is always reachable — the clamp guarantees it. That is an
+/// honest reading of the legacy gate, not a claim that vacancies cannot happen. Sprint 4
+/// switches this one function to [`role_council`], and "quorum currently unreachable" starts
+/// being able to appear exactly when it becomes true.
+pub fn authoritative_quorum(state: &HubState, sovereign: Uuid) -> SeatQuorum {
+    let legacy = legacy_council(state, sovereign);
+    let seats = legacy.holders.len();
+    SeatQuorum { established: seats, occupied: seats, required: legacy.m }
+}
+
 /// Compare the two readings and name every disagreement.
 pub fn council_differential(state: &HubState, sovereign: Uuid) -> CouncilDifferential {
     let legacy = legacy_council(state, sovereign);

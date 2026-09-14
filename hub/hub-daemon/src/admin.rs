@@ -615,6 +615,30 @@ pub(crate) async fn members(State(s): State<RestState>) -> Result<Html<String>, 
     Ok(layout(&s, "Members", &body))
 }
 
+/// The council's quorum as every PUBLIC page renders it: N established, O occupied, M
+/// required, and whether the body can presently reach a verdict (ruled 2026-09-10, PRD
+/// Sprint 3). One renderer over [`hub_lib::council_mirror::authoritative_quorum`], because the
+/// roles page and the council page used to compute these numbers separately — and disagreed:
+/// one counted holders without the founding Sovereign, one with, and one still said the
+/// threshold was "recorded only" long after council mode began enforcing it.
+fn council_quorum_panel(q: hub_lib::state::SeatQuorum) -> String {
+    let reach = if q.reachable() {
+        "<span class=\"pill\">quorum reachable</span>"
+    } else {
+        "<span class=\"pill pill-warn\">quorum currently unreachable</span>"
+    };
+    let mode = if q.required < 2 {
+        "<span class=\"pill\">single-signer mode — propose flow optional</span>"
+    } else {
+        "<span class=\"pill\">council enforcement active — single-signer governed writes are refused</span>"
+    };
+    format!(
+        "<dt>Seats</dt><dd>{} established · {} occupied · {} required {reach}</dd>\
+         <dt>Threshold</dt><dd>{}-of-{} {mode}</dd>",
+        q.established, q.occupied, q.required, q.required, q.established,
+    )
+}
+
 async fn roles(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
     let society = s.society().await?;
     let ledger = s.ledger.lock().await;
@@ -646,19 +670,8 @@ async fn roles(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
     if society.founder_lct_id != s.sovereign_lct_id {
         body.push_str("<dt>Note</dt><dd><span class=\"pill pill-warn\">sovereignty has rotated since founding</span></dd>");
     }
-    body.push_str(&format!("<dt>Council holders</dt><dd>{}</dd>", projected.council_holders.len()));
-    match projected.council_threshold {
-        Some((m, n)) => {
-            body.push_str(&format!(
-                "<dt>Threshold</dt><dd>{}-of-{} \
-                 <span class=\"pill pill-warn\">recorded only; Phase 2 will enforce on submit_event</span></dd>",
-                m, n,
-            ));
-        }
-        None => {
-            body.push_str("<dt>Threshold</dt><dd>single-signer (none set)</dd>");
-        }
-    }
+    body.push_str(&council_quorum_panel(
+        hub_lib::council_mirror::authoritative_quorum(&projected, s.sovereign_lct_id)));
     body.push_str("</dl>");
 
     if !projected.council_holders.is_empty() {
@@ -856,15 +869,9 @@ async fn council(State(s): State<RestState>) -> Result<Html<String>, AdminError>
     drop(store);
 
     let mut body = String::from("<h2>Sovereign Council proposals</h2><dl class=\"grid\">");
-    let (m, n) = projected.council_threshold.unwrap_or((1, (projected.council_holders.len() + 1) as u32));
-    body.push_str(&format!("<dt>Threshold</dt><dd>{}-of-{}", m, n));
-    if m < 2 {
-        body.push_str(" <span class=\"pill\">single-signer mode — propose flow optional</span>");
-    } else {
-        body.push_str(" <span class=\"pill\">council enforcement active — /v1/hubs/.../events rejects single-signer</span>");
-    }
-    body.push_str("</dd>");
-    body.push_str(&format!("<dt>Holders eligible to vote</dt><dd>{}</dd>", projected.council_holders.len() + 1));
+    let quorum = hub_lib::council_mirror::authoritative_quorum(&projected, s.sovereign_lct_id);
+    let m = quorum.required;
+    body.push_str(&council_quorum_panel(quorum));
     if supported {
         body.push_str(&format!("<dt>Proposals on record</dt><dd>{}</dd>", proposals.len()));
     } else {
@@ -1420,6 +1427,9 @@ function councilAdd(){
   if(confirm('Admit '+lct+' as a Sovereign Council holder? They can then co-sign governed acts.')) hubAct('/admin/api/council/add',{lct_id:lct,pubkey_hex:key,name:name||null});
 }
 function councilRemove(id){ const reason=prompt('Remove council holder '+id+' — reason (optional):'); if(reason!==null) hubAct('/admin/api/council/'+id+'/remove',{kind:'resigned',reason:reason||null}); }
+function councilMirror(){
+  if(confirm('Mirror the Sovereign Council onto roles? This writes TWO witnessed acts: a law amendment protecting the founding Sovereign\'s seat, then the mirror itself. It can happen once.')) hubAct('/admin/api/council/mirror',{});
+}
 function councilThreshold(){
   const m=parseInt(document.getElementById('cc-m').value.trim(),10); if(!(m>=1)){ alert('M must be at least 1.'); return; }
   if(confirm('Set the council threshold to '+m+'-of-N? At 2 or more, every governed act — including changing the council — must go through propose/sign.')) hubAct('/admin/api/council/threshold',{m:m});
@@ -1712,6 +1722,10 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
         crate::rest::project_council(&s, &*l)
     };
     let council_mode = threshold.0 >= 2;
+    let differential = {
+        let l = s.ledger.lock().await;
+        hub_lib::council_mirror::council_differential(&HubState::project(&*l), s.sovereign_lct_id)
+    };
     body.push_str("<h2 style=\"margin-top:1.5rem\">Sovereign Council</h2>");
     body.push_str(&format!(
         "<p class=\"muted\">Threshold <b>{}-of-{}</b>. {}</p>",
@@ -1725,6 +1739,32 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
              the threshold to 2 or more hands further council changes to the council itself."
         }
     ));
+    // PRD Sprint 3: the role-tree mirror and its differential, where the operator acts on it.
+    match &differential.roles {
+        None => body.push_str(
+            "<p class=\"muted\">Role tree: <b>not mirrored</b>. Mirroring constitutes this council \
+             as a role with one seat per holder, and first amends the law to protect the founding \
+             Sovereign's seat. <button onclick=\"councilMirror()\">Mirror council onto roles</button></p>"),
+        Some(roles) => {
+            let q = roles.quorum;
+            let verdict = if differential.agrees() {
+                "<span class=\"pill\">agrees with the gate</span>".to_string()
+            } else {
+                let names: Vec<String> = differential.divergences.iter().map(|d| {
+                    serde_json::to_value(d).ok()
+                        .and_then(|v| v.get("divergence").and_then(|x| x.as_str()).map(str::to_string))
+                        .unwrap_or_else(|| "divergence".into())
+                }).collect();
+                format!("<span class=\"pill pill-warn\">differs: {}</span>", html_escape(&names.join(", ")))
+            };
+            let cutover = if differential.cutover_permitted() { "permitted" } else { "not permitted" };
+            body.push_str(&format!(
+                "<p class=\"muted\">Role tree: council <code>{}</code> — {} established · {} occupied · \
+                 {} required. {verdict} Cutover to occupancy-based signing: <b>{cutover}</b>.</p>",
+                roles.council_role_lct_id, q.established, q.occupied, q.required,
+            ));
+        }
+    }
     body.push_str("<table><thead><tr><th>Holder LCT</th><th>Name</th><th>Actions</th></tr></thead><tbody>");
     for h in &holders {
         let name = projected.members.get(h).and_then(|m| m.name.as_deref()).unwrap_or("");
@@ -1917,6 +1957,48 @@ mod tests {
     /// Re-inlining the rendering cannot make these guards vacuous.
     async fn render(h: Result<Html<String>, AdminError>) -> String {
         h.map(|Html(s)| s).unwrap_or_else(|e| panic!("handler failed: {} {}", e.0, e.1))
+    }
+
+    /// The Seats + Threshold rows of a public page, exactly as rendered.
+    fn quorum_panel(html: &str) -> String {
+        let start = html.find("<dt>Seats</dt>").expect("the page renders a Seats row");
+        let t = start + html[start..].find("<dt>Threshold</dt>").expect("and a Threshold row");
+        let end = t + html[t..].find("</dd>").expect("closed") + "</dd>".len();
+        html[start..end].to_string()
+    }
+
+    /// The two public council surfaces render ONE reading of the quorum.
+    ///
+    /// Before this they computed it separately and disagreed on a fleet-shaped hub: the roles
+    /// page counted council holders WITHOUT the founding Sovereign and the council page WITH,
+    /// and the roles page still said the threshold was "recorded only; Phase 2 will enforce" —
+    /// on a hub where council mode refuses single-signer writes. Two transparency pages
+    /// disagreeing about whether a body can act is the failure the N/O/M ruling names.
+    #[tokio::test]
+    async fn the_public_roles_and_council_pages_render_one_quorum() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        for _ in 0..2 {
+            witness_for_test(&state, HubEvent::CouncilMemberAdded {
+                member_lct_id: Uuid::new_v4(),
+                member_pubkey_hex: "00".repeat(32),
+                added_by: state.sovereign_lct_id,
+                member_name: None,
+            }).await;
+        }
+        witness_for_test(&state, HubEvent::CouncilThresholdChanged {
+            new_m: 2, initiated_by: state.sovereign_lct_id,
+        }).await;
+
+        let roles_html = render(roles(State(state.clone())).await).await;
+        let council_html = render(council(State(state.clone())).await).await;
+        let (a, b) = (quorum_panel(&roles_html), quorum_panel(&council_html));
+        assert_eq!(a, b, "one quorum, two pages");
+        assert!(a.contains("3 established · 3 occupied · 2 required"),
+            "the founding Sovereign is a seat like any other: {a}");
+        assert!(a.contains("2-of-3") && a.contains("council enforcement active"), "{a}");
+        assert!(a.contains("quorum reachable"), "{a}");
+        assert!(!roles_html.contains("recorded only"),
+            "the roles page no longer claims an enforced threshold is unenforced");
     }
 
     /// The single `<tr>` for one member. Asserting against the whole page

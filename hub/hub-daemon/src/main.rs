@@ -2723,6 +2723,9 @@ mod tests {
             ("POST", "/admin/api/council/add"),
             ("POST", "/admin/api/council/00000000-0000-0000-0000-000000000000/remove"),
             ("POST", "/admin/api/council/threshold"),
+            // Sprint 3b: constitute the council as roles (amends law), and the live differential.
+            ("POST", "/admin/api/council/mirror"),
+            ("GET", "/admin/api/council/differential"),
             // Sprint 1b role-entity write API. These constitute, fill, empty and
             // abolish roles — every one of them signs as the Sovereign, and
             // `/admin/api/roles` enumerates vacancies and retirements the public
