@@ -436,13 +436,79 @@ and it is dp's.
 
 ### Sprint 3 — Council mirrored onto roles *(dual-read, nothing switched)*
 
-- A single witnessed migration act derives `council` + one `council-member` sub-role per
-  current holder from the existing projection.
-- `project_council` gains a role-derived implementation **beside** the legacy one.
+Split into 3a and 3b on the Sprint 1 precedent: substrate first, surfaces second. The split
+also sequences a one-way door correctly. 3a adds two ledger verbs and **no route that writes
+them**, so the binary that can replay them is deployed before anything can emit them.
+
+#### Sprint 3a — substrate
+
+- **`CouncilMirrored`** — one witnessed act constituting a `council` Office and one
+  `council-member` Office seat per current legacy holder, each seat filled, derived from the
+  legacy projection at a recorded ledger index. One event rather than a sequence of role
+  verbs: a council with some seats constituted and others not has the wrong quorum, and
+  #845's review already showed a create-then-fill sequence can fail in the middle.
+- **`RoleQuorumSet`** — the only verb that changes a body's M. M lives on the council role
+  as `quorum_m`, set by governed acts and never derived from N or O.
+- **`legacy_council`** — the council exactly as the gate reads it. The daemon's
+  `project_council` now delegates to it, so the differential compares against the real
+  authority rather than a second copy of four lines that could drift.
+- **`council_differential`** — names each disagreement rather than returning a bool:
+  `NotMirrored`, `HolderSets`, `RequiredSignatures`, and **`LegacyClampedThreshold`**.
+- **`counterparts`** — the role-side acts a later legacy council change needs, so the two
+  readings stay in step through the dual-read window. Holder added: refill the lowest-id
+  vacant seat, else constitute one. Holder removed: vacate their seat (N stays, O drops).
+  Threshold changed: set M to the value asked for.
+
+**What 3a measured, which reshapes the cutover rule.** The legacy removal arm clamps M to the
+new N — and **no arm ever raises it back**. A 3-of-3 council that loses a holder becomes
+2-of-2, and when the holder returns it is 2-of-3, permanently, with no governed act having
+set it there. One resignation lowered the bar for good. The test drives it rather than
+asserting it.
+
+That is why the differential cannot be a bool. "Disagree" would block Sprint 4 on the defect
+Sprint 4 exists to remove; "agree after normalising" would hide it. So:
+
+> **Cutover rule.** A role tree exists, holder sets match **exactly**, and the only permitted
+> threshold divergence is `LegacyClampedThreshold` — the law asked for M, legacy enforces
+> less, the role tree enforces M.
+
+Two consequences of the same finding:
+
+- `HubState` now records `council_threshold_requested` beside the effective value. Without
+  it the clamp is invisible.
+- `build_mirror` takes M from **what the law asked for**, not the clamped value. Mirroring
+  the effective value would write the lowered bar into the new constitution, where no later
+  check could see it had been lowered.
+
+**The founding Sovereign's seat is not special in 3a.** It is an ordinary seat filled by the
+Sovereign. Its protection lands in 3b, as law.
+
+**Public record:** `RoleQuorumSet` and `CouncilMirrored` join the allowlist beside
+`CouncilThresholdChanged`. Publishing one reading of the council's threshold while withholding
+the other would put two councils on two surfaces. Both disclose counts only — seats and
+signatures, already on `/admin/council` — never occupants.
+
+- **Acceptance (3a):** on a fleet-shaped chain the mirror and the gate agree exactly; every
+  later add/remove/threshold change stays in agreement through its counterparts; the clamp is
+  named and permits cutover; a legacy change **without** its counterparts is caught and blocks
+  cutover, which is what makes every agreement above more than the differential comparing a
+  thing with itself; replay ignores a second mirror. Each guarding construct induced to fail.
+
+#### Sprint 3b — surfaces
+
+- Operator routes: perform the mirror; report the live differential. The differential route
+  is how Sprint 4's precondition — *green across a real ledger replay* — gets evidence on the
+  live hub rather than only on a fixture.
+- Every legacy council emitter appends its counterparts: the three operator council routes,
+  the proposal commit path, and the offline CLI session. **Counterparts go through the
+  governance gate before the legacy act is appended**, so a counterpart the law refuses leaves
+  the chain bit-identical instead of half-written.
 - The founding Sovereign's protection lands **as law**, per §4.3.1 — not as a field on
-  `ProjectedRole`. Its falsifier is a law amendment permitting succession followed by a
-  succession that executes, a test that could not be written at all if the protection were
-  a type property.
+  `ProjectedRole`. The mechanism needs no engine change: a norm can already select the event
+  payload, and `r6.request.payload.role_lct_id == <seat>` matches every verb that could empty,
+  abolish or rotate that seat. Its falsifier is a law amendment permitting succession followed
+  by a succession that executes — a test that could not be written if the protection were a
+  type property.
 - **Public vacancy state opens here.** Ruled 2026-09-10: once the role-derived council is
   authoritative enough to agree with the existing public council view, the public pages
   publish **N established / O occupied / M required**, and say *"quorum currently
@@ -458,17 +524,18 @@ and it is dp's.
   A vacancy table published *before* the role-derived council is authoritative would be the
   bad version — two transparency pages disagreeing about whether the body can act. Which is
   why this is a Sprint 3 item and not a Sprint 2 one.
-- **Acceptance:** a differential test asserts the two implementations agree — same holder
-  set, same threshold — on a fixture shaped like the live fleet hub. Disagreement fails the
-  build. The legacy path is still what the gate consults. The public N/O/M panel is driven
-  by the same projection the differential covers, so the two pages cannot disagree.
+- **Acceptance (3b):** the live differential route reports agreement after a mirror on a
+  fixture hub; each emitter's counterparts are gated before the legacy append; the succession
+  falsifier passes; the public N/O/M panel reads from whichever projection the gate consults,
+  so it cannot disagree with the authority it describes.
 
 ### Sprint 4 — Authority derives from occupancy *(the switch)*
 
 - `submit_proposal` / `sign_proposal` resolve signers by sub-role occupancy.
 - The threshold reads from the parent role.
-- Legacy `project_council` deleted **only after** Sprint 3's differential has been green
-  across a real ledger replay.
+- Legacy `project_council` deleted **only after** Sprint 3's differential has satisfied the
+  cutover rule across a real ledger replay: holder sets identical, and no threshold divergence
+  other than `LegacyClampedThreshold`. "Green" is that rule and nothing looser.
 - **Acceptance:** the existing end-to-end council fixture (propose → sign to threshold →
   commit → survive reopen) passes unchanged against the new resolution. A signer who is not
   a seat occupant is refused. A vacant established Office **counts toward N and not toward

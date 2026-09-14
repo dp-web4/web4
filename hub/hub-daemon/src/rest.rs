@@ -7700,15 +7700,13 @@ pub(crate) fn project_council(
     ledger: &hub_lib::ledger::HubLedger,
 ) -> (std::collections::BTreeSet<Uuid>, (u32, u32)) {
     let projected = hub_lib::state::HubState::project(ledger);
-    let mut holders = projected.council_holders.clone();
-    holders.insert(s.sovereign_lct_id);
-    // Default threshold when none set: 1-of-1 (current behavior). The
-    // propose flow still works without an explicit threshold — it just
-    // commits on first signature, which mirrors single-Sovereign mode
-    // but produces a council audit trail.
-    let threshold = projected.council_threshold
-        .unwrap_or((1, holders.len() as u32));
-    (holders, threshold)
+    // One copy of the legacy reading, in hub-lib, shared with the Sprint 3 differential.
+    // The differential is only worth anything if what it calls "legacy" is exactly what this
+    // gate enforces; two copies of these four lines would be two things that can drift.
+    // (Default when no threshold was ever set: 1-of-N — commits on first signature, which
+    // mirrors single-Sovereign mode but still produces a council audit trail.)
+    let legacy = hub_lib::council_mirror::legacy_council(&projected, s.sovereign_lct_id);
+    (legacy.holders, (legacy.m, legacy.n))
 }
 
 async fn submit_proposal(

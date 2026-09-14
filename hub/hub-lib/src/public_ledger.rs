@@ -378,6 +378,25 @@ fn classify(event: &HubEvent) -> (Option<&'static str>, Option<String>) {
             Some(format!("council signing threshold set to {new_m}")),
         ),
 
+        // Sprint 3's role-side twin of the line above. Publishing one reading of the council's
+        // threshold while withholding the other would put two different councils on two
+        // different surfaces. Discloses the number only, exactly as its legacy twin does.
+        HubEvent::RoleQuorumSet { required_m, .. } => (
+            Some("role_quorum_set"),
+            Some(format!("a deciding body's signing threshold set to {required_m}")),
+        ),
+
+        // How many seats and how many signatures — both already public on the council page.
+        // The seat OCCUPANTS are not disclosed, for the same reason `RoleAssigned` above
+        // discloses the role and not who fills it.
+        HubEvent::CouncilMirrored { seats, required_m, .. } => (
+            Some("council_mirrored"),
+            Some(format!(
+                "council constituted as a role tree: {} seat(s), {required_m} signature(s) required",
+                seats.len()
+            )),
+        ),
+
         // The OUTCOME is the governance fact — that admissions are decided, and how.
         // The applicant, the resolver, and any stated reason are not disclosed: a
         // public "denied, because ..." about an identifiable person is precisely the
