@@ -1194,17 +1194,8 @@ pub(crate) async fn governance_gate(
         });
     }
 
-    let law_guard = law.read().await;
-    if let Some(law) = law_guard.as_ref() {
+    if let Some(outcome) = evaluate_law_norms(law, event).await? {
         use hub_lib::law::Decision;
-        let req = hub_lib::law::R6Request {
-            role: "sovereign".to_string(),
-            action: event.kind().to_string(),
-            payload: serde_yaml::to_value(event)
-                .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {}", e)))?,
-            resource: Default::default(),
-        };
-        let outcome = law.evaluate_outcome(&req);
         match outcome.decision {
             Decision::Allow => {}
             Decision::Warn => tracing::warn!(
@@ -1224,6 +1215,72 @@ pub(crate) async fn governance_gate(
         }
     }
     Ok(())
+}
+
+/// Evaluate hub law's NORMS against one event, exactly as the single-signer gate always has.
+/// `None` means no law is loaded. Shared by [`governance_gate`] and [`council_path_law_gate`]
+/// so the two paths cannot read the same law differently.
+async fn evaluate_law_norms(
+    law: &tokio::sync::RwLock<Option<hub_lib::law::Law>>,
+    event: &HubEvent,
+) -> Result<Option<hub_lib::law::DecisionOutcome>, ApiError> {
+    let law_guard = law.read().await;
+    let Some(law) = law_guard.as_ref() else { return Ok(None) };
+    let req = hub_lib::law::R6Request {
+        role: "sovereign".to_string(),
+        action: event.kind().to_string(),
+        payload: serde_yaml::to_value(event)
+            .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event for R6: {}", e)))?,
+        resource: Default::default(),
+    };
+    Ok(Some(law.evaluate_outcome(&req)))
+}
+
+/// Hub law on the COUNCIL path.
+///
+/// Before this existed, a council proposal was checked for who signed it and — at commit —
+/// for the law's hash, and never against the law's norms. At the default threshold a
+/// holder's proposal commits on their own signature, so any act the single-signer gate
+/// refuses could be committed by routing it through `/council/propose`. Council mode exists
+/// to raise the bar on governed acts, not to exempt them from the society's law.
+///
+/// The decisions map as follows, and the middle one is a stated choice:
+///
+/// - **Deny** binds the council exactly as it binds a single signer. To do what the law
+///   forbids, the council amends the law first — itself a governed act.
+/// - **Escalate** is SATISFIED by the council's approval. Escalation asks for human review
+///   before the act; a council vote at threshold is that review. Refusing here would make
+///   every escalated act impossible once council mode is on, because council mode also
+///   refuses the single-signer path.
+/// - **Warn** proceeds and is logged, as on the single-signer path.
+async fn council_path_law_gate(
+    law: &tokio::sync::RwLock<Option<hub_lib::law::Law>>,
+    event: &HubEvent,
+) -> Result<(), ApiError> {
+    use hub_lib::law::Decision;
+    let Some(outcome) = evaluate_law_norms(law, event).await? else { return Ok(()) };
+    match outcome.decision {
+        Decision::Deny => Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            message: format!(
+                "act denied by hub law (norm: {}); a council may not commit what the law \
+                 forbids — amend the law first",
+                outcome.winning_norm.as_deref().unwrap_or("?")),
+        }),
+        Decision::Escalate => {
+            tracing::warn!(
+                "council approval satisfies escalation to {} (norm: {})",
+                outcome.escalate_to.as_deref().unwrap_or("sovereign"),
+                outcome.winning_norm.as_deref().unwrap_or("escalation trigger"));
+            Ok(())
+        }
+        Decision::Warn => {
+            tracing::warn!("council act flagged by hub law (norm: {})",
+                outcome.winning_norm.as_deref().unwrap_or("?"));
+            Ok(())
+        }
+        Decision::Allow => Ok(()),
+    }
 }
 
 /// Witness a hub event to the signed ledger (build → sign as Sovereign →
@@ -7751,6 +7808,10 @@ async fn submit_proposal(
         )));
     }
 
+    // 3b. The law's norms bind the council. Checked here so a proposal the law forbids is
+    // never opened, and again at commit because the law can change while it gathers votes.
+    council_path_law_gate(&s.law, &proposed_event).await?;
+
     // 4. Create proposal + record proposer's vote. Cleanup any expired
     // proposals while we're touching the store, so they don't pile up.
     let now = Utc::now();
@@ -7945,6 +8006,9 @@ async fn commit_proposed_event(
 ) -> Result<u64, ApiError> {
     // HUB-001: council commits are governed writes — refuse on law mismatch.
     s.ensure_law_integrity_for_write().await?;
+    // …and on the law's NORMS, which the hash check above never evaluated. Re-checked at
+    // commit because the law can be amended between a proposal opening and its last vote.
+    council_path_law_gate(&s.law, event).await?;
     let event_kind_str = event.kind().to_string();
     let event_value = serde_json::to_value(event)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
@@ -12671,6 +12735,163 @@ norms:
         let bytes = env.signing_bytes().expect("signing bytes");
         env.signature = kp.sign(&bytes).to_hex();
         env
+    }
+
+    const DENY_EVENT_RECORDED_LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: NO-RECORDED-EVENTS
+    selector: r6.request.action
+    operator: "=="
+    value: event_recorded
+    decision: deny
+    priority: 50
+    description: "this society records no events"
+"#;
+
+    /// The daemon's own resolver reseed, copied so a holder added by `witness_for_test` can
+    /// sign an envelope the way they could on a live hub after the same events.
+    async fn reseed_resolver(state: &RestState) {
+        let ledger = state.ledger.lock().await;
+        let projected = hub_lib::state::HubState::project(&*ledger);
+        let mut resolver = state.resolver.write().await;
+        for (lct_id, pk) in projected.member_pubkeys.iter().chain(projected.council_pubkeys.iter()) {
+            if let Ok(lct) = hub_lib::hub::hestia_sovereign_lct(*lct_id, pk) {
+                resolver.insert(lct);
+            }
+        }
+    }
+
+    /// Hub law binds the council path, not only the single-signer one.
+    ///
+    /// Before this, `submit_proposal` checked that the signer was a council holder and
+    /// `commit_proposed_event` checked the law's HASH — and nothing evaluated the law's
+    /// NORMS. At the default threshold a holder's proposal commits on their own signature,
+    /// so any act the law denies could be committed by routing it through /council/propose.
+    /// The control arm below shows the same act refused on the single-signer path, which is
+    /// what makes this a bypass and not a design: council mode was introduced to raise the
+    /// bar for governed acts, not to exempt them from the society's law.
+    #[tokio::test]
+    async fn a_council_proposal_cannot_commit_an_act_the_law_denies() {
+        let (_tmp, state) = fresh_rest_state(Some(DENY_EVENT_RECORDED_LAW)).await;
+        let act = HubEvent::EventRecorded {
+            event_kind: "decision".into(), title: "denied by law".into(),
+            attended_by: vec![], recorded_by: state.sovereign_lct_id, held_at: Utc::now(),
+        };
+
+        // Control: the single-signer path refuses it.
+        let err = governance_gate(&state.ledger, state.open_store().await.ok(), &state.law, &act)
+            .await.err().expect("single-signer path refuses a law-denied act");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+
+        // A holder with a real key, at the default threshold: their proposal alone meets it.
+        let kp = KeyPair::generate();
+        let holder = Uuid::new_v4();
+        witness_for_test(&state, HubEvent::CouncilMemberAdded {
+            member_lct_id: holder, member_pubkey_hex: kp.verifying_key().to_hex(),
+            added_by: state.sovereign_lct_id, member_name: Some("holder".into()),
+        }).await;
+        reseed_resolver(&state).await;
+        {
+            let l = state.ledger.lock().await;
+            assert_eq!(project_council(&state, &*l).1 .0, 1, "fixture: one signature meets threshold");
+        }
+
+        let before = state.ledger.lock().await.entries().len();
+        let env = council_envelope(&state, &kp, holder, serde_json::json!({
+            "action": "council_propose", "proposed_event": serde_json::to_value(&act).unwrap(),
+        })).await;
+        let err = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .err().expect("the council path must refuse what the law denies");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("NO-RECORDED-EVENTS"), "names the norm: {}", err.message);
+        let l = state.ledger.lock().await;
+        assert_eq!(l.entries().len(), before, "nothing reached the chain");
+        assert!(!l.entries().iter().any(|e| e.event.kind() == "event_recorded"));
+    }
+
+    /// Two holders at 2-of-3, keys reseeded, returning (state, [(id, key); 2]).
+    async fn two_of_three_council(law_yaml: Option<&str>) -> (tempfile::TempDir, RestState, Vec<(Uuid, KeyPair)>) {
+        let (tmp, state) = fresh_rest_state(law_yaml).await;
+        let holders: Vec<(Uuid, KeyPair)> = (0..2).map(|_| (Uuid::new_v4(), KeyPair::generate())).collect();
+        for (id, kp) in &holders {
+            witness_for_test(&state, HubEvent::CouncilMemberAdded {
+                member_lct_id: *id, member_pubkey_hex: kp.verifying_key().to_hex(),
+                added_by: state.sovereign_lct_id, member_name: None,
+            }).await;
+        }
+        witness_for_test(&state, HubEvent::CouncilThresholdChanged {
+            new_m: 2, initiated_by: state.sovereign_lct_id,
+        }).await;
+        reseed_resolver(&state).await;
+        (tmp, state, holders)
+    }
+
+    fn recorded_event(by: Uuid) -> serde_json::Value {
+        serde_json::to_value(HubEvent::EventRecorded {
+            event_kind: "decision".into(), title: "t".into(),
+            attended_by: vec![], recorded_by: by, held_at: Utc::now(),
+        }).unwrap()
+    }
+
+    /// Escalation is SATISFIED by a council vote, not refused by one. Council mode also
+    /// refuses the single-signer path, so if the council path refused escalated acts they
+    /// would become impossible to perform at all once a council exists.
+    #[tokio::test]
+    async fn an_escalated_act_commits_when_the_council_approves_it() {
+        let law = r#"
+version: "1.0.0"
+norms: []
+escalation:
+  - condition: "r6.request.action == 'event_recorded'"
+    escalate_to: sovereign
+    description: "recording needs review"
+"#;
+        let (_tmp, state, h) = two_of_three_council(Some(law)).await;
+        let env = council_envelope(&state, &h[0].1, h[0].0, serde_json::json!({
+            "action": "council_propose", "proposed_event": recorded_event(h[0].0)})).await;
+        let opened = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .expect("an escalated act may be PROPOSED — the vote is the review");
+        let env = council_envelope(&state, &h[1].1, h[1].0, serde_json::json!({
+            "action": "council_sign", "proposal_id": opened.0.id})).await;
+        sign_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await.expect("and committed at threshold");
+        assert!(state.ledger.lock().await.entries().iter().any(|e| e.event.kind() == "event_recorded"));
+    }
+
+    /// A proposal the law forbids is never OPENED, even when one signature cannot commit it.
+    /// Otherwise the council would spend votes on an act that can only fail at the last one.
+    #[tokio::test]
+    async fn a_proposal_the_law_forbids_is_never_opened_at_two_of_three() {
+        let (_tmp, state, h) = two_of_three_council(Some(DENY_EVENT_RECORDED_LAW)).await;
+        let env = council_envelope(&state, &h[0].1, h[0].0, serde_json::json!({
+            "action": "council_propose", "proposed_event": recorded_event(h[0].0)})).await;
+        let err = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .err().expect("refused at propose");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(read_all_proposals(&state).await.unwrap().is_empty(), "no proposal was persisted");
+    }
+
+    /// The law is re-checked at COMMIT. A proposal opened under one law and completed after
+    /// the law changed is judged by the law in force when it would take effect.
+    #[tokio::test]
+    async fn a_proposal_opened_under_one_law_is_judged_at_commit_by_the_law_then_in_force() {
+        let (_tmp, state, h) = two_of_three_council(None).await;
+        let env = council_envelope(&state, &h[0].1, h[0].0, serde_json::json!({
+            "action": "council_propose", "proposed_event": recorded_event(h[0].0)})).await;
+        let opened = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .expect("no law yet: opens");
+
+        *state.law.write().await = Some(Law::parse_and_validate(DENY_EVENT_RECORDED_LAW).unwrap());
+
+        let before = state.ledger.lock().await.entries().len();
+        let env = council_envelope(&state, &h[1].1, h[1].0, serde_json::json!({
+            "action": "council_sign", "proposal_id": opened.0.id})).await;
+        let err = sign_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .err().expect("the second signature meets threshold but the law now forbids the act");
+        assert_eq!(err.status, StatusCode::FORBIDDEN, "{}", err.message);
+        let l = state.ledger.lock().await;
+        assert_eq!(l.entries().len(), before, "nothing committed");
+        assert!(!l.entries().iter().any(|e| e.event.kind() == "event_recorded"));
     }
 
     /// THE PRODUCTION-SHAPED COUNCIL FIXTURE dp asked for on web4#810: a proposal is
