@@ -6122,10 +6122,12 @@ async fn admin_council_mirror(
 
     // Priority strictly above every other norm. The engine picks the highest-priority match
     // and breaks ties by list order, and this norm is appended last — so at a fixed priority
-    // it would LOSE a tie to any earlier norm on the same act. That loss is not academic: on
-    // the council path an Escalate is satisfied by the vote, so an escalation norm on
-    // `role_vacated` that won the tie would let a council vacate this seat. A later operator
-    // can still outrank it on purpose; that is law being amended, which is the point.
+    // it would LOSE a tie to any earlier norm on the same act, and an escalation norm on
+    // `role_vacated` that won would turn this DENY into a HOLD. (When this was written an
+    // escalation was satisfied by a council vote, which made the loss a way to vacate the
+    // seat; #849 now fails escalations closed, but a protection that silently degrades to "held
+    // pending review" is still not the protection the law states.) A later operator can
+    // outrank it on purpose; that is law being amended, which is the point.
     law.norms.retain(|n| n.id != FOUNDING_SEAT_NORM_ID);
     let priority = law.norms.iter().map(|n| n.priority).max().unwrap_or(0).max(999) + 1;
     let norm: hub_lib::law::Norm = serde_yaml::from_str(&format!(
@@ -13211,10 +13213,10 @@ norms:
     /// holds as a DENY even where the law already ESCALATES the same act at a high priority.
     ///
     /// That second clause is the tie hazard. The engine takes the highest-priority match and
-    /// breaks ties by list order. An escalation on `role_vacated` that won would 202 on the
-    /// single-signer path, and on the council path an escalation is satisfied by the vote —
-    /// so a council could vacate the seat. This law escalates role_vacated at 1000, the
-    /// floor the mirror computes above.
+    /// breaks ties by list order. An escalation on `role_vacated` that won would turn the
+    /// protection's DENY into a 202 hold on both paths — a protection silently degraded to
+    /// "pending review". The test asserts 403, which only a winning deny produces. This law
+    /// escalates role_vacated at 1000, the floor the mirror computes above.
     #[tokio::test]
     async fn the_founding_seat_refuses_vacate_and_rotation_even_over_a_high_priority_escalation() {
         let law = format!("{}\n{}", include_str!("../../examples/starter-law.yaml"), "");
@@ -13250,7 +13252,8 @@ priority: 1000
             Json(RoleFillBody { member_lct_id: other })).await.err().expect("rotation refused");
         assert_eq!(err.status, StatusCode::FORBIDDEN, "rotation is succession too: {}", err.message);
 
-        // And the council path — where an escalation would have been satisfied by the vote.
+        // And the council path: a vote cannot vacate it either, and must be refused with the
+        // deny rather than held by the escalation.
         let vacate = serde_json::to_value(HubEvent::RoleVacated {
             role_lct_id: seat, previous_occupant: state.sovereign_lct_id,
             vacation_kind: web4_core::role::RoleEventKind::FillerResigned,
