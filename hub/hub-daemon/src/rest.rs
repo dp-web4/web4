@@ -1244,14 +1244,19 @@ async fn evaluate_law_norms(
 /// refuses could be committed by routing it through `/council/propose`. Council mode exists
 /// to raise the bar on governed acts, not to exempt them from the society's law.
 ///
-/// The decisions map as follows, and the middle one is a stated choice:
+/// The decisions map as follows:
 ///
 /// - **Deny** binds the council exactly as it binds a single signer. To do what the law
 ///   forbids, the council amends the law first — itself a governed act.
-/// - **Escalate** is SATISFIED by the council's approval. Escalation asks for human review
-///   before the act; a council vote at threshold is that review. Refusing here would make
-///   every escalated act impossible once council mode is on, because council mode also
-///   refuses the single-signer path.
+/// - **Escalate** FAILS CLOSED, exactly as it does on the single-signer path: 202, nothing
+///   opened, nothing committed. A first cut treated a council vote as discharging the
+///   escalation, and GPT's review of #849 showed why that cannot be canonised as written.
+///   An escalation names WHO must review (`escalate_to`), and "whichever quorum approved"
+///   never checked that. And the default council is 1-of-N, where the proposer's own
+///   signature is the whole vote — calling that the review turns an escalation into no
+///   additional review at all. When a council may discharge an escalation is a governed
+///   mapping the law has to state; until it does, the conservative answer is the one the
+///   single-signer path already gives.
 /// - **Warn** proceeds and is logged, as on the single-signer path.
 async fn council_path_law_gate(
     law: &tokio::sync::RwLock<Option<hub_lib::law::Law>>,
@@ -1267,13 +1272,14 @@ async fn council_path_law_gate(
                  forbids — amend the law first",
                 outcome.winning_norm.as_deref().unwrap_or("?")),
         }),
-        Decision::Escalate => {
-            tracing::warn!(
-                "council approval satisfies escalation to {} (norm: {})",
+        Decision::Escalate => Err(ApiError {
+            status: StatusCode::ACCEPTED,
+            message: format!(
+                "act requires escalation to {} ({}); a council vote does not discharge an \
+                 escalation until hub law names the council as that authority",
                 outcome.escalate_to.as_deref().unwrap_or("sovereign"),
-                outcome.winning_norm.as_deref().unwrap_or("escalation trigger"));
-            Ok(())
-        }
+                outcome.winning_norm.as_deref().unwrap_or("escalation trigger")),
+        }),
         Decision::Warn => {
             tracing::warn!("council act flagged by hub law (norm: {})",
                 outcome.winning_norm.as_deref().unwrap_or("?"));
@@ -12834,28 +12840,67 @@ norms:
         }).unwrap()
     }
 
-    /// Escalation is SATISFIED by a council vote, not refused by one. Council mode also
-    /// refuses the single-signer path, so if the council path refused escalated acts they
-    /// would become impossible to perform at all once a council exists.
+    /// Escalation FAILS CLOSED on the council path — GPT's #849 HOLD — and the two falsifiers
+    /// that reviewer named are both driven.
+    ///
+    /// **M = 1**, the default council: the proposer's own signature would meet threshold, so a
+    /// "vote as review" rule would let one person discharge an escalation by proposing. Refused.
+    ///
+    /// **Target mismatch**: the law escalates to a named authority that is not the council.
+    /// A quorum that happened to approve is not that authority. Refused, at 2-of-3 too.
+    ///
+    /// And at commit: a proposal opened before the law escalated the act is refused when its
+    /// last signature arrives, because the law in force then is the one that decides.
     #[tokio::test]
-    async fn an_escalated_act_commits_when_the_council_approves_it() {
-        let law = r#"
+    async fn an_escalated_act_is_not_discharged_by_a_council_vote() {
+        let escalate_to = |who: &str| format!(r#"
 version: "1.0.0"
 norms: []
 escalation:
   - condition: "r6.request.action == 'event_recorded'"
-    escalate_to: sovereign
+    escalate_to: {who}
     description: "recording needs review"
-"#;
-        let (_tmp, state, h) = two_of_three_council(Some(law)).await;
+"#);
+
+        // M = 1: the proposer alone meets threshold.
+        let (_tmp, state) = fresh_rest_state(Some(&escalate_to("sovereign"))).await;
+        let (holder, kp) = (Uuid::new_v4(), KeyPair::generate());
+        witness_for_test(&state, HubEvent::CouncilMemberAdded {
+            member_lct_id: holder, member_pubkey_hex: kp.verifying_key().to_hex(),
+            added_by: state.sovereign_lct_id, member_name: None,
+        }).await;
+        reseed_resolver(&state).await;
+        let before = state.ledger.lock().await.entries().len();
+        let env = council_envelope(&state, &kp, holder, serde_json::json!({
+            "action": "council_propose", "proposed_event": recorded_event(holder)})).await;
+        let err = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .err().expect("one signature is not a review");
+        assert_eq!(err.status, StatusCode::ACCEPTED, "held, exactly as on the single-signer path: {}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing committed");
+
+        // Target mismatch at 2-of-3: the law names an authority that is not the council.
+        let (_tmp2, state, h) = two_of_three_council(Some(&escalate_to("treasurer"))).await;
         let env = council_envelope(&state, &h[0].1, h[0].0, serde_json::json!({
             "action": "council_propose", "proposed_event": recorded_event(h[0].0)})).await;
-        let opened = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await
-            .expect("an escalated act may be PROPOSED — the vote is the review");
+        let err = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .err().expect("a quorum is not the treasurer");
+        assert_eq!(err.status, StatusCode::ACCEPTED);
+        assert!(err.message.contains("treasurer"), "names who must review: {}", err.message);
+        assert!(read_all_proposals(&state).await.unwrap().is_empty(), "never opened");
+
+        // At commit: opened under no law, the law then escalates, the last signature is refused.
+        let (_tmp3, state, h) = two_of_three_council(None).await;
+        let env = council_envelope(&state, &h[0].1, h[0].0, serde_json::json!({
+            "action": "council_propose", "proposed_event": recorded_event(h[0].0)})).await;
+        let opened = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await.expect("opens");
+        *state.law.write().await = Some(Law::parse_and_validate(&escalate_to("sovereign")).unwrap());
+        let before = state.ledger.lock().await.entries().len();
         let env = council_envelope(&state, &h[1].1, h[1].0, serde_json::json!({
             "action": "council_sign", "proposal_id": opened.0.id})).await;
-        sign_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await.expect("and committed at threshold");
-        assert!(state.ledger.lock().await.entries().iter().any(|e| e.event.kind() == "event_recorded"));
+        let err = sign_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .err().expect("threshold met, but the act is now escalated");
+        assert_eq!(err.status, StatusCode::ACCEPTED);
+        assert_eq!(state.ledger.lock().await.entries().len(), before);
     }
 
     /// A proposal the law forbids is never OPENED, even when one signature cannot commit it.

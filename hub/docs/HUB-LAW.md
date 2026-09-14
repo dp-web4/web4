@@ -192,7 +192,7 @@ amended while a proposal gathers signatures.
 |---|---|
 | **Allow** | Commits at threshold. |
 | **Deny** | `HTTP 403`, and binding: a council may not commit what the law forbids. To do it, amend the law first — itself a governed act. |
-| **Escalate** | **Satisfied by the council's approval.** Escalation asks for review before the act; a vote at threshold is that review. Refusing here would make escalated acts impossible once council mode is on, because council mode also refuses the single-signer path. |
+| **Escalate** | `HTTP 202` — held, not opened or committed, exactly as on the single-signer path. A council vote does **not** discharge an escalation: `escalate_to` names who must review, and a default 1-of-N council's "vote" is the proposer alone. When a council may discharge an escalation is a mapping hub law will have to state; until it does, escalated acts wait. |
 | **Warn** | Commits, and is logged. |
 
 Until 2026-09-14 the council path checked only who signed and the law's hash, never its
