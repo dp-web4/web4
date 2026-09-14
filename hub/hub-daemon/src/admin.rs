@@ -1209,6 +1209,15 @@ fn event_summary(event: &HubEvent) -> String {
         HubEvent::CouncilThresholdChanged { new_m, .. } => {
             format!("Council threshold M={} requested", new_m)
         }
+        // Both carry only ids and integers — no member-supplied free text — so nothing here
+        // needs `html_escape`.
+        HubEvent::CouncilMirrored { council_role_lct_id, seats, required_m, legacy_basis_index, .. } => format!(
+            "Council constituted as role {} — {} seat(s), each filled, M={} (derived from the legacy council at entry {})",
+            short(council_role_lct_id), seats.len(), required_m, legacy_basis_index,
+        ),
+        HubEvent::RoleQuorumSet { role_lct_id, required_m, .. } => format!(
+            "Role {} now requires {} signature(s)", short(role_lct_id), required_m,
+        ),
         HubEvent::PairingRequested { pair_id, initiator_lct_id, counterparty_lct_id, purpose, .. } => {
             format!(
                 "Pair requested {} ↔ {} <span class=\"muted\">[{}, \"{}\"]</span>",

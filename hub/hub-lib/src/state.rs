@@ -61,6 +61,23 @@ where
     Ok(out)
 }
 
+/// The only normalisation M ever receives: **the lower bound, and nothing else.**
+///
+/// A body that needs zero signatures is not a body, so M < 1 never enters the role substrate
+/// — from a threshold event, a mirror, or a quorum-set, whether written by this daemon or
+/// found on an older chain. The UPPER value is preserved exactly: an M above the seats that
+/// currently exist is the law asking for more than is present, which is precisely what must
+/// survive a vacancy rather than be clamped down by it. Two different bounds, two different
+/// meanings, and only this one is a normalisation.
+pub fn normalize_required_m(m: u32) -> u32 {
+    m.max(1)
+}
+
+/// Role name of the body a mirrored Sovereign Council is constituted as.
+pub const COUNCIL_ROLE_NAME: &str = "council";
+/// Role name of each seat within it.
+pub const COUNCIL_SEAT_NAME: &str = "council-member";
+
 /// A role as the LEDGER sees it — **a read projection, not the semantic object**.
 ///
 /// GPT's review of #844 was right to insist this be named: the society document holds roles,
@@ -103,6 +120,13 @@ pub struct ProjectedRole {
     /// must survive an occupant leaving.
     #[serde(default)]
     pub occupancy_log: Vec<RoleOccupancyChange>,
+    /// Required signatures for a body whose seats are this role's Office sub-roles.
+    ///
+    /// Set only by governed acts (`CouncilMirrored`, `RoleQuorumSet`) and **never derived**
+    /// from how many seats exist or how many are filled. `None` means this role has not
+    /// been constituted as a deciding body.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quorum_m: Option<u32>,
 }
 
 /// What a role's upward walk actually found — the three outcomes, named.
@@ -135,7 +159,7 @@ pub enum Lineage {
 /// hypothetical — `RoleAssignment::set_threshold()` recomputes N from the live holder count
 /// and clamps M to it, so losing a member LOWERS the bar today. This type exists so the Hub
 /// never inherits that.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct SeatQuorum {
     /// **N** — established seat cardinality: sub-role Offices that exist and are not
     /// retired. Unchanged by anyone resigning.
@@ -281,6 +305,21 @@ pub struct RoleOccupancyChange {
     /// at apply time. **Not yet enforced** — informational until
     /// V2-9 Phase 2 ships the proposal/aggregation flow.
     pub council_threshold: Option<(u32, u32)>,
+
+    /// The M the last `CouncilThresholdChanged` ASKED for, before any clamping.
+    ///
+    /// `council_threshold` stores the effective value, and the removal arm lowers it
+    /// whenever N drops below M — and nothing ever raises it back. Keeping the request
+    /// beside it is what lets the Sprint 3 differential tell "the law says 3" apart from
+    /// "a resignation quietly made it 2". Without it the clamp is invisible.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub council_threshold_requested: Option<u32>,
+
+    /// The council's role LCT once `CouncilMirrored` has constituted it as a role tree.
+    /// At most one per hub; a second mirror event is ignored by the projection (and
+    /// refused at every write site), so replay cannot fork the council.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mirrored_council: Option<Uuid>,
 
     /// PAIRED-CHANNELS Sprint B: pair_id → PairState. Tracks the
     /// lifecycle of every LCT-to-LCT pair the chapter has hosted.
@@ -1223,6 +1262,7 @@ impl HubState {
                             entry_index: index, at: ts, occupant: Some(*who), by: *created_by,
                         }],
                     },
+                    quorum_m: None,
                 });
             }
             HubEvent::RoleAssigned { role, role_lct_id, assigned_to, assigned_by } => {
@@ -1242,6 +1282,7 @@ impl HubState {
                     occupant: None,
                     retired: false,
                     occupancy_log: Vec::new(),
+                    quorum_m: None,
                 });
                 e.occupant = Some(*assigned_to);
                 e.occupancy_log.push(RoleOccupancyChange {
@@ -1265,6 +1306,54 @@ impl HubState {
                     e.occupancy_log.push(RoleOccupancyChange {
                         entry_index: index, at: ts, occupant: None, by: *vacated_by,
                     });
+                }
+            }
+            HubEvent::CouncilMirrored { council_role_lct_id, seats, required_m, mirrored_by, .. } => {
+                // At most one council tree per hub. A second mirror on the chain is a write
+                // path that skipped its refusal; the projection keeps the first rather than
+                // letting replay fork the council into two bodies.
+                if self.mirrored_council.is_none() {
+                self.mirrored_council = Some(*council_role_lct_id);
+                let entry = |occupant: Option<Uuid>| match occupant {
+                    None => Vec::new(),
+                    Some(who) => vec![RoleOccupancyChange {
+                        entry_index: index, at: ts, occupant: Some(who), by: *mirrored_by,
+                    }],
+                };
+                self.roles.entry(*council_role_lct_id).or_insert_with(|| ProjectedRole {
+                    role_lct_id: *council_role_lct_id,
+                    role: web4_core::role::SocietyRole::Custom(COUNCIL_ROLE_NAME.into()),
+                    role_kind: crate::events::RoleKind::Office,
+                    charter: None,
+                    parent_role_lct_id: None,
+                    // The council itself is a body, not a chair anyone sits in.
+                    occupant: None,
+                    retired: false,
+                    occupancy_log: Vec::new(),
+                    quorum_m: Some(normalize_required_m(*required_m)),
+                });
+                for seat in seats {
+                    self.roles.entry(seat.seat_role_lct_id).or_insert_with(|| ProjectedRole {
+                        role_lct_id: seat.seat_role_lct_id,
+                        role: web4_core::role::SocietyRole::Custom(COUNCIL_SEAT_NAME.into()),
+                        role_kind: crate::events::RoleKind::Office,
+                        charter: None,
+                        parent_role_lct_id: Some(*council_role_lct_id),
+                        occupant: Some(seat.occupant),
+                        retired: false,
+                        occupancy_log: entry(Some(seat.occupant)),
+                        quorum_m: None,
+                    });
+                }
+                } // else: a second mirror on the chain is ignored (see above)
+            }
+            HubEvent::RoleQuorumSet { role_lct_id, required_m, .. } => {
+                // M changes ONLY here. A retired body keeps its last M on the record but a
+                // retired role decides nothing, so this does not resurrect it.
+                if let Some(e) = self.roles.get_mut(role_lct_id) {
+                    if !e.retired {
+                        e.quorum_m = Some(normalize_required_m(*required_m));
+                    }
                 }
             }
             HubEvent::EventRecorded { .. }
@@ -1425,6 +1514,7 @@ impl HubState {
                 let n = (self.council_holders.len() + 1) as u32;
                 let m = (*new_m).clamp(1, n.max(1));
                 self.council_threshold = Some((m, n));
+                self.council_threshold_requested = Some(normalize_required_m(*new_m));
             }
             HubEvent::PairingRequested {
                 pair_id, initiator_lct_id, counterparty_lct_id,

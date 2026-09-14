@@ -93,6 +93,13 @@ pub enum RoleKind {
     Capacity,
 }
 
+/// One seat of a mirrored council: the seat's own role LCT and the entity filling it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MirroredSeat {
+    pub seat_role_lct_id: Uuid,
+    pub occupant: Uuid,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum HubEvent {
@@ -339,6 +346,47 @@ pub enum HubEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
         vacated_by: Uuid,
+    },
+
+    /// The Sovereign Council was constituted as a ROLE TREE: one `council` Office and one
+    /// `council-member` Office seat per current holder, each seat filled, in one witnessed
+    /// act (Sprint 3 of PRD_ROLE_ENTITIES_AND_SUBROLES).
+    ///
+    /// **One event, not a sequence of role verbs.** A council that exists with some seats
+    /// constituted and others not is a council whose quorum is wrong, and GPT's #845 review
+    /// already established that a create-then-fill pair can fail in the middle. So the
+    /// whole tree lands atomically or not at all.
+    ///
+    /// **Derived from the legacy projection at `legacy_basis_index`**, and carries that
+    /// index so a reader can replay the legacy side to the same point and check the
+    /// derivation for itself.
+    ///
+    /// `required_m` is the threshold the council's LAW asked for, not the effective value
+    /// the legacy projection clamped it to. The legacy arm lowers M whenever a removal
+    /// takes N below it and never raises it back; mirroring the clamped value would bake
+    /// that lowered bar into the constitution. Mirroring the requested one lets the
+    /// differential name the clamp as a divergence instead.
+    ///
+    /// Nothing about the founding Sovereign's seat is special here. Its protection is a
+    /// rule of hub law (PRD section 4.3.1), not a field on this event or on the role.
+    CouncilMirrored {
+        council_role_lct_id: Uuid,
+        seats: Vec<MirroredSeat>,
+        required_m: u32,
+        legacy_basis_index: u64,
+        mirrored_by: Uuid,
+    },
+
+    /// A role's required-signature count was set by a governed act.
+    ///
+    /// M is law, never derived: only this verb changes it. Vacating a seat moves O, retiring
+    /// one moves N, and neither touches M. If O falls below M the body cannot reach a
+    /// verdict until a seat is filled or this verb is used, which is the honest state and
+    /// the one the legacy clamp hides.
+    RoleQuorumSet {
+        role_lct_id: Uuid,
+        required_m: u32,
+        set_by: Uuid,
     },
 
     /// A chapter event was held + recorded (demo night, workshop, etc.).
@@ -840,6 +888,7 @@ impl HubEvent {
         "charter_amended",
         "council_member_added",
         "council_member_removed",
+        "council_mirrored",
         "council_threshold_changed",
         "degraded_reconciled",
         "device_enrolled",
@@ -875,6 +924,7 @@ impl HubEvent {
     "role_created",
     "role_vacated",
     "role_retired",
+    "role_quorum_set",
         "topic_created",
         "vault_unlock_attested",
         "vault_unlock_requested",
@@ -897,6 +947,8 @@ impl HubEvent {
             Self::RoleCreated { .. } => "role_created",
             Self::RoleVacated { .. } => "role_vacated",
             Self::RoleRetired { .. } => "role_retired",
+            Self::RoleQuorumSet { .. } => "role_quorum_set",
+            Self::CouncilMirrored { .. } => "council_mirrored",
             Self::EventRecorded { .. } => "event_recorded",
             Self::CharterAmended { .. } => "charter_amended",
             Self::MemberSkillDeclared { .. } => "member_skill_declared",
