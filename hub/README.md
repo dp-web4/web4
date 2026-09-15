@@ -126,27 +126,18 @@ the response — and tools plug in behind that. The generic seam lives in the
 
 ### Status — which host loads the seam today
 
-The crate is published and has one live host, and it is **not this daemon**:
+| host | links `hub-plugin` | dispatches through `PluginRegistry` | shipped plugin |
+|---|---|---|---|
+| `hub-daemon` | **yes** | **yes** — `dispatch_channel` falls through to `RestState::plugins` for any tool no built-in arm handles, after the same tier resolution, presence touch and law gate the built-ins get | none registered by default |
+| `hestia` (`hestia/core`) | yes — path dep, re-exported by `core/src/plugin.rs` | no — it defines `ConstellationPlugin` but nothing in hestia calls `PluginRegistry::dispatch` | `ConstellationPlugin` (defined, not dispatched) |
 
-| host | links `hub-plugin` | shipped plugin |
-|---|---|---|
-| `hestia` (`hestia/core`) | **yes** — path dep, re-exported by `core/src/plugin.rs` | `ConstellationPlugin` |
-| `hub-daemon` | **no** — `hub-plugin` is a workspace *member* of `hub/Cargo.toml` but a *dependency* of neither `hub-daemon` nor `hub-lib` | — |
-
-`hub-daemon`'s `dispatch_channel` re-implements the same `gate → handle → scope`
-contract rather than calling `PluginRegistry::dispatch`; `PluginRegistry` and
-`hub_plugin` appear nowhere in `hub-daemon/src` or `hub-lib/src`. So a
-`ToolPlugin` written today compiles into hestia's binary, and nothing in the hub
-daemon will dispatch it.
-
-Registration is compile-time in either host — there is no dynamic loading, no
-plugin directory. Combined with the table above, that means adding a handler to
-*this* daemon today requires editing `hub-daemon`, i.e. forking. The intended
-end state — the public core ships the seam and an operator adds their own (or
-proprietary) handlers without forking the hub — needs `dispatch_channel` wired
-to the registry. That wiring is open work, not shipped, and until it lands the
-"impl `ToolPlugin` once and load on either side" property asserted in
-`hestia/core/src/plugin.rs` holds on one side.
+Registration is compile-time: `RestState::with_plugins(registry)` at construction,
+no dynamic loading, no plugin directory. So adding a handler to this daemon means
+building a binary that registers it — a thin `main` over the public crates — rather
+than editing `hub-daemon`. Two `PluginCtx` capabilities are named gaps: `sign`
+works in Local signer mode and fails closed in Hestia mode (the vault does not yet
+know a plugin intent), and `send_to_peer` returns *unavailable* because pair
+messages are a relay mailbox, not a request/response transport.
 
 ## What this isn't (MVP scope)
 
