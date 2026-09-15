@@ -366,7 +366,7 @@ impl HubSession {
             added_by: self.sovereign_lct_id,
             member_name: name,
         };
-        self.append(event).await
+        self.append_council_change(event).await
     }
 
     pub async fn remove_council_member(
@@ -381,7 +381,7 @@ impl HubSession {
             removal_kind: kind,
             reason,
         };
-        self.append(event).await
+        self.append_council_change(event).await
     }
 
     pub async fn set_council_threshold(&mut self, new_m: u32) -> Result<&LedgerEntry> {
@@ -395,7 +395,7 @@ impl HubSession {
             new_m,
             initiated_by: self.sovereign_lct_id,
         };
-        self.append(event).await
+        self.append_council_change(event).await
     }
 
     /// PAIRED-CHANNELS Sprint B: operator-facing helper for creating a
@@ -489,6 +489,28 @@ impl HubSession {
 
     async fn append(&mut self, event: HubEvent) -> Result<&LedgerEntry> {
         self.ledger.append(self.sovereign_lct_id, &self.sovereign_keypair, event).await
+    }
+
+    /// A legacy council change from the offline CLI, followed by its role-side counterparts
+    /// once the council is mirrored (PRD Sprint 3b) — the same pairing every daemon emitter
+    /// performs, so a council managed from the command line does not drift from its role tree.
+    ///
+    /// No law gate runs here, for the counterparts or the legacy act: this is the Local-mode
+    /// operator session holding the Sovereign key in-process, which has never consulted hub
+    /// law. That is a property of this surface, recorded rather than changed here.
+    ///
+    /// Returns the LEGACY entry, which is what the CLI reports.
+    async fn append_council_change(&mut self, legacy: HubEvent) -> Result<&LedgerEntry> {
+        let parts = crate::council_mirror::counterparts(&self.state(), &legacy);
+        let index = self.append(legacy).await?.index;
+        for part in parts {
+            self.append(part).await?;
+        }
+        self.ledger
+            .entries()
+            .iter()
+            .find(|e| e.index == index)
+            .ok_or_else(|| anyhow::anyhow!("legacy council entry {index} vanished after its counterparts"))
     }
 }
 
@@ -899,5 +921,36 @@ mod tests {
         assert!(err.to_string().contains("at least 1"), "{err}");
         assert_eq!(session.ledger.len(), before, "nothing appended");
         session.set_council_threshold(1).await.expect("one is fine");
+    }
+
+    /// The offline CLI is the fifth emitter of legacy council events, and it keeps a mirrored
+    /// council in step like the other four. Without this, a council managed from the command
+    /// line would silently drift from its role tree and Sprint 4 could never be permitted.
+    #[tokio::test]
+    async fn cli_council_changes_carry_their_counterparts_once_mirrored() {
+        let (_tmp, dir) = fresh_hub().await;
+        let mut session = HubSession::open(&dir).await.unwrap();
+        let sov = session.sovereign_lct_id;
+        let a = Uuid::new_v4();
+        session.add_council_member(a, "00".repeat(32), None).await.unwrap();
+
+        let before_mirror = session.ledger.len();
+        session.add_council_member(Uuid::new_v4(), "00".repeat(32), None).await.unwrap();
+        assert_eq!(session.ledger.len(), before_mirror + 1, "before mirroring: the legacy act alone");
+
+        let mirror = crate::council_mirror::build_mirror(&session.state(), sov, sov).unwrap();
+        let kp = session.sovereign_keypair.clone();
+        session.ledger.append(sov, &kp, mirror).await.unwrap();
+
+        let b = Uuid::new_v4();
+        let before = session.ledger.len();
+        let entry = session.add_council_member(b, "00".repeat(32), None).await.unwrap();
+        assert_eq!(entry.event.kind(), "council_member_added", "the CLI still reports the legacy entry");
+        assert_eq!(session.ledger.len(), before + 3, "legacy act, then a seat constituted and filled");
+
+        session.remove_council_member(a, web4_core::role::RoleEventKind::FillerResigned, None).await.unwrap();
+        session.set_council_threshold(2).await.unwrap();
+        let d = crate::council_mirror::council_differential(&session.state(), sov);
+        assert!(d.agrees(), "{:?}", d.divergences);
     }
 }

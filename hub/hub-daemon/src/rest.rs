@@ -1440,6 +1440,18 @@ async fn authorize_event(
     Ok((unsigned, signature))
 }
 
+/// The exact `LawAmended` event an amendment of `yaml` witnesses. One constructor, so a caller
+/// that must GATE an amendment before witnessing it gates the same event that is then written,
+/// not a hand-built copy that could drift from it.
+fn law_amended_event(s: &RestState, yaml: &str, version: String, diff_summary: Option<String>) -> HubEvent {
+    HubEvent::LawAmended {
+        new_law_sha256: hub_lib::law::Law::sha256_hex_of(yaml),
+        amended_by: s.sovereign_lct_id,
+        version,
+        diff_summary,
+    }
+}
+
 /// Amend the hub law: persist the new YAML **and** witness the `LawAmended`
 /// that authorizes it — with the Sovereign signature obtained *before* the
 /// store is touched.
@@ -1487,12 +1499,7 @@ async fn witness_law_amendment(
     version: String,
     diff_summary: Option<String>,
 ) -> Result<u64, ApiError> {
-    let event = HubEvent::LawAmended {
-        new_law_sha256: hub_lib::law::Law::sha256_hex_of(yaml),
-        amended_by: s.sovereign_lct_id,
-        version,
-        diff_summary,
-    };
+    let event = law_amended_event(s, yaml, version, diff_summary);
     // Authorization dominates the side effects: nothing below this line runs
     // unless the Sovereign has already signed the amendment.
     let (unsigned, signature) = authorize_event(s, event).await?;
@@ -6035,6 +6042,173 @@ struct ThresholdBody {
     m: u32,
 }
 
+/// A legacy council change and its role-side counterparts, as one gated unit (PRD Sprint 3b).
+///
+/// Once the council is mirrored onto roles, every legacy council change must be followed by
+/// the role acts that keep the tree in step, or the Sprint 3 differential goes stale and
+/// Sprint 4 can never be permitted. This is the one place the operator routes do that.
+///
+/// **Every act is gated before any is appended.** The counterparts are acts, not
+/// bookkeeping — a law norm can refuse one, most obviously the norm protecting the founding
+/// Sovereign's seat. Gating them after the legacy append would leave a council whose legacy
+/// reading changed and whose role reading did not, with nothing left to refuse; gating first
+/// means a refusal leaves the chain bit-identical.
+///
+/// Returns the legacy entry's index and the counterparts' indices, in order.
+async fn witness_council_change(s: &RestState, legacy: HubEvent) -> Result<(u64, Vec<u64>), ApiError> {
+    let parts = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::council_mirror::counterparts(&HubState::project(&ledger), &legacy)
+    };
+    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &legacy).await?;
+    for part in &parts {
+        governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, part).await?;
+    }
+    let index = witness_event(s, legacy).await?;
+    let mut part_indices = Vec::with_capacity(parts.len());
+    for part in parts {
+        part_indices.push(witness_event(s, part).await?);
+    }
+    Ok((index, part_indices))
+}
+
+/// The law norm that protects the founding Sovereign's council seat. One id, so a repeated
+/// mirror attempt replaces its own norm instead of stacking a second one.
+pub(crate) const FOUNDING_SEAT_NORM_ID: &str = "PROTECT-FOUNDING-SOVEREIGN-SEAT";
+
+/// `POST /admin/api/council/mirror` — constitute the Sovereign Council as a role tree
+/// (PRD Sprint 3b), and protect the founding Sovereign's seat **in law**.
+///
+/// Two witnessed acts, in an order chosen so that a failure between them is harmless:
+///
+/// 1. **The law amendment first.** It adds a deny norm on `r6.request.payload.role_lct_id`
+///    equal to the seat the mirror WILL give the founding Sovereign — the id is minted before
+///    either act is written. That one selector matches every verb that could empty, abolish
+///    or rotate that seat, with no engine change.
+/// 2. **The mirror second.** If it fails, the norm names a seat that does not exist and
+///    matches nothing. The reverse order would leave, on failure, an unprotected seat.
+///
+/// The protection is law, not a field, per PRD section 4.3.1: nothing about the seat is
+/// special except a rule pointing at it, and that rule is amendable by the society.
+///
+/// Refused when the hub has no law, rather than creating law to hold one norm: a hub with no
+/// law is open by default, and quietly turning law on would change every other decision too.
+///
+/// surface: POST /admin/api/council/mirror   act: constitute the council as roles + amend law
+/// S: high/irreversible [construct: CouncilMirrored is at most once per hub; LawAmended]
+/// R: weak-only [construct: require_loopback]   W: pass [construct: governance_gate on BOTH acts — the mirror and the LawAmended event — against the current law; Sovereign signer]
+/// O: pass [construct: build_mirror refusal + law validation + both governance_gate calls, all before witness_law_amendment]
+/// A: pass [construct: CouncilMirrored carries legacy_basis_index; LawAmended carries the new sha]
+/// V: present [construct: at M>=2 governance_gate refuses — mirroring an established council is a council act]
+/// verdict: PASS
+async fn admin_council_mirror(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let mut law = s.law.read().await.clone().ok_or_else(|| ApiError::bad_request(
+        "no hub law set — the founding Sovereign's seat is protected by a law norm, and this \
+         hub has no law to hold it. Set law first (`hub init-law`)".to_string(),
+    ))?;
+    let mirror = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::council_mirror::build_mirror(&HubState::project(&ledger), s.sovereign_lct_id, s.sovereign_lct_id)
+            .map_err(|refusal| ApiError { status: StatusCode::CONFLICT, message: refusal.to_string() })?
+    };
+    let HubEvent::CouncilMirrored { council_role_lct_id, ref seats, required_m, .. } = mirror else {
+        return Err(ApiError::internal(anyhow::anyhow!("build_mirror returned a non-mirror event")));
+    };
+    let sovereign_seat = seats.iter().find(|seat| seat.occupant == s.sovereign_lct_id)
+        .map(|seat| seat.seat_role_lct_id)
+        .ok_or_else(|| ApiError::internal(anyhow::anyhow!(
+            "the legacy council always includes the founding Sovereign, but the mirror gave them no seat")))?;
+    let seat_count = seats.len();
+
+    // Preflight: the mirror act itself must be allowed before anything is written.
+    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &mirror).await?;
+
+    // Priority strictly above every other norm. The engine picks the highest-priority match
+    // and breaks ties by list order, and this norm is appended last — so at a fixed priority
+    // it would LOSE a tie to any earlier norm on the same act, and an escalation norm on
+    // `role_vacated` that won would turn this DENY into a HOLD. (When this was written an
+    // escalation was satisfied by a council vote, which made the loss a way to vacate the
+    // seat; #849 now fails escalations closed, but a protection that silently degrades to "held
+    // pending review" is still not the protection the law states.) A later operator can
+    // outrank it on purpose; that is law being amended, which is the point.
+    law.norms.retain(|n| n.id != FOUNDING_SEAT_NORM_ID);
+    let priority = law.norms.iter().map(|n| n.priority).max().unwrap_or(0).max(999) + 1;
+    let norm: hub_lib::law::Norm = serde_yaml::from_str(&format!(
+        "id: {FOUNDING_SEAT_NORM_ID}\n\
+         selector: r6.request.payload.role_lct_id\n\
+         operator: \"==\"\n\
+         value: \"{sovereign_seat}\"\n\
+         decision: deny\n\
+         priority: {priority}\n\
+         description: \"The founding Sovereign's council seat may not be vacated, retired or \
+         rotated by an ordinary act. Protection by law, not by type: amend or remove this norm to \
+         permit a governed succession (PRD_ROLE_ENTITIES_AND_SUBROLES section 4.3.1).\"\n"
+    )).map_err(|e| ApiError::internal(anyhow::anyhow!("building the seat norm: {e}")))?;
+    law.norms.push(norm);
+    law.version = bump_law_version(&law.version);
+    let yaml = serde_yaml::to_string(&law)
+        .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing law: {e}")))?;
+    hub_lib::law::Law::parse_and_validate(&yaml)
+        .map_err(|e| ApiError::bad_request(format!("amended law refused by validation: {e:#}")))?;
+
+    let summary = Some(format!(
+        "{FOUNDING_SEAT_NORM_ID}: protect the founding Sovereign's council seat {sovereign_seat} \
+         ahead of mirroring the council onto roles"));
+    // GPT's #850 HOLD: this route performs TWO consequential acts, and the law amendment is one
+    // of them. `witness_law_amendment` signs and persists without evaluating the law's norms, so
+    // without this line a law that allows `council_mirrored` but denies or escalates
+    // `law_amended` could still be changed through this endpoint. The amendment is gated here,
+    // against `s.law` — still the CURRENT law, never the one being introduced, because the swap
+    // below has not happened — and before the first side effect of either act.
+    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law,
+        &law_amended_event(&s, &yaml, law.version.clone(), summary.clone())).await?;
+
+    let law_entry_index = witness_law_amendment(&s, &yaml, law.version.clone(), summary).await?;
+    *s.law.write().await = Some(law);
+    let mirror_entry_index = witness_event(&s, mirror).await?;
+
+    let differential = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::council_mirror::council_differential(&HubState::project(&ledger), s.sovereign_lct_id)
+    };
+    Ok(Json(serde_json::json!({
+        "mirrored": true,
+        "council_role_lct_id": council_role_lct_id,
+        "seats": seat_count,
+        "required_m": required_m,
+        "founding_sovereign_seat": sovereign_seat,
+        "law_entry_index": law_entry_index,
+        "mirror_entry_index": mirror_entry_index,
+        "agrees": differential.agrees(),
+        "cutover_permitted": differential.cutover_permitted(),
+        "differential": differential,
+    })))
+}
+
+/// `GET /admin/api/council/differential` — the live Sprint 3 differential: the council the
+/// gate enforces, the council the role tree describes, and every named way they differ.
+///
+/// This is how Sprint 4's precondition gets evidence on the REAL hub rather than only on a
+/// fixture: "the cutover rule has held across a real ledger replay" is a reading of this
+/// route, on this hub's chain.
+async fn admin_council_differential(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let ledger = s.ledger.lock().await;
+    let d = hub_lib::council_mirror::council_differential(&HubState::project(&ledger), s.sovereign_lct_id);
+    Ok(Json(serde_json::json!({
+        "agrees": d.agrees(),
+        "cutover_permitted": d.cutover_permitted(),
+        "differential": d,
+    })))
+}
+
 /// `POST /admin/api/council/add` — admit a Sovereign Council holder, live.
 ///
 /// dp, 2026-09-08: "i don't see a ui to edit council or roles". There was none: council
@@ -6070,14 +6244,13 @@ async fn admin_council_add(
         added_by: s.sovereign_lct_id,
         member_name: body.name.clone(),
     };
-    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &event).await?;
-    let entry_index = witness_event(&s, event).await?;
+    let (entry_index, role_counterparts) = witness_council_change(&s, event).await?;
     // Live resolver insert — the whole point of doing this on the daemon rather than
     // offline: the holder's next council envelope verifies without a restart.
     s.resolver.write().await.insert(lct);
     let (holders, threshold) = { let l = s.ledger.lock().await; project_council(&s, &*l) };
     Ok(Json(serde_json::json!({
-        "added": true, "entry_index": entry_index,
+        "added": true, "entry_index": entry_index, "role_counterparts": role_counterparts,
         "holders": holders.len(), "threshold_m": threshold.0, "threshold_n": threshold.1,
     })))
 }
@@ -6114,11 +6287,10 @@ async fn admin_council_remove(
         removal_kind,
         reason: body.reason,
     };
-    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &event).await?;
-    let entry_index = witness_event(&s, event).await?;
+    let (entry_index, role_counterparts) = witness_council_change(&s, event).await?;
     let (holders, threshold) = { let l = s.ledger.lock().await; project_council(&s, &*l) };
     Ok(Json(serde_json::json!({
-        "removed": true, "entry_index": entry_index,
+        "removed": true, "entry_index": entry_index, "role_counterparts": role_counterparts,
         "holders": holders.len(), "threshold_m": threshold.0, "threshold_n": threshold.1,
     })))
 }
@@ -6140,11 +6312,10 @@ async fn admin_council_set_threshold(
         return Err(ApiError::bad_request("threshold m must be at least 1".to_string()));
     }
     let event = HubEvent::CouncilThresholdChanged { new_m: body.m, initiated_by: s.sovereign_lct_id };
-    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law, &event).await?;
-    let entry_index = witness_event(&s, event).await?;
+    let (entry_index, role_counterparts) = witness_council_change(&s, event).await?;
     let (holders, threshold) = { let l = s.ledger.lock().await; project_council(&s, &*l) };
     Ok(Json(serde_json::json!({
-        "set": true, "entry_index": entry_index, "requested_m": body.m,
+        "set": true, "entry_index": entry_index, "requested_m": body.m, "role_counterparts": role_counterparts,
         "holders": holders.len(), "threshold_m": threshold.0, "threshold_n": threshold.1,
     })))
 }
@@ -6934,6 +7105,8 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/council/add", post(admin_council_add))
         .route("/admin/api/council/:lct_id/remove", post(admin_council_remove))
         .route("/admin/api/council/threshold", post(admin_council_set_threshold))
+        .route("/admin/api/council/mirror", post(admin_council_mirror))
+        .route("/admin/api/council/differential", get(admin_council_differential))
         .route("/admin/api/roles", get(admin_roles_list))
         .route("/admin/api/roles/create", post(admin_role_create))
         .route("/admin/api/roles/:role_lct_id/fill", post(admin_role_fill))
@@ -8013,6 +8186,55 @@ async fn commit_proposed_event(
     // …and on the law's NORMS, which the hash check above never evaluated. Re-checked at
     // commit because the law can be amended between a proposal opening and its last vote.
     council_path_law_gate(&s.law, event).await?;
+
+    // PRD Sprint 3b: a council-approved legacy council change carries its role-side
+    // counterparts, exactly as the operator routes do. They are law-gated BEFORE anything is
+    // appended — so a vote that would, say, vacate the founding Sovereign's protected seat is
+    // refused whole rather than committing its legacy half. They are NOT put through the
+    // single-signer ratchet: the council's signatures on this proposal are the authority for
+    // its mechanical twin, and the ratchet would refuse them precisely because a council
+    // exists.
+    let parts = {
+        let ledger = s.ledger.lock().await;
+        hub_lib::council_mirror::counterparts(&HubState::project(&ledger), event)
+    };
+    for part in &parts {
+        council_path_law_gate(&s.law, part).await?;
+    }
+
+    let (entry_index, mut needs_resolver_refresh) = append_committed(s, event, proposal_ref).await?;
+    // Each counterpart carries the same proposal_ref: the chain says which vote authorised it.
+    for part in &parts {
+        let (_, refresh) = append_committed(s, part, proposal_ref).await?;
+        needs_resolver_refresh |= refresh;
+    }
+
+    // If the committed act was a council membership / member-add,
+    // refresh the resolver so the new pubkey can verify envelopes
+    // immediately (same pattern as submit_join's live insert).
+    if needs_resolver_refresh {
+        let ledger = s.ledger.lock().await;
+        let projected = hub_lib::state::HubState::project(&*ledger);
+        let mut resolver = s.resolver.write().await;
+        for (lct_id, pk) in projected.member_pubkeys.iter()
+            .chain(projected.council_pubkeys.iter())
+        {
+            if let Ok(lct) = hub_lib::hub::hestia_sovereign_lct(*lct_id, pk) {
+                resolver.insert(lct);
+            }
+        }
+    }
+    Ok(entry_index)
+}
+
+/// Sign and append one council-committed entry carrying `proposal_ref`. No gate runs here —
+/// [`commit_proposed_event`] gates everything it will append before calling this at all.
+/// Returns the entry index and whether it changed which keys the resolver must know.
+async fn append_committed(
+    s: &RestState,
+    event: &HubEvent,
+    proposal_ref: Option<Uuid>,
+) -> Result<(u64, bool), ApiError> {
     let event_kind_str = event.kind().to_string();
     let event_value = serde_json::to_value(event)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
@@ -8050,32 +8272,15 @@ async fn commit_proposed_event(
             hub_lib::signer::SignError::Internal(err) => ApiError::internal(err),
         })?;
     let mut ledger = s.ledger.lock().await;
-    let (entry_index, needs_resolver_refresh) = {
-        let entry = ledger.append_signed(unsigned, signature).await
-            .map_err(ApiError::internal)?;
-        let needs = matches!(
-            &entry.event,
-            HubEvent::CouncilMemberAdded { .. }
-                | HubEvent::MemberAdded { .. }
-                | HubEvent::MemberKeyPinned { .. } // live re-key: insert replaces by lct id
-        );
-        (entry.index, needs)
-    };
-    // If the committed act was a council membership / member-add,
-    // refresh the resolver so the new pubkey can verify envelopes
-    // immediately (same pattern as submit_join's live insert).
-    if needs_resolver_refresh {
-        let projected = hub_lib::state::HubState::project(&*ledger);
-        let mut resolver = s.resolver.write().await;
-        for (lct_id, pk) in projected.member_pubkeys.iter()
-            .chain(projected.council_pubkeys.iter())
-        {
-            if let Ok(lct) = hub_lib::hub::hestia_sovereign_lct(*lct_id, pk) {
-                resolver.insert(lct);
-            }
-        }
-    }
-    Ok(entry_index)
+    let entry = ledger.append_signed(unsigned, signature).await
+        .map_err(ApiError::internal)?;
+    let needs = matches!(
+        &entry.event,
+        HubEvent::CouncilMemberAdded { .. }
+            | HubEvent::MemberAdded { .. }
+            | HubEvent::MemberKeyPinned { .. } // live re-key: insert replaces by lct id
+    );
+    Ok((entry.index, needs))
 }
 
 // ============================================================================
@@ -12935,6 +13140,367 @@ escalation:
         let l = state.ledger.lock().await;
         assert_eq!(l.entries().len(), before, "nothing committed");
         assert!(!l.entries().iter().any(|e| e.event.kind() == "event_recorded"));
+    }
+
+    // ---- Sprint 3b: the council mirrored onto roles, on the operator and council paths ----
+
+    const MINIMAL_LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: ALLOW-RECORDED-EVENTS
+    selector: r6.request.action
+    operator: "=="
+    value: event_recorded
+    decision: allow
+    priority: 1
+"#;
+
+    fn loop_addr() -> SocketAddr { "127.0.0.1:5555".parse().unwrap() }
+
+    /// Admit a council holder with a real key through the operator route; returns (id, key).
+    async fn council_holder(state: &RestState) -> (Uuid, KeyPair) {
+        let (id, kp) = (Uuid::new_v4(), KeyPair::generate());
+        admin_council_add(State(state.clone()), ConnectInfo(loop_addr()), Json(CouncilAddBody {
+            lct_id: id, pubkey_hex: kp.verifying_key().to_hex(), name: None,
+        })).await.expect("council add");
+        (id, kp)
+    }
+
+    async fn mirror(state: &RestState) -> serde_json::Value {
+        admin_council_mirror(State(state.clone()), ConnectInfo(loop_addr())).await.expect("mirror").0
+    }
+
+    fn founding_seat(out: &serde_json::Value) -> Uuid {
+        serde_json::from_value(out["founding_sovereign_seat"].clone()).unwrap()
+    }
+
+    async fn differential(state: &RestState) -> hub_lib::council_mirror::CouncilDifferential {
+        let l = state.ledger.lock().await;
+        hub_lib::council_mirror::council_differential(&HubState::project(&*l), state.sovereign_lct_id)
+    }
+
+    /// The mirror writes the seat's protection into LAW, and writes it FIRST. If the mirror
+    /// then failed, the norm would name a seat that does not exist and match nothing; the
+    /// reverse order would leave an unprotected seat on failure. Order is asserted on the
+    /// chain, not inferred from the code.
+    #[tokio::test]
+    async fn mirroring_writes_the_seat_norm_into_law_first_and_the_readings_agree() {
+        let (_tmp, state) = fresh_rest_state(Some(MINIMAL_LAW)).await;
+        council_holder(&state).await;
+        let out = mirror(&state).await;
+        assert_eq!(out["seats"], 2, "the founding Sovereign and one holder");
+        assert_eq!(out["agrees"], true, "{}", out["differential"]);
+        assert_eq!(out["cutover_permitted"], true);
+
+        let seat = founding_seat(&out);
+        let law = state.law.read().await.clone().unwrap();
+        let norm = law.norms.iter().find(|n| n.id == FOUNDING_SEAT_NORM_ID).expect("the norm is IN the law");
+        assert_eq!(norm.value, serde_yaml::Value::String(seat.to_string()));
+        assert!(law.norms.iter().all(|n| n.id == FOUNDING_SEAT_NORM_ID || n.priority < norm.priority),
+            "strictly outranks every other norm, so no tie can demote it");
+
+        let (law_i, mirror_i): (u64, u64) = (
+            serde_json::from_value(out["law_entry_index"].clone()).unwrap(),
+            serde_json::from_value(out["mirror_entry_index"].clone()).unwrap());
+        assert!(law_i < mirror_i, "law first, mirror second");
+        {
+            // On the CHAIN, not from the response: exactly one mirror, and it comes after the
+            // amendment that protects its seat. A response index alone could be satisfied by a
+            // second mirror appended after an unprotected first one.
+            let l = state.ledger.lock().await;
+            let mirrors: Vec<u64> = l.entries().iter()
+                .filter(|e| e.event.kind() == "council_mirrored").map(|e| e.index).collect();
+            assert_eq!(mirrors, vec![mirror_i], "exactly one mirror entry");
+            let protecting_amendment = l.entries().iter().rev()
+                .find(|e| e.event.kind() == "law_amended").map(|e| e.index).unwrap();
+            assert!(protecting_amendment < mirrors[0], "the law amendment precedes the mirror on the chain");
+        }
+
+        // The live differential route reads the same thing.
+        let live = admin_council_differential(State(state.clone()), ConnectInfo(loop_addr())).await.unwrap().0;
+        assert_eq!(live["agrees"], true);
+
+        // At most once.
+        let err = admin_council_mirror(State(state.clone()), ConnectInfo(loop_addr())).await.err().expect("refused");
+        assert_eq!(err.status, StatusCode::CONFLICT);
+        assert!(err.message.contains("already mirrored"), "{}", err.message);
+    }
+
+    /// The protection holds against the verbs that could empty or change the seat — and it
+    /// holds as a DENY even where the law already ESCALATES the same act at a high priority.
+    ///
+    /// That second clause is the tie hazard. The engine takes the highest-priority match and
+    /// breaks ties by list order. An escalation on `role_vacated` that won would turn the
+    /// protection's DENY into a 202 hold on both paths — a protection silently degraded to
+    /// "pending review". The test asserts 403, which only a winning deny produces. This law
+    /// escalates role_vacated at 1000, the floor the mirror computes above.
+    #[tokio::test]
+    async fn the_founding_seat_refuses_vacate_and_rotation_even_over_a_high_priority_escalation() {
+        let law = format!("{}\n{}", include_str!("../../examples/starter-law.yaml"), "");
+        let mut parsed = hub_lib::law::Law::parse_and_validate(&law).unwrap();
+        // The starter law ESCALATES law amendments, and the mirror's amendment is gated against
+        // the current law (#850), so on an unmodified starter-law hub the mirror HOLDS — pinned
+        // in `the_mirror_cannot_amend_a_law_that_refuses_amendments`. This test is about the
+        // seat's protection beating escalations on ROLE acts, so it drops that one norm.
+        parsed.norms.retain(|n| n.id != "ESCALATE-LAW-AMEND");
+        parsed.norms.push(serde_yaml::from_str(r#"
+id: ESCALATE-VACATING
+selector: r6.request.action
+operator: "=="
+value: role_vacated
+decision: escalate
+priority: 1000
+"#).unwrap());
+        let yaml = serde_yaml::to_string(&parsed).unwrap();
+        let (_tmp, state) = fresh_rest_state(Some(&yaml)).await;
+        let other = member(&state, "claimant").await;
+        // The starter law escalates council membership changes themselves, so the operator
+        // route would 202 here. Enrol the holder the way the other council fixtures do.
+        let (holder, kp) = (Uuid::new_v4(), KeyPair::generate());
+        witness_for_test(&state, HubEvent::CouncilMemberAdded {
+            member_lct_id: holder, member_pubkey_hex: kp.verifying_key().to_hex(),
+            added_by: state.sovereign_lct_id, member_name: None,
+        }).await;
+        reseed_resolver(&state).await;
+        let seat = founding_seat(&mirror(&state).await);
+        let before = state.ledger.lock().await.entries().len();
+
+        let err = admin_role_vacate(State(state.clone()), ConnectInfo(loop_addr()), Path(seat),
+            Json(RoleVacateBody { kind: None, reason: None })).await.err().expect("vacate refused");
+        assert_eq!(err.status, StatusCode::FORBIDDEN, "DENY, not the escalation's 202: {}", err.message);
+        assert!(err.message.contains(FOUNDING_SEAT_NORM_ID), "{}", err.message);
+
+        let err = admin_role_fill(State(state.clone()), ConnectInfo(loop_addr()), Path(seat),
+            Json(RoleFillBody { member_lct_id: other })).await.err().expect("rotation refused");
+        assert_eq!(err.status, StatusCode::FORBIDDEN, "rotation is succession too: {}", err.message);
+
+        // And the council path: a vote cannot vacate it either, and must be refused with the
+        // deny rather than held by the escalation.
+        let vacate = serde_json::to_value(HubEvent::RoleVacated {
+            role_lct_id: seat, previous_occupant: state.sovereign_lct_id,
+            vacation_kind: web4_core::role::RoleEventKind::FillerResigned,
+            reason: None, vacated_by: holder,
+        }).unwrap();
+        let env = council_envelope(&state, &kp, holder, serde_json::json!({
+            "action": "council_propose", "proposed_event": vacate})).await;
+        let err = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .err().expect("a council vote cannot vacate it either");
+        assert_eq!(err.status, StatusCode::FORBIDDEN, "{}", err.message);
+
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "no refusal wrote anything");
+        assert!(differential(&state).await.agrees());
+    }
+
+    /// Protection by law, not by type — the falsifier PRD section 4.3.1 names. Remove the norm
+    /// by amending the law, and the same vacate executes. If the protection lived on the role,
+    /// this test could not be written.
+    ///
+    /// And the differential then says precisely why the succession is not yet REAL: the legacy
+    /// gate still counts the founding Sovereign, so they could still sign. Cutover is refused
+    /// until Sprint 4 makes the role tree the authority.
+    #[tokio::test]
+    async fn a_governed_succession_executes_once_the_law_permits_it_and_is_not_authoritative_before_cutover() {
+        let (_tmp, state) = fresh_rest_state(Some(MINIMAL_LAW)).await;
+        council_holder(&state).await;
+        let seat = founding_seat(&mirror(&state).await);
+
+        let err = admin_role_vacate(State(state.clone()), ConnectInfo(loop_addr()), Path(seat),
+            Json(RoleVacateBody { kind: None, reason: None })).await.err().expect("protected");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+
+        let mut amended = state.law.read().await.clone().unwrap();
+        amended.norms.retain(|n| n.id != FOUNDING_SEAT_NORM_ID);
+        amended.version = bump_law_version(&amended.version);
+        let yaml = serde_yaml::to_string(&amended).unwrap();
+        witness_law_amendment(&state, &yaml, amended.version.clone(), Some("permit succession".into())).await.unwrap();
+        *state.law.write().await = Some(amended);
+
+        admin_role_vacate(State(state.clone()), ConnectInfo(loop_addr()), Path(seat),
+            Json(RoleVacateBody { kind: Some("elected".into()), reason: Some("governed succession".into()) }))
+            .await.expect("the same act executes once the law permits it");
+
+        let d = differential(&state).await;
+        assert_eq!(d.divergences, vec![hub_lib::council_mirror::CouncilDivergence::HolderSets {
+            only_in_legacy: [state.sovereign_lct_id].into_iter().collect(),
+            only_in_roles: Default::default(),
+        }], "the role tree records the succession; the legacy gate does not");
+        assert!(!d.cutover_permitted(),
+            "so it is not yet authoritative — the founding Sovereign can still sign on the legacy path");
+    }
+
+    /// Gate-before-append on the operator path. A council change whose COUNTERPART the law
+    /// refuses must leave the chain bit-identical — not commit the legacy half and drop the
+    /// role half, which is exactly the divergence the differential would then have to find.
+    #[tokio::test]
+    async fn a_council_change_whose_counterpart_the_law_refuses_writes_nothing() {
+        let law = format!("{MINIMAL_LAW}  - id: NO-QUORUM-CHANGES\n    selector: r6.request.action\n    operator: \"==\"\n    value: role_quorum_set\n    decision: deny\n    priority: 5\n");
+        let (_tmp, state) = fresh_rest_state(Some(&law)).await;
+        council_holder(&state).await;
+        mirror(&state).await;
+        let before = state.ledger.lock().await.entries().len();
+
+        let err = admin_council_set_threshold(State(state.clone()), ConnectInfo(loop_addr()),
+            Json(ThresholdBody { m: 2 })).await.err().expect("the counterpart is refused");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("NO-QUORUM-CHANGES"), "{}", err.message);
+        let l = state.ledger.lock().await;
+        assert_eq!(l.entries().len(), before, "the legacy half did not commit either");
+        assert!(!l.entries().iter().any(|e| e.event.kind() == "council_threshold_changed"));
+    }
+
+    /// Every operator council change after mirroring keeps the two readings in agreement, and
+    /// the counterparts are reported back so an operator can see what was written.
+    #[tokio::test]
+    async fn operator_council_changes_after_mirroring_keep_the_role_tree_in_step() {
+        let (_tmp, state) = fresh_rest_state(Some(MINIMAL_LAW)).await;
+        mirror(&state).await;
+
+        let (a, b) = (Uuid::new_v4(), Uuid::new_v4());
+        for id in [a, b] {
+            let out = admin_council_add(State(state.clone()), ConnectInfo(loop_addr()), Json(CouncilAddBody {
+                lct_id: id, pubkey_hex: KeyPair::generate().verifying_key().to_hex(), name: None,
+            })).await.unwrap().0;
+            assert_eq!(out["role_counterparts"].as_array().unwrap().len(), 2, "constitute a seat, fill it");
+            assert!(differential(&state).await.agrees());
+        }
+
+        let out = admin_council_remove(State(state.clone()), ConnectInfo(loop_addr()), Path(a),
+            Json(CouncilRemoveBody { kind: None, reason: None })).await.unwrap().0;
+        assert_eq!(out["role_counterparts"].as_array().unwrap().len(), 1, "vacate the seat");
+        let d = differential(&state).await;
+        assert!(d.agrees(), "{:?}", d.divergences);
+        let q = d.roles.unwrap().quorum;
+        assert_eq!((q.established, q.occupied), (3, 2), "N kept, O dropped");
+
+        admin_council_set_threshold(State(state.clone()), ConnectInfo(loop_addr()), Json(ThresholdBody { m: 2 }))
+            .await.unwrap();
+        let d = differential(&state).await;
+        assert!(d.agrees(), "{:?}", d.divergences);
+        assert_eq!(d.roles.unwrap().quorum.required, 2);
+    }
+
+    /// The council path carries counterparts too, each stamped with the proposal that
+    /// authorised it — and a vote whose counterpart would vacate the founding seat is refused
+    /// WHOLE, legacy half included.
+    #[tokio::test]
+    async fn a_council_vote_carries_its_counterparts_and_cannot_vacate_the_founding_seat() {
+        let (_tmp, state) = fresh_rest_state(Some(MINIMAL_LAW)).await;
+        let (holder, kp) = council_holder(&state).await;
+        reseed_resolver(&state).await;
+        mirror(&state).await;
+
+        let newcomer = Uuid::new_v4();
+        let add = serde_json::to_value(HubEvent::CouncilMemberAdded {
+            member_lct_id: newcomer, member_pubkey_hex: KeyPair::generate().verifying_key().to_hex(),
+            added_by: holder, member_name: None,
+        }).unwrap();
+        let env = council_envelope(&state, &kp, holder, serde_json::json!({
+            "action": "council_propose", "proposed_event": add})).await;
+        let proposal = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .expect("one of 1 required: commits").0;
+        {
+            let l = state.ledger.lock().await;
+            let stamped: Vec<_> = l.entries().iter()
+                .filter(|e| e.proposal_ref == Some(proposal.id)).map(|e| e.event.kind()).collect();
+            assert_eq!(stamped, vec!["council_member_added", "role_created", "role_assigned"],
+                "the legacy act and both counterparts, all stamped with the vote that authorised them");
+        }
+        assert!(differential(&state).await.agrees());
+
+        let before = state.ledger.lock().await.entries().len();
+        let remove_founder = serde_json::to_value(HubEvent::CouncilMemberRemoved {
+            member_lct_id: state.sovereign_lct_id, removed_by: holder,
+            removal_kind: web4_core::role::RoleEventKind::FillerEjected, reason: None,
+        }).unwrap();
+        let env = council_envelope(&state, &kp, holder, serde_json::json!({
+            "action": "council_propose", "proposed_event": remove_founder})).await;
+        let err = submit_proposal(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .err().expect("its counterpart would vacate the protected seat");
+        assert_eq!(err.status, StatusCode::FORBIDDEN, "{}", err.message);
+        assert!(err.message.contains(FOUNDING_SEAT_NORM_ID), "{}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "refused whole");
+        assert!(differential(&state).await.agrees());
+    }
+
+    /// The operator sees the mirror's state where they would act on it: before mirroring, the
+    /// action; after, the tree's N/O/M and whether it agrees with the gate.
+    #[tokio::test]
+    async fn the_manage_page_offers_the_mirror_then_reports_its_differential() {
+        let (_tmp, state) = fresh_rest_state(Some(MINIMAL_LAW)).await;
+        let html = crate::admin::manage_page(State(state.clone())).await.unwrap().0;
+        assert!(html.contains("<b>not mirrored</b>") && html.contains("councilMirror()"),
+            "before: the action is offered");
+
+        council_holder(&state).await;
+        mirror(&state).await;
+        let html = crate::admin::manage_page(State(state.clone())).await.unwrap().0;
+        assert!(!html.contains("not mirrored"), "after: no longer offered");
+        assert!(html.contains("2 established · 2 occupied · 1 required"), "the tree's own numbers");
+        assert!(html.contains("agrees with the gate"));
+        assert!(html.contains("Cutover to occupancy-based signing: <b>permitted</b>"));
+    }
+
+    /// GPT's #850 HOLD: the mirror's law amendment is itself an act the CURRENT law governs.
+    ///
+    /// A law that allows `council_mirrored` but refuses `law_amended` must refuse the whole
+    /// composite act — and leave the ledger, the served law in memory, and the law in the store
+    /// bit-identical. Driven for both refusals the law can give: DENY (403) and ESCALATE (a 202
+    /// hold, which on this path is refused like everywhere else). The route only APPENDS a norm,
+    /// so the introduced law repeats the old law's decision on `law_amended`; what this pins is
+    /// that the gate runs before any side effect, against the law in force.
+    #[tokio::test]
+    async fn the_mirror_cannot_amend_a_law_that_refuses_amendments() {
+        for (decision, status) in [("deny", StatusCode::FORBIDDEN), ("escalate", StatusCode::ACCEPTED)] {
+            let law = format!("{MINIMAL_LAW}  - id: LAW-IS-FIXED\n    selector: r6.request.action\n    operator: \"==\"\n    value: law_amended\n    decision: {decision}\n    priority: 5\n");
+            let (_tmp, state) = fresh_rest_state(Some(&law)).await;
+            council_holder(&state).await;
+
+            let chain_before = state.ledger.lock().await.entries().len();
+            let served_before = serde_yaml::to_string(state.law.read().await.as_ref().unwrap()).unwrap();
+            let stored_before = state.open_store().await.unwrap().read_law().await.unwrap();
+
+            let err = admin_council_mirror(State(state.clone()), ConnectInfo(loop_addr())).await
+                .err().unwrap_or_else(|| panic!("{decision}: the mirror must not amend this law"));
+            assert_eq!(err.status, status, "{decision}: {}", err.message);
+            assert!(err.message.contains("LAW-IS-FIXED") || decision == "escalate",
+                "{decision}: names the norm: {}", err.message);
+
+            assert_eq!(state.ledger.lock().await.entries().len(), chain_before, "{decision}: nothing witnessed");
+            assert_eq!(serde_yaml::to_string(state.law.read().await.as_ref().unwrap()).unwrap(), served_before,
+                "{decision}: the served law is unchanged");
+            assert_eq!(state.open_store().await.unwrap().read_law().await.unwrap(), stored_before,
+                "{decision}: the stored law is unchanged");
+            assert_eq!(differential(&state).await.divergences,
+                vec![hub_lib::council_mirror::CouncilDivergence::NotMirrored],
+                "{decision}: and no mirror happened either");
+        }
+
+        // The consequence on a real law: the unmodified starter law escalates amendments, so a
+        // starter-law hub cannot mirror single-signer. Its escalation has no review queue behind
+        // it (V2-16), so the mirror waits on that, not on anything this route could decide.
+        let (_tmp, state) = fresh_rest_state(Some(include_str!("../../examples/starter-law.yaml"))).await;
+        let before = state.ledger.lock().await.entries().len();
+        let err = admin_council_mirror(State(state.clone()), ConnectInfo(loop_addr())).await
+            .err().expect("the starter law holds the amendment");
+        assert_eq!(err.status, StatusCode::ACCEPTED, "{}", err.message);
+        assert!(err.message.contains("ESCALATE-LAW-AMEND"), "{}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before);
+    }
+
+    #[tokio::test]
+    async fn a_hub_without_law_cannot_mirror_and_both_routes_are_loopback_only() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let before = state.ledger.lock().await.entries().len();
+        let err = admin_council_mirror(State(state.clone()), ConnectInfo(loop_addr())).await.err().expect("refused");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("no hub law"), "{}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "and no law was quietly created");
+
+        let remote: SocketAddr = "10.0.0.9:5555".parse().unwrap();
+        assert_eq!(admin_council_mirror(State(state.clone()), ConnectInfo(remote)).await.err().unwrap().status,
+            StatusCode::FORBIDDEN);
+        assert_eq!(admin_council_differential(State(state.clone()), ConnectInfo(remote)).await.err().unwrap().status,
+            StatusCode::FORBIDDEN);
     }
 
     /// THE PRODUCTION-SHAPED COUNCIL FIXTURE dp asked for on web4#810: a proposal is
