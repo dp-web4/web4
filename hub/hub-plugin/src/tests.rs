@@ -16,7 +16,7 @@ impl PluginCtx for MockCtx {
     fn signer_lct(&self) -> LctId {
         Uuid::nil()
     }
-    fn sign(&self, _bytes: &[u8]) -> Result<Vec<u8>, PluginError> {
+    async fn sign(&self, _bytes: &[u8]) -> Result<Vec<u8>, PluginError> {
         Ok(vec![0u8; 64])
     }
     fn signer_pubkey_hex(&self) -> String {

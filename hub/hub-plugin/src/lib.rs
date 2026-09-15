@@ -63,7 +63,10 @@ pub trait PluginCtx: Send + Sync {
     fn signer_lct(&self) -> LctId;
     /// Sign `bytes` as the signer LCT (Ed25519, 64-byte sig). Works whether the
     /// node holds the key (Local) or signs via a remote callback (Hestia).
-    fn sign(&self, bytes: &[u8]) -> Result<Vec<u8>, PluginError>;
+    /// Sign `bytes` as the signer identity. Async because a real host signs through a
+    /// possibly-remote signer (the hub's Hestia-mode signer is an HTTP callback); a
+    /// synchronous signature would force every host to block a runtime thread.
+    async fn sign(&self, bytes: &[u8]) -> Result<Vec<u8>, PluginError>;
     /// Verify side of `sign` — the signer's public key, hex.
     fn signer_pubkey_hex(&self) -> String;
     /// Read-only projected node state (members/roles/devices/…) as opaque JSON.
