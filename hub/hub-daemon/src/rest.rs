@@ -1440,6 +1440,18 @@ async fn authorize_event(
     Ok((unsigned, signature))
 }
 
+/// The exact `LawAmended` event an amendment of `yaml` witnesses. One constructor, so a caller
+/// that must GATE an amendment before witnessing it gates the same event that is then written,
+/// not a hand-built copy that could drift from it.
+fn law_amended_event(s: &RestState, yaml: &str, version: String, diff_summary: Option<String>) -> HubEvent {
+    HubEvent::LawAmended {
+        new_law_sha256: hub_lib::law::Law::sha256_hex_of(yaml),
+        amended_by: s.sovereign_lct_id,
+        version,
+        diff_summary,
+    }
+}
+
 /// Amend the hub law: persist the new YAML **and** witness the `LawAmended`
 /// that authorizes it — with the Sovereign signature obtained *before* the
 /// store is touched.
@@ -1487,12 +1499,7 @@ async fn witness_law_amendment(
     version: String,
     diff_summary: Option<String>,
 ) -> Result<u64, ApiError> {
-    let event = HubEvent::LawAmended {
-        new_law_sha256: hub_lib::law::Law::sha256_hex_of(yaml),
-        amended_by: s.sovereign_lct_id,
-        version,
-        diff_summary,
-    };
+    let event = law_amended_event(s, yaml, version, diff_summary);
     // Authorization dominates the side effects: nothing below this line runs
     // unless the Sovereign has already signed the amendment.
     let (unsigned, signature) = authorize_event(s, event).await?;
@@ -6089,8 +6096,8 @@ pub(crate) const FOUNDING_SEAT_NORM_ID: &str = "PROTECT-FOUNDING-SOVEREIGN-SEAT"
 ///
 /// surface: POST /admin/api/council/mirror   act: constitute the council as roles + amend law
 /// S: high/irreversible [construct: CouncilMirrored is at most once per hub; LawAmended]
-/// R: weak-only [construct: require_loopback]   W: pass [construct: governance_gate on the mirror; Sovereign signer]
-/// O: pass [construct: build_mirror refusal + law validation + governance_gate, all before witness_law_amendment]
+/// R: weak-only [construct: require_loopback]   W: pass [construct: governance_gate on BOTH acts — the mirror and the LawAmended event — against the current law; Sovereign signer]
+/// O: pass [construct: build_mirror refusal + law validation + both governance_gate calls, all before witness_law_amendment]
 /// A: pass [construct: CouncilMirrored carries legacy_basis_index; LawAmended carries the new sha]
 /// V: present [construct: at M>=2 governance_gate refuses — mirroring an established council is a council act]
 /// verdict: PASS
@@ -6148,9 +6155,19 @@ async fn admin_council_mirror(
     hub_lib::law::Law::parse_and_validate(&yaml)
         .map_err(|e| ApiError::bad_request(format!("amended law refused by validation: {e:#}")))?;
 
-    let law_entry_index = witness_law_amendment(&s, &yaml, law.version.clone(), Some(format!(
+    let summary = Some(format!(
         "{FOUNDING_SEAT_NORM_ID}: protect the founding Sovereign's council seat {sovereign_seat} \
-         ahead of mirroring the council onto roles"))).await?;
+         ahead of mirroring the council onto roles"));
+    // GPT's #850 HOLD: this route performs TWO consequential acts, and the law amendment is one
+    // of them. `witness_law_amendment` signs and persists without evaluating the law's norms, so
+    // without this line a law that allows `council_mirrored` but denies or escalates
+    // `law_amended` could still be changed through this endpoint. The amendment is gated here,
+    // against `s.law` — still the CURRENT law, never the one being introduced, because the swap
+    // below has not happened — and before the first side effect of either act.
+    governance_gate(&s.ledger, s.open_store().await.ok(), &s.law,
+        &law_amended_event(&s, &yaml, law.version.clone(), summary.clone())).await?;
+
+    let law_entry_index = witness_law_amendment(&s, &yaml, law.version.clone(), summary).await?;
     *s.law.write().await = Some(law);
     let mirror_entry_index = witness_event(&s, mirror).await?;
 
@@ -13221,6 +13238,11 @@ norms:
     async fn the_founding_seat_refuses_vacate_and_rotation_even_over_a_high_priority_escalation() {
         let law = format!("{}\n{}", include_str!("../../examples/starter-law.yaml"), "");
         let mut parsed = hub_lib::law::Law::parse_and_validate(&law).unwrap();
+        // The starter law ESCALATES law amendments, and the mirror's amendment is gated against
+        // the current law (#850), so on an unmodified starter-law hub the mirror HOLDS — pinned
+        // in `the_mirror_cannot_amend_a_law_that_refuses_amendments`. This test is about the
+        // seat's protection beating escalations on ROLE acts, so it drops that one norm.
+        parsed.norms.retain(|n| n.id != "ESCALATE-LAW-AMEND");
         parsed.norms.push(serde_yaml::from_str(r#"
 id: ESCALATE-VACATING
 selector: r6.request.action
@@ -13416,6 +13438,53 @@ priority: 1000
         assert!(html.contains("2 established · 2 occupied · 1 required"), "the tree's own numbers");
         assert!(html.contains("agrees with the gate"));
         assert!(html.contains("Cutover to occupancy-based signing: <b>permitted</b>"));
+    }
+
+    /// GPT's #850 HOLD: the mirror's law amendment is itself an act the CURRENT law governs.
+    ///
+    /// A law that allows `council_mirrored` but refuses `law_amended` must refuse the whole
+    /// composite act — and leave the ledger, the served law in memory, and the law in the store
+    /// bit-identical. Driven for both refusals the law can give: DENY (403) and ESCALATE (a 202
+    /// hold, which on this path is refused like everywhere else). The route only APPENDS a norm,
+    /// so the introduced law repeats the old law's decision on `law_amended`; what this pins is
+    /// that the gate runs before any side effect, against the law in force.
+    #[tokio::test]
+    async fn the_mirror_cannot_amend_a_law_that_refuses_amendments() {
+        for (decision, status) in [("deny", StatusCode::FORBIDDEN), ("escalate", StatusCode::ACCEPTED)] {
+            let law = format!("{MINIMAL_LAW}  - id: LAW-IS-FIXED\n    selector: r6.request.action\n    operator: \"==\"\n    value: law_amended\n    decision: {decision}\n    priority: 5\n");
+            let (_tmp, state) = fresh_rest_state(Some(&law)).await;
+            council_holder(&state).await;
+
+            let chain_before = state.ledger.lock().await.entries().len();
+            let served_before = serde_yaml::to_string(state.law.read().await.as_ref().unwrap()).unwrap();
+            let stored_before = state.open_store().await.unwrap().read_law().await.unwrap();
+
+            let err = admin_council_mirror(State(state.clone()), ConnectInfo(loop_addr())).await
+                .err().unwrap_or_else(|| panic!("{decision}: the mirror must not amend this law"));
+            assert_eq!(err.status, status, "{decision}: {}", err.message);
+            assert!(err.message.contains("LAW-IS-FIXED") || decision == "escalate",
+                "{decision}: names the norm: {}", err.message);
+
+            assert_eq!(state.ledger.lock().await.entries().len(), chain_before, "{decision}: nothing witnessed");
+            assert_eq!(serde_yaml::to_string(state.law.read().await.as_ref().unwrap()).unwrap(), served_before,
+                "{decision}: the served law is unchanged");
+            assert_eq!(state.open_store().await.unwrap().read_law().await.unwrap(), stored_before,
+                "{decision}: the stored law is unchanged");
+            assert_eq!(differential(&state).await.divergences,
+                vec![hub_lib::council_mirror::CouncilDivergence::NotMirrored],
+                "{decision}: and no mirror happened either");
+        }
+
+        // The consequence on a real law: the unmodified starter law escalates amendments, so a
+        // starter-law hub cannot mirror single-signer. Its escalation has no review queue behind
+        // it (V2-16), so the mirror waits on that, not on anything this route could decide.
+        let (_tmp, state) = fresh_rest_state(Some(include_str!("../../examples/starter-law.yaml"))).await;
+        let before = state.ledger.lock().await.entries().len();
+        let err = admin_council_mirror(State(state.clone()), ConnectInfo(loop_addr())).await
+            .err().expect("the starter law holds the amendment");
+        assert_eq!(err.status, StatusCode::ACCEPTED, "{}", err.message);
+        assert!(err.message.contains("ESCALATE-LAW-AMEND"), "{}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before);
     }
 
     #[tokio::test]

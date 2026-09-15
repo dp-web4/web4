@@ -575,7 +575,15 @@ above can honestly claim.
    On a hub running that law, operator role fills — and council changes after mirroring — cannot
    complete by either route until an escalation can be discharged, which is the governed mapping
    #849 names as the next slice. The fleet hub's law has neither norm.
-7. **Limitation.** At M ≥ 2 the mirror route is refused by the ratchet. Mirroring an established
+7. **The mirror's law amendment is gated by the current law (GPT's #850 HOLD).** The route
+   performs two consequential acts and first preflighted only the mirror; the amendment went
+   through `witness_law_amendment`, which signs without evaluating norms. A law that allowed
+   `council_mirrored` but denied or escalated `law_amended` could still be changed through it.
+   Both acts are now gated against the law in force before either side effect. Consequence on a
+   real law: the starter law escalates amendments, so a starter-law hub cannot mirror
+   single-signer until an escalation can be discharged (finding 6). The fleet hub's law has no
+   norm on `law_amended`.
+8. **Limitation.** At M ≥ 2 the mirror route is refused by the ratchet. Mirroring an established
    council is a council act, and the protecting law amendment does not happen through a proposal
    today (see 5). The fleet hub is at 1-of-1, so the intended order there is: mirror, then enrol
    the council, then raise the threshold — every step after the mirror carries its counterparts.
