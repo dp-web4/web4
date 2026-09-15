@@ -153,6 +153,11 @@ pub struct RestState {
     /// runs; `/unlock/challenge` returns 501). Set from `HUB_UNLOCK_VERIFIER`.
     /// The seam is generic + public; the verifier ships separately (open-core).
     pub unlock_verifier_cmd: Option<String>,
+    /// The `hub-plugin` registry this daemon HOSTS. Channel tools that no built-in arm
+    /// handles fall through to it (see `dispatch_channel`), so a `ToolPlugin` registered
+    /// here is served on the same gate → handle → scope path as the built-ins, without
+    /// forking the daemon. Empty unless something registers into it (`with_plugins`).
+    pub plugins: Arc<hub_plugin::PluginRegistry>,
     /// The deployment-profile inputs the **ignition-time production law gate**
     /// needs (`HUB_PROFILE=production` and its `HUB_ALLOW_NO_LAW=1` escape
     /// hatch), captured here at open like `unlock_verifier_cmd` above rather
@@ -487,6 +492,7 @@ impl RestState {
             vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unlock_gate: Arc::new(UnlockGate::default_policy()),
             unlock_verifier_cmd: std::env::var("HUB_UNLOCK_VERIFIER").ok().filter(|s| !s.is_empty()),
+            plugins: Arc::new(hub_plugin::PluginRegistry::new()),
             production_profile: std::env::var("HUB_PROFILE").as_deref() == Ok("production"),
             allow_no_law: std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
             unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -514,6 +520,13 @@ impl RestState {
     /// Open the state store using the in-memory derived key (de-env'd). Used for
     /// every runtime store re-open instead of reading `HUB_PASSPHRASE` from the
     /// environment.
+    /// Install a plugin registry. Registration is compile-time: whoever builds the daemon
+    /// (or a test) decides what is hosted; there is no plugin directory and no dynamic load.
+    pub fn with_plugins(mut self, registry: hub_plugin::PluginRegistry) -> Self {
+        self.plugins = Arc::new(registry);
+        self
+    }
+
     pub async fn open_store(&self) -> anyhow::Result<Box<dyn hub_lib::store::HubStore>> {
         let key = self.store_key.read().await.as_ref().map(|z| **z);
         hub_lib::store::open_hub_store_with_key_async(&self.paths.root, key).await
@@ -665,6 +678,7 @@ impl RestState {
             vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unlock_gate: Arc::new(UnlockGate::default_policy()),
             unlock_verifier_cmd: std::env::var("HUB_UNLOCK_VERIFIER").ok().filter(|s| !s.is_empty()),
+            plugins: Arc::new(hub_plugin::PluginRegistry::new()),
             production_profile: std::env::var("HUB_PROFILE").as_deref() == Ok("production"),
             allow_no_law: std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
             unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -4207,6 +4221,111 @@ impl ReadScope {
 }
 
 /// §5.1 R7 carrier: the effect of an `r7` block on a `referenced_act`.
+/// The daemon's read scope, as the plugin seam's `Scoper`: a Bounded plugin's result has
+/// every top-level array cut to this tier's read limit. Same limit the built-in arms apply
+/// through `effective_limit`, so a plugin cannot see more than a built-in would show.
+impl hub_plugin::Scoper for ReadScope {
+    fn bound(&self, _role: &str, mut result: serde_json::Value) -> serde_json::Value {
+        if let Some(cap) = self.effective_limit(None) {
+            if let Some(obj) = result.as_object_mut() {
+                for v in obj.values_mut() {
+                    if let Some(arr) = v.as_array_mut() {
+                        arr.truncate(cap);
+                    }
+                }
+            }
+        }
+        result
+    }
+}
+
+/// Hub law as the plugin seam's `PolicyGate`. A snapshot of the law at dispatch time — the
+/// registry's gate is synchronous — evaluated exactly as `gate_read` evaluates a built-in
+/// read: the plugin's `policy_action()` (by default `read:<name>`) against the caller's tier.
+/// Allow and Warn admit; Deny and Escalate refuse. `dispatch_channel` has already run
+/// `gate_read` on the tool name, so this is the seam's own contract being honoured, not a
+/// second opinion.
+struct LawGate(Option<Law>);
+
+impl hub_plugin::PolicyGate for LawGate {
+    fn allow(&self, role: &str, action: &str) -> bool {
+        let Some(law) = self.0.as_ref() else { return true };
+        let req = R6Request {
+            role: role.to_string(),
+            action: action.to_string(),
+            payload: Default::default(),
+            resource: Default::default(),
+        };
+        matches!(law.evaluate_outcome(&req).decision, Decision::Allow | Decision::Warn)
+    }
+}
+
+/// What this daemon lends a plugin: the `hub-plugin` seam's `PluginCtx`, backed by the real
+/// signer and the real projection.
+///
+/// Two capabilities are named gaps rather than silently absent:
+///
+/// - `sign` goes through the daemon's `SwappableSigner` with a `plugin_signature` intent
+///   whose `event` is the tool name and the sha256 of the bytes. The local keypair signer
+///   signs it. A Hestia-mode vault re-derives an intent's canonical event and will find
+///   these bytes are not that event, and refuse — correctly, until the vault learns a plugin
+///   intent. So plugin signing works in Local mode and fails closed in Hestia mode.
+/// - `send_to_peer` is `Unavailable`. Pair messages are a relay mailbox, not a
+///   request/response transport; a fan-out plugin needs a transport this daemon does not
+///   have yet.
+struct DaemonPluginCtx {
+    s: RestState,
+    caller: hub_plugin::Caller,
+    tool: String,
+    state: serde_json::Value,
+}
+
+#[async_trait::async_trait]
+impl hub_plugin::PluginCtx for DaemonPluginCtx {
+    fn caller(&self) -> &hub_plugin::Caller { &self.caller }
+    fn signer_lct(&self) -> hub_plugin::LctId { self.s.sovereign_lct_id }
+    async fn sign(&self, bytes: &[u8]) -> Result<Vec<u8>, hub_plugin::PluginError> {
+        use sha2::{Digest, Sha256};
+        let digest = hex::encode(Sha256::digest(bytes));
+        let intent = SignIntent {
+            request_id: Uuid::new_v4(),
+            hub_id: self.s.hub_id,
+            hub_name: self.s.hub_name.clone(),
+            actor_lct_id: self.s.sovereign_lct_id,
+            // Not a ledger entry. A plugin signature has no index; the intent says so.
+            ledger_index: 0,
+            event_kind: "plugin_signature".to_string(),
+            event: serde_json::json!({ "tool": self.tool, "sha256": digest }),
+        };
+        self.s.signer.sign(self.s.sovereign_lct_id, bytes, &intent).await
+            .map(|sig| hex::decode(sig.to_hex()).unwrap_or_default())
+            .map_err(|e| match e {
+                hub_lib::signer::SignError::Denied(m) => hub_plugin::PluginError::Denied(m),
+                hub_lib::signer::SignError::Transport(m) => hub_plugin::PluginError::Unavailable(m),
+                other => hub_plugin::PluginError::Internal(other.to_string()),
+            })
+    }
+    fn signer_pubkey_hex(&self) -> String {
+        self.s.signer.public_key().map(|pk| pk.to_hex()).unwrap_or_default()
+    }
+    fn state(&self) -> &serde_json::Value { &self.state }
+    async fn send_to_peer(&self, _peer: hub_plugin::LctId, _payload: &[u8]) -> Result<Vec<u8>, hub_plugin::PluginError> {
+        Err(hub_plugin::PluginError::Unavailable(
+            "this hub has no request/response transport to a peer yet: pair messages are a \
+             relay mailbox, not a call".to_string()))
+    }
+}
+
+fn plugin_error(e: hub_plugin::PluginError) -> ApiError {
+    use hub_plugin::PluginError as P;
+    match e {
+        P::Denied(m) => ApiError { status: StatusCode::FORBIDDEN, message: m },
+        P::BadRequest(m) => ApiError::bad_request(m),
+        P::Unavailable(m) => ApiError { status: StatusCode::SERVICE_UNAVAILABLE, message: m },
+        P::Internal(m) => ApiError::internal(anyhow::anyhow!(m)),
+    }
+}
+
 enum R7Op {
     /// Open an accountability obligation the caller (subject) commits to.
     Open {
@@ -5145,6 +5264,21 @@ async fn dispatch_channel(
                     }))
                 }
             }
+        }
+        // Not a built-in: the HOSTED plugins. This is the wiring the README called open work
+        // since the seam was promoted (#397): a ToolPlugin registered on this daemon is now
+        // served on the same channel, after the same tier resolution, presence touch and
+        // `gate_read` the built-ins get, through the seam's own gate → handle → scope.
+        other if s.plugins.names().iter().any(|n| n == other) => {
+            let ctx = DaemonPluginCtx {
+                s: s.clone(),
+                caller: hub_plugin::Caller { lct: caller_lct_id, role: role.to_string() },
+                tool: other.to_string(),
+                state: serde_json::to_value(&state)
+                    .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing state for plugin: {e}")))?,
+            };
+            let gate = LawGate(s.law.read().await.clone());
+            s.plugins.dispatch(&ctx, other, &inner.args, &gate, &scope).await.map_err(plugin_error)
         }
         other => Err(ApiError::bad_request(format!("unknown or non-channel tool: {other}"))),
     }
@@ -13501,6 +13635,171 @@ priority: 1000
             StatusCode::FORBIDDEN);
         assert_eq!(admin_council_differential(State(state.clone()), ConnectInfo(remote)).await.err().unwrap().status,
             StatusCode::FORBIDDEN);
+    // ---- The plugin host: a ToolPlugin registered on this daemon is served on the channel ----
+
+    struct EchoThings;
+    #[async_trait::async_trait]
+    impl hub_plugin::ToolPlugin for EchoThings {
+        fn name(&self) -> &str { "echo_things" }
+        async fn handle(&self, ctx: &dyn hub_plugin::PluginCtx, args: &serde_json::Value)
+            -> Result<serde_json::Value, hub_plugin::PluginError> {
+            let n = args.get("n").and_then(|v| v.as_u64()).unwrap_or(10);
+            Ok(serde_json::json!({
+                "things": (0..n).collect::<Vec<u64>>(),
+                "caller_role": ctx.caller().role,
+                "signer": ctx.signer_lct(),
+                "members_seen": ctx.state()["members"].as_object().map(|m| m.len()).unwrap_or(0),
+            }))
+        }
+    }
+
+    struct SignMe;
+    #[async_trait::async_trait]
+    impl hub_plugin::ToolPlugin for SignMe {
+        fn name(&self) -> &str { "sign_me" }
+        fn scope(&self) -> hub_plugin::ToolScope { hub_plugin::ToolScope::Unbounded }
+        async fn handle(&self, ctx: &dyn hub_plugin::PluginCtx, _args: &serde_json::Value)
+            -> Result<serde_json::Value, hub_plugin::PluginError> {
+            let sig = ctx.sign(b"hello from a plugin").await?;
+            Ok(serde_json::json!({ "sig_hex": hex::encode(sig), "pubkey_hex": ctx.signer_pubkey_hex() }))
+        }
+    }
+
+    struct CallPeer;
+    #[async_trait::async_trait]
+    impl hub_plugin::ToolPlugin for CallPeer {
+        fn name(&self) -> &str { "call_peer" }
+        async fn handle(&self, ctx: &dyn hub_plugin::PluginCtx, _args: &serde_json::Value)
+            -> Result<serde_json::Value, hub_plugin::PluginError> {
+            ctx.send_to_peer(Uuid::new_v4(), b"ping").await.map(|_| serde_json::json!({}))
+        }
+    }
+
+    /// A plugin whose policy action is NOT `read:<its name>`. `gate_read` gates the tool
+    /// NAME, so only the seam's own gate sees this action — which is what makes the
+    /// registry's gate load-bearing rather than a second copy of a check already made.
+    struct ExportThings;
+    #[async_trait::async_trait]
+    impl hub_plugin::ToolPlugin for ExportThings {
+        fn name(&self) -> &str { "export_things" }
+        fn policy_action(&self) -> String { "read:export".to_string() }
+        async fn handle(&self, _ctx: &dyn hub_plugin::PluginCtx, _args: &serde_json::Value)
+            -> Result<serde_json::Value, hub_plugin::PluginError> {
+            Ok(serde_json::json!({ "exported": true }))
+        }
+    }
+
+    fn hosted() -> hub_plugin::PluginRegistry {
+        let mut r = hub_plugin::PluginRegistry::new();
+        r.register(Arc::new(EchoThings));
+        r.register(Arc::new(SignMe));
+        r.register(Arc::new(CallPeer));
+        r.register(Arc::new(ExportThings));
+        r
+    }
+
+    async fn channel(state: &RestState, caller: Uuid, tool: &str, args: serde_json::Value) -> Result<serde_json::Value, ApiError> {
+        let inner: ChannelInner = serde_json::from_value(serde_json::json!({ "tool": tool, "args": args })).unwrap();
+        dispatch_channel(state, caller, Uuid::new_v4(), None, inner).await
+    }
+
+    /// The wiring the README called open work since #397: a plugin registered on THIS daemon
+    /// is served on the channel, after the same tier resolution and law gate as a built-in,
+    /// and scoped by tier through the seam's own contract.
+    #[tokio::test]
+    async fn a_hosted_plugin_is_served_on_the_channel_gated_and_scoped_by_tier() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let state = state.with_plugins(hosted());
+        let citizen = member(&state, "citizen").await;
+
+        // Sovereign: unbounded, sees the whole result and a real signer id.
+        let out = channel(&state, state.sovereign_lct_id, "echo_things", serde_json::json!({"n": 100})).await.unwrap();
+        assert_eq!(out["things"].as_array().unwrap().len(), 100);
+        assert_eq!(out["caller_role"], "sovereign");
+        assert_eq!(out["signer"], serde_json::json!(state.sovereign_lct_id));
+        assert!(out["members_seen"].as_u64().unwrap() >= 2, "the plugin reads the real projection");
+
+        // Citizen: the same plugin, cut to the citizen read limit by the daemon's ReadScope.
+        let out = channel(&state, citizen, "echo_things", serde_json::json!({"n": 100})).await.unwrap();
+        assert_eq!(out["things"].as_array().unwrap().len(), CITIZEN_READ_LIMIT,
+            "Bounded results are truncated to the tier's limit — the built-ins' limit, not a plugin's own");
+        assert_eq!(out["caller_role"], "citizen");
+
+        // External: refused before any plugin is consulted, exactly like a built-in.
+        let err = channel(&state, Uuid::new_v4(), "echo_things", serde_json::json!({})).await.err().unwrap();
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+
+        // Unknown tools are still a 400 — the host did not make the channel accept anything.
+        let err = channel(&state, citizen, "no_such_tool", serde_json::json!({})).await.err().unwrap();
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    }
+
+    /// Hub law binds a hosted plugin as it binds a built-in read: a norm on `read:<name>`
+    /// refuses it for the tier it names.
+    #[tokio::test]
+    async fn hub_law_gates_a_hosted_plugin_by_its_policy_action() {
+        let law = r#"
+version: "1.0.0"
+norms:
+  - id: NO-ECHO-FOR-CITIZENS
+    selector: r6.request.action
+    operator: "=="
+    value: "read:echo_things"
+    decision: deny
+    priority: 10
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(law)).await;
+        let state = state.with_plugins(hosted());
+        let citizen = member(&state, "citizen").await;
+        let err = channel(&state, citizen, "echo_things", serde_json::json!({})).await.err().expect("denied");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("NO-ECHO-FOR-CITIZENS"), "{}", err.message);
+        // The norm names citizens' action only by selector; the Sovereign is the same role
+        // string in R6 and is denied too — law is about the action here, not the tier.
+        let err = channel(&state, state.sovereign_lct_id, "echo_things", serde_json::json!({})).await.err().expect("denied");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+
+        // The seam's OWN gate, load-bearing: `export_things` declares policy action
+        // `read:export`. `gate_read` checks `read:export_things` and passes; only the
+        // registry's gate evaluates what the plugin declared.
+        let law = r#"
+version: "1.0.0"
+norms:
+  - id: NO-EXPORT
+    selector: r6.request.action
+    operator: "=="
+    value: "read:export"
+    decision: deny
+    priority: 10
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(law)).await;
+        let state = state.with_plugins(hosted());
+        let err = channel(&state, state.sovereign_lct_id, "export_things", serde_json::json!({})).await
+            .err().expect("denied by the declared action, not the tool name");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("read:export"), "{}", err.message);
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let state = state.with_plugins(hosted());
+        assert_eq!(channel(&state, state.sovereign_lct_id, "export_things", serde_json::json!({})).await.unwrap()["exported"], true);
+    }
+
+    /// `PluginCtx::sign` signs with the hub's real signer, and the signature verifies against
+    /// the key the ctx reports — so a plugin's signed output is checkable by anyone holding
+    /// the hub's public key. `send_to_peer` is a NAMED gap: 503, not a silent no-op.
+    #[tokio::test]
+    async fn a_hosted_plugin_signs_with_the_real_signer_and_peer_calls_are_a_named_gap() {
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let state = state.with_plugins(hosted());
+        let out = channel(&state, state.sovereign_lct_id, "sign_me", serde_json::json!({})).await.unwrap();
+        let sig_bytes: [u8; 64] = hex::decode(out["sig_hex"].as_str().unwrap()).unwrap().try_into().unwrap();
+        let pk = state.signer.public_key().expect("local signer exposes its key");
+        assert_eq!(out["pubkey_hex"], pk.to_hex(), "the ctx reports the key that signed");
+        pk.verify(b"hello from a plugin", &web4_core::crypto::SignatureBytes::from_bytes(sig_bytes))
+            .expect("verifies against the hub's key");
+
+        let err = channel(&state, state.sovereign_lct_id, "call_peer", serde_json::json!({})).await.err().expect("no transport");
+        assert_eq!(err.status, StatusCode::SERVICE_UNAVAILABLE);
+        assert!(err.message.contains("relay mailbox"), "says why: {}", err.message);
     }
 
     /// THE PRODUCTION-SHAPED COUNCIL FIXTURE dp asked for on web4#810: a proposal is
