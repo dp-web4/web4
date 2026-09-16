@@ -4,7 +4,7 @@
 //! # Recursive in-memory vault
 //!
 //! The shared storage substrate for hub / hestia / hardbound. Doctrine (see
-//! `dev-hub/design/recursive-vault.md`):
+//! `docs/best-practices/storage-and-key-management.md`):
 //!
 //! 1. **Total enclosure** — config, identity, metadata, and state live inside an
 //!    encrypted vault, never in plaintext files. Each item is a [`Document`].
