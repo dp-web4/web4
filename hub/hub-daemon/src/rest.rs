@@ -13635,6 +13635,8 @@ priority: 1000
             StatusCode::FORBIDDEN);
         assert_eq!(admin_council_differential(State(state.clone()), ConnectInfo(remote)).await.err().unwrap().status,
             StatusCode::FORBIDDEN);
+    }
+
     // ---- The plugin host: a ToolPlugin registered on this daemon is served on the channel ----
 
     struct EchoThings;
