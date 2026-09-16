@@ -1340,12 +1340,14 @@ name = "hub-daemon"
 version = "0.1.0-alpha.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "chrono",
  "clap",
  "ctrlc",
  "hex",
  "hub-lib",
+ "hub-plugin",
  "reqwest",
  "rpassword",
  "serde",
