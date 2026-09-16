@@ -3,3 +3,6 @@
 .hardbound/signing.key
 
 .hardbound/actors/claude/signing.key
+# Every actor's private half, not one actor's. The dp actor's key was committed on 2026-04-06
+# (#133) because only the claude actor's path was listed; found by the 2026-09-15 leak sweep.
+.hardbound/actors/*/signing.key

@@ -116,7 +116,7 @@ ledger-witnessed Web4 event; the DID metadata reflects it.
 This mapping is **generic and public-eligible** — it discloses no novel
 mechanism. It exposes only the identifier+keys+endpoints slice that DID
 standardizes. The witness tree, constellation-MFA, replicated log, and SITL
-machinery are *not* referenced here and stay behind the dev-hub boundary. The
+machinery are *not* referenced here and stay private. The
 `Web4Hub` service endpoint is the single door from the DID world into the
 Web4-native layer; what's behind that door is Web4's, not the DID Document's.
 

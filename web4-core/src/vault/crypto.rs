@@ -4,7 +4,7 @@
 //! Vault crypto primitives — Argon2id KDF + ChaCha20-Poly1305 AEAD.
 //!
 //! Shared substrate for the recursive in-memory vault used by hub / hestia /
-//! hardbound (see `dev-hub/design/recursive-vault.md`). Argon2id (m=64MB, t=3,
+//! hardbound (see `docs/best-practices/storage-and-key-management.md`). Argon2id (m=64MB, t=3,
 //! p=4) derives a 32-byte key from a passphrase + salt; ChaCha20-Poly1305 seals
 //! the payload. The `DerivedKey` zeroizes on drop.
 
