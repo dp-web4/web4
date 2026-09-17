@@ -31,6 +31,40 @@ Applies to the `sqlite` backend (the `file` backend is plaintext on disk; pair i
 
 **Rekey via `rotate-passphrase`.** `hub rotate-passphrase <hub-dir>` re-keys the state DB in place: it opens with the current key, verifies it decrypts, then `PRAGMA rekey`s to the new key (and re-seeds the protected vault tier under the new phrase). It's interactive (console only) and aborts without changing anything if the current passphrase doesn't decrypt. Restart the hub afterward — it boots locked and is ignited with `hub unlock` using the new phrase.
 
+### The protected tier's item tiers (`vault_tree`)
+
+Beside the state DB, the hub keeps a small **recursive-item enclosure** at
+`<hub-dir>/protected.hvlt` (`hub-lib/src/vault_tree.rs`, mode `0600`). The whole file is one
+AEAD blob; opening it with the master key yields the config and an **index** of what exists
+and how each item is protected — not every item's plaintext. Each item carries its own tier:
+
+| Tier | Opens with | Notes |
+|---|---|---|
+| `Master` | the outer master key | available from ignition |
+| `Sealed` | an independent credential | master unlock reveals that it exists, not its content |
+| `Liveness` | a presence proof obtained **at open time** | no proof is stored with the item |
+| `SealedLiveness` | both | presence is checked first |
+
+An item may itself be a **sub-vault** — a vault of the same form, keyed by the same master —
+so one authorized open gates a hierarchy. A sub-vault's own items keep their own tiers:
+opening the parent's item does not open what is protected inside the child.
+
+**How a liveness item is opened.** The caller asks the vault for a challenge for that
+specific item (`presence_challenge`), which mints a single-use nonce through the public
+[constellation verifier](../hub-lib/src/constellation.rs) and records which item it was minted
+for. A member then presents a constellation attestation carrying that nonce. At open time the
+verifier resolves every device key and class from the **enrollment record** rather than from
+the presented attestation, counts only signatures that verify against enrolled keys, and
+derives the assurance tier itself; the item's requirement is checked against that derived
+tier, never a claimed one. The challenge is single-use twice over — the verifier burns its
+nonce on any presentation attempt, and the vault drops its item binding on any open attempt —
+so a failed presentation costs a fresh challenge instead of leaving one open to further tries.
+
+**What this is not.** The enforcement is this process's own code: a host that is already
+compromised can call the open path directly. Moving that decision inside a hardware module
+that holds the key material is a different and stronger design, and the hub does not
+implement it. Nothing here is a hardware-rooted assurance claim.
+
 **Ledger included.** The ledger lives in the same encrypted DB, so it is encrypted at rest too. Integrity still comes from the signed hash-chain; encryption at rest is an added confidentiality layer, not a replacement for signatures.
 
 ---

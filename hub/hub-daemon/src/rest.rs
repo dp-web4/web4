@@ -1958,13 +1958,14 @@ async fn unlock_attest(
 /// recognition model — the quorum *authorizes*; the hub holds the credential. Returns the
 /// released payload, or `None` if no protected store is configured / it can't be opened.
 async fn open_protected_tier(s: &RestState) -> Option<String> {
+    use hub_lib::vault_tree::Factors;
     let guard = s.protected.lock().await;
     let v = guard.as_ref()?;
-    let cred = match v.open_item(PROTECTED_NOTE_CRED, None) {
+    let cred = match v.open_item(PROTECTED_NOTE_CRED, &Factors::default()) {
         Ok(c) => String::from_utf8_lossy(&c).into_owned(),
         Err(e) => { tracing::warn!("protected-tier: reading sealing credential failed: {e}"); return None; }
     };
-    match v.open_item(PROTECTED_NOTE, Some(&cred)) {
+    match v.open_item(PROTECTED_NOTE, &Factors::sealed(&cred)) {
         Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
         Err(e) => { tracing::warn!("protected-tier: opening sealed item failed: {e}"); None }
     }
