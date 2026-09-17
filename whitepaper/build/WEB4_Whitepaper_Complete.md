@@ -444,7 +444,7 @@ The claims are testable and the artifacts are public. The [standard](https://git
 
 ## Legal and organizational framework
 
-The LCT mechanism is protected by two issued U.S. patents — [US11477027](https://patents.google.com/patent/US11477027B1) and [US12278913](https://patents.google.com/patent/US12278913B2) — with additional filings pending, held to keep the foundational mechanisms open for public benefit. The published implementations are licensed **AGPL-3.0-or-later** with a royalty-free patent grant for non-commercial and research use ([PATENTS.md](https://github.com/dp-web4/web4/blob/main/PATENTS.md)). Development is supported by **MetaLINXX Inc.** The conceptual layer draws on the [Synchronism](https://dpcars.net/synchronism) research program; Web4 itself is practical architecture, evaluable as protocols and running code.
+The LCT mechanism is protected by two issued U.S. patents — [US11477027](https://patents.google.com/patent/US11477027B1) and [US12278913](https://patents.google.com/patent/US12278913B2) — with additional filings pending, held to keep the foundational mechanisms open for public benefit. The published implementations are licensed **AGPL-3.0-or-later** with the royalty-free patent license of AGPL-3.0 Section 11, which [PATENTS.md](https://github.com/dp-web4/web4/blob/main/PATENTS.md) does not narrow; separate commercial licensing is available for uses not compliant with AGPL-3.0. Development is supported by **MetaLINXX Inc.** The conceptual layer draws on the [Synchronism](https://dpcars.net/synchronism) research program; Web4 itself is practical architecture, evaluable as protocols and running code.
 
 ## An invitation
 
@@ -619,4 +619,4 @@ To contribute to Web4 development or request access to additional technical docu
 
 ---
 
-*Generated: 2026-09-09 05:12:51*
+*Generated: 2026-09-17 10:15:59*
