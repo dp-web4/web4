@@ -133,7 +133,7 @@ New package in the v0.2.0 family. Previously published on PyPI as `web4`; rename
 
 ## Patent grant
 
-Implementations are covered by US Patents 11,477,027 and 12,278,913, and pending application 19/178,619 (assigned to MetaLINXX Inc.). AGPL-3.0 Section 11 grants a royalty-free patent license for any use AGPL-3.0 permits; this notice does not narrow it. Separate commercial licensing is available for uses not compliant with AGPL-3.0. See [`PATENTS.md`](../../PATENTS.md).
+Implementations are covered by US Patents 11,477,027 and 12,278,913, and pending application 19/178,619 (assigned to MetaLINXX Inc.). AGPL-3.0 Section 11 grants each contributor a royalty-free patent license under that contributor's essential patent claims for its contributor version; that grant is not restricted to non-commercial use. See [`PATENTS.md`](../../PATENTS.md) for scope and terms. Separate commercial licensing is available for non-AGPL-compliant uses or additional rights.
 
 ---
 

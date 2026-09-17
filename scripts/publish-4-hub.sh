@@ -136,9 +136,11 @@ paths. **File issues and PRs against
 Root [`LICENSE`](LICENSE) (AGPL-3.0-or-later) covers `hub/`;
 [`web4-core/LICENSE`](web4-core/LICENSE) is the same AGPL-3.0-or-later text
 (the crate declares `license = "AGPL-3.0-or-later"`). AGPL-3.0 Section 11
-grants a royalty-free patent license for any use AGPL-3.0 permits;
-[`PATENTS.md`](PATENTS.md) names the patents and does not narrow that grant.
-Separate commercial licensing is available for uses not compliant with AGPL-3.0.
+grants each contributor a royalty-free patent license under that contributor's
+essential patent claims for its contributor version; that grant is not
+restricted to non-commercial use. See [`PATENTS.md`](PATENTS.md) for scope and
+terms. Separate commercial licensing is available for non-AGPL-compliant uses
+or additional rights.
 EOF
 git add README.md
 git -c user.name="4-hub mirror" -c user.email="noreply@metalinxx.io" \
