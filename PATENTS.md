@@ -18,6 +18,11 @@ This software implements technology covered by the following patents and patent 
 - Linking of identifiable records
 - Methods of communicating between associated identifiable records
 
+**US Application 19/803,885** (filed September 10, 2026) - Systems and Methods for Witnessed Trust Verification, Governed Delegation, and Hardware-Attested Accountability Among Networked Entities
+- Witnessed trust verification
+- Governed delegation
+- Hardware-attested accountability
+
 ---
 
 ## License Grant
