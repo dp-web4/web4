@@ -123,7 +123,7 @@ The spring-2026 ARC-AGI-3 result remains in the repository's historical proof ar
 
 ## Patent notice
 
-This software implements technology covered by US Patents 11,477,027 and 12,278,913, and pending application 19/178,619 (assigned to MetaLINNX Inc.). A royalty-free patent license is granted under AGPL-3.0 terms for non-commercial / research / open-source use. For commercial licensing, see [PATENTS.md](PATENTS.md) for full terms.
+This software implements technology covered by US Patents 11,477,027 and 12,278,913, and pending application 19/178,619 (assigned to MetaLINXX Inc.). AGPL-3.0 Section 11 grants each contributor a royalty-free patent license under that contributor's essential patent claims for its contributor version; that grant is not restricted to non-commercial use. See [PATENTS.md](PATENTS.md) for scope and terms. Separate commercial licensing is available for non-AGPL-compliant uses or additional rights.
 
 ## License
 
