@@ -150,7 +150,9 @@ See [web4-society-authority-law.md](web4-standard/core-spec/web4-society-authori
 
 Web4 is designed to compose with, not replace, existing identity/credential standards. Work in the repository includes `did:web4`, SD-JWT-VC and OpenID4VCI/VP paths, with broader DID/EUDI wallet interoperability still building.
 
-Start with:
+**Standards bodies, public-sector reviewers, and agent-security implementers:** start with the [standards review package](docs/standards/README.md). It maps the running Web4 / Hestia work into current AI-agent identity, authorization, delegation, provenance, audit, non-repudiation, allow/deny/revoke, and runtime-governance vocabulary, including a [NIST / NCCoE crosswalk](docs/standards/NIST_NCCOE_AI_AGENT_IDENTITY_AUTHORIZATION_CROSSWALK.md) and [implementation evidence index](docs/standards/IMPLEMENTATION_EVIDENCE.md).
+
+Additional interoperability references:
 
 - [Web4 and Standard Credentials](docs/whitepapers/web4-and-standard-credentials.md)
 - [EUDI resolvability plan](docs/strategy/eudi-resolvability-plan.md)
