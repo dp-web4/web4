@@ -16,8 +16,8 @@ This file gives reviewers a direct path from a standards requirement to inspecta
 | Scoped delegation / revocation | [Hestia README](https://github.com/dp-web4/hestia/blob/main/README.md) | Measured |
 | Contextual trust derivation | [Hestia README](https://github.com/dp-web4/hestia/blob/main/README.md) | Measured, evidence-derived |
 | Vault | [Hestia README](https://github.com/dp-web4/hestia/blob/main/README.md) | Measured |
-| Multi-agent / society semantics | [Hub docs](../hub/) | Running reference implementation plus active PRDs |
-| Incident classification / scope / disclosure governance | [PRD_INCIDENT_CLASSIFICATION_DISCLOSURE](../hub/PRD_INCIDENT_CLASSIFICATION_DISCLOSURE.md) | Specified governance delta |
+| Multi-agent / society semantics | [Hub docs](../../hub/docs/) | Running reference implementation plus active PRDs |
+| Incident classification / scope / disclosure governance | [PRD_INCIDENT_CLASSIFICATION_DISCLOSURE](../../hub/docs/PRD_INCIDENT_CLASSIFICATION_DISCLOSURE.md) | Specified governance delta |
 
 ## 2. Authority and accountability
 
@@ -27,10 +27,10 @@ This file gives reviewers a direct path from a standards requirement to inspecta
 - [R6/R7 action and result envelopes](https://github.com/dp-web4/hestia/blob/main/docs/PRD_R6_R7_ENVELOPES.md)  
   Evidence carrier for consequential acts and outcomes.
 
-- [Escalation law composition](../hub/PRD_ESCALATION_LAW_COMPOSITION.md)  
+- [Escalation law composition](../../hub/docs/PRD_ESCALATION_LAW_COMPOSITION.md)  
   Composable human / peer authority and escalation semantics.
 
-- [Devil's Advocate role](../hub/PRD_DEVILS_ADVOCATE_ROLE.md)  
+- [Devil's Advocate role](../../hub/docs/PRD_DEVILS_ADVOCATE_ROLE.md)  
   Independent review role with broader-frame and conflict constraints.
 
 ## 3. Runtime effect governance
@@ -67,9 +67,9 @@ The public architecture already incorporates lessons relevant to agent standards
 
 Relevant PRDs:
 
-- [Evolution / collective behavior](../hub/PRD_EVOLUTION.md)
-- [Incident classification, investigation scope, and disclosure](../hub/PRD_INCIDENT_CLASSIFICATION_DISCLOSURE.md)
-- [Devil's Advocate independent review](../hub/PRD_DEVILS_ADVOCATE_ROLE.md)
+- [Evolution / collective behavior](../../hub/docs/PRD_EVOLUTION.md)
+- [Incident classification, investigation scope, and disclosure](../../hub/docs/PRD_INCIDENT_CLASSIFICATION_DISCLOSURE.md)
+- [Devil's Advocate independent review](../../hub/docs/PRD_DEVILS_ADVOCATE_ROLE.md)
 
 ## 6. Reproducibility / reviewer checklist
 
