@@ -48,7 +48,7 @@ Roles a society MAY define when its needs warrant, but that are not required for
 
 ## 2. Base-Mandatory Roles
 
-Every Web4-compliant society MUST have these seven roles filled. A single entity MAY fill multiple roles in a small society (e.g., a solo founder fills all seven — Sovereign + Law Oracle + Policy-Entity + Treasurer + Administrator + Archivist + Citizen — simultaneously). The roles must exist; how many entities fill them is per-society scale.
+Every Web4-compliant society MUST have these eight roles filled. A single entity MAY fill multiple roles in a small society (e.g., a solo founder fills all eight — Sovereign + Law Oracle + Policy-Entity + Treasurer + Administrator + Archivist + Citizen + Maintainer — simultaneously). The roles must exist; how many entities fill them is per-society scale.
 
 ### 2.1 Sovereign
 
@@ -180,6 +180,46 @@ Every Web4-compliant society MUST have these seven roles filled. A single entity
 **Notes**:
 - Citizenship is universal across Web4 entities; the citizen-role principle and structure are detailed in `entity-types.md` §3.1, and the pairing mechanics (prerequisite check, permanence, termination) in §3.4
 - Every entity in a Web4 society holds Citizen as its base role; additional roles are paired on top
+
+### 2.8 Maintainer
+
+**Function**: Periodic examination of the entity's own state, and repair of what has decayed within it. Where the Archivist records what happened and the Auditor checks conduct against law, the Maintainer asks whether the *standing state* the entity's other roles depend on is still true: which members exist, which wiring is live, which documented assumption still holds, and whether the resources the entity needs to keep its commitments remain available.
+
+**Corporate analogue**: Facilities + IT operations + records retention — the functions that keep an organization able to act, distinct from the functions that decide what it does
+
+**Why base-mandatory**: An entity's governance is only as available as the substrate it runs on. Unmaintained state fails *closed and silently*: exhausted resources make a policy engine unresponsive, so decisions are refused for reasons no participant can see or appeal; stale membership keeps stubs and retired identities in decision pools; miswired artifacts leave enforcement pointing at an artifact nobody attested. Each is indistinguishable, from inside, from the law itself refusing. A society that cannot state when its own state was last examined cannot ground a trust claim about anything else it asserts.
+
+**Authority scope**:
+- MUST examine, on a declared cadence, the state of its entity, and record the examination — including examinations that find nothing wrong. The entity's MRH bounds what is *relevant* to examine; it does not itself authorize any read or effect
+- MUST record each finding with its evidence, an owner, and a **clearing condition** — the specific, checkable fact that closes it
+- MUST record the closing edge as well as the opening one: a finding that can only be re-asserted, never closed, is a level and not an event
+- MAY read and repair ONLY within the authority its entity's law explicitly grants it — a role scope manifest, a delegation, or a clearance — intersected with the authority of whatever entity fills the role. Defining the role grants none of this by itself
+- MUST escalate, rather than widen its own authority, when the evidence it needs or the repair it has identified lies outside that granted authority OR outside its entity's jurisdiction
+- MUST NOT acquire reach by traversing its entity's MRH. Relevance is not permission: the role confers attention, not authority
+
+**Example filling entities**: Human, AI, Service, Society, Device (self-test), Hybrid; for a small entity, the same entity that fills its other roles
+
+**Notes**:
+- The Maintainer's findings are inputs to the Auditor, not substitutes for it: maintenance reports decay, audit judges conduct
+- "Nothing found" is a first-class result. A maintenance record that accumulates only failures can only ever argue for more alarm, and gives a later finding nothing to be measured against
+
+### 2.9 Maintainer as a Role of Any Entity
+
+§2.8 defines the Maintainer within a society because `society-roles.md` enumerates society roles. The role is **not** society-specific, and this subsection states the general form normatively.
+
+> **Any entity that has an MRH MAY define a Maintainer role for itself, and SHOULD do so where its state is relied upon by others.** A society, a hub, a being, a service, a device, a dictionary — and, because roles are themselves first-class entities (`entity-types.md` §3), **a role** — each MAY hold a Maintainer of its own.
+
+Three properties follow, and they are what make the role safe to run unattended:
+
+1. **Two planes, and the role creates neither.** A Maintainer's *examination horizon* is its entity's MRH — what is relevant for it to consider. Its *authority* to read or repair is whatever the entity's law explicitly grants, intersected with the filling entity's own authority. Defining a Maintainer creates no authority at all, which is why an entity may run one continuously without weakening its own boundary. The invariant:
+
+   > **MRH bounds relevance; law and delegated scope bound authority. Maintenance may discover across the former only as permitted by the latter, and may repair only within explicitly granted authority.**
+
+   This is the distinction the governance corpus already holds elsewhere — reach is not authority, a role carries a scope manifest that occupancy delivers and clearance bounds, and scope is an intersection rather than a union. A Maintainer is not an exception to it, and a broader horizon for *review* is never a broader authority to *act*.
+2. **Filling is governed by the entity's own law.** *Who* fills the Maintainer role, on what cadence, and what it may repair unattended are determined by the entity's own law — not by this specification, and not by any enclosing society. An enclosing society MAY require that a member *have* a Maintainer, and MAY audit the resulting record; it does not thereby choose the filling.
+3. **Composition, not aggregation.** An entity's maintenance state is the fold of its parts' maintenance states. A society does not sweep its members; its members maintain themselves and their records compose. This is the same fractal property §5 states for every other role, and it is what keeps maintenance from becoming the one role that must see everything.
+
+**Subsidiarity is mechanical here, and it is the AUTHORITY gate that makes it so — not the MRH graph.** A repair outside the Maintainer's granted authority is refused by the same gate that refuses any other unauthorized act, and a finding whose subject lies outside the entity's jurisdiction is not the entity's to repair at all. In both cases the Maintainer's only recourse is to record the finding and escalate it to the role that holds the wider scope. An entity therefore cannot be maintained *into* a wider authority than it was granted, however urgent the repair — and a continuously running Maintainer cannot become an ambient superuser by discovering things.
 
 ## 3. Context-Mandatory Roles
 
@@ -315,6 +355,8 @@ The following are commonly defined when needed. The list is illustrative, not ex
 
 A normative property of every role defined in this specification:
 
+> Every role — including the Maintainer of §2.8 — MAY itself define a Maintainer for its own state (§2.9), since roles are first-class entities with their own MRH.
+>
 > A role MAY be filled by any of:
 > - A single entity (Human, AI, Service, Device, etc.)
 > - A society (the role's responsibilities are discharged by the filling society's own operations)
@@ -328,7 +370,7 @@ For Web4 specifically, this enables:
 
 | Society scale | Role-filling pattern |
 |---|---|
-| Solo founder | One entity (human) fills all 7 base-mandatory roles (Policy-Entity decisions may be AI-assisted) |
+| Solo founder | One entity (human) fills all 8 base-mandatory roles (Policy-Entity decisions may be AI-assisted) |
 | Small team (~5-20 members) | Each role typically one entity; some entities wear multiple hats |
 | Medium organization (~50-500) | Each role is one team / sub-organization |
 | Large enterprise (~1000+) | Each role is a sub-society; the society itself is a federation of role-societies |
