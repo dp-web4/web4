@@ -258,10 +258,10 @@ The companion `society-roles.md` specification enumerates society roles (base-ma
 | **AI** | Policy-Entity, Treasurer, Administrator, Archivist, Validator, Witness, Auditor, Mediator, Architect, Maintainer, Oracle, Dictionary, Agent |
 | **Society** | Sovereign (in federation), Law Oracle (specialized law-publishing society), Treasurer (a treasury-services society), Witness (a witness-services society), Mediator (an arbitration society), Governance-Council, Recovery-Authority, Maintainer (for itself, and as a maintenance service to a member society that delegates it) |
 | **Organization** | Sovereign, Treasurer, Administrator, Membership-Authority, Governance-Council, Auditor, Steward |
-| **Role** | (Role itself is an entity type; roles are first-class. Roles fill roles in a degenerate sense — see §3.2, "The Role Revolution," above.) A role MAY define a **Maintainer** for its own state, scoped to the role's MRH — `society-roles.md` §2.9. |
+| **Role** | (Role itself is an entity type; roles are first-class. Roles fill roles in a degenerate sense — see §3.2, "The Role Revolution," above.) A role MAY define a **Maintainer** for its own state; the role's MRH bounds what that Maintainer examines, and the role's granted scope bounds what it may do — `society-roles.md` §2.9. |
 | **Task** | (Tasks are work units, not role-fillers; they are operated on by roles, not held by them.) |
 | **Resource** | (Resources are operated on by roles; do not fill roles themselves.) |
-| **Device** | Validator (hardware-attested), Oracle (sensor-based), Recovery-Authority (TPM-bound recovery), Witness (attestation device), Maintainer (self-test and resource reporting within its own MRH) |
+| **Device** | Validator (hardware-attested), Oracle (sensor-based), Recovery-Authority (TPM-bound recovery), Witness (attestation device), Maintainer (self-test and resource reporting on its own state, acting only within its granted scope) |
 | **Service** | Policy-Entity (rules engine), Validator, Administrator, Oracle, Dictionary, Archivist, Maintainer |
 | **Oracle** | Law Oracle, Policy-Entity (when policy is itself an oracle), Validator, Witness (specialized attestation oracle) |
 | **Accumulator** | Archivist (specialized for accumulation), Witness (broadcast observer) |

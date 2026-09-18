@@ -190,12 +190,12 @@ Every Web4-compliant society MUST have these eight roles filled. A single entity
 **Why base-mandatory**: An entity's governance is only as available as the substrate it runs on. Unmaintained state fails *closed and silently*: exhausted resources make a policy engine unresponsive, so decisions are refused for reasons no participant can see or appeal; stale membership keeps stubs and retired identities in decision pools; miswired artifacts leave enforcement pointing at an artifact nobody attested. Each is indistinguishable, from inside, from the law itself refusing. A society that cannot state when its own state was last examined cannot ground a trust claim about anything else it asserts.
 
 **Authority scope**:
-- MUST examine, on a declared cadence, the state within its entity's MRH, and record the examination — including examinations that find nothing wrong
+- MUST examine, on a declared cadence, the state of its entity, and record the examination — including examinations that find nothing wrong. The entity's MRH bounds what is *relevant* to examine; it does not itself authorize any read or effect
 - MUST record each finding with its evidence, an owner, and a **clearing condition** — the specific, checkable fact that closes it
 - MUST record the closing edge as well as the opening one: a finding that can only be re-asserted, never closed, is a level and not an event
-- MAY repair within its own MRH under the entity's local law
-- MUST escalate any repair whose reach lies outside that MRH to the role that holds the wider scope, rather than widening its own
-- MUST NOT hold reach beyond its entity's MRH by virtue of being the Maintainer. The role confers attention, not authority
+- MAY read and repair ONLY within the authority its entity's law explicitly grants it — a role scope manifest, a delegation, or a clearance — intersected with the authority of whatever entity fills the role. Defining the role grants none of this by itself
+- MUST escalate, rather than widen its own authority, when the evidence it needs or the repair it has identified lies outside that granted authority OR outside its entity's jurisdiction
+- MUST NOT acquire reach by traversing its entity's MRH. Relevance is not permission: the role confers attention, not authority
 
 **Example filling entities**: Human, AI, Service, Society, Device (self-test), Hybrid; for a small entity, the same entity that fills its other roles
 
@@ -211,11 +211,15 @@ Every Web4-compliant society MUST have these eight roles filled. A single entity
 
 Three properties follow, and they are what make the role safe to run unattended:
 
-1. **Scope is inherited, never granted.** A Maintainer's reach is exactly its entity's MRH. It is not a wider role wearing a narrow name, so no new reach is created by defining one — which is why an entity may run its Maintainer continuously without weakening its own boundary.
-2. **Filling is governed by the entity's own law.** *Who* fills the Maintainer role, on what cadence, and what it may repair unattended are determined by the entity's MRH and local law — not by this specification, and not by any enclosing society. An enclosing society MAY require that a member *have* a Maintainer, and MAY audit the resulting record; it does not thereby choose the filling.
+1. **Two planes, and the role creates neither.** A Maintainer's *examination horizon* is its entity's MRH — what is relevant for it to consider. Its *authority* to read or repair is whatever the entity's law explicitly grants, intersected with the filling entity's own authority. Defining a Maintainer creates no authority at all, which is why an entity may run one continuously without weakening its own boundary. The invariant:
+
+   > **MRH bounds relevance; law and delegated scope bound authority. Maintenance may discover across the former only as permitted by the latter, and may repair only within explicitly granted authority.**
+
+   This is the distinction the governance corpus already holds elsewhere — reach is not authority, a role carries a scope manifest that occupancy delivers and clearance bounds, and scope is an intersection rather than a union. A Maintainer is not an exception to it, and a broader horizon for *review* is never a broader authority to *act*.
+2. **Filling is governed by the entity's own law.** *Who* fills the Maintainer role, on what cadence, and what it may repair unattended are determined by the entity's own law — not by this specification, and not by any enclosing society. An enclosing society MAY require that a member *have* a Maintainer, and MAY audit the resulting record; it does not thereby choose the filling.
 3. **Composition, not aggregation.** An entity's maintenance state is the fold of its parts' maintenance states. A society does not sweep its members; its members maintain themselves and their records compose. This is the same fractal property §5 states for every other role, and it is what keeps maintenance from becoming the one role that must see everything.
 
-**Subsidiarity is mechanical here.** Because reach is inherited, a repair outside the entity's MRH is refused by the same boundary that refuses any other out-of-scope act. The Maintainer's only recourse is to escalate the finding to the role that holds the wider scope. An entity therefore cannot be maintained *into* a wider reach than it was granted, however urgent the repair.
+**Subsidiarity is mechanical here, and it is the AUTHORITY gate that makes it so — not the MRH graph.** A repair outside the Maintainer's granted authority is refused by the same gate that refuses any other unauthorized act, and a finding whose subject lies outside the entity's jurisdiction is not the entity's to repair at all. In both cases the Maintainer's only recourse is to record the finding and escalate it to the role that holds the wider scope. An entity therefore cannot be maintained *into* a wider authority than it was granted, however urgent the repair — and a continuously running Maintainer cannot become an ambient superuser by discovering things.
 
 ## 3. Context-Mandatory Roles
 
