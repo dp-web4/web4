@@ -47,7 +47,9 @@ and how each item is protected — not every item's plaintext. Each item carries
 
 An item may itself be a **sub-vault** — a vault of the same form, keyed by the same master —
 so one authorized open gates a hierarchy. A sub-vault's own items keep their own tiers:
-opening the parent's item does not open what is protected inside the child.
+opening the parent's item does not open what is protected inside the child. A sub-vault
+handle has **no file of its own**: `save()` on one is refused, and a modified child is written
+back with `put_subvault` / `put_sealed_subvault` on its parent, followed by saving the parent.
 
 **How a liveness item is opened.** The caller asks the vault for a challenge for that
 specific item (`presence_challenge`), which mints a single-use nonce through the public

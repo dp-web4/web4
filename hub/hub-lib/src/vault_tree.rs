@@ -164,7 +164,13 @@ pub struct ItemRef {
 /// An opened vault held **in memory**. Item plaintext is produced on demand by
 /// [`open_item`](Self::open_item) into a zeroizing buffer; never written to disk.
 pub struct OpenVault {
-    path: PathBuf,
+    /// The file this vault persists to, or `None` for a **sub-vault handle**: one opened
+    /// out of a parent item, which has no file of its own. `save()` refuses on such a
+    /// handle — writing it to `self.path` would put the child's tree where the parent's
+    /// file is, under the same master and salt, producing a vault that opens cleanly and
+    /// has silently lost the parent. Write a modified child back with
+    /// [`put_subvault`](Self::put_subvault) on its parent, then save the parent.
+    path: Option<PathBuf>,
     master: DerivedKey,
     salt: [u8; 16],
     data: VaultData,
@@ -181,7 +187,7 @@ impl OpenVault {
         let salt = crypto::generate_salt();
         let master = crypto::derive_key(master_passphrase, &salt).map_err(|e| anyhow::anyhow!("derive master: {e}"))?;
         Ok(Self {
-            path: path.as_ref().to_path_buf(),
+            path: Some(path.as_ref().to_path_buf()),
             master,
             salt,
             data: VaultData { meta: Meta { schema: 1, vault_id: vault_id.into() }, ..Default::default() },
@@ -205,7 +211,7 @@ impl OpenVault {
         let plain = crypto::open(&master, &raw[21..])
             .map_err(|_| anyhow::anyhow!("vault {} did not open (wrong passphrase or corrupt)", path.display()))?;
         let data: VaultData = serde_json::from_slice(&plain).context("parsing vault data")?;
-        Ok(Self { path, master, salt, data, pending_presence: Mutex::new(HashMap::new()) })
+        Ok(Self { path: Some(path), master, salt, data, pending_presence: Mutex::new(HashMap::new()) })
     }
 
     /// Open if present, else create. Convenience for daemon startup.
@@ -221,6 +227,11 @@ impl OpenVault {
 
     /// Re-encrypt the whole tree and write it atomically (the only persistence path).
     pub fn save(&self) -> Result<()> {
+        let path = self.path.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "this is a sub-vault handle and has no file of its own — write it back with                  put_subvault(name, &child) on the parent it came from, then save the parent"
+            )
+        })?;
         let plain = serde_json::to_vec(&self.data).context("serializing vault data")?;
         let sealed = crypto::seal(&self.master, &plain).map_err(|e| anyhow::anyhow!("seal vault: {e}"))?;
         let mut out = Vec::with_capacity(21 + sealed.len());
@@ -246,8 +257,8 @@ impl OpenVault {
         // credential; at 0644 that is readable by every local account. The mode
         // cannot be applied from outside — this rename installs a fresh inode
         // every save — so it belongs on the `open(2)` here.
-        crate::atomic_file::write_atomic_mode(&self.path, &out, 0o600)
-            .with_context(|| format!("installing {}", self.path.display()))?;
+        crate::atomic_file::write_atomic_mode(path, &out, 0o600)
+            .with_context(|| format!("installing {}", path.display()))?;
         Ok(())
     }
 
@@ -310,6 +321,21 @@ impl OpenVault {
         Ok(())
     }
 
+    /// Store `child` as a `Master`-tier sub-vault item of this vault — the write half of
+    /// [`open_subvault`](Self::open_subvault). Persist by saving *this* vault.
+    pub fn put_subvault(&mut self, name: impl Into<String>, child: &OpenVault) -> Result<()> {
+        let bytes = serde_json::to_vec(&child.data).context("serializing sub-vault data")?;
+        self.put_master(name, ItemKind::SubVault, &bytes);
+        Ok(())
+    }
+
+    /// Store `child` as a `Sealed` sub-vault item, encrypted under an independent credential.
+    /// The credential is the one a later [`open_subvault`](Self::open_subvault) will need.
+    pub fn put_sealed_subvault(&mut self, name: impl Into<String>, child: &OpenVault, cred: &str) -> Result<()> {
+        let bytes = serde_json::to_vec(&child.data).context("serializing sub-vault data")?;
+        self.put_sealed(name, ItemKind::SubVault, &bytes, cred)
+    }
+
     /// Mint a presence challenge for opening `name` over the constellation pair `pair_id`,
     /// and remember which item it was minted for. The returned nonce is the one the member's
     /// attestation must carry.
@@ -317,6 +343,11 @@ impl OpenVault {
     /// The challenge is single-use twice over: the gate burns its nonce on any presentation
     /// attempt, and this binding is removed on any open attempt. A failed presentation
     /// therefore costs a fresh challenge rather than leaving one open to further tries.
+    ///
+    /// The binding is **per pair, latest mint wins**: minting for a second item over the same
+    /// `pair_id` replaces the first item's outstanding challenge, and an open of that first
+    /// item then fails with "no presence challenge outstanding". Two items being opened
+    /// concurrently need two pairs.
     pub fn presence_challenge(&self, name: &str, pair_id: Uuid, gate: &ConstellationGate) -> Result<String> {
         let item = self.data.items.get(name).ok_or_else(|| anyhow::anyhow!("no such item: {name}"))?;
         match item.protection {
@@ -362,7 +393,9 @@ impl OpenVault {
         // DerivedKey is not Clone; rebuild it from bytes (nesting shares the master key).
         let master = DerivedKey::from_bytes(*self.master.as_bytes());
         Ok(OpenVault {
-            path: self.path.clone(),
+            // No path: a sub-vault is persisted through its parent, never over the parent's
+            // own file. See the field's doc.
+            path: None,
             master,
             salt: self.salt,
             data,
@@ -753,15 +786,12 @@ mod tests {
     fn a_sub_vault_nests_and_keeps_its_own_tiers() {
         let (_d, p) = tmp();
 
-        let inner_bytes = {
-            let mut inner = OpenVault::create(&p, "m", "inner").unwrap();
-            inner.put_master("note", ItemKind::Document, b"inner-master");
-            inner.put_sealed("deeper", ItemKind::Credential, b"inner-sealed", "inner-cred").unwrap();
-            serde_json::to_vec(&inner.data).unwrap()
-        };
+        let mut inner = OpenVault::create(&p, "m", "inner").unwrap();
+        inner.put_master("note", ItemKind::Document, b"inner-master");
+        inner.put_sealed("deeper", ItemKind::Credential, b"inner-sealed", "inner-cred").unwrap();
 
         let mut v = OpenVault::create(&p, "m", "outer").unwrap();
-        v.put_sealed("child", ItemKind::SubVault, &inner_bytes, "child-cred").unwrap();
+        v.put_sealed_subvault("child", &inner, "child-cred").unwrap();
         v.save().unwrap();
 
         let v = OpenVault::open(&p, "m").unwrap();
@@ -771,6 +801,64 @@ mod tests {
         // Opening the parent's item did not open what is protected inside the child.
         assert!(child.open_item("deeper", &Factors::default()).is_err());
         assert_eq!(&child.open_item("deeper", &Factors::sealed("inner-cred")).unwrap()[..], b"inner-sealed");
+    }
+
+    /// A sub-vault handle has no file of its own. Saving one used to write the CHILD's tree
+    /// over the PARENT's file — re-sealed under the same master and salt, so the result
+    /// opened cleanly and the parent was simply gone. Found by review, reproduced from
+    /// outside the crate, and asserted here from both ends: the save is refused, and the
+    /// parent file still holds what it held.
+    #[test]
+    fn a_sub_vault_cannot_overwrite_its_parent() {
+        let (_d, p) = tmp();
+
+        let mut child = OpenVault::create(&p, "m", "inner").unwrap();
+        child.put_master("subitem", ItemKind::Document, b"child-body");
+
+        let mut parent = OpenVault::create(&p, "m", "outer").unwrap();
+        parent.put_master("PARENT_SECRET", ItemKind::Document, b"parent-body");
+        parent.put_subvault("child", &child).unwrap();
+        parent.save().unwrap();
+
+        let parent = OpenVault::open(&p, "m").unwrap();
+        let mut child = parent.open_subvault("child", &Factors::default()).unwrap();
+        child.put_master("added-to-child", ItemKind::Document, b"new");
+
+        let err = child.save().unwrap_err().to_string();
+        assert!(err.contains("sub-vault handle"), "child.save() said: {err}");
+
+        // The parent file is untouched: both its items are still there, and the child's
+        // mutation did not land anywhere.
+        let reopened = OpenVault::open(&p, "m").unwrap();
+        let names: Vec<String> = reopened.list().into_iter().map(|i| i.name).collect();
+        assert_eq!(names, vec!["PARENT_SECRET".to_string(), "child".to_string()]);
+        assert_eq!(&reopened.open_item("PARENT_SECRET", &Factors::default()).unwrap()[..], b"parent-body");
+    }
+
+    /// The supported write path for a modified child: hand it back to the parent and save
+    /// the parent. Siblings survive, and the child's change is inside the child item.
+    #[test]
+    fn a_modified_sub_vault_is_written_back_through_its_parent() {
+        let (_d, p) = tmp();
+
+        let mut child = OpenVault::create(&p, "m", "inner").unwrap();
+        child.put_master("subitem", ItemKind::Document, b"child-body");
+        let mut parent = OpenVault::create(&p, "m", "outer").unwrap();
+        parent.put_master("sibling", ItemKind::Document, b"sibling-body");
+        parent.put_sealed_subvault("child", &child, "child-cred").unwrap();
+        parent.save().unwrap();
+
+        let mut parent = OpenVault::open(&p, "m").unwrap();
+        let mut child = parent.open_subvault("child", &Factors::sealed("child-cred")).unwrap();
+        child.put_master("added-to-child", ItemKind::Document, b"new");
+        parent.put_sealed_subvault("child", &child, "child-cred").unwrap();
+        parent.save().unwrap();
+
+        let parent = OpenVault::open(&p, "m").unwrap();
+        assert_eq!(&parent.open_item("sibling", &Factors::default()).unwrap()[..], b"sibling-body");
+        let child = parent.open_subvault("child", &Factors::sealed("child-cred")).unwrap();
+        assert_eq!(&child.open_item("added-to-child", &Factors::default()).unwrap()[..], b"new");
+        assert_eq!(&child.open_item("subitem", &Factors::default()).unwrap()[..], b"child-body");
     }
 
     #[test]
