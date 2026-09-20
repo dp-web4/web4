@@ -134,10 +134,19 @@ impl Roster {
     }
 }
 
-/// The digest that names a (roster, threshold) pair. An intent binds it; a verifier whose
-/// policy has since changed refuses the intent as stale.
-pub fn policy_version(roster: &Roster, threshold: usize) -> Bytes32 {
+/// The digest that names one admitted policy: the roster, the threshold, **and the epoch it
+/// was admitted at**. An intent binds it; a verifier whose policy has since changed refuses
+/// the intent as stale.
+///
+/// The epoch is part of the digest so that staleness is **terminal**. Without it, a policy
+/// that is superseded and later restored — an approver removed at one epoch and reinstated
+/// with the same key at the next — would hash to its old version again, and every approval
+/// collected before the removal would come back to life until the intent's own expiry.
+/// Re-presenting the *current* policy at the *current* epoch still yields the same digest,
+/// so the reload path stays idempotent.
+pub fn policy_version(roster: &Roster, threshold: usize, epoch: u64) -> Bytes32 {
     let mut b = POLICY_DOMAIN.to_vec();
+    b.extend_from_slice(&epoch.to_be_bytes());
     b.extend_from_slice(&(threshold as u64).to_be_bytes());
     for (id, key) in &roster.approvers {
         put(&mut b, id.as_bytes());
@@ -309,7 +318,7 @@ impl QuorumVerifier {
     /// Admit the first policy, at `epoch`.
     pub fn new(roster: Roster, threshold: usize, epoch: u64) -> Result<Self, Refusal> {
         check_threshold(&roster, threshold)?;
-        let policy_version = policy_version(&roster, threshold);
+        let policy_version = policy_version(&roster, threshold, epoch);
         Ok(Self { roster, threshold, policy_version, epoch, intents: BTreeMap::new(), counter: 0 })
     }
 
@@ -331,10 +340,11 @@ impl QuorumVerifier {
     /// Authenticating the payload — that this roster really is what governance decided — is
     /// the caller's job. In the hub that authority is the signed ledger the council is
     /// projected from. Intents opened under a superseded policy stay recorded and are
-    /// refused as [`Refusal::StalePolicy`].
+    /// refused as [`Refusal::StalePolicy`] — permanently: the epoch is part of the policy
+    /// version, so restoring an earlier roster at a later epoch does not revive them.
     pub fn admit_policy(&mut self, roster: Roster, threshold: usize, epoch: u64) -> Result<(), Refusal> {
         check_threshold(&roster, threshold)?;
-        let presented = policy_version(&roster, threshold);
+        let presented = policy_version(&roster, threshold, epoch);
         if epoch < self.epoch {
             return Err(Refusal::EpochRollback { presented: epoch, stored: self.epoch });
         }
@@ -372,8 +382,14 @@ impl QuorumVerifier {
         self.intents.get(intent_digest).map(|i| i.state)
     }
 
-    /// Issue `approver` a single-use challenge for this intent, valid for `ttl_secs`. Issuing
-    /// again replaces that approver's outstanding challenge.
+    /// Issue `approver` a single-use challenge for this intent, valid for `ttl_secs`.
+    ///
+    /// **Idempotent while a challenge is outstanding**: asking again returns the same
+    /// challenge and does not extend it; a new one is minted only once the old one is
+    /// consumed or expired. Replacing on every call would let anyone who can reach this
+    /// method invalidate an approval already signed and in flight — denying an approver
+    /// their turn one call earlier than the forged-response rule protects. A challenge is
+    /// not a secret (the signature is what counts), so handing it out again costs nothing.
     pub fn issue_challenge(
         &mut self,
         intent_digest: &Bytes32,
@@ -385,6 +401,11 @@ impl QuorumVerifier {
             return Err(Refusal::NotOnRoster);
         }
         let open = self.open_mut(intent_digest, now)?;
+        if let Some(outstanding) = open.challenges.get(&approver) {
+            if now < outstanding.expires_at {
+                return Ok(outstanding.bytes);
+            }
+        }
         let bytes: Bytes32 = rand::random();
         open.challenges.insert(approver, Challenge { bytes, expires_at: now.saturating_add(ttl_secs) });
         Ok(bytes)
@@ -770,6 +791,43 @@ mod tests {
         assert_eq!(v.admit_policy(roster(), 4, 6), Ok(()));
         assert_ne!(v.policy_in_force(), in_force);
         assert_eq!(v.admit_policy(roster(), 3, 5), Err(Refusal::EpochRollback { presented: 5, stored: 6 }));
+    }
+
+    /// Stale is terminal. An approver is removed at epoch 6 and reinstated with the same key
+    /// at epoch 7: the roster and threshold are byte-identical to epoch 5's, and the
+    /// approvals collected under epoch 5 must NOT come back to life. Found in review.
+    #[test]
+    fn restoring_an_earlier_roster_does_not_revive_stale_approvals() {
+        let mut f = fixture(3, 2);
+        let (i, d) = f.open("s", "b");
+        f.approve(0, d);
+        f.approve(1, d);
+
+        let full = || f.keys.iter().fold(Roster::new(), |r, (id, k)| r.with(*id, k.verifying_key()));
+        let without_0 = f.keys[1..].iter().fold(Roster::new(), |r, (id, k)| r.with(*id, k.verifying_key()));
+        let v = &mut f.v;
+        v.admit_policy(without_0, 2, 6).unwrap();
+        assert_eq!(v.authorize(&d, &i.params(), NOW), Err(Refusal::StalePolicy));
+        v.admit_policy(full(), 2, 7).unwrap();
+        assert_eq!(v.authorize(&d, &i.params(), NOW), Err(Refusal::StalePolicy));
+    }
+
+    /// A second request for a challenge must not invalidate an approval already signed and
+    /// in flight — otherwise anyone who can ask for a challenge can deny an approver their
+    /// turn. Found in review. Once the challenge is consumed, a fresh one is minted.
+    #[test]
+    fn asking_again_does_not_invalidate_an_approval_in_flight() {
+        let mut f = fixture(3, 2);
+        let (_i, d) = f.open("s", "b");
+        let in_flight = f.approval(0, d);
+
+        let (id0, _) = f.keys[0];
+        let again = f.v.issue_challenge(&d, id0, NOW + 1, TTL).unwrap();
+        assert_eq!(again, in_flight.challenge, "re-issue replaced an outstanding challenge");
+        f.v.submit_approval(&in_flight, NOW + 2).unwrap();
+
+        let fresh = f.v.issue_challenge(&d, id0, NOW + 3, TTL).unwrap();
+        assert_ne!(fresh, in_flight.challenge, "a consumed challenge was handed out again");
     }
 
     #[test]
