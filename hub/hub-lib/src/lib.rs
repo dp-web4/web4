@@ -49,6 +49,7 @@ pub mod signer;
 pub mod state;
 pub mod store;
 pub mod unlock_gate;
+pub mod unlock_quorum;
 pub mod vault_tree;
 
 /// Crate version, exposed for `hub --version`.
