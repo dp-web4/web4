@@ -7,8 +7,29 @@ The Web4 package family currently consists of:
 - **`web4-sdk`** (Python) — high-level SDK at `web4-standard/implementation/sdk/` (previously published on PyPI as `web4`; renamed because that PyPI name is held by an unrelated dormant project). `import web4` unchanged.
 - **`web4-core`** (Python + Rust crate) — core primitives, PyO3 bindings. `pip install web4-core` / `cargo add web4-core`.
 - **`web4-trust`** (Python wheel) / **`web4-trust-core`** (Rust crate + npm WASM bindings) — trust tensors and the trust ledger. `pip install web4-trust` / `cargo add web4-trust-core` / `npm install web4-trust-core`.
+- **`web4-policy`** (Rust crate) and the hub crates **`hub-lib`**, **`hub-plugin`**, **`hub-daemon`** — first publish pending (see below).
 
-## web4-core Unreleased (0.4.0)
+## Unreleased — web4-core 0.4.0, web4-trust-core / web4-trust 0.3.0, web4-policy 0.1.0, hub 0.1.0-alpha.0
+
+Release prep (not yet published). Intended publish order, each after the previous is indexed:
+`web4-core` → `web4-trust-core` + `web4-policy` → `hub-lib` + `hub-plugin` → `hub-daemon`; then the
+`web4-core` / `web4-trust` wheels and the `web4-trust-core` npm package.
+
+- **Publishability:** every intra-repo path dependency now also declares a version (crates.io
+  refuses path-only deps); `hub-daemon` pins `hub-lib` / `hub-plugin` to `=0.1.0-alpha.0`.
+- **`hub-daemon` packaging fix:** its embedded starter law was `include_str!`'d from
+  `../../examples/`, outside the crate, so the published tarball could not build.
+  `hub-daemon/starter-law.yaml` is now a symlink to the canonical `hub/examples/starter-law.yaml`;
+  cargo packages the contents.
+- **web4-trust-core 0.2.0 → 0.3.0** (crate, `web4-trust` wheel, npm): carries the T3/V3 canonical
+  tensor migration, the Talent no-decay fix and the `computeReputation` signature change below.
+  The committed npm `pkg/` build dated from 0.2.0 (2026-05-15) and still exported the old
+  3-argument `computeReputation`; it is rebuilt (`wasm-pack build --target web --features wasm
+  --no-default-features`).
+- The PyO3 binding crate (`web4-python`) is aligned at 0.4.0 and marked `publish = false`: it
+  ships to PyPI as `web4-core` via maturin, never to crates.io.
+
+### web4-core 0.4.0
 
 - **FIX (`role::RoleAssignment`): rotation carried the outgoing occupant's merit, and recorded nothing.**
   `rotate()` reassigned the filling entity and left `role_trust` / `role_value` untouched, so a
@@ -36,7 +57,7 @@ The Web4 package family currently consists of:
   `society_conferred` provenance must check the conferring entity is a society. Python
   bindings mirror the variant. **Serde note:** documents carrying `"society"` fail to
   deserialize on pre-0.4.0 readers (additive enum variant — standard minor-version rule).
-- **Version bump 0.3.0 → 0.4.0 is REQUIRED before the next publish:** crates.io `0.3.0`
+- **Why 0.4.0 (bump already made in `Cargo.toml`):** crates.io `0.3.0`
   was taken by the 2026-07-10 04:42Z publish, which predates the merged
   `compute_reputation` signature fix — main's content has moved past the published 0.3.0.
 
