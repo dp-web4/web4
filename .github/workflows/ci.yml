@@ -9,8 +9,8 @@ name: ci
 # with the same scope note.
 #
 # Four independent crate roots, no enclosing workspace: web4-policy, web4-core,
-# web4-trust-core, and hub/ (itself a workspace of hub-lib, hub-daemon,
-# hub-plugin). The matrix names them because cargo has no way to name them all at
+# web4-trust-core, and hub/ (itself a workspace of web4-hub-lib, web4-hub-daemon,
+# web4-hub-plugin). The matrix names them because cargo has no way to name them all at
 # once — but WITHIN each crate the invocation is deliberately unqualified
 # (`cargo test --locked`, no `--lib`, no target selection): which targets a green
 # covers must be a property of the repo, not a per-session choice. A new

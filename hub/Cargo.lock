@@ -1336,76 +1336,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
-name = "hub-daemon"
-version = "0.1.0-alpha.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum",
- "chrono",
- "clap",
- "ctrlc",
- "hex",
- "hub-lib",
- "hub-plugin",
- "reqwest",
- "rpassword",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha2 0.10.9",
- "tempfile",
- "tokio",
- "tower",
- "tracing",
- "tracing-subscriber",
- "uuid",
- "web4-core",
- "zeroize",
-]
-
-[[package]]
-name = "hub-lib"
-version = "0.1.0-alpha.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "aws-config",
- "aws-sdk-dynamodb",
- "axum",
- "chrono",
- "hex",
- "rand 0.8.6",
- "reqwest",
- "rusqlite",
- "semver",
- "serde",
- "serde_json",
- "serde_yaml",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "toml",
- "tracing",
- "uuid",
- "web4-core",
- "web4-policy",
- "web4-trust-core",
- "zeroize",
-]
-
-[[package]]
-name = "hub-plugin"
-version = "0.1.0-alpha.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "serde_json",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "hybrid-array"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3278,6 +3208,76 @@ dependencies = [
 ]
 
 [[package]]
+name = "web4-hub-daemon"
+version = "0.1.0-alpha.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "chrono",
+ "clap",
+ "ctrlc",
+ "hex",
+ "reqwest",
+ "rpassword",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2 0.10.9",
+ "tempfile",
+ "tokio",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "web4-core",
+ "web4-hub-lib",
+ "web4-hub-plugin",
+ "zeroize",
+]
+
+[[package]]
+name = "web4-hub-lib"
+version = "0.1.0-alpha.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "aws-config",
+ "aws-sdk-dynamodb",
+ "axum",
+ "chrono",
+ "hex",
+ "rand 0.8.6",
+ "reqwest",
+ "rusqlite",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "toml",
+ "tracing",
+ "uuid",
+ "web4-core",
+ "web4-policy",
+ "web4-trust-core",
+ "zeroize",
+]
+
+[[package]]
+name = "web4-hub-plugin"
+version = "0.1.0-alpha.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "web4-policy"
 version = "0.1.0"
 dependencies = [
@@ -3290,7 +3290,7 @@ dependencies = [
 
 [[package]]
 name = "web4-trust-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "serde",

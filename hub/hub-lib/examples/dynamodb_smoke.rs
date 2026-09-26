@@ -7,7 +7,7 @@
 //
 // Run:
 //   HUB_ID=<uuid> TABLE=<name> ENDPOINT=http://127.0.0.1:8765 \
-//     cargo run -p hub-lib --features dynamodb --example dynamodb_smoke
+//     cargo run -p web4-hub-lib --features dynamodb --example dynamodb_smoke
 //
 // What it exercises:
 //   1. write_charter / read_charter round-trip

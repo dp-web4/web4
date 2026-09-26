@@ -979,7 +979,11 @@ fn stored_law_warning(yaml: &str) -> Option<String> {
 
 /// Starter hub-law template — embedded at compile time so the
 /// binary ships with it. Source: `web4/hub/examples/starter-law.yaml`.
-const STARTER_LAW_YAML: &str = include_str!("../../examples/starter-law.yaml");
+// A symlink to ../examples/starter-law.yaml, the one canonical copy. include_str! must not
+// reach outside this crate: crates.io ships only the crate directory, so the old
+// "../../examples/..." path built from the repo and failed `cargo package` verification.
+// cargo packages a symlink's CONTENTS, so the published crate embeds the same law.
+const STARTER_LAW_YAML: &str = include_str!("../starter-law.yaml");
 
 async fn run_init_law(output: PathBuf, force: bool) -> Result<()> {
     if output.exists() && !force {

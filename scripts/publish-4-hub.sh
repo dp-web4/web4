@@ -108,7 +108,7 @@ witnessed ledger, sealed member<->hub channels, and a multi-surface API
 
 | Path | What it is |
 |---|---|
-| [`hub/`](hub/) | The hub itself: `hub-daemon`, `hub-lib`, `hub-plugin`, docs, examples |
+| [`hub/`](hub/) | The hub itself: `web4-hub-daemon` (the `hub` binary), `web4-hub-lib`, `web4-hub-plugin`, docs, examples |
 | [`web4-core/`](web4-core/) | The Web4 core library the hub builds on (AGPL-3.0-or-later) |
 | [`web4-policy/`](web4-policy/) | Policy evaluation (the law gate) |
 | [`web4-trust-core/`](web4-trust-core/) | T3/V3 trust tensor primitives |

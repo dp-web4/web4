@@ -1851,7 +1851,7 @@ escalation:
     // — a sibling checkout, one directory ABOVE the repo root. That made a
     // PUBLIC repo's test suite depend, at COMPILE time, on a PRIVATE one
     // (dp-web4/shared-context). `include_str!` is not a soft dependency: a
-    // missing file is a hard compile error, so `cargo test -p hub-lib` could
+    // missing file is a hard compile error, so `cargo test -p web4-hub-lib` could
     // not build at all without the sibling. Consequences, both measured:
     //   - `cargo test (hub)` in .github/workflows/ci.yml has been red since the
     //     workflow was armed — the runner checks out dp-web4/web4 and nothing

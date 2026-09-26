@@ -80,7 +80,7 @@ echo "endpoint = $ENDPOINT"
 echo ""
 cd "$(dirname "$0")/.."
 HUB_ID="$HUB_ID" TABLE="$TABLE" ENDPOINT="$ENDPOINT" \
-  cargo run -p hub-lib --features dynamodb --example dynamodb_smoke
+  cargo run -p web4-hub-lib --features dynamodb --example dynamodb_smoke
 
 echo ""
 echo "=== Final table scan ==="
