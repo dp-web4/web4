@@ -84,7 +84,7 @@ Exporting a variable in a terminal does not reach a service the init system star
 - **systemd unit:** `Environment=HUB_RATE_LIMIT_RPS=25`, then
   `systemctl daemon-reload && systemctl restart <unit>`.
 - **container:** the image's env / compose `environment:` block.
-- **foreground, for development:** `HUB_ALLOW_INSECURE_ORIGIN=1 cargo run -p hub-daemon`.
+- **foreground, for development:** `HUB_ALLOW_INSECURE_ORIGIN=1 cargo run -p web4-hub-daemon`.
 
 Secrets (`HUB_PASSPHRASE`) belong in a secret store or a mode-600 file the unit reads
 at start — not in the unit text, not in an image layer, not in Git.

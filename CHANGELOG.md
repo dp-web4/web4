@@ -7,17 +7,22 @@ The Web4 package family currently consists of:
 - **`web4-sdk`** (Python) — high-level SDK at `web4-standard/implementation/sdk/` (previously published on PyPI as `web4`; renamed because that PyPI name is held by an unrelated dormant project). `import web4` unchanged.
 - **`web4-core`** (Python + Rust crate) — core primitives, PyO3 bindings. `pip install web4-core` / `cargo add web4-core`.
 - **`web4-trust`** (Python wheel) / **`web4-trust-core`** (Rust crate + npm WASM bindings) — trust tensors and the trust ledger. `pip install web4-trust` / `cargo add web4-trust-core` / `npm install web4-trust-core`.
-- **`web4-policy`** (Rust crate) and the hub crates **`hub-lib`**, **`hub-plugin`**, **`hub-daemon`** — first publish pending (see below).
+- **`web4-policy`** (Rust crate) and the hub crates **`web4-hub-lib`**, **`web4-hub-plugin`**, **`web4-hub-daemon`** (binary `hub`) — first publish pending (see below).
 
 ## Unreleased — web4-core 0.4.0, web4-trust-core / web4-trust 0.3.0, web4-policy 0.1.0, hub 0.1.0-alpha.0
 
 Release prep (not yet published). Intended publish order, each after the previous is indexed:
-`web4-core` → `web4-trust-core` + `web4-policy` → `hub-lib` + `hub-plugin` → `hub-daemon`; then the
+`web4-core` → `web4-trust-core` + `web4-policy` → `web4-hub-lib` + `web4-hub-plugin` → `web4-hub-daemon`; then the
 `web4-core` / `web4-trust` wheels and the `web4-trust-core` npm package.
 
 - **Publishability:** every intra-repo path dependency now also declares a version (crates.io
-  refuses path-only deps); `hub-daemon` pins `hub-lib` / `hub-plugin` to `=0.1.0-alpha.0`.
-- **`hub-daemon` packaging fix:** its embedded starter law was `include_str!`'d from
+  refuses path-only deps); `web4-hub-daemon` pins `web4-hub-lib` / `web4-hub-plugin` to `=0.1.0-alpha.0`.
+- **Hub crate names:** the three hub crates publish as `web4-hub-lib`, `web4-hub-plugin` and
+  `web4-hub-daemon`. A crates.io name is permanent, and bare `hub-*` is too generic to claim
+  (GPT release review, #861). Their library names stay `hub_lib` / `hub_plugin`, so code is
+  unchanged. A path consumer must name the package:
+  `hub-plugin = { package = "web4-hub-plugin", path = ".../hub/hub-plugin" }`.
+- **`web4-hub-daemon` packaging fix:** its embedded starter law was `include_str!`'d from
   `../../examples/`, outside the crate, so the published tarball could not build.
   `hub-daemon/starter-law.yaml` is now a symlink to the canonical `hub/examples/starter-law.yaml`;
   cargo packages the contents.

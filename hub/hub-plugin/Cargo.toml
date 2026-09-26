@@ -1,10 +1,16 @@
 [package]
-name = "hub-plugin"
+name = "web4-hub-plugin"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Generic hub tool-plugin seam (core owns gate/scope/seal; plugins own handlers). The open-core keystone."
+
+# Published as web4-hub-plugin: a crates.io name is permanent, and bare "hub-plugin" is too generic to
+# claim for this project (GPT release review, web4#861). The library keeps its
+# `hub_plugin` name, so every `use hub_plugin::...` is unchanged.
+[lib]
+name = "hub_plugin"
 
 [dependencies]
 anyhow.workspace = true

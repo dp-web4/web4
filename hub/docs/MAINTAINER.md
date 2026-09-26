@@ -23,7 +23,7 @@ If you are any fleet machine *other than HUB* and want to land hub-track code:
    ```bash
    cd web4/hub
    cargo build --release
-   cargo test -p hub-lib -p hub-daemon
+   cargo test -p web4-hub-lib -p web4-hub-daemon
    ```
 5. **Address HUB's review feedback** as you would any reviewer.
 
