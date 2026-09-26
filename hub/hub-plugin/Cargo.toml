@@ -3,6 +3,7 @@ name = "hub-plugin"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Generic hub tool-plugin seam (core owns gate/scope/seal; plugins own handlers). The open-core keystone."
 
 [dependencies]

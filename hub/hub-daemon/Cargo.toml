@@ -13,8 +13,8 @@ path = "src/main.rs"
 
 [dependencies]
 zeroize = "1"
-hub-lib = { path = "../hub-lib" }
-hub-plugin = { path = "../hub-plugin" }
+hub-lib = { path = "../hub-lib", version = "=0.1.0-alpha.0" }
+hub-plugin = { path = "../hub-plugin", version = "=0.1.0-alpha.0" }
 async-trait = "0.1"
 web4-core.workspace = true
 anyhow.workspace = true
