@@ -40,6 +40,7 @@ A spring-2026 ARC-AGI-3 scorecard remains documented as a historical SAGE resear
 | See the running society runtime | `hub/` |
 | See local agent governance | `https://github.com/dp-web4/hestia` |
 | Integration guide | `docs/how/AGENT_INTEGRATION.md` |
+| Google ADK integration/contribution strategy | `docs/strategy/adk-web4-integration-contribution-plan-2026-09-26.md` |
 | Security posture | `SECURITY.md` + Hestia's bypass catalog |
 
 ## What's Implemented / Running
