@@ -18,7 +18,7 @@ The strategic objective is therefore:
 
 > **Make Web4 a portable identity / authority / provenance / witnessed-action layer that can sit underneath or alongside ADK without requiring ADK users to adopt the full Web4 ontology.**
 
-SWE-SAGE is the first serious proving ground because it already needs persistent roles, explicit authority, shared societal knowledge, Oracle, and witnessed action while targeting ADK in the Kaggle competition.
+SWE-SAGE, a private competition workspace, is the first serious proving ground: it already needs persistent roles, explicit authority, provenance-bearing shared knowledge and witnessed action, and it targets ADK.
 
 ## 2. Current ADK contribution landscape
 
@@ -480,7 +480,7 @@ Demonstrate:
 5. result witnessed/verified offline;
 6. provenance retained through a specialist/subagent handoff.
 
-Use SWE-SAGE role society where practical.
+Use the private SWE-SAGE workspace as a second host where practical.
 
 ### Phase A3 — community contribution
 
@@ -549,30 +549,24 @@ Success is:
 
 ## 12. SWE-SAGE as proving ground
 
-SWE-SAGE should test ADK as runtime plumbing while preserving SAGE/Web4 semantics.
+SWE-SAGE is private during the active competition; its role design, runtime mapping and
+competition packaging live there, not here. What this public plan relies on from it is the
+boundary it tests:
 
-Map:
+- ADK is execution plumbing; persistent role identity, role-private continuity, shared
+  knowledge with provenance, and law/authority/evidence are owned outside ADK;
+- a fresh ADK process must be able to rehydrate those roles from durable external state;
+- ADK session state never becomes the definition of identity or memory.
 
-| SWE-SAGE | ADK | Web4/SAGE-owned meaning |
-|---|---|---|
-| Lead | root/coordinator agent | persistent role identity, authority |
-| Investigator | specialist/subagent | role-private continuity, evidence acquisition |
-| Implementer | specialist/subagent | scoped write authority |
-| Reviewer | specialist/subagent | independent context/witness experiment |
-| Oracle | specialist/subagent | societal-knowledge synthesis |
-| role society | ADK workflow graph | identity/continuity semantics |
-| MemoryCoordinator | service/tool | cognitive memory semantics |
-| Hestia/Web4 gate | plugin/tool wrapper | law/authority/evidence |
-| mailbox/handoff | workflow/event artifact | obligation/provenance semantics |
-
-**Rule:** do not let ADK session state become the definition of identity or memory.
+Findings from it return here only as generic ADK/Web4 results, per SWE-SAGE's own
+publication rule.
 
 ## 13. Near-term deliverables
 
 1. fork core + community repos;
 2. complete ADK extension-point map;
 3. build one local governed-tool example against Web4 action evidence;
-4. run it in SWE-SAGE with two persistent roles;
+4. run it in the private SWE-SAGE workspace with two persistent roles;
 5. prove offline evidence verification;
 6. compare against existing community governance/delegation plugins;
 7. choose the first upstream/community issue;
