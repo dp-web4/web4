@@ -14,7 +14,7 @@ metadata:
     - ai-governance
     - federation
   license: AGPL-3.0
-  last_updated: "2026-02-08"
+  last_updated: "2026-09-26"
 
 status:
   phase: research-prototype
@@ -61,6 +61,21 @@ entry_points:
   implementation: "simulations/"
   security: "SECURITY.md"
   integration: "docs/how/AGENT_INTEGRATION.md"
+  adk_strategy: "docs/strategy/adk-web4-integration-contribution-plan-2026-09-26.md"
+
+external_runtime_strategy:
+  google_adk:
+    status: "planned / evaluation"
+    role: "candidate execution substrate and upstream/community contribution target"
+    contribution_focus:
+      - persistent_identity_binding
+      - scoped_revocable_delegation
+      - provenance_bound_context
+      - action_evidence
+      - witnessed_results
+      - a2a_authority
+    non_goal: "replace ADK orchestration or duplicate generic governance plugins"
+    plan: "docs/strategy/adk-web4-integration-contribution-plan-2026-09-26.md"
 
 components:
   simulations:
