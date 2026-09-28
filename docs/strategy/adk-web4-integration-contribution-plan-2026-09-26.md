@@ -1,6 +1,6 @@
 # Web4 / Google ADK Integration and Contribution Plan
 
-**Date:** 2026-09-26  
+**Date:** 2026-09-28  
 **Status:** strategy / implementation plan  
 **Scope:** Web4 integration with Google Agent Development Kit (ADK) and candidate upstream contributions
 
@@ -36,9 +36,15 @@ Relevant work already exists:
 - community `AgentGovernancePlugin` for generic runtime governance;
 - open community work on scoped delegation / authorization;
 - third-party signed tool-receipt implementations;
-- ADK core discussion/issues around durable memory, A2A authentication, and provenance for untrusted tool/MCP content.
+- core issue **#6099** already occupies much of the generic request / decision / outcome ledger design space;
+- core RFC **#7103** already asks for provenance on untrusted tool/MCP context;
+- graph `_ToolNode` currently calls `tool.run_async(...)` directly rather than traversing the ordinary model-selected tool callback / confirmation path;
+- ADK's plugin callback chain stops at the first non-`None` result, so a later evidence plugin may not observe an earlier denial/override;
+- ADK after-tool callbacks can run when a callback/confirmation path prevented actual dispatch, so "after tool" is not by itself proof of execution.
 
-**Implication:** do not submit another generic allow/deny governance plugin. Web4's contribution must be narrower and deeper.
+The community repository is also not the obvious first publication venue: maintainer guidance on similar integrations has favored a **standalone package** that can later be listed in ADK's integrations documentation.
+
+**Implication:** do not submit another generic allow/deny governance plugin or parallel receipt schema. Web4's first outward contribution should target the less-occupied A2A delegated-authority seam, while action evidence should interoperate with #6099 and provenance work should contribute to #7103.
 
 ## 3. Web4 differentiation
 
@@ -109,7 +115,7 @@ Action Request
 
 with separate signers and explicit request / decision / effect/result identity.
 
-This is the strongest candidate for a Web4 contribution because it is portable, independently verifiable, and does not require the rest of Web4.
+This remains an important Web4 interoperability slice, but it is **not the first outward contribution target** because ADK #6099 and multiple receipt implementations already occupy much of the surrounding space. Our distinctive delta is delegation binding, separate request/decision/result attribution, audience, and explicit unknown/incomplete outcome semantics.
 
 ### 3.4 Provenance-bearing context
 
@@ -155,10 +161,10 @@ Trust/reputation can be an optional derived service later.
 
 Develop a clean integration layer before upstreaming.
 
-Proposed shape:
+Preferred initial publication shape:
 
 ```text
-integrations/adk/
+web4-adk/
   README.md
   LICENSE                  # explicit license decision; see §10
   web4_adk/
@@ -174,12 +180,13 @@ integrations/adk/
       hestia.py
       hub.py
   examples/
-    governed_tool.py
-    delegated_specialist.py
-    mcp_provenance.py
     a2a_delegation.py
+    governed_tool.py
+    mcp_provenance.py
   tests/
 ```
+
+Start as a standalone package/repository unless ADK maintainers explicitly prefer another venue. This keeps release cadence and licensing deliberate while still allowing later listing in ADK's integrations catalog or migration of narrow generic hooks upstream.
 
 Possible public API:
 
@@ -194,88 +201,15 @@ Web4Plugin(
 
 The plugin should compose with ADK's existing governance plugin rather than replace it.
 
-## 5. First contribution target: Web4 action evidence plugin
-
-### Goal
-
-Produce portable, independently inspectable action evidence around ADK tool execution.
-
-### Lifecycle
-
-```text
-ADK agent proposes tool call
-        |
-resolve persistent actor + role
-        |
-resolve delegation / authority
-        |
-before-tool policy decision
-        |
-Action Request + Policy Decision persisted
-        |
-ADK executes or refuses
-        |
-actual result/error observed
-        |
-Result Evidence persisted
-        |
-optional witness / ledger anchor
-```
-
-### Minimal fields
-
-**Action Request**
-- actor entity ID;
-- role;
-- workload/session principal;
-- delegation reference;
-- tool/action;
-- target;
-- canonical argument digest;
-- audience;
-- nonce;
-- issued/expiry;
-- requested assurance.
-
-**Policy Decision**
-- request ID;
-- policy/law version;
-- decision: allow / deny / allow-with-obligations / escalate;
-- obligations;
-- decision authority;
-- expiry/use count.
-
-**Result Evidence**
-- request ID;
-- decision ID;
-- actual tool invoked;
-- input/output digests;
-- success/error/incomplete;
-- witness identity;
-- sequence/prior-hash where used.
-
-### Differentiation from existing signed receipt work
-
-Do not compete on "signed JSON receipt."
-
-Web4 adds:
-
-- durable actor/role identity;
-- delegated authority lineage;
-- explicit policy decision object;
-- audience/assurance;
-- separate signer semantics;
-- incomplete/missing evidence state;
-- supersession/adjudication;
-- trust/reputation derivation downstream.
-
-## 6. Second contribution target: Web4 delegation adapter for ADK/A2A
+## 5. First outward contribution target: A2A delegated authority
 
 ### Goal
 
 Allow an ADK agent to call another agent with a machine-verifiable statement of:
 
 > who is acting, on whose behalf, in what role, with which delegated scope, for which audience, until when.
+
+This is currently the least-occupied Web4-native seam and can be prototyped using existing A2A request/execute interception surfaces without first requiring a core ADK change.
 
 ### Envelope
 
@@ -294,28 +228,101 @@ Web4 delegation context
     nonce
     assurance
     chain
+    revocation reference/freshness
     signature/proof
 ```
 
 ### Receiver behavior
 
-A receiving ADK/A2A service can:
+A receiving ADK/A2A service should:
 
 1. authenticate the transport normally;
 2. verify contextual identity/delegation separately;
-3. reject authority escalation;
-4. apply local policy/law;
-5. emit Action Evidence;
-6. retain provenance for the peer's claims/results.
+3. reject authority escalation / invalid narrowing;
+4. check audience, expiry, revocation and use-count semantics;
+5. apply the receiver's local policy at dispatch;
+6. preserve provenance for the peer's claims/results;
+7. emit action evidence at the assurance level actually observed.
 
 ### Non-goals
 
 - replace A2A;
-- replace OAuth/IAM;
+- replace OAuth/IAM/workload identity;
 - require `did:web4`;
-- require Web4 trust tensors.
+- require Web4 trust tensors;
+- assume sender-side authorization binds the receiver.
 
-The first adapter should accept pluggable identity/credential backends.
+The first adapter should accept pluggable identity/credential backends and make delegation verification useful even when the rest of Web4 is absent.
+
+## 6. Second outward target: AAEP-compatible authority and outcome evidence
+
+### Goal
+
+Implement portable action evidence **in conversation with ADK #6099**, not as a parallel claim that ADK lacks a decision ledger.
+
+The distinctive Web4 contribution is:
+
+```text
+persistent actor / role
+        |
+delegation chain + audience
+        |
+exact canonical request
+        |
+separately attributable policy decision
+        |
+actual dispatch observation
+        |
+returned / presented result
+        |
+verified effect OR explicit unknown/incomplete
+```
+
+### Seven execution facts
+
+Internally preserve these separately even if the external AAEP profile remains compact:
+
+1. intent;
+2. authorization;
+3. disposition;
+4. dispatch;
+5. response;
+6. presented result;
+7. verified effect.
+
+An `after_tool_callback` observation is not sufficient evidence of dispatch because ADK can reach the after path after an override or confirmation refusal. Plugin order can also suppress later observers.
+
+Prefer relying-boundary instrumentation and non-mutating execution observation where available. Propose a new core hook only if the conformance matrix demonstrates that actual dispatch/return cannot be observed externally.
+
+### Minimal AAEP objects
+
+**Action Request**
+- actor entity ID and role;
+- workload/session binding;
+- delegation reference/chain;
+- tool/action + target;
+- canonical final argument digest;
+- audience;
+- nonce;
+- issued/expiry;
+- requested assurance.
+
+**Policy Decision**
+- request ID;
+- policy/law version;
+- allow / deny / obligations / escalate;
+- decision authority/signer;
+- expiry/use count.
+
+**Result Evidence**
+- request/decision IDs;
+- which lifecycle boundary was observed;
+- actual dispatched arguments where knowable;
+- response/output digest where knowable;
+- effect status including `unknown` / `incomplete`;
+- witness/observer identity and assurance.
+
+Do not compete on "signed JSON receipt." Cryptography is useful only after the signed semantic boundary is correct.
 
 ## 7. Third contribution target: provenance boundary for MCP/tool content
 
@@ -330,9 +337,14 @@ Candidate contribution:
 - taint/provenance propagation into later Action Requests;
 - callback/helper for policy engines to inspect that lineage.
 
-This is potentially a **core ADK RFC** if current plugin/event metadata cannot carry the needed provenance cleanly.
+ADK core RFC **#7103** already owns this question. Contribute a concrete Web4 use case / fixture there rather than opening a competing RFC:
 
-Do not open a core PR until the community integration demonstrates the concrete missing hook.
+- informational provenance cannot widen delegated authority;
+- source lineage survives MCP -> context -> later request where the framework can preserve it;
+- missing/tampered lineage becomes UNKNOWN, not trusted;
+- provenance and authorization remain separate.
+
+Request a new core hook only if a working adapter demonstrates a specific provenance field or boundary that ADK currently loses.
 
 ## 8. Memory integration
 
@@ -362,15 +374,29 @@ Possible paths:
 
 Oracle and role-private continuity remain SAGE concepts unless broader ADK demand emerges.
 
-## 9. Relationship to existing ADK community governance
+## 9. Relationship to existing ADK community governance and publication venue
 
 Before every contribution:
 
 1. inspect current `AgentGovernancePlugin`;
 2. inspect active delegation/authority PRs;
-3. inspect signed-receipt work;
-4. compose where possible;
-5. avoid parallel competing abstractions without a demonstrated semantic gap.
+3. inspect #6099 and signed-receipt work;
+4. inspect #7103 for provenance overlap;
+5. compose where possible;
+6. avoid parallel competing abstractions without a demonstrated semantic gap.
+
+### Publication venue
+
+Default to a standalone `web4-adk` package first unless maintainers request otherwise.
+
+Reasons:
+
+- the community repository currently has significant unmerged backlog;
+- similar integrations have been steered toward standalone packages listed in ADK's integrations documentation;
+- standalone publication makes the AGPL/Apache/patent decision explicit rather than implicit;
+- we can prove interoperability and demand before asking core ADK to absorb an abstraction.
+
+The Google forks remain valuable for source inspection, conformance tests and upstream-ready minimal patches.
 
 Likely positioning:
 
@@ -428,111 +454,90 @@ Because MetaLINXX owns relevant Web4 work/patent rights, it can choose to licens
 
 ## 11. Contribution ladder
 
-### Phase A0 — fork and baseline
+### Phase A0 — forks and baseline
 
-Fork:
+Completed:
 
 - `google/adk-python` -> `dp-web4/adk-python`;
 - `google/adk-python-community` -> `dp-web4/adk-python-community`.
 
-Clone locally.
+Keep clean upstream remotes and record the pinned source revision used by every conformance run.
 
-Record:
+### Phase A1 — runnable boundary conformance
 
-- upstream remotes;
-- current ADK versions;
-- CLA status;
-- build/test commands;
-- relevant open issues/PRs.
+Before building the package, measure what ADK actually exposes.
 
-No Web4 code changes yet.
+Coverage must include:
 
-### Phase A1 — architecture reconnaissance
+- allow / deny;
+- synthetic before result;
+- confirmation pending/refused/approved;
+- tool error and recovered error;
+- result rewriting;
+- plugin order short-circuit;
+- cancellation/retry/resume;
+- ordinary tool;
+- AgentTool/subagent;
+- graph `_ToolNode`;
+- MCP;
+- A2A.
 
-Map:
+Record intent, authorization, disposition, dispatch, response, presented result and verified effect separately.
 
-- `BasePlugin` callbacks;
-- workflow graph lifecycle hooks;
-- agent/subagent identity surfaces;
-- tool invocation context;
-- event metadata;
-- memory service interfaces;
-- MCP toolset boundaries;
-- A2A request/response metadata;
-- authentication hooks.
+Raise `_ToolNode` behavior upstream as a **question** first: developer-selected graph execution may intentionally differ from model-selected tool execution.
 
-Output:
+### Phase A2 — standalone A2A delegation prototype
 
-- exact extension points;
-- missing hooks;
-- where Web4 can remain external.
-
-### Phase A2 — local Web4/ADK prototype
-
-Build in our tree first.
+Create the narrow standalone `web4-adk` prototype.
 
 Demonstrate:
 
-1. persistent Web4 identity mapped to ADK role;
-2. delegated scope applied to one tool call;
-3. allow/deny/escalate decision;
-4. AAEP request/decision/result evidence;
-5. result witnessed/verified offline;
-6. provenance retained through a specialist/subagent handoff.
+1. persistent actor/role identity distinct from ADK session identity;
+2. delegated scope attached to an A2A request;
+3. audience/expiry/revocation/narrowing checks at the receiver;
+4. receiver-side local policy;
+5. provenance-bound response;
+6. no authority expansion from peer text/content.
 
-Use SWE-SAGE role society where practical.
+No full Web4 runtime requirement.
 
-### Phase A3 — community contribution
+### Phase A3 — AAEP / #6099 interoperability
 
-Target `google/adk-python-community` first.
+Add request / decision / result evidence around the working delegation path.
 
-Preferred first artifact:
+Explicitly document where this implements or extends the #6099 design:
 
-> **Web4 action evidence + delegated authority integration for ADK**
+- separate attribution/signers;
+- delegation binding;
+- audience;
+- unknown/incomplete outcomes;
+- distinction between dispatch, presented response and verified effect.
 
-Requirements:
+Publish independent test vectors/verifier behavior where possible.
 
-- narrow scope;
-- Apache-compatible contribution;
-- no full Web4 ontology dependency;
-- tests;
-- runnable sample;
-- explicit threat/assurance model;
-- interoperates with existing governance plugin where possible.
+### Phase A4 — provenance contribution through #7103
 
-### Phase A4 — A2A integration
+Add one concrete MCP/context provenance fixture to the standalone package and bring the demonstrated use case to #7103.
 
-Prototype contextual delegation over A2A.
+Do not claim causal attribution through an LLM. Preserve known source lineage and enforce authority independently.
 
-Measure:
+### Phase A5 — integration listing / external adoption
 
-- authority propagation;
-- monotonic narrowing;
-- revocation;
-- confused-deputy resistance;
-- audience binding;
-- provenance across remote response.
+If the package is useful independently:
 
-Then decide whether this is:
-
-- community plugin only;
-- A2A profile/spec proposal;
-- ADK core hook request.
-
-### Phase A5 — MCP provenance integration
-
-Prototype provenance wrapping for MCP/tool output.
-
-If the current ADK callback/event contract cannot preserve it end to end, prepare a narrowly scoped core RFC referencing a working external implementation.
+- publish under the deliberately selected license;
+- add runnable examples/tests;
+- seek listing in ADK integrations documentation;
+- gather external interoperability feedback.
 
 ### Phase A6 — core ADK contribution only where necessary
 
-Core contributions should be minimal enabling hooks, e.g.:
+Core contributions should be minimal enabling hooks demonstrated by the previous phases, e.g.:
 
-- metadata carrier unavailable to plugins;
-- lifecycle callback missing for graph nodes;
-- A2A hook needed to bind delegation context;
-- provenance field lost across tool/LLM boundary.
+- a true dispatch observer unavailable externally;
+- lifecycle parity needed for graph nodes;
+- A2A metadata carrier loss;
+- provenance lost across a tool/LLM boundary.
 
 Follow Google's contribution rule: issue/design discussion first for substantial changes.
 
@@ -543,9 +548,9 @@ Success is not "our plugin works."
 Success is:
 
 - another implementation can verify Web4/AAEP evidence;
-- an ADK app can consume Web4 evidence without running Web4;
-- Web4 can consume compatible evidence produced by another implementation;
-- A2A/MCP peers can preserve identity/authority/provenance without shared framework state.
+- an ADK app can consume delegation/evidence without running the full Web4 stack;
+- Web4 can consume compatible evidence produced elsewhere;
+- A2A/MCP peers preserve identity/authority/provenance without shared framework state.
 
 ## 12. SWE-SAGE as proving ground
 
@@ -569,15 +574,14 @@ Map:
 
 ## 13. Near-term deliverables
 
-1. fork core + community repos;
-2. complete ADK extension-point map;
-3. build one local governed-tool example against Web4 action evidence;
-4. run it in SWE-SAGE with two persistent roles;
-5. prove offline evidence verification;
-6. compare against existing community governance/delegation plugins;
-7. choose the first upstream/community issue;
-8. open an issue before any substantial PR;
-9. keep contribution small enough to review independently of Web4's broader architecture.
+1. complete the ADK callback/dispatch/graph/A2A conformance matrix;
+2. raise the `_ToolNode` governance/confirmation difference upstream as a question, not a bug claim;
+3. create the standalone `web4-adk` package/repository only after its license/patent boundary is chosen deliberately;
+4. prototype A2A delegation with receiver-side verification and monotonic narrowing;
+5. add AAEP-shaped request/decision/result evidence aligned explicitly to #6099;
+6. contribute the demonstrated provenance use case to #7103;
+7. keep SWE-SAGE as a proving ground without making ADK session state define identity/memory;
+8. upstream only the smallest missing hooks proved necessary by running code.
 
 ## 14. Decision criteria
 
