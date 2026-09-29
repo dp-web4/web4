@@ -26,6 +26,8 @@
 //!   Step 3, not here.
 //! - Authority/need-to-know on reads is V2-8.
 
+mod mailbox;
+
 use anyhow::Result;
 use axum::{
     extract::{ConnectInfo, Path, State},
@@ -568,10 +570,10 @@ impl RestState {
         let mut restored = 0usize;
         let mut mailbox = self.notifications.lock().await;
         for (recipient, blob) in rows {
-            match serde_json::from_slice::<Vec<SealedNotice>>(&blob) {
-                Ok(queue) if !queue.is_empty() => {
-                    restored += queue.len();
-                    mailbox.insert(recipient, queue);
+            match mailbox::Mailbox::decode(&blob) {
+                Ok(record) if !record.notices().is_empty() => {
+                    restored += record.notices().len();
+                    mailbox.insert(recipient, record.notices().clone());
                 }
                 Ok(_) => {}
                 Err(e) => tracing::warn!("mailbox hydrate: corrupt blob for {recipient} ({e}); skipped"),
@@ -579,44 +581,6 @@ impl RestState {
         }
         if restored > 0 {
             tracing::info!("mailbox hydrated: {restored} notice(s) restored across {} recipient(s)", mailbox.len());
-        }
-    }
-
-    /// Write-through one recipient's whole queue to the durable store after an
-    /// in-memory mutation. Best-effort: a persistence failure logs but never
-    /// fails the enqueue (the in-memory copy is authoritative for this run;
-    /// durability is the resilience layer). Serialization happens off the mailbox
-    /// lock — the caller passes an already-cloned queue.
-    async fn persist_mailbox(&self, recipient: Uuid, queue: &[SealedNotice]) {
-        let blob = match serde_json::to_vec(queue) {
-            Ok(b) => b,
-            Err(e) => {
-                tracing::warn!("mailbox persist: serialize failed for {recipient} ({e})");
-                return;
-            }
-        };
-        match self.open_store().await {
-            Ok(mut store) => {
-                if let Err(e) = store.mailbox_put(recipient, &blob).await {
-                    tracing::warn!("mailbox persist: write failed for {recipient} ({e})");
-                }
-            }
-            Err(e) => tracing::warn!("mailbox persist: cannot open store for {recipient} ({e})"),
-        }
-    }
-
-    /// Drop a recipient's durable queue after a drain. Best-effort; on failure the
-    /// notices remain persisted and re-hydrate on the next restart — at-least-once
-    /// (possible redelivery) is the deliberately-safer failure mode than losing a
-    /// notice that was never confirmed received.
-    async fn depersist_mailbox(&self, recipient: Uuid) {
-        match self.open_store().await {
-            Ok(mut store) => {
-                if let Err(e) = store.mailbox_delete(recipient).await {
-                    tracing::warn!("mailbox depersist: delete failed for {recipient} ({e})");
-                }
-            }
-            Err(e) => tracing::warn!("mailbox depersist: cannot open store for {recipient} ({e})"),
         }
     }
 
@@ -1599,7 +1563,7 @@ async fn queue_sealed_notice(
         Err(e) => { tracing::warn!("queue_sealed_notice: seal failed: {e}"); return; }
     };
     // Hub-sealed: sealed_by = None (recipient opens with the hub pubkey).
-    enqueue_notice(s, recipient, SealedNotice {
+    if let Err(e) = enqueue_notice(s, recipient, SealedNotice {
         pair_id,
         from,
         sealed,
@@ -1607,7 +1571,9 @@ async fn queue_sealed_notice(
         pointer_uri: pointer_uri.to_string(),
         queued_at: Utc::now(),
         sealed_by: None,
-    }).await;
+    }).await {
+        tracing::warn!("queue_sealed_notice: enqueue failed for {recipient}: {e}");
+    }
 }
 
 /// Enqueue an already-built [`SealedNotice`] into `recipient`'s durable mailbox
@@ -1615,32 +1581,37 @@ async fn queue_sealed_notice(
 /// ([`queue_sealed_notice`]) and the member-pre-sealed relay (`send_secret`); the
 /// hub never inspects `notice.sealed` here, so a peer-sealed body rides the mailbox
 /// identically to a hub-sealed one.
-async fn enqueue_notice(s: &RestState, recipient: Uuid, notice: SealedNotice) {
+async fn enqueue_notice(s: &RestState, recipient: Uuid, notice: SealedNotice) -> Result<bool> {
     let cutoff = Utc::now() - chrono::Duration::seconds(NOTICE_TTL_SECS);
     // Notices removed here (TTL-expired or cap-evicted) die *upstream* of every
     // receiver: they never fire, never hit a gate, never dead-letter, and the
     // TTL path was previously fully silent. Capture them so the sender can be
     // alarmed once the lock is released.
     let mut dropped: Vec<SealedNotice> = Vec::new();
-    let snapshot = {
-        let mut mailbox = s.notifications.lock().await;
-        let queue = mailbox.entry(recipient).or_default();
-        // TTL prune — partition instead of silently retaining.
-        let mut kept = Vec::with_capacity(queue.len());
-        for n in queue.drain(..) {
-            if n.queued_at >= cutoff { kept.push(n); } else { dropped.push(n); }
+    let durable = {
+        // Serialize load + mutation + commit with ACK/drain. Never publish RAM
+        // before the durable write, and never overwrite a newer queue snapshot.
+        let mut cache = s.notifications.lock().await;
+        let mut store = s.open_store().await?;
+        let cached = cache.get(&recipient).map(Vec::as_slice).unwrap_or(&[]);
+        let mut record = s.load_mailbox_record(&*store, recipient, cached).await?;
+        anyhow::ensure!(!record.full(), "receipt mailbox retention capacity reached; no notice accepted");
+        if !record.is_receipts() {
+            let queue = record.notices_mut();
+            let mut kept = Vec::with_capacity(queue.len());
+            for n in queue.drain(..) {
+                if n.queued_at >= cutoff { kept.push(n); } else { dropped.push(n); }
+            }
+            *queue = kept;
+            while queue.len() >= MAX_NOTICES_PER_MEMBER { dropped.push(queue.remove(0)); }
         }
-        *queue = kept;
-        // Cap — ring semantics; capture each evicted-oldest.
-        while queue.len() >= MAX_NOTICES_PER_MEMBER {
-            dropped.push(queue.remove(0));
-        }
-        queue.push(notice);
-        queue.clone() // snapshot for durable write-through, off the lock
+        // Receipt-mode queues never silently evict unacknowledged notices. Their
+        // total queue+tombstone count is bounded; saturation rejects new sends.
+        record.notices_mut().push(notice);
+        store.mailbox_put(recipient, &serde_json::to_vec(&record)?).await?;
+        cache.insert(recipient, record.notices().clone());
+        store.mailbox_is_durable()
     };
-    // Write-through to the durable (encrypted) mailbox so a restart re-delivers
-    // this notice. Best-effort — the in-memory copy above already took effect.
-    s.persist_mailbox(recipient, &snapshot).await;
 
     // Alarm the sender of each dropped notice back over the mesh — the only
     // channel that reaches them. Guards, all load-bearing:
@@ -1672,6 +1643,7 @@ async fn enqueue_notice(s: &RestState, recipient: Uuid, notice: SealedNotice) {
         ))
         .await;
     }
+    Ok(durable)
 }
 
 /// Hub-originated notification: witness a thin `notify:<event>` act AND queue the
@@ -3961,13 +3933,16 @@ struct ChannelInner {
 /// arms (the classification guard test walks this list; adding a dispatch arm
 /// without registering it here fails the test, so a new tool cannot silently
 /// skip freshness classification). (#474)
-const CHANNEL_TOOLS: [&str; 18] = [
+const CHANNEL_TOOLS: [&str; 21] = [
     "constellation_challenge",
     "find_members",
     "find_skill",
     "list_intros",
     "list_members",
     "notifications",
+    "notifications_enable_receipts",
+    "notifications_fetch",
+    "notifications_ack",
     "presence",
     "present_constellation",
     "query_hub",
@@ -3988,12 +3963,13 @@ const CHANNEL_TOOLS: [&str; 18] = [
 /// added to `dispatch_channel` without touching the list silently inherited
 /// read tolerance — fail-open for new writes. Allowlisting the reads makes
 /// the default fail-closed: an unclassified new tool REQUIRES freshness.
-const CHANNEL_READ_TOOLS: [&str; 9] = [
+const CHANNEL_READ_TOOLS: [&str; 10] = [
     "find_members",
     "find_skill",
     "list_intros",
     "list_members",
     "notifications",
+    "notifications_fetch",
     "presence",
     "query_hub",
     "reputation",
@@ -4887,16 +4863,25 @@ async fn dispatch_channel(
             Ok(out)
         }
         // ---- DRAFT: referenced acts + the hub→citizen notification poll floor ----
+        "notifications_enable_receipts" => {
+            s.mailbox_enable_receipts(caller_lct_id).await.map_err(ApiError::internal)?;
+            Ok(serde_json::json!({"protocol": mailbox::RECEIVE_PROTOCOL, "enabled": true}))
+        }
+        "notifications_fetch" => {
+            let limit = match inner.args.get("limit") {
+                None => 100,
+                Some(v) => v.as_u64().filter(|n| (1..=100).contains(n))
+                    .ok_or_else(|| ApiError::bad_request("limit must be an integer from 1 to 100"))? as usize,
+            };
+            s.mailbox_fetch(caller_lct_id, limit).await.map_err(ApiError::internal)
+        }
+        "notifications_ack" => {
+            let id = inner.args.get("id").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request("notifications_ack requires id"))?;
+            s.mailbox_ack(caller_lct_id, id).await.map_err(ApiError::internal)
+        }
         "notifications" => {
-            // A citizen drains their pending sealed notices (the delivery floor; push to a
-            // registered LCT-MCP endpoint is the future optimization on the same queue).
-            let cutoff = Utc::now() - chrono::Duration::seconds(NOTICE_TTL_SECS);
-            let mut notices = s.notifications.lock().await.remove(&caller_lct_id).unwrap_or_default();
-            notices.retain(|n| n.queued_at >= cutoff); // don't deliver expired notices
-            // Drop the durable copy now that the working set has been handed over.
-            // Best-effort + ordered-after: a failure here re-hydrates on restart
-            // (at-least-once), which is safer than deleting before delivery.
-            s.depersist_mailbox(caller_lct_id).await;
+            let notices = s.mailbox_legacy_drain(caller_lct_id).await.map_err(ApiError::internal)?;
             Ok(serde_json::json!({ "total": notices.len(), "notifications": notices }))
         }
         "referenced_act" => {
@@ -5125,7 +5110,7 @@ async fn dispatch_channel(
             let index = witness_event(s, HubEvent::ReferencedAct { act }).await?;
             // Relay the PRE-SEALED body: sealed_by = the sender, so the recipient
             // opens against the sender's operational key (not the hub's).
-            enqueue_notice(s, to, SealedNotice {
+            let durable = enqueue_notice(s, to, SealedNotice {
                 pair_id: sender_pair_id,
                 from: caller_lct_id,
                 sealed,
@@ -5133,8 +5118,8 @@ async fn dispatch_channel(
                 pointer_uri,
                 queued_at: Utc::now(),
                 sealed_by: Some(caller_lct_id),
-            }).await;
-            Ok(serde_json::json!({ "delivered": true, "entry_index": index }))
+            }).await.map_err(ApiError::internal)?;
+            Ok(serde_json::json!({ "delivered": true, "durably_accepted": durable, "entry_index": index }))
         }
         // ---- constellation attestation (challenge-response MFA, assurance tiers) ----
         // Wire contract: forum/legion-constellation-attestation-wire-shape-2026-06-11.md.
@@ -9746,9 +9731,7 @@ mod lct_registry_tests {
             queued_at: Utc::now(),
             sealed_by: None,
         };
-        // Mirror queue_sealed_notice's write-through: mutate in-memory, then persist.
-        state.notifications.lock().await.insert(recipient, vec![notice.clone()]);
-        state.persist_mailbox(recipient, &[notice.clone()]).await;
+        assert!(enqueue_notice(&state, recipient, notice.clone()).await.unwrap());
 
         // Restart: a fresh state starts empty, then hydrates from the durable store.
         let restarted = reopen_state(&hub_dir).await;
@@ -9767,7 +9750,7 @@ mod lct_registry_tests {
         }
 
         // Drain depersists → a subsequent restart hydrates empty (no redelivery).
-        restarted.depersist_mailbox(recipient).await;
+        restarted.mailbox_legacy_drain(recipient).await.unwrap();
         let after_drain = reopen_state(&hub_dir).await;
         after_drain.hydrate_mailbox().await;
         assert!(
