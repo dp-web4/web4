@@ -259,6 +259,21 @@ pub trait HubStore: Send + Sync {
         Ok(Vec::new())
     }
 
+    /// Read ONE recipient's persisted blob, or `None` when it has none. Every
+    /// mailbox operation reads its recipient's record (the store, not the RAM
+    /// cache, is authoritative — web4#867), so this must not cost a scan of every
+    /// member's mailbox, nor fail because a DIFFERENT recipient's row is bad.
+    /// Default: the scan, filtered — correct for any backend, and overridden by
+    /// the durable one.
+    async fn mailbox_get(&self, recipient: uuid::Uuid) -> Result<Option<Vec<u8>>> {
+        Ok(self
+            .mailbox_load_all()
+            .await?
+            .into_iter()
+            .find(|(id, _)| *id == recipient)
+            .map(|(_, blob)| blob))
+    }
+
     /// Persist (insert-or-replace) one recipient's whole serialized queue. The
     /// daemon write-throughs after each enqueue. Default: no-op (in-memory only).
     async fn mailbox_put(&mut self, _recipient: uuid::Uuid, _blob: &[u8]) -> Result<()> {
@@ -1487,6 +1502,18 @@ impl HubStore for SqliteBackend {
         conn.execute("DELETE FROM proposals WHERE id = ?1", rusqlite::params![id.to_string()])
             .with_context(|| format!("deleting proposal {id}"))?;
         Ok(())
+    }
+
+    async fn mailbox_get(&self, recipient: uuid::Uuid) -> Result<Option<Vec<u8>>> {
+        use rusqlite::OptionalExtension;
+        let conn = self.conn.lock().unwrap();
+        conn.query_row(
+            "SELECT blob FROM mailbox WHERE recipient = ?1",
+            rusqlite::params![recipient.to_string()],
+            |row| row.get::<_, Vec<u8>>(0),
+        )
+        .optional()
+        .with_context(|| format!("reading mailbox blob for {recipient}"))
     }
 
     async fn mailbox_put(&mut self, recipient: uuid::Uuid, blob: &[u8]) -> Result<()> {

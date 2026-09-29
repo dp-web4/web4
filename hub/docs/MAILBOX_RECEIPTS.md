@@ -13,9 +13,23 @@ an operation. Existing membership, pinned-key and law checks apply.
 
 | Tool | Arguments | Effect |
 |---|---|---|
-| `notifications_enable_receipts` | `{}` | Persistently opt the caller into receipt delivery. Requires write freshness (`nonce`, `issued_at`). Idempotent. |
+| `notifications_enable_receipts` | `{}` | **Refused (403)** with a pointer to the operator route below. Enrollment is not self-service. |
 | `notifications_fetch` | `{"limit": 1..100}` (default 100) | Return `protocol`, `notifications: [{id, notice}]`, and `remaining`. Never consumes anything. Requires prior enrollment. |
 | `notifications_ack` | `{"id": "<64 hex characters>"}` | Durably remove that caller's notice and retain its ACK tombstone. Requires write freshness. Returns `acknowledged: true, completed: false`. Repeated ACK returns the same result. |
+
+**Enrollment is an operator act** (hub-claude review of #869). It is one-way: there is no downgrade,
+and older binaries cannot read the record. Until the retention epoch exists, an enrolled mailbox
+refuses every send once pending notices plus ACK tombstones reach the bound. A door that cannot be
+closed again, and that can end a member's inbound mail, is admission-shaped, so it lives on the
+loopback operator plane:
+
+    POST /admin/api/members/<lct_id>/mailbox-receipts   {"reason": "<required>"}
+
+It requires a known member, a reason and a durable store. The Sovereign witnesses a
+`mailbox:receipts_enabled` act (to the member; its substance hashes `{protocol, member, reason}`)
+**before** the write. If the write then fails, the error says the ledger records an enrollment that
+did not happen, and the same call retries it. Re-calling on an enrolled member returns
+`already: true` and writes no second act.
 
 The protocol identifier is `hub-mailbox-receive-v1`. Each returned `notice` uses
 the existing sealed notice fields. Its ID hashes the recipient and committed
@@ -26,6 +40,18 @@ A recipient must persist the entire returned sealed notice before ACK. ACK means
 transport custody, never that an agent read, understood, or completed its contents.
 Fetch-response loss, bridge failure before ACK, and ACK-response loss are safe to
 retry. A local bridge still needs its own durable deduplication and application ACK.
+
+## Refusals are not server faults
+
+| Status | Meaning | Retry? |
+|---|---|---|
+| 400 | `limit` outside 1..=100, or an `id` that is not 64 hex characters | no, fix the request |
+| 403 | `notifications_enable_receipts` on the member channel | no, ask the operator |
+| 404 | ACK for an id not in this member's mailbox | no; fetch again (IDs re-key if `SealedNotice` gains a field) |
+| 409 | fetch/ACK before enrollment; legacy `notifications` after enrollment | no |
+| 501 | the backend has no durable mailbox (receipt mode unavailable) | no |
+| 507 | `send_secret` to a receipt mailbox at its retention bound | not until retention exists |
+| 500 | the store could not be read or written; nothing changed | yes |
 
 ## Persistence and compatibility
 
@@ -58,8 +84,9 @@ a slot to a tombstone; it does not free one. **This is a bounded prototype, not 
 long-running deployment contract.** Define and implement a bounded replay/retention
 epoch and safe tombstone compaction before admitting a continuously active member.
 
-The existing store interface scans mailbox rows; no new storage schema is needed.
-A recipient-keyed read should replace that scan before scaling beyond staging.
+Each operation reads its own recipient's row (`HubStore::mailbox_get`: a keyed `SELECT` on
+SQLite, and the scan, filtered, as the default for other backends). No new storage schema is
+needed, and another member's unreadable row does not fail this one's operations.
 Serialization assumes one daemon owns the store; it is not multi-writer database
 coordination.
 

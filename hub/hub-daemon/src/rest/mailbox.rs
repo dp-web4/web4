@@ -9,6 +9,44 @@ use sha2::{Digest, Sha256};
 
 pub(super) const RECEIVE_PROTOCOL: &str = "hub-mailbox-receive-v1";
 
+/// A mailbox operation's failure, split by WHO must act on it. A caller's retry logic
+/// treats a 5xx as transient; a protocol refusal ("not enrolled", "bad id", "mailbox
+/// full") is not, and returning it as 500 teaches the caller to retry forever.
+#[derive(Debug)]
+pub(super) enum MailboxError {
+    /// The request is refused by the protocol; retrying it unchanged cannot succeed.
+    Refused(StatusCode, String),
+    /// The store could not be read or written; nothing changed, and a retry may succeed.
+    Store(anyhow::Error),
+}
+impl From<anyhow::Error> for MailboxError {
+    fn from(e: anyhow::Error) -> Self { Self::Store(e) }
+}
+impl From<serde_json::Error> for MailboxError {
+    fn from(e: serde_json::Error) -> Self { Self::Store(e.into()) }
+}
+impl std::fmt::Display for MailboxError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self { Self::Refused(_, m) => f.write_str(m), Self::Store(e) => write!(f, "{e:#}") }
+    }
+}
+impl From<MailboxError> for ApiError {
+    fn from(e: MailboxError) -> Self {
+        match e {
+            MailboxError::Refused(status, message) => ApiError { status, message },
+            MailboxError::Store(e) => ApiError::internal(e),
+        }
+    }
+}
+pub(super) fn refused<T>(status: StatusCode, msg: impl Into<String>) -> Result<T, MailboxError> {
+    Err(MailboxError::Refused(status, msg.into()))
+}
+fn require_durable(store: &dyn HubStore) -> Result<(), MailboxError> {
+    if store.mailbox_is_durable() { return Ok(()); }
+    // The deployment cannot offer the protocol at all: not the caller's error, not transient.
+    refused(StatusCode::NOT_IMPLEMENTED, "receipt delivery requires durable mailbox storage")
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ReceiptMailbox {
@@ -58,53 +96,71 @@ impl RestState {
         &self, store: &dyn HubStore, recipient: Uuid, cached: &[SealedNotice],
     ) -> Result<Mailbox> {
         if !store.mailbox_is_durable() { return Ok(Mailbox::Legacy(cached.to_vec())); }
-        // Existing store interface is a whole-mailbox scan. Deliberately prefer
-        // authoritative state over a cache that may have failed hydration.
-        for (id, bytes) in store.mailbox_load_all().await? {
-            if id == recipient { return Mailbox::decode(&bytes); }
+        // Authoritative state over a cache that may have failed hydration, read for
+        // THIS recipient only: another member's unreadable row is not this one's outage.
+        match store.mailbox_get(recipient).await? {
+            Some(bytes) => Mailbox::decode(&bytes),
+            None => Ok(Mailbox::Legacy(Vec::new())),
         }
-        Ok(Mailbox::Legacy(Vec::new()))
     }
 
-    pub(super) async fn mailbox_enable_receipts(&self, recipient: Uuid) -> Result<()> {
+    /// Enroll `recipient` in receipt delivery. An OPERATOR act, reached only from the
+    /// loopback admin plane (`POST /admin/api/members/:lct_id/mailbox-receipts`), never from
+    /// the member channel: enrollment is one-way (no downgrade, older binaries cannot read the
+    /// record) and, until a retention epoch exists, an enrolled mailbox refuses every send
+    /// once pending + ACK tombstones reach `MAX_NOTICES_PER_MEMBER`. A door that cannot be
+    /// closed again, and that ends a member's inbound mail, is admission-shaped.
+    ///
+    /// -> `Ok(true)` when this call enrolled, `Ok(false)` when already enrolled (idempotent).
+    pub(super) async fn mailbox_enable_receipts(&self, recipient: Uuid) -> Result<bool, MailboxError> {
         let mut cache = self.notifications.lock().await;
         let mut store = self.open_store().await?;
-        anyhow::ensure!(store.mailbox_is_durable(), "receipt delivery requires durable mailbox storage");
+        require_durable(&*store)?;
         let record = self.load_mailbox_record(&*store, recipient, &[]).await?;
         let record = match record {
             Mailbox::Legacy(notices) => Mailbox::Receipts(ReceiptMailbox {
                 protocol: RECEIVE_PROTOCOL.into(), notices, acked: Vec::new(),
             }),
-            other => other,
+            Mailbox::Receipts(_) => return Ok(false),
         };
         store.mailbox_put(recipient, &serde_json::to_vec(&record)?).await?;
         cache.insert(recipient, record.notices().clone());
-        Ok(())
+        Ok(true)
     }
 
-    pub(super) async fn mailbox_fetch(&self, recipient: Uuid, limit: usize) -> Result<serde_json::Value> {
-        anyhow::ensure!((1..=100).contains(&limit), "limit must be between 1 and 100");
+    pub(super) async fn mailbox_fetch(&self, recipient: Uuid, limit: usize) -> Result<serde_json::Value, MailboxError> {
+        if !(1..=100).contains(&limit) {
+            return refused(StatusCode::BAD_REQUEST, "limit must be between 1 and 100");
+        }
         let _guard = self.notifications.lock().await;
         let store = self.open_store().await?;
-        anyhow::ensure!(store.mailbox_is_durable(), "receipt delivery requires durable mailbox storage");
+        require_durable(&*store)?;
         let record = self.load_mailbox_record(&*store, recipient, &[]).await?;
-        anyhow::ensure!(record.is_receipts(), "enable receipt delivery explicitly before fetching");
+        if !record.is_receipts() {
+            return refused(StatusCode::CONFLICT,
+                "receipt delivery is not enabled for this member; enrollment is an operator act");
+        }
         let notices: Vec<_> = record.notices().iter().take(limit).map(|notice|
             serde_json::json!({"id": notice_id(recipient, notice), "notice": notice})).collect();
         Ok(serde_json::json!({"protocol": RECEIVE_PROTOCOL, "notifications": notices,
             "remaining": record.notices().len().saturating_sub(limit)}))
     }
 
-    pub(super) async fn mailbox_ack(&self, recipient: Uuid, id: &str) -> Result<serde_json::Value> {
-        anyhow::ensure!(id.len() == 64 && id.bytes().all(|b| b.is_ascii_hexdigit()), "invalid notice id");
+    pub(super) async fn mailbox_ack(&self, recipient: Uuid, id: &str) -> Result<serde_json::Value, MailboxError> {
+        if !(id.len() == 64 && id.bytes().all(|b| b.is_ascii_hexdigit())) {
+            return refused(StatusCode::BAD_REQUEST, "invalid notice id: 64 hex characters");
+        }
         let mut cache = self.notifications.lock().await;
         let mut store = self.open_store().await?;
-        anyhow::ensure!(store.mailbox_is_durable(), "receipt delivery requires durable mailbox storage");
+        require_durable(&*store)?;
         let mut record = self.load_mailbox_record(&*store, recipient, &[]).await?;
-        let Mailbox::Receipts(r) = &mut record else { anyhow::bail!("receipt delivery is not enabled") };
+        let Mailbox::Receipts(r) = &mut record else {
+            return refused(StatusCode::CONFLICT,
+                "receipt delivery is not enabled for this member; enrollment is an operator act");
+        };
         if !r.acked.iter().any(|old| old == id) {
             let Some(index) = r.notices.iter().position(|n| notice_id(recipient, n) == id) else {
-                anyhow::bail!("notice is not in this recipient's mailbox")
+                return refused(StatusCode::NOT_FOUND, "notice is not in this recipient's mailbox");
             };
             r.notices.remove(index);
             r.acked.push(id.to_owned());
@@ -115,12 +171,15 @@ impl RestState {
             "acknowledged": true, "completed": false}))
     }
 
-    pub(super) async fn mailbox_legacy_drain(&self, recipient: Uuid) -> Result<Vec<SealedNotice>> {
+    pub(super) async fn mailbox_legacy_drain(&self, recipient: Uuid) -> Result<Vec<SealedNotice>, MailboxError> {
         let mut cache = self.notifications.lock().await;
         let mut store = self.open_store().await?;
         let cached = cache.get(&recipient).map(Vec::as_slice).unwrap_or(&[]);
         let record = self.load_mailbox_record(&*store, recipient, cached).await?;
-        anyhow::ensure!(!record.is_receipts(), "legacy drain disabled: use notifications_fetch and notifications_ack");
+        if record.is_receipts() {
+            return refused(StatusCode::CONFLICT,
+                "legacy drain disabled for this member: use notifications_fetch and notifications_ack");
+        }
         // Legacy semantics remain consume-on-response, explicitly NOT the receipt
         // contract. Keep its deletion ordered with enqueue so it cannot erase a new send.
         store.mailbox_delete(recipient).await?;
@@ -272,8 +331,12 @@ mod tests {
     async fn receipt_channel_binds_ack_to_authenticated_recipient_and_requires_freshness() {
         let (_tmp, state, sov) = fixture(true).await;
         let who = sov.lct.id;
-        assert!(channel(&state, &sov, "notifications_enable_receipts", serde_json::json!({}), false).await.is_err());
-        channel(&state, &sov, "notifications_enable_receipts", serde_json::json!({}), true).await.unwrap();
+        // Enrollment is an operator act: the member channel refuses it even fresh, and says where.
+        let e = channel(&state, &sov, "notifications_enable_receipts", serde_json::json!({}), true).await.unwrap_err();
+        assert_eq!(e.status, StatusCode::FORBIDDEN);
+        assert!(e.message.contains("/mailbox-receipts"), "{}", e.message);
+        assert!(state.mailbox_fetch(who, 100).await.is_err(), "a refused self-enrollment changed nothing");
+        state.mailbox_enable_receipts(who).await.unwrap();
         enqueue_notice(&state, who, notice()).await.unwrap();
         let out = channel(&state, &sov, "notifications_fetch", serde_json::json!({}), false).await.unwrap();
         let id = out["notifications"][0]["id"].as_str().unwrap();
@@ -317,5 +380,68 @@ mod tests {
         assert_eq!(out["notifications"][0]["id"], notice_id(who, &record.notices()[0]), "no TTL deletion in receipt mode");
         state.mailbox_ack(who, out["notifications"][0]["id"].as_str().unwrap()).await.unwrap();
         assert!(enqueue_notice(&state, who, notice()).await.is_err(), "ACK tombstones count toward the bound");
+    }
+
+    fn status<T>(r: Result<T, MailboxError>) -> StatusCode {
+        match r {
+            Ok(_) => panic!("expected a refusal, got success"),
+            Err(MailboxError::Refused(st, _)) => st,
+            Err(MailboxError::Store(e)) => panic!("store error: {e:#}"),
+        }
+    }
+
+    /// A caller's retry logic reads the status: a protocol refusal must not look like a
+    /// transient store failure (500), or the caller retries a permanent "no" forever.
+    #[tokio::test]
+    async fn receipt_protocol_refusals_are_not_500s() {
+        let (_tmp, state, _) = fixture(true).await;
+        let who = Uuid::new_v4();
+        assert_eq!(status(state.mailbox_fetch(who, 100).await), StatusCode::CONFLICT, "not enrolled");
+        assert_eq!(status(state.mailbox_fetch(who, 0).await), StatusCode::BAD_REQUEST);
+        assert_eq!(status(state.mailbox_ack(who, "nothex").await), StatusCode::BAD_REQUEST);
+        assert_eq!(status(state.mailbox_ack(who, &"a".repeat(64)).await), StatusCode::CONFLICT, "not enrolled");
+        assert!(state.mailbox_enable_receipts(who).await.unwrap(), "first enrollment");
+        assert!(!state.mailbox_enable_receipts(who).await.unwrap(), "idempotent");
+        assert_eq!(status(state.mailbox_ack(who, &"a".repeat(64)).await), StatusCode::NOT_FOUND);
+        assert_eq!(status(state.mailbox_legacy_drain(who).await), StatusCode::CONFLICT);
+        let (_tmp2, ram, _) = fixture(false).await;
+        assert_eq!(status(ram.mailbox_enable_receipts(who).await), StatusCode::NOT_IMPLEMENTED);
+        // the retention bound refuses a SEND as the recipient's bound, not a server fault
+        let full = Mailbox::Receipts(ReceiptMailbox { protocol: RECEIVE_PROTOCOL.into(),
+            notices: (0..MAX_NOTICES_PER_MEMBER).map(|_| notice()).collect(), acked: vec![] });
+        let busy = Uuid::new_v4();
+        state.open_store().await.unwrap().mailbox_put(busy, &serde_json::to_vec(&full).unwrap()).await.unwrap();
+        assert_eq!(status(enqueue_notice(&state, busy, notice()).await), StatusCode::INSUFFICIENT_STORAGE);
+    }
+
+    /// Another member's unreadable row must not take THIS member's mailbox down: the record is
+    /// read per recipient, not by a scan that fails as a whole.
+    #[tokio::test]
+    async fn receipt_one_bad_row_is_not_every_members_outage() {
+        let (tmp, state, _) = fixture(true).await;
+        let who = Uuid::new_v4();
+        state.mailbox_enable_receipts(who).await.unwrap();
+        sql(&tmp, "INSERT INTO mailbox (recipient, blob) VALUES ('not-a-uuid', x'00');");
+        enqueue_notice(&state, who, notice()).await.unwrap();
+        assert_eq!(state.mailbox_fetch(who, 100).await.unwrap()["notifications"].as_array().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn receipt_enrollment_is_an_operator_act_witnessed_once() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let who = sov.lct.id;
+        let e = enable_mailbox_receipts_as_operator(&state, who, "  ").await.unwrap_err();
+        assert_eq!(e.status, StatusCode::BAD_REQUEST, "a reason is required");
+        let e = enable_mailbox_receipts_as_operator(&state, Uuid::new_v4(), "r").await.unwrap_err();
+        assert_eq!(e.status, StatusCode::NOT_FOUND, "only a known member");
+        let len = |s: &RestState| { let s = s.clone(); async move { s.ledger.lock().await.len() } };
+        let before = len(&state).await;
+        let out = enable_mailbox_receipts_as_operator(&state, who, "external bridge G4 staging").await.unwrap();
+        assert_eq!((out["enrolled"].clone(), out["already"].clone()), (serde_json::json!(true), serde_json::json!(false)));
+        assert_eq!(len(&state).await, before + 1, "the enrollment is on the ledger");
+        assert!(state.mailbox_fetch(who, 100).await.is_ok(), "and in force");
+        let again = enable_mailbox_receipts_as_operator(&state, who, "again").await.unwrap();
+        assert_eq!(again["already"], true);
+        assert_eq!(len(&state).await, before + 1, "an idempotent re-call writes no second act");
     }
 }

@@ -1581,7 +1581,9 @@ async fn queue_sealed_notice(
 /// ([`queue_sealed_notice`]) and the member-pre-sealed relay (`send_secret`); the
 /// hub never inspects `notice.sealed` here, so a peer-sealed body rides the mailbox
 /// identically to a hub-sealed one.
-async fn enqueue_notice(s: &RestState, recipient: Uuid, notice: SealedNotice) -> Result<bool> {
+async fn enqueue_notice(
+    s: &RestState, recipient: Uuid, notice: SealedNotice,
+) -> Result<bool, mailbox::MailboxError> {
     let cutoff = Utc::now() - chrono::Duration::seconds(NOTICE_TTL_SECS);
     // Notices removed here (TTL-expired or cap-evicted) die *upstream* of every
     // receiver: they never fire, never hit a gate, never dead-letter, and the
@@ -1595,7 +1597,12 @@ async fn enqueue_notice(s: &RestState, recipient: Uuid, notice: SealedNotice) ->
         let mut store = s.open_store().await?;
         let cached = cache.get(&recipient).map(Vec::as_slice).unwrap_or(&[]);
         let mut record = s.load_mailbox_record(&*store, recipient, cached).await?;
-        anyhow::ensure!(!record.full(), "receipt mailbox retention capacity reached; no notice accepted");
+        if record.full() {
+            // The recipient's bound, not the sender's error, and not transient: ACK tombstones
+            // are not reclaimed until a retention epoch exists (MAILBOX_RECEIPTS.md).
+            return mailbox::refused(StatusCode::INSUFFICIENT_STORAGE,
+                "the recipient's receipt mailbox is at its retention bound; no notice accepted");
+        }
         if !record.is_receipts() {
             let queue = record.notices_mut();
             let mut kept = Vec::with_capacity(queue.len());
@@ -4864,8 +4871,17 @@ async fn dispatch_channel(
         }
         // ---- DRAFT: referenced acts + the hub→citizen notification poll floor ----
         "notifications_enable_receipts" => {
-            s.mailbox_enable_receipts(caller_lct_id).await.map_err(ApiError::internal)?;
-            Ok(serde_json::json!({"protocol": mailbox::RECEIVE_PROTOCOL, "enabled": true}))
+            // Not self-service. Enrollment is one-way and, until a retention epoch exists, ends
+            // a member's inbound mail after MAX_NOTICES_PER_MEMBER ACKs — an operator's decision
+            // (hub-claude review of web4#869). The tool stays registered so a member asking gets
+            // this sentence rather than "unknown tool".
+            Err(ApiError {
+                status: StatusCode::FORBIDDEN,
+                message: format!(
+                    "receipt delivery is enabled by the hub operator, not by the member: \
+                     POST /admin/api/members/{caller_lct_id}/mailbox-receipts on the operator plane"
+                ),
+            })
         }
         "notifications_fetch" => {
             let limit = match inner.args.get("limit") {
@@ -4873,15 +4889,15 @@ async fn dispatch_channel(
                 Some(v) => v.as_u64().filter(|n| (1..=100).contains(n))
                     .ok_or_else(|| ApiError::bad_request("limit must be an integer from 1 to 100"))? as usize,
             };
-            s.mailbox_fetch(caller_lct_id, limit).await.map_err(ApiError::internal)
+            s.mailbox_fetch(caller_lct_id, limit).await.map_err(ApiError::from)
         }
         "notifications_ack" => {
             let id = inner.args.get("id").and_then(|v| v.as_str())
                 .ok_or_else(|| ApiError::bad_request("notifications_ack requires id"))?;
-            s.mailbox_ack(caller_lct_id, id).await.map_err(ApiError::internal)
+            s.mailbox_ack(caller_lct_id, id).await.map_err(ApiError::from)
         }
         "notifications" => {
-            let notices = s.mailbox_legacy_drain(caller_lct_id).await.map_err(ApiError::internal)?;
+            let notices = s.mailbox_legacy_drain(caller_lct_id).await.map_err(ApiError::from)?;
             Ok(serde_json::json!({ "total": notices.len(), "notifications": notices }))
         }
         "referenced_act" => {
@@ -5118,7 +5134,7 @@ async fn dispatch_channel(
                 pointer_uri,
                 queued_at: Utc::now(),
                 sealed_by: Some(caller_lct_id),
-            }).await.map_err(ApiError::internal)?;
+            }).await.map_err(ApiError::from)?;
             Ok(serde_json::json!({ "delivered": true, "durably_accepted": durable, "entry_index": index }))
         }
         // ---- constellation attestation (challenge-response MFA, assurance tiers) ----
@@ -6115,6 +6131,83 @@ async fn admin_remove_member(
     require_loopback(&peer)?;
     let entry_index = remove_member_live(&s, lct_id, body.reason).await?;
     Ok(Json(serde_json::json!({ "removed": true, "entry_index": entry_index })))
+}
+
+#[derive(Deserialize)]
+struct EnrollBody {
+    /// Required: enrollment cannot be undone, so the ledger says why it happened.
+    #[serde(default)]
+    reason: String,
+}
+
+/// `POST /admin/api/members/:lct_id/mailbox-receipts` — enroll a member in receipt delivery
+/// (`hub-mailbox-receive-v1`: non-destructive fetch + recipient-bound ACK). Operator-only.
+///
+/// surface: admin_enable_mailbox_receipts   act: switch a member's mailbox to receipt mode (one-way)
+/// S: med/irreversible [construct: no downgrade; an enrolled mailbox refuses sends at the retention bound]
+/// R: pass [construct: require_loopback on the operator listener]   W: pass [construct: operator plane; act by the Sovereign]
+/// O: pass [construct: member + reason + durability preflight before witness_event]
+/// A: pass [construct: `mailbox:receipts_enabled` ReferencedAct carries the reason's hash, before the write]
+/// V: present [construct: reason required; idempotent re-call writes no second act]
+/// verdict: PASS
+async fn admin_enable_mailbox_receipts(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(lct_id): Path<Uuid>,
+    Json(body): Json<EnrollBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    enable_mailbox_receipts_as_operator(&s, lct_id, &body.reason).await.map(Json)
+}
+
+async fn enable_mailbox_receipts_as_operator(
+    s: &RestState, lct_id: Uuid, reason: &str,
+) -> Result<serde_json::Value, ApiError> {
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(ApiError::bad_request(
+            "a reason is required: enrollment is one-way and the ledger records why".to_string()));
+    }
+    if s.resolver.read().await.lookup(lct_id).is_none() {
+        return Err(ApiError { status: StatusCode::NOT_FOUND,
+            message: format!("{lct_id} is not a known member") });
+    }
+    // Preflight: already enrolled is an idempotent no-op — no second act on the ledger.
+    {
+        let store = s.open_store().await.map_err(ApiError::internal)?;
+        if !store.mailbox_is_durable() {
+            return Err(mailbox::MailboxError::Refused(StatusCode::NOT_IMPLEMENTED,
+                "receipt delivery requires durable mailbox storage".into()).into());
+        }
+        if s.load_mailbox_record(&*store, lct_id, &[]).await.map_err(ApiError::internal)?.is_receipts() {
+            return Ok(serde_json::json!({"enrolled": true, "already": true,
+                "protocol": mailbox::RECEIVE_PROTOCOL}));
+        }
+    }
+    let statement = serde_json::json!({
+        "protocol": mailbox::RECEIVE_PROTOCOL, "member": lct_id, "reason": reason,
+    });
+    let act = web4_core::act::Act::addressed(
+        s.sovereign_lct_id,
+        web4_core::act::ActAddress::Citizen { lct_id },
+        "mailbox:receipts_enabled",
+        web4_core::act::SubstanceRef::new(
+            &format!("mailbox/{lct_id}/receipts"),
+            web4_core::sha256_hex(&serde_json::to_vec(&statement).map_err(|e| ApiError::internal(e.into()))?),
+            web4_core::act::SubstanceMedium::Message,
+        ),
+        Utc::now(),
+    );
+    let entry_index = witness_event(s, HubEvent::ReferencedAct { act }).await?;
+    // The act is on the ledger first. A failed write here leaves it asserting an enrollment
+    // that did not happen, so the error says exactly that and the retry (idempotent) applies it.
+    match s.mailbox_enable_receipts(lct_id).await {
+        Ok(_) => Ok(serde_json::json!({"enrolled": true, "already": false,
+            "protocol": mailbox::RECEIVE_PROTOCOL, "entry_index": entry_index, "statement": statement})),
+        Err(e) => Err(ApiError::internal(anyhow::anyhow!(
+            "ledger entry {entry_index} records the enrollment but the mailbox write failed ({e}); \
+             NOT enrolled — retry this same call to apply it"))),
+    }
 }
 
 #[derive(Deserialize)]
@@ -7235,6 +7328,7 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/members/:lct_id/key", post(admin_pin_key))
         .route("/admin/api/members/:lct_id/remove", post(admin_remove_member))
         .route("/admin/api/members/:lct_id/admission-reset", post(admin_admission_reset))
+        .route("/admin/api/members/:lct_id/mailbox-receipts", post(admin_enable_mailbox_receipts))
         .with_state(state)
 }
 
