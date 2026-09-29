@@ -22,6 +22,10 @@ pub(super) const MAX_TOMBSTONES: usize = 4096;
 /// attempt's receipt; after it, the same id is a new send. Declared, not implied (#867).
 pub(super) const SEND_OP_WINDOW_SECS: i64 = 7 * 24 * 3600;
 
+/// Serializes operator enrollment (preflight + witness + write). See
+/// `enable_mailbox_receipts_as_operator`.
+pub(super) static ENROLL_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// A mailbox operation's failure, split by WHO must act on it. A caller's retry logic
 /// treats a 5xx as transient; a protocol refusal ("not enrolled", "bad id", "mailbox
 /// full") is not, and returning it as 500 teaches the caller to retry forever.
@@ -670,6 +674,30 @@ mod tests {
         sql(&tmp, "INSERT INTO mailbox (recipient, blob) VALUES ('not-a-uuid', x'00');");
         enqueue_notice(&state, who, notice()).await.unwrap();
         assert_eq!(state.mailbox_fetch(who, 100).await.unwrap()["notifications"].as_array().unwrap().len(), 1);
+    }
+
+    /// Enrollment holds ENROLL_LOCK across preflight + witness + write. Deterministic form of
+    /// "two concurrent calls witness once": while another holder has the lock, an enrollment
+    /// must not reach the ledger at all. (A join! of two calls does not interleave on the test
+    /// runtime, so it passed with the lock removed — a test that could not fail.)
+    #[tokio::test]
+    async fn an_enrollment_waits_for_the_enrollment_lock_before_witnessing() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let before = state.ledger.lock().await.len();
+        let held = ENROLL_LOCK.lock().await;
+        let task = {
+            let state = state.clone();
+            let who = sov.lct.id;
+            tokio::spawn(async move { enable_mailbox_receipts_as_operator(&state, who, "r").await })
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert_eq!(state.ledger.lock().await.len(), before, "witnessed while another enrollment held the lock");
+        drop(held);
+        let out = task.await.unwrap().unwrap();
+        assert_eq!(out["already"], false);
+        assert_eq!(state.ledger.lock().await.len(), before + 1);
+        let again = enable_mailbox_receipts_as_operator(&state, sov.lct.id, "r2").await.unwrap();
+        assert_eq!(again["already"], true);
     }
 
     #[tokio::test]

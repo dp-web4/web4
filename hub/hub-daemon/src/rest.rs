@@ -563,7 +563,11 @@ impl RestState {
         let rows = match store.mailbox_load_all().await {
             Ok(r) => r,
             Err(e) => {
-                tracing::warn!("mailbox hydrate: load failed ({e}); starting empty");
+                // On a durable store every mailbox operation reads the recipient's row, not this
+                // cache (web4#867), so a failed warm-up loses no queued notice: say that, not
+                // "starting empty", which reads as data loss.
+                tracing::warn!("mailbox hydrate: load failed ({e}); the RAM cache starts empty, \
+                                but every mailbox operation reads the store — no queued notice is lost");
                 return;
             }
         };
@@ -6363,6 +6367,11 @@ async fn enable_mailbox_receipts_as_operator(
         return Err(ApiError { status: StatusCode::NOT_FOUND,
             message: format!("{lct_id} is not a known member") });
     }
+    // One enrollment at a time, across preflight + witness + write, so two concurrent operator
+    // calls cannot both pass the preflight and both witness an act (hub-claude review of
+    // 943a9514). Its own lock, not the notifications mutex: witness_event can queue notices,
+    // which takes that mutex, and holding it here would deadlock.
+    let _enrolling = mailbox::ENROLL_LOCK.lock().await;
     // Preflight: already enrolled is an idempotent no-op — no second act on the ledger.
     {
         let store = s.open_store().await.map_err(ApiError::internal)?;
@@ -6393,7 +6402,9 @@ async fn enable_mailbox_receipts_as_operator(
     // The act is on the ledger first. A failed write here leaves it asserting an enrollment
     // that did not happen, so the error says exactly that and the retry (idempotent) applies it.
     match s.mailbox_enable_receipts(lct_id).await {
-        Ok(_) => Ok(serde_json::json!({"enrolled": true, "already": false,
+        // Under ENROLL_LOCK nothing else enrolls between the preflight and here, so `false`
+        // would mean the record changed underneath us; report what the store said.
+        Ok(enrolled_now) => Ok(serde_json::json!({"enrolled": true, "already": !enrolled_now,
             "protocol": mailbox::RECEIVE_PROTOCOL, "entry_index": entry_index, "statement": statement})),
         Err(e) => Err(ApiError::internal(anyhow::anyhow!(
             "ledger entry {entry_index} records the enrollment but the mailbox write failed ({e}); \
