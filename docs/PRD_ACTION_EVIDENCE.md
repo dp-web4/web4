@@ -111,10 +111,20 @@ compromised key can be revoked without invalidating evidence that was valid befo
 
 ### FR-4 — Evidence semantics: atomicity, absence, adjudication
 
+**External evidence:** Qin et al., *LLM Agents Can Easily Tamper With Their Own Traces*
+([arXiv:2609.30266](https://arxiv.org/abs/2609.30266), 2026) experimentally demonstrate
+that agents can delete/edit native traces and spoof tool-call records, including discovering
+trace-manipulation strategies under task reward pressure. AAEP therefore treats
+actor-controlled traces as claims, not as authoritative execution evidence.
+
 - For high-consequence actions the accepted decision persists **before** execution; the
   result or an explicit incomplete state persists before success is reported.
 - Entries carry sequence, prior hash, signer, type, policy/law version, timestamp source and
   signature. Heads are anchored beyond the issuing party.
+- Evidence that matters for authorization, oversight or accountability MUST cross a trust
+  boundary the actor cannot rewrite before it becomes authoritative. Hashing/signing after
+  actor-controlled collection protects surviving records from later mutation; it does not
+  prove completeness or fidelity of collection.
 - **Define what missing evidence means.** Expected-evidence windows, incomplete actions,
   chain gaps and degraded modes are specified states — because otherwise "no record" is
   indistinguishable from "nothing happened", and that ambiguity is exploitable by the party
