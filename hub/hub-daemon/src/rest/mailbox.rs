@@ -9,6 +9,19 @@ use sha2::{Digest, Sha256};
 
 pub(super) const RECEIVE_PROTOCOL: &str = "hub-mailbox-receive-v1";
 
+/// How long an ACK tombstone is kept. A tombstone exists for ONE reason: a retried ACK (its
+/// response was lost, or the daemon restarted) must answer "acknowledged" rather than 404. It
+/// is not what keeps a notice from coming back — a notice ID hashes its committed timestamp,
+/// so an ACKed notice cannot recur. So tombstones are bounded by age and count, and an ACK
+/// FREES its slot (web4#867 item 5: expiry is explicit, never receipt; and the retention bound
+/// must not end a member's inbound mail).
+pub(super) const TOMBSTONE_WINDOW_SECS: i64 = 7 * 24 * 3600;
+pub(super) const MAX_TOMBSTONES: usize = 4096;
+
+/// How long a sender's `operation_id` is remembered. A retry inside the window gets the first
+/// attempt's receipt; after it, the same id is a new send. Declared, not implied (#867).
+pub(super) const SEND_OP_WINDOW_SECS: i64 = 7 * 24 * 3600;
+
 /// A mailbox operation's failure, split by WHO must act on it. A caller's retry logic
 /// treats a 5xx as transient; a protocol refusal ("not enrolled", "bad id", "mailbox
 /// full") is not, and returning it as 500 teaches the caller to retry forever.
@@ -47,12 +60,30 @@ fn require_durable(store: &dyn HubStore) -> Result<(), MailboxError> {
     refused(StatusCode::NOT_IMPLEMENTED, "receipt delivery requires durable mailbox storage")
 }
 
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Tombstone {
+    id: String,
+    /// Unix seconds of the ACK.
+    at: i64,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ReceiptMailbox {
     protocol: String,
     pub notices: Vec<SealedNotice>,
-    acked: Vec<String>,
+    acked: Vec<Tombstone>,
+}
+impl ReceiptMailbox {
+    /// Drop tombstones past the window, then the oldest beyond the count bound.
+    fn prune_tombstones(&mut self, now: i64) {
+        self.acked.retain(|t| t.at >= now - TOMBSTONE_WINDOW_SECS);
+        if self.acked.len() > MAX_TOMBSTONES {
+            let excess = self.acked.len() - MAX_TOMBSTONES;
+            self.acked.drain(..excess);
+        }
+    }
 }
 
 // Old Vec blobs are read in place; only explicit enrollment changes their format.
@@ -67,7 +98,7 @@ impl Mailbox {
         let record: Self = serde_json::from_slice(bytes)?;
         if let Self::Receipts(r) = &record {
             anyhow::ensure!(r.protocol == RECEIVE_PROTOCOL, "unknown mailbox protocol");
-            anyhow::ensure!(r.notices.len() + r.acked.len() <= MAX_NOTICES_PER_MEMBER,
+            anyhow::ensure!(r.notices.len() <= MAX_NOTICES_PER_MEMBER && r.acked.len() <= MAX_TOMBSTONES,
                 "receipt mailbox exceeds retention bound");
         }
         Ok(record)
@@ -79,8 +110,9 @@ impl Mailbox {
         match self { Self::Legacy(q) => q, Self::Receipts(r) => &mut r.notices }
     }
     pub fn is_receipts(&self) -> bool { matches!(self, Self::Receipts(_)) }
+    /// Pending notices only. Tombstones are pruned and never hold a slot.
     pub fn full(&self) -> bool {
-        matches!(self, Self::Receipts(r) if r.notices.len() + r.acked.len() >= MAX_NOTICES_PER_MEMBER)
+        matches!(self, Self::Receipts(r) if r.notices.len() >= MAX_NOTICES_PER_MEMBER)
     }
 }
 
@@ -91,7 +123,64 @@ pub(super) fn notice_id(recipient: Uuid, notice: &SealedNotice) -> String {
     hex::encode(Sha256::digest(bytes))
 }
 
+/// A sender's `send_secret` operation, committed in the SAME transaction as the notice it
+/// queued. `binding` is what the operation id stands for; a retry must match it.
+#[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SendOp {
+    pub binding: serde_json::Value,
+    pub act_id: Uuid,
+    pub notice_id: String,
+    pub created_at: i64,
+    /// `None` until the act lands on the ledger. A retry of an op left here (the daemon died
+    /// between queueing and witnessing) finds the act by `act_id`, or witnesses it then.
+    pub entry_index: Option<u64>,
+    pub durable: bool,
+}
+
+/// The id of the act a `(sender, operation_id)` witnesses — deterministic, so a retry after a
+/// crash can find the act on the ledger instead of witnessing a second one.
+pub(super) fn op_act_id(sender: Uuid, op_id: &str) -> Uuid {
+    let d = Sha256::digest(format!("web4-hub/send-op/v1\0{sender}\0{op_id}").as_bytes());
+    let mut b = [0u8; 16];
+    b.copy_from_slice(&d[..16]);
+    Uuid::from_bytes(b)
+}
+
+pub(super) fn check_op_id(op_id: &str) -> Result<(), MailboxError> {
+    let ok = (1..=128).contains(&op_id.len())
+        && op_id.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'));
+    if ok { Ok(()) } else {
+        refused(StatusCode::BAD_REQUEST, "operation_id must be 1-128 of [A-Za-z0-9._:-]")
+    }
+}
+
 impl RestState {
+    /// Withdraw a notice this call queued whose act could not be witnessed, and its op record,
+    /// in one transaction. -> `Ok(true)` withdrawn; `Ok(false)` it is no longer queued (already
+    /// drained or ACKed — delivered), so it cannot be withdrawn and the op record is kept for
+    /// the retry that completes its act.
+    pub(super) async fn mailbox_withdraw(
+        &self, recipient: Uuid, id: &str, op: Option<(Uuid, &str)>,
+    ) -> Result<bool, MailboxError> {
+        let mut cache = self.notifications.lock().await;
+        let mut store = self.open_store().await?;
+        let cached = cache.get(&recipient).map(Vec::as_slice).unwrap_or(&[]);
+        let mut record = self.load_mailbox_record(&*store, recipient, cached).await?;
+        let Some(index) = record.notices().iter().position(|n| notice_id(recipient, n) == id) else {
+            return Ok(false);
+        };
+        record.notices_mut().remove(index);
+        let blob = serde_json::to_vec(&record)?;
+        match op {
+            Some((sender, op_id)) => store.mailbox_commit_with_op(recipient, Some(&blob),
+                Some((sender, op_id, 0, None)), Utc::now().timestamp() - SEND_OP_WINDOW_SECS).await?,
+            None => store.mailbox_put(recipient, &blob).await?,
+        }
+        cache.insert(recipient, record.notices().clone());
+        Ok(true)
+    }
+
     pub(super) async fn load_mailbox_record(
         &self, store: &dyn HubStore, recipient: Uuid, cached: &[SealedNotice],
     ) -> Result<Mailbox> {
@@ -107,9 +196,9 @@ impl RestState {
     /// Enroll `recipient` in receipt delivery. An OPERATOR act, reached only from the
     /// loopback admin plane (`POST /admin/api/members/:lct_id/mailbox-receipts`), never from
     /// the member channel: enrollment is one-way (no downgrade, older binaries cannot read the
-    /// record) and, until a retention epoch exists, an enrolled mailbox refuses every send
-    /// once pending + ACK tombstones reach `MAX_NOTICES_PER_MEMBER`. A door that cannot be
-    /// closed again, and that ends a member's inbound mail, is admission-shaped.
+    /// record), and it moves the member from consume-on-poll to fetch/ACK — a member whose
+    /// client never ACKs stops receiving at `MAX_NOTICES_PER_MEMBER` unacknowledged notices.
+    /// A door that cannot be closed again is admission-shaped.
     ///
     /// -> `Ok(true)` when this call enrolled, `Ok(false)` when already enrolled (idempotent).
     pub(super) async fn mailbox_enable_receipts(&self, recipient: Uuid) -> Result<bool, MailboxError> {
@@ -158,12 +247,24 @@ impl RestState {
             return refused(StatusCode::CONFLICT,
                 "receipt delivery is not enabled for this member; enrollment is an operator act");
         };
-        if !r.acked.iter().any(|old| old == id) {
+        let now = Utc::now().timestamp();
+        let held = r.acked.len();
+        r.prune_tombstones(now);
+        let mut dirty = r.acked.len() != held;
+        if !r.acked.iter().any(|old| old.id == id) {
             let Some(index) = r.notices.iter().position(|n| notice_id(recipient, n) == id) else {
-                return refused(StatusCode::NOT_FOUND, "notice is not in this recipient's mailbox");
+                return refused(StatusCode::NOT_FOUND, format!(
+                    "notice is not in this recipient's mailbox — never queued here, or ACKed more \
+                     than {} days ago (tombstones are kept that long)", TOMBSTONE_WINDOW_SECS / 86400));
             };
             r.notices.remove(index);
-            r.acked.push(id.to_owned());
+            r.acked.push(Tombstone { id: id.to_owned(), at: now });
+            r.prune_tombstones(now);
+            dirty = true;
+        }
+        // A retried ACK changes nothing of its own, but expired tombstones it pruned must not
+        // survive on disk for want of a write.
+        if dirty {
             store.mailbox_put(recipient, &serde_json::to_vec(&record)?).await?;
             cache.insert(recipient, record.notices().clone());
         }
@@ -379,8 +480,153 @@ mod tests {
         assert_eq!(out["remaining"], 900);
         assert_eq!(out["notifications"][0]["id"], notice_id(who, &record.notices()[0]), "no TTL deletion in receipt mode");
         state.mailbox_ack(who, out["notifications"][0]["id"].as_str().unwrap()).await.unwrap();
-        assert!(enqueue_notice(&state, who, notice()).await.is_err(), "ACK tombstones count toward the bound");
+        // #867 item 5: an ACK frees its slot — the bound can no longer end a member's inbound mail.
+        assert!(enqueue_notice(&state, who, notice()).await.is_ok(), "an ACK frees a slot");
+        assert!(enqueue_notice(&state, who, notice()).await.is_err(), "and only one");
     }
+
+    /// Tombstones exist so a RETRIED ack answers "acknowledged"; they are bounded by age and
+    /// count, and one past the window answers 404 with the reason.
+    #[tokio::test]
+    async fn receipt_tombstones_expire_by_age_and_count() {
+        let (_tmp, state, _) = fixture(true).await;
+        let who = Uuid::new_v4();
+        let now = Utc::now().timestamp();
+        let (fresh, stale) = (notice(), notice());
+        let (fresh_id, stale_id) = (notice_id(who, &fresh), notice_id(who, &stale));
+        let mut acked: Vec<Tombstone> = (0..MAX_TOMBSTONES - 1)
+            .map(|i| Tombstone { id: format!("{i:064x}"), at: now - 60 }).collect();
+        acked.push(Tombstone { id: stale_id.clone(), at: now - TOMBSTONE_WINDOW_SECS - 1 });
+        acked.push(Tombstone { id: fresh_id.clone(), at: now - 60 });
+        let record = Mailbox::Receipts(ReceiptMailbox { protocol: RECEIVE_PROTOCOL.into(), notices: vec![], acked });
+        // one over the count bound is refused as a stored record (decode bound) ...
+        state.open_store().await.unwrap().mailbox_put(who, &serde_json::to_vec(&record).unwrap()).await.unwrap();
+        assert!(state.mailbox_fetch(who, 100).await.is_err(), "a record past the tombstone bound does not load");
+        // ... so store one within it, and let an ACK prune the stale one.
+        let Mailbox::Receipts(mut r) = record else { unreachable!() };
+        r.acked.remove(0);
+        state.open_store().await.unwrap().mailbox_put(who, &serde_json::to_vec(&Mailbox::Receipts(r)).unwrap()).await.unwrap();
+        assert_eq!(state.mailbox_ack(who, &fresh_id).await.unwrap()["acknowledged"], true, "a retried ACK inside the window");
+        assert_eq!(status(state.mailbox_ack(who, &stale_id).await), StatusCode::NOT_FOUND, "past the window");
+        let bytes = state.open_store().await.unwrap().mailbox_get(who).await.unwrap().unwrap();
+        let Mailbox::Receipts(after) = Mailbox::decode(&bytes).unwrap() else { unreachable!() };
+        assert!(after.acked.iter().all(|t| t.id != stale_id), "the stale tombstone was pruned on write");
+    }
+
+    // ---- send_secret: the ledger never asserts a send the mailbox refused (#867 contract 1) ----
+
+    fn secret_args(to: Uuid, sealed: &str, op: Option<&str>) -> serde_json::Value {
+        let mut a = serde_json::json!({"to": to, "sealed": sealed, "pair_id": Uuid::new_v4(),
+            "content_hash": format!("sha256-content:{}", "a".repeat(64))});
+        if let Some(op) = op { a["operation_id"] = serde_json::json!(op); }
+        a
+    }
+    async fn ledger_len(s: &RestState) -> usize { s.ledger.lock().await.len() }
+    async fn queued(s: &RestState, who: Uuid) -> usize {
+        let store = s.open_store().await.unwrap();
+        s.load_mailbox_record(&*store, who, &[]).await.unwrap().notices().len()
+    }
+
+    #[tokio::test]
+    async fn a_refused_send_leaves_no_act_on_the_ledger() {
+        let (tmp, state, sov) = fixture(true).await;
+        let before = ledger_len(&state).await;
+        sql(&tmp, "CREATE TRIGGER refuse_mailbox BEFORE INSERT ON mailbox BEGIN SELECT RAISE(FAIL, 'injected'); END;");
+        assert!(channel(&state, &sov, "send_secret", secret_args(sov.lct.id, "s", None), true).await.is_err());
+        assert_eq!(ledger_len(&state).await, before, "a refused send witnessed an act");
+    }
+
+    #[tokio::test]
+    async fn an_act_that_cannot_land_withdraws_its_notice() {
+        let (tmp, state, sov) = fixture(true).await;
+        let (before, q0) = (ledger_len(&state).await, queued(&state, sov.lct.id).await);
+        sql(&tmp, "CREATE TRIGGER refuse_ledger BEFORE INSERT ON ledger_entries BEGIN SELECT RAISE(FAIL, 'injected'); END;");
+        let e = channel(&state, &sov, "send_secret", secret_args(sov.lct.id, "s", Some("op-1")), true).await.unwrap_err();
+        assert!(e.message.contains("withdrawn"), "{}", e.message);
+        assert_eq!(queued(&state, sov.lct.id).await, q0, "the notice was withdrawn");
+        assert_eq!(ledger_len(&state).await, before);
+        let store = state.open_store().await.unwrap();
+        assert!(store.send_op_get(sov.lct.id, "op-1").await.unwrap().is_none(), "and its op record");
+    }
+
+    #[tokio::test]
+    async fn a_retried_operation_gets_the_first_receipt_not_a_second_send() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let who = sov.lct.id;
+        let (l0, q0) = (ledger_len(&state).await, queued(&state, who).await);
+        let first = channel(&state, &sov, "send_secret", secret_args(who, "s", Some("op-1")), true).await.unwrap();
+        assert_eq!(first["replayed"], false);
+        let again = channel(&state, &sov, "send_secret", secret_args(who, "s", Some("op-1")), true).await.unwrap();
+        assert_eq!(again["replayed"], true);
+        assert_eq!((again["entry_index"].clone(), again["notice_id"].clone()),
+                   (first["entry_index"].clone(), first["notice_id"].clone()));
+        assert_eq!((ledger_len(&state).await, queued(&state, who).await), (l0 + 1, q0 + 1), "one act, one notice");
+        // the same id for a different message is refused and changes nothing
+        let e = channel(&state, &sov, "send_secret", secret_args(who, "other", Some("op-1")), true).await.unwrap_err();
+        assert_eq!(e.status, StatusCode::CONFLICT);
+        assert_eq!((ledger_len(&state).await, queued(&state, who).await), (l0 + 1, q0 + 1));
+        // without an operation_id nothing is deduplicated (legacy behaviour, ordering fixed)
+        channel(&state, &sov, "send_secret", secret_args(who, "s", None), true).await.unwrap();
+        assert_eq!(queued(&state, who).await, q0 + 2);
+        let e = channel(&state, &sov, "send_secret", secret_args(who, "s", Some("bad id/")), true).await.unwrap_err();
+        assert_eq!(e.status, StatusCode::BAD_REQUEST);
+    }
+
+    /// The notice and its op record are ONE transaction: a notice is never accepted without the
+    /// record that makes its retry safe (and no act is witnessed for it).
+    #[tokio::test]
+    async fn the_notice_and_its_op_record_commit_together() {
+        let (tmp, state, sov) = fixture(true).await;
+        let who = sov.lct.id;
+        let (l0, q0) = (ledger_len(&state).await, queued(&state, who).await);
+        sql(&tmp, "CREATE TRIGGER refuse_op BEFORE INSERT ON send_ops BEGIN SELECT RAISE(FAIL, 'injected'); END;");
+        assert!(channel(&state, &sov, "send_secret", secret_args(who, "s", Some("op-tx")), true).await.is_err());
+        assert_eq!((ledger_len(&state).await, queued(&state, who).await), (l0, q0),
+            "the mailbox write survived its op record's failure");
+    }
+
+    /// The daemon died between queueing the notice and landing its act: the op record says
+    /// queued, no entry. A retry witnesses the act ONCE — and if the act did land but the op
+    /// record was not updated, the retry FINDS it rather than witnessing a second.
+    #[tokio::test]
+    async fn a_retry_after_a_crash_completes_the_record_exactly_once() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let who = sov.lct.id;
+        let binding = |sealed: &str| serde_json::json!({"to": who, "pointer_uri": "secret",
+            "content_hash": format!("sha256-content:{}", "a".repeat(64)),
+            "sealed_sha256": web4_core::sha256_hex(sealed.as_bytes())});
+        // Case 1: queued, act never landed.
+        let rec = SendOp { binding: binding("s"), act_id: op_act_id(who, "op-crash"), notice_id: String::new(),
+            created_at: Utc::now().timestamp(), entry_index: None, durable: true };
+        let n = SealedNotice { from: who, sealed: "s".into(), kind: "secret".into(), pointer_uri: "secret".into(),
+            sealed_by: Some(who), ..notice() };
+        assert!(matches!(enqueue_notice_op(&state, who, n, Some((who, "op-crash", &rec))).await.unwrap(),
+            Enqueued::Queued { .. }));
+        let (l0, q0) = (ledger_len(&state).await, queued(&state, who).await);
+        let out = channel(&state, &sov, "send_secret", secret_args(who, "s", Some("op-crash")), true).await.unwrap();
+        assert_eq!(out["replayed"], true);
+        assert_eq!((ledger_len(&state).await, queued(&state, who).await), (l0 + 1, q0), "act landed once, no second notice");
+        let index = out["entry_index"].as_u64().unwrap();
+        let again = channel(&state, &sov, "send_secret", secret_args(who, "s", Some("op-crash")), true).await.unwrap();
+        assert_eq!(again["entry_index"], index);
+        assert_eq!(ledger_len(&state).await, l0 + 1);
+
+        // Case 2: the act landed, the op record was never updated.
+        let rec2 = SendOp { act_id: op_act_id(who, "op-landed"), ..rec.clone() };
+        let n2 = SealedNotice { from: who, sealed: "s".into(), kind: "secret".into(), pointer_uri: "secret".into(),
+            sealed_by: Some(who), ..notice() };
+        enqueue_notice_op(&state, who, n2, Some((who, "op-landed", &rec2))).await.unwrap();
+        let mut act = web4_core::act::Act::addressed(who, web4_core::act::ActAddress::Citizen { lct_id: who },
+            "secret", web4_core::act::SubstanceRef::new("secret", format!("sha256-content:{}", "a".repeat(64)),
+            web4_core::act::SubstanceMedium::Message), Utc::now());
+        act.act_id = op_act_id(who, "op-landed");
+        let landed = witness_event(&state, HubEvent::ReferencedAct { act }).await.unwrap();
+        let l1 = ledger_len(&state).await;
+        let out = channel(&state, &sov, "send_secret", secret_args(who, "s", Some("op-landed")), true).await.unwrap();
+        assert_eq!(out["entry_index"], landed, "found by act_id");
+        assert_eq!(ledger_len(&state).await, l1, "not witnessed a second time");
+    }
+
 
     fn status<T>(r: Result<T, MailboxError>) -> StatusCode {
         match r {

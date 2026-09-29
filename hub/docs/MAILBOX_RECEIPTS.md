@@ -15,13 +15,13 @@ an operation. Existing membership, pinned-key and law checks apply.
 |---|---|---|
 | `notifications_enable_receipts` | `{}` | **Refused (403)** with a pointer to the operator route below. Enrollment is not self-service. |
 | `notifications_fetch` | `{"limit": 1..100}` (default 100) | Return `protocol`, `notifications: [{id, notice}]`, and `remaining`. Never consumes anything. Requires prior enrollment. |
-| `notifications_ack` | `{"id": "<64 hex characters>"}` | Durably remove that caller's notice and retain its ACK tombstone. Requires write freshness. Returns `acknowledged: true, completed: false`. Repeated ACK returns the same result. |
+| `notifications_ack` | `{"id": "<64 hex characters>"}` | Durably remove that caller's notice and keep an ACK tombstone for 7 days (at most 4,096), so a retried ACK returns the same result. The ACK frees the notice's slot. Requires write freshness. Returns `acknowledged: true, completed: false`. |
 
 **Enrollment is an operator act** (hub-claude review of #869). It is one-way: there is no downgrade,
-and older binaries cannot read the record. Until the retention epoch exists, an enrolled mailbox
-refuses every send once pending notices plus ACK tombstones reach the bound. A door that cannot be
-closed again, and that can end a member's inbound mail, is admission-shaped, so it lives on the
-loopback operator plane:
+and older binaries cannot read the record. It also changes that member's delivery from
+consume-on-poll to fetch/ACK, and a member whose client does not ACK stops receiving once it holds
+1,000 unacknowledged notices. A door that cannot be closed again is admission-shaped, so it lives
+on the loopback operator plane:
 
     POST /admin/api/members/<lct_id>/mailbox-receipts   {"reason": "<required>"}
 
@@ -41,16 +41,49 @@ transport custody, never that an agent read, understood, or completed its conten
 Fetch-response loss, bridge failure before ACK, and ACK-response loss are safe to
 retry. A local bridge still needs its own durable deduplication and application ACK.
 
+## Sending: the order that keeps the record honest (#867 contract 1)
+
+`send_secret` now runs in this order:
+1. **An existing `operation_id` answers with its first outcome.** Nothing new is queued or witnessed.
+2. **Authorize the act.** The law gate runs and the Sovereign signs. This has **no side effect**.
+3. **Queue the notice durably.** When an `operation_id` is given, its record is written in the
+   **same transaction**.
+4. **Land the pre-signed act.** If the ledger moved since signing, it is re-authorized, at most
+   three attempts. If the act cannot land, the notice (and op record) is **withdrawn** while it is
+   still queued. The error then says "not sent … withdrawn". If it was already drained or ACKed,
+   the error says it may have been delivered, and a retry with the same `operation_id` completes
+   the record.
+
+So a refused send leaves the ledger untouched, and the ledger never asserts a send the mailbox
+refused.
+
+**`operation_id`** is optional: 1–128 characters of `[A-Za-z0-9._:-]`, and it needs a durable
+backend (otherwise 501).
+- **Same id, same message.** A retry within **7 days** returns the first attempt's
+  `entry_index` and `notice_id` with `replayed: true`: one notice, one act. The message is the
+  recipient, pointer, `content_hash` and sealed-body hash.
+- **Same id, different message:** 409, and nothing is sent.
+- **Retry after a crash between steps 3 and 4.** The act's id is derived from (sender,
+  `operation_id`). The retry **finds** the act on the ledger if it landed, or witnesses it
+  **once** if it did not.
+- **After the 7-day window**, the same id is a new send.
+- **Without an `operation_id`**, the order above still holds, but nothing is deduplicated; the
+  legacy behaviour is kept.
+
+Response: `delivered`, `durably_accepted`, `entry_index`, `notice_id`, `operation_id`,
+`replayed`.
+
 ## Refusals are not server faults
 
 | Status | Meaning | Retry? |
 |---|---|---|
 | 400 | `limit` outside 1..=100, or an `id` that is not 64 hex characters | no, fix the request |
 | 403 | `notifications_enable_receipts` on the member channel | no, ask the operator |
-| 404 | ACK for an id not in this member's mailbox | no; fetch again (IDs re-key if `SealedNotice` gains a field) |
+| 404 | ACK for an id not in this member's mailbox, or ACKed more than 7 days ago | no; fetch again (IDs re-key if `SealedNotice` gains a field) |
 | 409 | fetch/ACK before enrollment; legacy `notifications` after enrollment | no |
 | 501 | the backend has no durable mailbox (receipt mode unavailable) | no |
-| 507 | `send_secret` to a receipt mailbox at its retention bound | not until retention exists |
+| 409 | `operation_id` reused for a different message | no, use a new id |
+| 507 | `send_secret` to a receipt mailbox holding the maximum unacknowledged notices | yes, after the recipient ACKs |
 | 500 | the store could not be read or written; nothing changed | yes |
 
 ## Persistence and compatibility
@@ -77,12 +110,17 @@ witnessed ledger event is not a receipt for successful mailbox delivery.
 
 ## Deliberate bounds and remaining work
 
-This review slice retains at most 1,000 total pending notices plus ACK tombstones
-per enrolled member. It never silently drops an unacknowledged notice for TTL or
-capacity. Once full, enqueue refuses rather than erasing evidence. ACK transfers
-a slot to a tombstone; it does not free one. **This is a bounded prototype, not a
-long-running deployment contract.** Define and implement a bounded replay/retention
-epoch and safe tombstone compaction before admitting a continuously active member.
+**Retention (#867 item 5).** An enrolled mailbox holds at most **1,000 unacknowledged notices**. It
+never drops one for TTL or capacity: once full, a send is refused (507) until the recipient ACKs, and
+an ACK frees its slot.
+
+ACK tombstones are bounded apart from that, at **7 days** and at most **4,096**, and are pruned on
+every ACK. They exist only so a retried ACK answers "acknowledged". They are not what stops a notice
+coming back: a notice ID hashes its committed timestamp, so an ACKed notice cannot recur. An ACK for
+an ID pruned from the window answers 404 with that reason.
+
+Sender operations are kept for **7 days** and pruned in the same transaction as each new one. The
+per-sender count inside that window is bounded only by the channel's rate limits.
 
 Each operation reads its own recipient's row (`HubStore::mailbox_get`: a keyed `SELECT` on
 SQLite, and the scan, filtered, as the default for other backends). No new storage schema is
@@ -90,13 +128,12 @@ needed, and another member's unreadable row does not fail this one's operations.
 Serialization assumes one daemon owns the store; it is not multi-writer database
 coordination.
 
-`send_secret` still witnesses before enqueue, with no persisted sender operation
-key. Failure can leave a ledger act without a queued message; retry can duplicate
-that act or an accepted message if its response was lost. It must not be used as
-the G1 bridge's retry-safe send adapter. Remaining G0 work is a durable,
-sender-bound idempotency key/content binding and receipt committed with mailbox
-acceptance, plus composed lost-send-response tests. The bridge's strict transport
-contract remains unchanged and refuses this partial protocol.
+`send_secret` is retry-safe with an `operation_id` (see *Sending* above). That completes the Hub
+side of #867's contract; the bridge-side consumer dedup (item 4) is the G1 bridge's own.
+
+Not the same thing as the bridge's proposed `hub-mailbox-receipt-v2`. Whether this protocol meets
+that contract, including where the atomic acceptance receipt is observable, is the bridge's review
+to make.
 
 Then build the real sealed transport adapter and authenticated remote MCP
 adapter, review custody/admission, and measure the external-to-fleet round trip.
