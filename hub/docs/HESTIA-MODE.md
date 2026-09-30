@@ -170,7 +170,7 @@ to an unlock slot, which derives the key, opens the store, and
 `LockedSigner`. Unlock slots:
 
 - `POST /v1/hubs/:id/unlock` — tier-1 stub-console / passphrase unlock; local-only + rate-limited.
-- `POST /v1/hubs/:id/unlock/challenge` + `POST /v1/hubs/:id/unlock/attest` — tier-2 M-of-N witnessed quorum grant, **only on an already-ignited hub** (both paths are outside the locked-shell tier-0 allowlist, and `unlock_challenge` re-checks `is_locked()`): the hub mints a challenge, admins attest, a private verifier plugin judges the quorum (501 when no verifier is configured), and a grant releases the protected tier. It gates *release*, not ignition — tier-1 above is the only way in.
+- `POST /v1/hubs/:id/unlock/challenge` + `POST /v1/hubs/:id/unlock/attest` — tier-2 M-of-N witnessed quorum grant, **only on an already-ignited hub** (both paths are outside the locked-shell tier-0 allowlist, and `unlock_challenge` re-checks `is_locked()`): the hub opens a release intent, each council member gets a single-use challenge (`/unlock/approver-challenge`) and approves or vetoes with `hub attest-unlock`, the built-in quorum verifier checks each against the member's ledger-pinned key (501 unless `HUB_TIER2_UNLOCK=quorum`), and a grant releases the protected tier at most once. It gates *release*, not ignition — tier-1 above is the only way in.
 
 ## Encrypted-at-rest identity + its CLI
 
