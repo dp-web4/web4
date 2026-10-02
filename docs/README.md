@@ -32,6 +32,11 @@ Documentation organized by purpose and audience.
 1. Start with [`reference/security/THREAT_MODEL.md`](reference/security/THREAT_MODEL.md)
 2. Review [`history/audits/`](history/audits/) for past assessments
 
+## Evidence / interoperability experiments
+
+- [Cross-Architecture Evidence Reconstruction (CAER)](PRD_CROSS_ARCHITECTURE_EVIDENCE_RECONSTRUCTION.md) — blind, adversarial, cross-system reconstruction of action truth from native evidence.
+- [Agent Action Evidence Profile (AAEP)](PRD_ACTION_EVIDENCE.md) — portable evidence contract for identity, authority, policy, action, and witnessed result.
+
 ## Whitepaper
 
 The full technical whitepaper is in [`whitepaper-web/`](whitepaper-web/) with web navigation.
