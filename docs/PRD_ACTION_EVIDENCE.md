@@ -1,7 +1,7 @@
 # Web4 — Agent Action Evidence PRD
 
 **Status**: draft v1 · **Date**: 2026-07-27 · **Stage**: research / R&D, not production
-**Companions**: [`../STATUS.md`](../STATUS.md) (what is real today) · [`../SECURITY.md`](../SECURITY.md) · `specs/` (the normative corpus)
+**Companions**: [`PRD_CROSS_ARCHITECTURE_EVIDENCE_RECONSTRUCTION.md`](PRD_CROSS_ARCHITECTURE_EVIDENCE_RECONSTRUCTION.md) (CAER interoperability trial) · [`../STATUS.md`](../STATUS.md) (what is real today) · [`../SECURITY.md`](../SECURITY.md) · `specs/` (the normative corpus)
 
 > Web4's specification corpus is broad: identity, trust tensors, law, action grammar,
 > resource accounting, societies. **This document scopes one narrow, portable slice of it** —
