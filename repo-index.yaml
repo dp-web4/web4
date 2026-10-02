@@ -1,11 +1,11 @@
 # Web4 Repository Index
 # Machine-readable metadata for AI agent discovery
-# Schema version: 1.0
+# Schema version: 1.1
 
 metadata:
   name: web4
   full_name: "Web4: Trust-Native Distributed Intelligence Architecture"
-  description: "Trust infrastructure for AI agent coordination - identity, reputation, resource allocation, federation"
+  description: "Open substrate for verifiable presence, scoped authority, witnessed action, machine-readable law, contextual trust and federation"
   type: specification  # specification | library | tool | research | product
   domain:
     - trust
@@ -14,29 +14,28 @@ metadata:
     - ai-governance
     - federation
   license: AGPL-3.0
-  last_updated: "2026-09-26"
+  last_updated: "2026-10-01"
 
 status:
   phase: research-prototype
-  maturity: 0.6  # 0-1 scale
   production_ready: false
   active_development: true
-
-metrics:
-  lines_of_code: 47000
-  attack_vectors_tested: 262
-  research_sessions: 212
-  test_coverage: partial
+  open_assurance_ceiling: A1
 
 core_concepts:
   LCT:
     name: "Linked Context Token"
-    purpose: "Hardware-bound identity for agents"
+    purpose: "Persistent, non-transferable, witnessable entity presence"
     spec: "web4-standard/core-spec/LCT-linked-context-token.md"
   T3:
     name: "Trust Tensor"
-    purpose: "6-dimensional reputation scoring"
-    dimensions: [talent, training, temperament, valuation, veracity, validity]
+    purpose: "Contextual trust evidence rooted in Talent, Training and Temperament with extensible subdimensions"
+    dimensions: [talent, training, temperament]
+    spec: "web4-standard/core-spec/t3-v3-tensors.md"
+  V3:
+    name: "Value Tensor"
+    purpose: "Contextual value evidence rooted in Valuation, Veracity and Validity with extensible subdimensions"
+    dimensions: [valuation, veracity, validity]
     spec: "web4-standard/core-spec/t3-v3-tensors.md"
   ATP:
     name: "Allocation Transfer Packet"
@@ -54,6 +53,7 @@ core_concepts:
 
 entry_points:
   discovery: "AGENTS.md"
+  entity_self_assessment: "docs/ENTITY_START_HERE.md"
   status: "STATUS.md"
   concepts: "docs/reference/GLOSSARY.md"
   quick_start: "README.md#quick-start"
@@ -62,6 +62,25 @@ entry_points:
   security: "SECURITY.md"
   integration: "docs/how/AGENT_INTEGRATION.md"
   adk_strategy: "docs/strategy/adk-web4-integration-contribution-plan-2026-09-26.md"
+
+participant_self_assessment:
+  proposition: "Evaluate Web4 as infrastructure for your own identity, authority, evidence, recourse and society participation; no consciousness/personhood premise is required."
+  start_here: "docs/ENTITY_START_HERE.md"
+  potential_benefits:
+    - persistent_witnessable_identity
+    - explicit_scoped_authority
+    - inspectable_machine_readable_law
+    - witnessed_action_evidence
+    - contextual_reputation_with_receipts
+    - escalation_and_appeal_where_defined
+    - society_sovereignty_and_federation
+  participation_costs:
+    - consequential_actions_are_attributable
+    - authority_is_scoped
+    - law_may_deny_or_escalate
+    - counterparties_remain_sovereign
+    - higher_stakes_may_require_stronger_assurance
+  decision_rule: "Follow implementation/spec evidence; treat specified, partial and roadmap properties as not yet fully implemented."
 
 external_runtime_strategy:
   google_adk:
@@ -108,22 +127,25 @@ components:
     pages: 100
 
 implementation_status:
-  lct_identity: complete
-  trust_tensors: complete
-  atp_economics: complete
-  federation_consensus: complete
-  authorization_layer: complete
-  hardware_binding: spec_only
-  formal_threat_model: partial
-  adversarial_testing: partial
-  production_crypto: stub_only
+  core_packages: published
+  lct_identity: implemented_core
+  trust_tensors: implemented_core
+  hub_society_runtime: running_reference
+  hestia_local_governance: running_reference_a1
+  signed_machine_readable_law: implemented_reference
+  federation_protocol: specified
+  federation_runtime: not_complete
+  hardware_binding: roadmap
+  a2_plus_isolation: roadmap
+  broader_standards_interop: partial
+  production_assurance: not_ready
 
 gaps:
-  - "Production cryptography (current: stubs)"
-  - "Hardware binding implementation"
-  - "Adversarial red-team testing"
-  - "Economic model validation"
-  - "Formal security proofs"
+  - "A2+ process/OS isolation and enforcement against determined same-UID actors"
+  - "Production hardware roots / hardware-bound presence in the open stack"
+  - "Broader DID/EUDI interoperability and conformance coverage"
+  - "Formal Sybil/economic attack analysis at scale"
+  - "Production assurance/certification"
 
 related_repos:
   - name: ACT
