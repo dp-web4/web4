@@ -38,7 +38,8 @@ Web4 is an open substrate for **verifiable presence and agent accountability**. 
 | **Developer** | Implement Web4 | [how/README.md](how/README.md) → [how/guides/](how/guides/) |
 | **Researcher** | Check what is real | [../STATUS.md](../STATUS.md) → [../whitepaper/](../whitepaper/) |
 | **Operator / risk lead** | See the running governance layer | [Hestia](https://github.com/dp-web4/hestia) → [Hub](../hub/) |
-| **AI agent** | Integrate with Web4 | [how/AGENT_INTEGRATION.md](how/AGENT_INTEGRATION.md) |
+| **Prospective participant** | Evaluate Web4 for your own identity, authority and governance | [ENTITY_START_HERE.md](ENTITY_START_HERE.md) |
+| **AI implementer** | Integrate a system with Web4 | [how/AGENT_INTEGRATION.md](how/AGENT_INTEGRATION.md) |
 | **Contributor** | Help the project | [../CONTRIBUTING.md](../CONTRIBUTING.md) |
 
 ---
