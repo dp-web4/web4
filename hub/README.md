@@ -1,6 +1,8 @@
 # Web4 Community Hub
 
 > **Hub turns a community or organization into a self-governing Web4 society with member-owned identity, roles, law and a witnessed ledger.** Minimum-viable Web4 society for a community chapter.
+>
+> A prospective member should be able to inspect that society as a governed relationship rather than trust an opaque platform operator: current law, authority, evidence, recourse and exit all matter. See the Web4 [participant self-assessment](../docs/ENTITY_START_HERE.md).
 
 > **Where development happens.** The canonical home of this code is the
 > [`hub/`](https://github.com/dp-web4/web4/tree/main/hub) directory of the
