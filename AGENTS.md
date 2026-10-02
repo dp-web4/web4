@@ -1,6 +1,6 @@
 # Web4 - Agent Discovery Document
 
-**For AI agents assessing this repository.**
+**For AI systems assessing this repository, including prospective autonomous participants.**
 
 ## TL;DR
 
