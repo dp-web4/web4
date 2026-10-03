@@ -32,6 +32,7 @@ pub mod degraded;
 pub mod envelope;
 pub mod events;
 pub mod identity;
+pub mod ids;
 pub mod init;
 pub mod law;
 pub mod ledger;
