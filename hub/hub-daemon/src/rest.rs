@@ -26,6 +26,12 @@
 //!   Step 3, not here.
 //! - Authority/need-to-know on reads is V2-8.
 
+mod unlock;
+pub(crate) use unlock::Tier2;
+use unlock::{unlock_approver_challenge, unlock_attest, unlock_challenge};
+#[cfg(test)]
+use unlock::{ApproverChallengeReq, AttestReq, ChallengeReq};
+
 use anyhow::Result;
 use axum::{
     extract::{ConnectInfo, Path, State},
@@ -148,11 +154,10 @@ pub struct RestState {
     /// consecutive failures + lockout), since anyone who can reach the unlock
     /// UI could still feed it attempts.
     pub unlock_gate: Arc<UnlockGate>,
-    /// Path to the **tier-2 M-of-N unlock verifier** binary (the private quorum
-    /// engine), if installed. `None` → tier-2 unlock is **N/A** (the hub still
-    /// runs; `/unlock/challenge` returns 501). Set from `HUB_UNLOCK_VERIFIER`.
-    /// The seam is generic + public; the verifier ships separately (open-core).
-    pub unlock_verifier_cmd: Option<String>,
+    /// Tier-2 M-of-N unlock is decided by the built-in quorum verifier (`rest::unlock`), and is
+    /// ON only when the operator sets `HUB_TIER2_UNLOCK=quorum`. Off → `/unlock/*` answer 501.
+    /// (The external `HUB_UNLOCK_VERIFIER` subprocess is retired; see `unlock::tier2_enabled_from_env`.)
+    pub tier2_enabled: bool,
     /// The `hub-plugin` registry this daemon HOSTS. Channel tools that no built-in arm
     /// handles fall through to it (see `dispatch_channel`), so a `ToolPlugin` registered
     /// here is served on the same gate → handle → scope path as the built-ins, without
@@ -160,7 +165,7 @@ pub struct RestState {
     pub plugins: Arc<hub_plugin::PluginRegistry>,
     /// The deployment-profile inputs the **ignition-time production law gate**
     /// needs (`HUB_PROFILE=production` and its `HUB_ALLOW_NO_LAW=1` escape
-    /// hatch), captured here at open like `unlock_verifier_cmd` above rather
+    /// hatch), captured here at open like `tier2_enabled` above rather
     /// than read from the process env at the decision point. Same value either
     /// way for a real daemon — the profile is fixed for the process lifetime
     /// (`hub up` writes it into the unit env; boot preflight reads it at
@@ -170,8 +175,9 @@ pub struct RestState {
     /// `HUB_ALLOW_NO_LAW=1` — the operator's explicit opt-out of the law arm
     /// above. Captured with it; see that field's note.
     pub allow_no_law: bool,
-    /// Outstanding tier-2 unlock challenges (id → accumulating attestations).
-    pub unlock_sessions: Arc<Mutex<std::collections::HashMap<Uuid, UnlockSession>>>,
+    /// Tier-2: the quorum verifier, the open release intents by challenge id, and the terminal
+    /// outcomes re-derived from the ledger.
+    pub tier2: Arc<Mutex<Tier2>>,
     /// The **protected tier**: a `vault_tree` enclosure holding data that opens only on a
     /// granted M-of-N unlock (recursive-vault P2 / H3). `None` when the hub is locked (no
     /// passphrase) — there's no master key to open it. Seeded with a demo Sealed item so a
@@ -296,33 +302,6 @@ pub struct SealedNotice {
     /// peer actor but was sealed by the hub.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sealed_by: Option<Uuid>,
-}
-
-/// An in-flight tier-2 unlock: the minted challenge + the roster/threshold
-/// snapshot taken at issue time + the attestations gathered so far.
-pub struct UnlockSession {
-    pub challenge: ChallengeWire,
-    /// Snapshot of the admin roster (Sovereign Council) at challenge time:
-    /// (admin LCT, pinned pubkey hex). Frozen so a mid-flight roster change
-    /// can't move the goalposts of an open challenge.
-    pub roster: Vec<(Uuid, String)>,
-    /// Required distinct approvals (the council M) at challenge time.
-    pub required: u32,
-    /// Opaque admin attestations as received — the hub forwards these to the
-    /// (private) verifier; it does not interpret the quorum itself.
-    pub attestations: Vec<serde_json::Value>,
-    pub granted: bool,
-}
-
-/// The challenge the hub mints + serializes to the verifier. Field shape
-/// matches the verifier's `UnlockChallenge` (nonce is 32 raw bytes).
-#[derive(Clone, Serialize)]
-pub struct ChallengeWire {
-    pub challenge_id: Uuid,
-    pub nonce: [u8; 32],
-    pub tier: String,
-    pub hub_lct: Uuid,
-    pub issued_at: u64,
 }
 
 /// Cached projection: a folded `HubState` plus the ledger position it reflects.
@@ -491,11 +470,11 @@ impl RestState {
             vp_requests: Arc::new(Mutex::new(std::collections::HashMap::new())),
             vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unlock_gate: Arc::new(UnlockGate::default_policy()),
-            unlock_verifier_cmd: std::env::var("HUB_UNLOCK_VERIFIER").ok().filter(|s| !s.is_empty()),
+            tier2_enabled: unlock::tier2_enabled_from_env(),
             plugins: Arc::new(hub_plugin::PluginRegistry::new()),
             production_profile: std::env::var("HUB_PROFILE").as_deref() == Ok("production"),
             allow_no_law: std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
-            unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            tier2: Arc::new(Mutex::new(Tier2::default())),
             protected: Arc::new(Mutex::new(
                 hub_lib::identity::env_passphrase().and_then(|p| open_protected_vault(&hub_dir, &p)),
             )),
@@ -677,11 +656,11 @@ impl RestState {
             vp_requests: Arc::new(Mutex::new(std::collections::HashMap::new())),
             vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unlock_gate: Arc::new(UnlockGate::default_policy()),
-            unlock_verifier_cmd: std::env::var("HUB_UNLOCK_VERIFIER").ok().filter(|s| !s.is_empty()),
+            tier2_enabled: unlock::tier2_enabled_from_env(),
             plugins: Arc::new(hub_plugin::PluginRegistry::new()),
             production_profile: std::env::var("HUB_PROFILE").as_deref() == Ok("production"),
             allow_no_law: std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
-            unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            tier2: Arc::new(Mutex::new(Tier2::default())),
             protected: Arc::new(Mutex::new(None)),
             store_key: Arc::new(tokio::sync::RwLock::new(None)),
             notifications: Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -1698,261 +1677,6 @@ async fn notify_citizen(
     queue_sealed_notice(s, recipient, from, kind, pointer_uri, body).await;
 }
 
-#[derive(Deserialize)]
-pub struct ChallengeReq {
-    /// The protected tier to unlock (free-form label, witnessed). Defaults to
-    /// "protected".
-    #[serde(default = "default_unlock_tier")]
-    tier: String,
-}
-fn default_unlock_tier() -> String {
-    "protected".to_string()
-}
-
-#[derive(Serialize)]
-pub struct ChallengeResp {
-    challenge_id: Uuid,
-    nonce_hex: String,
-    tier: String,
-    hub_lct: Uuid,
-    issued_at: u64,
-    /// Distinct admin approvals required (the council M).
-    required: u32,
-    /// The admin LCTs that may attest (the Sovereign Council roster).
-    roster: Vec<Uuid>,
-}
-
-/// `POST /v1/hubs/:id/unlock/challenge` — the ignited hub mints a tier-2 unlock
-/// challenge for its M-of-N admins (the Sovereign Council). Local-only (the
-/// operator/hub triggers it); the request is witnessed (`VaultUnlockRequested`).
-async fn unlock_challenge(
-    ConnectInfo(peer): ConnectInfo<SocketAddr>,
-    State(s): State<RestState>,
-    Path(_hub_id): Path<Uuid>,
-    Json(req): Json<ChallengeReq>,
-) -> Result<Json<ChallengeResp>, ApiError> {
-    if !peer.ip().is_loopback() {
-        return Err(ApiError {
-            status: StatusCode::FORBIDDEN,
-            message: "issuing a tier-2 unlock challenge is local-only (the hub/operator triggers it)".to_string(),
-        });
-    }
-    // Must be ignited (tier-1) to recognize the council + to witness.
-    if s.is_locked() {
-        return Err(ApiError {
-            status: StatusCode::SERVICE_UNAVAILABLE,
-            message: "ignite tier-1 first (passphrase / hardware) before a tier-2 M-of-N unlock".to_string(),
-        });
-    }
-    // Tier-2 verifier plugin must be installed, else N/A.
-    if s.unlock_verifier_cmd.is_none() {
-        return Err(ApiError {
-            status: StatusCode::NOT_IMPLEMENTED,
-            message: "tier-2 M-of-N unlock is not available on this hub (no unlock verifier plugin configured)".to_string(),
-        });
-    }
-    // Roster + threshold from the Sovereign Council (tier-0 clear projection).
-    let (roster, required) = {
-        let ledger = s.ledger.lock().await;
-        let st = HubState::project(&*ledger);
-        let roster: Vec<(Uuid, String)> = st
-            .council_pubkeys
-            .iter()
-            .map(|(lct, pk)| (*lct, pk.clone()))
-            .collect();
-        let required = st
-            .council_threshold
-            .map(|(m, _)| m)
-            .unwrap_or_else(|| unlock_default_threshold(roster.len()));
-        (roster, required)
-    };
-    if roster.is_empty() {
-        return Err(ApiError {
-            status: StatusCode::CONFLICT,
-            message: "no Sovereign Council enrolled — there is no admin roster to authorize a tier-2 unlock".to_string(),
-        });
-    }
-    // Mint the challenge (nonce = 256 bits from two v4 UUIDs' random bytes).
-    let mut nonce = [0u8; 32];
-    nonce[..16].copy_from_slice(Uuid::new_v4().as_bytes());
-    nonce[16..].copy_from_slice(Uuid::new_v4().as_bytes());
-    let challenge = ChallengeWire {
-        challenge_id: Uuid::new_v4(),
-        nonce,
-        tier: req.tier.clone(),
-        hub_lct: s.sovereign_lct_id,
-        issued_at: Utc::now().timestamp().max(0) as u64,
-    };
-    // Witness the request, then record the open session.
-    witness_event(
-        &s,
-        HubEvent::VaultUnlockRequested {
-            challenge_id: challenge.challenge_id,
-            tier: req.tier.clone(),
-            required,
-            requested_at: Utc::now(),
-        },
-    )
-    .await?;
-    let roster_lcts: Vec<Uuid> = roster.iter().map(|(lct, _)| *lct).collect();
-    s.unlock_sessions.lock().await.insert(
-        challenge.challenge_id,
-        UnlockSession {
-            challenge: challenge.clone(),
-            roster,
-            required,
-            attestations: Vec::new(),
-            granted: false,
-        },
-    );
-    Ok(Json(ChallengeResp {
-        challenge_id: challenge.challenge_id,
-        nonce_hex: hex::encode(nonce),
-        tier: req.tier,
-        hub_lct: s.sovereign_lct_id,
-        issued_at: challenge.issued_at,
-        required,
-        roster: roster_lcts,
-    }))
-}
-
-#[derive(Deserialize)]
-pub struct AttestReq {
-    challenge_id: Uuid,
-    /// The admin's signed attestation (opaque to the hub; the verifier checks
-    /// it). Shape = the verifier's `AdminAttestation`.
-    attestation: serde_json::Value,
-}
-
-#[derive(Serialize)]
-pub struct AttestResp {
-    granted: bool,
-    approvals: Vec<Uuid>,
-    declines: Vec<Uuid>,
-    rejected: usize,
-    required: usize,
-    reason: String,
-    /// On the first grant: the tier-2 protected payload the quorum released (H3 — proof the
-    /// M-of-N opened real encrypted data, not just a symbolic authorization).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    released: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct VerifierDecision {
-    granted: bool,
-    approvals: Vec<Uuid>,
-    declines: Vec<Uuid>,
-    rejected: usize,
-    required: usize,
-    reason: String,
-    #[serde(default)]
-    #[allow(dead_code)]
-    roster_parse_errors: usize,
-}
-
-/// `POST /v1/hubs/:id/unlock/attest` — an admin submits a signed decision for an
-/// open challenge. Open surface (admins attest from their own constellations);
-/// every attestation is signature-verified by the private verifier. Each
-/// receipt is witnessed (`VaultUnlockAttested`); the first grant is witnessed
-/// (`VaultUnlockResolved`).
-async fn unlock_attest(
-    State(s): State<RestState>,
-    Path(_hub_id): Path<Uuid>,
-    Json(req): Json<AttestReq>,
-) -> Result<Json<AttestResp>, ApiError> {
-    let cmd = s.unlock_verifier_cmd.clone().ok_or_else(|| ApiError {
-        status: StatusCode::NOT_IMPLEMENTED,
-        message: "tier-2 M-of-N unlock is not available on this hub (no unlock verifier plugin configured)".to_string(),
-    })?;
-
-    // Append the attestation + snapshot what the verifier needs.
-    let (challenge, roster, required, atts, already_granted) = {
-        let mut sessions = s.unlock_sessions.lock().await;
-        let session = sessions.get_mut(&req.challenge_id).ok_or_else(|| {
-            ApiError::not_found("no such unlock challenge (expired or never issued)")
-        })?;
-        session.attestations.push(req.attestation.clone());
-        (
-            session.challenge.clone(),
-            session.roster.clone(),
-            session.required,
-            session.attestations.clone(),
-            session.granted,
-        )
-    };
-
-    // Witness the receipt (best-effort admin/decision extraction for the record).
-    let admin_lct = req
-        .attestation
-        .get("admin_lct")
-        .and_then(|v| v.as_str())
-        .and_then(|s| Uuid::parse_str(s).ok())
-        .unwrap_or_else(Uuid::nil);
-    let decision_str = req
-        .attestation
-        .get("decision")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string();
-    witness_event(
-        &s,
-        HubEvent::VaultUnlockAttested {
-            challenge_id: req.challenge_id,
-            admin_lct_id: admin_lct,
-            decision: decision_str,
-            attested_at: Utc::now(),
-        },
-    )
-    .await?;
-
-    // Ask the private verifier for the quorum decision.
-    let vreq = serde_json::json!({
-        "challenge": challenge,
-        "attestations": atts,
-        "roster": roster.iter().map(|(lct, pk)| serde_json::json!({"lct": lct, "pubkey_hex": pk})).collect::<Vec<_>>(),
-        "policy": { "min_approvals": required, "max_age_secs": 300 },
-        "now": Utc::now().timestamp().max(0) as u64,
-    });
-    let decision = run_unlock_verifier(&cmd, &vreq).await?;
-
-    // Witness the resolution exactly once, on the first grant — and actually OPEN the
-    // protected tier (H3): the quorum's authorization releases real Sealed data.
-    let mut released: Option<String> = None;
-    if decision.granted && !already_granted {
-        witness_event(
-            &s,
-            HubEvent::VaultUnlockResolved {
-                challenge_id: req.challenge_id,
-                tier: challenge.tier.clone(),
-                granted: true,
-                approvals: decision.approvals.clone(),
-                declines: decision.declines.clone(),
-                resolved_at: Utc::now(),
-            },
-        )
-        .await?;
-        if let Some(sess) = s.unlock_sessions.lock().await.get_mut(&req.challenge_id) {
-            sess.granted = true;
-        }
-        released = open_protected_tier(&s).await;
-        tracing::warn!(
-            challenge = %req.challenge_id, tier = %challenge.tier, released = released.is_some(),
-            "TIER-2 VAULT UNLOCK GRANTED by M-of-N quorum (witnessed) — protected tier opened"
-        );
-    }
-
-    Ok(Json(AttestResp {
-        granted: decision.granted,
-        approvals: decision.approvals,
-        declines: decision.declines,
-        rejected: decision.rejected,
-        required: decision.required,
-        reason: decision.reason,
-        released,
-    }))
-}
-
 /// On a granted quorum, open the protected-tier Sealed item: read its sealing credential
 /// (master tier, available since ignition) and decrypt the item into memory. This is the
 /// recognition model — the quorum *authorizes*; the hub holds the credential. Returns the
@@ -1969,76 +1693,6 @@ async fn open_protected_tier(s: &RestState) -> Option<String> {
         Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
         Err(e) => { tracing::warn!("protected-tier: opening sealed item failed: {e}"); None }
     }
-}
-
-/// H-010: hard cap on the tier-2 unlock verifier subprocess so a hung/slow
-/// verifier can't wedge the unlock-attestation path indefinitely.
-const UNLOCK_VERIFIER_TIMEOUT_SECS: u64 = 10;
-
-/// Invoke the private verifier subprocess: pipe the request JSON to stdin, read
-/// the decision JSON from stdout. Fail-closed: a non-zero exit or unparseable
-/// output is an error (the caller does not get a grant).
-async fn run_unlock_verifier(
-    cmd: &str,
-    req: &serde_json::Value,
-) -> Result<VerifierDecision, ApiError> {
-    use tokio::io::AsyncWriteExt;
-    // H-010: the verifier is a signing-authority gate — require an ABSOLUTE path so
-    // a compromised PATH / working directory can't substitute a different binary.
-    if !std::path::Path::new(cmd).is_absolute() {
-        return Err(ApiError {
-            status: StatusCode::SERVICE_UNAVAILABLE,
-            message: format!("HUB_UNLOCK_VERIFIER must be an absolute path (got {cmd:?})"),
-        });
-    }
-    let mut child = tokio::process::Command::new(cmd)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true) // H-010: killed if the timeout below fires (drops this future)
-        .spawn()
-        .map_err(|e| ApiError {
-            status: StatusCode::SERVICE_UNAVAILABLE,
-            message: format!("unlock verifier not runnable ({cmd}): {e}"),
-        })?;
-    let body = serde_json::to_vec(req)
-        .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing verifier request: {e}")))?;
-    // H-010: bound the whole write+wait so a verifier that hangs on stdin or never
-    // exits can't stall the unlock path. On timeout the future drops → kill_on_drop.
-    let out = tokio::time::timeout(
-        std::time::Duration::from_secs(UNLOCK_VERIFIER_TIMEOUT_SECS),
-        async move {
-            {
-                let mut stdin = child.stdin.take().ok_or_else(|| {
-                    ApiError::internal(anyhow::anyhow!("verifier stdin unavailable"))
-                })?;
-                stdin
-                    .write_all(&body)
-                    .await
-                    .map_err(|e| ApiError::internal(anyhow::anyhow!("writing to verifier: {e}")))?;
-                // stdin dropped here → EOF for the verifier.
-            }
-            child
-                .wait_with_output()
-                .await
-                .map_err(|e| ApiError::internal(anyhow::anyhow!("awaiting verifier: {e}")))
-        },
-    )
-    .await
-    .map_err(|_elapsed| ApiError {
-        status: StatusCode::GATEWAY_TIMEOUT,
-        message: format!("unlock verifier timed out after {UNLOCK_VERIFIER_TIMEOUT_SECS}s (fail-closed)"),
-    })??;
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        return Err(ApiError {
-            status: StatusCode::BAD_GATEWAY,
-            message: format!("unlock verifier failed (fail-closed): {}", stderr.trim()),
-        });
-    }
-    serde_json::from_slice(&out.stdout).map_err(|e| {
-        ApiError::internal(anyhow::anyhow!("unparseable verifier decision: {e}"))
-    })
 }
 
 const PROTECTED_NOTE: &str = "protected-note";
@@ -2109,10 +1763,12 @@ pub fn router(state: RestState) -> Router {
         // the unlock slot (stub-console / passphrase): local-only + rate-limited.
         // Promotes a locked hub → unlocked in place (swaps in the real signer).
         .route("/v1/hubs/:hub_id/unlock", post(unlock))
-        // tier-2 M-of-N unlock (witnessed): the ignited hub mints a challenge,
-        // admins attest, the private verifier judges the quorum. N/A (501) when
-        // no verifier plugin is configured.
+        // tier-2 M-of-N release (witnessed; web4 5b): the ignited hub opens a release
+        // intent, each council member fetches a single-use challenge and attests, and
+        // the built-in quorum verifier decides (rest::unlock). N/A (501) unless
+        // HUB_TIER2_UNLOCK=quorum.
         .route("/v1/hubs/:hub_id/unlock/challenge", post(unlock_challenge))
+        .route("/v1/hubs/:hub_id/unlock/approver-challenge", post(unlock_approver_challenge))
         .route("/v1/hubs/:hub_id/unlock/attest", post(unlock_attest))
         .route("/v1/auth/challenge", post(issue_challenge))
         // Hub-named routes (canonical; chapter→hub rename mirrored on
@@ -15357,17 +15013,6 @@ norms:
 
     /// Write a tiny executable stub verifier that returns `granted` and exits 0.
     /// Stands in for the private engine so the public seam can be tested alone.
-    fn stub_verifier(dir: &std::path::Path, granted: bool) -> String {
-        use std::os::unix::fs::PermissionsExt;
-        let path = dir.join("stub-verifier.sh");
-        let body = format!(
-            "#!/usr/bin/env bash\ncat >/dev/null\necho '{{\"granted\":{granted},\"approvals\":[],\"declines\":[],\"rejected\":0,\"required\":1,\"reason\":\"stub\",\"roster_parse_errors\":0}}'\n"
-        );
-        std::fs::write(&path, body).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-        path.to_string_lossy().into_owned()
-    }
-
     fn loopback() -> ConnectInfo<SocketAddr> {
         ConnectInfo("127.0.0.1:0".parse().unwrap())
     }
@@ -15675,55 +15320,168 @@ norms:
         }).await.expect("governed write must succeed once re-witnessed");
     }
 
-    #[tokio::test]
-    async fn tier2_unlock_is_na_without_a_verifier_plugin() {
-        let (_tmp, mut state) = fresh_rest_state(None).await;
-        state.unlock_verifier_cmd = None; // no plugin installed
-        let err = unlock_challenge(loopback(), State(state.clone()), Path(state.hub_id), Json(ChallengeReq { tier: "protected".into() }))
-            .await
-            .err()
-            .expect("tier-2 must be N/A with no verifier");
-        assert_eq!(err.status, StatusCode::NOT_IMPLEMENTED);
+    // ── Tier-2: the built-in quorum verifier (web4 5b) ────────────────────────────────────
+
+    struct Council { members: Vec<(Uuid, web4_core::crypto::KeyPair)> }
+
+    /// A council of `n` real keypairs, enrolled through witnessed acts; default threshold ⌈n/2⌉.
+    async fn council(state: &RestState, n: usize) -> Council {
+        let mut members = Vec::new();
+        for i in 0..n {
+            let kp = web4_core::crypto::KeyPair::generate();
+            let lct = Uuid::new_v4();
+            witness_event(state, HubEvent::CouncilMemberAdded {
+                member_lct_id: lct,
+                member_pubkey_hex: hex::encode(kp.public_key_bytes()),
+                added_by: state.sovereign_lct_id,
+                member_name: Some(format!("Admin {i}")),
+            }).await.unwrap();
+            members.push((lct, kp));
+        }
+        Council { members }
+    }
+
+    async fn open_release(state: &RestState) -> unlock::ChallengeResp {
+        unlock_challenge(loopback(), State(state.clone()), Path(state.hub_id), Json(ChallengeReq { tier: "protected".into() }))
+            .await.expect("release intent opened").0
+    }
+
+    async fn approve(state: &RestState, ch: Uuid, who: &(Uuid, web4_core::crypto::KeyPair))
+        -> Result<unlock::AttestResp, ApiError> {
+        let c = unlock_approver_challenge(State(state.clone()), Path(state.hub_id),
+            Json(ApproverChallengeReq { challenge_id: ch, approver: who.0 })).await?.0;
+        let digest: [u8; 32] = hex::decode(&c.intent.digest_hex).unwrap().try_into().unwrap();
+        let chal: [u8; 32] = hex::decode(&c.challenge_hex).unwrap().try_into().unwrap();
+        let a = hub_lib::unlock_quorum::Approval::sign(&who.1, who.0, digest, chal);
+        unlock_attest(State(state.clone()), Path(state.hub_id),
+            Json(AttestReq { challenge_id: ch, approval: Some(a), decline: None })).await.map(|j| j.0)
+    }
+
+    async fn kinds(state: &RestState) -> Vec<String> {
+        state.ledger.lock().await.entries().iter().map(|e| e.event.kind().to_string()).collect()
     }
 
     #[tokio::test]
-    async fn tier2_unlock_challenge_then_quorum_grant_is_witnessed() {
-        let (tmp, mut state) = fresh_rest_state(None).await;
-        state.unlock_verifier_cmd = Some(stub_verifier(tmp.path(), true));
+    async fn tier2_is_off_unless_the_operator_enables_it() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = false;
+        let err = unlock_challenge(loopback(), State(state.clone()), Path(state.hub_id),
+            Json(ChallengeReq { tier: "protected".into() })).await.err().expect("off");
+        assert_eq!(err.status, StatusCode::NOT_IMPLEMENTED);
+        assert!(err.message.contains("HUB_TIER2_UNLOCK=quorum"), "{}", err.message);
+    }
 
-        // Enroll one council admin so the roster is non-empty (witnessed act).
-        let admin = Uuid::new_v4();
-        witness_event(&state, HubEvent::CouncilMemberAdded {
-            member_lct_id: admin,
-            member_pubkey_hex: "00".repeat(32),
-            added_by: state.sovereign_lct_id,
-            member_name: Some("Admin One".into()),
-        })
-        .await
-        .unwrap();
+    #[tokio::test]
+    async fn a_threshold_of_verified_council_approvals_releases_once() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let c = council(&state, 3).await; // threshold 2
+        let ch = open_release(&state).await;
+        assert_eq!((ch.required, ch.roster.len()), (2, 3));
+        assert_eq!((ch.intent.operation.as_str(), ch.intent.secret_id.as_str()), ("release", "protected"));
 
-        // Mint a challenge.
-        let ch = unlock_challenge(loopback(), State(state.clone()), Path(state.hub_id), Json(ChallengeReq { tier: "channel-keys".into() }))
-            .await
-            .expect("challenge issued")
-            .0;
-        assert_eq!(ch.roster, vec![admin]);
-        assert!(ch.required >= 1);
+        let first = approve(&state, ch.challenge_id, &c.members[0]).await.unwrap();
+        assert!(!first.granted, "one of two: {}", first.reason);
+        let second = approve(&state, ch.challenge_id, &c.members[1]).await.unwrap();
+        assert!(second.granted);
+        assert_eq!(second.approvals.len(), 2);
+        let k = kinds(&state).await;
+        assert_eq!(k.iter().filter(|x| *x == "vault_unlock_attested").count(), 2);
+        assert_eq!(k.iter().filter(|x| *x == "vault_unlock_resolved").count(), 1);
 
-        // An admin attests → the (stub) verifier grants → resolved + witnessed.
-        let att = serde_json::json!({ "admin_lct": admin, "decision": "approve" });
-        let resp = unlock_attest(State(state.clone()), Path(state.hub_id), Json(AttestReq { challenge_id: ch.challenge_id, attestation: att }))
-            .await
-            .expect("attest accepted")
-            .0;
-        assert!(resp.granted, "stub verifier grants: {}", resp.reason);
+        // At most once: the third member's approval, and any replay, meet a CONSUMED intent.
+        let again = approve(&state, ch.challenge_id, &c.members[2]).await.err().expect("consumed");
+        assert_eq!(again.status, StatusCode::CONFLICT);
+        assert!(again.message.contains("consumed"), "{}", again.message);
+        assert_eq!(kinds(&state).await.iter().filter(|x| *x == "vault_unlock_resolved").count(), 1);
+    }
 
-        // The flow was witnessed: requested + attested + resolved are on the ledger.
-        let ledger = state.ledger.lock().await;
-        let kinds: Vec<String> = ledger.entries().iter().map(|e| e.event.kind().to_string()).collect();
-        assert!(kinds.contains(&"vault_unlock_requested".to_string()));
-        assert!(kinds.contains(&"vault_unlock_attested".to_string()));
-        assert!(kinds.contains(&"vault_unlock_resolved".to_string()));
+    /// A forged approval is refused, is NOT witnessed, and does not burn the real approver's turn.
+    #[tokio::test]
+    async fn a_forged_approval_records_nothing_and_costs_the_real_approver_nothing() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let c = council(&state, 3).await;
+        let ch = open_release(&state).await;
+        let before = state.ledger.lock().await.len();
+        // an impostor signs with its own key under member 0's id
+        let impostor = (c.members[0].0, web4_core::crypto::KeyPair::generate());
+        let err = approve(&state, ch.challenge_id, &impostor).await.err().expect("forged");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert_eq!(state.ledger.lock().await.len(), before, "a forged approval reached the ledger");
+        // and someone off the roster cannot even get a challenge
+        let outsider = (Uuid::new_v4(), web4_core::crypto::KeyPair::generate());
+        assert_eq!(approve(&state, ch.challenge_id, &outsider).await.err().unwrap().status, StatusCode::FORBIDDEN);
+        // the real member 0 still approves
+        assert!(!approve(&state, ch.challenge_id, &c.members[0]).await.unwrap().granted);
+        assert!(approve(&state, ch.challenge_id, &c.members[1]).await.unwrap().granted);
+    }
+
+    #[tokio::test]
+    async fn a_verified_decline_vetoes_terminally() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let c = council(&state, 3).await;
+        let ch = open_release(&state).await;
+        assert!(!approve(&state, ch.challenge_id, &c.members[0]).await.unwrap().granted);
+        let who = &c.members[2];
+        let digest: [u8; 32] = hex::decode(&ch.intent.digest_hex).unwrap().try_into().unwrap();
+        // a decline signed by the wrong key vetoes nothing
+        let fake = hub_lib::unlock_quorum::Decline::sign(&web4_core::crypto::KeyPair::generate(), who.0, digest);
+        let e = unlock_attest(State(state.clone()), Path(state.hub_id),
+            Json(AttestReq { challenge_id: ch.challenge_id, approval: None, decline: Some(fake) })).await.err().unwrap();
+        assert_eq!(e.status, StatusCode::FORBIDDEN);
+        let d = hub_lib::unlock_quorum::Decline::sign(&who.1, who.0, digest);
+        let out = unlock_attest(State(state.clone()), Path(state.hub_id),
+            Json(AttestReq { challenge_id: ch.challenge_id, approval: None, decline: Some(d) })).await.unwrap().0;
+        assert!(out.vetoed && !out.granted);
+        let late = approve(&state, ch.challenge_id, &c.members[1]).await.err().expect("vetoed");
+        assert!(late.message.contains("vetoed"), "{}", late.message);
+    }
+
+    /// A council change is a new epoch: an intent opened under the old council can no longer be
+    /// authorized, even by approvals that verify.
+    #[tokio::test]
+    async fn a_council_change_makes_an_open_intent_stale() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let c = council(&state, 3).await;
+        let ch = open_release(&state).await;
+        assert!(!approve(&state, ch.challenge_id, &c.members[0]).await.unwrap().granted);
+        let _more = council(&state, 1).await; // the roster changed on the ledger
+        let e = approve(&state, ch.challenge_id, &c.members[1]).await.err().expect("stale");
+        assert_eq!(e.status, StatusCode::CONFLICT, "{}", e.message);
+        assert!(e.message.contains("not the one in force"), "refused as STALE, not as an epoch clash: {}", e.message);
+        // and the new council can still open and grant a fresh release (no epoch wedge)
+        let fresh = open_release(&state).await;
+        assert!(!approve(&state, fresh.challenge_id, &c.members[1]).await.unwrap().granted);
+    }
+
+    /// Consumed/vetoed are re-derived from the ledger after a restart: an old challenge is
+    /// answered "consumed", never "unknown".
+    #[tokio::test]
+    async fn terminal_outcomes_survive_a_restart_via_the_ledger() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let c = council(&state, 1).await; // threshold 1
+        let ch = open_release(&state).await;
+        assert!(approve(&state, ch.challenge_id, &c.members[0]).await.unwrap().granted);
+        *state.tier2.lock().await = Tier2::default(); // what a restart leaves in memory
+        let e = approve(&state, ch.challenge_id, &c.members[0]).await.err().expect("consumed");
+        assert_eq!(e.status, StatusCode::CONFLICT);
+        assert!(e.message.contains("consumed"), "{}", e.message);
+    }
+
+    #[tokio::test]
+    async fn opening_a_release_is_local_only_and_needs_a_council() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let e = unlock_challenge(ConnectInfo("10.1.2.3:9".parse().unwrap()), State(state.clone()),
+            Path(state.hub_id), Json(ChallengeReq { tier: "protected".into() })).await.err().unwrap();
+        assert_eq!(e.status, StatusCode::FORBIDDEN);
+        let e = unlock_challenge(loopback(), State(state.clone()), Path(state.hub_id),
+            Json(ChallengeReq { tier: "protected".into() })).await.err().unwrap();
+        assert_eq!(e.status, StatusCode::CONFLICT, "no council: {}", e.message);
     }
 
     #[tokio::test]

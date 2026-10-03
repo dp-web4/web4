@@ -216,17 +216,21 @@ tier-2 M-of-N unlock"*. So on a locked hub you get the lock-gate **503**, and th
 Tier-2 is a **quorum gate on releasing the protected tier of an already-ignited
 hub** — on a grant, `open_protected_tier` decrypts the Sealed item using a sealing
 credential the hub has held *since ignition*. The quorum authorizes; it does not
-supply key material. Setting `HUB_UNLOCK_VERIFIER` therefore does **not** give you
-hands-off boot: every boot still needs the tier-1 passphrase.
+supply key material. Enabling tier-2 (`HUB_TIER2_UNLOCK=quorum`) therefore does **not**
+give you hands-off boot: every boot still needs the tier-1 passphrase.
 
 ### tier-2 M-of-N unlock returns 501 (on an ignited hub)
 
-`POST .../unlock/challenge` returns *"tier-2 M-of-N unlock is not available on this
-hub (no unlock verifier plugin configured)"*. **This is expected, not a bug** — the
-M-of-N quorum logic lives in a separate verifier binary that isn't installed by
-default. It's N/A unless you set `HUB_UNLOCK_VERIFIER` to point at that verifier
-(an absolute path). Ignite with the tier-1 passphrase path (`hub unlock`) first
-regardless.
+`POST .../unlock/challenge` returns *"tier-2 M-of-N unlock is not enabled on this hub
+(set HUB_TIER2_UNLOCK=quorum …)"*. **This is expected, not a bug** — tier-2 is off unless
+the operator enables it. The quorum is decided by the hub's built-in verifier
+(`hub_lib::unlock_quorum`): council members approve or veto with `hub attest-unlock`,
+each approval verified against the key the ledger pins for them. Ignite with the tier-1
+passphrase path (`hub unlock`) first regardless.
+
+`HUB_UNLOCK_VERIFIER` (the external verifier subprocess) is **retired**. A hub that still
+sets it and not `HUB_TIER2_UNLOCK=quorum` logs a warning at start and has tier-2 **off** —
+the verifier is not switched silently.
 
 ---
 
