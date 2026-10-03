@@ -259,6 +259,21 @@ pub trait HubStore: Send + Sync {
         Ok(Vec::new())
     }
 
+    /// Read ONE recipient's persisted blob, or `None` when it has none. Every
+    /// mailbox operation reads its recipient's record (the store, not the RAM
+    /// cache, is authoritative — web4#867), so this must not cost a scan of every
+    /// member's mailbox, nor fail because a DIFFERENT recipient's row is bad.
+    /// Default: the scan, filtered — correct for any backend, and overridden by
+    /// the durable one.
+    async fn mailbox_get(&self, recipient: uuid::Uuid) -> Result<Option<Vec<u8>>> {
+        Ok(self
+            .mailbox_load_all()
+            .await?
+            .into_iter()
+            .find(|(id, _)| *id == recipient)
+            .map(|(_, blob)| blob))
+    }
+
     /// Persist (insert-or-replace) one recipient's whole serialized queue. The
     /// daemon write-throughs after each enqueue. Default: no-op (in-memory only).
     async fn mailbox_put(&mut self, _recipient: uuid::Uuid, _blob: &[u8]) -> Result<()> {
@@ -269,6 +284,44 @@ pub trait HubStore: Send + Sync {
     /// delete after an already-empty mailbox is a harmless no-op. Default: no-op.
     async fn mailbox_delete(&mut self, _recipient: uuid::Uuid) -> Result<()> {
         Ok(())
+    }
+
+    // ----- Sender operations (web4#867: retry-safe send_secret) -----
+    //
+    // A sender that lost a `send_secret` response retries with the same
+    // `operation_id`; the hub must answer with the FIRST attempt's outcome rather
+    // than queue a second notice or witness a second act. The operation record and
+    // the recipient's mailbox are committed in ONE transaction, so a notice is
+    // never accepted without the record that makes its retry safe.
+
+    /// Whether this backend persists sender operations. Without it, `operation_id`
+    /// is refused rather than silently deduplicated in RAM only.
+    fn send_ops_durable(&self) -> bool {
+        false
+    }
+
+    /// The stored record for `(sender, op_id)`, if any.
+    async fn send_op_get(&self, _sender: uuid::Uuid, _op_id: &str) -> Result<Option<Vec<u8>>> {
+        Ok(None)
+    }
+
+    /// Replace the stored record for `(sender, op_id)` (a state change on an existing op).
+    async fn send_op_put(&mut self, _sender: uuid::Uuid, _op_id: &str, _created_at: i64, _blob: &[u8]) -> Result<()> {
+        anyhow::bail!("this backend does not persist sender operations")
+    }
+
+    /// ONE transaction: write (or, with `None`, delete) the recipient's mailbox blob,
+    /// and apply `op` — `Some((sender, op_id, created_at, Some(blob)))` upserts it,
+    /// `Some((.., None))` deletes it. Operations of that sender older than
+    /// `prune_before` are dropped in the same transaction (the dedup window).
+    async fn mailbox_commit_with_op(
+        &mut self,
+        _recipient: uuid::Uuid,
+        _mailbox: Option<&[u8]>,
+        _op: Option<(uuid::Uuid, &str, i64, Option<&[u8]>)>,
+        _prune_before: i64,
+    ) -> Result<()> {
+        anyhow::bail!("this backend does not persist sender operations")
     }
 }
 
@@ -1066,6 +1119,15 @@ impl SqliteBackend {
                  recipient TEXT PRIMARY KEY,
                  blob      BLOB NOT NULL
              );
+             -- web4#867: sender operations. (sender, op_id) is the retry key; the
+             -- row is committed in the SAME transaction as the mailbox it fed.
+             CREATE TABLE IF NOT EXISTS send_ops (
+                 sender     TEXT    NOT NULL,
+                 op_id      TEXT    NOT NULL,
+                 created_at INTEGER NOT NULL,
+                 blob       BLOB    NOT NULL,
+                 PRIMARY KEY (sender, op_id)
+             );
              -- PAIRED-CHANNELS Sprint D sidecar. The composite PRIMARY KEY is
              -- load-bearing: it's the atomic-append primitive that makes two
              -- writers racing on the same seq a loud constraint violation
@@ -1489,6 +1551,18 @@ impl HubStore for SqliteBackend {
         Ok(())
     }
 
+    async fn mailbox_get(&self, recipient: uuid::Uuid) -> Result<Option<Vec<u8>>> {
+        use rusqlite::OptionalExtension;
+        let conn = self.conn.lock().unwrap();
+        conn.query_row(
+            "SELECT blob FROM mailbox WHERE recipient = ?1",
+            rusqlite::params![recipient.to_string()],
+            |row| row.get::<_, Vec<u8>>(0),
+        )
+        .optional()
+        .with_context(|| format!("reading mailbox blob for {recipient}"))
+    }
+
     async fn mailbox_put(&mut self, recipient: uuid::Uuid, blob: &[u8]) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
@@ -1507,6 +1581,77 @@ impl HubStore for SqliteBackend {
             rusqlite::params![recipient.to_string()],
         )
         .with_context(|| format!("deleting mailbox blob for {recipient}"))?;
+        Ok(())
+    }
+
+    fn send_ops_durable(&self) -> bool {
+        true
+    }
+
+    async fn send_op_get(&self, sender: uuid::Uuid, op_id: &str) -> Result<Option<Vec<u8>>> {
+        use rusqlite::OptionalExtension;
+        let conn = self.conn.lock().unwrap();
+        conn.query_row(
+            "SELECT blob FROM send_ops WHERE sender = ?1 AND op_id = ?2",
+            rusqlite::params![sender.to_string(), op_id],
+            |row| row.get::<_, Vec<u8>>(0),
+        )
+        .optional()
+        .with_context(|| format!("reading send op {op_id} for {sender}"))
+    }
+
+    async fn send_op_put(&mut self, sender: uuid::Uuid, op_id: &str, created_at: i64, blob: &[u8]) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO send_ops (sender, op_id, created_at, blob) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(sender, op_id) DO UPDATE SET blob = excluded.blob",
+            rusqlite::params![sender.to_string(), op_id, created_at, blob],
+        )
+        .with_context(|| format!("writing send op {op_id} for {sender}"))?;
+        Ok(())
+    }
+
+    async fn mailbox_commit_with_op(
+        &mut self,
+        recipient: uuid::Uuid,
+        mailbox: Option<&[u8]>,
+        op: Option<(uuid::Uuid, &str, i64, Option<&[u8]>)>,
+        prune_before: i64,
+    ) -> Result<()> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction().context("opening mailbox+op transaction")?;
+        match mailbox {
+            Some(blob) => tx.execute(
+                "INSERT INTO mailbox (recipient, blob) VALUES (?1, ?2)
+                 ON CONFLICT(recipient) DO UPDATE SET blob = excluded.blob",
+                rusqlite::params![recipient.to_string(), blob],
+            ),
+            None => tx.execute(
+                "DELETE FROM mailbox WHERE recipient = ?1",
+                rusqlite::params![recipient.to_string()],
+            ),
+        }
+        .with_context(|| format!("writing mailbox blob for {recipient}"))?;
+        if let Some((sender, op_id, created_at, blob)) = op {
+            match blob {
+                Some(b) => tx.execute(
+                    "INSERT INTO send_ops (sender, op_id, created_at, blob) VALUES (?1, ?2, ?3, ?4)
+                     ON CONFLICT(sender, op_id) DO UPDATE SET blob = excluded.blob",
+                    rusqlite::params![sender.to_string(), op_id, created_at, b],
+                ),
+                None => tx.execute(
+                    "DELETE FROM send_ops WHERE sender = ?1 AND op_id = ?2",
+                    rusqlite::params![sender.to_string(), op_id],
+                ),
+            }
+            .with_context(|| format!("writing send op {op_id} for {sender}"))?;
+            tx.execute(
+                "DELETE FROM send_ops WHERE sender = ?1 AND created_at < ?2",
+                rusqlite::params![sender.to_string(), prune_before],
+            )
+            .context("pruning expired send ops")?;
+        }
+        tx.commit().context("committing mailbox+op transaction")?;
         Ok(())
     }
 
