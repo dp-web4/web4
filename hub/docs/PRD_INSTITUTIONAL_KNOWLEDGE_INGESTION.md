@@ -243,6 +243,387 @@ expected_answer_type: boolean_with_evidence
 
 A new computed witness should point back to the RoleQuestion that justified it.
 
+
+## 9A. Fractal learning: learn at the MRH where the practice actually lives
+
+Web4 roles, societies and law are fractally composable. The ingestion system MUST preserve that property during learning.
+
+An observation should not be promoted immediately to "organization knowledge." It first belongs to the smallest MRH that actually explains it.
+
+Examples:
+
+- one operator's workaround -> individual/role MRH;
+- a shift convention -> crew/team MRH;
+- a department approval pattern -> department MRH;
+- a cross-department handoff -> shared-process MRH;
+- a company-wide policy interpretation -> organization MRH;
+- a regulatory constraint -> parent/federated society MRH.
+
+The system SHOULD therefore treat every learned claim as **MRH-scoped by default** and broaden scope only when evidence supports composition upward.
+
+### 9A.1 Learning object
+
+Every learned institutional claim SHOULD carry:
+
+- `origin_mrh`;
+- `candidate_scope_mrh`;
+- `role_context`;
+- `society_context`;
+- `evidence_count`;
+- `distinct_role_count`;
+- `distinct_child_mrh_count`;
+- `contradicting_evidence`;
+- `scope_confidence`;
+- `promotion_status`.
+
+A claim discovered in one child MRH MUST NOT silently become a parent-society fact.
+
+### 9A.2 Composition upward
+
+Learning composes upward when independent child contexts support the same structure.
+
+Example:
+
+```text
+team-a: release manager approves production deploy
+team-b: release manager approves production deploy
+team-c: security lead substitutes after-hours
+
+        -> department-level candidate:
+           "production deploy requires approval,
+            normally Release Manager,
+            with after-hours Security substitution"
+```
+
+The parent model should preserve both:
+- the common rule;
+- the local exception/override.
+
+This mirrors SAL law inheritance rather than flattening the organization into one policy surface.
+
+### 9A.3 Decomposition downward
+
+Parent knowledge should also decompose into child questions.
+
+If organization law says "all production deploys require independent approval," the Governance Twin should ask each relevant child MRH:
+
+- what counts as production here?
+- what role provides independent approval here?
+- what is the local escalation path?
+- what evidence proves approval?
+- does an inherited exception exist?
+
+This avoids false precision at the organization level.
+
+### 9A.4 Scope disagreement is useful evidence
+
+If two child MRHs disagree, do not average them away.
+
+Represent:
+
+- common inherited structure;
+- child-specific override;
+- unresolved conflict;
+- possible stale parent assumption.
+
+A disagreement across MRHs is itself a candidate governance finding.
+
+## 9B. Learning by doing: shadow participation, not survey extraction
+
+The default discovery mechanism SHOULD be **participatory observation in shadow mode**, not questionnaires.
+
+The system should learn from work as it happens:
+
+- who initiates;
+- who is consulted;
+- who approves;
+- who actually performs the act;
+- which exceptions recur;
+- what evidence people attach;
+- what gets escalated;
+- which handoffs stall;
+- which role is treated as authoritative;
+- when actors deviate from the written process;
+- which contextual cues distinguish cases.
+
+The interaction itself supplies the elicitation.
+
+Where clarification is needed, ask the smallest question at the moment the ambiguity becomes operationally relevant.
+
+Bad:
+
+> "Please complete this 47-question governance survey."
+
+Better:
+
+> "This deploy is normally approved by Release Manager, but the current request names Security Lead. Is that an after-hours exception, a delegation, or a different process?"
+
+The answer becomes a provenance-bound claim in the relevant MRH.
+
+### 9B.1 Fractal contributors learn by participating
+
+Every role/child society can contribute locally through ordinary activity.
+
+The Governance Twin can accumulate:
+
+```text
+local act
+  -> local observation
+  -> local role/context evidence
+  -> local pattern
+  -> cross-local comparison
+  -> parent candidate structure
+  -> ratification at the authority level that owns that scope
+```
+
+No participant needs to understand the entire organization.
+
+This is important both ergonomically and epistemically: the people closest to a process contribute the knowledge they actually possess, while broader structure emerges from composition.
+
+### 9B.2 Shadow mode has two outputs
+
+Shadow mode is not only "what would this candidate rule have decided?"
+
+It should emit:
+
+1. **governance divergence**
+   - candidate law vs actual action;
+
+2. **learning evidence**
+   - which roles, contexts, exceptions and handoffs the observed action teaches us about.
+
+The second output is what makes shadow mode an onboarding mechanism rather than merely a pre-enforcement simulator.
+
+### 9B.3 Attention should follow uncertainty and consequence
+
+Do not interrogate every action.
+
+The system SHOULD ask for clarification when one or more are true:
+
+- high-consequence act;
+- authority unclear;
+- two MRHs disagree;
+- repeated exception;
+- novel role/action pairing;
+- candidate rule would materially change outcome;
+- evidence contradicts declared law;
+- a local pattern appears ready for upward promotion.
+
+Routine, well-understood actions should remain silent.
+
+## 9C. MRH-scoped computed witnesses
+
+Computed findings SHOULD identify the MRH at which they hold.
+
+Examples:
+
+| Witness | Scope behavior |
+|---|---|
+| `DeclaredObservedDrift` | May hold for one team without implying org-wide drift. |
+| `KnowledgeSinglePoint` | Could be severe locally and irrelevant elsewhere. |
+| `AuthorityAmbiguous` | May be a child override problem or parent-law ambiguity. |
+| `RepeatedExceptionBecomingPractice` | Starts local; may become parent candidate if repeated across child MRHs. |
+| `TerminologyConflict` | Most useful when comparing sibling MRHs. |
+| `RoleChangedWithoutGovernanceUpdate` | Belongs where the role's authority is defined. |
+
+A witness report MUST NOT drop the scope that made the finding true.
+
+## 9D. Scope promotion is not ratification
+
+Learning scope and legal scope are separate transitions.
+
+```text
+local observation
+  -> local pattern
+  -> broader candidate pattern
+  -> organization-level candidate knowledge
+  -> competent authority ratification
+  -> law
+```
+
+Evidence may justify moving a claim upward in the knowledge graph. It does not grant authority to move it upward in law.
+
+This preserves the core invariant:
+
+> **Relevance can emerge bottom-up. Authority does not.**
+
+
+
+## 9E. Situate role: the persistent institutional-learning function
+
+The Governance Twin needs a named role responsible for **situating** observations, claims, questions and answers in the correct MRH.
+
+Working role name: **Situate**.
+
+**Onboarding is a bounded assignment/profile of Situate, not the whole role.** During initial deployment the role performs concentrated discovery. After onboarding it remains active at low intensity, learning from ordinary work, maintaining unresolved questions, detecting drift, and keeping institutional knowledge current.
+
+### 9E.1 Function
+
+Situate is responsible for:
+
+1. observing work and incoming institutional evidence within its delegated MRH;
+2. attaching observations to the narrowest defensible role/society/process context;
+3. creating provenance-bound knowledge claims without upgrading them to law;
+4. detecting uncertainty, contradiction, missing ownership and scope ambiguity;
+5. forming the smallest useful clarification question;
+6. routing the question to the role/entity most likely or authorized to answer it;
+7. persisting the answer, including who answered, in what role, under what context and with what evidence;
+8. seeking corroboration when stakes or ambiguity warrant it;
+9. proposing upward composition when sibling MRHs support a broader pattern;
+10. decomposing parent questions downward when local answers are required;
+11. opening candidate governance/review items when learned structure exposes a governance gap.
+
+Situate is therefore the connective role between:
+
+```text
+runtime observation
+  <-> institutional knowledge
+  <-> MRH structure
+  <-> human/AI participants
+  <-> candidate governance
+```
+
+### 9E.2 Authority boundary
+
+Situate is **epistemic, not sovereign**.
+
+It MAY:
+- observe within delegated scope;
+- record claims/findings;
+- ask/reroute questions;
+- request corroboration;
+- maintain open knowledge gaps;
+- propose candidate law/amendments;
+- recommend that a claim's applicability MRH broaden or narrow.
+
+It MUST NOT:
+- ratify law;
+- grant authority;
+- silently promote observed practice into policy;
+- alter active Hub/Hestia enforcement;
+- treat frequency as legitimacy;
+- erase a lower-level exception when composing upward.
+
+This keeps the role distinct from:
+- **Law Oracle** — publishes authoritative law;
+- **Policy-Entity** — decides specific acts under law;
+- **Auditor** — reviews compliance/evidence and may have trust-adjustment powers;
+- **Archivist** — preserves records;
+- **Administrator** — operates the system.
+
+### 9E.3 Fractal filling
+
+Situate itself is fractally composable.
+
+A large organization may have:
+
+```text
+org-situate
+  <- finance-situate
+      <- AP-situate
+      <- treasury-situate
+  <- engineering-situate
+      <- release-situate
+      <- security-situate
+```
+
+Each child Situate learns locally. Parent Situate receives:
+- promoted candidate patterns;
+- cross-child contradictions;
+- unresolved questions requiring broader authority;
+- scope-change evidence.
+
+The parent does not ingest every local act as globally relevant knowledge.
+
+### 9E.4 Persistent question objects
+
+Questions MUST be first-class durable objects, not chat ephemera.
+
+A minimum `KnowledgeQuestion` shape:
+
+```yaml
+id: kq-release-approval-after-hours
+origin_mrh: engineering/release
+asked_by_role: situate/release
+question: "Who may approve a production deploy after hours when Release Manager is unavailable?"
+trigger:
+  kind: observed_divergence
+  evidence: act:deploy-18421
+candidate_answer_roles:
+  - release-manager
+  - security-lead
+  - engineering-director
+routing_state: routed
+status: open
+answers: []
+```
+
+An answer SHOULD record:
+- answerer entity;
+- answerer role at answer time;
+- answer MRH;
+- timestamp;
+- source/evidence;
+- confidence/qualification;
+- whether the answer is descriptive, interpretive or authoritative;
+- corroborating/contradicting answers.
+
+### 9E.5 Question routing
+
+Situate SHOULD route by the graph before falling back to broad human interruption.
+
+Preferred route:
+
+```text
+question
+  -> owning process/role
+  -> current role occupant
+  -> delegated/parent authority
+  -> knowledgeable peer / broker
+  -> broader MRH
+```
+
+If no route exists, emit a finding such as:
+- `KnowledgeOwnerMissing`;
+- `QuestionUnroutable`;
+- `AuthorityForQuestionAmbiguous`.
+
+The inability to find who can answer is itself institutional knowledge.
+
+### 9E.6 Attention budget
+
+Situate SHOULD optimize for **learning by doing**, not form completion.
+
+Ask only when:
+- an answer would materially change the model or candidate governance;
+- ambiguity blocks correct scope attribution;
+- consequence is high;
+- recurrence suggests a pattern;
+- sibling MRHs conflict;
+- promotion to a broader MRH is under consideration;
+- the current answer is stale.
+
+Routine acts should contribute passive evidence without interruption.
+
+### 9E.7 Onboarding profile
+
+During onboarding, Situate temporarily raises its sampling/elicitation intensity:
+
+- ingest existing documents and structure;
+- observe representative workflows;
+- ask more frequent local clarification questions;
+- map role ownership;
+- identify vocabulary;
+- establish initial knowledge gaps;
+- build the first MRH decomposition.
+
+As confidence grows, it decays toward steady-state participation.
+
+A useful onboarding completion condition is not "survey complete." It is:
+
+> **For the selected pilot process, the role/authority graph, major procedure branches, evidence expectations and unresolved gaps are sufficiently situated that shadow governance can run without systematically asking humans what everything means.**
+
+
 ## 10. Computed institutional witnesses
 
 Initial prototype witnesses:
