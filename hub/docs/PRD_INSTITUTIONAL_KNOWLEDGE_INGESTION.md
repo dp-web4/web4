@@ -243,6 +243,211 @@ expected_answer_type: boolean_with_evidence
 
 A new computed witness should point back to the RoleQuestion that justified it.
 
+
+## 9A. Fractal learning: learn at the MRH where the practice actually lives
+
+Web4 roles, societies and law are fractally composable. The ingestion system MUST preserve that property during learning.
+
+An observation should not be promoted immediately to "organization knowledge." It first belongs to the smallest MRH that actually explains it.
+
+Examples:
+
+- one operator's workaround -> individual/role MRH;
+- a shift convention -> crew/team MRH;
+- a department approval pattern -> department MRH;
+- a cross-department handoff -> shared-process MRH;
+- a company-wide policy interpretation -> organization MRH;
+- a regulatory constraint -> parent/federated society MRH.
+
+The system SHOULD therefore treat every learned claim as **MRH-scoped by default** and broaden scope only when evidence supports composition upward.
+
+### 9A.1 Learning object
+
+Every learned institutional claim SHOULD carry:
+
+- `origin_mrh`;
+- `candidate_scope_mrh`;
+- `role_context`;
+- `society_context`;
+- `evidence_count`;
+- `distinct_role_count`;
+- `distinct_child_mrh_count`;
+- `contradicting_evidence`;
+- `scope_confidence`;
+- `promotion_status`.
+
+A claim discovered in one child MRH MUST NOT silently become a parent-society fact.
+
+### 9A.2 Composition upward
+
+Learning composes upward when independent child contexts support the same structure.
+
+Example:
+
+```text
+team-a: release manager approves production deploy
+team-b: release manager approves production deploy
+team-c: security lead substitutes after-hours
+
+        -> department-level candidate:
+           "production deploy requires approval,
+            normally Release Manager,
+            with after-hours Security substitution"
+```
+
+The parent model should preserve both:
+- the common rule;
+- the local exception/override.
+
+This mirrors SAL law inheritance rather than flattening the organization into one policy surface.
+
+### 9A.3 Decomposition downward
+
+Parent knowledge should also decompose into child questions.
+
+If organization law says "all production deploys require independent approval," the Governance Twin should ask each relevant child MRH:
+
+- what counts as production here?
+- what role provides independent approval here?
+- what is the local escalation path?
+- what evidence proves approval?
+- does an inherited exception exist?
+
+This avoids false precision at the organization level.
+
+### 9A.4 Scope disagreement is useful evidence
+
+If two child MRHs disagree, do not average them away.
+
+Represent:
+
+- common inherited structure;
+- child-specific override;
+- unresolved conflict;
+- possible stale parent assumption.
+
+A disagreement across MRHs is itself a candidate governance finding.
+
+## 9B. Learning by doing: shadow participation, not survey extraction
+
+The default discovery mechanism SHOULD be **participatory observation in shadow mode**, not questionnaires.
+
+The system should learn from work as it happens:
+
+- who initiates;
+- who is consulted;
+- who approves;
+- who actually performs the act;
+- which exceptions recur;
+- what evidence people attach;
+- what gets escalated;
+- which handoffs stall;
+- which role is treated as authoritative;
+- when actors deviate from the written process;
+- which contextual cues distinguish cases.
+
+The interaction itself supplies the elicitation.
+
+Where clarification is needed, ask the smallest question at the moment the ambiguity becomes operationally relevant.
+
+Bad:
+
+> "Please complete this 47-question governance survey."
+
+Better:
+
+> "This deploy is normally approved by Release Manager, but the current request names Security Lead. Is that an after-hours exception, a delegation, or a different process?"
+
+The answer becomes a provenance-bound claim in the relevant MRH.
+
+### 9B.1 Fractal contributors learn by participating
+
+Every role/child society can contribute locally through ordinary activity.
+
+The Governance Twin can accumulate:
+
+```text
+local act
+  -> local observation
+  -> local role/context evidence
+  -> local pattern
+  -> cross-local comparison
+  -> parent candidate structure
+  -> ratification at the authority level that owns that scope
+```
+
+No participant needs to understand the entire organization.
+
+This is important both ergonomically and epistemically: the people closest to a process contribute the knowledge they actually possess, while broader structure emerges from composition.
+
+### 9B.2 Shadow mode has two outputs
+
+Shadow mode is not only "what would this candidate rule have decided?"
+
+It should emit:
+
+1. **governance divergence**
+   - candidate law vs actual action;
+
+2. **learning evidence**
+   - which roles, contexts, exceptions and handoffs the observed action teaches us about.
+
+The second output is what makes shadow mode an onboarding mechanism rather than merely a pre-enforcement simulator.
+
+### 9B.3 Attention should follow uncertainty and consequence
+
+Do not interrogate every action.
+
+The system SHOULD ask for clarification when one or more are true:
+
+- high-consequence act;
+- authority unclear;
+- two MRHs disagree;
+- repeated exception;
+- novel role/action pairing;
+- candidate rule would materially change outcome;
+- evidence contradicts declared law;
+- a local pattern appears ready for upward promotion.
+
+Routine, well-understood actions should remain silent.
+
+## 9C. MRH-scoped computed witnesses
+
+Computed findings SHOULD identify the MRH at which they hold.
+
+Examples:
+
+| Witness | Scope behavior |
+|---|---|
+| `DeclaredObservedDrift` | May hold for one team without implying org-wide drift. |
+| `KnowledgeSinglePoint` | Could be severe locally and irrelevant elsewhere. |
+| `AuthorityAmbiguous` | May be a child override problem or parent-law ambiguity. |
+| `RepeatedExceptionBecomingPractice` | Starts local; may become parent candidate if repeated across child MRHs. |
+| `TerminologyConflict` | Most useful when comparing sibling MRHs. |
+| `RoleChangedWithoutGovernanceUpdate` | Belongs where the role's authority is defined. |
+
+A witness report MUST NOT drop the scope that made the finding true.
+
+## 9D. Scope promotion is not ratification
+
+Learning scope and legal scope are separate transitions.
+
+```text
+local observation
+  -> local pattern
+  -> broader candidate pattern
+  -> organization-level candidate knowledge
+  -> competent authority ratification
+  -> law
+```
+
+Evidence may justify moving a claim upward in the knowledge graph. It does not grant authority to move it upward in law.
+
+This preserves the core invariant:
+
+> **Relevance can emerge bottom-up. Authority does not.**
+
+
 ## 10. Computed institutional witnesses
 
 Initial prototype witnesses:
