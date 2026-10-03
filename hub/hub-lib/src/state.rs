@@ -374,7 +374,9 @@ pub struct RoleOccupancyChange {
     /// the projection stores rather than re-verifies. Serves presence, mints no
     /// trust. Absence is the closed pole: an unknown id resolves 404, never a
     /// fabricated stub.
-    pub registry: BTreeMap<String, RegistryEntry>,
+    /// Keyed by [`CanonicalLctId`](crate::ids::CanonicalLctId) (serialized as the same string),
+    /// and still looked up by `&str` through `Borrow<str>`.
+    pub registry: BTreeMap<crate::ids::CanonicalLctId, RegistryEntry>,
 
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
@@ -390,7 +392,9 @@ pub struct RoleOccupancyChange {
 pub struct RegistryEntry {
     pub document: web4_core::lct::Lct,
     pub provenance: crate::events::LctProvenance,
-    pub published_by: Uuid,
+    /// The hub member that relayed the publish — membership evidence, not the published
+    /// presence (that is the registry key). Serialized as the bare UUID, as before.
+    pub published_by: crate::ids::HubMemberId,
     pub published_at: DateTime<Utc>,
     pub version: u32,
 }
@@ -1473,11 +1477,16 @@ impl HubState {
             HubEvent::LctPublished { lct_id, document, published_by, provenance, published_at } => {
                 // Republish of the same key overwrites in place and bumps
                 // version; the id is pubkey-derived, so "same id" IS "same key".
-                let version = self.registry.get(lct_id).map_or(1, |e| e.version + 1);
-                self.registry.insert(lct_id.clone(), RegistryEntry {
+                // The ledger carries the id as a string; the publish route re-derived it from the
+                // document's binding key before witnessing, so it has the canonical shape. One that
+                // does not would have been unreachable as presence anyway, so it is not registered
+                // (measured on HUB 2026-10-03: 58 of 58 live entries canonical).
+                let Ok(key) = crate::ids::CanonicalLctId::parse(lct_id) else { return; };
+                let version = self.registry.get(&key).map_or(1, |e| e.version + 1);
+                self.registry.insert(key, RegistryEntry {
                     document: document.clone(),
                     provenance: *provenance,
-                    published_by: *published_by,
+                    published_by: crate::ids::HubMemberId::from_uuid(*published_by),
                     published_at: *published_at,
                     version,
                 });
@@ -3374,7 +3383,7 @@ mod tests {
         let witness = publish(&mut state, &lct);
 
         assert!(state.members.contains_key(&sov), "the Sovereign IS a member");
-        assert!(state.registry.contains_key(&witness), "and its LCT IS published");
+        assert!(state.registry.contains_key(witness.as_str()), "and its LCT IS published");
         assert!(!state.member_pubkeys.contains_key(&sov),
             "but Genesis pins no key — the gap the /admin pill was rewritten for");
         assert_eq!(state.founding_sovereign_lct_id, Some(sov));
@@ -3519,7 +3528,7 @@ mod tests {
         let mut state = HubState::default();
         let (lct, _hex) = keyed_lct(Uuid::new_v4());
         let witness = publish(&mut state, &lct);
-        assert!(state.registry.contains_key(&witness), "it IS published");
+        assert!(state.registry.contains_key(witness.as_str()), "it IS published");
         assert_eq!(derived_resolver(&state, &witness), None,
             "publishing is not admission — the map is built from pins, not from the registry");
     }

@@ -229,13 +229,25 @@ fn serialize_canonical(v: &serde_json::Value) -> Result<String> {
     Ok(s)
 }
 
-/// Resolves an LCT id to its full Lct (needed to verify signatures).
+/// Resolves a hub MEMBER id to the Lct whose key verifies that member's signatures.
+///
+/// The argument is a [`HubMemberId`](crate::ids::HubMemberId)'s UUID — the membership/routing
+/// key the sealed channel and envelopes carry as `signer_lct_id` / `member_lct_id` — not a
+/// canonical LCT (`lct:web4:mb32:…`, the registry's key). The parameter keeps its historical name
+/// so the trait's callers are unchanged in this slice; new callers should use
+/// [`lookup_member`](Self::lookup_member), which says which identifier it takes.
+/// (PRD_LCT_IDENTITY_CONVERGENCE, Slice A; resolving to canonical presence is Slice B.)
 ///
 /// Implementations: a society's known-members + role-fillers; a peer
 /// hub's published LCT for federation; a delegation-store lookup for
 /// AI agents acting under DelegatedAuthority.
 pub trait PublicKeyResolver: Send + Sync {
     fn lookup(&self, lct_id: Uuid) -> Option<Lct>;
+
+    /// [`lookup`](Self::lookup), typed: the key pinned for this hub member.
+    fn lookup_member(&self, member: crate::ids::HubMemberId) -> Option<Lct> {
+        self.lookup(member.as_uuid())
+    }
 }
 
 /// Resolver backed by a HashMap. Useful for tests + small chapters.
@@ -419,6 +431,17 @@ pub fn build_envelope(
 
 #[cfg(test)]
 mod tests {
+    /// Slice A: the typed adapter resolves the same member the raw call does.
+    #[test]
+    fn lookup_member_is_lookup_typed() {
+        let (lct, _kp) = web4_core::lct::Lct::new(web4_core::lct::EntityType::Human, None);
+        let mut r = MapResolver::new();
+        r.insert(lct.clone());
+        let member = crate::ids::HubMemberId::from_uuid(lct.id);
+        assert_eq!(r.lookup_member(member).map(|l| l.id), Some(lct.id));
+        assert!(r.lookup_member(crate::ids::HubMemberId::from_uuid(uuid::Uuid::new_v4())).is_none());
+    }
+
     use super::*;
     use crate::identity::IdentityFile;
     use serde_json::json;

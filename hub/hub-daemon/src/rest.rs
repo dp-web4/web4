@@ -9294,7 +9294,7 @@ async fn publish_lct(
     // Republishing a key (same pubkey-derived id) overwrites in place and bumps.
     // A key *rotation* moves the id instead, so it lands as a fresh v1 carrying a
     // `rotated_from` MRH edge — identity is never mutated in place.
-    let version = projected.registry.get(&lct_id).map_or(1, |e| e.version + 1);
+    let version = projected.registry.get(lct_id.as_str()).map_or(1, |e| e.version + 1);
 
     let event = HubEvent::LctPublished {
         lct_id: lct_id.clone(),
@@ -9386,13 +9386,13 @@ async fn get_lct(
         let ledger = s.ledger.lock().await;
         hub_lib::state::HubState::project(&*ledger)
     };
-    let entry = projected.registry.get(&lct_id)
+    let entry = projected.registry.get(lct_id.as_str())
         .ok_or_else(|| ApiError::not_found(format!("lct {} is not published here", lct_id)))?;
     Ok(Json(RegistryEntryView {
         lct_id,
         document: entry.document.clone(),
         provenance: entry.provenance,
-        published_by: entry.published_by,
+        published_by: entry.published_by.as_uuid(),
         published_at: entry.published_at,
         version: entry.version,
     }))
@@ -9415,7 +9415,7 @@ async fn list_lcts(
     // BTreeMap iteration is already stable (canonical id order).
     let out: Vec<RegistrySummary> = projected.registry.iter()
         .map(|(lct_id, e)| RegistrySummary {
-            lct_id: lct_id.clone(),
+            lct_id: lct_id.to_string(),
             entity_type: e.document.entity_type.clone(),
             provenance: e.provenance,
             published_at: e.published_at,
