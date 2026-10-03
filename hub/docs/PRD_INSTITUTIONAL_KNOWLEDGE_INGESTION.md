@@ -448,6 +448,182 @@ This preserves the core invariant:
 > **Relevance can emerge bottom-up. Authority does not.**
 
 
+
+## 9E. Situate role: the persistent institutional-learning function
+
+The Governance Twin needs a named role responsible for **situating** observations, claims, questions and answers in the correct MRH.
+
+Working role name: **Situate**.
+
+**Onboarding is a bounded assignment/profile of Situate, not the whole role.** During initial deployment the role performs concentrated discovery. After onboarding it remains active at low intensity, learning from ordinary work, maintaining unresolved questions, detecting drift, and keeping institutional knowledge current.
+
+### 9E.1 Function
+
+Situate is responsible for:
+
+1. observing work and incoming institutional evidence within its delegated MRH;
+2. attaching observations to the narrowest defensible role/society/process context;
+3. creating provenance-bound knowledge claims without upgrading them to law;
+4. detecting uncertainty, contradiction, missing ownership and scope ambiguity;
+5. forming the smallest useful clarification question;
+6. routing the question to the role/entity most likely or authorized to answer it;
+7. persisting the answer, including who answered, in what role, under what context and with what evidence;
+8. seeking corroboration when stakes or ambiguity warrant it;
+9. proposing upward composition when sibling MRHs support a broader pattern;
+10. decomposing parent questions downward when local answers are required;
+11. opening candidate governance/review items when learned structure exposes a governance gap.
+
+Situate is therefore the connective role between:
+
+```text
+runtime observation
+  <-> institutional knowledge
+  <-> MRH structure
+  <-> human/AI participants
+  <-> candidate governance
+```
+
+### 9E.2 Authority boundary
+
+Situate is **epistemic, not sovereign**.
+
+It MAY:
+- observe within delegated scope;
+- record claims/findings;
+- ask/reroute questions;
+- request corroboration;
+- maintain open knowledge gaps;
+- propose candidate law/amendments;
+- recommend that a claim's applicability MRH broaden or narrow.
+
+It MUST NOT:
+- ratify law;
+- grant authority;
+- silently promote observed practice into policy;
+- alter active Hub/Hestia enforcement;
+- treat frequency as legitimacy;
+- erase a lower-level exception when composing upward.
+
+This keeps the role distinct from:
+- **Law Oracle** — publishes authoritative law;
+- **Policy-Entity** — decides specific acts under law;
+- **Auditor** — reviews compliance/evidence and may have trust-adjustment powers;
+- **Archivist** — preserves records;
+- **Administrator** — operates the system.
+
+### 9E.3 Fractal filling
+
+Situate itself is fractally composable.
+
+A large organization may have:
+
+```text
+org-situate
+  <- finance-situate
+      <- AP-situate
+      <- treasury-situate
+  <- engineering-situate
+      <- release-situate
+      <- security-situate
+```
+
+Each child Situate learns locally. Parent Situate receives:
+- promoted candidate patterns;
+- cross-child contradictions;
+- unresolved questions requiring broader authority;
+- scope-change evidence.
+
+The parent does not ingest every local act as globally relevant knowledge.
+
+### 9E.4 Persistent question objects
+
+Questions MUST be first-class durable objects, not chat ephemera.
+
+A minimum `KnowledgeQuestion` shape:
+
+```yaml
+id: kq-release-approval-after-hours
+origin_mrh: engineering/release
+asked_by_role: situate/release
+question: "Who may approve a production deploy after hours when Release Manager is unavailable?"
+trigger:
+  kind: observed_divergence
+  evidence: act:deploy-18421
+candidate_answer_roles:
+  - release-manager
+  - security-lead
+  - engineering-director
+routing_state: routed
+status: open
+answers: []
+```
+
+An answer SHOULD record:
+- answerer entity;
+- answerer role at answer time;
+- answer MRH;
+- timestamp;
+- source/evidence;
+- confidence/qualification;
+- whether the answer is descriptive, interpretive or authoritative;
+- corroborating/contradicting answers.
+
+### 9E.5 Question routing
+
+Situate SHOULD route by the graph before falling back to broad human interruption.
+
+Preferred route:
+
+```text
+question
+  -> owning process/role
+  -> current role occupant
+  -> delegated/parent authority
+  -> knowledgeable peer / broker
+  -> broader MRH
+```
+
+If no route exists, emit a finding such as:
+- `KnowledgeOwnerMissing`;
+- `QuestionUnroutable`;
+- `AuthorityForQuestionAmbiguous`.
+
+The inability to find who can answer is itself institutional knowledge.
+
+### 9E.6 Attention budget
+
+Situate SHOULD optimize for **learning by doing**, not form completion.
+
+Ask only when:
+- an answer would materially change the model or candidate governance;
+- ambiguity blocks correct scope attribution;
+- consequence is high;
+- recurrence suggests a pattern;
+- sibling MRHs conflict;
+- promotion to a broader MRH is under consideration;
+- the current answer is stale.
+
+Routine acts should contribute passive evidence without interruption.
+
+### 9E.7 Onboarding profile
+
+During onboarding, Situate temporarily raises its sampling/elicitation intensity:
+
+- ingest existing documents and structure;
+- observe representative workflows;
+- ask more frequent local clarification questions;
+- map role ownership;
+- identify vocabulary;
+- establish initial knowledge gaps;
+- build the first MRH decomposition.
+
+As confidence grows, it decays toward steady-state participation.
+
+A useful onboarding completion condition is not "survey complete." It is:
+
+> **For the selected pilot process, the role/authority graph, major procedure branches, evidence expectations and unresolved gaps are sufficiently situated that shadow governance can run without systematically asking humans what everything means.**
+
+
 ## 10. Computed institutional witnesses
 
 Initial prototype witnesses:
