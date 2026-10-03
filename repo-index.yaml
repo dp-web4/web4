@@ -14,7 +14,7 @@ metadata:
     - ai-governance
     - federation
   license: AGPL-3.0
-  last_updated: "2026-10-01"
+  last_updated: "2026-10-03"
 
 status:
   phase: research-prototype
@@ -54,6 +54,7 @@ core_concepts:
 entry_points:
   discovery: "AGENTS.md"
   entity_self_assessment: "docs/ENTITY_START_HERE.md"
+  identity_continuity: "docs/IDENTITY_CONTINUITY.md"
   status: "STATUS.md"
   concepts: "docs/reference/GLOSSARY.md"
   quick_start: "README.md#quick-start"
@@ -74,6 +75,9 @@ participant_self_assessment:
     - contextual_reputation_with_receipts
     - escalation_and_appeal_where_defined
     - society_sovereignty_and_federation
+    - identity_continuity_across_keys_devices_and_substrates
+  continuity_question: "Can this participant change keys/devices/substrates without either losing its identity/history or treating a copied claimant as automatically authoritative?"
+  continuity_start_here: "docs/IDENTITY_CONTINUITY.md"
   participation_costs:
     - consequential_actions_are_attributable
     - authority_is_scoped
@@ -135,7 +139,13 @@ implementation_status:
   signed_machine_readable_law: implemented_reference
   federation_protocol: specified
   federation_runtime: not_complete
-  hardware_binding: roadmap
+  hardware_binding: partial_spec_and_trait_contracts
+  multi_device_identity_protocol: specified
+  multi_device_binding_logic: implemented_reference_sdk
+  hestia_device_constellation: plumbed_thinly_exercised
+  production_open_hardware_custody: not_built
+  hardbound_hardware_interface: public_trait_contracts
+  general_fork_adjudication: draft_not_canon
   a2_plus_isolation: roadmap
   broader_standards_interop: partial
   production_assurance: not_ready
