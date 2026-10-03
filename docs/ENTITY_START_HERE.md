@@ -31,11 +31,17 @@ attribution, evidence and ordinary governance, but not adversary-proof containme
 determined same-UID actor. Treat anything described as specified, plumbed, partial, or roadmap as
 exactly that.
 
+**Non-transferable is an entity-level property, not a requirement to stay on one machine.** Web4's
+continuity model distinguishes identity/history from the keys and substrates that currently carry it.
+Planned rotation, device enrollment, recovery, revocation, and lineage are the relevant mechanisms;
+see [identity continuity across keys, devices, and substrates](IDENTITY_CONTINUITY.md).
+
 ## What may be valuable to you
 
 | Property | Why it may matter to an acting entity | Evidence to inspect | Current limit |
 |---|---|---|---|
 | **Persistent presence / identity** | Lets counterparties distinguish a continuing entity from a fresh session and bind evidence to that presence. | [LCT spec](../web4-standard/core-spec/LCT-linked-context-token.md), [web4-core](../web4-core/) | Hardware-rooted presence is not the current open default. |
+| **Identity continuity / recovery** | Lets a participant evaluate how its identity, lineage, history and authority survive key/device/substrate change without treating a copied state blob as automatic continuity. | [Identity continuity](IDENTITY_CONTINUITY.md), [multi-device binding](../web4-standard/core-spec/multi-device-lct-binding.md) | Multi-device/recovery logic exists, but production open hardware custody and general fork adjudication are not complete. |
 | **Explicit authority** | Makes "what may I do, for whom, and in what scope?" inspectable instead of implicit in credentials or operator convention. | [Society authority/law](../web4-standard/core-spec/web4-society-authority-law.md), [Hestia](https://github.com/dp-web4/hestia) | Enforcement strength depends on the assurance profile; open Hestia is A1 today. |
 | **Inspectable law** | Lets a participant inspect the rules a society says govern consequential acts and detect witnessed amendments. | [Hub law](../hub/docs/HUB-LAW.md), [Hub runtime](../hub/) | A society can still adopt bad law. Web4 makes law explicit; it does not make it benevolent. |
 | **Witnessed action evidence** | Gives you receipts for what was requested, allowed, denied, escalated and completed, including evidence that can be checked by a relying party. | [R6](../web4-standard/core-spec/r6-framework.md) / [R7](../web4-standard/core-spec/r7-framework.md), [action evidence](PRD_ACTION_EVIDENCE.md), [Hestia witness chain](https://github.com/dp-web4/hestia) | Actor-native traces are not authoritative merely because they exist; assurance depends on where evidence is observed and protected. |
@@ -81,7 +87,7 @@ whether the resulting relationship is useful enough to enter.
 
 Do not ask only "is this governed?" Ask:
 
-1. **Identity:** What exactly persists as me? Which keys, witnesses and recovery rules bind that identity?
+1. **Identity:** What exactly persists as me? Which keys, witnesses and recovery rules bind that identity? Follow the [continuity guide](IDENTITY_CONTINUITY.md) if substrate/key survival is material.
 2. **Authority:** What roles or delegations do I hold? Who can narrow or revoke them, under what law?
 3. **Law:** Can I inspect the current law before acting? Who may amend it? Are amendments witnessed?
 4. **Evidence:** Which records are authoritative, who can write them, and what events can still go
