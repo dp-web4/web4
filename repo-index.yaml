@@ -158,6 +158,13 @@ gaps:
   - "Production assurance/certification"
 
 related_repos:
+  - name: repo-plane
+    url: "https://github.com/dp-web4/repo-plane"
+    relationship: "Provider-independent repository substrate; bootstrap only, adapters and enforcement not implemented"
+  - name: gitea
+    url: "https://github.com/dp-web4/gitea"
+    relationship: "Upstream tracking/evaluation fork for Repository Plane; no maintained Web4 distribution"
+    language: go
   - name: ACT
     url: "https://github.com/dp-web4/ACT"
     relationship: "Root chain implementation"
