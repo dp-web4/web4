@@ -4988,9 +4988,9 @@ async fn dispatch_channel(
                     "route packet requires UUID packet_id".to_string()))?;
             for field in ["destination_lct", "origin_lct"] {
                 let value = obj.get(field).and_then(|v| v.as_str()).unwrap_or("");
-                if value.is_empty() || value.len() > 256 {
+                if !value.starts_with("lct:web4:") || value.len() > 256 {
                     return Err(ApiError::bad_request(format!(
-                        "route packet {field} must be 1..256 bytes")));
+                        "route packet {field} must be a canonical lct:web4:* id of <=256 bytes")));
                 }
             }
             let original_kind = obj.get("original_kind").and_then(|v| v.as_str()).unwrap_or("");
@@ -5015,12 +5015,44 @@ async fn dispatch_channel(
             let visited = obj.get("visited_routers").and_then(|v| v.as_array())
                 .ok_or_else(|| ApiError::bad_request(
                     "route packet visited_routers must be an array".to_string()))?;
+            let mut seen_routers = std::collections::HashSet::new();
             if visited.len() > 64 || visited.iter().any(|v| {
-                v.as_str().is_none_or(|s| s.is_empty() || s.len() > 256)
+                let Some(s) = v.as_str() else { return true };
+                !s.starts_with("lct:web4:")
+                    || s.len() > 256
+                    || !seen_routers.insert(s)
             }) {
                 return Err(ApiError::bad_request(
-                    "route packet visited_routers must contain <=64 strings of 1..256 bytes"
+                    "route packet visited_routers must contain <=64 unique canonical lct:web4:* ids"
                         .to_string()));
+            }
+
+            let has_failure = obj.get("failure").is_some_and(|v| !v.is_null());
+            if (original_kind == "unreachable") != has_failure {
+                return Err(ApiError::bad_request(
+                    "route packet original_kind=unreachable requires exactly one failure object"
+                        .to_string()));
+            }
+            if let Some(failure) = obj.get("failure").and_then(|v| v.as_object()) {
+                let original_packet_id = failure.get("original_packet_id")
+                    .and_then(|v| v.as_str())
+                    .and_then(|v| Uuid::parse_str(v).ok());
+                if original_packet_id.is_none() {
+                    return Err(ApiError::bad_request(
+                        "route failure requires UUID original_packet_id".to_string()));
+                }
+                for field in ["failed_destination_lct", "failed_at_router_lct"] {
+                    let value = failure.get(field).and_then(|v| v.as_str()).unwrap_or("");
+                    if !value.starts_with("lct:web4:") || value.len() > 256 {
+                        return Err(ApiError::bad_request(format!(
+                            "route failure {field} must be a canonical lct:web4:* id of <=256 bytes")));
+                    }
+                }
+                let reason = failure.get("reason").and_then(|v| v.as_str()).unwrap_or("");
+                if reason.is_empty() || reason.len() > 512 {
+                    return Err(ApiError::bad_request(
+                        "route failure reason must be 1..512 bytes".to_string()));
+                }
             }
 
             // A router hop requires receipt delivery. Allowing the legacy destructive mailbox
