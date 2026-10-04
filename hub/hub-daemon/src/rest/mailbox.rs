@@ -34,6 +34,74 @@ pub(super) static ENROLL_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::cons
 /// completed it.
 pub(super) static SEND_OP_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
+#[cfg(test)]
+#[derive(Clone)]
+pub(super) struct SendOpRaceHook {
+    op_id: String,
+    started: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    started_notify: std::sync::Arc<tokio::sync::Notify>,
+    after_lookup: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    after_lookup_notify: std::sync::Arc<tokio::sync::Notify>,
+    release_first: std::sync::Arc<tokio::sync::Notify>,
+}
+
+#[cfg(test)]
+static SEND_OP_RACE_HOOK: tokio::sync::Mutex<Option<SendOpRaceHook>> =
+    tokio::sync::Mutex::const_new(None);
+
+#[cfg(test)]
+impl SendOpRaceHook {
+    async fn install(op_id: &str) -> Self {
+        let hook = Self {
+            op_id: op_id.to_string(),
+            started: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            started_notify: std::sync::Arc::new(tokio::sync::Notify::new()),
+            after_lookup: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            after_lookup_notify: std::sync::Arc::new(tokio::sync::Notify::new()),
+            release_first: std::sync::Arc::new(tokio::sync::Notify::new()),
+        };
+        *SEND_OP_RACE_HOOK.lock().await = Some(hook.clone());
+        hook
+    }
+
+    async fn clear() {
+        *SEND_OP_RACE_HOOK.lock().await = None;
+    }
+
+    async fn wait_for(
+        count: &std::sync::atomic::AtomicUsize,
+        notify: &tokio::sync::Notify,
+        target: usize,
+    ) {
+        loop {
+            let notified = notify.notified();
+            if count.load(std::sync::atomic::Ordering::SeqCst) >= target {
+                return;
+            }
+            notified.await;
+        }
+    }
+}
+
+#[cfg(test)]
+pub(super) async fn test_send_op_before_lock(op_id: &str) {
+    let hook = SEND_OP_RACE_HOOK.lock().await.clone();
+    let Some(hook) = hook.filter(|h| h.op_id == op_id) else { return };
+    hook.started.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    hook.started_notify.notify_waiters();
+}
+
+#[cfg(test)]
+pub(super) async fn test_send_op_after_lookup(op_id: &str) {
+    let hook = SEND_OP_RACE_HOOK.lock().await.clone();
+    let Some(hook) = hook.filter(|h| h.op_id == op_id) else { return };
+    let hit = hook.after_lookup.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    hook.after_lookup_notify.notify_waiters();
+    if hit == 0 {
+        hook.release_first.notified().await;
+    }
+}
+
 /// A mailbox operation's failure, split by WHO must act on it. A caller's retry logic
 /// treats a 5xx as transient; a protocol refusal ("not enrolled", "bad id", "mailbox
 /// full") is not, and returning it as 500 teaches the caller to retry forever.
@@ -612,18 +680,50 @@ mod tests {
     }
 
     /// Two simultaneous retries of the same operation converge on one custody record and one
-    /// ledger act. The transition lock makes this structural rather than a scheduler accident.
+    /// ledger act. A test-only hook parks twin A after the durable op re-read while the
+    /// transition lock MUST still be held; twin B is then started and reaches the lock attempt.
+    ///
+    /// Mutation guard: replacing the acquisition in `send_secret_ordered` with `None`
+    /// makes `SEND_OP_LOCK.try_lock()` succeed here, so this test fails even if a single-task
+    /// scheduler would otherwise serialize the futures by accident.
     #[tokio::test]
     async fn concurrent_twins_share_one_notice_one_act_and_one_receipt() {
         let (_tmp, state, sov) = fixture(true).await;
         let who = sov.lct.id;
         let (l0, q0) = (ledger_len(&state).await, queued(&state, who).await);
         let args = secret_args(who, "same-ciphertext", Some("op-twin"));
-        let (a, b) = tokio::join!(
-            channel(&state, &sov, "send_secret", args.clone(), true),
-            channel(&state, &sov, "send_secret", args, true),
+        let hook = SendOpRaceHook::install("op-twin").await;
+
+        let s1 = state.clone();
+        let id1 = sov.clone();
+        let a1 = args.clone();
+        let first = tokio::spawn(async move {
+            channel(&s1, &id1, "send_secret", a1, true).await
+        });
+
+        SendOpRaceHook::wait_for(&hook.after_lookup, &hook.after_lookup_notify, 1).await;
+
+        let s2 = state.clone();
+        let id2 = sov.clone();
+        let second = tokio::spawn(async move {
+            channel(&s2, &id2, "send_secret", args, true).await
+        });
+
+        SendOpRaceHook::wait_for(&hook.started, &hook.started_notify, 2).await;
+        assert_eq!(
+            hook.after_lookup.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "twin B crossed the serialized post-lookup boundary while twin A was parked"
         );
-        let (a, b) = (a.unwrap(), b.unwrap());
+        assert!(
+            SEND_OP_LOCK.try_lock().is_err(),
+            "operation transition lock is not held across the post-lookup -> land/update window"
+        );
+
+        hook.release_first.notify_waiters();
+        let (a, b) = (first.await.unwrap().unwrap(), second.await.unwrap().unwrap());
+        SendOpRaceHook::clear().await;
+
         assert_eq!(a["entry_index"], b["entry_index"]);
         assert_eq!(a["notice_id"], b["notice_id"]);
         assert_eq!((ledger_len(&state).await, queued(&state, who).await), (l0 + 1, q0 + 1));
