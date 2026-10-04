@@ -21,6 +21,13 @@
 //!    at most once: a failure after consumption leaves it consumed and unreleased, and recovery
 //!    needs a fresh intent.
 //!
+//! The release goes where the intent's signed `destination` says — this hub's memory
+//! ([`Tier2::released`]) — and NOWHERE else. `/unlock/attest` is network-reachable by design (a
+//! remote council member must be able to reach it) and does not authenticate its submitter: the
+//! verified approval signature is its only authority, and whoever relays an approval is not
+//! thereby a recipient. So the response reports status and witness metadata only, never payload
+//! bytes; a test pins the response schema.
+//!
 //! The policy (roster, threshold, epoch) is the council as the signed ledger projects it; the
 //! epoch is the index of the newest council-changing entry, so a council change makes every
 //! intent opened under the old council stale — terminally, by the verifier's own rule.
@@ -74,6 +81,24 @@ pub struct Tier2 {
     releases: std::collections::HashMap<Uuid, OpenRelease>,
     terminal: std::collections::HashMap<Uuid, IntentState>,
     rederived: bool,
+    released: Option<ReleasedTier>,
+}
+
+/// A protected tier a quorum released into hub memory — the intent's signed destination.
+pub(crate) struct ReleasedTier {
+    pub challenge_id: Uuid,
+    pub tier: String,
+    pub payload: String,
+    /// The `VaultUnlockResolved` entry that authorized it.
+    pub resolution_index: u64,
+}
+
+impl Tier2 {
+    /// The tier the last granted quorum released into hub memory, if any. In-process only: no
+    /// route returns it.
+    pub(crate) fn released(&self) -> Option<&ReleasedTier> {
+        self.released.as_ref()
+    }
 }
 
 fn now_secs() -> u64 {
@@ -361,9 +386,11 @@ pub struct AttestResp {
     pub declines: Vec<Uuid>,
     pub required: usize,
     pub reason: String,
-    /// On the grant: the protected payload the quorum released.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub released: Option<String>,
+    /// On the grant: whether the protected tier was opened into hub memory (its destination).
+    /// Never the payload — see the module doc.
+    pub opened: bool,
+    /// On the grant: the ledger index of the witnessed `VaultUnlockResolved`.
+    pub resolution_index: Option<u64>,
 }
 
 /// `POST /v1/hubs/:id/unlock/attest` — a council member's signed approval or decline. Verified
@@ -413,7 +440,7 @@ pub(super) async fn unlock_attest(
                     // CONSUMED in the verifier before anything below: at most once.
                     t2.terminal.insert(req.challenge_id, IntentState::Consumed);
                     t2.releases.remove(&req.challenge_id);
-                    witness_event(&s, HubEvent::VaultUnlockResolved {
+                    let resolution_index = witness_event(&s, HubEvent::VaultUnlockResolved {
                         challenge_id: req.challenge_id,
                         tier: intent.secret_id.clone(),
                         granted: true,
@@ -425,19 +452,32 @@ pub(super) async fn unlock_attest(
                     .map_err(|e| refused(e.status, format!(
                         "the quorum was met and the intent is CONSUMED, but the resolution could not \
                          be recorded ({}); nothing was released. Open a fresh intent.", e.message)))?;
-                    let released = open_protected_tier(&s).await;
+                    // Released to the destination the intent signed: hub memory, not the caller.
+                    let opened = match open_protected_tier(&s).await {
+                        Some(payload) => {
+                            t2.released = Some(ReleasedTier {
+                                challenge_id: req.challenge_id,
+                                tier: intent.secret_id.clone(),
+                                payload,
+                                resolution_index,
+                            });
+                            true
+                        }
+                        None => false,
+                    };
                     tracing::warn!(
-                        challenge = %req.challenge_id, tier = %intent.secret_id, released = released.is_some(),
-                        "TIER-2 RELEASE GRANTED by a verified M-of-N quorum (witnessed)"
+                        challenge = %req.challenge_id, tier = %intent.secret_id, opened, resolution_index,
+                        "TIER-2 RELEASE GRANTED by a verified M-of-N quorum (witnessed); opened into hub memory"
                     );
                     Ok(Json(AttestResp {
                         granted: true, vetoed: false, approvals: auth.approvers, declines: Vec::new(),
-                        required, reason: "a threshold of distinct verified council approvals".into(), released,
+                        required, reason: "a threshold of distinct verified council approvals".into(),
+                        opened, resolution_index: Some(resolution_index),
                     }))
                 }
                 Err(Refusal::BelowThreshold { have, need }) => Ok(Json(AttestResp {
                     granted: false, vetoed: false, approvals: Vec::new(), declines: Vec::new(), required,
-                    reason: format!("{have} of {need} verified approvals"), released: None,
+                    reason: format!("{have} of {need} verified approvals"), opened: false, resolution_index: None,
                 })),
                 Err(r) => Err(refused(refusal_status(&r), r)),
             }
@@ -468,7 +508,7 @@ pub(super) async fn unlock_attest(
             .await?;
             Ok(Json(AttestResp {
                 granted: false, vetoed: true, approvals: Vec::new(), declines: vec![d.approver], required,
-                reason: "vetoed by a verified council decline — terminal".into(), released: None,
+                reason: "vetoed by a verified council decline — terminal".into(), opened: false, resolution_index: None,
             }))
         }
         _ => Err(refused(StatusCode::BAD_REQUEST, "send exactly one of `approval` or `decline`")),
