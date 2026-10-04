@@ -86,6 +86,8 @@ Hardbound is Metalinxx Inc.'s proprietary enterprise assurance tier for hardware
 |------|--------------|
 | `hestia` | Local human/agent governance runtime |
 | `4-hub` | Standalone Hub society runtime mirror |
+| [`repo-plane`](https://github.com/dp-web4/repo-plane) | Provider-independent repository substrate; bootstrap only, no implemented adapter or enforcement |
+| [`gitea`](https://github.com/dp-web4/gitea) | Clean upstream tracking/evaluation fork for Repository Plane; not a Web4 distribution |
 | `SAGE` | Persistent cognition / embodiment research |
 | `4-life` | Interactive Web4 explainer |
 | `Synchronism` | Blue-sky conceptual lineage; not an engineering dependency |
