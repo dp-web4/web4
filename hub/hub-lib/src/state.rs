@@ -256,6 +256,14 @@ pub struct RoleOccupancyChange {
     /// envelopes until re-added with a pubkey.
     pub member_pubkeys: BTreeMap<Uuid, String>,
 
+    /// Every key ever pinned to a member, in ledger order — the history `member_pubkeys`
+    /// overwrites (last write wins there). Read by [`crate::lct_resolve`] so a member's earlier
+    /// presence stays resolvable after a re-key. Covers all three pin sources the daemon's
+    /// resolver merges (member pins, re-keys, council admission). Not serialized: it is an
+    /// index over facts already on the chain, and the state dump plugins receive is unchanged.
+    #[serde(skip)]
+    pub member_key_pins: BTreeMap<Uuid, Vec<crate::lct_resolve::KeyPin>>,
+
     /// **Anchor ceilings in force per member** — the accrual half of the anchor
     /// cap. Folded from `MemberAdded`'s `trust_ceiling` (the grant this society's
     /// law made for the member's hardware-binding level, decided at admission and
@@ -978,7 +986,17 @@ impl HubState {
         entries.len()
     }
 
-    fn apply(&mut self, event: &HubEvent, ts: DateTime<Utc>, index: u64) {
+    /// Append a pin to [`HubState::member_key_pins`]. The hex is kept as witnessed; the
+    /// resolver compares decoded key bytes, never spellings (C10).
+    fn record_pin(&mut self, member: Uuid, pubkey_hex: &str, source: crate::lct_resolve::PinSource, index: u64) {
+        self.member_key_pins.entry(member).or_default().push(crate::lct_resolve::KeyPin {
+            pubkey_hex: pubkey_hex.to_string(),
+            source,
+            ledger_index: index,
+        });
+    }
+
+    pub(crate) fn apply(&mut self, event: &HubEvent, ts: DateTime<Utc>, index: u64) {
         match event {
             HubEvent::Genesis { hub_name, charter_hash, founding_sovereign_lct_id, .. } => {
                 self.hub_name = hub_name.clone();
@@ -1004,6 +1022,7 @@ impl HubState {
                 });
                 if let Some(pk) = member_pubkey_hex {
                     self.member_pubkeys.insert(*member_lct_id, pk.clone());
+                    self.record_pin(*member_lct_id, pk, crate::lct_resolve::PinSource::MemberAdded, index);
                 }
                 if let Some(ceiling) = trust_ceiling {
                     self.member_ceilings.insert(*member_lct_id, *ceiling);
@@ -1124,6 +1143,7 @@ impl HubState {
                 // ignored, same stance as the skill arm above.
                 if self.members.contains_key(member_lct_id) {
                     self.member_pubkeys.insert(*member_lct_id, member_pubkey_hex.clone());
+                    self.record_pin(*member_lct_id, member_pubkey_hex, crate::lct_resolve::PinSource::MemberKeyPinned, index);
                 }
             }
             HubEvent::DeviceEnrolled {
@@ -1494,6 +1514,7 @@ impl HubState {
             HubEvent::CouncilMemberAdded { member_lct_id, member_pubkey_hex, member_name, .. } => {
                 self.council_holders.insert(*member_lct_id);
                 self.council_pubkeys.insert(*member_lct_id, member_pubkey_hex.clone());
+                self.record_pin(*member_lct_id, member_pubkey_hex, crate::lct_resolve::PinSource::CouncilMemberAdded, index);
                 // Council holders are also members (co-Sovereigns participate
                 // in chapter life). Auto-add them to the member registry if
                 // not already present, so /admin/members shows them.

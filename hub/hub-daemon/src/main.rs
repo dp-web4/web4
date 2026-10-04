@@ -2732,6 +2732,8 @@ mod tests {
             // Sprint 3b: constitute the council as roles (amends law), and the live differential.
             ("POST", "/admin/api/council/mirror"),
             ("GET", "/admin/api/council/differential"),
+            // web4#875 Slice B: member <-> canonical LCT resolution names members.
+            ("GET", "/admin/api/lct/resolve/hub-being"),
             // Sprint 1b role-entity write API. These constitute, fill, empty and
             // abolish roles — every one of them signs as the Sovereign, and
             // `/admin/api/roles` enumerates vacancies and retirements the public

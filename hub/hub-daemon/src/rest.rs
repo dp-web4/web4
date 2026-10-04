@@ -6650,6 +6650,31 @@ async fn admin_council_differential(
     })))
 }
 
+/// `GET /admin/api/lct/resolve/:reference` — which member a reference names and which canonical
+/// presence(s) it holds, with the witnessed evidence (web4#875 Slice B). `reference` is a member
+/// UUID, a canonical `lct:web4:mb32:b…` id, or a roster name; an ambiguous name or key answers
+/// `ambiguous` with the candidates instead of picking one. Read-only.
+///
+/// The Sovereign's key is not in the projection (`Genesis` pins none), so it is supplied from the
+/// live signer, or the public identity file while locked — the same order `/.well-known` uses.
+async fn admin_lct_resolve(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(reference): Path<String>,
+) -> Result<Json<hub_lib::lct_resolve::Resolution>, ApiError> {
+    require_loopback(&peer)?;
+    let sovereign_key = s.signer.public_key().or_else(|| {
+        PublicIdentity::read(&s.paths.root)
+            .and_then(|p| p.sovereign_pubkey_hex)
+            .and_then(|h| hex::decode(h).ok())
+            .and_then(|b| <[u8; 32]>::try_from(b).ok())
+            .and_then(|b| web4_core::crypto::PublicKey::from_bytes(&b).ok())
+    });
+    let ledger = s.ledger.lock().await;
+    let reference = hub_lib::lct_resolve::Reference::parse(&reference);
+    Ok(Json(hub_lib::lct_resolve::resolve(&HubState::project(&ledger), &reference, sovereign_key.as_ref())))
+}
+
 /// `POST /admin/api/council/add` — admit a Sovereign Council holder, live.
 ///
 /// dp, 2026-09-08: "i don't see a ui to edit council or roles". There was none: council
@@ -7548,6 +7573,7 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/council/threshold", post(admin_council_set_threshold))
         .route("/admin/api/council/mirror", post(admin_council_mirror))
         .route("/admin/api/council/differential", get(admin_council_differential))
+        .route("/admin/api/lct/resolve/:reference", get(admin_lct_resolve))
         .route("/admin/api/roles", get(admin_roles_list))
         .route("/admin/api/roles/create", post(admin_role_create))
         .route("/admin/api/roles/:role_lct_id/fill", post(admin_role_fill))
@@ -13941,6 +13967,36 @@ priority: 1000
             StatusCode::FORBIDDEN);
         assert_eq!(admin_council_differential(State(state.clone()), ConnectInfo(remote)).await.err().unwrap().status,
             StatusCode::FORBIDDEN);
+    }
+
+    /// web4#875 Slice B, on the operator plane: the route supplies the Sovereign's key the
+    /// projection cannot hold (so the Sovereign reads as keyed-but-unpublished, not keyless),
+    /// reads council pins, and refuses a non-loopback caller.
+    #[tokio::test]
+    async fn lct_resolve_route_supplies_the_sovereign_key_and_is_operator_only() {
+        use hub_lib::lct_resolve::{Resolution, UnmappedReason};
+        let (_tmp, state) = fresh_rest_state(Some(MINIMAL_LAW)).await;
+        let sov_key = state.signer.public_key().expect("fixture signer is unlocked");
+        let ask = |r: String| admin_lct_resolve(State(state.clone()), ConnectInfo(loop_addr()), Path(r));
+
+        match ask(state.sovereign_lct_id.to_string()).await.unwrap().0 {
+            Resolution::Unmapped { reason: UnmappedReason::NoPublishedPresence { derived_unpublished }, .. } =>
+                assert_eq!(derived_unpublished, vec![hub_lib::ids::CanonicalLctId::derive(&sov_key)],
+                    "the Sovereign's key was supplied and derived; it is only unpublished"),
+            other => panic!("the Sovereign must not read as keyless: {other:?}"),
+        }
+
+        let (holder, kp) = council_holder(&state).await;
+        match ask(holder.to_string()).await.unwrap().0 {
+            Resolution::Unmapped { reason: UnmappedReason::NoPublishedPresence { derived_unpublished }, .. } =>
+                assert_eq!(derived_unpublished, vec![hub_lib::ids::CanonicalLctId::derive(&kp.verifying_key())]),
+            other => panic!("a council pin must be read: {other:?}"),
+        }
+        assert!(matches!(ask("nobody-by-this-name".into()).await.unwrap().0, Resolution::Unresolved { .. }));
+
+        let remote: SocketAddr = "10.0.0.9:5555".parse().unwrap();
+        assert_eq!(admin_lct_resolve(State(state.clone()), ConnectInfo(remote), Path(holder.to_string()))
+            .await.err().unwrap().status, StatusCode::FORBIDDEN);
     }
 
     // ---- The plugin host: a ToolPlugin registered on this daemon is served on the channel ----
