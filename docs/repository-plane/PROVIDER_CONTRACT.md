@@ -55,7 +55,7 @@ The adapter boundary MUST preserve provider-native identifiers and evidence for 
 - proposal
 - reviewer ProviderIdentity
 - disposition = approve | request_changes | comment | dismiss | unknown
-- revision binding if provider supports it
+- revision binding if provider supports it (GitHub does, via the REST review object's `commit_id`. Some CLI/GraphQL projections return it as null, so an adapter must read the source that actually carries it before declaring the binding unsupported.)
 - body / inline comments
 - observed_at
 
@@ -262,6 +262,13 @@ Provider event can be correlated to normalized operation/result without relying 
 
 ### C10 — restart
 Restart adapter/provider where applicable. Idempotency/reconciliation state required for safe retry survives.
+
+**Not covered by C1–C10.** PRD §18 invariants 1–3 are broker-layer properties, and an adapter cannot test them:
+1. native permit with a Web4 deny refuses;
+2. no verdict means no mutation;
+3. a stale or superseded permit means no mutation.
+
+The Sprint 4 broker corpus must add them as scenarios. Until then, passing C1–C10 says nothing about them.
 
 ## 11. Web4 integration contract
 

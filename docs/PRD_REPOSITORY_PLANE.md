@@ -71,7 +71,9 @@ The canonical interface-plane specification already defines fact planes A–E. R
 - **B — Gate execution:** pre-action evaluation for a requested repository mutation;
 - **C — Occupancy & authorization:** proof that the acting entity occupies a relevant role;
 - **D — Attribution & witness:** Web4 record of the request, decision and observed outcome;
-- **E — Infrastructure telemetry:** provider/gate outages and ambiguous execution state.
+- **E — Infrastructure telemetry:** provider/gate unavailability and adapter/deployment drift.
+
+An `ambiguous` outcome of a mutation that was **dispatched** is not Plane E. That act was decided and witnessed (D), so its ambiguous result, and the later reconciliation, belong to the act's own outcome record (§8, §16). Plane E records never enter the witness chain (`interface-planes.md`). Filing the ambiguity there would leave a witnessed permit with no outcome. Only a failure *before* dispatch (no provider reached, no verdict) is E-only.
 
 The repository adapter MUST NOT collapse these merely because a native forge API exposes them through one token or endpoint.
 
@@ -248,6 +250,8 @@ law_version / policy_digest
 decision_receipt
 requested_at
 ```
+
+`actor_lct`, `role_lct` and `society_lct` are **canonical** LCT ids (`lct:web4:mb32:…`). A Hub member UUID is a membership/routing id, not a presence id, and reaches a canonical id only through the one resolver (`hub/docs/PRD_LCT_IDENTITY_CONVERGENCE.md`; `HubMemberId` vs `CanonicalLctId`). An envelope that carries a member UUID in an `*_lct` field has re-merged the two namespaces that PRD separates.
 
 The provider result SHOULD return:
 
