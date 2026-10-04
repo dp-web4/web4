@@ -605,6 +605,193 @@ mod tests {
         assert!(after.acked.iter().all(|t| t.id != stale_id), "the stale tombstone was pruned on write");
     }
 
+    // ---- route_forward: receipt-only, exact-retry transit contract (F3) ----
+
+    fn route_packet(packet_id: Uuid, destination: &str, hops: u64) -> String {
+        serde_json::to_string(&serde_json::json!({
+            "protocol": "web4-route-v1",
+            "packet_id": packet_id,
+            "destination_lct": destination,
+            "origin_lct": "lct:web4:mb32:origin",
+            "original_kind": "coordination",
+            "pointer_uri": "shared-context/forum/route-test.md",
+            "content_hash": format!("sha256-content:{}", "b".repeat(64)),
+            "hops_remaining": hops,
+            "visited_routers": ["lct:web4:mb32:first-router"],
+        })).unwrap()
+    }
+
+    fn route_args(to: Uuid, packet: String, op: &str) -> serde_json::Value {
+        serde_json::json!({
+            "to": to,
+            "operation_id": op,
+            "route_packet_json": packet,
+        })
+    }
+
+    async fn add_route_peer(
+        state: &RestState,
+        added_by: Uuid,
+    ) -> (Uuid, web4_core::crypto::KeyPair) {
+        let peer = Uuid::new_v4();
+        let key = web4_core::crypto::KeyPair::generate();
+        witness_event(
+            state,
+            HubEvent::MemberAdded {
+                member_lct_id: peer,
+                added_by,
+                member_name: Some("route-test-peer".into()),
+                member_pubkey_hex: Some(key.verifying_key().to_hex()),
+                anchor_level: None,
+                trust_ceiling: None,
+            },
+        )
+        .await
+        .unwrap();
+        state.mailbox_enable_receipts(peer).await.unwrap();
+        (peer, key)
+    }
+
+    #[tokio::test]
+    async fn generic_referenced_act_cannot_spoof_reserved_route_forward_kind() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let before = ledger_len(&state).await;
+        let args = serde_json::json!({
+            "to": {"to":"peer", "lct_id": sov.lct.id},
+            "kind": "route.forward",
+            "pointer_uri": "web4-route:fake",
+            "content_hash": format!("sha256-content:{}", "d".repeat(64)),
+            "medium": "message",
+        });
+        let err = channel(&state, &sov, "referenced_act", args, true).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::CONFLICT);
+        assert!(err.message.contains("reserved"), "{}", err.message);
+        assert_eq!(ledger_len(&state).await, before);
+    }
+
+    #[tokio::test]
+    async fn route_forward_requires_receipt_mode_and_has_no_refusal_side_effect() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let (l0, q0) = (ledger_len(&state).await, queued(&state, sov.lct.id).await);
+        let packet = route_packet(Uuid::new_v4(), "lct:web4:mb32:destination", 8);
+        let err = channel(
+            &state, &sov, "route_forward",
+            route_args(sov.lct.id, packet, "route:no-receipts"),
+            true,
+        ).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::CONFLICT);
+        assert!(err.message.contains("receipt mailbox delivery"), "{}", err.message);
+        assert_eq!((ledger_len(&state).await, queued(&state, sov.lct.id).await), (l0, q0));
+    }
+
+    #[tokio::test]
+    async fn route_forward_retry_is_one_notice_one_act_and_packet_is_openable() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let (who, peer_key) = add_route_peer(&state, sov.lct.id).await;
+        let (l0, q0) = (ledger_len(&state).await, queued(&state, who).await);
+        let packet_id = Uuid::new_v4();
+        let packet = route_packet(packet_id, "lct:web4:mb32:destination", 8);
+        let args = route_args(who, packet.clone(), "route:packet-1");
+
+        let first = channel(&state, &sov, "route_forward", args.clone(), true).await.unwrap();
+        assert_eq!(first["delivered"], true);
+        assert_eq!(first["durably_accepted"], true);
+        assert_eq!(first["replayed"], false);
+
+        let again = channel(&state, &sov, "route_forward", args, true).await.unwrap();
+        assert_eq!(again["replayed"], true);
+        assert_eq!(again["entry_index"], first["entry_index"]);
+        assert_eq!(again["notice_id"], first["notice_id"]);
+        assert_eq!((ledger_len(&state).await, queued(&state, who).await), (l0 + 1, q0 + 1));
+
+        let fetched = state.mailbox_fetch(who, 100).await.unwrap();
+        let notice = &fetched["notifications"][0]["notice"];
+        assert_eq!(notice["kind"], "route.forward");
+        assert_eq!(notice["pointer_uri"], format!("web4-route:{packet_id}"));
+        assert!(notice.get("sealed_by").is_none() || notice["sealed_by"].is_null());
+
+        let pair = Uuid::parse_str(notice["pair_id"].as_str().unwrap()).unwrap();
+        let sealed = pair_channel::Sealed::from_base64(notice["sealed"].as_str().unwrap()).unwrap();
+        let opened = pair_channel::open(
+            &peer_key,
+            &state.signer.public_key().unwrap(),
+            pair,
+            &sealed,
+        ).unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&opened).unwrap();
+        assert_eq!(body["kind"], "route.forward");
+        assert_eq!(body["route_packet_json"], packet);
+        assert_eq!(
+            body["content_hash"],
+            format!("sha256-content:{}", web4_core::sha256_hex(packet.as_bytes()))
+        );
+
+        let ledger = state.ledger.lock().await;
+        let routed: Vec<_> = ledger.entries().iter().filter_map(|e| match &e.event {
+            HubEvent::ReferencedAct { act } if act.kind == "route.forward" => Some(act),
+            _ => None,
+        }).collect();
+        assert_eq!(routed.len(), 1);
+        assert_eq!(
+            routed[0].substance.content_hash,
+            format!("sha256-content:{}", web4_core::sha256_hex(packet.as_bytes()))
+        );
+    }
+
+    #[tokio::test]
+    async fn route_forward_same_operation_cannot_change_packet() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let (who, _peer_key) = add_route_peer(&state, sov.lct.id).await;
+        let packet_id = Uuid::new_v4();
+        let first_packet = route_packet(packet_id, "lct:web4:mb32:destination-a", 8);
+        let first = route_args(who, first_packet, "route:immutable");
+        channel(&state, &sov, "route_forward", first, true).await.unwrap();
+        let (l1, q1) = (ledger_len(&state).await, queued(&state, who).await);
+
+        let changed = route_args(
+            who,
+            route_packet(packet_id, "lct:web4:mb32:destination-b", 8),
+            "route:immutable",
+        );
+        let err = channel(&state, &sov, "route_forward", changed, true).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::CONFLICT);
+        assert_eq!((ledger_len(&state).await, queued(&state, who).await), (l1, q1));
+    }
+
+    #[tokio::test]
+    async fn route_forward_rejects_exhausted_or_malformed_packet_before_side_effect() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let who = sov.lct.id;
+        state.mailbox_enable_receipts(who).await.unwrap();
+        let (l0, q0) = (ledger_len(&state).await, queued(&state, who).await);
+
+        let exhausted = route_args(
+            who,
+            route_packet(Uuid::new_v4(), "lct:web4:mb32:destination", 0),
+            "route:zero-hop",
+        );
+        let err = channel(&state, &sov, "route_forward", exhausted, true).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+
+        let malformed = route_args(
+            who,
+            serde_json::json!({
+                "protocol": "web4-route-v1",
+                "packet_id": Uuid::new_v4(),
+                "destination_lct": "d",
+                "origin_lct": "o",
+                "original_kind": "coordination",
+                "pointer_uri": "p",
+                "content_hash": format!("sha256-content:{}", "c".repeat(64)),
+                "hops_remaining": 8
+            }).to_string(),
+            "route:no-trace",
+        );
+        let err = channel(&state, &sov, "route_forward", malformed, true).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!((ledger_len(&state).await, queued(&state, who).await), (l0, q0));
+    }
+
     // ---- send_secret: the ledger never asserts a send the mailbox refused (#867 contract 1) ----
 
     fn secret_args(to: Uuid, sealed: &str, op: Option<&str>) -> serde_json::Value {

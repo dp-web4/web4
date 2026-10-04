@@ -4778,6 +4778,17 @@ async fn dispatch_channel(
             // ("handoff"/"sweep"/"memo"/"forum"), `notify:<event>` for hub→citizen.
             let kind = inner.args.get("kind").and_then(|v| v.as_str())
                 .ok_or_else(|| ApiError::bad_request("referenced_act requires 'kind'".to_string()))?.to_string();
+            // Reserved transport namespace: only the dedicated route_forward
+            // path may emit a route.forward mailbox notice. Otherwise any
+            // citizen could manufacture a look-alike router packet through the
+            // generic referenced_act delivery path and wedge/spoof a router
+            // ingress mailbox.
+            if kind == "route.forward" {
+                return Err(ApiError {
+                    status: StatusCode::CONFLICT,
+                    message: "kind 'route.forward' is reserved; use the route_forward channel operation".to_string(),
+                });
+            }
             let uri = inner.args.get("pointer_uri").and_then(|v| v.as_str())
                 .ok_or_else(|| ApiError::bad_request("referenced_act requires 'pointer_uri'".to_string()))?.to_string();
             // H-008 Phase 2: the substance `content_hash` is REQUIRED and
@@ -4939,6 +4950,199 @@ async fn dispatch_channel(
             }
             Ok(resp)
         }
+        // ---- router->router forwarding envelope (F3 / IP-shaped entity routing) ----
+        //
+        // A router never rewrites the final destination into the next hop. The next hop is
+        // only this hop's mailbox address; the sealed packet retains the original destination,
+        // origin and bounded trace. operation_id is mandatory so a lost response cannot create
+        // a second notice or second witnessed hop.
+        "route_forward" => {
+            let to: Uuid = inner.args.get("to").and_then(|v| v.as_str())
+                .and_then(|s| Uuid::parse_str(s).ok())
+                .ok_or_else(|| ApiError::bad_request(
+                    "route_forward requires 'to' (next-hop Hub member uuid)".to_string()))?;
+            let operation_id = inner.args.get("operation_id").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request(
+                    "route_forward requires operation_id".to_string()))?
+                .to_string();
+            mailbox::check_op_id(&operation_id).map_err(ApiError::from)?;
+
+            let packet_raw = inner.args.get("route_packet_json").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request(
+                    "route_forward requires route_packet_json".to_string()))?;
+            if packet_raw.is_empty() || packet_raw.len() > 8 * 1024 {
+                return Err(ApiError::bad_request(
+                    "route_packet_json must be 1..8192 UTF-8 bytes".to_string()));
+            }
+            let packet: serde_json::Value = serde_json::from_str(packet_raw)
+                .map_err(|e| ApiError::bad_request(format!("route_packet_json is not JSON: {e}")))?;
+            let obj = packet.as_object().ok_or_else(|| ApiError::bad_request(
+                "route_packet_json must encode an object".to_string()))?;
+            if obj.get("protocol").and_then(|v| v.as_str()) != Some("web4-route-v1") {
+                return Err(ApiError::bad_request(
+                    "route packet protocol must be web4-route-v1".to_string()));
+            }
+            let packet_id = obj.get("packet_id").and_then(|v| v.as_str())
+                .and_then(|s| Uuid::parse_str(s).ok())
+                .ok_or_else(|| ApiError::bad_request(
+                    "route packet requires UUID packet_id".to_string()))?;
+            for field in ["destination_lct", "origin_lct"] {
+                let value = obj.get(field).and_then(|v| v.as_str()).unwrap_or("");
+                if !value.starts_with("lct:web4:") || value.len() > 256 {
+                    return Err(ApiError::bad_request(format!(
+                        "route packet {field} must be a canonical lct:web4:* id of <=256 bytes")));
+                }
+            }
+            let original_kind = obj.get("original_kind").and_then(|v| v.as_str()).unwrap_or("");
+            if original_kind.is_empty() || original_kind.len() > 128 {
+                return Err(ApiError::bad_request(
+                    "route packet original_kind must be 1..128 bytes".to_string()));
+            }
+            let original_pointer = obj.get("pointer_uri").and_then(|v| v.as_str()).unwrap_or("");
+            if original_pointer.is_empty() || original_pointer.len() > 512 {
+                return Err(ApiError::bad_request(
+                    "route packet pointer_uri must be 1..512 bytes".to_string()));
+            }
+            let original_hash = obj.get("content_hash").and_then(|v| v.as_str()).unwrap_or("");
+            if let Err(why) = validate_content_hash(original_hash) {
+                return Err(ApiError::bad_request(format!("route packet content_hash {why}")));
+            }
+            let hops = obj.get("hops_remaining").and_then(|v| v.as_u64()).unwrap_or(0);
+            if !(1..=64).contains(&hops) {
+                return Err(ApiError::bad_request(
+                    "route packet hops_remaining must be 1..64".to_string()));
+            }
+            let visited = obj.get("visited_routers").and_then(|v| v.as_array())
+                .ok_or_else(|| ApiError::bad_request(
+                    "route packet visited_routers must be an array".to_string()))?;
+            let mut seen_routers = std::collections::HashSet::new();
+            if visited.len() > 64 || visited.iter().any(|v| {
+                let Some(s) = v.as_str() else { return true };
+                !s.starts_with("lct:web4:")
+                    || s.len() > 256
+                    || !seen_routers.insert(s)
+            }) {
+                return Err(ApiError::bad_request(
+                    "route packet visited_routers must contain <=64 unique canonical lct:web4:* ids"
+                        .to_string()));
+            }
+
+            let has_failure = obj.get("failure").is_some_and(|v| !v.is_null());
+            if (original_kind == "unreachable") != has_failure {
+                return Err(ApiError::bad_request(
+                    "route packet original_kind=unreachable requires exactly one failure object"
+                        .to_string()));
+            }
+            if let Some(failure) = obj.get("failure").and_then(|v| v.as_object()) {
+                let original_packet_id = failure.get("original_packet_id")
+                    .and_then(|v| v.as_str())
+                    .and_then(|v| Uuid::parse_str(v).ok());
+                if original_packet_id.is_none() {
+                    return Err(ApiError::bad_request(
+                        "route failure requires UUID original_packet_id".to_string()));
+                }
+                for field in ["failed_destination_lct", "failed_at_router_lct"] {
+                    let value = failure.get(field).and_then(|v| v.as_str()).unwrap_or("");
+                    if !value.starts_with("lct:web4:") || value.len() > 256 {
+                        return Err(ApiError::bad_request(format!(
+                            "route failure {field} must be a canonical lct:web4:* id of <=256 bytes")));
+                    }
+                }
+                let reason = failure.get("reason").and_then(|v| v.as_str()).unwrap_or("");
+                if reason.is_empty() || reason.len() > 512 {
+                    return Err(ApiError::bad_request(
+                        "route failure reason must be 1..512 bytes".to_string()));
+                }
+            }
+
+            // A router hop requires receipt delivery. Allowing the legacy destructive mailbox
+            // here would recreate fetch->crash packet loss at the next router.
+            let receipt_mode = {
+                let cache = s.notifications.lock().await;
+                let store = s.open_store().await.map_err(ApiError::internal)?;
+                let cached = cache.get(&to).map(Vec::as_slice).unwrap_or(&[]);
+                let record = s.load_mailbox_record(&*store, to, cached).await
+                    .map_err(ApiError::internal)?;
+                record.is_receipts()
+            };
+            if !receipt_mode {
+                return Err(ApiError {
+                    status: StatusCode::CONFLICT,
+                    message: format!(
+                        "route next hop {to} is not enrolled in receipt mailbox delivery"),
+                });
+            }
+
+            // Resolve the pinned next-hop key before any queue/witness side effect.
+            let pubkey_hex = {
+                let ledger = s.ledger.lock().await;
+                s.projected(&ledger).member_pubkeys.get(&to).cloned()
+            }.ok_or_else(|| ApiError::bad_request(format!(
+                "route next hop {to} has no pinned member key")))?;
+            let pubkey = hex::decode(&pubkey_hex)
+                .ok()
+                .and_then(|b| <[u8; 32]>::try_from(b).ok())
+                .and_then(|a| web4_core::crypto::PublicKey::from_bytes(&a).ok())
+                .ok_or_else(|| ApiError::bad_request(format!(
+                    "route next hop {to} has an invalid pinned member key")))?;
+
+            // Exact route_packet_json bytes are the governed substance for this hop.
+            let packet_hash = format!(
+                "sha256-content:{}",
+                web4_core::sha256_hex(packet_raw.as_bytes())
+            );
+            let pointer_uri = format!("web4-route:{packet_id}");
+            let pair_id = mailbox::op_act_id(
+                caller_lct_id, &format!("route-pair:{operation_id}"));
+            let body = serde_json::json!({
+                "from": caller_lct_id,
+                "kind": "route.forward",
+                "pointer_uri": pointer_uri,
+                "content_hash": packet_hash,
+                "route_packet_json": packet_raw,
+            }).to_string();
+            let sealed = s.signer.channel_seal(&pubkey, pair_id, body.as_bytes())
+                .map_err(|e| ApiError::internal(anyhow::anyhow!(
+                    "sealing route packet to next hop: {e}")))?;
+
+            let binding = serde_json::json!({
+                "to": to,
+                "packet_id": packet_id,
+                "packet_hash": packet_hash,
+            });
+            let act = web4_core::act::Act::addressed(
+                caller_lct_id,
+                web4_core::act::ActAddress::Peer { lct_id: to },
+                "route.forward",
+                web4_core::act::SubstanceRef::new(
+                    &pointer_uri,
+                    packet_hash,
+                    web4_core::act::SubstanceMedium::Message,
+                ),
+                Utc::now(),
+            );
+            let notice = SealedNotice {
+                pair_id,
+                from: caller_lct_id,
+                sealed,
+                kind: "route.forward".to_string(),
+                pointer_uri,
+                queued_at: Utc::now(),
+                sealed_by: None,
+            };
+            // The historical helper name reflects its first caller; the mechanism is generic:
+            // atomically queue notice + sender-op record, then land the deterministic act.
+            send_secret_ordered(
+                s,
+                caller_lct_id,
+                to,
+                notice,
+                act,
+                Some(&operation_id),
+                binding,
+            ).await
+        }
+
         // ---- member→member sealed-secret relay (content-blind) ----
         // The SENDER seals a secret to the RECIPIENT's operational key (off-hub,
         // `pair_channel::seal`) and hands the hub the ciphertext + its own pair_id.
