@@ -674,7 +674,8 @@ mod tests {
         let who = sov.lct.id;
         let binding = |sealed: &str| serde_json::json!({"to": who, "pointer_uri": "secret",
             "content_hash": format!("sha256-content:{}", "a".repeat(64)),
-            "sealed_sha256": web4_core::sha256_hex(sealed.as_bytes())});
+            "sealed_sha256": web4_core::sha256_hex(sealed.as_bytes()),
+            "pair_id": Uuid::from_u128(0x1210)});
         // Case 1: queued, act never landed.
         let rec = SendOp { binding: binding("s"), act_id: op_act_id(who, "op-crash"), notice_id: String::new(),
             created_at: Utc::now().timestamp(), entry_index: None, durable: true };
