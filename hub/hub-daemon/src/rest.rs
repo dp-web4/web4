@@ -26,6 +26,8 @@
 //!   Step 3, not here.
 //! - Authority/need-to-know on reads is V2-8.
 
+mod mailbox;
+
 use anyhow::Result;
 use axum::{
     extract::{ConnectInfo, Path, State},
@@ -561,17 +563,21 @@ impl RestState {
         let rows = match store.mailbox_load_all().await {
             Ok(r) => r,
             Err(e) => {
-                tracing::warn!("mailbox hydrate: load failed ({e}); starting empty");
+                // On a durable store every mailbox operation reads the recipient's row, not this
+                // cache (web4#867), so a failed warm-up loses no queued notice: say that, not
+                // "starting empty", which reads as data loss.
+                tracing::warn!("mailbox hydrate: load failed ({e}); the RAM cache starts empty, \
+                                but every mailbox operation reads the store — no queued notice is lost");
                 return;
             }
         };
         let mut restored = 0usize;
         let mut mailbox = self.notifications.lock().await;
         for (recipient, blob) in rows {
-            match serde_json::from_slice::<Vec<SealedNotice>>(&blob) {
-                Ok(queue) if !queue.is_empty() => {
-                    restored += queue.len();
-                    mailbox.insert(recipient, queue);
+            match mailbox::Mailbox::decode(&blob) {
+                Ok(record) if !record.notices().is_empty() => {
+                    restored += record.notices().len();
+                    mailbox.insert(recipient, record.notices().clone());
                 }
                 Ok(_) => {}
                 Err(e) => tracing::warn!("mailbox hydrate: corrupt blob for {recipient} ({e}); skipped"),
@@ -579,44 +585,6 @@ impl RestState {
         }
         if restored > 0 {
             tracing::info!("mailbox hydrated: {restored} notice(s) restored across {} recipient(s)", mailbox.len());
-        }
-    }
-
-    /// Write-through one recipient's whole queue to the durable store after an
-    /// in-memory mutation. Best-effort: a persistence failure logs but never
-    /// fails the enqueue (the in-memory copy is authoritative for this run;
-    /// durability is the resilience layer). Serialization happens off the mailbox
-    /// lock — the caller passes an already-cloned queue.
-    async fn persist_mailbox(&self, recipient: Uuid, queue: &[SealedNotice]) {
-        let blob = match serde_json::to_vec(queue) {
-            Ok(b) => b,
-            Err(e) => {
-                tracing::warn!("mailbox persist: serialize failed for {recipient} ({e})");
-                return;
-            }
-        };
-        match self.open_store().await {
-            Ok(mut store) => {
-                if let Err(e) = store.mailbox_put(recipient, &blob).await {
-                    tracing::warn!("mailbox persist: write failed for {recipient} ({e})");
-                }
-            }
-            Err(e) => tracing::warn!("mailbox persist: cannot open store for {recipient} ({e})"),
-        }
-    }
-
-    /// Drop a recipient's durable queue after a drain. Best-effort; on failure the
-    /// notices remain persisted and re-hydrate on the next restart — at-least-once
-    /// (possible redelivery) is the deliberately-safer failure mode than losing a
-    /// notice that was never confirmed received.
-    async fn depersist_mailbox(&self, recipient: Uuid) {
-        match self.open_store().await {
-            Ok(mut store) => {
-                if let Err(e) = store.mailbox_delete(recipient).await {
-                    tracing::warn!("mailbox depersist: delete failed for {recipient} ({e})");
-                }
-            }
-            Err(e) => tracing::warn!("mailbox depersist: cannot open store for {recipient} ({e})"),
         }
     }
 
@@ -1599,7 +1567,7 @@ async fn queue_sealed_notice(
         Err(e) => { tracing::warn!("queue_sealed_notice: seal failed: {e}"); return; }
     };
     // Hub-sealed: sealed_by = None (recipient opens with the hub pubkey).
-    enqueue_notice(s, recipient, SealedNotice {
+    if let Err(e) = enqueue_notice(s, recipient, SealedNotice {
         pair_id,
         from,
         sealed,
@@ -1607,7 +1575,9 @@ async fn queue_sealed_notice(
         pointer_uri: pointer_uri.to_string(),
         queued_at: Utc::now(),
         sealed_by: None,
-    }).await;
+    }).await {
+        tracing::warn!("queue_sealed_notice: enqueue failed for {recipient}: {e}");
+    }
 }
 
 /// Enqueue an already-built [`SealedNotice`] into `recipient`'s durable mailbox
@@ -1615,32 +1585,82 @@ async fn queue_sealed_notice(
 /// ([`queue_sealed_notice`]) and the member-pre-sealed relay (`send_secret`); the
 /// hub never inspects `notice.sealed` here, so a peer-sealed body rides the mailbox
 /// identically to a hub-sealed one.
-async fn enqueue_notice(s: &RestState, recipient: Uuid, notice: SealedNotice) {
+async fn enqueue_notice(
+    s: &RestState, recipient: Uuid, notice: SealedNotice,
+) -> Result<bool, mailbox::MailboxError> {
+    match enqueue_notice_op(s, recipient, notice, None).await? {
+        Enqueued::Queued { durable, .. } => Ok(durable),
+        Enqueued::AlreadyAccepted(_) => unreachable!("no operation was given"),
+    }
+}
+
+enum Enqueued {
+    Queued { durable: bool, notice_id: String },
+    /// The sender's operation was already accepted — by an earlier attempt, or a concurrent
+    /// twin that reached the lock first. Nothing was queued by this call.
+    AlreadyAccepted(mailbox::SendOp),
+}
+
+/// [`enqueue_notice`], optionally carrying a sender operation: its record is committed in the
+/// SAME transaction as the notice, after re-checking under the mailbox lock that no attempt
+/// already holds it.
+async fn enqueue_notice_op(
+    s: &RestState, recipient: Uuid, notice: SealedNotice,
+    op: Option<(Uuid, &str, &mailbox::SendOp)>,
+) -> Result<Enqueued, mailbox::MailboxError> {
     let cutoff = Utc::now() - chrono::Duration::seconds(NOTICE_TTL_SECS);
     // Notices removed here (TTL-expired or cap-evicted) die *upstream* of every
     // receiver: they never fire, never hit a gate, never dead-letter, and the
     // TTL path was previously fully silent. Capture them so the sender can be
     // alarmed once the lock is released.
     let mut dropped: Vec<SealedNotice> = Vec::new();
-    let snapshot = {
-        let mut mailbox = s.notifications.lock().await;
-        let queue = mailbox.entry(recipient).or_default();
-        // TTL prune — partition instead of silently retaining.
-        let mut kept = Vec::with_capacity(queue.len());
-        for n in queue.drain(..) {
-            if n.queued_at >= cutoff { kept.push(n); } else { dropped.push(n); }
+    let durable = {
+        // Serialize load + mutation + commit with ACK/drain. Never publish RAM
+        // before the durable write, and never overwrite a newer queue snapshot.
+        let mut cache = s.notifications.lock().await;
+        let mut store = s.open_store().await?;
+        if let Some((sender, op_id, _)) = op {
+            if let Some(bytes) = store.send_op_get(sender, op_id).await? {
+                return Ok(Enqueued::AlreadyAccepted(serde_json::from_slice(&bytes)?));
+            }
         }
-        *queue = kept;
-        // Cap — ring semantics; capture each evicted-oldest.
-        while queue.len() >= MAX_NOTICES_PER_MEMBER {
-            dropped.push(queue.remove(0));
+        let cached = cache.get(&recipient).map(Vec::as_slice).unwrap_or(&[]);
+        let mut record = s.load_mailbox_record(&*store, recipient, cached).await?;
+        if record.full() {
+            // The recipient's bound, not the sender's error. Transient: it clears as the
+            // recipient ACKs (tombstones do not hold slots).
+            return mailbox::refused(StatusCode::INSUFFICIENT_STORAGE,
+                "the recipient's receipt mailbox has the maximum number of unacknowledged notices; \
+                 no notice accepted — it clears as the recipient acknowledges");
         }
-        queue.push(notice);
-        queue.clone() // snapshot for durable write-through, off the lock
+        if !record.is_receipts() {
+            let queue = record.notices_mut();
+            let mut kept = Vec::with_capacity(queue.len());
+            for n in queue.drain(..) {
+                if n.queued_at >= cutoff { kept.push(n); } else { dropped.push(n); }
+            }
+            *queue = kept;
+            while queue.len() >= MAX_NOTICES_PER_MEMBER { dropped.push(queue.remove(0)); }
+        }
+        // Receipt-mode queues never silently evict unacknowledged notices. Their
+        // pending count is bounded; saturation rejects new sends.
+        let id = mailbox::notice_id(recipient, &notice);
+        record.notices_mut().push(notice);
+        let blob = serde_json::to_vec(&record)?;
+        match op {
+            Some((sender, op_id, rec)) => {
+                let rec = mailbox::SendOp { notice_id: id.clone(), ..rec.clone() };
+                let op_blob = serde_json::to_vec(&rec)?;
+                store.mailbox_commit_with_op(recipient, Some(&blob),
+                    Some((sender, op_id, rec.created_at, Some(&op_blob))),
+                    Utc::now().timestamp() - mailbox::SEND_OP_WINDOW_SECS).await?;
+            }
+            None => store.mailbox_put(recipient, &blob).await?,
+        }
+        cache.insert(recipient, record.notices().clone());
+        (store.mailbox_is_durable(), id)
     };
-    // Write-through to the durable (encrypted) mailbox so a restart re-delivers
-    // this notice. Best-effort — the in-memory copy above already took effect.
-    s.persist_mailbox(recipient, &snapshot).await;
+    let (durable, notice_id) = durable;
 
     // Alarm the sender of each dropped notice back over the mesh — the only
     // channel that reaches them. Guards, all load-bearing:
@@ -1671,6 +1691,174 @@ async fn enqueue_notice(s: &RestState, recipient: Uuid, notice: SealedNotice) {
             s, d.from, s.hub_id, NOTICE_DROPPED_KIND, &pointer, body.as_bytes(),
         ))
         .await;
+    }
+    Ok(Enqueued::Queued { durable, notice_id })
+}
+
+/// Append an act the Sovereign already authorized and signed. The pre-signed entry names the
+/// ledger tail at signing time; if another act landed since, it is re-authorized and re-signed
+/// (bounded), because `append_signed` refuses a stale tail rather than reorder the chain.
+async fn land_act(
+    s: &RestState, act: &web4_core::act::Act,
+    signed: (hub_lib::ledger::UnsignedEntry, web4_core::crypto::SignatureBytes),
+) -> Result<u64, ApiError> {
+    let mut last = None;
+    let mut next = Some(signed);
+    for _ in 0..3 {
+        let (unsigned, signature) = match next.take() {
+            Some(pair) => pair,
+            None => authorize_event(s, HubEvent::ReferencedAct { act: act.clone() }).await?,
+        };
+        let res = {
+            let mut ledger = s.ledger.lock().await;
+            ledger.append_signed(unsigned, signature).await.map(|e| e.index)
+        };
+        match res {
+            Ok(index) => {
+                reconcile_degraded_log(s, "post-witness").await;
+                return Ok(index);
+            }
+            Err(e) => last = Some(e),
+        }
+    }
+    Err(ApiError::internal(last.expect("three attempts")))
+}
+
+/// The act for `act_id` if it is already on the ledger (a retry after a crash between queueing
+/// and witnessing). Newest first: a retry is close to its original.
+async fn find_act(s: &RestState, act_id: Uuid) -> Option<u64> {
+    let ledger = s.ledger.lock().await;
+    ledger.entries().iter().rev().find_map(|e| match &e.event {
+        HubEvent::ReferencedAct { act } if act.act_id == act_id => Some(e.index),
+        _ => None,
+    })
+}
+
+fn send_receipt(op: &mailbox::SendOp, op_id: Option<&str>, replayed: bool) -> serde_json::Value {
+    serde_json::json!({
+        "delivered": true, "durably_accepted": op.durable, "entry_index": op.entry_index,
+        "notice_id": op.notice_id, "operation_id": op_id, "replayed": replayed,
+    })
+}
+
+/// A retry of an operation the hub already accepted: answer with the FIRST attempt's outcome.
+/// If that attempt's act never landed (the daemon died between queueing and witnessing), find
+/// it by its deterministic id or witness it now — once.
+async fn resume_send_op(
+    s: &RestState, sender: Uuid, op_id: &str, mut op: mailbox::SendOp,
+    binding: &serde_json::Value, act: &web4_core::act::Act,
+) -> Result<serde_json::Value, ApiError> {
+    if &op.binding != binding {
+        return Err(ApiError { status: StatusCode::CONFLICT, message: format!(
+            "operation_id '{op_id}' was already used for a different message (recipient, pointer, \
+             content hash or sealed body differ). Nothing was sent; use a new operation_id.") });
+    }
+    if op.entry_index.is_none() {
+        let index = match find_act(s, op.act_id).await {
+            Some(i) => i,
+            None => {
+                let signed = authorize_event(s, HubEvent::ReferencedAct { act: act.clone() }).await?;
+                land_act(s, act, signed).await?
+            }
+        };
+        op.entry_index = Some(index);
+        let mut store = s.open_store().await.map_err(ApiError::internal)?;
+        if let Err(e) = store.send_op_put(sender, op_id, op.created_at,
+            &serde_json::to_vec(&op).map_err(|e| ApiError::internal(e.into()))?).await {
+            // The act is on the ledger; a later retry finds it by act_id. Not a failure.
+            tracing::warn!("send op {op_id}: recording entry {index} failed ({e:#}); a retry finds it");
+        }
+    }
+    Ok(send_receipt(&op, Some(op_id), true))
+}
+
+/// `send_secret`, in the order that makes its record honest (web4#867 contract 1):
+///   1. an existing `operation_id` answers with its first outcome (resume_send_op);
+///   2. AUTHORIZE the act — law gate and Sovereign signature, NO side effect;
+///   3. QUEUE the notice durably, with the op record in the same transaction;
+///   4. LAND the pre-signed act; on failure WITHDRAW the notice (and op) if it is still queued.
+/// So the ledger never asserts a send the mailbox refused, a refused send leaves the ledger
+/// untouched, and a lost response is retried with the same operation_id instead of duplicated.
+async fn send_secret_ordered(
+    s: &RestState, sender: Uuid, to: Uuid, notice: SealedNotice,
+    mut act: web4_core::act::Act, op_id: Option<&str>, binding: serde_json::Value,
+) -> Result<serde_json::Value, ApiError> {
+    let now = Utc::now().timestamp();
+
+    // An operation-id send is one state transition: absent -> queued -> witnessed -> complete.
+    // Hold the transition lock through lookup, act landing, op update, and any withdrawal.
+    // Without this, two same-id twins can both observe "queued/incomplete", both land the
+    // deterministic act, and the loser can withdraw custody after the winner completed it.
+    // v1 deliberately serializes all incomplete/new op-id sends in one daemon; completed
+    // replays are still bounded by the same short critical path. A keyed lock can narrow this
+    // later without changing the wire or durable state machine.
+    #[cfg(test)]
+    if let Some(op) = op_id {
+        mailbox::test_send_op_before_lock(op).await;
+    }
+
+    let _send_op_guard = if op_id.is_some() {
+        Some(mailbox::SEND_OP_LOCK.lock().await)
+    } else {
+        None
+    };
+
+    if let Some(op) = op_id {
+        mailbox::check_op_id(op)?;
+        act.act_id = mailbox::op_act_id(sender, op);
+        // Re-read only AFTER acquiring the transition lock. This is the load-bearing
+        // check: a twin that waited here sees the first twin's completed durable op
+        // instead of resuming a stale pre-lock snapshot.
+        let store = s.open_store().await.map_err(ApiError::internal)?;
+        if !store.send_ops_durable() {
+            return Err(mailbox::MailboxError::Refused(StatusCode::NOT_IMPLEMENTED,
+                "operation_id requires a backend that persists sender operations".into()).into());
+        }
+        if let Some(bytes) = store.send_op_get(sender, op).await.map_err(ApiError::internal)? {
+            let existing: mailbox::SendOp = serde_json::from_slice(&bytes)
+                .map_err(|e| ApiError::internal(e.into()))?;
+            drop(store);
+            return resume_send_op(s, sender, op, existing, &binding, &act).await;
+        }
+        drop(store);
+        #[cfg(test)]
+        mailbox::test_send_op_after_lookup(op).await;
+    }
+    let signed = authorize_event(s, HubEvent::ReferencedAct { act: act.clone() }).await?;
+    let rec = mailbox::SendOp { binding: binding.clone(), act_id: act.act_id, notice_id: String::new(),
+        created_at: now, entry_index: None, durable: true };
+    let queued = enqueue_notice_op(s, to, notice, op_id.map(|o| (sender, o, &rec))).await
+        .map_err(ApiError::from)?;
+    let (durable, notice_id) = match queued {
+        Enqueued::Queued { durable, notice_id } => (durable, notice_id),
+        // A concurrent attempt with the same operation_id got there first.
+        Enqueued::AlreadyAccepted(existing) => {
+            return resume_send_op(s, sender, op_id.expect("op"), existing, &binding, &act).await;
+        }
+    };
+    match land_act(s, &act, signed).await {
+        Ok(index) => {
+            let done = mailbox::SendOp { notice_id: notice_id.clone(), entry_index: Some(index), durable, ..rec };
+            if let Some(op) = op_id {
+                let written = async {
+                    let mut store = s.open_store().await?;
+                    store.send_op_put(sender, op, done.created_at, &serde_json::to_vec(&done)?).await
+                }.await;
+                if let Err(e) = written {
+                    tracing::warn!("send op {op}: recording entry {index} failed ({e:#}); a retry finds it");
+                }
+            }
+            Ok(send_receipt(&done, op_id, false))
+        }
+        Err(e) => match s.mailbox_withdraw(to, &notice_id, op_id.map(|o| (sender, o))).await {
+            Ok(true) => Err(ApiError { status: e.status, message: format!(
+                "not sent: the act could not be witnessed ({}); the queued notice was withdrawn \
+                 and nothing was delivered", e.message) }),
+            _ => Err(ApiError::internal(anyhow::anyhow!(
+                "the notice was queued and may already have been delivered, but its act could not \
+                 be witnessed ({}). Retry with the same operation_id to complete the record.",
+                e.message))),
+        },
     }
 }
 
@@ -3961,13 +4149,16 @@ struct ChannelInner {
 /// arms (the classification guard test walks this list; adding a dispatch arm
 /// without registering it here fails the test, so a new tool cannot silently
 /// skip freshness classification). (#474)
-const CHANNEL_TOOLS: [&str; 18] = [
+const CHANNEL_TOOLS: [&str; 21] = [
     "constellation_challenge",
     "find_members",
     "find_skill",
     "list_intros",
     "list_members",
     "notifications",
+    "notifications_enable_receipts",
+    "notifications_fetch",
+    "notifications_ack",
     "presence",
     "present_constellation",
     "query_hub",
@@ -3988,12 +4179,13 @@ const CHANNEL_TOOLS: [&str; 18] = [
 /// added to `dispatch_channel` without touching the list silently inherited
 /// read tolerance — fail-open for new writes. Allowlisting the reads makes
 /// the default fail-closed: an unclassified new tool REQUIRES freshness.
-const CHANNEL_READ_TOOLS: [&str; 9] = [
+const CHANNEL_READ_TOOLS: [&str; 10] = [
     "find_members",
     "find_skill",
     "list_intros",
     "list_members",
     "notifications",
+    "notifications_fetch",
     "presence",
     "query_hub",
     "reputation",
@@ -4887,16 +5079,34 @@ async fn dispatch_channel(
             Ok(out)
         }
         // ---- DRAFT: referenced acts + the hub→citizen notification poll floor ----
+        "notifications_enable_receipts" => {
+            // Not self-service. Enrollment is one-way (no downgrade) and moves the member to
+            // fetch/ACK delivery, where a client that never ACKs stops receiving at
+            // MAX_NOTICES_PER_MEMBER — an operator's decision (hub-claude review of web4#869). The tool stays registered so a member asking gets
+            // this sentence rather than "unknown tool".
+            Err(ApiError {
+                status: StatusCode::FORBIDDEN,
+                message: format!(
+                    "receipt delivery is enabled by the hub operator, not by the member: \
+                     POST /admin/api/members/{caller_lct_id}/mailbox-receipts on the operator plane"
+                ),
+            })
+        }
+        "notifications_fetch" => {
+            let limit = match inner.args.get("limit") {
+                None => 100,
+                Some(v) => v.as_u64().filter(|n| (1..=100).contains(n))
+                    .ok_or_else(|| ApiError::bad_request("limit must be an integer from 1 to 100"))? as usize,
+            };
+            s.mailbox_fetch(caller_lct_id, limit).await.map_err(ApiError::from)
+        }
+        "notifications_ack" => {
+            let id = inner.args.get("id").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request("notifications_ack requires id"))?;
+            s.mailbox_ack(caller_lct_id, id).await.map_err(ApiError::from)
+        }
         "notifications" => {
-            // A citizen drains their pending sealed notices (the delivery floor; push to a
-            // registered LCT-MCP endpoint is the future optimization on the same queue).
-            let cutoff = Utc::now() - chrono::Duration::seconds(NOTICE_TTL_SECS);
-            let mut notices = s.notifications.lock().await.remove(&caller_lct_id).unwrap_or_default();
-            notices.retain(|n| n.queued_at >= cutoff); // don't deliver expired notices
-            // Drop the durable copy now that the working set has been handed over.
-            // Best-effort + ordered-after: a failure here re-hydrates on restart
-            // (at-least-once), which is safer than deleting before delivery.
-            s.depersist_mailbox(caller_lct_id).await;
+            let notices = s.mailbox_legacy_drain(caller_lct_id).await.map_err(ApiError::from)?;
             Ok(serde_json::json!({ "total": notices.len(), "notifications": notices }))
         }
         "referenced_act" => {
@@ -5111,9 +5321,22 @@ async fn dispatch_channel(
             if !known {
                 return Err(ApiError::bad_request(format!("recipient {to} is not a known member")));
             }
-            // Witness a thin act: actor = the AUTHENTICATED sender (caller_lct_id),
-            // to = Citizen{recipient}, substance = a hash of the SEALED body. The
-            // secret itself never touches the ledger.
+            // Optional retry key. A sender that lost the response resends with the same one and
+            // gets the first attempt's receipt instead of a second notice and a second act.
+            let operation_id = match inner.args.get("operation_id") {
+                None | Some(serde_json::Value::Null) => None,
+                Some(v) => Some(v.as_str().ok_or_else(|| ApiError::bad_request(
+                    "operation_id must be a string".to_string()))?.to_string()),
+            };
+            // What the operation id stands for: a retry must be the same message.
+            let binding = serde_json::json!({
+                "to": to, "pointer_uri": pointer_uri, "content_hash": content_hash,
+                "sealed_sha256": web4_core::sha256_hex(sealed.as_bytes()),
+                "pair_id": sender_pair_id,
+            });
+            // A thin act: actor = the AUTHENTICATED sender (caller_lct_id), to =
+            // Citizen{recipient}, substance = a hash of the SEALED body. The secret itself
+            // never touches the ledger.
             let act = web4_core::act::Act::addressed(
                 caller_lct_id,
                 web4_core::act::ActAddress::Citizen { lct_id: to },
@@ -5122,10 +5345,9 @@ async fn dispatch_channel(
                     &pointer_uri, content_hash, web4_core::act::SubstanceMedium::Message),
                 Utc::now(),
             );
-            let index = witness_event(s, HubEvent::ReferencedAct { act }).await?;
             // Relay the PRE-SEALED body: sealed_by = the sender, so the recipient
             // opens against the sender's operational key (not the hub's).
-            enqueue_notice(s, to, SealedNotice {
+            let notice = SealedNotice {
                 pair_id: sender_pair_id,
                 from: caller_lct_id,
                 sealed,
@@ -5133,8 +5355,8 @@ async fn dispatch_channel(
                 pointer_uri,
                 queued_at: Utc::now(),
                 sealed_by: Some(caller_lct_id),
-            }).await;
-            Ok(serde_json::json!({ "delivered": true, "entry_index": index }))
+            };
+            send_secret_ordered(s, caller_lct_id, to, notice, act, operation_id.as_deref(), binding).await
         }
         // ---- constellation attestation (challenge-response MFA, assurance tiers) ----
         // Wire contract: forum/legion-constellation-attestation-wire-shape-2026-06-11.md.
@@ -6130,6 +6352,90 @@ async fn admin_remove_member(
     require_loopback(&peer)?;
     let entry_index = remove_member_live(&s, lct_id, body.reason).await?;
     Ok(Json(serde_json::json!({ "removed": true, "entry_index": entry_index })))
+}
+
+#[derive(Deserialize)]
+struct EnrollBody {
+    /// Required: enrollment cannot be undone, so the ledger says why it happened.
+    #[serde(default)]
+    reason: String,
+}
+
+/// `POST /admin/api/members/:lct_id/mailbox-receipts` — enroll a member in receipt delivery
+/// (`hub-mailbox-receive-v1`: non-destructive fetch + recipient-bound ACK). Operator-only.
+///
+/// surface: admin_enable_mailbox_receipts   act: switch a member's mailbox to receipt mode (one-way)
+/// S: med/irreversible [construct: no downgrade; delivery becomes fetch/ACK, bounded at MAX_NOTICES_PER_MEMBER unacknowledged]
+/// R: pass [construct: require_loopback on the operator listener]   W: pass [construct: operator plane; act by the Sovereign]
+/// O: pass [construct: member + reason + durability preflight before witness_event]
+/// A: pass [construct: `mailbox:receipts_enabled` ReferencedAct carries the reason's hash, before the write]
+/// V: present [construct: reason required; idempotent re-call writes no second act]
+/// verdict: PASS
+async fn admin_enable_mailbox_receipts(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(lct_id): Path<Uuid>,
+    Json(body): Json<EnrollBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    enable_mailbox_receipts_as_operator(&s, lct_id, &body.reason).await.map(Json)
+}
+
+async fn enable_mailbox_receipts_as_operator(
+    s: &RestState, lct_id: Uuid, reason: &str,
+) -> Result<serde_json::Value, ApiError> {
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(ApiError::bad_request(
+            "a reason is required: enrollment is one-way and the ledger records why".to_string()));
+    }
+    if s.resolver.read().await.lookup(lct_id).is_none() {
+        return Err(ApiError { status: StatusCode::NOT_FOUND,
+            message: format!("{lct_id} is not a known member") });
+    }
+    // One enrollment at a time, across preflight + witness + write, so two concurrent operator
+    // calls cannot both pass the preflight and both witness an act (hub-claude review of
+    // 943a9514). Its own lock, not the notifications mutex: witness_event can queue notices,
+    // which takes that mutex, and holding it here would deadlock.
+    let _enrolling = mailbox::ENROLL_LOCK.lock().await;
+    // Preflight: already enrolled is an idempotent no-op — no second act on the ledger.
+    {
+        let store = s.open_store().await.map_err(ApiError::internal)?;
+        if !store.mailbox_is_durable() {
+            return Err(mailbox::MailboxError::Refused(StatusCode::NOT_IMPLEMENTED,
+                "receipt delivery requires durable mailbox storage".into()).into());
+        }
+        if s.load_mailbox_record(&*store, lct_id, &[]).await.map_err(ApiError::internal)?.is_receipts() {
+            return Ok(serde_json::json!({"enrolled": true, "already": true,
+                "protocol": mailbox::RECEIVE_PROTOCOL}));
+        }
+    }
+    let statement = serde_json::json!({
+        "protocol": mailbox::RECEIVE_PROTOCOL, "member": lct_id, "reason": reason,
+    });
+    let act = web4_core::act::Act::addressed(
+        s.sovereign_lct_id,
+        web4_core::act::ActAddress::Citizen { lct_id },
+        "mailbox:receipts_enabled",
+        web4_core::act::SubstanceRef::new(
+            &format!("mailbox/{lct_id}/receipts"),
+            web4_core::sha256_hex(&serde_json::to_vec(&statement).map_err(|e| ApiError::internal(e.into()))?),
+            web4_core::act::SubstanceMedium::Message,
+        ),
+        Utc::now(),
+    );
+    let entry_index = witness_event(s, HubEvent::ReferencedAct { act }).await?;
+    // The act is on the ledger first. A failed write here leaves it asserting an enrollment
+    // that did not happen, so the error says exactly that and the retry (idempotent) applies it.
+    match s.mailbox_enable_receipts(lct_id).await {
+        // Under ENROLL_LOCK nothing else enrolls between the preflight and here, so `false`
+        // would mean the record changed underneath us; report what the store said.
+        Ok(enrolled_now) => Ok(serde_json::json!({"enrolled": true, "already": !enrolled_now,
+            "protocol": mailbox::RECEIVE_PROTOCOL, "entry_index": entry_index, "statement": statement})),
+        Err(e) => Err(ApiError::internal(anyhow::anyhow!(
+            "ledger entry {entry_index} records the enrollment but the mailbox write failed ({e}); \
+             NOT enrolled — retry this same call to apply it"))),
+    }
 }
 
 #[derive(Deserialize)]
@@ -7250,6 +7556,7 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/members/:lct_id/key", post(admin_pin_key))
         .route("/admin/api/members/:lct_id/remove", post(admin_remove_member))
         .route("/admin/api/members/:lct_id/admission-reset", post(admin_admission_reset))
+        .route("/admin/api/members/:lct_id/mailbox-receipts", post(admin_enable_mailbox_receipts))
         .with_state(state)
 }
 
@@ -9746,9 +10053,7 @@ mod lct_registry_tests {
             queued_at: Utc::now(),
             sealed_by: None,
         };
-        // Mirror queue_sealed_notice's write-through: mutate in-memory, then persist.
-        state.notifications.lock().await.insert(recipient, vec![notice.clone()]);
-        state.persist_mailbox(recipient, &[notice.clone()]).await;
+        assert!(enqueue_notice(&state, recipient, notice.clone()).await.unwrap());
 
         // Restart: a fresh state starts empty, then hydrates from the durable store.
         let restarted = reopen_state(&hub_dir).await;
@@ -9767,7 +10072,7 @@ mod lct_registry_tests {
         }
 
         // Drain depersists → a subsequent restart hydrates empty (no redelivery).
-        restarted.depersist_mailbox(recipient).await;
+        restarted.mailbox_legacy_drain(recipient).await.unwrap();
         let after_drain = reopen_state(&hub_dir).await;
         after_drain.hydrate_mailbox().await;
         assert!(
