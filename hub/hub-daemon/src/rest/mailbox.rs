@@ -607,17 +607,22 @@ mod tests {
 
     // ---- route_forward: receipt-only, exact-retry transit contract (F3) ----
 
+    /// A real canonical id (key-derived), as a router would carry.
+    fn canon() -> String {
+        hub_lib::ids::CanonicalLctId::derive(&web4_core::crypto::KeyPair::generate().verifying_key()).to_string()
+    }
+
     fn route_packet(packet_id: Uuid, destination: &str, hops: u64) -> String {
         serde_json::to_string(&serde_json::json!({
             "protocol": "web4-route-v1",
             "packet_id": packet_id,
             "destination_lct": destination,
-            "origin_lct": "lct:web4:mb32:origin",
+            "origin_lct": canon(),
             "original_kind": "coordination",
             "pointer_uri": "shared-context/forum/route-test.md",
             "content_hash": format!("sha256-content:{}", "b".repeat(64)),
             "hops_remaining": hops,
-            "visited_routers": ["lct:web4:mb32:first-router"],
+            "visited_routers": [canon()],
         })).unwrap()
     }
 
@@ -673,7 +678,7 @@ mod tests {
     async fn route_forward_requires_receipt_mode_and_has_no_refusal_side_effect() {
         let (_tmp, state, sov) = fixture(true).await;
         let (l0, q0) = (ledger_len(&state).await, queued(&state, sov.lct.id).await);
-        let packet = route_packet(Uuid::new_v4(), "lct:web4:mb32:destination", 8);
+        let packet = route_packet(Uuid::new_v4(), &canon(), 8);
         let err = channel(
             &state, &sov, "route_forward",
             route_args(sov.lct.id, packet, "route:no-receipts"),
@@ -690,7 +695,7 @@ mod tests {
         let (who, peer_key) = add_route_peer(&state, sov.lct.id).await;
         let (l0, q0) = (ledger_len(&state).await, queued(&state, who).await);
         let packet_id = Uuid::new_v4();
-        let packet = route_packet(packet_id, "lct:web4:mb32:destination", 8);
+        let packet = route_packet(packet_id, &canon(), 8);
         let args = route_args(who, packet.clone(), "route:packet-1");
 
         let first = channel(&state, &sov, "route_forward", args.clone(), true).await.unwrap();
@@ -738,19 +743,65 @@ mod tests {
         );
     }
 
+    /// "Canonical" is the key-derived mb32 shape, not the `lct:web4:` prefix. Each id field
+    /// refuses a legacy alias, a placeholder mb32 string and a member UUID, before any side
+    /// effect. Under the earlier prefix check every one of these was accepted.
+    #[tokio::test]
+    async fn route_forward_refuses_non_canonical_ids_in_every_id_field() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let (who, _peer_key) = add_route_peer(&state, sov.lct.id).await;
+        let (l0, q0) = (ledger_len(&state).await, queued(&state, who).await);
+        let bad = [
+            "lct:web4:member:0123456789abcdef01234567".to_string(), // legacy alias
+            "lct:web4:mb32:destination".to_string(),                 // placeholder
+            format!("lct:web4:{}", Uuid::new_v4()),                  // a member UUID dressed up
+        ];
+        for b in &bad {
+            let base: serde_json::Value = serde_json::from_str(&route_packet(Uuid::new_v4(), &canon(), 8)).unwrap();
+            let failure = |p: &mut serde_json::Value, dest: String, at: String| {
+                p["original_kind"] = "unreachable".into();
+                p["failure"] = serde_json::json!({"original_packet_id": Uuid::new_v4(),
+                    "failed_destination_lct": dest, "failed_at_router_lct": at, "reason": "test"});
+            };
+            let mut variants = Vec::new();
+            for field in ["destination_lct", "origin_lct"] {
+                let mut p = base.clone(); p[field] = b.as_str().into(); variants.push((field, p));
+            }
+            let mut p = base.clone(); p["visited_routers"] = serde_json::json!([b]); variants.push(("visited_routers", p));
+            let mut p = base.clone(); failure(&mut p, b.clone(), canon()); variants.push(("failed_destination_lct", p));
+            let mut p = base.clone(); failure(&mut p, canon(), b.clone()); variants.push(("failed_at_router_lct", p));
+            for (field, p) in variants {
+                let args = route_args(who, p.to_string(), &format!("route:bad-{}", Uuid::new_v4().simple()));
+                let err = channel(&state, &sov, "route_forward", args, true).await
+                    .expect_err(&format!("{field} = {b} must be refused"));
+                assert_eq!(err.status, StatusCode::BAD_REQUEST, "{field} = {b}: {}", err.message);
+                assert!(err.message.contains("canonical"), "{field}: {}", err.message);
+            }
+        }
+        assert_eq!((ledger_len(&state).await, queued(&state, who).await), (l0, q0), "no side effect");
+
+        // Positive control: the same fixture with a valid failure object is accepted.
+        let mut ok: serde_json::Value = serde_json::from_str(&route_packet(Uuid::new_v4(), &canon(), 8)).unwrap();
+        ok["original_kind"] = "unreachable".into();
+        ok["failure"] = serde_json::json!({"original_packet_id": Uuid::new_v4(),
+            "failed_destination_lct": canon(), "failed_at_router_lct": canon(), "reason": "test"});
+        channel(&state, &sov, "route_forward", route_args(who, ok.to_string(), "route:ok-failure"), true).await
+            .expect("a fully canonical unreachable packet is accepted");
+    }
+
     #[tokio::test]
     async fn route_forward_same_operation_cannot_change_packet() {
         let (_tmp, state, sov) = fixture(true).await;
         let (who, _peer_key) = add_route_peer(&state, sov.lct.id).await;
         let packet_id = Uuid::new_v4();
-        let first_packet = route_packet(packet_id, "lct:web4:mb32:destination-a", 8);
+        let first_packet = route_packet(packet_id, &canon(), 8);
         let first = route_args(who, first_packet, "route:immutable");
         channel(&state, &sov, "route_forward", first, true).await.unwrap();
         let (l1, q1) = (ledger_len(&state).await, queued(&state, who).await);
 
         let changed = route_args(
             who,
-            route_packet(packet_id, "lct:web4:mb32:destination-b", 8),
+            route_packet(packet_id, &canon(), 8),
             "route:immutable",
         );
         let err = channel(&state, &sov, "route_forward", changed, true).await.unwrap_err();
@@ -767,7 +818,7 @@ mod tests {
 
         let exhausted = route_args(
             who,
-            route_packet(Uuid::new_v4(), "lct:web4:mb32:destination", 0),
+            route_packet(Uuid::new_v4(), &canon(), 0),
             "route:zero-hop",
         );
         let err = channel(&state, &sov, "route_forward", exhausted, true).await.unwrap_err();

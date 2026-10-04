@@ -44,35 +44,41 @@ retry. A local bridge still needs its own durable deduplication and application 
 ## Router forwarding: receipt mode is mandatory
 
 The F3 router hop uses the same sender-operation machinery under a dedicated
-\`route_forward\` channel tool. This is deliberately not ordinary \`referenced_act\` delivery:
+`route_forward` channel tool. This is deliberately not ordinary `referenced_act` delivery:
 an intermediate router must be able to retry a lost response without creating a second packet
 or a second hop witness.
 
 Arguments:
 
-\`\`\`json
+```json
 {
   "to": "<next-hop Hub member UUID>",
   "operation_id": "<stable 1..128-byte retry key>",
   "route_packet_json": "<exact UTF-8 JSON object>"
 }
-\`\`\`
+```
 
-The route packet protocol is \`web4-route-v1\`. V1 requires \`packet_id\`,
-\`destination_lct\`, \`origin_lct\`, \`original_kind\`, \`pointer_uri\`,
-\`content_hash\`, \`hops_remaining\`, and \`visited_routers\`.
+The route packet protocol is `web4-route-v1`. V1 requires `packet_id`,
+`destination_lct`, `origin_lct`, `original_kind`, `pointer_uri`,
+`content_hash`, `hops_remaining`, and `visited_routers`.
+
+`destination_lct`, `origin_lct`, every `visited_routers` entry, and an
+`unreachable` packet's `failure.failed_destination_lct` / `failed_at_router_lct`
+must be **canonical** key-derived ids (`lct:web4:mb32:b…`, `CanonicalLctId`).
+A legacy alias (`lct:web4:member:…`), a placeholder, or a hub member UUID is a
+reference that *resolves to* a presence, so it is refused as a route address.
 
 The **next hop must already be enrolled in receipt delivery**. A legacy
 consume-on-poll mailbox is refused with 409; routing must not re-introduce the
 fetch-response-loss boundary receipt mode was created to remove.
 
-The Hub hashes the **exact \`route_packet_json\` bytes**, witnesses that hash in a
-\`route.forward\` Act, seals the same packet bytes to the next hop's pinned member
+The Hub hashes the **exact `route_packet_json` bytes**, witnesses that hash in a
+`route.forward` Act, seals the same packet bytes to the next hop's pinned member
 key, and commits notice + sender operation atomically before landing the act. The
-final destination remains inside the packet; \`to\` is only the next-hop transport
+final destination remains inside the packet; `to` is only the next-hop transport
 address.
 
-A retry with the same \`operation_id\` and byte-identical packet returns the first
+A retry with the same `operation_id` and byte-identical packet returns the first
 receipt. Reusing the id for a different packet or next hop is 409.
 
 ## Sending: the order that keeps the record honest (#867 contract 1)
