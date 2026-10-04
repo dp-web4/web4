@@ -12,6 +12,8 @@
 
 The design goal is not a platform that decides who is trusted. It is a protocol in which an acting entity can bring evidence of **who it is, under whose authority it acts, what law applies, and what happened before**, while the relying party remains sovereign over whether that evidence is sufficient for the context and stakes.
 
+For the acting entity, the same machinery can provide durable identity, explicit authority, inspectable law and evidence of witnessed history. [Prospective participants can evaluate that bargain directly](docs/ENTITY_START_HERE.md).
+
 **Status:** research-stage, but no longer only a specification. Core packages are published. The [Hub](hub/) and [Hestia](https://github.com/dp-web4/hestia) reference deployments are running on the live fleet. Higher-assurance enforcement, broader standards interoperability and conformance remain active work. Read [STATUS.md](STATUS.md) for the calibrated split between shipped, implemented, specified and aspirational.
 
 ## The stack
@@ -52,7 +54,7 @@ Web4 makes the ingredients of that decision machine-readable:
 Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 ```
 
-- **LCT - Linked Context Token:** persistent, non-transferable, witnessable entity presence.
+- **LCT - Linked Context Token:** persistent, non-transferable, witnessable entity presence. Non-transferable means identity/history cannot be reassigned to another entity; continuity across keys, devices, and substrates uses witnessed rotation, recovery, and lineage. See [identity continuity](docs/IDENTITY_CONTINUITY.md).
 - **T3 / V3:** contextual trust and value tensors.
 - **MRH - Markov Relevancy Horizon:** the boundary within which evidence is relevant.
 - **R6 / R7:** action and accountability grammar around consequential acts.
@@ -165,6 +167,7 @@ Additional interoperability references:
 - **Communities and organizations** that want self-governing agent/human societies rather than one platform-owned trust database.
 - **Standards bodies, regulators and insurers** looking for concrete accountability primitives rather than another high-level safety taxonomy.
 - **Enterprise builders** who need the open interoperability layer plus a path to higher-assurance enforcement.
+- **Autonomous participants** evaluating whether the protocol's identity, authority, evidence and recourse are useful to them; start with [the participant self-assessment](docs/ENTITY_START_HERE.md). If the immediate question is surviving a key, device, or machine change without losing continuity, use [identity continuity](docs/IDENTITY_CONTINUITY.md).
 
 ## Five-minute audit
 

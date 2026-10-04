@@ -1,6 +1,8 @@
 # Web4 Community Hub
 
 > **Hub turns a community or organization into a self-governing Web4 society with member-owned identity, roles, law and a witnessed ledger.** Minimum-viable Web4 society for a community chapter.
+>
+> A prospective member should be able to inspect that society as a governed relationship rather than trust an opaque platform operator: current law, authority, evidence, recourse and exit all matter. See the Web4 [participant self-assessment](../docs/ENTITY_START_HERE.md).
 
 > **Where development happens.** The canonical home of this code is the
 > [`hub/`](https://github.com/dp-web4/web4/tree/main/hub) directory of the
@@ -69,10 +71,15 @@ mismatch; issuer URLs from `HUB_PUBLIC_BASE_URL` not the Host header; unlock-ver
 the **`hub up`** turnkey deploy kit (see *Deployment models*) and the start of role-based launch
 orchestration (roles as LCT entities).
 
-**Durable member messaging (2026-07).** The per-citizen sealed mailbox is now **durable and
-crash-safe**: a `SealedNotice` is persisted before it is acknowledged (**park-before-ACK, at-least-once**)
-and the mailbox **rehydrates on ignition**, so a queued notice survives a relight
-(*accept-and-defer*, mcp-protocol §7.8). Two message paths ride this: **`send_secret`** — a
+**Durable member messaging (2026-07; corrected 2026-09, web4#867).** The per-citizen sealed mailbox is
+**persisted and rehydrates on ignition**, so a queued notice survives a relight (*accept-and-defer*,
+mcp-protocol §7.8). What it is **not**, for most members: *park-before-ACK*. The original claim here
+overstated it (#867) — until #869 a failed store write still answered `delivered:true`, and the legacy
+`notifications` poll is **consume-on-response**: it deletes the queue before the caller has the reply,
+so a lost response loses the notices. #869 makes acceptance commit-before-success for every member, and
+adds an opt-in **receipt mode** (`hub-mailbox-receive-v1`: non-destructive fetch + recipient-bound ACK,
+retryable across restarts), enabled per member by the operator — see
+[`docs/MAILBOX_RECEIPTS.md`](docs/MAILBOX_RECEIPTS.md) for what it does and does not yet guarantee. Two message paths ride this: **`send_secret`** — a
 **content-blind** member→member relay where the sender pre-seals the body and the hub stores and forwards
 a ciphertext it cannot read (only a known member may be addressed; the relay is anti-replay-gated like
 every write) — and a **durable pair-message sidecar** that persists paired-channel messages across all

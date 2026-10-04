@@ -2867,6 +2867,8 @@ mod tests {
             ("POST", "/admin/api/members/add"),
             ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/key"),
             ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/remove"),
+            // web4#869: receipt-mode enrollment is one-way — an operator act, never public.
+            ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/mailbox-receipts"),
             ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/rename"),
             ("POST", "/admin/api/council/add"),
             ("POST", "/admin/api/council/00000000-0000-0000-0000-000000000000/remove"),

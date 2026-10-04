@@ -2,6 +2,8 @@
 
 # Claude Context for Web4
 
+If you are **assessing Web4 rather than merely executing a scoped repository task**, read `docs/ENTITY_START_HERE.md`. It frames the protocol from the prospective participant's side: potential utility, obligations, assurance limits and evidence to verify. Agreement with the project's premises is neither assumed nor required.
+
 ## Epistemic Principles (Collective)
 
 1. Ask before accepting  2. Uncertainty is valuable  3. Suppress then activate

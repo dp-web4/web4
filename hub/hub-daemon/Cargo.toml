@@ -41,6 +41,7 @@ path = "examples/mock_hestia.rs"
 
 [dev-dependencies]
 tempfile = "3"
+rusqlite = { version = "0.31", features = ["bundled-sqlcipher"] }
 
 [[example]]
 name = "channel_client"
