@@ -1792,6 +1792,11 @@ async fn send_secret_ordered(
     // v1 deliberately serializes all incomplete/new op-id sends in one daemon; completed
     // replays are still bounded by the same short critical path. A keyed lock can narrow this
     // later without changing the wire or durable state machine.
+    #[cfg(test)]
+    if let Some(op) = op_id {
+        mailbox::test_send_op_before_lock(op).await;
+    }
+
     let _send_op_guard = if op_id.is_some() {
         Some(mailbox::SEND_OP_LOCK.lock().await)
     } else {
@@ -1815,6 +1820,9 @@ async fn send_secret_ordered(
             drop(store);
             return resume_send_op(s, sender, op, existing, &binding, &act).await;
         }
+        drop(store);
+        #[cfg(test)]
+        mailbox::test_send_op_after_lookup(op).await;
     }
     let signed = authorize_event(s, HubEvent::ReferencedAct { act: act.clone() }).await?;
     let rec = mailbox::SendOp { binding: binding.clone(), act_id: act.act_id, notice_id: String::new(),
