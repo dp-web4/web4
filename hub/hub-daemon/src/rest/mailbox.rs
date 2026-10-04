@@ -629,6 +629,29 @@ mod tests {
         })
     }
 
+    async fn add_route_peer(
+        state: &RestState,
+        added_by: Uuid,
+    ) -> (Uuid, web4_core::crypto::KeyPair) {
+        let peer = Uuid::new_v4();
+        let key = web4_core::crypto::KeyPair::generate();
+        witness_event(
+            state,
+            HubEvent::MemberAdded {
+                member_lct_id: peer,
+                added_by,
+                member_name: Some("route-test-peer".into()),
+                member_pubkey_hex: Some(key.verifying_key().to_hex()),
+                anchor_level: None,
+                trust_ceiling: None,
+            },
+        )
+        .await
+        .unwrap();
+        state.mailbox_enable_receipts(peer).await.unwrap();
+        (peer, key)
+    }
+
     #[tokio::test]
     async fn route_forward_requires_receipt_mode_and_has_no_refusal_side_effect() {
         let (_tmp, state, sov) = fixture(true).await;
@@ -647,8 +670,7 @@ mod tests {
     #[tokio::test]
     async fn route_forward_retry_is_one_notice_one_act_and_packet_is_openable() {
         let (_tmp, state, sov) = fixture(true).await;
-        let who = sov.lct.id;
-        state.mailbox_enable_receipts(who).await.unwrap();
+        let (who, peer_key) = add_route_peer(&state, sov.lct.id).await;
         let (l0, q0) = (ledger_len(&state).await, queued(&state, who).await);
         let packet_id = Uuid::new_v4();
         let packet = route_packet(packet_id, "lct:web4:mb32:destination", 8);
@@ -674,7 +696,7 @@ mod tests {
         let pair = Uuid::parse_str(notice["pair_id"].as_str().unwrap()).unwrap();
         let sealed = pair_channel::Sealed::from_base64(notice["sealed"].as_str().unwrap()).unwrap();
         let opened = pair_channel::open(
-            &sov.keypair().unwrap(),
+            &peer_key,
             &state.signer.public_key().unwrap(),
             pair,
             &sealed,
@@ -702,8 +724,7 @@ mod tests {
     #[tokio::test]
     async fn route_forward_same_operation_cannot_change_packet() {
         let (_tmp, state, sov) = fixture(true).await;
-        let who = sov.lct.id;
-        state.mailbox_enable_receipts(who).await.unwrap();
+        let (who, _peer_key) = add_route_peer(&state, sov.lct.id).await;
         let packet_id = Uuid::new_v4();
         let first_packet = route_packet(packet_id, "lct:web4:mb32:destination-a", 8);
         let first = route_args(who, first_packet, "route:immutable");
