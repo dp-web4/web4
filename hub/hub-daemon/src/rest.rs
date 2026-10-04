@@ -5016,10 +5016,10 @@ async fn dispatch_channel(
             // here would recreate fetch->crash packet loss at the next router.
             let receipt_mode = {
                 let cache = s.notifications.lock().await;
-                let store = s.open_store().await.map_err(ApiError::from)?;
+                let store = s.open_store().await.map_err(ApiError::internal)?;
                 let cached = cache.get(&to).map(Vec::as_slice).unwrap_or(&[]);
                 let record = s.load_mailbox_record(&*store, to, cached).await
-                    .map_err(ApiError::from)?;
+                    .map_err(ApiError::internal)?;
                 record.is_receipts()
             };
             if !receipt_mode {
