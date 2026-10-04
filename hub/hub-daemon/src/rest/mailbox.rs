@@ -653,6 +653,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn generic_referenced_act_cannot_spoof_reserved_route_forward_kind() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let before = ledger_len(&state).await;
+        let args = serde_json::json!({
+            "to": {"to":"peer", "lct_id": sov.lct.id},
+            "kind": "route.forward",
+            "pointer_uri": "web4-route:fake",
+            "content_hash": format!("sha256-content:{}", "d".repeat(64)),
+            "medium": "message",
+        });
+        let err = channel(&state, &sov, "referenced_act", args, true).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::CONFLICT);
+        assert!(err.message.contains("reserved"), "{}", err.message);
+        assert_eq!(ledger_len(&state).await, before);
+    }
+
+    #[tokio::test]
     async fn route_forward_requires_receipt_mode_and_has_no_refusal_side_effect() {
         let (_tmp, state, sov) = fixture(true).await;
         let (l0, q0) = (ledger_len(&state).await, queued(&state, sov.lct.id).await);
