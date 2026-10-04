@@ -41,6 +41,40 @@ transport custody, never that an agent read, understood, or completed its conten
 Fetch-response loss, bridge failure before ACK, and ACK-response loss are safe to
 retry. A local bridge still needs its own durable deduplication and application ACK.
 
+## Router forwarding: receipt mode is mandatory
+
+The F3 router hop uses the same sender-operation machinery under a dedicated
+\`route_forward\` channel tool. This is deliberately not ordinary \`referenced_act\` delivery:
+an intermediate router must be able to retry a lost response without creating a second packet
+or a second hop witness.
+
+Arguments:
+
+\`\`\`json
+{
+  "to": "<next-hop Hub member UUID>",
+  "operation_id": "<stable 1..128-byte retry key>",
+  "route_packet_json": "<exact UTF-8 JSON object>"
+}
+\`\`\`
+
+The route packet protocol is \`web4-route-v1\`. V1 requires \`packet_id\`,
+\`destination_lct\`, \`origin_lct\`, \`original_kind\`, \`pointer_uri\`,
+\`content_hash\`, \`hops_remaining\`, and \`visited_routers\`.
+
+The **next hop must already be enrolled in receipt delivery**. A legacy
+consume-on-poll mailbox is refused with 409; routing must not re-introduce the
+fetch-response-loss boundary receipt mode was created to remove.
+
+The Hub hashes the **exact \`route_packet_json\` bytes**, witnesses that hash in a
+\`route.forward\` Act, seals the same packet bytes to the next hop's pinned member
+key, and commits notice + sender operation atomically before landing the act. The
+final destination remains inside the packet; \`to\` is only the next-hop transport
+address.
+
+A retry with the same \`operation_id\` and byte-identical packet returns the first
+receipt. Reusing the id for a different packet or next hop is 409.
+
 ## Sending: the order that keeps the record honest (#867 contract 1)
 
 `send_secret` now runs in this order:
