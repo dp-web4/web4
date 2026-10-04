@@ -341,7 +341,8 @@ action today, so both currently ride `DEFAULT-ALLOW`.
 `POST /v1/hubs/:id/channel` carries a sealed, authenticated request whose inner tool is
 one of: `find_members`, `request_intro` / `list_intros` / `respond_intro`,
 `notifications` (drains the per-citizen **durable** sealed mailbox — survives relight),
-`send_secret` (content-blind member→member relay of a pre-sealed body), `referenced_act`, and
+`send_secret` (content-blind member→member relay of a pre-sealed body), `referenced_act`,
+`route_forward` (receipt-only router→router hop carrying an end-destination route packet), and
 `constellation_challenge` / `present_constellation` (assurance-tier bindings). The same
 `gate → handle → scope` contract as the [plugin seam](#extending-the-hub-plugin-seam)
 applies to every channel tool.
