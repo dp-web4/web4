@@ -4986,11 +4986,15 @@ async fn dispatch_channel(
                 .and_then(|s| Uuid::parse_str(s).ok())
                 .ok_or_else(|| ApiError::bad_request(
                     "route packet requires UUID packet_id".to_string()))?;
+            // "Canonical" means the key-derived `lct:web4:mb32:b…` shape (#877), not any
+            // `lct:web4:` prefix: a legacy alias (`lct:web4:member:…`) or a hub member UUID is a
+            // reference that RESOLVES to a presence, never one a router may carry as a destination.
+            let canonical = |v: &str| hub_lib::ids::CanonicalLctId::parse(v).is_ok();
             for field in ["destination_lct", "origin_lct"] {
                 let value = obj.get(field).and_then(|v| v.as_str()).unwrap_or("");
-                if !value.starts_with("lct:web4:") || value.len() > 256 {
+                if !canonical(value) {
                     return Err(ApiError::bad_request(format!(
-                        "route packet {field} must be a canonical lct:web4:* id of <=256 bytes")));
+                        "route packet {field} must be a canonical lct:web4:mb32 id")));
                 }
             }
             let original_kind = obj.get("original_kind").and_then(|v| v.as_str()).unwrap_or("");
@@ -5018,12 +5022,10 @@ async fn dispatch_channel(
             let mut seen_routers = std::collections::HashSet::new();
             if visited.len() > 64 || visited.iter().any(|v| {
                 let Some(s) = v.as_str() else { return true };
-                !s.starts_with("lct:web4:")
-                    || s.len() > 256
-                    || !seen_routers.insert(s)
+                !canonical(s) || !seen_routers.insert(s)
             }) {
                 return Err(ApiError::bad_request(
-                    "route packet visited_routers must contain <=64 unique canonical lct:web4:* ids"
+                    "route packet visited_routers must contain <=64 unique canonical lct:web4:mb32 ids"
                         .to_string()));
             }
 
@@ -5043,9 +5045,9 @@ async fn dispatch_channel(
                 }
                 for field in ["failed_destination_lct", "failed_at_router_lct"] {
                     let value = failure.get(field).and_then(|v| v.as_str()).unwrap_or("");
-                    if !value.starts_with("lct:web4:") || value.len() > 256 {
+                    if !canonical(value) {
                         return Err(ApiError::bad_request(format!(
-                            "route failure {field} must be a canonical lct:web4:* id of <=256 bytes")));
+                            "route failure {field} must be a canonical lct:web4:mb32 id")));
                     }
                 }
                 let reason = failure.get("reason").and_then(|v| v.as_str()).unwrap_or("");
