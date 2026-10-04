@@ -1784,9 +1784,26 @@ async fn send_secret_ordered(
     mut act: web4_core::act::Act, op_id: Option<&str>, binding: serde_json::Value,
 ) -> Result<serde_json::Value, ApiError> {
     let now = Utc::now().timestamp();
+
+    // An operation-id send is one state transition: absent -> queued -> witnessed -> complete.
+    // Hold the transition lock through lookup, act landing, op update, and any withdrawal.
+    // Without this, two same-id twins can both observe "queued/incomplete", both land the
+    // deterministic act, and the loser can withdraw custody after the winner completed it.
+    // v1 deliberately serializes all incomplete/new op-id sends in one daemon; completed
+    // replays are still bounded by the same short critical path. A keyed lock can narrow this
+    // later without changing the wire or durable state machine.
+    let _send_op_guard = if op_id.is_some() {
+        Some(mailbox::SEND_OP_LOCK.lock().await)
+    } else {
+        None
+    };
+
     if let Some(op) = op_id {
         mailbox::check_op_id(op)?;
         act.act_id = mailbox::op_act_id(sender, op);
+        // Re-read only AFTER acquiring the transition lock. This is the load-bearing
+        // check: a twin that waited here sees the first twin's completed durable op
+        // instead of resuming a stale pre-lock snapshot.
         let store = s.open_store().await.map_err(ApiError::internal)?;
         if !store.send_ops_durable() {
             return Err(mailbox::MailboxError::Refused(StatusCode::NOT_IMPLEMENTED,
@@ -5307,6 +5324,7 @@ async fn dispatch_channel(
             let binding = serde_json::json!({
                 "to": to, "pointer_uri": pointer_uri, "content_hash": content_hash,
                 "sealed_sha256": web4_core::sha256_hex(sealed.as_bytes()),
+                "pair_id": sender_pair_id,
             });
             // A thin act: actor = the AUTHENTICATED sender (caller_lct_id), to =
             // Citizen{recipient}, substance = a hash of the SEALED body. The secret itself
