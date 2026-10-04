@@ -4778,6 +4778,17 @@ async fn dispatch_channel(
             // ("handoff"/"sweep"/"memo"/"forum"), `notify:<event>` for hub→citizen.
             let kind = inner.args.get("kind").and_then(|v| v.as_str())
                 .ok_or_else(|| ApiError::bad_request("referenced_act requires 'kind'".to_string()))?.to_string();
+            // Reserved transport namespace: only the dedicated route_forward
+            // path may emit a route.forward mailbox notice. Otherwise any
+            // citizen could manufacture a look-alike router packet through the
+            // generic referenced_act delivery path and wedge/spoof a router
+            // ingress mailbox.
+            if kind == "route.forward" {
+                return Err(ApiError {
+                    status: StatusCode::CONFLICT,
+                    message: "kind 'route.forward' is reserved; use the route_forward channel operation".to_string(),
+                });
+            }
             let uri = inner.args.get("pointer_uri").and_then(|v| v.as_str())
                 .ok_or_else(|| ApiError::bad_request("referenced_act requires 'pointer_uri'".to_string()))?.to_string();
             // H-008 Phase 2: the substance `content_hash` is REQUIRED and
