@@ -131,11 +131,18 @@ pub enum Resolution {
 
 /// Every key pinned to `member`, oldest first, with the caller-supplied Sovereign key added for
 /// the founding Sovereign.
+///
+/// The identity key goes FIRST, where its `ledger_index: 0` says it belongs: it is the
+/// Genesis-era key, and any `MemberKeyPinned` re-key of the Sovereign is later than it. Appended
+/// last, a locked hub's identity file (still the Genesis key) would outrank the rotated key and
+/// be marked `current` (review on #883). When the supplied key IS the rotated one (a live
+/// signer), it derives the same canonical id as the ledger pin, and the ledger pin — the later
+/// entry — stays its evidence.
 fn pins_of(state: &HubState, member: Uuid, sovereign_key: Option<&PublicKey>) -> Vec<KeyPin> {
     let mut pins = state.member_key_pins.get(&member).cloned().unwrap_or_default();
     if state.founding_sovereign_lct_id == Some(member) {
         if let Some(k) = sovereign_key {
-            pins.push(KeyPin { pubkey_hex: k.to_hex(), source: PinSource::SovereignIdentity, ledger_index: 0 });
+            pins.insert(0, KeyPin { pubkey_hex: k.to_hex(), source: PinSource::SovereignIdentity, ledger_index: 0 });
         }
     }
     pins
@@ -323,6 +330,42 @@ mod tests {
         let res = resolve(&state, &r, Some(&key));
         assert_eq!(links(&res)[0].canonical, c);
         assert_eq!(links(&res)[0].pin.source, PinSource::SovereignIdentity);
+    }
+
+    /// A re-keyed Sovereign: the rotated key is current whichever Sovereign key the caller
+    /// supplies — the Genesis-era one a locked hub's identity file still carries, or the rotated
+    /// one a live signer holds — and the Genesis presence stays as history.
+    #[test]
+    fn a_rekeyed_sovereign_marks_the_rotated_key_current_whatever_key_is_supplied() {
+        let mut state = HubState::default();
+        let sov = Uuid::new_v4();
+        let (genesis_lct, _, genesis_key) = keyed(sov);
+        let (rotated_lct, rotated_hex, rotated_key) = keyed(sov);
+        state.apply(&HubEvent::Genesis {
+            hub_name: "Fleet".into(), charter_hash: "sha256:0".into(),
+            founding_sovereign_lct_id: sov, created_at: Utc::now(),
+        }, Utc::now(), 0);
+        let genesis_c = publish(&mut state, &genesis_lct, 1);
+        state.apply(&HubEvent::MemberKeyPinned {
+            member_lct_id: sov, member_pubkey_hex: rotated_hex, pinned_by: sov,
+        }, Utc::now(), 2);
+        let rotated_c = publish(&mut state, &rotated_lct, 3);
+
+        let r = Reference::Member(HubMemberId::from_uuid(sov));
+        for (supplied, label) in [(&genesis_key, "locked: identity file"), (&rotated_key, "unlocked: live signer")] {
+            let res = resolve(&state, &r, Some(supplied));
+            let l = links(&res);
+            let current: Vec<_> = l.iter().filter(|l| l.current).map(|l| &l.canonical).collect();
+            assert_eq!(current, vec![&rotated_c], "{label}: only the rotated presence is current");
+            let rotated = l.iter().find(|l| l.canonical == rotated_c).unwrap();
+            assert_eq!((rotated.pin.source, rotated.pin.ledger_index), (PinSource::MemberKeyPinned, 2),
+                "{label}: the rotated presence is evidenced by the ledger pin");
+            if supplied.to_bytes() == genesis_key.to_bytes() {
+                let genesis = l.iter().find(|l| l.canonical == genesis_c).expect("the Genesis presence is history");
+                assert!(!genesis.current);
+                assert_eq!(genesis.pin.source, PinSource::SovereignIdentity);
+            }
+        }
     }
 
     /// C9: council holders are pinned into `council_pubkeys`, not `member_pubkeys`.
