@@ -26,6 +26,14 @@ pub(super) const SEND_OP_WINDOW_SECS: i64 = 7 * 24 * 3600;
 /// `enable_mailbox_receipts_as_operator`.
 pub(super) static ENROLL_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
+/// Serializes an operation-id send through its entire queued -> witnessed -> completed
+/// transition. This is intentionally coarse for v1: one daemon owns the mailbox store, and
+/// correctness beats parallel sender throughput. Completed replays are cheap; a later
+/// operation-keyed lock can narrow this without changing the protocol. The important property
+/// is that a second twin cannot land the same act or withdraw a notice after the first twin
+/// completed it.
+pub(super) static SEND_OP_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// A mailbox operation's failure, split by WHO must act on it. A caller's retry logic
 /// treats a 5xx as transient; a protocol refusal ("not enrolled", "bad id", "mailbox
 /// full") is not, and returning it as 500 teaches the caller to retry forever.
@@ -171,6 +179,18 @@ impl RestState {
         let mut store = self.open_store().await?;
         let cached = cache.get(&recipient).map(Vec::as_slice).unwrap_or(&[]);
         let mut record = self.load_mailbox_record(&*store, recipient, cached).await?;
+
+        // A completed operation owns its notice permanently until the RECIPIENT ACKs it.
+        // Never let a losing/error path erase custody after another attempt landed the act.
+        if let Some((sender, op_id)) = op {
+            if let Some(bytes) = store.send_op_get(sender, op_id).await? {
+                let existing: SendOp = serde_json::from_slice(&bytes)?;
+                if existing.entry_index.is_some() {
+                    return Ok(false);
+                }
+            }
+        }
+
         let Some(index) = record.notices().iter().position(|n| notice_id(recipient, n) == id) else {
             return Ok(false);
         };
@@ -520,7 +540,12 @@ mod tests {
     // ---- send_secret: the ledger never asserts a send the mailbox refused (#867 contract 1) ----
 
     fn secret_args(to: Uuid, sealed: &str, op: Option<&str>) -> serde_json::Value {
-        let mut a = serde_json::json!({"to": to, "sealed": sealed, "pair_id": Uuid::new_v4(),
+        secret_args_with_pair(to, sealed, op, Uuid::from_u128(0x1210))
+    }
+    fn secret_args_with_pair(
+        to: Uuid, sealed: &str, op: Option<&str>, pair_id: Uuid,
+    ) -> serde_json::Value {
+        let mut a = serde_json::json!({"to": to, "sealed": sealed, "pair_id": pair_id,
             "content_hash": format!("sha256-content:{}", "a".repeat(64))});
         if let Some(op) = op { a["operation_id"] = serde_json::json!(op); }
         a
@@ -569,11 +594,62 @@ mod tests {
         let e = channel(&state, &sov, "send_secret", secret_args(who, "other", Some("op-1")), true).await.unwrap_err();
         assert_eq!(e.status, StatusCode::CONFLICT);
         assert_eq!((ledger_len(&state).await, queued(&state, who).await), (l0 + 1, q0 + 1));
+        // pair_id is recipient-visible opening context, so it is part of the operation binding.
+        let e = channel(
+            &state,
+            &sov,
+            "send_secret",
+            secret_args_with_pair(who, "s", Some("op-1"), Uuid::from_u128(0x1211)),
+            true,
+        ).await.unwrap_err();
+        assert_eq!(e.status, StatusCode::CONFLICT);
+        assert_eq!((ledger_len(&state).await, queued(&state, who).await), (l0 + 1, q0 + 1));
         // without an operation_id nothing is deduplicated (legacy behaviour, ordering fixed)
         channel(&state, &sov, "send_secret", secret_args(who, "s", None), true).await.unwrap();
         assert_eq!(queued(&state, who).await, q0 + 2);
         let e = channel(&state, &sov, "send_secret", secret_args(who, "s", Some("bad id/")), true).await.unwrap_err();
         assert_eq!(e.status, StatusCode::BAD_REQUEST);
+    }
+
+    /// Two simultaneous retries of the same operation converge on one custody record and one
+    /// ledger act. The transition lock makes this structural rather than a scheduler accident.
+    #[tokio::test]
+    async fn concurrent_twins_share_one_notice_one_act_and_one_receipt() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let who = sov.lct.id;
+        let (l0, q0) = (ledger_len(&state).await, queued(&state, who).await);
+        let args = secret_args(who, "same-ciphertext", Some("op-twin"));
+        let (a, b) = tokio::join!(
+            channel(&state, &sov, "send_secret", args.clone(), true),
+            channel(&state, &sov, "send_secret", args, true),
+        );
+        let (a, b) = (a.unwrap(), b.unwrap());
+        assert_eq!(a["entry_index"], b["entry_index"]);
+        assert_eq!(a["notice_id"], b["notice_id"]);
+        assert_eq!((ledger_len(&state).await, queued(&state, who).await), (l0 + 1, q0 + 1));
+
+        let act_id = op_act_id(who, "op-twin");
+        let ledger = state.ledger.lock().await;
+        let count = ledger.entries().iter().filter(|e| matches!(
+            &e.event, HubEvent::ReferencedAct { act } if act.act_id == act_id
+        )).count();
+        assert_eq!(count, 1, "same operation_id landed more than one ReferencedAct");
+    }
+
+    /// Once the op says its act landed, an error/cleanup path may not withdraw its notice.
+    #[tokio::test]
+    async fn a_completed_operation_cannot_withdraw_its_notice() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let who = sov.lct.id;
+        let out = channel(&state, &sov, "send_secret", secret_args(who, "s", Some("op-done")), true)
+            .await.unwrap();
+        let id = out["notice_id"].as_str().unwrap().to_string();
+        let before = queued(&state, who).await;
+        assert!(!state.mailbox_withdraw(who, &id, Some((who, "op-done"))).await.unwrap());
+        assert_eq!(queued(&state, who).await, before, "completed op's notice was withdrawn");
+        let bytes = state.open_store().await.unwrap().send_op_get(who, "op-done").await.unwrap().unwrap();
+        let op: SendOp = serde_json::from_slice(&bytes).unwrap();
+        assert!(op.entry_index.is_some(), "completed op was reset");
     }
 
     /// The notice and its op record are ONE transaction: a notice is never accepted without the
