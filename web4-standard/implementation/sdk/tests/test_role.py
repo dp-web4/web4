@@ -559,11 +559,7 @@ class TestValidateMinimumViable:
     def test_missing_only_maintainer_fails(self) -> None:
         """Falsifier for the 7 -> 8 cutover: a society with every other base role
         (plus witness and differentiation) but no Maintainer is not viable."""
-        roles = [
-            _make_assignment(r, "entity-001")
-            for r in BASE_MANDATORY_ROLES
-            if r != SocietyRole.MAINTAINER
-        ]
+        roles = [_make_assignment(r, "entity-001") for r in BASE_MANDATORY_ROLES if r != SocietyRole.MAINTAINER]
         roles.append(_make_assignment(SocietyRole.WITNESS, "entity-002"))
         errors = validate_minimum_viable(roles, is_operational=True)
         assert errors == ["Base-mandatory role 'maintainer' not assigned"]
