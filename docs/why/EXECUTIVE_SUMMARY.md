@@ -49,7 +49,7 @@ The current open assurance grade is **A1**: cooperative and tamper-evident. It i
 
 ### Hub - society and community governance
 
-[Hub](https://github.com/dp-web4/4-hub) is the society runtime. It packages membership, seven base roles, signed law, sealed member channels and an append-only witnessed ledger into a small Rust daemon.
+[Hub](https://github.com/dp-web4/4-hub) is the society runtime. It packages membership, eight base roles, signed law, sealed member channels and an append-only witnessed ledger into a small Rust daemon.
 
 A Hub can represent a team, community, company, chapter or other self-governing group. Hestia governs the local member/agent boundary; Hub governs the society boundary.
 

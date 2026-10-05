@@ -7,7 +7,7 @@
 //! 1. Validate hub dir doesn't already contain a society (idempotent).
 //! 2. Load the Sovereign identity (LCT + keypair) from the path given.
 //! 3. Compose a founding charter (Charter::found), hash it.
-//! 4. Bootstrap a web4_core::Society — wires all 7 base-mandatory roles with
+//! 4. Bootstrap a web4_core::Society — wires all 8 base-mandatory roles with
 //!    the Sovereign as initial filler for each (solo founder pattern).
 //! 5. Persist: charter.json, society.json, config.toml. Leave ledger.jsonl
 //!    empty (sprint 2 populates).
@@ -30,15 +30,15 @@ use crate::store::{open_hub_store_with, BackendKind};
 /// Roles the founder fills at genesis per V2-1 architecture.
 ///
 /// Founder is Sovereign (constitutional) + Citizen (base membership).
-/// Other roles (LawOracle, PolicyEntity, Treasurer, Administrator, Archivist)
-/// start unfilled. Assignment happens via `hub assign-role` per hub law.
+/// Other roles (LawOracle, PolicyEntity, Treasurer, Administrator, Archivist,
+/// Maintainer) start unfilled. Assignment happens via `hub assign-role` per hub law.
 /// Witness + Auditor are context-mandatory and stay unfilled until federation
 /// or trust-issuance starts.
 pub const FOUNDER_ROLES_AT_GENESIS: &[SocietyRole] =
     &[SocietyRole::Sovereign, SocietyRole::Citizen];
 
 /// V2-1 transitional helper: walks the society's role map after
-/// `Society::bootstrap` (which fills all 7 base-mandatory roles by default)
+/// `Society::bootstrap` (which fills all 8 base-mandatory roles by default)
 /// and drops every role assignment except Sovereign + Citizen.
 ///
 /// Will be replaced when web4-core PR U1 lands a "fill which roles at
@@ -544,8 +544,9 @@ mod tests {
 
     #[tokio::test]
     async fn init_fills_only_sovereign_and_citizen_at_genesis() {
-        // V2-1: founder fills Sovereign + Citizen only. Other 5 base-mandatory
-        // roles (LawOracle, PolicyEntity, Treasurer, Administrator, Archivist)
+        // V2-1: founder fills Sovereign + Citizen only. Other 6 base-mandatory
+        // roles (LawOracle, PolicyEntity, Treasurer, Administrator, Archivist,
+        // Maintainer)
         // start unfilled and are assigned later per hub law.
         let tmp = tempdir().unwrap();
         let sovereign_path = fresh_sovereign(tmp.path());
@@ -583,7 +584,7 @@ mod tests {
         assert!(society.roles.contains_key("sovereign"));
         assert!(society.roles.contains_key("citizen"));
         for unfilled in &["law_oracle", "policy_entity", "treasurer",
-                          "administrator", "archivist"] {
+                          "administrator", "archivist", "maintainer"] {
             assert!(!society.roles.contains_key(*unfilled),
                 "role '{}' should be unfilled at genesis (V2-1)", unfilled);
         }

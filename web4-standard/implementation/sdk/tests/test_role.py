@@ -10,7 +10,7 @@ Tests cover:
 6. RoleAssignment.remove_holder() — holder removal
 7. RoleAssignment.is_authorized() — primary + additional holders
 8. RoleAssignment.to_dict() / from_dict() — round-trip serialization
-9. bootstrap_society_roles() — solo-founder genesis produces 7 role assignments
+9. bootstrap_society_roles() — solo-founder genesis produces 8 role assignments
 10. bootstrap_society_roles() — custom role_lct_factory
 11. BASE_MANDATORY_ROLES constant — correct count and membership
 """
@@ -30,13 +30,13 @@ from web4.trust import T3, V3
 class TestSocietyRole:
     """Tests for the SocietyRole enum."""
 
-    def test_has_seven_base_mandatory(self) -> None:
-        """Spec requires exactly 7 base-mandatory roles."""
+    def test_has_eight_base_mandatory(self) -> None:
+        """Spec requires exactly 8 base-mandatory roles (society-roles.md §2)."""
         base = [r for r in SocietyRole if r.is_base_mandatory]
-        assert len(base) == 7
+        assert len(base) == 8
 
     def test_base_mandatory_members(self) -> None:
-        """All 7 spec-defined base-mandatory roles are present."""
+        """All 8 spec-defined base-mandatory roles are present."""
         expected = {
             "sovereign",
             "law_oracle",
@@ -45,9 +45,33 @@ class TestSocietyRole:
             "administrator",
             "archivist",
             "citizen",
+            "maintainer",
         }
         actual = {r.value for r in SocietyRole if r.is_base_mandatory}
         assert actual == expected
+
+    def test_base_mandatory_exact_wire_order(self) -> None:
+        """Exact wire values in exact order — cross-language parity anchor.
+
+        Must equal ``web4-core/src/role.rs`` ``test_base_mandatory_exact_wire_values``
+        and ``testing/conformance/society-roles.json`` role-001.
+        """
+        assert [r.value for r in BASE_MANDATORY_ROLES] == [
+            "sovereign",
+            "law_oracle",
+            "policy_entity",
+            "treasurer",
+            "administrator",
+            "archivist",
+            "citizen",
+            "maintainer",
+        ]
+
+    def test_maintainer_is_base_mandatory(self) -> None:
+        """Maintainer (society-roles.md §2.8) is base-mandatory, with a description."""
+        assert SocietyRole("maintainer") is SocietyRole.MAINTAINER
+        assert SocietyRole.MAINTAINER.is_base_mandatory
+        assert "standing state" in SocietyRole.MAINTAINER.description
 
     def test_context_mandatory_not_base(self) -> None:
         """Witness and Auditor are context-mandatory, not base-mandatory."""
@@ -55,8 +79,8 @@ class TestSocietyRole:
         assert not SocietyRole.AUDITOR.is_base_mandatory
 
     def test_total_enum_members(self) -> None:
-        """9 total roles: 7 base-mandatory + 2 context-mandatory."""
-        assert len(SocietyRole) == 9
+        """10 total roles: 8 base-mandatory + 2 context-mandatory."""
+        assert len(SocietyRole) == 10
 
     def test_string_values(self) -> None:
         """All roles have snake_case string values for JSON serialization."""
@@ -403,13 +427,13 @@ class TestRoleAssignmentSerialization:
 class TestBootstrapSocietyRoles:
     """Tests for solo-founder genesis role creation."""
 
-    def test_produces_seven_assignments(self) -> None:
-        """Bootstrap creates exactly 7 role assignments (one per base-mandatory)."""
+    def test_produces_eight_assignments(self) -> None:
+        """Bootstrap creates exactly 8 role assignments (one per base-mandatory)."""
         assignments = bootstrap_society_roles("founder-001")
-        assert len(assignments) == 7
+        assert len(assignments) == 8
 
     def test_all_base_mandatory_roles_covered(self) -> None:
-        """All 7 base-mandatory roles are represented."""
+        """All 8 base-mandatory roles are represented."""
         assignments = bootstrap_society_roles("founder-001")
         roles = {a.role for a in assignments}
         expected = {
@@ -420,6 +444,7 @@ class TestBootstrapSocietyRoles:
             SocietyRole.ADMINISTRATOR,
             SocietyRole.ARCHIVIST,
             SocietyRole.CITIZEN,
+            SocietyRole.MAINTAINER,
         }
         assert roles == expected
 
@@ -439,7 +464,7 @@ class TestBootstrapSocietyRoles:
         """Each role gets its own LCT ID — different from each other and from the founder."""
         assignments = bootstrap_society_roles("founder-001")
         lct_ids = [a.role_lct_id for a in assignments]
-        assert len(set(lct_ids)) == 7  # all unique
+        assert len(set(lct_ids)) == 8  # all unique
         for lct_id in lct_ids:
             assert lct_id != "founder-001"  # different from founder
 
@@ -459,8 +484,8 @@ class TestBootstrapSocietyRoles:
 
         assignments = bootstrap_society_roles("founder-001", role_lct_factory=factory)
         assert assignments[0].role_lct_id == "custom-lct-1"
-        assert assignments[6].role_lct_id == "custom-lct-7"
-        assert counter["n"] == 7
+        assert assignments[7].role_lct_id == "custom-lct-8"
+        assert counter["n"] == 8
 
     def test_timestamp_propagated(self) -> None:
         """Timestamp is set on all assignments."""
@@ -484,7 +509,7 @@ class TestBaseMandatoryRolesConstant:
     """Tests for the BASE_MANDATORY_ROLES module-level constant."""
 
     def test_count(self) -> None:
-        assert len(BASE_MANDATORY_ROLES) == 7
+        assert len(BASE_MANDATORY_ROLES) == 8
 
     def test_all_base_mandatory(self) -> None:
         for role in BASE_MANDATORY_ROLES:
@@ -518,9 +543,9 @@ class TestValidateMinimumViable:
         assert errors == []
 
     def test_empty_roles_fails(self) -> None:
-        """Empty role list should report all 7 base-mandatory as missing."""
+        """Empty role list should report all 8 base-mandatory as missing."""
         errors = validate_minimum_viable([])
-        assert len(errors) == 7
+        assert len(errors) == 8
         for role in BASE_MANDATORY_ROLES:
             assert any(role.value in e for e in errors)
 
@@ -531,11 +556,23 @@ class TestValidateMinimumViable:
         assert len(errors) == 1
         assert "treasurer" in errors[0]
 
+    def test_missing_only_maintainer_fails(self) -> None:
+        """Falsifier for the 7 -> 8 cutover: a society with every other base role
+        (plus witness and differentiation) but no Maintainer is not viable."""
+        roles = [
+            _make_assignment(r, "entity-001")
+            for r in BASE_MANDATORY_ROLES
+            if r != SocietyRole.MAINTAINER
+        ]
+        roles.append(_make_assignment(SocietyRole.WITNESS, "entity-002"))
+        errors = validate_minimum_viable(roles, is_operational=True)
+        assert errors == ["Base-mandatory role 'maintainer' not assigned"]
+
     def test_missing_multiple_base_mandatory(self) -> None:
         """Multiple missing base-mandatory roles are all reported."""
         roles = [_make_assignment(SocietyRole.SOVEREIGN)]
         errors = validate_minimum_viable(roles)
-        assert len(errors) == 6  # 7 - 1
+        assert len(errors) == 7  # 8 - 1
 
     def test_operational_solo_founder_fails_differentiation(self) -> None:
         """Solo-founder (1 entity filling all roles) fails operational checks."""
@@ -584,7 +621,7 @@ class TestValidateMinimumViable:
     def test_non_operational_skips_differentiation_and_witness(self) -> None:
         """Non-operational: differentiation and witnessing are not checked."""
         roles = bootstrap_society_roles("founder-001")
-        # All 7 base-mandatory filled by one entity, no witness
+        # All 8 base-mandatory filled by one entity, no witness
         errors = validate_minimum_viable(roles, is_operational=False)
         assert errors == []
 

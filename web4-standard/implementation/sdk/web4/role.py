@@ -1,8 +1,9 @@
 """
 Web4 Society Roles — the role taxonomy per society-roles.md.
 
-Every Web4 society MUST fill 7 base-mandatory roles:
-Sovereign, LawOracle, PolicyEntity, Treasurer, Administrator, Archivist, Citizen.
+Every Web4 society MUST fill 8 base-mandatory roles:
+Sovereign, LawOracle, PolicyEntity, Treasurer, Administrator, Archivist, Citizen,
+Maintainer.
 
 A role:
 - Has its own LCT (authority binds to role, not filling entity)
@@ -11,7 +12,7 @@ A role:
 - Can be rotated without breaking accountability chains
 
 The role taxonomy has three tiers:
-- **Base-mandatory** (7): Must exist in every society
+- **Base-mandatory** (8): Must exist in every society
 - **Context-mandatory**: Required when certain conditions hold
   (e.g., Witness is mandatory when outward roles exist)
 - **Optional**: Societies may define additional roles
@@ -43,13 +44,13 @@ __all__ = [
 class SocietyRole(str, Enum):
     """Society roles per society-roles.md §2-§4.
 
-    The 7 base-mandatory roles that every Web4 society must fill,
+    The 8 base-mandatory roles that every Web4 society must fill,
     plus context-mandatory and optional roles.
 
     Uses str mixin for JSON-friendly serialization (value is the string key).
     """
 
-    # ── Base-mandatory (7) ──────────────────────────────────────
+    # ── Base-mandatory (8) ──────────────────────────────────────
 
     SOVEREIGN = "sovereign"
     """Final authority for charter amendment, identity recovery,
@@ -80,6 +81,14 @@ class SocietyRole(str, Enum):
     """Base membership role. Every entity holds Citizen first; additional
     roles layer on top. Citizen is the genesis role — immutable once granted."""
 
+    MAINTAINER = "maintainer"
+    """Periodic examination of the entity's own standing state, and repair of
+    what has decayed within it (society-roles.md §2.8). Records every
+    examination, including clean passes; each finding carries evidence, an
+    owner and a clearing condition. MRH bounds what is relevant to examine;
+    law and delegated scope bound what it may read or repair — the role
+    confers attention, not authority (§2.9)."""
+
     # ── Context-mandatory ───────────────────────────────────────
 
     WITNESS = "witness"
@@ -92,7 +101,7 @@ class SocietyRole(str, Enum):
 
     @property
     def is_base_mandatory(self) -> bool:
-        """Returns True if this is one of the 7 base-mandatory roles."""
+        """Returns True if this is one of the 8 base-mandatory roles."""
         return self in _BASE_MANDATORY_SET
 
     @property
@@ -111,10 +120,12 @@ _BASE_MANDATORY_SET = frozenset(
         SocietyRole.ADMINISTRATOR,
         SocietyRole.ARCHIVIST,
         SocietyRole.CITIZEN,
+        SocietyRole.MAINTAINER,
     }
 )
 
-#: Ordered list of the 7 base-mandatory roles.
+#: Ordered list of the 8 base-mandatory roles (society-roles.md §2.1–§2.8).
+#: Order and wire values match ``web4-core/src/role.rs::SocietyRole::base_mandatory()``.
 BASE_MANDATORY_ROLES: List[SocietyRole] = [
     SocietyRole.SOVEREIGN,
     SocietyRole.LAW_ORACLE,
@@ -123,6 +134,7 @@ BASE_MANDATORY_ROLES: List[SocietyRole] = [
     SocietyRole.ADMINISTRATOR,
     SocietyRole.ARCHIVIST,
     SocietyRole.CITIZEN,
+    SocietyRole.MAINTAINER,
 ]
 
 _ROLE_DESCRIPTIONS: Dict[SocietyRole, str] = {
@@ -133,6 +145,7 @@ _ROLE_DESCRIPTIONS: Dict[SocietyRole, str] = {
     SocietyRole.ADMINISTRATOR: "Citizen lifecycle, dispatch routing, operations",
     SocietyRole.ARCHIVIST: "Ledger integrity, chain maintenance, historical queries",
     SocietyRole.CITIZEN: "Base membership role — genesis role, immutable once granted",
+    SocietyRole.MAINTAINER: "Periodic examination and repair of the entity's standing state",
     SocietyRole.WITNESS: "Independent attestation of other roles' actions",
     SocietyRole.AUDITOR: "T3/V3 validation and trust auditing",
 }
@@ -296,7 +309,7 @@ def bootstrap_society_roles(
     """Create role assignments for solo-founder genesis.
 
     Per inter-society-protocol.md §2.1: a single entity MAY found a society.
-    "Solo founder wears many hats." The founder fills all 7 base-mandatory
+    "Solo founder wears many hats." The founder fills all 8 base-mandatory
     roles. Each role gets its own LCT ID (supplied by ``role_lct_factory``
     or generated as deterministic strings).
 
@@ -311,7 +324,7 @@ def bootstrap_society_roles(
             If None, generates deterministic IDs as ``{founder_lct_id}:role:{role_value}``.
 
     Returns:
-        List of 7 RoleAssignment objects, one per base-mandatory role,
+        List of 8 RoleAssignment objects, one per base-mandatory role,
         all with the founder as both assigner and filler.
     """
     assignments: List[RoleAssignment] = []
@@ -371,7 +384,7 @@ def validate_minimum_viable(
     """
     errors: List[str] = []
 
-    # 1. All 7 base-mandatory roles must be filled
+    # 1. All 8 base-mandatory roles must be filled
     assigned_roles = {ra.role for ra in roles}
     for role in BASE_MANDATORY_ROLES:
         if role not in assigned_roles:

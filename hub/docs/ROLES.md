@@ -1,8 +1,8 @@
 # Web4 Community Hub — Society Roles
 
-The Web4 standard defines **7 base-mandatory roles** every society must fill, plus 2 context-mandatory roles, plus an open Custom role slot. The hub uses these directly (from `web4_core::role::SocietyRole`); the chapter doesn't invent its own role taxonomy.
+The Web4 standard defines **8 base-mandatory roles** every society must fill, plus 2 context-mandatory roles, plus an open Custom role slot. The hub uses these directly (from `web4_core::role::SocietyRole`); the chapter doesn't invent its own role taxonomy.
 
-## The 7 base-mandatory roles
+## The 8 base-mandatory roles
 
 | Role | Job |
 |---|---|
@@ -13,6 +13,7 @@ The Web4 standard defines **7 base-mandatory roles** every society must fill, pl
 | **Administrator** | Operational execution: citizen lifecycle, R6/R7 dispatch routing, infrastructure liveness. Day-to-day chapter ops. |
 | **Archivist** | Maintains ledger writes, chain integrity, retention policy, historical queries. The chapter's memory. |
 | **Citizen** | Base membership role. Every entity holds Citizen first; other roles layer on top. Genesis role — immutable once granted. |
+| **Maintainer** | Periodic examination of the chapter's own standing state — membership, wiring, documented assumptions, resources — and repair of what has decayed. Records every examination (clean passes included); each finding carries evidence, an owner and a clearing condition. Confers attention, not authority: it reads and repairs only what hub law explicitly grants, and escalates the rest (`society-roles.md` §2.8–§2.9). |
 
 ## Context-mandatory roles
 
@@ -31,7 +32,7 @@ The Web4 standard defines **7 base-mandatory roles** every society must fill, pl
 
 In practice for an MVP chapter:
 
-- **Solo founder pattern**: one person initially holds all 7 roles. `hub init` does this automatically — the Sovereign LCT fills every role at genesis. This is the default and is the right shape for a chapter just starting.
+- **Solo founder pattern**: one person may hold all 8 roles. `hub init` fills Sovereign + Citizen with the Sovereign LCT at genesis; the other six base roles (Law Oracle, Policy Entity, Treasurer, Administrator, Archivist, Maintainer) start unfilled and are assigned with `hub assign-role` — `hub` status lists them as unfilled until then.
 - **Small chapter pattern (3-5 active members)**: split into 2-3 role buckets. Sovereign + Law Oracle on one person; Treasurer + Administrator on another; Archivist + Policy Entity on a third. Citizen is everyone.
 - **Mature chapter pattern (10+ active members)**: each base role has a dedicated filler. Custom roles emerge for chapter-specific functions.
 

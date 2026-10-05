@@ -403,7 +403,7 @@ use web4_core::r6::{
 
 /// WASM-exposed SocietyRole enum.
 ///
-/// Represents one of the 7 base-mandatory roles, 2 context-mandatory roles,
+/// Represents one of the 8 base-mandatory roles, 2 context-mandatory roles,
 /// or a custom role. Use the static methods to enumerate roles.
 #[wasm_bindgen]
 pub struct WasmSocietyRole {
@@ -413,7 +413,7 @@ pub struct WasmSocietyRole {
 #[wasm_bindgen]
 impl WasmSocietyRole {
     /// Create a role by name. Valid names: sovereign, law_oracle, policy_entity,
-    /// treasurer, administrator, archivist, citizen, witness, auditor,
+    /// treasurer, administrator, archivist, citizen, maintainer, witness, auditor,
     /// or "custom:<name>" for custom roles.
     #[wasm_bindgen(constructor)]
     pub fn new(name: &str) -> Result<WasmSocietyRole, JsValue> {
@@ -425,6 +425,7 @@ impl WasmSocietyRole {
             "administrator" => RustSocietyRole::Administrator,
             "archivist" => RustSocietyRole::Archivist,
             "citizen" => RustSocietyRole::Citizen,
+            "maintainer" => RustSocietyRole::Maintainer,
             "witness" => RustSocietyRole::Witness,
             "auditor" => RustSocietyRole::Auditor,
             other if other.starts_with("custom:") => {
@@ -435,7 +436,7 @@ impl WasmSocietyRole {
         Ok(Self { inner: role })
     }
 
-    /// Returns the 7 base-mandatory roles as a JS array of WasmSocietyRole.
+    /// Returns the 8 base-mandatory roles as a JS array of WasmSocietyRole.
     #[wasm_bindgen(js_name = baseMandatory)]
     pub fn base_mandatory() -> Array {
         RustSocietyRole::base_mandatory()
@@ -465,6 +466,7 @@ impl WasmSocietyRole {
             RustSocietyRole::Administrator => "administrator".into(),
             RustSocietyRole::Archivist => "archivist".into(),
             RustSocietyRole::Citizen => "citizen".into(),
+            RustSocietyRole::Maintainer => "maintainer".into(),
             RustSocietyRole::Witness => "witness".into(),
             RustSocietyRole::Auditor => "auditor".into(),
             RustSocietyRole::Custom(name) => format!("custom:{}", name),
@@ -549,7 +551,7 @@ pub struct WasmSociety {
 
 #[wasm_bindgen]
 impl WasmSociety {
-    /// Bootstrap a new society. Returns the society with all 7 base-mandatory
+    /// Bootstrap a new society. Returns the society with all 8 base-mandatory
     /// roles assigned to the founder.
     pub fn bootstrap(
         name: &str,

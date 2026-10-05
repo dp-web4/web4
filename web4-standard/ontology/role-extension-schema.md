@@ -23,7 +23,7 @@ not the entity or the fold operator.
 
 Two-layer naming is used throughout, as adopted:
 
-- **SocietyRole** — governance *function* (`web4-core::role::SocietyRole`): the 7 base-mandatory
+- **SocietyRole** — governance *function* (`web4-core::role::SocietyRole`): the 8 base-mandatory
   (+ Witness/Auditor context-mandatory). Fills R6 elements. This is what Hestia must *hold* before it
   may orchestrate.
 - **orchestration Role-entity** — a *staffed capacity* the sovereign defines/staffs/launches:

@@ -36,6 +36,17 @@ Release prep (not yet published). Intended publish order, each after the previou
 
 ### web4-core 0.4.0
 
+- **BREAKING (public vocabulary): `SocietyRole::Maintainer` — base-mandatory roles go from 7 to 8**
+  (`society-roles.md` §2.8, PR #857). New wire value `"maintainer"`; `is_base_mandatory()` and
+  `base_mandatory()` include it (8 roles, spec order, Maintainer last). A society missing only its
+  Maintainer now fails `validate_minimum_viable()` and `go_operational()`. Exhaustive matches on
+  `SocietyRole` in downstream code need a new arm. Paired in the same landing unit with the Python
+  SDK (`SocietyRole.MAINTAINER`, `BASE_MANDATORY_ROLES`), the conformance vectors
+  (`society-roles.json` 0.2.0: soc-001/role-001 → 8, new mvs-003), the WASM binding
+  (`new WasmSocietyRole("maintainer")`, `baseMandatory()` → 8; `pkg/` rebuilt) and the hub
+  (`unfilled_base_roles()` reports Maintainer; `hub assign-role maintainer`; admin role form;
+  law `KNOWN_ROLES`).
+
 - **FIX (`role::RoleAssignment`): rotation carried the outgoing occupant's merit, and recorded nothing.**
   `rotate()` reassigned the filling entity and left `role_trust` / `role_value` untouched, so a
   reader taking either as "this occupant's record" got the previous occupant's. It was also the only

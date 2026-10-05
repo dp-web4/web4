@@ -19,7 +19,7 @@ Current assurance: **A1** - cooperative and tamper-evident, useful for governanc
 Use when: governing agents at the person/machine boundary or evaluating the open reference implementation of Web4 action law.
 
 ### [dp-web4/4-hub](https://github.com/dp-web4/4-hub)
-**The Web4 society/community runtime, standalone.** A read-only mirror of this monorepo's [`hub/`](../../hub/) directory plus the core crates it builds on. Single-binary Rust daemon: membership, seven base roles, signed machine-readable law, sealed member channels, MCP + REST surfaces and an append-only witnessed ledger.
+**The Web4 society/community runtime, standalone.** A read-only mirror of this monorepo's [`hub/`](../../hub/) directory plus the core crates it builds on. Single-binary Rust daemon: membership, eight base roles, signed machine-readable law, sealed member channels, MCP + REST surfaces and an append-only witnessed ledger.
 
 Use when: you want to run or inspect a Web4 society without cloning the full standard.
 

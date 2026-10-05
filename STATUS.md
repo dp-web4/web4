@@ -69,7 +69,7 @@ Cross-language examples demonstrate Python and Rust reading/verifying the same h
 [`hub/`](hub/) is a runnable Rust society daemon with:
 
 - LCT-pinned membership;
-- seven base roles;
+- eight base roles;
 - signed machine-readable law;
 - append-only witnessed ledger;
 - sealed member-to-hub channels;
@@ -118,7 +118,7 @@ The simulation corpus contains **424 attack vectors across 84 tracks**, with rou
 Three properties that were once mostly conceptual are now explicit in the spec corpus:
 
 1. **Self-sovereign societies.** Societies can bootstrap, federate and secede; higher-order societies are overlays formed by constituent consent, not owners of the members below them.
-2. **First-class roles.** Seven base roles provide a common authority skeleton; roles may be filled by humans, AI agents, sub-societies or federations, and role law composes with society law.
+2. **First-class roles.** Eight base roles provide a common authority skeleton; roles may be filled by humans, AI agents, sub-societies or federations, and role law composes with society law.
 3. **Cross-society action over MCP.** MCP is the inter-society I/O membrane for scoped actions/resources, with LCT-bound evidence and witnessing carried across the exchange.
 
 See:

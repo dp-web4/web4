@@ -4,16 +4,16 @@
 // This software is covered by US Patents 11,477,027 and 12,278,913,
 // and pending application 19/178,619. See PATENTS.md for details.
 
-//! Society Roles — the 7 base-mandatory roles per `society-roles.md`.
+//! Society Roles — the 8 base-mandatory roles per `society-roles.md`.
 //!
-//! Every Web4 society MUST fill these seven roles. A role:
+//! Every Web4 society MUST fill these eight roles. A role:
 //! - Has its own LCT (authority binds to role, not filling entity)
 //! - Can be filled by a single entity, a sub-society, or a federation
 //! - Carries its own T3/V3 trust metrics (performance of the role)
 //! - Can be rotated without breaking accountability chains
 //!
 //! The role taxonomy is:
-//! - **Base-mandatory** (7): Must exist in every society
+//! - **Base-mandatory** (8): Must exist in every society
 //! - **Context-mandatory**: Required when certain conditions hold
 //!   (e.g., Witness is mandatory when outward roles exist)
 //! - **Optional**: Societies may define additional roles
@@ -26,12 +26,12 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// The 7 base-mandatory roles that every Web4 society must fill.
+/// The 8 base-mandatory roles that every Web4 society must fill.
 /// Plus context-mandatory and optional roles.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SocietyRole {
-    // ── Base-mandatory (7) ────────────────────────────────────────
+    // ── Base-mandatory (8) ────────────────────────────────────────
 
     /// Final authority for charter amendment, identity recovery,
     /// and extraordinary inter-society decisions.
@@ -62,6 +62,14 @@ pub enum SocietyRole {
     /// roles layer on top. Citizen is the genesis role — immutable once granted.
     Citizen,
 
+    /// Periodic examination of the entity's own standing state, and repair of
+    /// what has decayed within it (`society-roles.md` §2.8). Records every
+    /// examination, including clean passes; each finding carries evidence, an
+    /// owner and a clearing condition. MRH bounds what is relevant to examine;
+    /// law and delegated scope bound what it may read or repair — the role
+    /// confers attention, not authority (§2.9).
+    Maintainer,
+
     // ── Context-mandatory ─────────────────────────────────────────
 
     /// Independent attestation of other roles' actions. Mandatory when
@@ -79,7 +87,7 @@ pub enum SocietyRole {
 }
 
 impl SocietyRole {
-    /// Returns true if this is one of the 7 base-mandatory roles.
+    /// Returns true if this is one of the 8 base-mandatory roles.
     pub fn is_base_mandatory(&self) -> bool {
         matches!(
             self,
@@ -90,10 +98,11 @@ impl SocietyRole {
                 | SocietyRole::Administrator
                 | SocietyRole::Archivist
                 | SocietyRole::Citizen
+                | SocietyRole::Maintainer
         )
     }
 
-    /// All 7 base-mandatory roles.
+    /// All 8 base-mandatory roles.
     pub fn base_mandatory() -> Vec<SocietyRole> {
         vec![
             SocietyRole::Sovereign,
@@ -103,6 +112,7 @@ impl SocietyRole {
             SocietyRole::Administrator,
             SocietyRole::Archivist,
             SocietyRole::Citizen,
+            SocietyRole::Maintainer,
         ]
     }
 
@@ -116,6 +126,7 @@ impl SocietyRole {
             SocietyRole::Administrator => "Citizen lifecycle, dispatch routing, operations",
             SocietyRole::Archivist => "Ledger integrity, chain maintenance, historical queries",
             SocietyRole::Citizen => "Base membership role — genesis role, immutable once granted",
+            SocietyRole::Maintainer => "Periodic examination and repair of the entity's standing state",
             SocietyRole::Witness => "Independent attestation of other roles' actions",
             SocietyRole::Auditor => "T3/V3 validation and trust auditing",
             SocietyRole::Custom(name) => Box::leak(format!("Custom role: {name}").into_boxed_str()),
@@ -392,12 +403,78 @@ mod tests {
     #[test]
     fn test_base_mandatory_roles() {
         let roles = SocietyRole::base_mandatory();
-        assert_eq!(roles.len(), 7);
+        assert_eq!(roles.len(), 8);
         for role in &roles {
             assert!(role.is_base_mandatory());
         }
+        assert!(SocietyRole::Maintainer.is_base_mandatory());
         assert!(!SocietyRole::Witness.is_base_mandatory());
+        assert!(!SocietyRole::Auditor.is_base_mandatory());
         assert!(!SocietyRole::Custom("foo".into()).is_base_mandatory());
+    }
+
+    /// Exact-set, exact-order, exact-wire check. This is the cross-language
+    /// parity anchor: the Python SDK (`web4/role.py`) and the conformance
+    /// vectors (`testing/conformance/society-roles.json`) assert the same eight
+    /// wire values in the same order (`society-roles.md` §2.1–§2.8).
+    #[test]
+    fn test_base_mandatory_exact_wire_values() {
+        let wire: Vec<String> = SocietyRole::base_mandatory()
+            .iter()
+            .map(|r| serde_json::to_value(r).unwrap().as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(
+            wire,
+            vec![
+                "sovereign",
+                "law_oracle",
+                "policy_entity",
+                "treasurer",
+                "administrator",
+                "archivist",
+                "citizen",
+                "maintainer",
+            ]
+        );
+        let back: SocietyRole = serde_json::from_str("\"maintainer\"").unwrap();
+        assert_eq!(back, SocietyRole::Maintainer);
+    }
+
+    /// Rust side of conformance vector role-001: the shared JSON is read at
+    /// test time, so the Rust enum and the vector cannot drift apart silently.
+    /// Read at runtime (not `include_str!`) because the vectors live outside
+    /// this crate; a packaged copy of the crate skips rather than failing to build.
+    #[test]
+    fn test_base_mandatory_matches_conformance_vector() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../web4-standard/testing/conformance/society-roles.json");
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            eprintln!("skipping: conformance vectors not present at {}", path.display());
+            return;
+        };
+        let suite: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let role001 = suite["role_vectors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["id"] == "role-001")
+            .expect("role-001 vector");
+        let expected: Vec<String> = role001["expected"]["roles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        let actual: Vec<String> = SocietyRole::base_mandatory()
+            .iter()
+            .map(|r| serde_json::to_value(r).unwrap().as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(actual, expected);
+        assert_eq!(actual.len() as u64, role001["expected"]["count"].as_u64().unwrap());
+        for name in role001["expected"]["not_base_mandatory"].as_array().unwrap() {
+            let r: SocietyRole = serde_json::from_value(name.clone()).unwrap();
+            assert!(!r.is_base_mandatory(), "{name} must not be base-mandatory");
+        }
     }
 
     #[test]

@@ -95,7 +95,7 @@ impl Society {
         let mut roles = HashMap::new();
         let mut role_lcts = Vec::new();
 
-        // Create role assignments for all 7 base-mandatory roles
+        // Create role assignments for all 8 base-mandatory roles
         for role in SocietyRole::base_mandatory() {
             let role_lct_id = Uuid::new_v4();
             let key = role_key(&role);
@@ -299,6 +299,7 @@ fn role_key(role: &SocietyRole) -> String {
         SocietyRole::Administrator => "administrator".into(),
         SocietyRole::Archivist => "archivist".into(),
         SocietyRole::Citizen => "citizen".into(),
+        SocietyRole::Maintainer => "maintainer".into(),
         SocietyRole::Witness => "witness".into(),
         SocietyRole::Auditor => "auditor".into(),
         SocietyRole::Custom(name) => format!("custom:{name}"),
@@ -320,9 +321,9 @@ mod tests {
 
         assert_eq!(society.state, MetabolicState::Genesis);
         assert_eq!(society.citizens.len(), 1);
-        assert_eq!(role_lcts.len(), 7);
+        assert_eq!(role_lcts.len(), 8);
 
-        // Founder holds all 7 roles initially
+        // Founder holds all 8 roles initially
         for role in SocietyRole::base_mandatory() {
             assert!(society.has_role_authority(founder, &role));
         }
@@ -402,5 +403,35 @@ mod tests {
         let parent = society_a.secede();
         assert_eq!(parent, Some(federation.lct_id));
         assert!(!society_a.is_constituent());
+    }
+
+    /// Falsifier for the 7 -> 8 cutover (`society-roles.md` §2.8): a society
+    /// that has every role except Maintainer is NOT minimum-viable and cannot
+    /// go operational. Before the cutover this society passed both checks.
+    #[test]
+    fn test_missing_only_maintainer_fails_minimum_viable() {
+        let founder = Uuid::new_v4();
+        let alice = Uuid::new_v4();
+        let (mut society, role_lcts) =
+            Society::bootstrap("Unmaintained".into(), "sha256:m".into(), founder);
+        assert!(role_lcts.iter().any(|(r, _)| *r == SocietyRole::Maintainer));
+        society.assign_role(SocietyRole::Witness, alice, founder).unwrap();
+
+        // Control: with all eight base roles + a witness + 2 fillers it is viable.
+        society.begin_bootstrap().unwrap();
+        society.go_operational().unwrap();
+        assert!(society.validate_minimum_viable().is_ok());
+
+        // Remove only the Maintainer.
+        society.roles.remove(&role_key(&SocietyRole::Maintainer));
+        let errs = society.validate_minimum_viable().unwrap_err();
+        assert_eq!(errs.len(), 1, "only the Maintainer gap should be reported: {errs:?}");
+        assert!(errs[0].contains("Maintainer"), "{errs:?}");
+
+        // And a Bootstrap-state society missing only Maintainer cannot go operational.
+        let (mut s2, _) = Society::bootstrap("Unmaintained2".into(), "sha256:m2".into(), founder);
+        s2.roles.remove(&role_key(&SocietyRole::Maintainer));
+        s2.begin_bootstrap().unwrap();
+        assert!(s2.go_operational().is_err());
     }
 }

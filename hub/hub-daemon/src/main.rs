@@ -368,7 +368,7 @@ enum Command {
     AssignRole {
         hub_dir: PathBuf,
         /// One of: sovereign | law_oracle | policy_entity | treasurer
-        /// | administrator | archivist | citizen | witness | auditor.
+        /// | administrator | archivist | citizen | maintainer | witness | auditor.
         role: String,
         /// The member LCT id.
         member_lct_id: Uuid,
@@ -805,12 +805,13 @@ fn parse_role(s: &str) -> Result<SocietyRole> {
         "administrator" => Administrator,
         "archivist" => Archivist,
         "citizen" => Citizen,
+        "maintainer" => Maintainer,
         "witness" => Witness,
         "auditor" => Auditor,
         other => return Err(anyhow::anyhow!(
             "unknown role '{}'. Expected one of: sovereign, law_oracle, \
              policy_entity, treasurer, administrator, archivist, citizen, \
-             witness, auditor", other
+             maintainer, witness, auditor", other
         )),
     })
 }

@@ -44,6 +44,10 @@ pub const KNOWN_ROLES: &[&str] = &[
     "archivist",
     "witness",
     "citizen",
+    // Base-mandatory per `society-roles.md` §2.8. A Maintainer's read/repair
+    // authority is whatever the hub's law explicitly grants it (§2.9), so law
+    // files must be able to name it in role-typed fields.
+    "maintainer",
     "applicant",
 ];
 

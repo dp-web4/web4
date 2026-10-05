@@ -1446,7 +1446,7 @@ function roleCreate(){
   if(kind==='capacity' && !occ){ alert('A capacity is created for a holder: give the member LCT id.'); return; }
   if(kind==='office' && occ){ alert('An office is constituted before it is filled. Leave the holder blank, then Fill it.'); return; }
   const parent=document.getElementById('re-parent').value.trim();
-  const body={role:(role.indexOf(':')<0 && ['sovereign','law_oracle','policy_entity','treasurer','administrator','archivist','citizen','witness','auditor'].indexOf(role)>=0)?role:{custom:role}, role_kind:kind, charter:charter||null, occupant_lct_id:occ||null, parent_role_lct_id:parent||null};
+  const body={role:(role.indexOf(':')<0 && ['sovereign','law_oracle','policy_entity','treasurer','administrator','archivist','citizen','maintainer','witness','auditor'].indexOf(role)>=0)?role:{custom:role}, role_kind:kind, charter:charter||null, occupant_lct_id:occ||null, parent_role_lct_id:parent||null};
   const where=parent?(' as a seat within '+parent):' as a top-level role';
   if(confirm('Constitute '+role+' as a '+kind+where+'? Witnessed as RoleCreated. No verb deletes a role.')) hubAct('/admin/api/roles/create',body);
 }
@@ -1797,6 +1797,7 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
            <option value=\"law_oracle\">law_oracle</option><option value=\"policy_entity\">policy_entity</option>\
            <option value=\"treasurer\">treasurer</option><option value=\"administrator\">administrator</option>\
            <option value=\"archivist\">archivist</option><option value=\"citizen\">citizen</option>\
+           <option value=\"maintainer\">maintainer</option>\
            <option value=\"witness\">witness</option><option value=\"auditor\">auditor</option>\
          </select>\
          <label>Member LCT id</label><input id=\"rl-lct\" placeholder=\"uuid\" style=\"font-family:monospace;padding:0.3rem;\">\

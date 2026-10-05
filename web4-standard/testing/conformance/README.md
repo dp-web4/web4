@@ -11,7 +11,7 @@ identical results for these inputs.
 | `tensor-operations.json` | T3/V3 tensors: construction, update, decay, levels, sub-dimensions | 8 |
 | `atp-operations.json` | ATP/ADP: accounts, lock/commit/rollback, transfers, conservation, sliding scale | 11 |
 | `r6-r7-actions.json` | R6/R7: validation, reputation deltas, role contextualization, chain determinism | 8 |
-| `society-roles.json` | Society: bootstrap, lifecycle, roles, rotation, federation, minimum viable | 8 |
+| `society-roles.json` | Society: bootstrap, lifecycle, roles, rotation, federation, minimum viable | 9 |
 | `presence-protocol-conformance.json` | Presence Protocol v0: 8 tools + 6 resources + error envelope. See spec at [`core-spec/presence-protocol.md`](../../core-spec/presence-protocol.md). | 10 |
 
 ## Presence-protocol harness (live daemon)

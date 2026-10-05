@@ -24,7 +24,7 @@ Web4 is an open substrate for **verifiable presence and agent accountability**. 
 |---|---|
 | **Web4** | Open standard + core primitives: LCT identity, T3/V3 trust, R6/R7 action grammar, MRH context, ATP/ADP resource accounting, witnessed law |
 | **Hestia** | Local governance at the human/agent boundary: multi-vendor agents under one law, scoped authority, witnessed action history and escalation |
-| **Hub** | Society/community runtime: membership, seven base roles, signed law, sealed channels and a witnessed ledger |
+| **Hub** | Society/community runtime: membership, eight base roles, signed law, sealed channels and a witnessed ledger |
 | **Hardbound** | Metalinxx enterprise assurance tier: hardware-bound identity, stronger fail-closed enforcement and audit packaging |
 | **SAGE** | Research environment carrying the same ideas into persistent cognition, local models and embodiment |
 
@@ -66,7 +66,7 @@ Web4 is an open substrate for **verifiable presence and agent accountability**. 
 Web4 is research-stage, but the core is no longer just a concept:
 
 - **Published packages:** `web4-core` 0.3.0 is on crates.io and PyPI; `web4-trust-core` / `web4-trust` 0.2.0 are published; `web4-core` 0.4.0 is in source on `main`.
-- **Hub is running:** a Rust society daemon with LCT-pinned membership, seven base roles, signed law, sealed member channels and an append-only witnessed ledger.
+- **Hub is running:** a Rust society daemon with LCT-pinned membership, eight base roles, signed law, sealed member channels and an append-only witnessed ledger.
 - **Hestia is running:** multiple agent vendors share one local governance surface with witnessed actions, human escalation and derived trust. The current open assurance level is **A1** - useful for governance and attribution, not containment against a determined same-UID adversary.
 - **The lab uses its own machinery:** the fleet operates as a Web4 society while developing the standard.
 - **Higher assurance is still building:** A2 isolation, kernel/relying-party enforcement, production hardware roots and broader DID/EUDI interoperability remain roadmap work.
