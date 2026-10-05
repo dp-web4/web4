@@ -1,11 +1,17 @@
 [package]
-name = "hub-lib"
+name = "web4-hub-lib"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Web4 Community Hub — society logic library (chapter state, ledger, roles, charter)"
+
+# Published as web4-hub-lib: a crates.io name is permanent, and bare "hub-lib" is too generic to
+# claim for this project (GPT release review, web4#861). The library keeps its
+# `hub_lib` name, so every `use hub_lib::...` is unchanged.
+[lib]
+name = "hub_lib"
 
 [dependencies]
 web4-core.workspace = true

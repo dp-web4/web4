@@ -146,6 +146,32 @@ enum Command {
         port: u16,
     },
 
+    /// Approve — or, with `--decline`, veto — an open tier-2 release as a Sovereign Council
+    /// member. Fetches your single-use challenge and the release intent, SHOWS every field the
+    /// approval binds, recomputes the intent digest from those fields itself (never signing a
+    /// digest the hub merely asserts), asks for confirmation, then signs with your council key
+    /// and submits. The hub verifies it against the key it has pinned for you.
+    AttestUnlock {
+        /// The hub's base URL (e.g. http://hub.example:8770).
+        #[arg(long)]
+        hub_url: String,
+        /// The hub's LCT id.
+        #[arg(long)]
+        hub_id: Uuid,
+        /// The release's challenge id (from the operator who opened it).
+        #[arg(long)]
+        challenge_id: Uuid,
+        /// Your council identity file — the key the hub pinned for you.
+        #[arg(long)]
+        identity: PathBuf,
+        /// Veto the release instead of approving it. Terminal.
+        #[arg(long)]
+        decline: bool,
+        /// Skip the confirmation prompt after the intent is shown.
+        #[arg(long)]
+        yes: bool,
+    },
+
     /// Write the clear tier-0 `public-identity.json` (hub id, name, founding
     /// sovereign, pubkey) so a locked-shell hub can identify itself on
     /// `/.well-known` and accept `hub unlock`. Reads the encrypted store +
@@ -619,6 +645,9 @@ async fn main() -> Result<()> {
         }
         Some(Command::SealIdentity { path }) => run_seal_identity(path).await,
         Some(Command::Unlock { port }) => run_unlock(port).await,
+        Some(Command::AttestUnlock { hub_url, hub_id, challenge_id, identity, decline, yes }) => {
+            run_attest_unlock(hub_url, hub_id, challenge_id, identity, decline, yes).await
+        }
         Some(Command::ExportPublicIdentity { hub_dir }) => run_export_public_identity(hub_dir).await,
         Some(Command::RotatePassphrase { hub_dir }) => run_rotate_passphrase(hub_dir).await,
         Some(Command::RotateOperatorToken { hub_dir }) => run_rotate_operator_token(hub_dir).await,
@@ -979,7 +1008,11 @@ fn stored_law_warning(yaml: &str) -> Option<String> {
 
 /// Starter hub-law template — embedded at compile time so the
 /// binary ships with it. Source: `web4/hub/examples/starter-law.yaml`.
-const STARTER_LAW_YAML: &str = include_str!("../../examples/starter-law.yaml");
+// A symlink to ../examples/starter-law.yaml, the one canonical copy. include_str! must not
+// reach outside this crate: crates.io ships only the crate directory, so the old
+// "../../examples/..." path built from the repo and failed `cargo package` verification.
+// cargo packages a symlink's CONTENTS, so the published crate embeds the same law.
+const STARTER_LAW_YAML: &str = include_str!("../starter-law.yaml");
 
 async fn run_init_law(output: PathBuf, force: bool) -> Result<()> {
     if output.exists() && !force {
@@ -2152,6 +2185,101 @@ async fn run_export_public_identity(hub_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// Rebuild the release intent from the fields shown, and refuse if the hub's digest is not
+/// the digest of exactly those fields. Returns the digest to sign.
+fn verified_intent_digest(view: &serde_json::Value) -> Result<[u8; 32]> {
+    let f = |k: &str| view.get(k).ok_or_else(|| anyhow::anyhow!("intent has no `{k}`"));
+    let s = |k: &str| -> Result<String> {
+        f(k)?.as_str().map(str::to_string).ok_or_else(|| anyhow::anyhow!("intent `{k}` is not a string"))
+    };
+    let b32 = |k: &str| -> Result<[u8; 32]> {
+        hex::decode(s(k)?)?.try_into().map_err(|_| anyhow::anyhow!("intent `{k}` is not 32 bytes"))
+    };
+    let intent = hub_lib::unlock_quorum::ReleaseIntent {
+        secret_id: s("secret_id")?,
+        operation: s("operation")?,
+        requester: Uuid::parse_str(&s("requester")?)?,
+        destination: s("destination")?,
+        policy_version: b32("policy_version_hex")?,
+        expires_at: f("expires_at")?.as_u64().ok_or_else(|| anyhow::anyhow!("intent `expires_at` is not a number"))?,
+        nonce: b32("nonce_hex")?,
+    };
+    let digest = intent.digest();
+    anyhow::ensure!(
+        hex::encode(digest) == s("digest_hex")?,
+        "the hub's digest is NOT the digest of the fields it showed — refusing to sign (a hub that \
+         shows one release and asks you to sign another is exactly what this check exists for)"
+    );
+    Ok(digest)
+}
+
+async fn run_attest_unlock(
+    hub_url: String,
+    hub_id: Uuid,
+    challenge_id: Uuid,
+    identity: PathBuf,
+    decline: bool,
+    yes: bool,
+) -> Result<()> {
+    let id = IdentityFile::load_auto(&identity).with_context(|| format!("loading {}", identity.display()))?;
+    let key = id.keypair()?;
+    let me = id.lct.id;
+    let base = hub_url.trim_end_matches('/');
+    let client = reqwest::Client::new();
+
+    let resp = client
+        .post(format!("{base}/v1/hubs/{hub_id}/unlock/approver-challenge"))
+        .json(&serde_json::json!({ "challenge_id": challenge_id, "approver": me }))
+        .send()
+        .await
+        .with_context(|| format!("contacting {base}"))?;
+    let status = resp.status();
+    let body: serde_json::Value = resp.json().await.unwrap_or_default();
+    anyhow::ensure!(status.is_success(), "the hub refused ({status}): {}",
+        body.get("error").or(body.get("message")).and_then(|v| v.as_str()).unwrap_or("?"));
+    let view = body.get("intent").cloned().ok_or_else(|| anyhow::anyhow!("no intent in the answer"))?;
+    let digest = verified_intent_digest(&view)?;
+
+    println!("You are about to {} this release:", if decline { "VETO" } else { "APPROVE" });
+    for k in ["secret_id", "operation", "requester", "destination", "expires_at", "policy_version_hex", "digest_hex"] {
+        println!("  {k:<19} {}", view.get(k).map(|v| v.to_string()).unwrap_or_default());
+    }
+    println!("  as council member  {me}");
+    if !yes {
+        use std::io::Write;
+        print!("Type 'yes' to sign: ");
+        std::io::stdout().flush().ok();
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line)?;
+        anyhow::ensure!(line.trim() == "yes", "not signed");
+    }
+
+    let payload = if decline {
+        serde_json::json!({ "challenge_id": challenge_id,
+            "decline": hub_lib::unlock_quorum::Decline::sign(&key, me, digest) })
+    } else {
+        let challenge: [u8; 32] = hex::decode(
+            body.get("challenge_hex").and_then(|v| v.as_str()).ok_or_else(|| anyhow::anyhow!("no challenge"))?,
+        )?
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("challenge is not 32 bytes"))?;
+        serde_json::json!({ "challenge_id": challenge_id,
+            "approval": hub_lib::unlock_quorum::Approval::sign(&key, me, digest, challenge) })
+    };
+    let resp = client
+        .post(format!("{base}/v1/hubs/{hub_id}/unlock/attest"))
+        .json(&payload)
+        .send()
+        .await
+        .context("submitting")?;
+    let status = resp.status();
+    let out: serde_json::Value = resp.json().await.unwrap_or_default();
+    anyhow::ensure!(status.is_success(), "the hub refused ({status}): {}",
+        out.get("error").or(out.get("message")).and_then(|v| v.as_str()).unwrap_or("?"));
+    println!("{}", serde_json::to_string_pretty(&out)?);
+    Ok(())
+}
+
 async fn run_unlock(port: u16) -> Result<()> {
     let base = format!("http://127.0.0.1:{port}");
     let client = reqwest::Client::new();
@@ -2375,6 +2503,26 @@ fn slugify(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// `hub attest-unlock` signs the digest of the fields it SHOWS, never the hub's word for it.
+    #[test]
+    fn attest_unlock_refuses_a_digest_that_is_not_the_shown_intent() {
+        let intent = hub_lib::unlock_quorum::ReleaseIntent {
+            secret_id: "protected".into(), operation: "release".into(), requester: Uuid::new_v4(),
+            destination: "hub-memory:x".into(), policy_version: [7u8; 32], expires_at: 1_900_000_000,
+            nonce: [9u8; 32],
+        };
+        let view = |i: &hub_lib::unlock_quorum::ReleaseIntent, digest: [u8; 32]| serde_json::json!({
+            "secret_id": i.secret_id, "operation": i.operation, "requester": i.requester,
+            "destination": i.destination, "policy_version_hex": hex::encode(i.policy_version),
+            "expires_at": i.expires_at, "nonce_hex": hex::encode(i.nonce), "digest_hex": hex::encode(digest),
+        });
+        assert_eq!(verified_intent_digest(&view(&intent, intent.digest())).unwrap(), intent.digest());
+        // a hub that shows a benign release and asks for the digest of another
+        let other = hub_lib::unlock_quorum::ReleaseIntent { destination: "exfil".into(), ..intent.clone() };
+        let err = verified_intent_digest(&view(&intent, other.digest())).unwrap_err().to_string();
+        assert!(err.contains("refusing to sign"), "{err}");
+    }
+
     use super::*;
 
     /// `hub_cmd` must name the running binary, not a word that needs `$PATH`.
@@ -2719,6 +2867,8 @@ mod tests {
             ("POST", "/admin/api/members/add"),
             ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/key"),
             ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/remove"),
+            // web4#869: receipt-mode enrollment is one-way — an operator act, never public.
+            ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/mailbox-receipts"),
             ("POST", "/admin/api/members/00000000-0000-0000-0000-000000000000/rename"),
             ("POST", "/admin/api/council/add"),
             ("POST", "/admin/api/council/00000000-0000-0000-0000-000000000000/remove"),
@@ -2726,6 +2876,8 @@ mod tests {
             // Sprint 3b: constitute the council as roles (amends law), and the live differential.
             ("POST", "/admin/api/council/mirror"),
             ("GET", "/admin/api/council/differential"),
+            // web4#875 Slice B: member <-> canonical LCT resolution names members.
+            ("GET", "/admin/api/lct/resolve/hub-being"),
             // Sprint 1b role-entity write API. These constitute, fill, empty and
             // abolish roles — every one of them signs as the Sovereign, and
             // `/admin/api/roles` enumerates vacancies and retirements the public
@@ -3041,6 +3193,9 @@ mod tests {
             "/v1/hubs/:hub_id/pairs/:pair_id/revoke",
             "/v1/hubs/:hub_id/pairs/request",
             "/v1/hubs/:hub_id/unlock",
+            // web4 5b: covered route-specifically by the tier-2 quorum tests in rest.rs
+            // (`a_threshold_of_verified_council_approvals_releases_once` and siblings).
+            "/v1/hubs/:hub_id/unlock/approver-challenge",
             "/v1/hubs/:hub_id/unlock/attest",
             // NOT `/unlock/challenge`: it refuses (403) ahead of its body, so
             // the sweep does reach its handler.

@@ -1,6 +1,8 @@
 # Web4 Community Hub
 
 > **Hub turns a community or organization into a self-governing Web4 society with member-owned identity, roles, law and a witnessed ledger.** Minimum-viable Web4 society for a community chapter.
+>
+> A prospective member should be able to inspect that society as a governed relationship rather than trust an opaque platform operator: current law, authority, evidence, recourse and exit all matter. See the Web4 [participant self-assessment](../docs/ENTITY_START_HERE.md).
 
 > **Where development happens.** The canonical home of this code is the
 > [`hub/`](https://github.com/dp-web4/web4/tree/main/hub) directory of the
@@ -23,7 +25,7 @@ The hub does **not** dictate how a society runs — it makes *whatever law the s
 - **Signed, machine-readable law.** A society's rules — admission, role authority, thresholds, what escalates — are a law the PolicyEntity gate evaluates before every consequential act. It is **inspectable by anyone** (`GET /v1/hubs/:id/law`), *including while the hub's vault is locked*: the rules are public even when the hub can't yet act on them.
 - **Changeable only with authority, and witnessed.** Amending the law requires unlock + signing and lands as a `LawAmended` event on the **append-only, hash-chained, witnessed ledger** — alongside every membership, role, skill, and intro act. You cannot quietly change the rules.
 - **Fail-closed secrets.** The Sovereign key is encrypted at rest; the daemon never silently writes a plaintext key (an empty passphrase is allowed but must be *explicit*). A hub whose vault is locked **degrades to a read-only no-LCT surface** rather than running ungoverned.
-- **Governed startup (shipped).** Unlocking a hub is itself an auditable, governed act — always recorded. Locked-mode ships today. **Ignition is tier-1 only: a human-supplied passphrase every boot** (`hub unlock`, or a loopback `POST /v1/hubs/:id/unlock`); hands-off ignition (hardware-bound / M-of-N-at-boot) is *not* shipped. What also ships is the **generic tier-2 M-of-N quorum seam** (`POST /v1/hubs/:id/unlock/challenge` + `/unlock/attest`), which **requires an already-ignited hub** — it is a witnessed quorum gate on *releasing the protected tier*, not a second way in. The hub mints the challenge, ledgers every step, and defers the quorum decision to an optional private verifier (`HUB_UNLOCK_VERIFIER`); on a grant it opens the Sealed protected item with a credential the hub has held since ignition. With no verifier installed, tier-2 reports N/A (501) and the hub runs unaffected — the novel quorum logic is pluggable, the seam is public. *Convenience is policy; the audit trail is not.*
+- **Governed startup (shipped).** Unlocking a hub is itself an auditable, governed act — always recorded. Locked-mode ships today. **Ignition is tier-1 only: a human-supplied passphrase every boot** (`hub unlock`, or a loopback `POST /v1/hubs/:id/unlock`); hands-off ignition (hardware-bound / M-of-N-at-boot) is *not* shipped. What also ships is the **generic tier-2 M-of-N quorum seam** (`POST /v1/hubs/:id/unlock/challenge` + `/unlock/attest`), which **requires an already-ignited hub** — it is a witnessed quorum gate on *releasing the protected tier*, not a second way in. The hub opens a release intent (secret, operation, destination, council policy, expiry, nonce), issues each council member a single-use challenge, VERIFIES every approval and decline against the key the ledger pins for that member (a verified decline vetoes, terminally), and ledgers each verified step; at the threshold it records the intent consumed — at most once — and then opens the Sealed protected item with a credential the hub has held since ignition — into hub memory, the destination the intent signs; the attest response reports status only, never the payload. `/unlock/challenge` is loopback; `/unlock/attest` is network-reachable by design, and the verified approval signature is its only authority. The decision is the built-in quorum verifier's (`hub_lib::unlock_quorum`; `hub attest-unlock` is the approver's client), enabled with `HUB_TIER2_UNLOCK=quorum`. Not enabled, tier-2 reports N/A (501) and the hub runs unaffected — the novel quorum logic is pluggable, the seam is public. *Convenience is policy; the audit trail is not.*
 
 We don't mandate the policy. We insist that whatever the policy is, is followed verifiably.
 
@@ -69,10 +71,15 @@ mismatch; issuer URLs from `HUB_PUBLIC_BASE_URL` not the Host header; unlock-ver
 the **`hub up`** turnkey deploy kit (see *Deployment models*) and the start of role-based launch
 orchestration (roles as LCT entities).
 
-**Durable member messaging (2026-07).** The per-citizen sealed mailbox is now **durable and
-crash-safe**: a `SealedNotice` is persisted before it is acknowledged (**park-before-ACK, at-least-once**)
-and the mailbox **rehydrates on ignition**, so a queued notice survives a relight
-(*accept-and-defer*, mcp-protocol §7.8). Two message paths ride this: **`send_secret`** — a
+**Durable member messaging (2026-07; corrected 2026-09, web4#867).** The per-citizen sealed mailbox is
+**persisted and rehydrates on ignition**, so a queued notice survives a relight (*accept-and-defer*,
+mcp-protocol §7.8). What it is **not**, for most members: *park-before-ACK*. The original claim here
+overstated it (#867) — until #869 a failed store write still answered `delivered:true`, and the legacy
+`notifications` poll is **consume-on-response**: it deletes the queue before the caller has the reply,
+so a lost response loses the notices. #869 makes acceptance commit-before-success for every member, and
+adds an opt-in **receipt mode** (`hub-mailbox-receive-v1`: non-destructive fetch + recipient-bound ACK,
+retryable across restarts), enabled per member by the operator — see
+[`docs/MAILBOX_RECEIPTS.md`](docs/MAILBOX_RECEIPTS.md) for what it does and does not yet guarantee. Two message paths ride this: **`send_secret`** — a
 **content-blind** member→member relay where the sender pre-seals the body and the hub stores and forwards
 a ciphertext it cannot read (only a known member may be addressed; the relay is anti-replay-gated like
 every write) — and a **durable pair-message sidecar** that persists paired-channel messages across all
@@ -334,7 +341,8 @@ action today, so both currently ride `DEFAULT-ALLOW`.
 `POST /v1/hubs/:id/channel` carries a sealed, authenticated request whose inner tool is
 one of: `find_members`, `request_intro` / `list_intros` / `respond_intro`,
 `notifications` (drains the per-citizen **durable** sealed mailbox — survives relight),
-`send_secret` (content-blind member→member relay of a pre-sealed body), `referenced_act`, and
+`send_secret` (content-blind member→member relay of a pre-sealed body), `referenced_act`,
+`route_forward` (receipt-only router→router hop carrying an end-destination route packet), and
 `constellation_challenge` / `present_constellation` (assurance-tier bindings). The same
 `gate → handle → scope` contract as the [plugin seam](#extending-the-hub-plugin-seam)
 applies to every channel tool.

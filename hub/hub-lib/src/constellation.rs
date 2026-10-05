@@ -772,7 +772,7 @@ impl ConstellationGate {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use web4_core::crypto::KeyPair;
 

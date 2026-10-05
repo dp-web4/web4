@@ -1,6 +1,10 @@
 [package]
 name = "web4-python"
-version = "0.3.0"
+version = "0.4.0"
+# The PyO3 binding ships to PyPI as `web4-core` via maturin, never to crates.io — the Rust
+# crate of that name is ../ (web4-core). publish = false keeps a `cargo publish` sweep from
+# putting a cdylib wrapper on crates.io under a second name.
+publish = false
 edition = "2021"
 authors = ["dp-web4 <dp@metalinxx.io>"]
 description = "Python bindings for web4-core"
@@ -12,7 +16,7 @@ name = "web4_core"
 crate-type = ["cdylib"]
 
 [dependencies]
-web4-core = { path = ".." }
+web4-core = { path = "..", version = "0.4" }
 pyo3 = { version = "0.22", features = ["extension-module"] }
 uuid = { version = "1.6", features = ["v4", "serde"] }
 

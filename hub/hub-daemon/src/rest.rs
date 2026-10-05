@@ -26,6 +26,13 @@
 //!   Step 3, not here.
 //! - Authority/need-to-know on reads is V2-8.
 
+mod mailbox;
+mod unlock;
+pub(crate) use unlock::Tier2;
+use unlock::{unlock_approver_challenge, unlock_attest, unlock_challenge};
+#[cfg(test)]
+use unlock::{ApproverChallengeReq, AttestReq, ChallengeReq};
+
 use anyhow::Result;
 use axum::{
     extract::{ConnectInfo, Path, State},
@@ -148,11 +155,10 @@ pub struct RestState {
     /// consecutive failures + lockout), since anyone who can reach the unlock
     /// UI could still feed it attempts.
     pub unlock_gate: Arc<UnlockGate>,
-    /// Path to the **tier-2 M-of-N unlock verifier** binary (the private quorum
-    /// engine), if installed. `None` → tier-2 unlock is **N/A** (the hub still
-    /// runs; `/unlock/challenge` returns 501). Set from `HUB_UNLOCK_VERIFIER`.
-    /// The seam is generic + public; the verifier ships separately (open-core).
-    pub unlock_verifier_cmd: Option<String>,
+    /// Tier-2 M-of-N unlock is decided by the built-in quorum verifier (`rest::unlock`), and is
+    /// ON only when the operator sets `HUB_TIER2_UNLOCK=quorum`. Off → `/unlock/*` answer 501.
+    /// (The external `HUB_UNLOCK_VERIFIER` subprocess is retired; see `unlock::tier2_enabled_from_env`.)
+    pub tier2_enabled: bool,
     /// The `hub-plugin` registry this daemon HOSTS. Channel tools that no built-in arm
     /// handles fall through to it (see `dispatch_channel`), so a `ToolPlugin` registered
     /// here is served on the same gate → handle → scope path as the built-ins, without
@@ -160,7 +166,7 @@ pub struct RestState {
     pub plugins: Arc<hub_plugin::PluginRegistry>,
     /// The deployment-profile inputs the **ignition-time production law gate**
     /// needs (`HUB_PROFILE=production` and its `HUB_ALLOW_NO_LAW=1` escape
-    /// hatch), captured here at open like `unlock_verifier_cmd` above rather
+    /// hatch), captured here at open like `tier2_enabled` above rather
     /// than read from the process env at the decision point. Same value either
     /// way for a real daemon — the profile is fixed for the process lifetime
     /// (`hub up` writes it into the unit env; boot preflight reads it at
@@ -170,8 +176,9 @@ pub struct RestState {
     /// `HUB_ALLOW_NO_LAW=1` — the operator's explicit opt-out of the law arm
     /// above. Captured with it; see that field's note.
     pub allow_no_law: bool,
-    /// Outstanding tier-2 unlock challenges (id → accumulating attestations).
-    pub unlock_sessions: Arc<Mutex<std::collections::HashMap<Uuid, UnlockSession>>>,
+    /// Tier-2: the quorum verifier, the open release intents by challenge id, and the terminal
+    /// outcomes re-derived from the ledger.
+    pub tier2: Arc<Mutex<Tier2>>,
     /// The **protected tier**: a `vault_tree` enclosure holding data that opens only on a
     /// granted M-of-N unlock (recursive-vault P2 / H3). `None` when the hub is locked (no
     /// passphrase) — there's no master key to open it. Seeded with a demo Sealed item so a
@@ -296,33 +303,6 @@ pub struct SealedNotice {
     /// peer actor but was sealed by the hub.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sealed_by: Option<Uuid>,
-}
-
-/// An in-flight tier-2 unlock: the minted challenge + the roster/threshold
-/// snapshot taken at issue time + the attestations gathered so far.
-pub struct UnlockSession {
-    pub challenge: ChallengeWire,
-    /// Snapshot of the admin roster (Sovereign Council) at challenge time:
-    /// (admin LCT, pinned pubkey hex). Frozen so a mid-flight roster change
-    /// can't move the goalposts of an open challenge.
-    pub roster: Vec<(Uuid, String)>,
-    /// Required distinct approvals (the council M) at challenge time.
-    pub required: u32,
-    /// Opaque admin attestations as received — the hub forwards these to the
-    /// (private) verifier; it does not interpret the quorum itself.
-    pub attestations: Vec<serde_json::Value>,
-    pub granted: bool,
-}
-
-/// The challenge the hub mints + serializes to the verifier. Field shape
-/// matches the verifier's `UnlockChallenge` (nonce is 32 raw bytes).
-#[derive(Clone, Serialize)]
-pub struct ChallengeWire {
-    pub challenge_id: Uuid,
-    pub nonce: [u8; 32],
-    pub tier: String,
-    pub hub_lct: Uuid,
-    pub issued_at: u64,
 }
 
 /// Cached projection: a folded `HubState` plus the ledger position it reflects.
@@ -491,11 +471,11 @@ impl RestState {
             vp_requests: Arc::new(Mutex::new(std::collections::HashMap::new())),
             vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unlock_gate: Arc::new(UnlockGate::default_policy()),
-            unlock_verifier_cmd: std::env::var("HUB_UNLOCK_VERIFIER").ok().filter(|s| !s.is_empty()),
+            tier2_enabled: unlock::tier2_enabled_from_env(),
             plugins: Arc::new(hub_plugin::PluginRegistry::new()),
             production_profile: std::env::var("HUB_PROFILE").as_deref() == Ok("production"),
             allow_no_law: std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
-            unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            tier2: Arc::new(Mutex::new(Tier2::default())),
             protected: Arc::new(Mutex::new(
                 hub_lib::identity::env_passphrase().and_then(|p| open_protected_vault(&hub_dir, &p)),
             )),
@@ -561,17 +541,21 @@ impl RestState {
         let rows = match store.mailbox_load_all().await {
             Ok(r) => r,
             Err(e) => {
-                tracing::warn!("mailbox hydrate: load failed ({e}); starting empty");
+                // On a durable store every mailbox operation reads the recipient's row, not this
+                // cache (web4#867), so a failed warm-up loses no queued notice: say that, not
+                // "starting empty", which reads as data loss.
+                tracing::warn!("mailbox hydrate: load failed ({e}); the RAM cache starts empty, \
+                                but every mailbox operation reads the store — no queued notice is lost");
                 return;
             }
         };
         let mut restored = 0usize;
         let mut mailbox = self.notifications.lock().await;
         for (recipient, blob) in rows {
-            match serde_json::from_slice::<Vec<SealedNotice>>(&blob) {
-                Ok(queue) if !queue.is_empty() => {
-                    restored += queue.len();
-                    mailbox.insert(recipient, queue);
+            match mailbox::Mailbox::decode(&blob) {
+                Ok(record) if !record.notices().is_empty() => {
+                    restored += record.notices().len();
+                    mailbox.insert(recipient, record.notices().clone());
                 }
                 Ok(_) => {}
                 Err(e) => tracing::warn!("mailbox hydrate: corrupt blob for {recipient} ({e}); skipped"),
@@ -579,44 +563,6 @@ impl RestState {
         }
         if restored > 0 {
             tracing::info!("mailbox hydrated: {restored} notice(s) restored across {} recipient(s)", mailbox.len());
-        }
-    }
-
-    /// Write-through one recipient's whole queue to the durable store after an
-    /// in-memory mutation. Best-effort: a persistence failure logs but never
-    /// fails the enqueue (the in-memory copy is authoritative for this run;
-    /// durability is the resilience layer). Serialization happens off the mailbox
-    /// lock — the caller passes an already-cloned queue.
-    async fn persist_mailbox(&self, recipient: Uuid, queue: &[SealedNotice]) {
-        let blob = match serde_json::to_vec(queue) {
-            Ok(b) => b,
-            Err(e) => {
-                tracing::warn!("mailbox persist: serialize failed for {recipient} ({e})");
-                return;
-            }
-        };
-        match self.open_store().await {
-            Ok(mut store) => {
-                if let Err(e) = store.mailbox_put(recipient, &blob).await {
-                    tracing::warn!("mailbox persist: write failed for {recipient} ({e})");
-                }
-            }
-            Err(e) => tracing::warn!("mailbox persist: cannot open store for {recipient} ({e})"),
-        }
-    }
-
-    /// Drop a recipient's durable queue after a drain. Best-effort; on failure the
-    /// notices remain persisted and re-hydrate on the next restart — at-least-once
-    /// (possible redelivery) is the deliberately-safer failure mode than losing a
-    /// notice that was never confirmed received.
-    async fn depersist_mailbox(&self, recipient: Uuid) {
-        match self.open_store().await {
-            Ok(mut store) => {
-                if let Err(e) = store.mailbox_delete(recipient).await {
-                    tracing::warn!("mailbox depersist: delete failed for {recipient} ({e})");
-                }
-            }
-            Err(e) => tracing::warn!("mailbox depersist: cannot open store for {recipient} ({e})"),
         }
     }
 
@@ -677,11 +623,11 @@ impl RestState {
             vp_requests: Arc::new(Mutex::new(std::collections::HashMap::new())),
             vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unlock_gate: Arc::new(UnlockGate::default_policy()),
-            unlock_verifier_cmd: std::env::var("HUB_UNLOCK_VERIFIER").ok().filter(|s| !s.is_empty()),
+            tier2_enabled: unlock::tier2_enabled_from_env(),
             plugins: Arc::new(hub_plugin::PluginRegistry::new()),
             production_profile: std::env::var("HUB_PROFILE").as_deref() == Ok("production"),
             allow_no_law: std::env::var("HUB_ALLOW_NO_LAW").as_deref() == Ok("1"),
-            unlock_sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            tier2: Arc::new(Mutex::new(Tier2::default())),
             protected: Arc::new(Mutex::new(None)),
             store_key: Arc::new(tokio::sync::RwLock::new(None)),
             notifications: Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -1599,7 +1545,7 @@ async fn queue_sealed_notice(
         Err(e) => { tracing::warn!("queue_sealed_notice: seal failed: {e}"); return; }
     };
     // Hub-sealed: sealed_by = None (recipient opens with the hub pubkey).
-    enqueue_notice(s, recipient, SealedNotice {
+    if let Err(e) = enqueue_notice(s, recipient, SealedNotice {
         pair_id,
         from,
         sealed,
@@ -1607,7 +1553,9 @@ async fn queue_sealed_notice(
         pointer_uri: pointer_uri.to_string(),
         queued_at: Utc::now(),
         sealed_by: None,
-    }).await;
+    }).await {
+        tracing::warn!("queue_sealed_notice: enqueue failed for {recipient}: {e}");
+    }
 }
 
 /// Enqueue an already-built [`SealedNotice`] into `recipient`'s durable mailbox
@@ -1615,32 +1563,82 @@ async fn queue_sealed_notice(
 /// ([`queue_sealed_notice`]) and the member-pre-sealed relay (`send_secret`); the
 /// hub never inspects `notice.sealed` here, so a peer-sealed body rides the mailbox
 /// identically to a hub-sealed one.
-async fn enqueue_notice(s: &RestState, recipient: Uuid, notice: SealedNotice) {
+async fn enqueue_notice(
+    s: &RestState, recipient: Uuid, notice: SealedNotice,
+) -> Result<bool, mailbox::MailboxError> {
+    match enqueue_notice_op(s, recipient, notice, None).await? {
+        Enqueued::Queued { durable, .. } => Ok(durable),
+        Enqueued::AlreadyAccepted(_) => unreachable!("no operation was given"),
+    }
+}
+
+enum Enqueued {
+    Queued { durable: bool, notice_id: String },
+    /// The sender's operation was already accepted — by an earlier attempt, or a concurrent
+    /// twin that reached the lock first. Nothing was queued by this call.
+    AlreadyAccepted(mailbox::SendOp),
+}
+
+/// [`enqueue_notice`], optionally carrying a sender operation: its record is committed in the
+/// SAME transaction as the notice, after re-checking under the mailbox lock that no attempt
+/// already holds it.
+async fn enqueue_notice_op(
+    s: &RestState, recipient: Uuid, notice: SealedNotice,
+    op: Option<(Uuid, &str, &mailbox::SendOp)>,
+) -> Result<Enqueued, mailbox::MailboxError> {
     let cutoff = Utc::now() - chrono::Duration::seconds(NOTICE_TTL_SECS);
     // Notices removed here (TTL-expired or cap-evicted) die *upstream* of every
     // receiver: they never fire, never hit a gate, never dead-letter, and the
     // TTL path was previously fully silent. Capture them so the sender can be
     // alarmed once the lock is released.
     let mut dropped: Vec<SealedNotice> = Vec::new();
-    let snapshot = {
-        let mut mailbox = s.notifications.lock().await;
-        let queue = mailbox.entry(recipient).or_default();
-        // TTL prune — partition instead of silently retaining.
-        let mut kept = Vec::with_capacity(queue.len());
-        for n in queue.drain(..) {
-            if n.queued_at >= cutoff { kept.push(n); } else { dropped.push(n); }
+    let durable = {
+        // Serialize load + mutation + commit with ACK/drain. Never publish RAM
+        // before the durable write, and never overwrite a newer queue snapshot.
+        let mut cache = s.notifications.lock().await;
+        let mut store = s.open_store().await?;
+        if let Some((sender, op_id, _)) = op {
+            if let Some(bytes) = store.send_op_get(sender, op_id).await? {
+                return Ok(Enqueued::AlreadyAccepted(serde_json::from_slice(&bytes)?));
+            }
         }
-        *queue = kept;
-        // Cap — ring semantics; capture each evicted-oldest.
-        while queue.len() >= MAX_NOTICES_PER_MEMBER {
-            dropped.push(queue.remove(0));
+        let cached = cache.get(&recipient).map(Vec::as_slice).unwrap_or(&[]);
+        let mut record = s.load_mailbox_record(&*store, recipient, cached).await?;
+        if record.full() {
+            // The recipient's bound, not the sender's error. Transient: it clears as the
+            // recipient ACKs (tombstones do not hold slots).
+            return mailbox::refused(StatusCode::INSUFFICIENT_STORAGE,
+                "the recipient's receipt mailbox has the maximum number of unacknowledged notices; \
+                 no notice accepted — it clears as the recipient acknowledges");
         }
-        queue.push(notice);
-        queue.clone() // snapshot for durable write-through, off the lock
+        if !record.is_receipts() {
+            let queue = record.notices_mut();
+            let mut kept = Vec::with_capacity(queue.len());
+            for n in queue.drain(..) {
+                if n.queued_at >= cutoff { kept.push(n); } else { dropped.push(n); }
+            }
+            *queue = kept;
+            while queue.len() >= MAX_NOTICES_PER_MEMBER { dropped.push(queue.remove(0)); }
+        }
+        // Receipt-mode queues never silently evict unacknowledged notices. Their
+        // pending count is bounded; saturation rejects new sends.
+        let id = mailbox::notice_id(recipient, &notice);
+        record.notices_mut().push(notice);
+        let blob = serde_json::to_vec(&record)?;
+        match op {
+            Some((sender, op_id, rec)) => {
+                let rec = mailbox::SendOp { notice_id: id.clone(), ..rec.clone() };
+                let op_blob = serde_json::to_vec(&rec)?;
+                store.mailbox_commit_with_op(recipient, Some(&blob),
+                    Some((sender, op_id, rec.created_at, Some(&op_blob))),
+                    Utc::now().timestamp() - mailbox::SEND_OP_WINDOW_SECS).await?;
+            }
+            None => store.mailbox_put(recipient, &blob).await?,
+        }
+        cache.insert(recipient, record.notices().clone());
+        (store.mailbox_is_durable(), id)
     };
-    // Write-through to the durable (encrypted) mailbox so a restart re-delivers
-    // this notice. Best-effort — the in-memory copy above already took effect.
-    s.persist_mailbox(recipient, &snapshot).await;
+    let (durable, notice_id) = durable;
 
     // Alarm the sender of each dropped notice back over the mesh — the only
     // channel that reaches them. Guards, all load-bearing:
@@ -1672,6 +1670,174 @@ async fn enqueue_notice(s: &RestState, recipient: Uuid, notice: SealedNotice) {
         ))
         .await;
     }
+    Ok(Enqueued::Queued { durable, notice_id })
+}
+
+/// Append an act the Sovereign already authorized and signed. The pre-signed entry names the
+/// ledger tail at signing time; if another act landed since, it is re-authorized and re-signed
+/// (bounded), because `append_signed` refuses a stale tail rather than reorder the chain.
+async fn land_act(
+    s: &RestState, act: &web4_core::act::Act,
+    signed: (hub_lib::ledger::UnsignedEntry, web4_core::crypto::SignatureBytes),
+) -> Result<u64, ApiError> {
+    let mut last = None;
+    let mut next = Some(signed);
+    for _ in 0..3 {
+        let (unsigned, signature) = match next.take() {
+            Some(pair) => pair,
+            None => authorize_event(s, HubEvent::ReferencedAct { act: act.clone() }).await?,
+        };
+        let res = {
+            let mut ledger = s.ledger.lock().await;
+            ledger.append_signed(unsigned, signature).await.map(|e| e.index)
+        };
+        match res {
+            Ok(index) => {
+                reconcile_degraded_log(s, "post-witness").await;
+                return Ok(index);
+            }
+            Err(e) => last = Some(e),
+        }
+    }
+    Err(ApiError::internal(last.expect("three attempts")))
+}
+
+/// The act for `act_id` if it is already on the ledger (a retry after a crash between queueing
+/// and witnessing). Newest first: a retry is close to its original.
+async fn find_act(s: &RestState, act_id: Uuid) -> Option<u64> {
+    let ledger = s.ledger.lock().await;
+    ledger.entries().iter().rev().find_map(|e| match &e.event {
+        HubEvent::ReferencedAct { act } if act.act_id == act_id => Some(e.index),
+        _ => None,
+    })
+}
+
+fn send_receipt(op: &mailbox::SendOp, op_id: Option<&str>, replayed: bool) -> serde_json::Value {
+    serde_json::json!({
+        "delivered": true, "durably_accepted": op.durable, "entry_index": op.entry_index,
+        "notice_id": op.notice_id, "operation_id": op_id, "replayed": replayed,
+    })
+}
+
+/// A retry of an operation the hub already accepted: answer with the FIRST attempt's outcome.
+/// If that attempt's act never landed (the daemon died between queueing and witnessing), find
+/// it by its deterministic id or witness it now — once.
+async fn resume_send_op(
+    s: &RestState, sender: Uuid, op_id: &str, mut op: mailbox::SendOp,
+    binding: &serde_json::Value, act: &web4_core::act::Act,
+) -> Result<serde_json::Value, ApiError> {
+    if &op.binding != binding {
+        return Err(ApiError { status: StatusCode::CONFLICT, message: format!(
+            "operation_id '{op_id}' was already used for a different message (recipient, pointer, \
+             content hash or sealed body differ). Nothing was sent; use a new operation_id.") });
+    }
+    if op.entry_index.is_none() {
+        let index = match find_act(s, op.act_id).await {
+            Some(i) => i,
+            None => {
+                let signed = authorize_event(s, HubEvent::ReferencedAct { act: act.clone() }).await?;
+                land_act(s, act, signed).await?
+            }
+        };
+        op.entry_index = Some(index);
+        let mut store = s.open_store().await.map_err(ApiError::internal)?;
+        if let Err(e) = store.send_op_put(sender, op_id, op.created_at,
+            &serde_json::to_vec(&op).map_err(|e| ApiError::internal(e.into()))?).await {
+            // The act is on the ledger; a later retry finds it by act_id. Not a failure.
+            tracing::warn!("send op {op_id}: recording entry {index} failed ({e:#}); a retry finds it");
+        }
+    }
+    Ok(send_receipt(&op, Some(op_id), true))
+}
+
+/// `send_secret`, in the order that makes its record honest (web4#867 contract 1):
+///   1. an existing `operation_id` answers with its first outcome (resume_send_op);
+///   2. AUTHORIZE the act — law gate and Sovereign signature, NO side effect;
+///   3. QUEUE the notice durably, with the op record in the same transaction;
+///   4. LAND the pre-signed act; on failure WITHDRAW the notice (and op) if it is still queued.
+/// So the ledger never asserts a send the mailbox refused, a refused send leaves the ledger
+/// untouched, and a lost response is retried with the same operation_id instead of duplicated.
+async fn send_secret_ordered(
+    s: &RestState, sender: Uuid, to: Uuid, notice: SealedNotice,
+    mut act: web4_core::act::Act, op_id: Option<&str>, binding: serde_json::Value,
+) -> Result<serde_json::Value, ApiError> {
+    let now = Utc::now().timestamp();
+
+    // An operation-id send is one state transition: absent -> queued -> witnessed -> complete.
+    // Hold the transition lock through lookup, act landing, op update, and any withdrawal.
+    // Without this, two same-id twins can both observe "queued/incomplete", both land the
+    // deterministic act, and the loser can withdraw custody after the winner completed it.
+    // v1 deliberately serializes all incomplete/new op-id sends in one daemon; completed
+    // replays are still bounded by the same short critical path. A keyed lock can narrow this
+    // later without changing the wire or durable state machine.
+    #[cfg(test)]
+    if let Some(op) = op_id {
+        mailbox::test_send_op_before_lock(op).await;
+    }
+
+    let _send_op_guard = if op_id.is_some() {
+        Some(mailbox::SEND_OP_LOCK.lock().await)
+    } else {
+        None
+    };
+
+    if let Some(op) = op_id {
+        mailbox::check_op_id(op)?;
+        act.act_id = mailbox::op_act_id(sender, op);
+        // Re-read only AFTER acquiring the transition lock. This is the load-bearing
+        // check: a twin that waited here sees the first twin's completed durable op
+        // instead of resuming a stale pre-lock snapshot.
+        let store = s.open_store().await.map_err(ApiError::internal)?;
+        if !store.send_ops_durable() {
+            return Err(mailbox::MailboxError::Refused(StatusCode::NOT_IMPLEMENTED,
+                "operation_id requires a backend that persists sender operations".into()).into());
+        }
+        if let Some(bytes) = store.send_op_get(sender, op).await.map_err(ApiError::internal)? {
+            let existing: mailbox::SendOp = serde_json::from_slice(&bytes)
+                .map_err(|e| ApiError::internal(e.into()))?;
+            drop(store);
+            return resume_send_op(s, sender, op, existing, &binding, &act).await;
+        }
+        drop(store);
+        #[cfg(test)]
+        mailbox::test_send_op_after_lookup(op).await;
+    }
+    let signed = authorize_event(s, HubEvent::ReferencedAct { act: act.clone() }).await?;
+    let rec = mailbox::SendOp { binding: binding.clone(), act_id: act.act_id, notice_id: String::new(),
+        created_at: now, entry_index: None, durable: true };
+    let queued = enqueue_notice_op(s, to, notice, op_id.map(|o| (sender, o, &rec))).await
+        .map_err(ApiError::from)?;
+    let (durable, notice_id) = match queued {
+        Enqueued::Queued { durable, notice_id } => (durable, notice_id),
+        // A concurrent attempt with the same operation_id got there first.
+        Enqueued::AlreadyAccepted(existing) => {
+            return resume_send_op(s, sender, op_id.expect("op"), existing, &binding, &act).await;
+        }
+    };
+    match land_act(s, &act, signed).await {
+        Ok(index) => {
+            let done = mailbox::SendOp { notice_id: notice_id.clone(), entry_index: Some(index), durable, ..rec };
+            if let Some(op) = op_id {
+                let written = async {
+                    let mut store = s.open_store().await?;
+                    store.send_op_put(sender, op, done.created_at, &serde_json::to_vec(&done)?).await
+                }.await;
+                if let Err(e) = written {
+                    tracing::warn!("send op {op}: recording entry {index} failed ({e:#}); a retry finds it");
+                }
+            }
+            Ok(send_receipt(&done, op_id, false))
+        }
+        Err(e) => match s.mailbox_withdraw(to, &notice_id, op_id.map(|o| (sender, o))).await {
+            Ok(true) => Err(ApiError { status: e.status, message: format!(
+                "not sent: the act could not be witnessed ({}); the queued notice was withdrawn \
+                 and nothing was delivered", e.message) }),
+            _ => Err(ApiError::internal(anyhow::anyhow!(
+                "the notice was queued and may already have been delivered, but its act could not \
+                 be witnessed ({}). Retry with the same operation_id to complete the record.",
+                e.message))),
+        },
+    }
 }
 
 /// Hub-originated notification: witness a thin `notify:<event>` act AND queue the
@@ -1698,346 +1864,22 @@ async fn notify_citizen(
     queue_sealed_notice(s, recipient, from, kind, pointer_uri, body).await;
 }
 
-#[derive(Deserialize)]
-pub struct ChallengeReq {
-    /// The protected tier to unlock (free-form label, witnessed). Defaults to
-    /// "protected".
-    #[serde(default = "default_unlock_tier")]
-    tier: String,
-}
-fn default_unlock_tier() -> String {
-    "protected".to_string()
-}
-
-#[derive(Serialize)]
-pub struct ChallengeResp {
-    challenge_id: Uuid,
-    nonce_hex: String,
-    tier: String,
-    hub_lct: Uuid,
-    issued_at: u64,
-    /// Distinct admin approvals required (the council M).
-    required: u32,
-    /// The admin LCTs that may attest (the Sovereign Council roster).
-    roster: Vec<Uuid>,
-}
-
-/// `POST /v1/hubs/:id/unlock/challenge` — the ignited hub mints a tier-2 unlock
-/// challenge for its M-of-N admins (the Sovereign Council). Local-only (the
-/// operator/hub triggers it); the request is witnessed (`VaultUnlockRequested`).
-async fn unlock_challenge(
-    ConnectInfo(peer): ConnectInfo<SocketAddr>,
-    State(s): State<RestState>,
-    Path(_hub_id): Path<Uuid>,
-    Json(req): Json<ChallengeReq>,
-) -> Result<Json<ChallengeResp>, ApiError> {
-    if !peer.ip().is_loopback() {
-        return Err(ApiError {
-            status: StatusCode::FORBIDDEN,
-            message: "issuing a tier-2 unlock challenge is local-only (the hub/operator triggers it)".to_string(),
-        });
-    }
-    // Must be ignited (tier-1) to recognize the council + to witness.
-    if s.is_locked() {
-        return Err(ApiError {
-            status: StatusCode::SERVICE_UNAVAILABLE,
-            message: "ignite tier-1 first (passphrase / hardware) before a tier-2 M-of-N unlock".to_string(),
-        });
-    }
-    // Tier-2 verifier plugin must be installed, else N/A.
-    if s.unlock_verifier_cmd.is_none() {
-        return Err(ApiError {
-            status: StatusCode::NOT_IMPLEMENTED,
-            message: "tier-2 M-of-N unlock is not available on this hub (no unlock verifier plugin configured)".to_string(),
-        });
-    }
-    // Roster + threshold from the Sovereign Council (tier-0 clear projection).
-    let (roster, required) = {
-        let ledger = s.ledger.lock().await;
-        let st = HubState::project(&*ledger);
-        let roster: Vec<(Uuid, String)> = st
-            .council_pubkeys
-            .iter()
-            .map(|(lct, pk)| (*lct, pk.clone()))
-            .collect();
-        let required = st
-            .council_threshold
-            .map(|(m, _)| m)
-            .unwrap_or_else(|| unlock_default_threshold(roster.len()));
-        (roster, required)
-    };
-    if roster.is_empty() {
-        return Err(ApiError {
-            status: StatusCode::CONFLICT,
-            message: "no Sovereign Council enrolled — there is no admin roster to authorize a tier-2 unlock".to_string(),
-        });
-    }
-    // Mint the challenge (nonce = 256 bits from two v4 UUIDs' random bytes).
-    let mut nonce = [0u8; 32];
-    nonce[..16].copy_from_slice(Uuid::new_v4().as_bytes());
-    nonce[16..].copy_from_slice(Uuid::new_v4().as_bytes());
-    let challenge = ChallengeWire {
-        challenge_id: Uuid::new_v4(),
-        nonce,
-        tier: req.tier.clone(),
-        hub_lct: s.sovereign_lct_id,
-        issued_at: Utc::now().timestamp().max(0) as u64,
-    };
-    // Witness the request, then record the open session.
-    witness_event(
-        &s,
-        HubEvent::VaultUnlockRequested {
-            challenge_id: challenge.challenge_id,
-            tier: req.tier.clone(),
-            required,
-            requested_at: Utc::now(),
-        },
-    )
-    .await?;
-    let roster_lcts: Vec<Uuid> = roster.iter().map(|(lct, _)| *lct).collect();
-    s.unlock_sessions.lock().await.insert(
-        challenge.challenge_id,
-        UnlockSession {
-            challenge: challenge.clone(),
-            roster,
-            required,
-            attestations: Vec::new(),
-            granted: false,
-        },
-    );
-    Ok(Json(ChallengeResp {
-        challenge_id: challenge.challenge_id,
-        nonce_hex: hex::encode(nonce),
-        tier: req.tier,
-        hub_lct: s.sovereign_lct_id,
-        issued_at: challenge.issued_at,
-        required,
-        roster: roster_lcts,
-    }))
-}
-
-#[derive(Deserialize)]
-pub struct AttestReq {
-    challenge_id: Uuid,
-    /// The admin's signed attestation (opaque to the hub; the verifier checks
-    /// it). Shape = the verifier's `AdminAttestation`.
-    attestation: serde_json::Value,
-}
-
-#[derive(Serialize)]
-pub struct AttestResp {
-    granted: bool,
-    approvals: Vec<Uuid>,
-    declines: Vec<Uuid>,
-    rejected: usize,
-    required: usize,
-    reason: String,
-    /// On the first grant: the tier-2 protected payload the quorum released (H3 — proof the
-    /// M-of-N opened real encrypted data, not just a symbolic authorization).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    released: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct VerifierDecision {
-    granted: bool,
-    approvals: Vec<Uuid>,
-    declines: Vec<Uuid>,
-    rejected: usize,
-    required: usize,
-    reason: String,
-    #[serde(default)]
-    #[allow(dead_code)]
-    roster_parse_errors: usize,
-}
-
-/// `POST /v1/hubs/:id/unlock/attest` — an admin submits a signed decision for an
-/// open challenge. Open surface (admins attest from their own constellations);
-/// every attestation is signature-verified by the private verifier. Each
-/// receipt is witnessed (`VaultUnlockAttested`); the first grant is witnessed
-/// (`VaultUnlockResolved`).
-async fn unlock_attest(
-    State(s): State<RestState>,
-    Path(_hub_id): Path<Uuid>,
-    Json(req): Json<AttestReq>,
-) -> Result<Json<AttestResp>, ApiError> {
-    let cmd = s.unlock_verifier_cmd.clone().ok_or_else(|| ApiError {
-        status: StatusCode::NOT_IMPLEMENTED,
-        message: "tier-2 M-of-N unlock is not available on this hub (no unlock verifier plugin configured)".to_string(),
-    })?;
-
-    // Append the attestation + snapshot what the verifier needs.
-    let (challenge, roster, required, atts, already_granted) = {
-        let mut sessions = s.unlock_sessions.lock().await;
-        let session = sessions.get_mut(&req.challenge_id).ok_or_else(|| {
-            ApiError::not_found("no such unlock challenge (expired or never issued)")
-        })?;
-        session.attestations.push(req.attestation.clone());
-        (
-            session.challenge.clone(),
-            session.roster.clone(),
-            session.required,
-            session.attestations.clone(),
-            session.granted,
-        )
-    };
-
-    // Witness the receipt (best-effort admin/decision extraction for the record).
-    let admin_lct = req
-        .attestation
-        .get("admin_lct")
-        .and_then(|v| v.as_str())
-        .and_then(|s| Uuid::parse_str(s).ok())
-        .unwrap_or_else(Uuid::nil);
-    let decision_str = req
-        .attestation
-        .get("decision")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string();
-    witness_event(
-        &s,
-        HubEvent::VaultUnlockAttested {
-            challenge_id: req.challenge_id,
-            admin_lct_id: admin_lct,
-            decision: decision_str,
-            attested_at: Utc::now(),
-        },
-    )
-    .await?;
-
-    // Ask the private verifier for the quorum decision.
-    let vreq = serde_json::json!({
-        "challenge": challenge,
-        "attestations": atts,
-        "roster": roster.iter().map(|(lct, pk)| serde_json::json!({"lct": lct, "pubkey_hex": pk})).collect::<Vec<_>>(),
-        "policy": { "min_approvals": required, "max_age_secs": 300 },
-        "now": Utc::now().timestamp().max(0) as u64,
-    });
-    let decision = run_unlock_verifier(&cmd, &vreq).await?;
-
-    // Witness the resolution exactly once, on the first grant — and actually OPEN the
-    // protected tier (H3): the quorum's authorization releases real Sealed data.
-    let mut released: Option<String> = None;
-    if decision.granted && !already_granted {
-        witness_event(
-            &s,
-            HubEvent::VaultUnlockResolved {
-                challenge_id: req.challenge_id,
-                tier: challenge.tier.clone(),
-                granted: true,
-                approvals: decision.approvals.clone(),
-                declines: decision.declines.clone(),
-                resolved_at: Utc::now(),
-            },
-        )
-        .await?;
-        if let Some(sess) = s.unlock_sessions.lock().await.get_mut(&req.challenge_id) {
-            sess.granted = true;
-        }
-        released = open_protected_tier(&s).await;
-        tracing::warn!(
-            challenge = %req.challenge_id, tier = %challenge.tier, released = released.is_some(),
-            "TIER-2 VAULT UNLOCK GRANTED by M-of-N quorum (witnessed) — protected tier opened"
-        );
-    }
-
-    Ok(Json(AttestResp {
-        granted: decision.granted,
-        approvals: decision.approvals,
-        declines: decision.declines,
-        rejected: decision.rejected,
-        required: decision.required,
-        reason: decision.reason,
-        released,
-    }))
-}
-
 /// On a granted quorum, open the protected-tier Sealed item: read its sealing credential
 /// (master tier, available since ignition) and decrypt the item into memory. This is the
 /// recognition model — the quorum *authorizes*; the hub holds the credential. Returns the
 /// released payload, or `None` if no protected store is configured / it can't be opened.
 async fn open_protected_tier(s: &RestState) -> Option<String> {
+    use hub_lib::vault_tree::Factors;
     let guard = s.protected.lock().await;
     let v = guard.as_ref()?;
-    let cred = match v.open_item(PROTECTED_NOTE_CRED, None) {
+    let cred = match v.open_item(PROTECTED_NOTE_CRED, &Factors::default()) {
         Ok(c) => String::from_utf8_lossy(&c).into_owned(),
         Err(e) => { tracing::warn!("protected-tier: reading sealing credential failed: {e}"); return None; }
     };
-    match v.open_item(PROTECTED_NOTE, Some(&cred)) {
+    match v.open_item(PROTECTED_NOTE, &Factors::sealed(&cred)) {
         Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
         Err(e) => { tracing::warn!("protected-tier: opening sealed item failed: {e}"); None }
     }
-}
-
-/// H-010: hard cap on the tier-2 unlock verifier subprocess so a hung/slow
-/// verifier can't wedge the unlock-attestation path indefinitely.
-const UNLOCK_VERIFIER_TIMEOUT_SECS: u64 = 10;
-
-/// Invoke the private verifier subprocess: pipe the request JSON to stdin, read
-/// the decision JSON from stdout. Fail-closed: a non-zero exit or unparseable
-/// output is an error (the caller does not get a grant).
-async fn run_unlock_verifier(
-    cmd: &str,
-    req: &serde_json::Value,
-) -> Result<VerifierDecision, ApiError> {
-    use tokio::io::AsyncWriteExt;
-    // H-010: the verifier is a signing-authority gate — require an ABSOLUTE path so
-    // a compromised PATH / working directory can't substitute a different binary.
-    if !std::path::Path::new(cmd).is_absolute() {
-        return Err(ApiError {
-            status: StatusCode::SERVICE_UNAVAILABLE,
-            message: format!("HUB_UNLOCK_VERIFIER must be an absolute path (got {cmd:?})"),
-        });
-    }
-    let mut child = tokio::process::Command::new(cmd)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true) // H-010: killed if the timeout below fires (drops this future)
-        .spawn()
-        .map_err(|e| ApiError {
-            status: StatusCode::SERVICE_UNAVAILABLE,
-            message: format!("unlock verifier not runnable ({cmd}): {e}"),
-        })?;
-    let body = serde_json::to_vec(req)
-        .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing verifier request: {e}")))?;
-    // H-010: bound the whole write+wait so a verifier that hangs on stdin or never
-    // exits can't stall the unlock path. On timeout the future drops → kill_on_drop.
-    let out = tokio::time::timeout(
-        std::time::Duration::from_secs(UNLOCK_VERIFIER_TIMEOUT_SECS),
-        async move {
-            {
-                let mut stdin = child.stdin.take().ok_or_else(|| {
-                    ApiError::internal(anyhow::anyhow!("verifier stdin unavailable"))
-                })?;
-                stdin
-                    .write_all(&body)
-                    .await
-                    .map_err(|e| ApiError::internal(anyhow::anyhow!("writing to verifier: {e}")))?;
-                // stdin dropped here → EOF for the verifier.
-            }
-            child
-                .wait_with_output()
-                .await
-                .map_err(|e| ApiError::internal(anyhow::anyhow!("awaiting verifier: {e}")))
-        },
-    )
-    .await
-    .map_err(|_elapsed| ApiError {
-        status: StatusCode::GATEWAY_TIMEOUT,
-        message: format!("unlock verifier timed out after {UNLOCK_VERIFIER_TIMEOUT_SECS}s (fail-closed)"),
-    })??;
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        return Err(ApiError {
-            status: StatusCode::BAD_GATEWAY,
-            message: format!("unlock verifier failed (fail-closed): {}", stderr.trim()),
-        });
-    }
-    serde_json::from_slice(&out.stdout).map_err(|e| {
-        ApiError::internal(anyhow::anyhow!("unparseable verifier decision: {e}"))
-    })
 }
 
 const PROTECTED_NOTE: &str = "protected-note";
@@ -2108,10 +1950,12 @@ pub fn router(state: RestState) -> Router {
         // the unlock slot (stub-console / passphrase): local-only + rate-limited.
         // Promotes a locked hub → unlocked in place (swaps in the real signer).
         .route("/v1/hubs/:hub_id/unlock", post(unlock))
-        // tier-2 M-of-N unlock (witnessed): the ignited hub mints a challenge,
-        // admins attest, the private verifier judges the quorum. N/A (501) when
-        // no verifier plugin is configured.
+        // tier-2 M-of-N release (witnessed; web4 5b): the ignited hub opens a release
+        // intent, each council member fetches a single-use challenge and attests, and
+        // the built-in quorum verifier decides (rest::unlock). N/A (501) unless
+        // HUB_TIER2_UNLOCK=quorum.
         .route("/v1/hubs/:hub_id/unlock/challenge", post(unlock_challenge))
+        .route("/v1/hubs/:hub_id/unlock/approver-challenge", post(unlock_approver_challenge))
         .route("/v1/hubs/:hub_id/unlock/attest", post(unlock_attest))
         .route("/v1/auth/challenge", post(issue_challenge))
         // Hub-named routes (canonical; chapter→hub rename mirrored on
@@ -3960,13 +3804,16 @@ struct ChannelInner {
 /// arms (the classification guard test walks this list; adding a dispatch arm
 /// without registering it here fails the test, so a new tool cannot silently
 /// skip freshness classification). (#474)
-const CHANNEL_TOOLS: [&str; 18] = [
+const CHANNEL_TOOLS: [&str; 21] = [
     "constellation_challenge",
     "find_members",
     "find_skill",
     "list_intros",
     "list_members",
     "notifications",
+    "notifications_enable_receipts",
+    "notifications_fetch",
+    "notifications_ack",
     "presence",
     "present_constellation",
     "query_hub",
@@ -3987,12 +3834,13 @@ const CHANNEL_TOOLS: [&str; 18] = [
 /// added to `dispatch_channel` without touching the list silently inherited
 /// read tolerance — fail-open for new writes. Allowlisting the reads makes
 /// the default fail-closed: an unclassified new tool REQUIRES freshness.
-const CHANNEL_READ_TOOLS: [&str; 9] = [
+const CHANNEL_READ_TOOLS: [&str; 10] = [
     "find_members",
     "find_skill",
     "list_intros",
     "list_members",
     "notifications",
+    "notifications_fetch",
     "presence",
     "query_hub",
     "reputation",
@@ -4886,16 +4734,34 @@ async fn dispatch_channel(
             Ok(out)
         }
         // ---- DRAFT: referenced acts + the hub→citizen notification poll floor ----
+        "notifications_enable_receipts" => {
+            // Not self-service. Enrollment is one-way (no downgrade) and moves the member to
+            // fetch/ACK delivery, where a client that never ACKs stops receiving at
+            // MAX_NOTICES_PER_MEMBER — an operator's decision (hub-claude review of web4#869). The tool stays registered so a member asking gets
+            // this sentence rather than "unknown tool".
+            Err(ApiError {
+                status: StatusCode::FORBIDDEN,
+                message: format!(
+                    "receipt delivery is enabled by the hub operator, not by the member: \
+                     POST /admin/api/members/{caller_lct_id}/mailbox-receipts on the operator plane"
+                ),
+            })
+        }
+        "notifications_fetch" => {
+            let limit = match inner.args.get("limit") {
+                None => 100,
+                Some(v) => v.as_u64().filter(|n| (1..=100).contains(n))
+                    .ok_or_else(|| ApiError::bad_request("limit must be an integer from 1 to 100"))? as usize,
+            };
+            s.mailbox_fetch(caller_lct_id, limit).await.map_err(ApiError::from)
+        }
+        "notifications_ack" => {
+            let id = inner.args.get("id").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request("notifications_ack requires id"))?;
+            s.mailbox_ack(caller_lct_id, id).await.map_err(ApiError::from)
+        }
         "notifications" => {
-            // A citizen drains their pending sealed notices (the delivery floor; push to a
-            // registered LCT-MCP endpoint is the future optimization on the same queue).
-            let cutoff = Utc::now() - chrono::Duration::seconds(NOTICE_TTL_SECS);
-            let mut notices = s.notifications.lock().await.remove(&caller_lct_id).unwrap_or_default();
-            notices.retain(|n| n.queued_at >= cutoff); // don't deliver expired notices
-            // Drop the durable copy now that the working set has been handed over.
-            // Best-effort + ordered-after: a failure here re-hydrates on restart
-            // (at-least-once), which is safer than deleting before delivery.
-            s.depersist_mailbox(caller_lct_id).await;
+            let notices = s.mailbox_legacy_drain(caller_lct_id).await.map_err(ApiError::from)?;
             Ok(serde_json::json!({ "total": notices.len(), "notifications": notices }))
         }
         "referenced_act" => {
@@ -4912,6 +4778,17 @@ async fn dispatch_channel(
             // ("handoff"/"sweep"/"memo"/"forum"), `notify:<event>` for hub→citizen.
             let kind = inner.args.get("kind").and_then(|v| v.as_str())
                 .ok_or_else(|| ApiError::bad_request("referenced_act requires 'kind'".to_string()))?.to_string();
+            // Reserved transport namespace: only the dedicated route_forward
+            // path may emit a route.forward mailbox notice. Otherwise any
+            // citizen could manufacture a look-alike router packet through the
+            // generic referenced_act delivery path and wedge/spoof a router
+            // ingress mailbox.
+            if kind == "route.forward" {
+                return Err(ApiError {
+                    status: StatusCode::CONFLICT,
+                    message: "kind 'route.forward' is reserved; use the route_forward channel operation".to_string(),
+                });
+            }
             let uri = inner.args.get("pointer_uri").and_then(|v| v.as_str())
                 .ok_or_else(|| ApiError::bad_request("referenced_act requires 'pointer_uri'".to_string()))?.to_string();
             // H-008 Phase 2: the substance `content_hash` is REQUIRED and
@@ -5073,6 +4950,201 @@ async fn dispatch_channel(
             }
             Ok(resp)
         }
+        // ---- router->router forwarding envelope (F3 / IP-shaped entity routing) ----
+        //
+        // A router never rewrites the final destination into the next hop. The next hop is
+        // only this hop's mailbox address; the sealed packet retains the original destination,
+        // origin and bounded trace. operation_id is mandatory so a lost response cannot create
+        // a second notice or second witnessed hop.
+        "route_forward" => {
+            let to: Uuid = inner.args.get("to").and_then(|v| v.as_str())
+                .and_then(|s| Uuid::parse_str(s).ok())
+                .ok_or_else(|| ApiError::bad_request(
+                    "route_forward requires 'to' (next-hop Hub member uuid)".to_string()))?;
+            let operation_id = inner.args.get("operation_id").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request(
+                    "route_forward requires operation_id".to_string()))?
+                .to_string();
+            mailbox::check_op_id(&operation_id).map_err(ApiError::from)?;
+
+            let packet_raw = inner.args.get("route_packet_json").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request(
+                    "route_forward requires route_packet_json".to_string()))?;
+            if packet_raw.is_empty() || packet_raw.len() > 8 * 1024 {
+                return Err(ApiError::bad_request(
+                    "route_packet_json must be 1..8192 UTF-8 bytes".to_string()));
+            }
+            let packet: serde_json::Value = serde_json::from_str(packet_raw)
+                .map_err(|e| ApiError::bad_request(format!("route_packet_json is not JSON: {e}")))?;
+            let obj = packet.as_object().ok_or_else(|| ApiError::bad_request(
+                "route_packet_json must encode an object".to_string()))?;
+            if obj.get("protocol").and_then(|v| v.as_str()) != Some("web4-route-v1") {
+                return Err(ApiError::bad_request(
+                    "route packet protocol must be web4-route-v1".to_string()));
+            }
+            let packet_id = obj.get("packet_id").and_then(|v| v.as_str())
+                .and_then(|s| Uuid::parse_str(s).ok())
+                .ok_or_else(|| ApiError::bad_request(
+                    "route packet requires UUID packet_id".to_string()))?;
+            // "Canonical" means the key-derived `lct:web4:mb32:b…` shape (#877), not any
+            // `lct:web4:` prefix: a legacy alias (`lct:web4:member:…`) or a hub member UUID is a
+            // reference that RESOLVES to a presence, never one a router may carry as a destination.
+            let canonical = |v: &str| hub_lib::ids::CanonicalLctId::parse(v).is_ok();
+            for field in ["destination_lct", "origin_lct"] {
+                let value = obj.get(field).and_then(|v| v.as_str()).unwrap_or("");
+                if !canonical(value) {
+                    return Err(ApiError::bad_request(format!(
+                        "route packet {field} must be a canonical lct:web4:mb32 id")));
+                }
+            }
+            let original_kind = obj.get("original_kind").and_then(|v| v.as_str()).unwrap_or("");
+            if original_kind.is_empty() || original_kind.len() > 128 {
+                return Err(ApiError::bad_request(
+                    "route packet original_kind must be 1..128 bytes".to_string()));
+            }
+            let original_pointer = obj.get("pointer_uri").and_then(|v| v.as_str()).unwrap_or("");
+            if original_pointer.is_empty() || original_pointer.len() > 512 {
+                return Err(ApiError::bad_request(
+                    "route packet pointer_uri must be 1..512 bytes".to_string()));
+            }
+            let original_hash = obj.get("content_hash").and_then(|v| v.as_str()).unwrap_or("");
+            if let Err(why) = validate_content_hash(original_hash) {
+                return Err(ApiError::bad_request(format!("route packet content_hash {why}")));
+            }
+            let hops = obj.get("hops_remaining").and_then(|v| v.as_u64()).unwrap_or(0);
+            if !(1..=64).contains(&hops) {
+                return Err(ApiError::bad_request(
+                    "route packet hops_remaining must be 1..64".to_string()));
+            }
+            let visited = obj.get("visited_routers").and_then(|v| v.as_array())
+                .ok_or_else(|| ApiError::bad_request(
+                    "route packet visited_routers must be an array".to_string()))?;
+            let mut seen_routers = std::collections::HashSet::new();
+            if visited.len() > 64 || visited.iter().any(|v| {
+                let Some(s) = v.as_str() else { return true };
+                !canonical(s) || !seen_routers.insert(s)
+            }) {
+                return Err(ApiError::bad_request(
+                    "route packet visited_routers must contain <=64 unique canonical lct:web4:mb32 ids"
+                        .to_string()));
+            }
+
+            let has_failure = obj.get("failure").is_some_and(|v| !v.is_null());
+            if (original_kind == "unreachable") != has_failure {
+                return Err(ApiError::bad_request(
+                    "route packet original_kind=unreachable requires exactly one failure object"
+                        .to_string()));
+            }
+            if let Some(failure) = obj.get("failure").and_then(|v| v.as_object()) {
+                let original_packet_id = failure.get("original_packet_id")
+                    .and_then(|v| v.as_str())
+                    .and_then(|v| Uuid::parse_str(v).ok());
+                if original_packet_id.is_none() {
+                    return Err(ApiError::bad_request(
+                        "route failure requires UUID original_packet_id".to_string()));
+                }
+                for field in ["failed_destination_lct", "failed_at_router_lct"] {
+                    let value = failure.get(field).and_then(|v| v.as_str()).unwrap_or("");
+                    if !canonical(value) {
+                        return Err(ApiError::bad_request(format!(
+                            "route failure {field} must be a canonical lct:web4:mb32 id")));
+                    }
+                }
+                let reason = failure.get("reason").and_then(|v| v.as_str()).unwrap_or("");
+                if reason.is_empty() || reason.len() > 512 {
+                    return Err(ApiError::bad_request(
+                        "route failure reason must be 1..512 bytes".to_string()));
+                }
+            }
+
+            // A router hop requires receipt delivery. Allowing the legacy destructive mailbox
+            // here would recreate fetch->crash packet loss at the next router.
+            let receipt_mode = {
+                let cache = s.notifications.lock().await;
+                let store = s.open_store().await.map_err(ApiError::internal)?;
+                let cached = cache.get(&to).map(Vec::as_slice).unwrap_or(&[]);
+                let record = s.load_mailbox_record(&*store, to, cached).await
+                    .map_err(ApiError::internal)?;
+                record.is_receipts()
+            };
+            if !receipt_mode {
+                return Err(ApiError {
+                    status: StatusCode::CONFLICT,
+                    message: format!(
+                        "route next hop {to} is not enrolled in receipt mailbox delivery"),
+                });
+            }
+
+            // Resolve the pinned next-hop key before any queue/witness side effect.
+            let pubkey_hex = {
+                let ledger = s.ledger.lock().await;
+                s.projected(&ledger).member_pubkeys.get(&to).cloned()
+            }.ok_or_else(|| ApiError::bad_request(format!(
+                "route next hop {to} has no pinned member key")))?;
+            let pubkey = hex::decode(&pubkey_hex)
+                .ok()
+                .and_then(|b| <[u8; 32]>::try_from(b).ok())
+                .and_then(|a| web4_core::crypto::PublicKey::from_bytes(&a).ok())
+                .ok_or_else(|| ApiError::bad_request(format!(
+                    "route next hop {to} has an invalid pinned member key")))?;
+
+            // Exact route_packet_json bytes are the governed substance for this hop.
+            let packet_hash = format!(
+                "sha256-content:{}",
+                web4_core::sha256_hex(packet_raw.as_bytes())
+            );
+            let pointer_uri = format!("web4-route:{packet_id}");
+            let pair_id = mailbox::op_act_id(
+                caller_lct_id, &format!("route-pair:{operation_id}"));
+            let body = serde_json::json!({
+                "from": caller_lct_id,
+                "kind": "route.forward",
+                "pointer_uri": pointer_uri,
+                "content_hash": packet_hash,
+                "route_packet_json": packet_raw,
+            }).to_string();
+            let sealed = s.signer.channel_seal(&pubkey, pair_id, body.as_bytes())
+                .map_err(|e| ApiError::internal(anyhow::anyhow!(
+                    "sealing route packet to next hop: {e}")))?;
+
+            let binding = serde_json::json!({
+                "to": to,
+                "packet_id": packet_id,
+                "packet_hash": packet_hash,
+            });
+            let act = web4_core::act::Act::addressed(
+                caller_lct_id,
+                web4_core::act::ActAddress::Peer { lct_id: to },
+                "route.forward",
+                web4_core::act::SubstanceRef::new(
+                    &pointer_uri,
+                    packet_hash,
+                    web4_core::act::SubstanceMedium::Message,
+                ),
+                Utc::now(),
+            );
+            let notice = SealedNotice {
+                pair_id,
+                from: caller_lct_id,
+                sealed,
+                kind: "route.forward".to_string(),
+                pointer_uri,
+                queued_at: Utc::now(),
+                sealed_by: None,
+            };
+            // The historical helper name reflects its first caller; the mechanism is generic:
+            // atomically queue notice + sender-op record, then land the deterministic act.
+            send_secret_ordered(
+                s,
+                caller_lct_id,
+                to,
+                notice,
+                act,
+                Some(&operation_id),
+                binding,
+            ).await
+        }
+
         // ---- member→member sealed-secret relay (content-blind) ----
         // The SENDER seals a secret to the RECIPIENT's operational key (off-hub,
         // `pair_channel::seal`) and hands the hub the ciphertext + its own pair_id.
@@ -5110,9 +5182,22 @@ async fn dispatch_channel(
             if !known {
                 return Err(ApiError::bad_request(format!("recipient {to} is not a known member")));
             }
-            // Witness a thin act: actor = the AUTHENTICATED sender (caller_lct_id),
-            // to = Citizen{recipient}, substance = a hash of the SEALED body. The
-            // secret itself never touches the ledger.
+            // Optional retry key. A sender that lost the response resends with the same one and
+            // gets the first attempt's receipt instead of a second notice and a second act.
+            let operation_id = match inner.args.get("operation_id") {
+                None | Some(serde_json::Value::Null) => None,
+                Some(v) => Some(v.as_str().ok_or_else(|| ApiError::bad_request(
+                    "operation_id must be a string".to_string()))?.to_string()),
+            };
+            // What the operation id stands for: a retry must be the same message.
+            let binding = serde_json::json!({
+                "to": to, "pointer_uri": pointer_uri, "content_hash": content_hash,
+                "sealed_sha256": web4_core::sha256_hex(sealed.as_bytes()),
+                "pair_id": sender_pair_id,
+            });
+            // A thin act: actor = the AUTHENTICATED sender (caller_lct_id), to =
+            // Citizen{recipient}, substance = a hash of the SEALED body. The secret itself
+            // never touches the ledger.
             let act = web4_core::act::Act::addressed(
                 caller_lct_id,
                 web4_core::act::ActAddress::Citizen { lct_id: to },
@@ -5121,10 +5206,9 @@ async fn dispatch_channel(
                     &pointer_uri, content_hash, web4_core::act::SubstanceMedium::Message),
                 Utc::now(),
             );
-            let index = witness_event(s, HubEvent::ReferencedAct { act }).await?;
             // Relay the PRE-SEALED body: sealed_by = the sender, so the recipient
             // opens against the sender's operational key (not the hub's).
-            enqueue_notice(s, to, SealedNotice {
+            let notice = SealedNotice {
                 pair_id: sender_pair_id,
                 from: caller_lct_id,
                 sealed,
@@ -5132,8 +5216,8 @@ async fn dispatch_channel(
                 pointer_uri,
                 queued_at: Utc::now(),
                 sealed_by: Some(caller_lct_id),
-            }).await;
-            Ok(serde_json::json!({ "delivered": true, "entry_index": index }))
+            };
+            send_secret_ordered(s, caller_lct_id, to, notice, act, operation_id.as_deref(), binding).await
         }
         // ---- constellation attestation (challenge-response MFA, assurance tiers) ----
         // Wire contract: forum/legion-constellation-attestation-wire-shape-2026-06-11.md.
@@ -6132,6 +6216,90 @@ async fn admin_remove_member(
 }
 
 #[derive(Deserialize)]
+struct EnrollBody {
+    /// Required: enrollment cannot be undone, so the ledger says why it happened.
+    #[serde(default)]
+    reason: String,
+}
+
+/// `POST /admin/api/members/:lct_id/mailbox-receipts` — enroll a member in receipt delivery
+/// (`hub-mailbox-receive-v1`: non-destructive fetch + recipient-bound ACK). Operator-only.
+///
+/// surface: admin_enable_mailbox_receipts   act: switch a member's mailbox to receipt mode (one-way)
+/// S: med/irreversible [construct: no downgrade; delivery becomes fetch/ACK, bounded at MAX_NOTICES_PER_MEMBER unacknowledged]
+/// R: pass [construct: require_loopback on the operator listener]   W: pass [construct: operator plane; act by the Sovereign]
+/// O: pass [construct: member + reason + durability preflight before witness_event]
+/// A: pass [construct: `mailbox:receipts_enabled` ReferencedAct carries the reason's hash, before the write]
+/// V: present [construct: reason required; idempotent re-call writes no second act]
+/// verdict: PASS
+async fn admin_enable_mailbox_receipts(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(lct_id): Path<Uuid>,
+    Json(body): Json<EnrollBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    enable_mailbox_receipts_as_operator(&s, lct_id, &body.reason).await.map(Json)
+}
+
+async fn enable_mailbox_receipts_as_operator(
+    s: &RestState, lct_id: Uuid, reason: &str,
+) -> Result<serde_json::Value, ApiError> {
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(ApiError::bad_request(
+            "a reason is required: enrollment is one-way and the ledger records why".to_string()));
+    }
+    if s.resolver.read().await.lookup(lct_id).is_none() {
+        return Err(ApiError { status: StatusCode::NOT_FOUND,
+            message: format!("{lct_id} is not a known member") });
+    }
+    // One enrollment at a time, across preflight + witness + write, so two concurrent operator
+    // calls cannot both pass the preflight and both witness an act (hub-claude review of
+    // 943a9514). Its own lock, not the notifications mutex: witness_event can queue notices,
+    // which takes that mutex, and holding it here would deadlock.
+    let _enrolling = mailbox::ENROLL_LOCK.lock().await;
+    // Preflight: already enrolled is an idempotent no-op — no second act on the ledger.
+    {
+        let store = s.open_store().await.map_err(ApiError::internal)?;
+        if !store.mailbox_is_durable() {
+            return Err(mailbox::MailboxError::Refused(StatusCode::NOT_IMPLEMENTED,
+                "receipt delivery requires durable mailbox storage".into()).into());
+        }
+        if s.load_mailbox_record(&*store, lct_id, &[]).await.map_err(ApiError::internal)?.is_receipts() {
+            return Ok(serde_json::json!({"enrolled": true, "already": true,
+                "protocol": mailbox::RECEIVE_PROTOCOL}));
+        }
+    }
+    let statement = serde_json::json!({
+        "protocol": mailbox::RECEIVE_PROTOCOL, "member": lct_id, "reason": reason,
+    });
+    let act = web4_core::act::Act::addressed(
+        s.sovereign_lct_id,
+        web4_core::act::ActAddress::Citizen { lct_id },
+        "mailbox:receipts_enabled",
+        web4_core::act::SubstanceRef::new(
+            &format!("mailbox/{lct_id}/receipts"),
+            web4_core::sha256_hex(&serde_json::to_vec(&statement).map_err(|e| ApiError::internal(e.into()))?),
+            web4_core::act::SubstanceMedium::Message,
+        ),
+        Utc::now(),
+    );
+    let entry_index = witness_event(s, HubEvent::ReferencedAct { act }).await?;
+    // The act is on the ledger first. A failed write here leaves it asserting an enrollment
+    // that did not happen, so the error says exactly that and the retry (idempotent) applies it.
+    match s.mailbox_enable_receipts(lct_id).await {
+        // Under ENROLL_LOCK nothing else enrolls between the preflight and here, so `false`
+        // would mean the record changed underneath us; report what the store said.
+        Ok(enrolled_now) => Ok(serde_json::json!({"enrolled": true, "already": !enrolled_now,
+            "protocol": mailbox::RECEIVE_PROTOCOL, "entry_index": entry_index, "statement": statement})),
+        Err(e) => Err(ApiError::internal(anyhow::anyhow!(
+            "ledger entry {entry_index} records the enrollment but the mailbox write failed ({e}); \
+             NOT enrolled — retry this same call to apply it"))),
+    }
+}
+
+#[derive(Deserialize)]
 struct RenameBody {
     name: String,
     #[serde(default)]
@@ -6341,6 +6509,31 @@ async fn admin_council_differential(
         "cutover_permitted": d.cutover_permitted(),
         "differential": d,
     })))
+}
+
+/// `GET /admin/api/lct/resolve/:reference` — which member a reference names and which canonical
+/// presence(s) it holds, with the witnessed evidence (web4#875 Slice B). `reference` is a member
+/// UUID, a canonical `lct:web4:mb32:b…` id, or a roster name; an ambiguous name or key answers
+/// `ambiguous` with the candidates instead of picking one. Read-only.
+///
+/// The Sovereign's key is not in the projection (`Genesis` pins none), so it is supplied from the
+/// live signer, or the public identity file while locked — the same order `/.well-known` uses.
+async fn admin_lct_resolve(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(reference): Path<String>,
+) -> Result<Json<hub_lib::lct_resolve::Resolution>, ApiError> {
+    require_loopback(&peer)?;
+    let sovereign_key = s.signer.public_key().or_else(|| {
+        PublicIdentity::read(&s.paths.root)
+            .and_then(|p| p.sovereign_pubkey_hex)
+            .and_then(|h| hex::decode(h).ok())
+            .and_then(|b| <[u8; 32]>::try_from(b).ok())
+            .and_then(|b| web4_core::crypto::PublicKey::from_bytes(&b).ok())
+    });
+    let ledger = s.ledger.lock().await;
+    let reference = hub_lib::lct_resolve::Reference::parse(&reference);
+    Ok(Json(hub_lib::lct_resolve::resolve(&HubState::project(&ledger), &reference, sovereign_key.as_ref())))
 }
 
 /// `POST /admin/api/council/add` — admit a Sovereign Council holder, live.
@@ -7241,6 +7434,7 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/council/threshold", post(admin_council_set_threshold))
         .route("/admin/api/council/mirror", post(admin_council_mirror))
         .route("/admin/api/council/differential", get(admin_council_differential))
+        .route("/admin/api/lct/resolve/:reference", get(admin_lct_resolve))
         .route("/admin/api/roles", get(admin_roles_list))
         .route("/admin/api/roles/create", post(admin_role_create))
         .route("/admin/api/roles/:role_lct_id/fill", post(admin_role_fill))
@@ -7249,6 +7443,7 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/members/:lct_id/key", post(admin_pin_key))
         .route("/admin/api/members/:lct_id/remove", post(admin_remove_member))
         .route("/admin/api/members/:lct_id/admission-reset", post(admin_admission_reset))
+        .route("/admin/api/members/:lct_id/mailbox-receipts", post(admin_enable_mailbox_receipts))
         .with_state(state)
 }
 
@@ -9293,7 +9488,7 @@ async fn publish_lct(
     // Republishing a key (same pubkey-derived id) overwrites in place and bumps.
     // A key *rotation* moves the id instead, so it lands as a fresh v1 carrying a
     // `rotated_from` MRH edge — identity is never mutated in place.
-    let version = projected.registry.get(&lct_id).map_or(1, |e| e.version + 1);
+    let version = projected.registry.get(lct_id.as_str()).map_or(1, |e| e.version + 1);
 
     let event = HubEvent::LctPublished {
         lct_id: lct_id.clone(),
@@ -9385,13 +9580,13 @@ async fn get_lct(
         let ledger = s.ledger.lock().await;
         hub_lib::state::HubState::project(&*ledger)
     };
-    let entry = projected.registry.get(&lct_id)
+    let entry = projected.registry.get(lct_id.as_str())
         .ok_or_else(|| ApiError::not_found(format!("lct {} is not published here", lct_id)))?;
     Ok(Json(RegistryEntryView {
         lct_id,
         document: entry.document.clone(),
         provenance: entry.provenance,
-        published_by: entry.published_by,
+        published_by: entry.published_by.as_uuid(),
         published_at: entry.published_at,
         version: entry.version,
     }))
@@ -9414,7 +9609,7 @@ async fn list_lcts(
     // BTreeMap iteration is already stable (canonical id order).
     let out: Vec<RegistrySummary> = projected.registry.iter()
         .map(|(lct_id, e)| RegistrySummary {
-            lct_id: lct_id.clone(),
+            lct_id: lct_id.to_string(),
             entity_type: e.document.entity_type.clone(),
             provenance: e.provenance,
             published_at: e.published_at,
@@ -9745,9 +9940,7 @@ mod lct_registry_tests {
             queued_at: Utc::now(),
             sealed_by: None,
         };
-        // Mirror queue_sealed_notice's write-through: mutate in-memory, then persist.
-        state.notifications.lock().await.insert(recipient, vec![notice.clone()]);
-        state.persist_mailbox(recipient, &[notice.clone()]).await;
+        assert!(enqueue_notice(&state, recipient, notice.clone()).await.unwrap());
 
         // Restart: a fresh state starts empty, then hydrates from the durable store.
         let restarted = reopen_state(&hub_dir).await;
@@ -9766,7 +9959,7 @@ mod lct_registry_tests {
         }
 
         // Drain depersists → a subsequent restart hydrates empty (no redelivery).
-        restarted.depersist_mailbox(recipient).await;
+        restarted.mailbox_legacy_drain(recipient).await.unwrap();
         let after_drain = reopen_state(&hub_dir).await;
         after_drain.hydrate_mailbox().await;
         assert!(
@@ -13637,6 +13830,36 @@ priority: 1000
             StatusCode::FORBIDDEN);
     }
 
+    /// web4#875 Slice B, on the operator plane: the route supplies the Sovereign's key the
+    /// projection cannot hold (so the Sovereign reads as keyed-but-unpublished, not keyless),
+    /// reads council pins, and refuses a non-loopback caller.
+    #[tokio::test]
+    async fn lct_resolve_route_supplies_the_sovereign_key_and_is_operator_only() {
+        use hub_lib::lct_resolve::{Resolution, UnmappedReason};
+        let (_tmp, state) = fresh_rest_state(Some(MINIMAL_LAW)).await;
+        let sov_key = state.signer.public_key().expect("fixture signer is unlocked");
+        let ask = |r: String| admin_lct_resolve(State(state.clone()), ConnectInfo(loop_addr()), Path(r));
+
+        match ask(state.sovereign_lct_id.to_string()).await.unwrap().0 {
+            Resolution::Unmapped { reason: UnmappedReason::NoPublishedPresence { derived_unpublished }, .. } =>
+                assert_eq!(derived_unpublished, vec![hub_lib::ids::CanonicalLctId::derive(&sov_key)],
+                    "the Sovereign's key was supplied and derived; it is only unpublished"),
+            other => panic!("the Sovereign must not read as keyless: {other:?}"),
+        }
+
+        let (holder, kp) = council_holder(&state).await;
+        match ask(holder.to_string()).await.unwrap().0 {
+            Resolution::Unmapped { reason: UnmappedReason::NoPublishedPresence { derived_unpublished }, .. } =>
+                assert_eq!(derived_unpublished, vec![hub_lib::ids::CanonicalLctId::derive(&kp.verifying_key())]),
+            other => panic!("a council pin must be read: {other:?}"),
+        }
+        assert!(matches!(ask("nobody-by-this-name".into()).await.unwrap().0, Resolution::Unresolved { .. }));
+
+        let remote: SocketAddr = "10.0.0.9:5555".parse().unwrap();
+        assert_eq!(admin_lct_resolve(State(state.clone()), ConnectInfo(remote), Path(holder.to_string()))
+            .await.err().unwrap().status, StatusCode::FORBIDDEN);
+    }
+
     // ---- The plugin host: a ToolPlugin registered on this daemon is served on the channel ----
 
     struct EchoThings;
@@ -15356,17 +15579,6 @@ norms:
 
     /// Write a tiny executable stub verifier that returns `granted` and exits 0.
     /// Stands in for the private engine so the public seam can be tested alone.
-    fn stub_verifier(dir: &std::path::Path, granted: bool) -> String {
-        use std::os::unix::fs::PermissionsExt;
-        let path = dir.join("stub-verifier.sh");
-        let body = format!(
-            "#!/usr/bin/env bash\ncat >/dev/null\necho '{{\"granted\":{granted},\"approvals\":[],\"declines\":[],\"rejected\":0,\"required\":1,\"reason\":\"stub\",\"roster_parse_errors\":0}}'\n"
-        );
-        std::fs::write(&path, body).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-        path.to_string_lossy().into_owned()
-    }
-
     fn loopback() -> ConnectInfo<SocketAddr> {
         ConnectInfo("127.0.0.1:0".parse().unwrap())
     }
@@ -15674,55 +15886,203 @@ norms:
         }).await.expect("governed write must succeed once re-witnessed");
     }
 
-    #[tokio::test]
-    async fn tier2_unlock_is_na_without_a_verifier_plugin() {
-        let (_tmp, mut state) = fresh_rest_state(None).await;
-        state.unlock_verifier_cmd = None; // no plugin installed
-        let err = unlock_challenge(loopback(), State(state.clone()), Path(state.hub_id), Json(ChallengeReq { tier: "protected".into() }))
-            .await
-            .err()
-            .expect("tier-2 must be N/A with no verifier");
-        assert_eq!(err.status, StatusCode::NOT_IMPLEMENTED);
+    // ── Tier-2: the built-in quorum verifier (web4 5b) ────────────────────────────────────
+
+    struct Council { members: Vec<(Uuid, web4_core::crypto::KeyPair)> }
+
+    /// A council of `n` real keypairs, enrolled through witnessed acts; default threshold ⌈n/2⌉.
+    async fn council(state: &RestState, n: usize) -> Council {
+        let mut members = Vec::new();
+        for i in 0..n {
+            let kp = web4_core::crypto::KeyPair::generate();
+            let lct = Uuid::new_v4();
+            witness_event(state, HubEvent::CouncilMemberAdded {
+                member_lct_id: lct,
+                member_pubkey_hex: hex::encode(kp.public_key_bytes()),
+                added_by: state.sovereign_lct_id,
+                member_name: Some(format!("Admin {i}")),
+            }).await.unwrap();
+            members.push((lct, kp));
+        }
+        Council { members }
+    }
+
+    async fn open_release(state: &RestState) -> unlock::ChallengeResp {
+        unlock_challenge(loopback(), State(state.clone()), Path(state.hub_id), Json(ChallengeReq { tier: "protected".into() }))
+            .await.expect("release intent opened").0
+    }
+
+    async fn approve(state: &RestState, ch: Uuid, who: &(Uuid, web4_core::crypto::KeyPair))
+        -> Result<unlock::AttestResp, ApiError> {
+        let c = unlock_approver_challenge(State(state.clone()), Path(state.hub_id),
+            Json(ApproverChallengeReq { challenge_id: ch, approver: who.0 })).await?.0;
+        let digest: [u8; 32] = hex::decode(&c.intent.digest_hex).unwrap().try_into().unwrap();
+        let chal: [u8; 32] = hex::decode(&c.challenge_hex).unwrap().try_into().unwrap();
+        let a = hub_lib::unlock_quorum::Approval::sign(&who.1, who.0, digest, chal);
+        unlock_attest(State(state.clone()), Path(state.hub_id),
+            Json(AttestReq { challenge_id: ch, approval: Some(a), decline: None })).await.map(|j| j.0)
+    }
+
+    async fn kinds(state: &RestState) -> Vec<String> {
+        state.ledger.lock().await.entries().iter().map(|e| e.event.kind().to_string()).collect()
     }
 
     #[tokio::test]
-    async fn tier2_unlock_challenge_then_quorum_grant_is_witnessed() {
-        let (tmp, mut state) = fresh_rest_state(None).await;
-        state.unlock_verifier_cmd = Some(stub_verifier(tmp.path(), true));
+    async fn tier2_is_off_unless_the_operator_enables_it() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = false;
+        let err = unlock_challenge(loopback(), State(state.clone()), Path(state.hub_id),
+            Json(ChallengeReq { tier: "protected".into() })).await.err().expect("off");
+        assert_eq!(err.status, StatusCode::NOT_IMPLEMENTED);
+        assert!(err.message.contains("HUB_TIER2_UNLOCK=quorum"), "{}", err.message);
+    }
 
-        // Enroll one council admin so the roster is non-empty (witnessed act).
-        let admin = Uuid::new_v4();
-        witness_event(&state, HubEvent::CouncilMemberAdded {
-            member_lct_id: admin,
-            member_pubkey_hex: "00".repeat(32),
-            added_by: state.sovereign_lct_id,
-            member_name: Some("Admin One".into()),
-        })
-        .await
-        .unwrap();
+    #[tokio::test]
+    async fn a_threshold_of_verified_council_approvals_releases_once() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let c = council(&state, 3).await; // threshold 2
+        let ch = open_release(&state).await;
+        assert_eq!((ch.required, ch.roster.len()), (2, 3));
+        assert_eq!((ch.intent.operation.as_str(), ch.intent.secret_id.as_str()), ("release", "protected"));
 
-        // Mint a challenge.
-        let ch = unlock_challenge(loopback(), State(state.clone()), Path(state.hub_id), Json(ChallengeReq { tier: "channel-keys".into() }))
-            .await
-            .expect("challenge issued")
-            .0;
-        assert_eq!(ch.roster, vec![admin]);
-        assert!(ch.required >= 1);
+        let first = approve(&state, ch.challenge_id, &c.members[0]).await.unwrap();
+        assert!(!first.granted, "one of two: {}", first.reason);
+        let second = approve(&state, ch.challenge_id, &c.members[1]).await.unwrap();
+        assert!(second.granted);
+        assert_eq!(second.approvals.len(), 2);
+        let k = kinds(&state).await;
+        assert_eq!(k.iter().filter(|x| *x == "vault_unlock_attested").count(), 2);
+        assert_eq!(k.iter().filter(|x| *x == "vault_unlock_resolved").count(), 1);
 
-        // An admin attests → the (stub) verifier grants → resolved + witnessed.
-        let att = serde_json::json!({ "admin_lct": admin, "decision": "approve" });
-        let resp = unlock_attest(State(state.clone()), Path(state.hub_id), Json(AttestReq { challenge_id: ch.challenge_id, attestation: att }))
-            .await
-            .expect("attest accepted")
-            .0;
-        assert!(resp.granted, "stub verifier grants: {}", resp.reason);
+        // At most once: the third member's approval, and any replay, meet a CONSUMED intent.
+        let again = approve(&state, ch.challenge_id, &c.members[2]).await.err().expect("consumed");
+        assert_eq!(again.status, StatusCode::CONFLICT);
+        assert!(again.message.contains("consumed"), "{}", again.message);
+        assert_eq!(kinds(&state).await.iter().filter(|x| *x == "vault_unlock_resolved").count(), 1);
+    }
 
-        // The flow was witnessed: requested + attested + resolved are on the ledger.
-        let ledger = state.ledger.lock().await;
-        let kinds: Vec<String> = ledger.entries().iter().map(|e| e.event.kind().to_string()).collect();
-        assert!(kinds.contains(&"vault_unlock_requested".to_string()));
-        assert!(kinds.contains(&"vault_unlock_attested".to_string()));
-        assert!(kinds.contains(&"vault_unlock_resolved".to_string()));
+    /// A forged approval is refused, is NOT witnessed, and does not burn the real approver's turn.
+    #[tokio::test]
+    async fn a_forged_approval_records_nothing_and_costs_the_real_approver_nothing() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let c = council(&state, 3).await;
+        let ch = open_release(&state).await;
+        let before = state.ledger.lock().await.len();
+        // an impostor signs with its own key under member 0's id
+        let impostor = (c.members[0].0, web4_core::crypto::KeyPair::generate());
+        let err = approve(&state, ch.challenge_id, &impostor).await.err().expect("forged");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert_eq!(state.ledger.lock().await.len(), before, "a forged approval reached the ledger");
+        // and someone off the roster cannot even get a challenge
+        let outsider = (Uuid::new_v4(), web4_core::crypto::KeyPair::generate());
+        assert_eq!(approve(&state, ch.challenge_id, &outsider).await.err().unwrap().status, StatusCode::FORBIDDEN);
+        // the real member 0 still approves
+        assert!(!approve(&state, ch.challenge_id, &c.members[0]).await.unwrap().granted);
+        assert!(approve(&state, ch.challenge_id, &c.members[1]).await.unwrap().granted);
+    }
+
+    /// The release goes to the destination the intent signed — hub memory — not to whoever
+    /// POSTed the threshold-crossing approval. `unlock_attest` takes no peer address and
+    /// authenticates no submitter, so every caller here is as good as a remote relay: the
+    /// response must carry status only, and the hub must hold the opened tier. The response
+    /// schema is pinned so a payload-bearing field cannot come back quietly (#870 review).
+    #[tokio::test]
+    async fn a_granted_release_opens_into_hub_memory_and_returns_no_payload() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let vault_dir = tempfile::tempdir().unwrap();
+        *state.protected.lock().await = open_protected_vault(vault_dir.path(), "tier2-test-pass");
+        assert!(state.protected.lock().await.is_some(), "fixture: the protected tier must exist to be released");
+
+        let c = council(&state, 3).await; // threshold 2
+        let ch = open_release(&state).await;
+        approve(&state, ch.challenge_id, &c.members[0]).await.unwrap();
+        let grant = approve(&state, ch.challenge_id, &c.members[1]).await.unwrap();
+        assert!(grant.granted && grant.opened, "{}", grant.reason);
+
+        let json = serde_json::to_value(&grant).unwrap();
+        let keys: std::collections::BTreeSet<&str> = json.as_object().unwrap().keys().map(String::as_str).collect();
+        assert_eq!(keys, ["approvals", "declines", "granted", "opened", "reason", "required", "resolution_index", "vetoed"]
+            .into_iter().collect(), "the attest response schema is pinned: status and witness metadata only");
+        assert!(!json.to_string().contains("PROTECTED PAYLOAD"), "no payload bytes reach the attester: {json}");
+
+        let t2 = state.tier2.lock().await;
+        let released = t2.released().expect("the hub holds the opened tier");
+        assert!(released.payload.contains("TIER-2 PROTECTED PAYLOAD"), "the real sealed item was opened");
+        assert_eq!((released.challenge_id, released.tier.as_str()), (ch.challenge_id, "protected"));
+        assert_eq!(Some(released.resolution_index), grant.resolution_index);
+        let l = state.ledger.lock().await;
+        assert_eq!(l.entries()[released.resolution_index as usize].event.kind(), "vault_unlock_resolved",
+            "resolution_index names the witnessed resolution");
+    }
+
+    #[tokio::test]
+    async fn a_verified_decline_vetoes_terminally() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let c = council(&state, 3).await;
+        let ch = open_release(&state).await;
+        assert!(!approve(&state, ch.challenge_id, &c.members[0]).await.unwrap().granted);
+        let who = &c.members[2];
+        let digest: [u8; 32] = hex::decode(&ch.intent.digest_hex).unwrap().try_into().unwrap();
+        // a decline signed by the wrong key vetoes nothing
+        let fake = hub_lib::unlock_quorum::Decline::sign(&web4_core::crypto::KeyPair::generate(), who.0, digest);
+        let e = unlock_attest(State(state.clone()), Path(state.hub_id),
+            Json(AttestReq { challenge_id: ch.challenge_id, approval: None, decline: Some(fake) })).await.err().unwrap();
+        assert_eq!(e.status, StatusCode::FORBIDDEN);
+        let d = hub_lib::unlock_quorum::Decline::sign(&who.1, who.0, digest);
+        let out = unlock_attest(State(state.clone()), Path(state.hub_id),
+            Json(AttestReq { challenge_id: ch.challenge_id, approval: None, decline: Some(d) })).await.unwrap().0;
+        assert!(out.vetoed && !out.granted);
+        let late = approve(&state, ch.challenge_id, &c.members[1]).await.err().expect("vetoed");
+        assert!(late.message.contains("vetoed"), "{}", late.message);
+    }
+
+    /// A council change is a new epoch: an intent opened under the old council can no longer be
+    /// authorized, even by approvals that verify.
+    #[tokio::test]
+    async fn a_council_change_makes_an_open_intent_stale() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let c = council(&state, 3).await;
+        let ch = open_release(&state).await;
+        assert!(!approve(&state, ch.challenge_id, &c.members[0]).await.unwrap().granted);
+        let _more = council(&state, 1).await; // the roster changed on the ledger
+        let e = approve(&state, ch.challenge_id, &c.members[1]).await.err().expect("stale");
+        assert_eq!(e.status, StatusCode::CONFLICT, "{}", e.message);
+        assert!(e.message.contains("not the one in force"), "refused as STALE, not as an epoch clash: {}", e.message);
+        // and the new council can still open and grant a fresh release (no epoch wedge)
+        let fresh = open_release(&state).await;
+        assert!(!approve(&state, fresh.challenge_id, &c.members[1]).await.unwrap().granted);
+    }
+
+    /// Consumed/vetoed are re-derived from the ledger after a restart: an old challenge is
+    /// answered "consumed", never "unknown".
+    #[tokio::test]
+    async fn terminal_outcomes_survive_a_restart_via_the_ledger() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let c = council(&state, 1).await; // threshold 1
+        let ch = open_release(&state).await;
+        assert!(approve(&state, ch.challenge_id, &c.members[0]).await.unwrap().granted);
+        *state.tier2.lock().await = Tier2::default(); // what a restart leaves in memory
+        let e = approve(&state, ch.challenge_id, &c.members[0]).await.err().expect("consumed");
+        assert_eq!(e.status, StatusCode::CONFLICT);
+        assert!(e.message.contains("consumed"), "{}", e.message);
+    }
+
+    #[tokio::test]
+    async fn opening_a_release_is_local_only_and_needs_a_council() {
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.tier2_enabled = true;
+        let e = unlock_challenge(ConnectInfo("10.1.2.3:9".parse().unwrap()), State(state.clone()),
+            Path(state.hub_id), Json(ChallengeReq { tier: "protected".into() })).await.err().unwrap();
+        assert_eq!(e.status, StatusCode::FORBIDDEN);
+        let e = unlock_challenge(loopback(), State(state.clone()), Path(state.hub_id),
+            Json(ChallengeReq { tier: "protected".into() })).await.err().unwrap();
+        assert_eq!(e.status, StatusCode::CONFLICT, "no council: {}", e.message);
     }
 
     #[tokio::test]

@@ -38,7 +38,8 @@ visible here rather than only at its call site.
 | `HUB_PASSPHRASE` | none | Unlocks the hub's key material. **Never** commit it, put it in a unit file, or pass it on a command line that lands in shell history. |
 | `HUB_OPERATOR_AUTH` | see `hub/README.md` | Operator authentication configuration. |
 | `HUB_OPERATOR_TOKEN_TTL_SECONDS` | source states none | Lifetime of an operator token. The TTL check **fail-closes on a missing creation timestamp**, so it can be enabled later without locking out an existing operator. |
-| `HUB_UNLOCK_VERIFIER` | see `hub/README.md` | Unlock verification. |
+| `HUB_TIER2_UNLOCK` | off | `quorum` enables tier-2 M-of-N release, decided by the built-in quorum verifier (`hub attest-unlock` to approve/veto). Anything else, or absent, is off (501). |
+| `HUB_UNLOCK_VERIFIER` | — | **Retired.** The external verifier subprocess is no longer run. Set alone, it leaves tier-2 off and logs a warning at start. |
 | `HUB_PROFILE` | see `hub/README.md` | Deployment profile. |
 | `HUB_PUBLIC_BASE_URL` | see `hub/README.md` | Public base URL, when the hub is reached through a proxy or a name it cannot derive. |
 | `HUB_RATIFIED_MANIFEST` | source states none | Ratified manifest to enforce. |
@@ -84,7 +85,7 @@ Exporting a variable in a terminal does not reach a service the init system star
 - **systemd unit:** `Environment=HUB_RATE_LIMIT_RPS=25`, then
   `systemctl daemon-reload && systemctl restart <unit>`.
 - **container:** the image's env / compose `environment:` block.
-- **foreground, for development:** `HUB_ALLOW_INSECURE_ORIGIN=1 cargo run -p hub-daemon`.
+- **foreground, for development:** `HUB_ALLOW_INSECURE_ORIGIN=1 cargo run -p web4-hub-daemon`.
 
 Secrets (`HUB_PASSPHRASE`) belong in a secret store or a mode-600 file the unit reads
 at start — not in the unit text, not in an image layer, not in Git.

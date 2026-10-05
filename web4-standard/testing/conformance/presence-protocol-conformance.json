@@ -264,7 +264,7 @@
     {
       "id": "P1-001",
       "name": "v1 query_policy returns ruleId, ruleName, constraints on a destructive Bash command",
-      "description": "Begin a destructive bash action (rm -rf), then query policy. v1 default (safety preset) denies it. Verify the response carries the new v1 fields (ruleId, ruleName, constraints) AND the v0 alias (policyId).",
+      "description": "Begin a destructive bash action (rm -rf outside /tmp), then query policy. v1 default (safety preset) denies it. Verify the response carries the new v1 fields (ruleId, ruleName, constraints) AND the v0 alias (policyId). The target must stay outside /tmp: the safety preset now ALLOWS a standalone rm on absolute /tmp paths, and the original /tmp target got 'allow' from every daemon built since.",
       "preconditions": ["P0-001"],
       "setup": [
         {
@@ -272,7 +272,7 @@
           "input": {
             "tool_name": "Bash",
             "target": "rm",
-            "parameters": { "command": "rm -rf /tmp/p1-001-target" },
+            "parameters": { "command": "rm -rf /var/p1-001-target" },
             "session_id": "{{P0-001.sessionId}}"
           },
           "capture": { "actionId": "$.actionId" }

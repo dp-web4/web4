@@ -12,9 +12,9 @@ description = "Web4 Community Hub — minimum-viable Web4 society for a communit
 
 [workspace.dependencies]
 # Web4 primitives — DO NOT reimplement. Use these directly.
-web4-core = { path = "../web4-core" }
-web4-trust-core = { path = "../web4-trust-core" }
-web4-policy = { path = "../web4-policy" }
+web4-core = { path = "../web4-core", version = "0.4" }
+web4-trust-core = { path = "../web4-trust-core", version = "0.3" }
+web4-policy = { path = "../web4-policy", version = "0.1" }
 
 # Common third-party
 anyhow = "1"

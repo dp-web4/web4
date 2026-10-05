@@ -256,6 +256,14 @@ pub struct RoleOccupancyChange {
     /// envelopes until re-added with a pubkey.
     pub member_pubkeys: BTreeMap<Uuid, String>,
 
+    /// Every key ever pinned to a member, in ledger order — the history `member_pubkeys`
+    /// overwrites (last write wins there). Read by [`crate::lct_resolve`] so a member's earlier
+    /// presence stays resolvable after a re-key. Covers all three pin sources the daemon's
+    /// resolver merges (member pins, re-keys, council admission). Not serialized: it is an
+    /// index over facts already on the chain, and the state dump plugins receive is unchanged.
+    #[serde(skip)]
+    pub member_key_pins: BTreeMap<Uuid, Vec<crate::lct_resolve::KeyPin>>,
+
     /// **Anchor ceilings in force per member** — the accrual half of the anchor
     /// cap. Folded from `MemberAdded`'s `trust_ceiling` (the grant this society's
     /// law made for the member's hardware-binding level, decided at admission and
@@ -374,7 +382,9 @@ pub struct RoleOccupancyChange {
     /// the projection stores rather than re-verifies. Serves presence, mints no
     /// trust. Absence is the closed pole: an unknown id resolves 404, never a
     /// fabricated stub.
-    pub registry: BTreeMap<String, RegistryEntry>,
+    /// Keyed by [`CanonicalLctId`](crate::ids::CanonicalLctId) (serialized as the same string),
+    /// and still looked up by `&str` through `Borrow<str>`.
+    pub registry: BTreeMap<crate::ids::CanonicalLctId, RegistryEntry>,
 
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
@@ -390,7 +400,9 @@ pub struct RoleOccupancyChange {
 pub struct RegistryEntry {
     pub document: web4_core::lct::Lct,
     pub provenance: crate::events::LctProvenance,
-    pub published_by: Uuid,
+    /// The hub member that relayed the publish — membership evidence, not the published
+    /// presence (that is the registry key). Serialized as the bare UUID, as before.
+    pub published_by: crate::ids::HubMemberId,
     pub published_at: DateTime<Utc>,
     pub version: u32,
 }
@@ -974,7 +986,17 @@ impl HubState {
         entries.len()
     }
 
-    fn apply(&mut self, event: &HubEvent, ts: DateTime<Utc>, index: u64) {
+    /// Append a pin to [`HubState::member_key_pins`]. The hex is kept as witnessed; the
+    /// resolver compares decoded key bytes, never spellings (C10).
+    fn record_pin(&mut self, member: Uuid, pubkey_hex: &str, source: crate::lct_resolve::PinSource, index: u64) {
+        self.member_key_pins.entry(member).or_default().push(crate::lct_resolve::KeyPin {
+            pubkey_hex: pubkey_hex.to_string(),
+            source,
+            ledger_index: index,
+        });
+    }
+
+    pub(crate) fn apply(&mut self, event: &HubEvent, ts: DateTime<Utc>, index: u64) {
         match event {
             HubEvent::Genesis { hub_name, charter_hash, founding_sovereign_lct_id, .. } => {
                 self.hub_name = hub_name.clone();
@@ -1000,6 +1022,7 @@ impl HubState {
                 });
                 if let Some(pk) = member_pubkey_hex {
                     self.member_pubkeys.insert(*member_lct_id, pk.clone());
+                    self.record_pin(*member_lct_id, pk, crate::lct_resolve::PinSource::MemberAdded, index);
                 }
                 if let Some(ceiling) = trust_ceiling {
                     self.member_ceilings.insert(*member_lct_id, *ceiling);
@@ -1120,6 +1143,7 @@ impl HubState {
                 // ignored, same stance as the skill arm above.
                 if self.members.contains_key(member_lct_id) {
                     self.member_pubkeys.insert(*member_lct_id, member_pubkey_hex.clone());
+                    self.record_pin(*member_lct_id, member_pubkey_hex, crate::lct_resolve::PinSource::MemberKeyPinned, index);
                 }
             }
             HubEvent::DeviceEnrolled {
@@ -1473,11 +1497,16 @@ impl HubState {
             HubEvent::LctPublished { lct_id, document, published_by, provenance, published_at } => {
                 // Republish of the same key overwrites in place and bumps
                 // version; the id is pubkey-derived, so "same id" IS "same key".
-                let version = self.registry.get(lct_id).map_or(1, |e| e.version + 1);
-                self.registry.insert(lct_id.clone(), RegistryEntry {
+                // The ledger carries the id as a string; the publish route re-derived it from the
+                // document's binding key before witnessing, so it has the canonical shape. One that
+                // does not would have been unreachable as presence anyway, so it is not registered
+                // (measured on HUB 2026-10-03: 58 of 58 live entries canonical).
+                let Ok(key) = crate::ids::CanonicalLctId::parse(lct_id) else { return; };
+                let version = self.registry.get(&key).map_or(1, |e| e.version + 1);
+                self.registry.insert(key, RegistryEntry {
                     document: document.clone(),
                     provenance: *provenance,
-                    published_by: *published_by,
+                    published_by: crate::ids::HubMemberId::from_uuid(*published_by),
                     published_at: *published_at,
                     version,
                 });
@@ -1485,6 +1514,7 @@ impl HubState {
             HubEvent::CouncilMemberAdded { member_lct_id, member_pubkey_hex, member_name, .. } => {
                 self.council_holders.insert(*member_lct_id);
                 self.council_pubkeys.insert(*member_lct_id, member_pubkey_hex.clone());
+                self.record_pin(*member_lct_id, member_pubkey_hex, crate::lct_resolve::PinSource::CouncilMemberAdded, index);
                 // Council holders are also members (co-Sovereigns participate
                 // in chapter life). Auto-add them to the member registry if
                 // not already present, so /admin/members shows them.
@@ -3374,7 +3404,7 @@ mod tests {
         let witness = publish(&mut state, &lct);
 
         assert!(state.members.contains_key(&sov), "the Sovereign IS a member");
-        assert!(state.registry.contains_key(&witness), "and its LCT IS published");
+        assert!(state.registry.contains_key(witness.as_str()), "and its LCT IS published");
         assert!(!state.member_pubkeys.contains_key(&sov),
             "but Genesis pins no key — the gap the /admin pill was rewritten for");
         assert_eq!(state.founding_sovereign_lct_id, Some(sov));
@@ -3519,7 +3549,7 @@ mod tests {
         let mut state = HubState::default();
         let (lct, _hex) = keyed_lct(Uuid::new_v4());
         let witness = publish(&mut state, &lct);
-        assert!(state.registry.contains_key(&witness), "it IS published");
+        assert!(state.registry.contains_key(witness.as_str()), "it IS published");
         assert_eq!(derived_resolver(&state, &witness), None,
             "publishing is not admission — the map is built from pins, not from the registry");
     }

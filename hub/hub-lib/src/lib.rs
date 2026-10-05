@@ -32,8 +32,10 @@ pub mod degraded;
 pub mod envelope;
 pub mod events;
 pub mod identity;
+pub mod ids;
 pub mod init;
 pub mod law;
+pub mod lct_resolve;
 pub mod ledger;
 pub mod pair_message;
 pub mod proposal;
@@ -49,6 +51,7 @@ pub mod signer;
 pub mod state;
 pub mod store;
 pub mod unlock_gate;
+pub mod unlock_quorum;
 pub mod vault_tree;
 
 /// Crate version, exposed for `hub --version`.

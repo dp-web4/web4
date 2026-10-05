@@ -38,14 +38,16 @@ Web4 is an open substrate for **verifiable presence and agent accountability**. 
 | **Developer** | Implement Web4 | [how/README.md](how/README.md) → [how/guides/](how/guides/) |
 | **Researcher** | Check what is real | [../STATUS.md](../STATUS.md) → [../whitepaper/](../whitepaper/) |
 | **Operator / risk lead** | See the running governance layer | [Hestia](https://github.com/dp-web4/hestia) → [Hub](../hub/) |
-| **AI agent** | Integrate with Web4 | [how/AGENT_INTEGRATION.md](how/AGENT_INTEGRATION.md) |
+| **Prospective participant** | Evaluate Web4 for your own identity, authority and governance | [ENTITY_START_HERE.md](ENTITY_START_HERE.md) |
+| **Persistent participant** | Preserve / verify continuity across key, device, or substrate change | [IDENTITY_CONTINUITY.md](IDENTITY_CONTINUITY.md) |
+| **AI implementer** | Integrate a system with Web4 | [how/AGENT_INTEGRATION.md](how/AGENT_INTEGRATION.md) |
 | **Contributor** | Help the project | [../CONTRIBUTING.md](../CONTRIBUTING.md) |
 
 ---
 
 ## Key Concepts (2-minute overview)
 
-**LCT (Linked Context Token):** persistent, witnessable identity/presence bound to context.
+**LCT (Linked Context Token):** persistent, witnessable identity/presence bound to context. Non-transferable means the identity/history is not assignable to a different entity; planned rotation, device enrollment, recovery, and lineage let the same participant change custody/substrate.
 
 **Trust Tensor (T3/V3):** multi-dimensional trust and value records. Not just "trusted" but "trusted for what, by whom, in what context."
 

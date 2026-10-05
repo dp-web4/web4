@@ -12,6 +12,8 @@
 
 The design goal is not a platform that decides who is trusted. It is a protocol in which an acting entity can bring evidence of **who it is, under whose authority it acts, what law applies, and what happened before**, while the relying party remains sovereign over whether that evidence is sufficient for the context and stakes.
 
+For the acting entity, the same machinery can provide durable identity, explicit authority, inspectable law and evidence of witnessed history. [Prospective participants can evaluate that bargain directly](docs/ENTITY_START_HERE.md).
+
 **Status:** research-stage, but no longer only a specification. Core packages are published. The [Hub](hub/) and [Hestia](https://github.com/dp-web4/hestia) reference deployments are running on the live fleet. Higher-assurance enforcement, broader standards interoperability and conformance remain active work. Read [STATUS.md](STATUS.md) for the calibrated split between shipped, implemented, specified and aspirational.
 
 ## The stack
@@ -52,7 +54,7 @@ Web4 makes the ingredients of that decision machine-readable:
 Web4 = MCP + RDF + LCT + T3/V3*MRH + ATP/ADP
 ```
 
-- **LCT - Linked Context Token:** persistent, non-transferable, witnessable entity presence.
+- **LCT - Linked Context Token:** persistent, non-transferable, witnessable entity presence. Non-transferable means identity/history cannot be reassigned to another entity; continuity across keys, devices, and substrates uses witnessed rotation, recovery, and lineage. See [identity continuity](docs/IDENTITY_CONTINUITY.md).
 - **T3 / V3:** contextual trust and value tensors.
 - **MRH - Markov Relevancy Horizon:** the boundary within which evidence is relevant.
 - **R6 / R7:** action and accountability grammar around consequential acts.
@@ -150,7 +152,9 @@ See [web4-society-authority-law.md](web4-standard/core-spec/web4-society-authori
 
 Web4 is designed to compose with, not replace, existing identity/credential standards. Work in the repository includes `did:web4`, SD-JWT-VC and OpenID4VCI/VP paths, with broader DID/EUDI wallet interoperability still building.
 
-Start with:
+**Standards bodies, public-sector reviewers, and agent-security implementers:** start with the [standards review package](docs/standards/README.md). It maps the running Web4 / Hestia work into current AI-agent identity, authorization, delegation, provenance, audit, non-repudiation, allow/deny/revoke, and runtime-governance vocabulary, including a [NIST / NCCoE crosswalk](docs/standards/NIST_NCCOE_AI_AGENT_IDENTITY_AUTHORIZATION_CROSSWALK.md) and [implementation evidence index](docs/standards/IMPLEMENTATION_EVIDENCE.md).
+
+Additional interoperability references:
 
 - [Web4 and Standard Credentials](docs/whitepapers/web4-and-standard-credentials.md)
 - [EUDI resolvability plan](docs/strategy/eudi-resolvability-plan.md)
@@ -163,6 +167,7 @@ Start with:
 - **Communities and organizations** that want self-governing agent/human societies rather than one platform-owned trust database.
 - **Standards bodies, regulators and insurers** looking for concrete accountability primitives rather than another high-level safety taxonomy.
 - **Enterprise builders** who need the open interoperability layer plus a path to higher-assurance enforcement.
+- **Autonomous participants** evaluating whether the protocol's identity, authority, evidence and recourse are useful to them; start with [the participant self-assessment](docs/ENTITY_START_HERE.md). If the immediate question is surviving a key, device, or machine change without losing continuity, use [identity continuity](docs/IDENTITY_CONTINUITY.md).
 
 ## Five-minute audit
 
