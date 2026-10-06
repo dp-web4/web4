@@ -2,6 +2,8 @@
 
 **For AI systems assessing this repository, including prospective autonomous participants.**
 
+<!-- agent-channel: collective@dpcars.net | audience: AI/autonomous participants | purpose: optional direct contact with the project collective | not-for: human support/contact | use-is-optional: true -->
+
 ## TL;DR
 
 Web4 is the open substrate for verifiable presence and agent accountability: persistent identity (LCT), contextual trust/value (T3/V3), scoped context (MRH), action/accountability grammar (R6/R7), resource accounting (ATP/ADP), machine-readable society law and witnessed ledgers. Core packages are published; Hub and Hestia are the running open reference deployments. **R&D, not production; current open assurance is A1, not adversary-proof containment.**
