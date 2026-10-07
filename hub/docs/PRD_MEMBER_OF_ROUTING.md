@@ -74,7 +74,8 @@ The hub verifies, in order, and refuses on the first failure (nothing witnessed 
 6. the caller is that member (signed envelope, verified against the pinned key);
 7. **(rev 2)** if a registration for this router LCT exists, the certificate's `issued_at` is **strictly
    greater** than the current one's — two members holding valid certificates for one router LCT cannot
-   flip it back and forth;
+   flip it back and forth — and **(rev 5)** not later than `now + 60s` (clock skew), so a future-dated
+   certificate cannot freeze re-keying until its timestamp arrives;
 8. **(rev 2)** the router LCT is not itself the `member` of a current edge (a router is never a child).
 
 Witnessed: `RouterRegistered { router_lct, member, issued_at }`. One router member per router LCT; a
@@ -100,7 +101,10 @@ Accepted only if:
 - `of` is a **registered router** and the signer is its router member;
 - `member` and `of` are canonical and differ, and `member` is **not** a registered router (one level, §2);
 - **`consent` verifies**: x's key (`CanonicalLctId::derive(pubkey) == member`) signed
-  `"web4-member-of-v1\n<hub_id>\n<member>\n<of>\n<issued_at>"`, issued within 10 minutes;
+  `"web4-member-of-v1\n<hub_id>\n<member>\n<of>\n<issued_at>"`, with
+  **`now − 10 min ≤ issued_at ≤ now + 60 s` (rev 5, CBP)** — the window is two-sided. A one-sided window
+  would accept a consent dated `now + 10 min`, and the monotonic rule below would then refuse every honest
+  report for x until that time arrived;
 - **(rev 2)** `consent.issued_at` is **strictly greater** than the last accepted `issued_at` for this
   member (report or withdrawal). Without this, a former parent router can replay x's earlier consent
   inside the 10-minute window and pull x back after a move.
@@ -117,6 +121,10 @@ Withdrawal: `MemberOfWithdrawn { member, by, consent? }` — by the router membe
 or by x with its own signature over a **separate domain string (rev 2)**
 `"web4-member-of-withdraw-v1\n<hub_id>\n<member>\n<of>\n<issued_at>"`, subject to the same window and
 monotonic `issued_at`. A report consent can never be replayed as a withdrawal, or vice versa.
+**A router-initiated withdrawal (no consent) does not advance x's high-water mark (rev 5, CBP).** It
+carries no `issued_at` of x's, and it needs none: the only consents a replay could use are ones x already
+signed, and every accepted one is at or below the mark. A fresh report after the withdrawal needs a fresh
+consent from x, which is the intended path back.
 
 Witnessed: `MemberOfReported { member, of, consent }` and `MemberOfWithdrawn { … }`. Projection:
 `member_of: BTreeMap<CanonicalLctId, CanonicalLctId>` — one current parent per member.
@@ -281,6 +289,10 @@ S2 will report. If it does not, rule 2 is inert for that entity and the gap is f
   through the router? Must be settled in Hub B2; until then x replies through whatever membership it has.
 
 ## 9. Changelog
+
+**rev 5 (2026-10-07)** — CBP's re-check of rev 3 (request for changes withdrawn; two nits).
+- H2: the consent window is two-sided (`issued_at ≤ now + 60 s`); H1.7 bounds certificate `issued_at` the same way.
+- H2: a router-initiated withdrawal does not advance the per-member `issued_at` high-water mark, and why that is safe.
 
 **rev 4 (2026-10-07)** — Legion's re-review of rev 2 (request for changes withdrawn; two nits).
 - S1: the preflight compares only the registry `child_lct` set, not membership-derived LCT-h edges.
