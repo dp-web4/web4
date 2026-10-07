@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Metalinxx Inc.
 
-//! Member-of routing (hub/docs/PRD_MEMBER_OF_ROUTING.md rev 5, slice Hub A).
+//! Member-of routing (hub/docs/PRD_MEMBER_OF_ROUTING.md rev 7, slice Hub A).
 //!
 //! A machine's hestia holds ONE hub membership and is registered here as the **router** for its
 //! canonical LCT. Entities on that machine are witnessed as **member-of** it: "LCT-x is reported as

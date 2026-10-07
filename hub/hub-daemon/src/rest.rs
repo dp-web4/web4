@@ -6114,7 +6114,7 @@ async fn remove_member_live(s: &RestState, member_lct_id: Uuid, reason: Option<S
             return Err(ApiError::not_found(format!("no member {member_lct_id} to remove")));
         }
     }
-    routing::retire_routers_of(s, member_lct_id).await?; // rev 7: no silent router drop
+    let (_routing_serial, _) = routing::retire_routers_of(s, member_lct_id).await?; // rev 7: no silent router drop; held through the removal + eviction
     let index = witness_event(s, HubEvent::MemberRemoved {
         member_lct_id,
         removed_by: s.sovereign_lct_id,
@@ -7562,7 +7562,7 @@ async fn submit_withdraw(
             Err(_) => Vec::new(),
         }
     };
-    routing::retire_routers_of(&s, payload.member_lct_id).await?; // rev 7: no silent router drop
+    let (_routing_serial, _) = routing::retire_routers_of(&s, payload.member_lct_id).await?; // rev 7: no silent router drop; held through the removal + eviction
     let entry_index = witness_event(&s, HubEvent::MemberWithdrew {
         member_lct_id: payload.member_lct_id,
         reason: payload.reason,
@@ -14355,6 +14355,16 @@ norms:
         let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
         assert!(view["routes_to"].is_null(), "retired: nothing routes");
         assert_eq!(view["pubkey_hex"], serde_json::json!(being.verifying_key().to_hex()), "H4 returns the consent key");
+        // H1.7's mark survives the retire: the original certificate (still valid, no max age) does
+        // not re-register, nor does an older one naming a different member.
+        for (who_k, who, at) in [(&mk, m, 1_790_000_000), (&stranger_k, stranger, 1_789_999_000)] {
+            if who == stranger { state.mailbox_enable_receipts(stranger).await.unwrap(); }
+            let env = routing_envelope(&state, who_k, who, serde_json::json!({
+                "action": "router_register", "certificate": router_cert_at(state.hub_id, who, &router, who_k, at)})).await;
+            let e = routing::submit_router(State(state.clone()), Path(state.hub_id), Json(env)).await.err()
+                .expect("an older certificate after a retire");
+            assert_eq!(e.status, StatusCode::CONFLICT, "{}", e.message);
+        }
         // Re-register (newer certificate) so the membership-ends case below starts from a live router.
         let env = routing_envelope(&state, &mk, m, serde_json::json!({
             "action": "router_register", "certificate": router_cert_at(state.hub_id, m, &router, &mk, 1_790_000_200)})).await;

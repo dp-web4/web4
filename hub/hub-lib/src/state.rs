@@ -269,6 +269,11 @@ pub struct RoleOccupancyChange {
     /// readable through the members-only `member_of` tool and the operator plane.
     #[serde(skip)]
     pub routers: BTreeMap<crate::ids::CanonicalLctId, RouterEntry>,
+    /// Router LCT -> the newest certificate `issued_at` ever registered for it (H1.7). Unlike
+    /// `routers`, `RouterRetired` does not clear it, so a retire cannot reopen the door to an
+    /// older certificate (Legion, #899 re-review).
+    #[serde(skip)]
+    pub router_mark: BTreeMap<crate::ids::CanonicalLctId, u64>,
     /// Member LCT -> its current member-of parent (H2). One level, one parent per member.
     #[serde(skip)]
     pub member_of: BTreeMap<crate::ids::CanonicalLctId, crate::ids::CanonicalLctId>,
@@ -1530,6 +1535,8 @@ impl HubState {
                     // refused, retire first), and a router only ever leaves by `RouterRetired` — never
                     // dropped here, so its children are never orphaned without an alarm.
                     let m = crate::ids::HubMemberId::from_uuid(*member);
+                    let mark = self.router_mark.entry(r.clone()).or_insert(*issued_at);
+                    *mark = (*mark).max(*issued_at);
                     self.routers.insert(r, RouterEntry { member: m, issued_at: *issued_at });
                 }
             }

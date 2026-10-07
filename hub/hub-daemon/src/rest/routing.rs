@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Metalinxx Inc.
 
-//! Member-of routing, slice Hub A (hub/docs/PRD_MEMBER_OF_ROUTING.md rev 5: H1, H2, H4).
+//! Member-of routing, slice Hub A (hub/docs/PRD_MEMBER_OF_ROUTING.md rev 7: H1, H2, H4).
 //!
 //! - `POST /v1/hubs/:hub_id/routers` — a machine's hestia registers (or retires) itself as the
 //!   router for its canonical LCT, presenting the dual-signed router-interface certificate.
@@ -74,7 +74,7 @@ fn pinned_key(state: &HubState, member: Uuid) -> Option<[u8; 32]> {
 /// S: med [construct: a router receives every routed member's mail]
 /// R: n/a [construct: public plane; identity-gated by the pinned key]
 /// W: pass [construct: verify_envelope against the hub's pin; certificate double-signed]
-/// O: pass [construct: all checks before witness_event; refusals witness nothing]
+/// O: pass [construct: ROUTING_LOCK; H1.7 mark, H1.8, one LCT per member, all before witness_event]
 /// A: pass [construct: signed chain entry naming router LCT and member]
 /// V: n/a [construct: a member registering itself; law may still govern `router_registered`]
 /// verdict: PASS
@@ -114,12 +114,13 @@ pub(super) async fn submit_router(
                     "{signer} is not enrolled for receipt mailbox delivery; a router must be (operator act)")));
             }
             // H1.7: two members holding valid certificates for one router LCT cannot flip it back and
-            // forth — a re-registration must be strictly newer than the one in force.
-            if let Some(cur) = state.routers.get(&v.router_lct) {
-                if v.issued_at <= cur.issued_at {
+            // forth — a registration must be strictly newer than any EVER registered for this LCT. The
+            // mark survives `RouterRetired`, so a retire does not readmit an older certificate.
+            if let Some(mark) = state.router_mark.get(&v.router_lct) {
+                if v.issued_at <= *mark {
                     return Err(conflict(format!(
-                        "a certificate issued at {} is already registered for {}; a re-registration must be newer",
-                        cur.issued_at, v.router_lct)));
+                        "a certificate issued at {mark} has already been registered for {}; a registration must be newer",
+                        v.router_lct)));
                 }
             }
             // Rev 7: a member holds at most one router LCT. A different one is refused — retire first —
@@ -132,6 +133,11 @@ pub(super) async fn submit_router(
                 return Err(conflict(format!("{} is member-of another router; a router is never a child", v.router_lct)));
             }
             let replaced = state.routers.get(&v.router_lct).map(|r| r.member).filter(|m| *m != v.member);
+            if let Some(prev) = replaced {
+                // PRD-permitted re-key to a different member; no child is stranded, but the operator
+                // should see the router change hands.
+                tracing::warn!(router = %v.router_lct, from = %prev, to = %signer, "router re-keyed to a different member");
+            }
             let entry_index = witness_event(&s, HubEvent::RouterRegistered {
                 router_lct: v.router_lct.to_string(), member: signer, issued_at: v.issued_at,
             }).await?;
@@ -170,8 +176,13 @@ async fn retire(s: &RestState, state: &HubState, lct: &CanonicalLctId, by: &str)
 /// Rev 7: when a member's membership ends, every router it holds is retired by a witnessed, loud
 /// `RouterRetired` BEFORE the removal — never silently dropped from the projection. Called by every
 /// daemon path that ends a membership (operator removal, self-withdrawal).
-pub(super) async fn retire_routers_of(s: &RestState, member: Uuid) -> Result<Vec<serde_json::Value>, ApiError> {
-    let _serial = ROUTING_LOCK.lock().await;
+///
+/// Returns the `ROUTING_LOCK` guard: the caller must hold it until the removal itself is witnessed
+/// (and the live resolver evicted), or a `router_register` from the departing member could land in
+/// between and leave a router held by a non-member (Legion, #899 re-review).
+pub(super) async fn retire_routers_of(s: &RestState, member: Uuid)
+    -> Result<(tokio::sync::MutexGuard<'static, ()>, Vec<serde_json::Value>), ApiError> {
+    let serial = ROUTING_LOCK.lock().await;
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
     let held: Vec<CanonicalLctId> = state.routers.iter()
         .filter(|(_, r)| r.member.as_uuid() == member).map(|(l, _)| l.clone()).collect();
@@ -179,7 +190,7 @@ pub(super) async fn retire_routers_of(s: &RestState, member: Uuid) -> Result<Vec
     for lct in held {
         out.push(retire(s, &state, &lct, "membership ended").await?.0);
     }
-    Ok(out)
+    Ok((serial, out))
 }
 
 /// `POST /admin/api/routers/:lct/retire` — the operator retires a router (loopback).
@@ -204,8 +215,8 @@ pub(super) async fn admin_retire_router(
 /// S: med [construct: an edge redirects x's mail to y's router (slice Hub B)]
 /// R: n/a [construct: public plane; identity-gated]
 /// W: pass [construct: signer = y's registered router (pinned key); x's consent by x's binding key]
-/// O: pass [construct: consent, cycle and depth checks before witness_event]
-/// A: pass [construct: signed chain entry with the bare edge only]
+/// O: pass [construct: ROUTING_LOCK; one-level, consent and strict-mark checks before witness_event]
+/// A: pass [construct: signed chain entry carrying the member's consent as evidence]
 /// V: n/a [construct: law may govern `member_of_reported`]
 /// verdict: PASS
 pub(super) async fn submit_member_of(
