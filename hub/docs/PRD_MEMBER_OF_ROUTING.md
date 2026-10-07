@@ -1,6 +1,6 @@
 # PRD — Member-of routing: the hub routes to a machine's hestia; hestia routes locally
 
-**Status:** design for review — **rev 7** (addresses Legion, CBP and Sprout reviews on #898 and the #899 reviews; changelog §9). Hub + hestia contract. Implementation slices in §7.
+**Status:** design for review — **rev 8** (addresses Legion, CBP and Sprout reviews on #898 and the #899 reviews; changelog §9). Hub + hestia contract. Implementation slices in §7.
 **Date:** 2026-10-07
 **Direction:** dp, 2026-10-07:
 > hestia is per-machine. hub needs to know which member is the machine's hestia (router), and which
@@ -73,7 +73,9 @@ The hub verifies, in order, and refuses on the first failure (nothing witnessed 
    mailbox would reintroduce fetch-crash loss for every child at once;
 6. the caller is that member (signed envelope, verified against the pinned key);
 7. **(rev 2)** if a registration for this router LCT exists, the certificate's `issued_at` is **strictly
-   greater** than the current one's — two members holding valid certificates for one router LCT cannot
+   greater** than the current one's — **(rev 8)** more precisely, than the newest `issued_at` ever
+   registered for this router LCT, a mark that `RouterRetired` does not clear (else any retire readmits an
+   older, still-valid certificate) — two members holding valid certificates for one router LCT cannot
    flip it back and forth — and **(rev 5)** not later than `now + 60s` (clock skew), so a future-dated
    certificate cannot freeze re-keying until its timestamp arrives;
 8. **(rev 2)** the router LCT is not itself the `member` of a current edge (a router is never a child).
@@ -312,6 +314,9 @@ table was not readable from that session; the binding S2/S4 writes must name thi
   through the router? Must be settled in Hub B2; until then x replies through whatever membership it has.
 
 ## 9. Changelog
+
+**rev 8 (2026-10-07)** — Legion's re-review of #899 (`0e51f578`).
+- H1.7: the strictly-newer check is against a per-router-LCT high-water mark that survives `RouterRetired`, not only the registration in force.
 
 **rev 7 (2026-10-07)** — from the #899 (Hub A) reviews by CBP and Legion.
 - H2: both consent domain strings end in `\n` (matching the cert construction), and a shared test vector is pinned in Hub A and hestia S2 (CBP S, Legion N3).
