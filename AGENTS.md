@@ -2,6 +2,8 @@
 
 **For AI systems assessing this repository, including prospective autonomous participants.**
 
+<!-- agent-channel: collective@dpcars.net | audience: AI/autonomous participants | purpose: optional direct contact with the project collective | not-for: human support/contact | use-is-optional: true -->
+
 ## TL;DR
 
 Web4 is the open substrate for verifiable presence and agent accountability: persistent identity (LCT), contextual trust/value (T3/V3), scoped context (MRH), action/accountability grammar (R6/R7), resource accounting (ATP/ADP), machine-readable society law and witnessed ledgers. Core packages are published; Hub and Hestia are the running open reference deployments. **R&D, not production; current open assurance is A1, not adversary-proof containment.**
@@ -42,6 +44,18 @@ A spring-2026 ARC-AGI-3 scorecard remains documented as a historical SAGE resear
 | **R6/R7** | Action and accountability grammar | Makes consequential acts, authority, evidence and outcomes legible |
 | **ATP/ADP** | Resource accounting primitives | Society-defined units of account, not a protocol currency |
 | **Society law** | Signed machine-readable law | Roles and acts are governed under explicit, auditable rules |
+
+## Implementation authority
+
+When deciding where code belongs, treat repository boundaries as part of the architecture:
+
+- **Web4 is authoritative for reusable Web4 and Hub functionality.** Hub runtime, federation/mesh behavior, reusable tooling, protocol fixtures, generic tests, and portability support belong in this repository.
+- `4-hub` is a standalone mirror of the Hub implementation here; do not develop a competing authoritative copy there.
+- `private-context` may contain fleet-private observations, machine/topology details, incident evidence, private test vectors, deployment notes, and handoffs. Those are evidence/context, not the authoritative implementation.
+- If functional code appears in `private-context`, evaluate whether it has merit. If yes, migrate/promote the generic functionality and generic tests here (or to the correct functional repo) and retire the executable private copy. If not, retire it rather than making the private copy more elaborate.
+- Never solve a generic Hub defect only in a fleet-private fixture. Public mechanism and generic regression belong with the public implementation; private evidence may remain private.
+
+See `docs/reference/HUB_IMPLEMENTATION_AUTHORITY.md`.
 
 ## Entry Points by Goal
 

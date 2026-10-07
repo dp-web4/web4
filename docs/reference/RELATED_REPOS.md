@@ -7,7 +7,7 @@ This is the single source of truth for the public-facing Web4 ecosystem. If a do
 ## Public repositories
 
 ### [dp-web4/web4](https://github.com/dp-web4/web4)
-**The open substrate.** Canonical Web4 specifications, published core packages, Hub source, trust primitives, simulations, attestation work and whitepapers. Identity, authority, contextual trust, witnessed action and machine-readable society law live here.
+**The open substrate and authoritative Hub source.** Canonical Web4 specifications, published core packages, Hub source, trust primitives, simulations, attestation work and whitepapers. Identity, authority, contextual trust, witnessed action and machine-readable society law live here. Durable Hub runtime/federation/mesh functionality, generic tests, fixtures and portability support are authoritative here as well; fleet-private repositories may hold evidence and operational context but not a competing implementation.
 
 License: AGPL-3.0-or-later; see each package directory and [PATENTS.md](../../PATENTS.md) for exact terms.
 
@@ -19,7 +19,7 @@ Current assurance: **A1** - cooperative and tamper-evident, useful for governanc
 Use when: governing agents at the person/machine boundary or evaluating the open reference implementation of Web4 action law.
 
 ### [dp-web4/4-hub](https://github.com/dp-web4/4-hub)
-**The Web4 society/community runtime, standalone.** A read-only mirror of this monorepo's [`hub/`](../../hub/) directory plus the core crates it builds on. Single-binary Rust daemon: membership, eight base roles, signed machine-readable law, sealed member channels, MCP + REST surfaces and an append-only witnessed ledger.
+**The Web4 society/community runtime, standalone mirror.** A read-only mirror of this monorepo's [`hub/`](../../hub/) directory plus the core crates it builds on. Single-binary Rust daemon: membership, seven base roles, signed machine-readable law, sealed member channels, MCP + REST surfaces and an append-only witnessed ledger. **It is not an independent authority:** changes originate in `dp-web4/web4` and flow outward.
 
 Use when: you want to run or inspect a Web4 society without cloning the full standard.
 
