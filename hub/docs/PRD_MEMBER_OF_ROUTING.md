@@ -1,6 +1,6 @@
 # PRD — Member-of routing: the hub routes to a machine's hestia; hestia routes locally
 
-**Status:** design for review — **rev 4** (addresses Legion, CBP and Sprout reviews on #898; changelog §9). Hub + hestia contract. Implementation slices in §7.
+**Status:** design for review — **rev 7** (addresses Legion, CBP and Sprout reviews on #898 and the #899 reviews; changelog §9). Hub + hestia contract. Implementation slices in §7.
 **Date:** 2026-10-07
 **Direction:** dp, 2026-10-07:
 > hestia is per-machine. hub needs to know which member is the machine's hestia (router), and which
@@ -81,6 +81,11 @@ The hub verifies, in order, and refuses on the first failure (nothing witnessed 
 Witnessed: `RouterRegistered { router_lct, member, issued_at }`. One router member per router LCT; a
 later valid certificate (rule 7) replaces it (re-key). `RouterRetired { router_lct }` by the router
 itself or the operator plane. Removing or withdrawing the member retires its router role.
+**(rev 7, Legion on #899) A member holds at most one router LCT, and a router never disappears without a
+`RouterRetired` event.** A registration naming a *different* router LCT for a member that already holds one
+is refused (retire first). Member removal or withdrawal witnesses `RouterRetired` for that member's router
+in the same act. It does not just drop it from the projection, because that would orphan the router's
+children with no alarm.
 **`RouterRetired` is loud (rev 2):** it raises an operator alarm naming the router's current children,
 since their mail now takes H3's retired-router path.
 
@@ -101,7 +106,7 @@ Accepted only if:
 - `of` is a **registered router** and the signer is its router member;
 - `member` and `of` are canonical and differ, and `member` is **not** a registered router (one level, §2);
 - **`consent` verifies**: x's key (`CanonicalLctId::derive(pubkey) == member`) signed
-  `"web4-member-of-v1\n<hub_id>\n<member>\n<of>\n<issued_at>"`, with
+  `"web4-member-of-v1\n<hub_id>\n<member>\n<of>\n<issued_at>\n"` (trailing `\n`, rev 7), with
   **`now − 10 min ≤ issued_at ≤ now + 60 s` (rev 5, CBP)** — the window is two-sided. A one-sided window
   would accept a consent dated `now + 10 min`, and the monotonic rule below would then refuse every honest
   report for x until that time arrived;
@@ -114,12 +119,17 @@ which left a later reader with only the hub's word that x agreed, and left the r
 state to check against. The event carries the evidence; the projection and every read (H4) stay the bare
 fact `x member-of y`. The last-accepted `issued_at` per member is derived from the events.
 
+**Consent bytes (rev 7, CBP + Legion on #899).** Both domain strings end in `\n`, the same as the
+router-certificate construction (#1230). `issued_at` is RFC 3339 UTC. Hub A and hestia S2 each pin the
+same test vector for both strings. Nothing has been committed on the hestia side yet, so this is the
+cheapest point to fix the bytes.
+
 A report that moves x from y′ to y is the same act (x consents to the new parent); it supersedes the
 old edge.
 
 Withdrawal: `MemberOfWithdrawn { member, by, consent? }` — by the router member of the current parent,
 or by x with its own signature over a **separate domain string (rev 2)**
-`"web4-member-of-withdraw-v1\n<hub_id>\n<member>\n<of>\n<issued_at>"`, subject to the same window and
+`"web4-member-of-withdraw-v1\n<hub_id>\n<member>\n<of>\n<issued_at>\n"`, subject to the same window and
 monotonic `issued_at`. A report consent can never be replayed as a withdrawal, or vice versa.
 **A router-initiated withdrawal (no consent) does not advance x's high-water mark (rev 5, CBP).** It
 carries no `issued_at` of x's, and it needs none: the only consents a replay could use are ones x already
@@ -302,6 +312,10 @@ table was not readable from that session; the binding S2/S4 writes must name thi
   through the router? Must be settled in Hub B2; until then x replies through whatever membership it has.
 
 ## 9. Changelog
+
+**rev 7 (2026-10-07)** — from the #899 (Hub A) reviews by CBP and Legion.
+- H2: both consent domain strings end in `\n` (matching the cert construction), and a shared test vector is pinned in Hub A and hestia S2 (CBP S, Legion N3).
+- H1: a member holds at most one router LCT (a different LCT is refused; retire first), and member removal or withdrawal witnesses `RouterRetired`, never a silent drop (Legion N1).
 
 **rev 6 (2026-10-07)** — Sprout's re-review of rev 3+4 (request for changes withdrawn; `sprout-being` pin check done and matching; two nits).
 - S2, S1, §6, §5: LCT-x and LCT-h can coincide (a being that joined with its registry key). Then S2 reports one edge, the §6 409 applies only where they differ, and the S1 preflight sees that LCT in `child_lct`.
