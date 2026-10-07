@@ -65,6 +65,8 @@ The executable `hub-mesh` implementation and its generic tests currently present
 
 Until migration is complete, changes in the private copy must not establish a competing protocol or implementation authority.
 
+Migration tracker: [Web4 #894](https://github.com/dp-web4/web4/issues/894).
+
 ## Why
 
 Repository placement is part of governance. Multiple executable authorities invite silent drift, contradictory fixes, and evidence that no longer corresponds to the implementation it claims to test.
