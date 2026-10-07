@@ -129,6 +129,7 @@ PYTHON_SCRIPT
 
 # Generate PDF with pandoc
 echo "Generating PDF..."
+PANDOC_LOG=$(mktemp)
 pandoc "$TEMP_MD" -o "$PDF_FILE" \
     --from markdown+raw_tex \
     --to pdf \
@@ -142,9 +143,22 @@ pandoc "$TEMP_MD" -o "$PDF_FILE" \
     -V urlcolor=blue \
     -V toccolor=black \
     -V colorlinks=true \
-    2>/dev/null
+    -H pdf-glyphs.tex \
+    2> "$PANDOC_LOG"
+PANDOC_RC=$?
+# xelatex drops glyphs its font lacks and only says so on stderr — surface them
+if grep -q "Missing character" "$PANDOC_LOG"; then
+    echo "⚠️  Glyphs missing from the PDF font (add them to pdf-glyphs.tex):"
+    grep "Missing character" "$PANDOC_LOG" | sort -u
+fi
+if [ $PANDOC_RC -ne 0 ]; then
+    grep -A3 "^!" "$PANDOC_LOG" | head -20
+fi
+rm -f "$PANDOC_LOG"
 
-if [ -f "$PDF_FILE" ]; then
+# Test pandoc's exit status, not the file: a failed run leaves the previous
+# PDF in place, and an existence check reports it as freshly built.
+if [ $PANDOC_RC -eq 0 ] && [ -f "$PDF_FILE" ]; then
     echo "✅ PDF created with TOC after Executive Summary: $PDF_FILE"
     echo ""
     echo "📊 PDF Statistics:"
@@ -166,10 +180,15 @@ else
         --toc-depth=3 \
         --highlight-style=tango \
         -V geometry:margin=1in \
-        -V fontsize=11pt
-    
-    if [ -f "$PDF_FILE" ]; then
+        -V fontsize=11pt \
+        -H pdf-glyphs.tex
+    PANDOC_RC=$?
+
+    if [ $PANDOC_RC -eq 0 ] && [ -f "$PDF_FILE" ]; then
         echo "✅ PDF created (standard layout): $PDF_FILE"
+    else
+        echo "❌ Fallback PDF generation failed too; $PDF_FILE is stale"
+        exit 1
     fi
 fi
 

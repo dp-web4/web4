@@ -9,6 +9,7 @@
 # Temporary files
 *.tmp
 *.tex
+!pdf-glyphs.tex
 *.aux
 *.log
 *.out

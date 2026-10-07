@@ -1,0 +1,13 @@
+% Glyphs Latin Modern (the default xelatex text font) does not carry. Without
+% this xelatex drops them silently: "Request↔Result" rendered as "Request Result".
+% Each is drawn from Latin Modern Math by code point (\symbol, so the active
+% character does not re-expand). Deferred to \begin{document} because
+% unicode-math redefines some of these there (∏ otherwise fails "Missing $").
+% Add a line when make-pdf.sh reports a missing character.
+\usepackage{newunicodechar}
+\newfontfamily\webfoursymbols{Latin Modern Math}
+\AtBeginDocument{%
+  \newunicodechar{↔}{{\webfoursymbols\symbol{"2194}}}%
+  \newunicodechar{≥}{{\webfoursymbols\symbol{"2265}}}%
+  \newunicodechar{∏}{{\webfoursymbols\symbol{"220F}}}%
+}
