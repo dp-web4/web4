@@ -172,6 +172,29 @@ pub enum HubEvent {
         roles_vacated: Vec<String>,
     },
 
+    /// A machine's hestia registered as the ROUTER for its canonical LCT (PRD_MEMBER_OF_ROUTING
+    /// H1), proven by a dual-signed router-interface certificate checked at intake. Replaces any
+    /// earlier router member for the same LCT (re-key).
+    RouterRegistered {
+        router_lct: String,
+        member: Uuid,
+    },
+    /// The router role for an LCT ended (by its member, or the operator).
+    RouterRetired {
+        router_lct: String,
+    },
+    /// "LCT-`member` is reported as member-of LCT-`of`" — the bare edge, nothing else (dp,
+    /// 2026-10-07). The member's consent and the reporting router were verified at intake and are
+    /// deliberately not recorded. One current parent per member; a later report supersedes.
+    MemberOfReported {
+        member: String,
+        of: String,
+    },
+    /// The member's current member-of edge ended.
+    MemberOfWithdrawn {
+        member: String,
+    },
+
     /// A prospective member submitted a join request that hub law **escalated**
     /// to operator review (V2-16 admission queue). The applicant self-vouches
     /// `member_pubkey_hex` (the hub bootstraps signature verification from it);
@@ -910,6 +933,10 @@ impl HubEvent {
         "member_profile_updated",
         "member_removed",
     "member_withdrew",
+        "member_of_reported",
+        "member_of_withdrawn",
+        "router_registered",
+        "router_retired",
         "member_skill_declared",
         "obligation_opened",
         "obligation_resolved",
@@ -938,6 +965,10 @@ impl HubEvent {
             Self::MemberAdded { .. } => "member_added",
             Self::MemberRemoved { .. } => "member_removed",
             Self::MemberWithdrew { .. } => "member_withdrew",
+            Self::RouterRegistered { .. } => "router_registered",
+            Self::RouterRetired { .. } => "router_retired",
+            Self::MemberOfReported { .. } => "member_of_reported",
+            Self::MemberOfWithdrawn { .. } => "member_of_withdrawn",
             Self::MemberJoinRequested { .. } => "member_join_requested",
             Self::MemberJoinResolved { .. } => "member_join_resolved",
             Self::MemberJoinReviewRequested { .. } => "member_join_review_requested",

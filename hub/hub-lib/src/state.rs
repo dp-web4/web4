@@ -264,6 +264,17 @@ pub struct RoleOccupancyChange {
     #[serde(skip)]
     pub member_key_pins: BTreeMap<Uuid, Vec<crate::lct_resolve::KeyPin>>,
 
+    /// Router LCT -> the hub member that is its router interface (PRD_MEMBER_OF_ROUTING H1).
+    /// Not serialized: machine topology, readable through the members-only `member_of` tool.
+    #[serde(skip)]
+    pub routers: BTreeMap<crate::ids::CanonicalLctId, crate::ids::HubMemberId>,
+    /// Member LCT -> its current member-of parent (H2). One parent per member.
+    #[serde(skip)]
+    pub member_of: BTreeMap<crate::ids::CanonicalLctId, crate::ids::CanonicalLctId>,
+    /// Member LCT -> the ledger index that witnessed its current edge (for the read, H4).
+    #[serde(skip)]
+    pub member_of_at: BTreeMap<crate::ids::CanonicalLctId, u64>,
+
     /// **Anchor ceilings in force per member** — the accrual half of the anchor
     /// cap. Folded from `MemberAdded`'s `trust_ceiling` (the grant this society's
     /// law made for the member's hardware-binding level, decided at admission and
@@ -1034,6 +1045,9 @@ impl HubState {
             // the next restart, still counted in the skill index.
             HubEvent::MemberWithdrew { member_lct_id, .. }
             | HubEvent::MemberRemoved { member_lct_id, .. } => {
+                // A router whose membership ended can no longer receive routed mail.
+                let gone = crate::ids::HubMemberId::from_uuid(*member_lct_id);
+                self.routers.retain(|_, m| *m != gone);
                 if let Some(removed) = self.members.remove(member_lct_id) {
                     // Also drop from skill index.
                     for skill in &removed.skills {
@@ -1493,6 +1507,29 @@ impl HubState {
             }
             HubEvent::ObligationResolved { request_id, .. } => {
                 self.obligations.remove(request_id);
+            }
+            // Member-of routing (PRD_MEMBER_OF_ROUTING). Ids arrive as strings, already validated
+            // at intake; one that is not canonical is not routable and is not projected (same
+            // stance as the LctPublished arm below).
+            HubEvent::RouterRegistered { router_lct, member } => {
+                if let Ok(r) = crate::ids::CanonicalLctId::parse(router_lct) {
+                    let m = crate::ids::HubMemberId::from_uuid(*member);
+                    self.routers.retain(|_, v| *v != m); // one router LCT per member
+                    self.routers.insert(r, m);
+                }
+            }
+            HubEvent::RouterRetired { router_lct } => {
+                self.routers.remove(router_lct.as_str());
+            }
+            HubEvent::MemberOfReported { member, of } => {
+                if let (Ok(x), Ok(y)) = (crate::ids::CanonicalLctId::parse(member), crate::ids::CanonicalLctId::parse(of)) {
+                    self.member_of_at.insert(x.clone(), index);
+                    self.member_of.insert(x, y);
+                }
+            }
+            HubEvent::MemberOfWithdrawn { member } => {
+                self.member_of.remove(member.as_str());
+                self.member_of_at.remove(member.as_str());
             }
             HubEvent::LctPublished { lct_id, document, published_by, provenance, published_at } => {
                 // Republish of the same key overwrites in place and bumps

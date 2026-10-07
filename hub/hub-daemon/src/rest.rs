@@ -27,6 +27,7 @@
 //! - Authority/need-to-know on reads is V2-8.
 
 mod mailbox;
+mod routing;
 mod unlock;
 pub(crate) use unlock::Tier2;
 use unlock::{unlock_approver_challenge, unlock_attest, unlock_challenge};
@@ -1969,6 +1970,8 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/channel", post(channel_request))
         .route("/v1/hubs/:hub_id/members/join", post(submit_join))
         .route("/v1/hubs/:hub_id/members/withdraw", post(submit_withdraw))
+        .route("/v1/hubs/:hub_id/routers", post(routing::submit_router))
+        .route("/v1/hubs/:hub_id/member-of", post(routing::submit_member_of))
         // V2-9 Phase 2: Sovereign Council proposal + aggregation flow.
         .route("/v1/hubs/:hub_id/council/propose", post(submit_proposal))
         .route("/v1/hubs/:hub_id/council/sign", post(sign_proposal))
@@ -3804,12 +3807,13 @@ struct ChannelInner {
 /// arms (the classification guard test walks this list; adding a dispatch arm
 /// without registering it here fails the test, so a new tool cannot silently
 /// skip freshness classification). (#474)
-const CHANNEL_TOOLS: [&str; 21] = [
+const CHANNEL_TOOLS: [&str; 22] = [
     "constellation_challenge",
     "find_members",
     "find_skill",
     "list_intros",
     "list_members",
+    "member_of",
     "notifications",
     "notifications_enable_receipts",
     "notifications_fetch",
@@ -3834,11 +3838,12 @@ const CHANNEL_TOOLS: [&str; 21] = [
 /// added to `dispatch_channel` without touching the list silently inherited
 /// read tolerance — fail-open for new writes. Allowlisting the reads makes
 /// the default fail-closed: an unclassified new tool REQUIRES freshness.
-const CHANNEL_READ_TOOLS: [&str; 10] = [
+const CHANNEL_READ_TOOLS: [&str; 11] = [
     "find_members",
     "find_skill",
     "list_intros",
     "list_members",
+    "member_of",
     "notifications",
     "notifications_fetch",
     "presence",
@@ -4387,6 +4392,15 @@ async fn dispatch_channel(
         // Gaps are dated from `max(last_seen, boot + grace)`, never from a
         // pre-boot `last_seen`, or an ignite reports the hub's outage as the
         // member's.
+        // Member-of routing read (PRD_MEMBER_OF_ROUTING H4): members only, by construction of
+        // this channel. The bare edge, its witnessing entry, and where the LCT's mail routes.
+        "member_of" => {
+            let lct = inner.args.get("lct").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request("member_of requires 'lct' (canonical lct:web4:mb32)".to_string()))?;
+            let x = hub_lib::ids::CanonicalLctId::parse(lct)
+                .map_err(|e| ApiError::bad_request(format!("member_of lct: {e}")))?;
+            Ok(routing::member_of_view(&state, &x))
+        }
         "presence" => {
             let seen = s.last_seen.lock().await;
             let now = Utc::now();
@@ -7435,6 +7449,8 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/council/mirror", post(admin_council_mirror))
         .route("/admin/api/council/differential", get(admin_council_differential))
         .route("/admin/api/lct/resolve/:reference", get(admin_lct_resolve))
+        .route("/admin/api/member-of/:lct", get(routing::admin_member_of))
+        .route("/admin/api/routers", get(routing::admin_routers))
         .route("/admin/api/roles", get(admin_roles_list))
         .route("/admin/api/roles/create", post(admin_role_create))
         .route("/admin/api/roles/:role_lct_id/fill", post(admin_role_fill))
@@ -14127,6 +14143,165 @@ norms:
         assert!(matches!(back.status, ProposalStatus::Committed { entry_index, .. } if entry_index == committed_at_index));
         assert_eq!(back.unique_signers().len(), 2, "both signatures survived with it");
         assert_eq!(store.list_proposals().await.unwrap().len(), 1);
+    }
+
+    // ---- PRD_MEMBER_OF_ROUTING slice Hub A: routers and member-of edges, end to end ----
+
+    async fn routing_envelope(state: &RestState, kp: &KeyPair, signer: Uuid, payload: serde_json::Value)
+        -> hub_lib::envelope::SignedEnvelope {
+        let challenge = state.nonces.issue(signer, Utc::now());
+        let mut env = hub_lib::envelope::SignedEnvelope {
+            challenge_nonce: challenge.nonce.clone(), payload,
+            signature: String::new(), signer_lct_id: signer,
+        };
+        env.signature = kp.sign(&env.signing_bytes().expect("signing bytes")).to_hex();
+        env
+    }
+
+    fn router_cert(hub: Uuid, member: Uuid, router: &KeyPair, member_key: &KeyPair) -> serde_json::Value {
+        let payload = hub_lib::routing::RouterCertPayload {
+            protocol: hub_lib::routing::ROUTER_CERT_PROTOCOL.into(),
+            router_lct: hub_lib::ids::CanonicalLctId::derive(&router.verifying_key()).to_string(),
+            router_pubkey_hex: router.verifying_key().to_hex(),
+            hub_lct_id: hub, hub_member_lct: member,
+            hub_member_pubkey_hex: member_key.verifying_key().to_hex(),
+            interface_binding_id: Uuid::new_v4(),
+            receipt_protocol: hub_lib::routing::RECEIPT_PROTOCOL.into(),
+            issued_at: 1_790_000_000,
+        };
+        let bytes = payload.signing_bytes();
+        serde_json::json!({
+            "payload": payload,
+            "router_signature_hex": router.sign(&bytes).to_hex(),
+            "hub_member_signature_hex": member_key.sign(&bytes).to_hex(),
+        })
+    }
+
+    fn consent_json(hub: Uuid, x: &KeyPair, of: &hub_lib::ids::CanonicalLctId) -> serde_json::Value {
+        let member = hub_lib::ids::CanonicalLctId::derive(&x.verifying_key());
+        let at = Utc::now().to_rfc3339();
+        let sig = x.sign(&hub_lib::routing::consent_bytes(hub, &member, of, &at)).to_hex();
+        serde_json::json!({ "pubkey_hex": x.verifying_key().to_hex(), "signature_hex": sig, "issued_at": at })
+    }
+
+    async fn ledger_len_now(state: &RestState) -> usize { state.ledger.lock().await.entries().len() }
+
+    /// Router registration: only the certificate's own member, only with the hub's pinned key, only
+    /// in receipt mode — and every refusal leaves the ledger untouched.
+    #[tokio::test]
+    async fn member_of_routing_router_registration_is_proven_and_refusals_witness_nothing() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (router, mk, other_k) = (KeyPair::generate(), KeyPair::generate(), KeyPair::generate());
+        let (m, other) = (Uuid::new_v4(), Uuid::new_v4());
+        for (id, kp) in [(m, &mk), (other, &other_k)] {
+            admin_add_member(State(state.clone()), ConnectInfo(lo),
+                Json(AddMemberBody { lct_id: id, pubkey_hex: kp.verifying_key().to_hex(), name: None })).await.unwrap();
+        }
+        let cert = router_cert(state.hub_id, m, &router, &mk);
+        let reg = |kp: &KeyPair, signer: Uuid, cert: serde_json::Value| {
+            let (state, kp) = (state.clone(), kp.clone());
+            async move {
+                let env = routing_envelope(&state, &kp, signer, serde_json::json!({"action": "router_register", "certificate": cert})).await;
+                routing::submit_router(State(state.clone()), Path(state.hub_id), Json(env)).await
+            }
+        };
+        let l0 = ledger_len_now(&state).await;
+
+        let e = reg(&mk, m, cert.clone()).await.err().expect("not in receipt mode");
+        assert_eq!(e.status, StatusCode::CONFLICT, "{}", e.message);
+        state.mailbox_enable_receipts(m).await.unwrap();
+        state.mailbox_enable_receipts(other).await.unwrap();
+        let e = reg(&other_k, other, cert.clone()).await.err().expect("someone else's certificate");
+        assert_eq!(e.status, StatusCode::FORBIDDEN, "{}", e.message);
+        let mut forged = cert.clone(); forged["payload"]["hub_member_lct"] = serde_json::json!(other);
+        let e = reg(&other_k, other, forged).await.err().expect("tampered certificate");
+        assert_eq!(e.status, StatusCode::BAD_REQUEST, "{}", e.message);
+        // A certificate naming a key the hub did NOT pin for that member.
+        let unpinned = router_cert(state.hub_id, other, &router, &KeyPair::generate());
+        let e = reg(&other_k, other, unpinned).await.err().expect("key is not the hub's pin");
+        assert!(matches!(e.status, StatusCode::CONFLICT | StatusCode::BAD_REQUEST), "{}", e.message);
+        assert_eq!(ledger_len_now(&state).await, l0, "no refusal reached the ledger");
+
+        let ok = reg(&mk, m, cert).await.expect("the member registers its own certificate").0;
+        assert_eq!(ok["registered"], true);
+        let rl = hub_lib::ids::CanonicalLctId::derive(&router.verifying_key());
+        let routers = routing::admin_routers(State(state.clone()), ConnectInfo(lo)).await.unwrap().0;
+        assert_eq!(routers["routers"][0]["router_lct"], serde_json::json!(rl));
+        assert_eq!(routers["routers"][0]["member"], serde_json::json!(m));
+    }
+
+    /// Edges: reported only by the parent's router, only with the member's OWN consent; the read
+    /// shows the bare edge and where mail routes; withdraw and supersede work; a router whose
+    /// membership ends stops routing.
+    #[tokio::test]
+    async fn member_of_routing_edges_need_the_members_consent_and_route_to_the_router() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (router, mk, stranger_k) = (KeyPair::generate(), KeyPair::generate(), KeyPair::generate());
+        let (m, stranger) = (Uuid::new_v4(), Uuid::new_v4());
+        for (id, kp) in [(m, &mk), (stranger, &stranger_k)] {
+            admin_add_member(State(state.clone()), ConnectInfo(lo),
+                Json(AddMemberBody { lct_id: id, pubkey_hex: kp.verifying_key().to_hex(), name: None })).await.unwrap();
+        }
+        state.mailbox_enable_receipts(m).await.unwrap();
+        let env = routing_envelope(&state, &mk, m, serde_json::json!({
+            "action": "router_register", "certificate": router_cert(state.hub_id, m, &router, &mk)})).await;
+        routing::submit_router(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap();
+        let y = hub_lib::ids::CanonicalLctId::derive(&router.verifying_key());
+        let being = KeyPair::generate();
+        let x = hub_lib::ids::CanonicalLctId::derive(&being.verifying_key());
+
+        let report = |kp: &KeyPair, signer: Uuid, consent: Option<serde_json::Value>| {
+            let (state, kp, x, y) = (state.clone(), kp.clone(), x.clone(), y.clone());
+            async move {
+                let mut p = serde_json::json!({"action": "member_of_report", "member": x, "of": y});
+                if let Some(c) = consent { p["consent"] = c; }
+                let env = routing_envelope(&state, &kp, signer, p).await;
+                routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await
+            }
+        };
+        let l0 = ledger_len_now(&state).await;
+        let e = report(&mk, m, None).await.err().expect("no consent");
+        assert_eq!(e.status, StatusCode::FORBIDDEN, "{}", e.message);
+        let e = report(&mk, m, Some(consent_json(state.hub_id, &router, &y))).await.err()
+            .expect("the router cannot consent on the member's behalf");
+        assert_eq!(e.status, StatusCode::FORBIDDEN, "{}", e.message);
+        let e = report(&stranger_k, stranger, Some(consent_json(state.hub_id, &being, &y))).await.err()
+            .expect("only y's router may report members of y");
+        assert_eq!(e.status, StatusCode::FORBIDDEN, "{}", e.message);
+        assert_eq!(ledger_len_now(&state).await, l0, "no refusal reached the ledger");
+
+        let ok = report(&mk, m, Some(consent_json(state.hub_id, &being, &y))).await.expect("consented report").0;
+        assert_eq!(ok["reported"], true);
+        let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
+        assert_eq!(view["member_of"], serde_json::json!(y));
+        assert_eq!(view["routes_to"]["member"], serde_json::json!(m), "mail for x routes to y's router member");
+        assert_eq!(view["witnessed_at"], ok["entry_index"]);
+        let again = report(&mk, m, Some(consent_json(state.hub_id, &being, &y))).await.unwrap().0;
+        assert_eq!(again["already"], true, "a repeat report is idempotent, not a second fact");
+
+        // Withdraw: a stranger cannot; y's router can.
+        let w = |kp: &KeyPair, signer: Uuid| {
+            let (state, kp, x) = (state.clone(), kp.clone(), x.clone());
+            async move {
+                let env = routing_envelope(&state, &kp, signer, serde_json::json!({"action": "member_of_withdraw", "member": x})).await;
+                routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await
+            }
+        };
+        assert_eq!(w(&stranger_k, stranger).await.err().unwrap().status, StatusCode::FORBIDDEN);
+        assert_eq!(w(&mk, m).await.unwrap().0["withdrawn"], true);
+        let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
+        assert!(view["member_of"].is_null() && view["routes_to"].is_null());
+
+        // Re-report, then the router's membership ends: the edge stays (it is a fact about the
+        // report), but nothing routes until a router is registered again.
+        report(&mk, m, Some(consent_json(state.hub_id, &being, &y))).await.unwrap();
+        let wenv = withdraw_envelope(&state, &mk, m, m, None).await;
+        submit_withdraw(State(state.clone()), Path(state.hub_id), Json(wenv)).await.unwrap();
+        let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
+        assert_eq!(view["member_of"], serde_json::json!(y), "the witnessed edge is unchanged");
+        assert!(view["routes_to"].is_null(), "a router whose membership ended routes nothing");
     }
 
     /// Build and sign a withdraw envelope the way a member's client would.
