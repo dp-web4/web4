@@ -100,6 +100,16 @@ pub struct MirroredSeat {
     pub occupant: Uuid,
 }
 
+/// Who ended a member-of edge (PRD_MEMBER_OF_ROUTING H2).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MemberOfWithdrawnBy {
+    /// The registered router of the current parent. Does not move the member's `issued_at` mark.
+    Router { member: Uuid },
+    /// The member itself, signing the withdrawal domain string for (`member`, `of`).
+    Member { of: String, consent: crate::routing::Consent },
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum HubEvent {
@@ -178,21 +188,27 @@ pub enum HubEvent {
     RouterRegistered {
         router_lct: String,
         member: Uuid,
+        /// The certificate's `issued_at` (Unix s). A re-registration must be strictly newer (H1.7).
+        issued_at: u64,
     },
     /// The router role for an LCT ended (by its member, or the operator).
     RouterRetired {
         router_lct: String,
     },
-    /// "LCT-`member` is reported as member-of LCT-`of`" — the bare edge, nothing else (dp,
-    /// 2026-10-07). The member's consent and the reporting router were verified at intake and are
-    /// deliberately not recorded. One current parent per member; a later report supersedes.
+    /// "LCT-`member` is reported as member-of LCT-`of`". The projection and every read are the bare
+    /// edge; the member's consent is carried HERE as the evidence (PRD D7, rev 2 — awaiting dp), so a
+    /// later reader can re-verify it and the replay guard has state. One current parent per member; a
+    /// later report supersedes.
     MemberOfReported {
         member: String,
         of: String,
+        consent: crate::routing::Consent,
     },
-    /// The member's current member-of edge ended.
+    /// The member's current member-of edge ended — by the parent's router, or by the member itself
+    /// with its own signature over the withdrawal domain string.
     MemberOfWithdrawn {
         member: String,
+        by: MemberOfWithdrawnBy,
     },
 
     /// A prospective member submitted a join request that hub law **escalated**

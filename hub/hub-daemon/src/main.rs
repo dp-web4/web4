@@ -2880,6 +2880,7 @@ mod tests {
             ("GET", "/admin/api/lct/resolve/hub-being"),
             // PRD_MEMBER_OF_ROUTING H4: member-of edges and routers are machine topology.
             ("GET", "/admin/api/routers"),
+            ("POST", "/admin/api/routers/lct:web4:mb32:baaaa/retire"),
             ("GET", "/admin/api/member-of/lct:web4:mb32:baaaa"),
             // Sprint 1b role-entity write API. These constitute, fill, empty and
             // abolish roles — every one of them signs as the Sovereign, and

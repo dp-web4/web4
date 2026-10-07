@@ -264,16 +264,25 @@ pub struct RoleOccupancyChange {
     #[serde(skip)]
     pub member_key_pins: BTreeMap<Uuid, Vec<crate::lct_resolve::KeyPin>>,
 
-    /// Router LCT -> the hub member that is its router interface (PRD_MEMBER_OF_ROUTING H1).
-    /// Not serialized: machine topology, readable through the members-only `member_of` tool.
+    /// Router LCT -> its router interface member and certificate `issued_at` (PRD_MEMBER_OF_ROUTING
+    /// H1). The member_of* maps below are the same story. None is serialized: machine topology,
+    /// readable through the members-only `member_of` tool and the operator plane.
     #[serde(skip)]
-    pub routers: BTreeMap<crate::ids::CanonicalLctId, crate::ids::HubMemberId>,
-    /// Member LCT -> its current member-of parent (H2). One parent per member.
+    pub routers: BTreeMap<crate::ids::CanonicalLctId, RouterEntry>,
+    /// Member LCT -> its current member-of parent (H2). One level, one parent per member.
     #[serde(skip)]
     pub member_of: BTreeMap<crate::ids::CanonicalLctId, crate::ids::CanonicalLctId>,
-    /// Member LCT -> the ledger index that witnessed its current edge (for the read, H4).
+    /// Member LCT -> the ledger index that witnessed its current edge (H4 `witnessed_at`).
     #[serde(skip)]
     pub member_of_at: BTreeMap<crate::ids::CanonicalLctId, u64>,
+    /// Member LCT -> the key of its current edge's consent (H4 `pubkey_hex`; sealing to a pure-LCT
+    /// member in Hub B1).
+    #[serde(skip)]
+    pub member_of_consent_key: BTreeMap<crate::ids::CanonicalLctId, String>,
+    /// Member LCT -> the last accepted consent `issued_at` (report or self-withdrawal). A new consent
+    /// must be strictly later, so a former parent cannot replay an old one (H2). Survives withdrawal.
+    #[serde(skip)]
+    pub member_of_mark: BTreeMap<crate::ids::CanonicalLctId, DateTime<Utc>>,
 
     /// **Anchor ceilings in force per member** — the accrual half of the anchor
     /// cap. Folded from `MemberAdded`'s `trust_ceiling` (the grant this society's
@@ -416,6 +425,13 @@ pub struct RegistryEntry {
     pub published_by: crate::ids::HubMemberId,
     pub published_at: DateTime<Utc>,
     pub version: u32,
+}
+
+/// A registered router (PRD_MEMBER_OF_ROUTING H1): its interface member and certificate time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RouterEntry {
+    pub member: crate::ids::HubMemberId,
+    pub issued_at: u64,
 }
 
 /// An open R7 obligation: the subject committed to `request_id` due by `due_at`,
@@ -1045,9 +1061,6 @@ impl HubState {
             // the next restart, still counted in the skill index.
             HubEvent::MemberWithdrew { member_lct_id, .. }
             | HubEvent::MemberRemoved { member_lct_id, .. } => {
-                // A router whose membership ended can no longer receive routed mail.
-                let gone = crate::ids::HubMemberId::from_uuid(*member_lct_id);
-                self.routers.retain(|_, m| *m != gone);
                 if let Some(removed) = self.members.remove(member_lct_id) {
                     // Also drop from skill index.
                     for skill in &removed.skills {
@@ -1511,25 +1524,39 @@ impl HubState {
             // Member-of routing (PRD_MEMBER_OF_ROUTING). Ids arrive as strings, already validated
             // at intake; one that is not canonical is not routable and is not projected (same
             // stance as the LctPublished arm below).
-            HubEvent::RouterRegistered { router_lct, member } => {
+            HubEvent::RouterRegistered { router_lct, member, issued_at } => {
                 if let Ok(r) = crate::ids::CanonicalLctId::parse(router_lct) {
+                    // One router LCT per member is enforced at intake (rev 7: a different LCT is
+                    // refused, retire first), and a router only ever leaves by `RouterRetired` — never
+                    // dropped here, so its children are never orphaned without an alarm.
                     let m = crate::ids::HubMemberId::from_uuid(*member);
-                    self.routers.retain(|_, v| *v != m); // one router LCT per member
-                    self.routers.insert(r, m);
+                    self.routers.insert(r, RouterEntry { member: m, issued_at: *issued_at });
                 }
             }
             HubEvent::RouterRetired { router_lct } => {
                 self.routers.remove(router_lct.as_str());
             }
-            HubEvent::MemberOfReported { member, of } => {
+            HubEvent::MemberOfReported { member, of, consent } => {
                 if let (Ok(x), Ok(y)) = (crate::ids::CanonicalLctId::parse(member), crate::ids::CanonicalLctId::parse(of)) {
                     self.member_of_at.insert(x.clone(), index);
+                    self.member_of_consent_key.insert(x.clone(), consent.pubkey_hex.clone());
+                    if let Ok(at) = DateTime::parse_from_rfc3339(&consent.issued_at) {
+                        self.member_of_mark.insert(x.clone(), at.with_timezone(&Utc));
+                    }
                     self.member_of.insert(x, y);
                 }
             }
-            HubEvent::MemberOfWithdrawn { member } => {
+            HubEvent::MemberOfWithdrawn { member, by } => {
                 self.member_of.remove(member.as_str());
                 self.member_of_at.remove(member.as_str());
+                self.member_of_consent_key.remove(member.as_str());
+                // Only the member's own withdrawal carries its `issued_at`; a router's does not move
+                // the mark (rev 5) — every consent a replay could use is already at or below it.
+                if let crate::events::MemberOfWithdrawnBy::Member { consent, .. } = by {
+                    if let (Ok(x), Ok(at)) = (crate::ids::CanonicalLctId::parse(member), DateTime::parse_from_rfc3339(&consent.issued_at)) {
+                        self.member_of_mark.insert(x, at.with_timezone(&Utc));
+                    }
+                }
             }
             HubEvent::LctPublished { lct_id, document, published_by, provenance, published_at } => {
                 // Republish of the same key overwrites in place and bumps

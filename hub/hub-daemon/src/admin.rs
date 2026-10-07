@@ -1110,14 +1110,16 @@ fn event_summary(event: &HubEvent) -> String {
             vacation_kind,
             reason.as_deref().map(|r| format!(" — {}", html_escape(r))).unwrap_or_default(),
         ),
-        HubEvent::RouterRegistered { router_lct, member } => format!(
-            "Router {} registered as member {}", html_escape(router_lct), short(member),
+        HubEvent::RouterRegistered { router_lct, member, issued_at } => format!(
+            "Router {} registered as member {} (certificate issued {})", html_escape(router_lct), short(member), issued_at,
         ),
         HubEvent::RouterRetired { router_lct } => format!("Router {} retired", html_escape(router_lct)),
-        HubEvent::MemberOfReported { member, of } => format!(
+        HubEvent::MemberOfReported { member, of, .. } => format!(
             "{} reported member-of {}", html_escape(member), html_escape(of),
         ),
-        HubEvent::MemberOfWithdrawn { member } => format!("{} member-of edge withdrawn", html_escape(member)),
+        HubEvent::MemberOfWithdrawn { member, by } => format!("{} member-of edge withdrawn by {}", html_escape(member),
+            match by { hub_lib::events::MemberOfWithdrawnBy::Router { member } => format!("router member {}", short(member)),
+                       hub_lib::events::MemberOfWithdrawnBy::Member { .. } => "the member itself".to_string() }),
         HubEvent::MemberWithdrew { member_lct_id, reason, roles_vacated } => format!(
             "Member {} withdrew{}{}",
             short(member_lct_id),

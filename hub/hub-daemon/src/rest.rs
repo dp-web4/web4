@@ -6114,6 +6114,7 @@ async fn remove_member_live(s: &RestState, member_lct_id: Uuid, reason: Option<S
             return Err(ApiError::not_found(format!("no member {member_lct_id} to remove")));
         }
     }
+    routing::retire_routers_of(s, member_lct_id).await?; // rev 7: no silent router drop
     let index = witness_event(s, HubEvent::MemberRemoved {
         member_lct_id,
         removed_by: s.sovereign_lct_id,
@@ -7451,6 +7452,7 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/lct/resolve/:reference", get(admin_lct_resolve))
         .route("/admin/api/member-of/:lct", get(routing::admin_member_of))
         .route("/admin/api/routers", get(routing::admin_routers))
+        .route("/admin/api/routers/:lct/retire", post(routing::admin_retire_router))
         .route("/admin/api/roles", get(admin_roles_list))
         .route("/admin/api/roles/create", post(admin_role_create))
         .route("/admin/api/roles/:role_lct_id/fill", post(admin_role_fill))
@@ -7560,6 +7562,7 @@ async fn submit_withdraw(
             Err(_) => Vec::new(),
         }
     };
+    routing::retire_routers_of(&s, payload.member_lct_id).await?; // rev 7: no silent router drop
     let entry_index = witness_event(&s, HubEvent::MemberWithdrew {
         member_lct_id: payload.member_lct_id,
         reason: payload.reason,
@@ -14159,6 +14162,10 @@ norms:
     }
 
     fn router_cert(hub: Uuid, member: Uuid, router: &KeyPair, member_key: &KeyPair) -> serde_json::Value {
+        router_cert_at(hub, member, router, member_key, 1_790_000_000)
+    }
+
+    fn router_cert_at(hub: Uuid, member: Uuid, router: &KeyPair, member_key: &KeyPair, issued_at: u64) -> serde_json::Value {
         let payload = hub_lib::routing::RouterCertPayload {
             protocol: hub_lib::routing::ROUTER_CERT_PROTOCOL.into(),
             router_lct: hub_lib::ids::CanonicalLctId::derive(&router.verifying_key()).to_string(),
@@ -14167,7 +14174,7 @@ norms:
             hub_member_pubkey_hex: member_key.verifying_key().to_hex(),
             interface_binding_id: Uuid::new_v4(),
             receipt_protocol: hub_lib::routing::RECEIPT_PROTOCOL.into(),
-            issued_at: 1_790_000_000,
+            issued_at,
         };
         let bytes = payload.signing_bytes();
         serde_json::json!({
@@ -14178,9 +14185,14 @@ norms:
     }
 
     fn consent_json(hub: Uuid, x: &KeyPair, of: &hub_lib::ids::CanonicalLctId) -> serde_json::Value {
+        consent_json_at(hub_lib::routing::REPORT_DOMAIN, hub, x, of, Utc::now())
+    }
+
+    fn consent_json_at(domain: &str, hub: Uuid, x: &KeyPair, of: &hub_lib::ids::CanonicalLctId,
+                       at: chrono::DateTime<Utc>) -> serde_json::Value {
         let member = hub_lib::ids::CanonicalLctId::derive(&x.verifying_key());
-        let at = Utc::now().to_rfc3339();
-        let sig = x.sign(&hub_lib::routing::consent_bytes(hub, &member, of, &at)).to_hex();
+        let at = at.to_rfc3339();
+        let sig = x.sign(&hub_lib::routing::consent_bytes(domain, hub, &member, of, &at)).to_hex();
         serde_json::json!({ "pubkey_hex": x.verifying_key().to_hex(), "signature_hex": sig, "issued_at": at })
     }
 
@@ -14223,8 +14235,20 @@ norms:
         assert!(matches!(e.status, StatusCode::CONFLICT | StatusCode::BAD_REQUEST), "{}", e.message);
         assert_eq!(ledger_len_now(&state).await, l0, "no refusal reached the ledger");
 
-        let ok = reg(&mk, m, cert).await.expect("the member registers its own certificate").0;
+        let ok = reg(&mk, m, cert.clone()).await.expect("the member registers its own certificate").0;
         assert_eq!(ok["registered"], true);
+        // H1.7: the same (or an older) certificate cannot re-register; a newer one re-keys.
+        let e = reg(&mk, m, cert).await.err().expect("not newer than the one in force");
+        assert_eq!(e.status, StatusCode::CONFLICT, "{}", e.message);
+        let older = router_cert_at(state.hub_id, m, &router, &mk, 1_780_000_000);
+        assert_eq!(reg(&mk, m, older).await.err().unwrap().status, StatusCode::CONFLICT, "older certificate");
+        let newer = router_cert_at(state.hub_id, m, &router, &mk, 1_790_000_100);
+        reg(&mk, m, newer).await.expect("a strictly newer certificate re-registers");
+        // Rev 7: one router LCT per member — a different LCT is refused until the first is retired.
+        let second = router_cert_at(state.hub_id, m, &KeyPair::generate(), &mk, 1_790_000_300);
+        let e = reg(&mk, m, second).await.err().expect("a second router LCT for the same member");
+        assert_eq!(e.status, StatusCode::CONFLICT, "{}", e.message);
+        assert!(e.message.contains("retire it"), "{}", e.message);
         let rl = hub_lib::ids::CanonicalLctId::derive(&router.verifying_key());
         let routers = routing::admin_routers(State(state.clone()), ConnectInfo(lo)).await.unwrap().0;
         assert_eq!(routers["routers"][0]["router_lct"], serde_json::json!(rl));
@@ -14281,6 +14305,14 @@ norms:
         let again = report(&mk, m, Some(consent_json(state.hub_id, &being, &y))).await.unwrap().0;
         assert_eq!(again["already"], true, "a repeat report is idempotent, not a second fact");
 
+        // A router is never a child (one level, D6): y's own LCT cannot be reported member-of y,
+        // and a second router cannot be reported member-of the first.
+        let mut p = serde_json::json!({"action": "member_of_report", "member": y, "of": y});
+        p["consent"] = consent_json(state.hub_id, &router, &y);
+        let env = routing_envelope(&state, &mk, m, p).await;
+        assert_eq!(routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await.err().unwrap().status,
+            StatusCode::CONFLICT);
+
         // Withdraw: a stranger cannot; y's router can.
         let w = |kp: &KeyPair, signer: Uuid| {
             let (state, kp, x) = (state.clone(), kp.clone(), x.clone());
@@ -14294,11 +14326,50 @@ norms:
         let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
         assert!(view["member_of"].is_null() && view["routes_to"].is_null());
 
-        // Re-report, then the router's membership ends: the edge stays (it is a fact about the
-        // report), but nothing routes until a router is registered again.
+        // The mark: a consent no later than the last accepted one is refused even after a router
+        // withdrawal (which does not move the mark) — the replay a former parent could attempt.
+        let old = consent_json_at(hub_lib::routing::REPORT_DOMAIN, state.hub_id, &being, &y,
+            Utc::now() - chrono::Duration::seconds(120));
+        assert_eq!(report(&mk, m, Some(old)).await.err().unwrap().status, StatusCode::CONFLICT, "replayed/older consent");
+        report(&mk, m, Some(consent_json(state.hub_id, &being, &y))).await.expect("a fresh consent");
+
+        // The member itself withdraws, with its own signature over the WITHDRAWAL domain; a report
+        // consent presented as a withdrawal is refused. Any member may carry it (the stranger here).
+        tokio::time::sleep(std::time::Duration::from_millis(1100)).await; // strictly later issued_at
+        let as_report = consent_json(state.hub_id, &being, &y);
+        let mut p = serde_json::json!({"action": "member_of_withdraw", "member": x}); p["consent"] = as_report;
+        let env = routing_envelope(&state, &stranger_k, stranger, p).await;
+        assert_eq!(routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await.err().unwrap().status,
+            StatusCode::FORBIDDEN, "a report consent is not a withdrawal");
+        let mut p = serde_json::json!({"action": "member_of_withdraw", "member": x});
+        p["consent"] = consent_json_at(hub_lib::routing::WITHDRAW_DOMAIN, state.hub_id, &being, &y, Utc::now());
+        let env = routing_envelope(&state, &stranger_k, stranger, p).await;
+        let out = routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap().0;
+        assert_eq!(out["withdrawn"], true, "the member ended its own edge");
+
+        // Operator retirement is loud: it names the children it strands.
+        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
         report(&mk, m, Some(consent_json(state.hub_id, &being, &y))).await.unwrap();
+        let r = routing::admin_retire_router(State(state.clone()), ConnectInfo(lo), Path(y.to_string())).await.unwrap().0;
+        assert_eq!(r["children_affected"], serde_json::json!([x]));
+        let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
+        assert!(view["routes_to"].is_null(), "retired: nothing routes");
+        assert_eq!(view["pubkey_hex"], serde_json::json!(being.verifying_key().to_hex()), "H4 returns the consent key");
+        // Re-register (newer certificate) so the membership-ends case below starts from a live router.
+        let env = routing_envelope(&state, &mk, m, serde_json::json!({
+            "action": "router_register", "certificate": router_cert_at(state.hub_id, m, &router, &mk, 1_790_000_200)})).await;
+        routing::submit_router(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap();
+
+        // The router's membership ends: the edge stays (it is a fact about the report), but nothing
+        // routes until a router is registered again.
         let wenv = withdraw_envelope(&state, &mk, m, m, None).await;
         submit_withdraw(State(state.clone()), Path(state.hub_id), Json(wenv)).await.unwrap();
+        {
+            // Rev 7: the router left by a witnessed, loud RouterRetired, BEFORE the withdrawal.
+            let l = state.ledger.lock().await;
+            let kinds: Vec<&str> = l.entries().iter().rev().take(2).map(|e| e.event.kind()).collect();
+            assert_eq!(kinds, vec!["member_withdrew", "router_retired"], "never a silent drop");
+        }
         let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
         assert_eq!(view["member_of"], serde_json::json!(y), "the witnessed edge is unchanged");
         assert!(view["routes_to"].is_null(), "a router whose membership ended routes nothing");
