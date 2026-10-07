@@ -174,7 +174,11 @@ Sealing gets its own slice and test vectors (Hub B1, §7), separate from the add
 so its mailbox never evicts. Once 1000 notices are pending (`MAX_NOTICES_PER_MEMBER`, `full()`), it
 refuses every new send with 507. One dead or held child could fill it and block mail to every sibling.
 So routed notices are also bounded **per `(router, for_lct)`**. A send over that child's share gets
-507 for that child only. A router-wide 507 happens only when the total is full. Notices held un-ACKed at
+507 for that child only. A router-wide 507 happens only when the total is full. **(rev 6, Sprout)** The
+share is `⌊MAX_NOTICES_PER_MEMBER / N⌋` (minimum 1), N = the router's current edge count, recomputed when
+an edge is added or withdrawn. So share × N never exceeds the total, and dead children cannot reach the
+router-wide 507. A shrinking share does not evict: a child already over it is refused new sends until it
+drains. Notices held un-ACKed at
 S3 count against their child's share, not the siblings'. **Receipt fetch must not be head-of-line
 blocked.** Today `mailbox_fetch` returns the oldest `limit` (≤ 100) pending notices (`take(limit)`), so
 100 held notices for one child would hide every sibling's mail behind them. For a router mailbox the
@@ -195,7 +199,9 @@ read is the bare fact; consent evidence is in the ledger event at `witnessed_at`
   the parent LCT the local resolver uses and `children_of(router_lct)` agrees with the bindings S2 is
   about to report. **(rev 4, Legion)** Compare only the registry `child_lct` set: membership-derived
   LCT-h edges (S2's second edge) resolve through the binding table, not `children_of`, so including them
-  would refuse registration on every machine with a legacy per-being membership. Today the resolver and
+  would refuse registration on every machine with a legacy per-being membership. **(rev 6, Sprout)** A
+  being whose LCT-h equals its registry LCT-x (below) appears in the `child_lct` set as itself; that is
+  expected and passes. Today the resolver and
   the certifier share `receiver_router_lct()` (hestia `cli.rs:3367`, `:3815`, `:3857`), so the check only
   bites on an explicit `--parent` that disagrees. Today `receiver_router_lct()` falls back to the sovereign LCT; S4 must land, or the
   certificate must name that same LCT, before S1 runs.
@@ -203,9 +209,13 @@ read is the bare fact; consent evidence is in the ledger event at `witnessed_at`
   names the machine router), sign consent with the entity's binding key and submit H2. Withdraw on unbind.
   **(rev 2, Legion B1)** For an entity that also holds a per-entity hub membership, additionally report
   the **membership-key-derived** LCT (`LCT-h = derive(member pin)`) as member-of the router, consent
-  signed by the membership key (`member_key_source`). The binding LCT and the membership LCT differ by
-  design (`LocalMailboxBinding` keeps `child_lct` and `hub_member_lct` separate); without the second
-  edge, H3 rule 2 never matches and migration silently never happens.
+  signed by the membership key (`member_key_source`). The binding LCT and the membership LCT *may*
+  differ (`LocalMailboxBinding` keeps `child_lct` and `hub_member_lct` separate); without the second
+  edge, H3 rule 2 never matches and migration silently never happens. **(rev 6, Sprout)** They do not
+  always differ: a being that joined the hub with its registry key has one LCT for both (measured for
+  `sprout-being`, 2026-10-07). When `derive(member pin) == child_lct`, report **one** edge — a second
+  report of the same member would supersede itself or trip the monotonic `issued_at` check. The binding
+  must name the existing LCT; minting a new child LCT for such a being breaks the match.
 - **S3 — deliver by `for_lct`.** The receiver reads `for_lct` and resolves it — through
   `resolve_child_of(router, x)` (#1211) **or, for a membership-derived LCT, through the binding table
   (rev 2)** — and enqueues into that child's local inbox. **Demux before open (rev 2):** the router never
@@ -231,6 +241,9 @@ whose membership has already been withdrawn has no fallback, so if its router re
 
 **Check before Hub B (rev 2):** confirm against `hub-being` that its membership pin derives to the LCT
 S2 will report. If it does not, rule 2 is inert for that entity and the gap is found before build, not after.
+**(rev 6)** Done for `sprout-being` by Sprout (2026-10-07): hub pin = registry `public_key`, and
+`derive(pin)` = published `lct_id`, so LCT-h == LCT-x and rule 2 matches. Caveat: hestia's live binding
+table was not readable from that session; the binding S2/S4 writes must name this LCT.
 
 ## 6. Security and failure semantics
 
@@ -244,7 +257,7 @@ S2 will report. If it does not, rule 2 is inert for that entity and the gap is f
 | report consent replayed as a withdrawal | refused: separate domain string |
 | router listed as a child / mail to a router routed upward | refused at intake (H1.8, H2); H3 rule 0 |
 | router not in receipt mode | registration refused (H1.5) |
-| router retired | loud operator alarm naming its children; x's own receipt membership if any, else 409. **(rev 4, Legion)** The fallback covers only the membership-derived LCT-h (its pin derives LCT-h). Mail to the registry LCT-x has no receipt membership the hub can resolve, so it returns 409 |
+| router retired | loud operator alarm naming its children; x's own receipt membership if any, else 409. **(rev 4, Legion)** The fallback covers only the membership-derived LCT-h (its pin derives LCT-h). Mail to the registry LCT-x has no receipt membership the hub can resolve, so it returns 409 — **where LCT-x ≠ LCT-h**. Where they coincide (rev 6, Sprout), LCT-x has the fallback |
 | unknown `for_lct` at the router | held un-ACKed and reported; hub keeps custody |
 | pre-sealed ciphertext reaches the router | demux before open; the child opens it |
 | hub-sealed mail to a pure-LCT x | sealed to x's consent key; the router relays it unopened (rev 3) |
@@ -289,6 +302,10 @@ S2 will report. If it does not, rule 2 is inert for that entity and the gap is f
   through the router? Must be settled in Hub B2; until then x replies through whatever membership it has.
 
 ## 9. Changelog
+
+**rev 6 (2026-10-07)** — Sprout's re-review of rev 3+4 (request for changes withdrawn; `sprout-being` pin check done and matching; two nits).
+- S2, S1, §6, §5: LCT-x and LCT-h can coincide (a being that joined with its registry key). Then S2 reports one edge, the §6 409 applies only where they differ, and the S1 preflight sees that LCT in `child_lct`.
+- H3, Hub B1: the per-child share is `⌊total / N⌋`, so share × children never exceeds the router-wide limit.
 
 **rev 5 (2026-10-07)** — CBP's re-check of rev 3 (request for changes withdrawn; two nits).
 - H2: the consent window is two-sided (`issued_at ≤ now + 60 s`); H1.7 bounds certificate `issued_at` the same way.
