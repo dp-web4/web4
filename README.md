@@ -106,7 +106,7 @@ See [docs/proof/PUBLISHED.md](docs/proof/PUBLISHED.md) for the publication trail
 The [Hub](hub/) is a small Rust daemon that turns a community or organization into a sovereign Web4 society:
 
 - LCT-pinned membership
-- seven base roles
+- eight base roles
 - signed machine-readable law
 - sealed member-to-hub channels
 - append-only witnessed ledger
