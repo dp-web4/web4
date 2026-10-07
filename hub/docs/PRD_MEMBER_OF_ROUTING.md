@@ -1,6 +1,6 @@
 # PRD — Member-of routing: the hub routes to a machine's hestia; hestia routes locally
 
-**Status:** design for review — **rev 3** (addresses Legion, CBP and Sprout reviews on #898; changelog §9). Hub + hestia contract. Implementation slices in §7.
+**Status:** design for review — **rev 4** (addresses Legion, CBP and Sprout reviews on #898; changelog §9). Hub + hestia contract. Implementation slices in §7.
 **Date:** 2026-10-07
 **Direction:** dp, 2026-10-07:
 > hestia is per-machine. hub needs to know which member is the machine's hestia (router), and which
@@ -185,7 +185,11 @@ read is the bare fact; consent evidence is in the ledger event at `witnessed_at`
 - **S1 — register the router.** After `receiver-router-certify` (#1230), present the certificate to H1.
   Re-present on re-key. **Preflight (rev 2, Legion B3):** refuse to register unless `cert.router_lct` is
   the parent LCT the local resolver uses and `children_of(router_lct)` agrees with the bindings S2 is
-  about to report. Today `receiver_router_lct()` falls back to the sovereign LCT; S4 must land, or the
+  about to report. **(rev 4, Legion)** Compare only the registry `child_lct` set: membership-derived
+  LCT-h edges (S2's second edge) resolve through the binding table, not `children_of`, so including them
+  would refuse registration on every machine with a legacy per-being membership. Today the resolver and
+  the certifier share `receiver_router_lct()` (hestia `cli.rs:3367`, `:3815`, `:3857`), so the check only
+  bites on an explicit `--parent` that disagrees. Today `receiver_router_lct()` falls back to the sovereign LCT; S4 must land, or the
   certificate must name that same LCT, before S1 runs.
 - **S2 — report edges.** When a local entity is bound to this machine (its LCT's `mrh.bound` parent edge
   names the machine router), sign consent with the entity's binding key and submit H2. Withdraw on unbind.
@@ -203,7 +207,8 @@ read is the bare fact; consent evidence is in the ledger event at `witnessed_at`
   inbox (the custody gap raised on hestia #1210 for `route.forward` is the same shape and gets the same rule).
 - **S4 — parent migration.** Local entities are currently minted with the hestia sovereign as parent
   (#1211 note). They are re-parented to the machine router LCT, so the local resolver and the hub edge
-  agree. Ordering is constrained by S1's preflight.
+  agree. Ordering is constrained by S1's preflight. **(rev 4, Legion)** S4 moves the certificate's
+  `router_lct` and the resolver parent together, so it must re-certify and re-present through H1.7.
 
 ## 5. Migration of today's per-entity memberships
 
@@ -231,7 +236,7 @@ S2 will report. If it does not, rule 2 is inert for that entity and the gap is f
 | report consent replayed as a withdrawal | refused: separate domain string |
 | router listed as a child / mail to a router routed upward | refused at intake (H1.8, H2); H3 rule 0 |
 | router not in receipt mode | registration refused (H1.5) |
-| router retired | loud operator alarm naming its children; x's own receipt membership if any, else 409 |
+| router retired | loud operator alarm naming its children; x's own receipt membership if any, else 409. **(rev 4, Legion)** The fallback covers only the membership-derived LCT-h (its pin derives LCT-h). Mail to the registry LCT-x has no receipt membership the hub can resolve, so it returns 409 |
 | unknown `for_lct` at the router | held un-ACKed and reported; hub keeps custody |
 | pre-sealed ciphertext reaches the router | demux before open; the child opens it |
 | hub-sealed mail to a pure-LCT x | sealed to x's consent key; the router relays it unopened (rev 3) |
@@ -252,8 +257,8 @@ S2 will report. If it does not, rule 2 is inert for that entity and the gap is f
    web4-core hard-fails folding a ledger that contains `{"to":"lct"}`. Every ledger reader (hub,
    hestia if it deserializes `ReferencedAct`, fleet tooling) bumps web4-core **before** the hub writes the
    first `lct` address.
-4. **hestia A** — S1 (with preflight) + S2 (+ S4 for newly bound entities). Starts once Legion's B3
-   question is settled on the hestia thread.
+4. **hestia A** — S1 (with preflight) + S2 (+ S4 for newly bound entities). B3 is settled by
+   existing hestia code (rev 4); starts once Hub A's H1/H2 endpoints exist to test against.
 5. **hestia B** — S3 (binding-table resolution, demux before open), and the un-ACKed hold for unknown
    `for_lct` / `route.forward`.
 6. **Fleet** — Sprout ↔ Legion pilot over the routed path; then migrate beings (§5).
@@ -276,6 +281,11 @@ S2 will report. If it does not, rule 2 is inert for that entity and the gap is f
   through the router? Must be settled in Hub B2; until then x replies through whatever membership it has.
 
 ## 9. Changelog
+
+**rev 4 (2026-10-07)** — Legion's re-review of rev 2 (request for changes withdrawn; two nits).
+- S1: the preflight compares only the registry `child_lct` set, not membership-derived LCT-h edges.
+- §6: the retired-router fallback covers LCT-h only; the registry LCT-x returns 409.
+- S4: re-parenting re-certifies through H1.7. §7: hestia A is no longer gated on B3.
 
 **rev 3 (2026-10-07)** — review: Sprout (hestia side, F3 pilot).
 - H3 Sealing, H4, S3: a pure-LCT x is sealed to its consent key and the router relays it unopened; `sealed_to: "router"` removed; H4 returns `pubkey_hex` for pre-sealing (Sprout B1).
