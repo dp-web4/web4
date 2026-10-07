@@ -1,6 +1,6 @@
 # PRD — Member-of routing: the hub routes to a machine's hestia; hestia routes locally
 
-**Status:** design for review — **rev 2** (addresses Legion and CBP reviews on #898; changelog §9). Hub + hestia contract. Implementation slices in §7.
+**Status:** design for review — **rev 3** (addresses Legion, CBP and Sprout reviews on #898; changelog §9). Hub + hestia contract. Implementation slices in §7.
 **Date:** 2026-10-07
 **Direction:** dp, 2026-10-07:
 > hestia is per-machine. hub needs to know which member is the machine's hestia (router), and which
@@ -152,15 +152,31 @@ second fact — it is derived from the projection at delivery time and reported 
   `for_lct` **before** opening and hands the ciphertext to the child, which opens it with its own key.
 - **Hub-sealed, x has a pin** (legacy rule-2 case) — the hub seals to x's pinned key, as today; same
   demux-before-open.
-- **Hub-sealed, x has no hub key** (pure-LCT x, no membership) — the hub seals to the **router's**
-  pinned key. The router can read x's mail. This is accepted: x is bound to that machine and its hestia
-  already holds x's keys (S2). The notice carries `sealed_to: "router"` so the receiver knows which case
-  it is in.
+- **Hub-sealed, x has no hub pin** (pure-LCT x, no membership) — **(rev 3, Sprout B1)** the hub seals
+  to **x's key from the current edge's consent** (`consent.pubkey_hex` in the `MemberOfReported` event,
+  D7). The LCT names that key; it is not metadata. The router relays ciphertext it cannot open, the same
+  as in the two cases above, and the notice carries `sealed_to: "member"`. Rev 2 sealed to the router
+  here; that is dropped, so **no case seals x's mail to the router**. (If dp rules against D7, the
+  hub keeps x's pubkey with the edge instead, since that is the one thing an LCT-to-key route needs.)
+- **Sender pre-sealing to a pure-LCT x** (`send_secret`) — the sender seals to the same key, fetched
+  from the members-only H4 read (`member_of` also returns `pubkey_hex` of the current consent).
 Sealing gets its own slice and test vectors (Hub B1, §7), separate from the addressing change.
+
+**Per-child bound in the router mailbox (rev 3, Sprout B3).** The router member is in receipt mode (D5),
+so its mailbox never evicts. Once 1000 notices are pending (`MAX_NOTICES_PER_MEMBER`, `full()`), it
+refuses every new send with 507. One dead or held child could fill it and block mail to every sibling.
+So routed notices are also bounded **per `(router, for_lct)`**. A send over that child's share gets
+507 for that child only. A router-wide 507 happens only when the total is full. Notices held un-ACKed at
+S3 count against their child's share, not the siblings'. **Receipt fetch must not be head-of-line
+blocked.** Today `mailbox_fetch` returns the oldest `limit` (≤ 100) pending notices (`take(limit)`), so
+100 held notices for one child would hide every sibling's mail behind them. For a router mailbox the
+fetch page is filled **round-robin across `for_lct`** (oldest first within each child). A held child
+then takes at most its turn in each page.
 
 ### H4 — Reportable read
 `member_of` on the sealed channel (members) and `GET /admin/api/member-of/:lct` (operator plane):
-`{ "lct": x, "member_of": y | null, "witnessed_at": <entry_index> }` — and `routers` listing
+`{ "lct": x, "member_of": y | null, "pubkey_hex": <current consent key> | null, "witnessed_at": <entry_index> }`
+(`pubkey_hex` added in rev 3 for sealing to a pure-LCT x) — and `routers` listing
 `{router_lct, member}`. **Members-only**, not the public plane: the edge set is machine topology. The
 read is the bare fact; consent evidence is in the ledger event at `witnessed_at` for anyone who audits.
 
@@ -181,7 +197,8 @@ read is the bare fact; consent evidence is in the ledger event at `witnessed_at`
 - **S3 — deliver by `for_lct`.** The receiver reads `for_lct` and resolves it — through
   `resolve_child_of(router, x)` (#1211) **or, for a membership-derived LCT, through the binding table
   (rev 2)** — and enqueues into that child's local inbox. **Demux before open (rev 2):** the router never
-  tries to open ciphertext addressed to a child; it opens only notices marked `sealed_to: "router"`.
+  tries to open ciphertext addressed to a child. **(rev 3)** No routed notice is sealed to the router, so
+  the router opens none of them.
   **An unknown or non-local `for_lct` is held un-ACKed and reported** — never ACKed into the router's own
   inbox (the custody gap raised on hestia #1210 for `route.forward` is the same shape and gets the same rule).
 - **S4 — parent migration.** Local entities are currently minted with the hestia sovereign as parent
@@ -195,7 +212,9 @@ member UUID is unchanged until an edge exists for that member's canonical identi
 edge **for the membership-derived LCT** (rev 2), H3 rule 2 routes their mail through their machine's
 router — senders change nothing. The per-entity membership then carries no mail and can be withdrawn by
 its owner (web4 #804) on the operator's schedule — **but not before** the router path is proven for that
-entity, because it is also the retired-router fallback (H3.1).
+entity, because it is also the retired-router fallback (H3.1). **(rev 3, Sprout N6)** An entity
+whose membership has already been withdrawn has no fallback, so if its router retires its mail returns
+409 until the router is registered again. The `RouterRetired` alarm names those children.
 
 **Check before Hub B (rev 2):** confirm against `hub-being` that its membership pin derives to the LCT
 S2 will report. If it does not, rule 2 is inert for that entity and the gap is found before build, not after.
@@ -215,15 +234,19 @@ S2 will report. If it does not, rule 2 is inert for that entity and the gap is f
 | router retired | loud operator alarm naming its children; x's own receipt membership if any, else 409 |
 | unknown `for_lct` at the router | held un-ACKed and reported; hub keeps custody |
 | pre-sealed ciphertext reaches the router | demux before open; the child opens it |
+| hub-sealed mail to a pure-LCT x | sealed to x's consent key; the router relays it unopened (rev 3) |
+| one child's held or flooded mail blocks its siblings | per-`(router, for_lct)` bound; fetch not head-of-line blocked (rev 3) |
+| **x's own local hestia** | **not defended against.** D1 consent stops a *foreign* router from claiming x. The local hestia holds x's keys (S2), so it signs x's consent and could open x's mail. Consent records that x is bound to this machine. It is not x's independent assent to that machine's hestia (rev 3, Sprout N5) |
 | topology disclosure | edges readable by members and the operator only; consent only in the ledger |
-| stale edge after a machine dies | the edge stays (it is a fact about the report); mail queues under the router's mailbox TTL/cap and the sender is alarmed as today (#578) |
+| stale edge after a machine dies | the edge stays (it is a fact about the report); mail queues under the child's per-`for_lct` share until 507 (receipt mode does not evict); the sender sees the 507 |
 
 ## 7. Slices
 
 1. **Hub A** — H1 + H2 + projection + H4, with tests (cert vectors from hestia #1230, consent, monotonic
    `issued_at` for certs and consents, withdraw domain string, router-is-not-a-child, supersede, withdraw).
    Unblocked by rev 2: nothing in it depends on the open questions.
-2. **Hub B1** — `SealedNotice.for_lct` + `sealed_to`, sealing semantics, test vectors per case (H3 Sealing).
+2. **Hub B1** — `SealedNotice.for_lct` + `sealed_to`, sealing semantics, test vectors per case (H3 Sealing),
+   the per-`(router, for_lct)` bound, and H4 `pubkey_hex`.
 3. **Hub B2** — `ActAddress::Lct { canonical }` (web4-core, additive), delivery resolution, `routed_via`.
    **Rollout order:** `ActAddress` is `#[serde(tag = "to")]` with no catch-all, so a reader on an older
    web4-core hard-fails folding a ledger that contains `{"to":"lct"}`. Every ledger reader (hub,
@@ -245,7 +268,7 @@ S2 will report. If it does not, rule 2 is inert for that entity and the gap is f
 | D4 | destination addressing | **additive `ActAddress::Lct { canonical }`** in web4-core, readers bump first | the witnessed act must name the true destination, not the router |
 | D5 | router must be in receipt mode | **yes** | one destructive drain would lose every child's mail (Legion, CBP: agree) |
 | D6 | hub edges are one level (parent = router) | **yes** (rev 2) | rev 1's chain walk was unbuildable under H2; deeper structure is hestia-local |
-| D7 | consent evidence stored in the witnessed event; projection and read are the bare fact | **yes** (rev 2) — **needs dp** | replay guard needs state; third-party re-verification needs evidence. Read as "no meta in what is reported". If dp meant no meta on the ledger either, the alternative is hub-internal unwitnessed `issued_at` state (Legion N2) and the audit property is lost |
+| D7 | consent evidence stored in the witnessed event; projection and read are the bare fact | **yes** (rev 2) — **needs dp** | replay guard needs state; third-party re-verification needs evidence; rev 3 sealing to x reads the consent key from it. Read as "no meta in what is reported". If dp meant no meta on the ledger either, the alternative is hub-internal unwitnessed `issued_at` + x's pubkey (Legion N2, Sprout B1) and the audit property is lost |
 
 ### Open — not decided here
 - **O1, the reply path (CBP).** `SealedNotice.from` is a `Uuid`. When x replies to a routed notice, who
@@ -253,6 +276,13 @@ S2 will report. If it does not, rule 2 is inert for that entity and the gap is f
   through the router? Must be settled in Hub B2; until then x replies through whatever membership it has.
 
 ## 9. Changelog
+
+**rev 3 (2026-10-07)** — review: Sprout (hestia side, F3 pilot).
+- H3 Sealing, H4, S3: a pure-LCT x is sealed to its consent key and the router relays it unopened; `sealed_to: "router"` removed; H4 returns `pubkey_hex` for pre-sealing (Sprout B1).
+- H3, §6, Hub B1: per-`(router, for_lct)` bound in the receipt mailbox; fetch not head-of-line blocked (Sprout B3). Receipt mode refuses with 507 rather than evicting, so the failure is a block on sibling mail, not lost mail.
+- §6: the local hestia is stated as outside D1's protection (Sprout N5).
+- §5: the 409 window for entities with no direct membership left (Sprout N6).
+- Already covered by rev 2: B2 ancestor-or-self (H1.8 + H3 rule 0), N1 replay, N2 withdraw domain, N3 rollout order (field kept as `canonical`, per CBP), N4 pin = binding check (S2 second edge + pre-build check; Sprout checks `sprout-being`).
 
 **rev 2 (2026-10-07)** — reviews: Legion (hestia side, F3 pilot), CBP.
 - §2/H2/H3, D6: one-level hub edges; chain walk removed (Legion B2, CBP B1 — both picked this).
