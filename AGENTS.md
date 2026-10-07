@@ -45,6 +45,18 @@ A spring-2026 ARC-AGI-3 scorecard remains documented as a historical SAGE resear
 | **ATP/ADP** | Resource accounting primitives | Society-defined units of account, not a protocol currency |
 | **Society law** | Signed machine-readable law | Roles and acts are governed under explicit, auditable rules |
 
+## Implementation authority
+
+When deciding where code belongs, treat repository boundaries as part of the architecture:
+
+- **Web4 is authoritative for reusable Web4 and Hub functionality.** Hub runtime, federation/mesh behavior, reusable tooling, protocol fixtures, generic tests, and portability support belong in this repository.
+- `4-hub` is a standalone mirror of the Hub implementation here; do not develop a competing authoritative copy there.
+- `private-context` may contain fleet-private observations, machine/topology details, incident evidence, private test vectors, deployment notes, and handoffs. Those are evidence/context, not the authoritative implementation.
+- If functional code appears in `private-context`, evaluate whether it has merit. If yes, migrate/promote the generic functionality and generic tests here (or to the correct functional repo) and retire the executable private copy. If not, retire it rather than making the private copy more elaborate.
+- Never solve a generic Hub defect only in a fleet-private fixture. Public mechanism and generic regression belong with the public implementation; private evidence may remain private.
+
+See `docs/reference/HUB_IMPLEMENTATION_AUTHORITY.md`.
+
 ## Entry Points by Goal
 
 | Your Goal | Start Here |

@@ -28,6 +28,14 @@ For the acting entity, the same machinery can provide durable identity, explicit
 
 The layers are intentionally separable. Web4 is the substrate. Hestia and Hub are open operational layers at different boundaries. Hardbound raises the assurance grade for enterprise deployments. SAGE explores what persistent, learning agents look like when identity and governance are first-class rather than bolted on afterward.
 
+### Repository authority
+
+**Durable Web4/Hub functionality belongs here.** The Web4 repository is authoritative for the Hub runtime, federation/mesh behavior, reusable Hub tooling, protocol fixtures, tests, and portability support. The standalone `4-hub` repository is a mirror, not an independent source of truth.
+
+Private operational repositories such as `private-context` may retain fleet-specific evidence, topology, incident data, private test vectors, deployment notes, and handoffs. They are not authoritative homes for reusable product/runtime functionality. If a generic mechanism is discovered or prototyped there and has merit, promote the implementation and generic tests into the appropriate functional repository—Hub/Web4 functionality into this repository—and leave only private evidence/context plus a pointer to the canonical implementation.
+
+See [Hub implementation authority](docs/reference/HUB_IMPLEMENTATION_AUTHORITY.md).
+
 ## Why Web4 exists
 
 Most current systems answer one of these questions:
