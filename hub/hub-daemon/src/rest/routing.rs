@@ -333,3 +333,26 @@ pub(super) async fn admin_routers(
         .collect();
     Ok(Json(serde_json::json!({ "routers": routers })))
 }
+
+/// A child's share of its router's receipt mailbox (PRD H3, rev 6): ⌊MAX / N⌋, minimum 1, where N is
+/// the number of current member-of children of the router `router_member` serves. share × N never
+/// exceeds the mailbox total, so dead children cannot reach the router-wide 507.
+pub(super) fn routed_share(state: &HubState, router_member: Uuid) -> usize {
+    let lcts: Vec<&CanonicalLctId> = state.routers.iter()
+        .filter(|(_, r)| r.member.as_uuid() == router_member).map(|(l, _)| l).collect();
+    let n = state.member_of.values().filter(|p| lcts.contains(p)).count().max(1);
+    (MAX_NOTICES_PER_MEMBER / n).max(1)
+}
+
+/// The key a hub-sealed notice for child `lct` is sealed to (PRD H3 Sealing, Hub B1), and the
+/// `sealed_to` label. The child's own hub pin when it is a member (`member` given and pinned),
+/// else its current edge's consent key (a pure-LCT child). NEVER the router's key: the router
+/// relays ciphertext it cannot open. `None` when neither exists — the caller must refuse (409),
+/// never fall back to sealing to the router.
+pub(super) fn seal_key_for(state: &HubState, member: Option<Uuid>, lct: &CanonicalLctId)
+    -> Option<(web4_core::crypto::PublicKey, &'static str)> {
+    let hex_key = member.and_then(|m| state.member_pubkeys.get(&m).or_else(|| state.council_pubkeys.get(&m)))
+        .or_else(|| state.member_of_consent_key.get(lct))?;
+    let bytes: [u8; 32] = hex::decode(hex_key).ok()?.try_into().ok()?;
+    Some((web4_core::crypto::PublicKey::from_bytes(&bytes).ok()?, "member"))
+}

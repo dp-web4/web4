@@ -304,6 +304,17 @@ pub struct SealedNotice {
     /// peer actor but was sealed by the hub.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sealed_by: Option<Uuid>,
+    /// PRD_MEMBER_OF_ROUTING H3 (Hub B1): set when this notice is queued in a ROUTER's mailbox on
+    /// behalf of member-of child `for_lct` (canonical). The router demuxes by it BEFORE opening
+    /// anything. `None` on every ordinary notice — omitted from the JSON, so legacy notices (and
+    /// their content-derived `notice_id`s) are byte-for-byte unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub for_lct: Option<String>,
+    /// Who can open `sealed` when it was routed: `"member"` = the child's own key (its hub pin, or
+    /// its current consent key for a pure-LCT child). No routed notice is ever sealed to the router
+    /// (PRD rev 3). `None` on ordinary notices.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sealed_to: Option<String>,
 }
 
 /// Cached projection: a folded `HubState` plus the ledger position it reflects.
@@ -1554,6 +1565,8 @@ async fn queue_sealed_notice(
         pointer_uri: pointer_uri.to_string(),
         queued_at: Utc::now(),
         sealed_by: None,
+        for_lct: None,
+        sealed_to: None,
     }).await {
         tracing::warn!("queue_sealed_notice: enqueue failed for {recipient}: {e}");
     }
@@ -1587,6 +1600,16 @@ async fn enqueue_notice_op(
     s: &RestState, recipient: Uuid, notice: SealedNotice,
     op: Option<(Uuid, &str, &mailbox::SendOp)>,
 ) -> Result<Enqueued, mailbox::MailboxError> {
+    // PRD_MEMBER_OF_ROUTING H3 (Hub B1): a routed notice counts against its child's SHARE of the
+    // router's receipt mailbox, ⌊MAX / N⌋ (min 1), N = the router's current children. Read from the
+    // projection BEFORE the mailbox lock, so no new lock nesting is introduced.
+    let routed_share = match notice.for_lct.as_deref() {
+        Some(_) => {
+            let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+            Some(routing::routed_share(&state, recipient))
+        }
+        None => None,
+    };
     let cutoff = Utc::now() - chrono::Duration::seconds(NOTICE_TTL_SECS);
     // Notices removed here (TTL-expired or cap-evicted) die *upstream* of every
     // receiver: they never fire, never hit a gate, never dead-letter, and the
@@ -1611,6 +1634,15 @@ async fn enqueue_notice_op(
             return mailbox::refused(StatusCode::INSUFFICIENT_STORAGE,
                 "the recipient's receipt mailbox has the maximum number of unacknowledged notices; \
                  no notice accepted — it clears as the recipient acknowledges");
+        }
+        if let (Some(share), Some(child)) = (routed_share, notice.for_lct.as_deref()) {
+            let held = record.notices().iter().filter(|n| n.for_lct.as_deref() == Some(child)).count();
+            if held >= share {
+                // That child's share only: its siblings keep receiving (Sprout B3, rev 6).
+                return mailbox::refused(StatusCode::INSUFFICIENT_STORAGE, &format!(
+                    "{child} has {held} unacknowledged routed notices, its share of the router's \
+                     mailbox ({share}); no notice accepted for it — siblings are unaffected"));
+            }
         }
         if !record.is_receipts() {
             let queue = record.notices_mut();
@@ -5145,6 +5177,8 @@ async fn dispatch_channel(
                 pointer_uri,
                 queued_at: Utc::now(),
                 sealed_by: None,
+                for_lct: None,
+                sealed_to: None,
             };
             // The historical helper name reflects its first caller; the mechanism is generic:
             // atomically queue notice + sender-op record, then land the deterministic act.
@@ -5230,6 +5264,8 @@ async fn dispatch_channel(
                 pointer_uri,
                 queued_at: Utc::now(),
                 sealed_by: Some(caller_lct_id),
+                for_lct: None,
+                sealed_to: None,
             };
             send_secret_ordered(s, caller_lct_id, to, notice, act, operation_id.as_deref(), binding).await
         }
@@ -9958,6 +9994,8 @@ mod lct_registry_tests {
             pointer_uri: "hub://act/xyz".into(),
             queued_at: Utc::now(),
             sealed_by: None,
+            for_lct: None,
+            sealed_to: None,
         };
         assert!(enqueue_notice(&state, recipient, notice.clone()).await.unwrap());
 

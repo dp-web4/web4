@@ -196,6 +196,33 @@ impl Mailbox {
     }
 }
 
+/// One receipt-fetch page. An ordinary mailbox is oldest-first, as always. A router mailbox (any
+/// notice carries `for_lct`) is filled ROUND-ROBIN across children, oldest-first within each, so a
+/// child whose notices are held un-ACKed takes one turn per page instead of hiding every sibling's
+/// mail behind it (PRD_MEMBER_OF_ROUTING H3, Sprout B3). Notices without `for_lct` form one group.
+pub(super) fn fetch_page(notices: &[SealedNotice], limit: usize) -> Vec<&SealedNotice> {
+    if !notices.iter().any(|n| n.for_lct.is_some()) {
+        return notices.iter().take(limit).collect();
+    }
+    let mut order: Vec<Option<&str>> = Vec::new();
+    let mut groups: std::collections::HashMap<Option<&str>, std::collections::VecDeque<&SealedNotice>> = Default::default();
+    for n in notices {
+        let k = n.for_lct.as_deref();
+        if !groups.contains_key(&k) { order.push(k); }
+        groups.entry(k).or_default().push_back(n);
+    }
+    let mut page = Vec::with_capacity(limit.min(notices.len()));
+    while page.len() < limit {
+        let mut took = false;
+        for k in &order {
+            if page.len() == limit { break; }
+            if let Some(n) = groups.get_mut(k).and_then(|q| q.pop_front()) { page.push(n); took = true; }
+        }
+        if !took { break; }
+    }
+    page
+}
+
 pub(super) fn notice_id(recipient: Uuid, notice: &SealedNotice) -> String {
     // Fixed struct field order, domain separated, recipient bound. Includes the
     // committed timestamp: two distinct queue entries never share an ACK by pair_id.
@@ -321,7 +348,7 @@ impl RestState {
             return refused(StatusCode::CONFLICT,
                 "receipt delivery is not enabled for this member; enrollment is an operator act");
         }
-        let notices: Vec<_> = record.notices().iter().take(limit).map(|notice|
+        let notices: Vec<_> = fetch_page(record.notices(), limit).into_iter().map(|notice|
             serde_json::json!({"id": notice_id(recipient, notice), "notice": notice})).collect();
         Ok(serde_json::json!({"protocol": RECEIVE_PROTOCOL, "notifications": notices,
             "remaining": record.notices().len().saturating_sub(limit)}))
@@ -408,7 +435,8 @@ mod tests {
     }
     fn notice() -> SealedNotice {
         SealedNotice { pair_id: Uuid::new_v4(), from: Uuid::new_v4(), sealed: "opaque".into(),
-            kind: "test".into(), pointer_uri: "test".into(), queued_at: Utc::now(), sealed_by: None }
+            kind: "test".into(), pointer_uri: "test".into(), queued_at: Utc::now(), sealed_by: None,
+            for_lct: None, sealed_to: None }
     }
     fn sql(tmp: &tempfile::TempDir, query: &str) {
         rusqlite::Connection::open(tmp.path().join("hub/hub.db")).unwrap().execute_batch(query).unwrap();
@@ -430,6 +458,113 @@ mod tests {
         let sealed = pair_channel::Sealed::from_base64(&reply.0.sealed).unwrap();
         let plain = pair_channel::open(&key, &hub, pair, &sealed).unwrap();
         Ok(serde_json::from_slice(&plain).unwrap())
+    }
+
+    // ---- PRD_MEMBER_OF_ROUTING Hub B1: routed notices in a router's receipt mailbox ----
+
+    fn routed(for_lct: Option<&str>, tag: &str) -> SealedNotice {
+        SealedNotice { pointer_uri: tag.into(), for_lct: for_lct.map(str::to_string),
+            sealed_to: for_lct.map(|_| "member".to_string()), ..notice() }
+    }
+
+    /// The new fields are invisible on every ordinary notice: absent from the JSON, so a legacy
+    /// notice serializes — and therefore derives its `notice_id` — exactly as before B1.
+    #[test]
+    fn ordinary_notices_serialize_and_identify_exactly_as_before() {
+        let n = notice();
+        let json = serde_json::to_string(&n).unwrap();
+        assert!(!json.contains("for_lct") && !json.contains("sealed_to"), "{json}");
+        let back: SealedNotice = serde_json::from_str(&json).unwrap();
+        assert_eq!(notice_id(Uuid::nil(), &back), notice_id(Uuid::nil(), &n));
+        let r = routed(Some("lct:web4:mb32:bx"), "p");
+        assert_ne!(notice_id(Uuid::nil(), &r), notice_id(Uuid::nil(), &SealedNotice { for_lct: None, sealed_to: None, ..r.clone() }),
+            "a routed notice's destination is part of what its id commits to");
+    }
+
+    /// One held child cannot hide its siblings: a router page is round-robin across `for_lct`,
+    /// oldest first within each; an ordinary mailbox keeps plain oldest-first order.
+    #[test]
+    fn a_router_fetch_page_is_round_robin_across_children() {
+        let (a, b, c) = (Some("lct:a"), Some("lct:b"), Some("lct:c"));
+        let q: Vec<SealedNotice> = [(a,"a1"),(a,"a2"),(a,"a3"),(a,"a4"),(b,"b1"),(a,"a5"),(b,"b2"),(c,"c1")]
+            .into_iter().map(|(k, t)| routed(k, t)).collect();
+        let page: Vec<&str> = fetch_page(&q, 5).iter().map(|n| n.pointer_uri.as_str()).collect();
+        assert_eq!(page, ["a1", "b1", "c1", "a2", "b2"]);
+        let page: Vec<&str> = fetch_page(&q, 100).iter().map(|n| n.pointer_uri.as_str()).collect();
+        assert_eq!(page.len(), q.len(), "a large page returns everything");
+        let plain: Vec<SealedNotice> = (0..3).map(|i| routed(None, &format!("n{i}"))).collect();
+        let page: Vec<&str> = fetch_page(&plain, 2).iter().map(|n| n.pointer_uri.as_str()).collect();
+        assert_eq!(page, ["n0", "n1"], "ordinary mailbox: unchanged oldest-first");
+    }
+
+    /// Set up a router (member `m`, LCT `y`) with children, straight on the projection: these tests
+    /// are about the mailbox, not intake (Hub A's tests own intake).
+    async fn router_with_children(state: &RestState, m: Uuid, children: &[(&web4_core::crypto::KeyPair, &str)])
+        -> (hub_lib::ids::CanonicalLctId, Vec<hub_lib::ids::CanonicalLctId>) {
+        let y = hub_lib::ids::CanonicalLctId::derive(&web4_core::crypto::KeyPair::generate().verifying_key());
+        state.mailbox_enable_receipts(m).await.unwrap();
+        witness_event(state, HubEvent::RouterRegistered { router_lct: y.to_string(), member: m, issued_at: 1 }).await.unwrap();
+        let mut xs = Vec::new();
+        for (k, _) in children {
+            let x = hub_lib::ids::CanonicalLctId::derive(&k.verifying_key());
+            witness_event(state, HubEvent::MemberOfReported { member: x.to_string(), of: y.to_string(),
+                consent: hub_lib::routing::Consent { pubkey_hex: k.verifying_key().to_hex(),
+                    signature_hex: String::new(), issued_at: Utc::now().to_rfc3339() } }).await.unwrap();
+            xs.push(x);
+        }
+        (y, xs)
+    }
+
+    /// The per-child share: ⌊MAX / N⌋. A child at its share is refused (507) — for that child only;
+    /// its sibling still gets through. Ordinary sends to the router member are unaffected.
+    #[tokio::test]
+    async fn a_child_at_its_share_is_refused_and_its_sibling_is_not() {
+        let (_tmp, state, _) = fixture(true).await;
+        let m = Uuid::new_v4();
+        let (k1, k2) = (web4_core::crypto::KeyPair::generate(), web4_core::crypto::KeyPair::generate());
+        let (_y, xs) = router_with_children(&state, m, &[(&k1, "x"), (&k2, "z")]).await;
+        let (x, z) = (xs[0].to_string(), xs[1].to_string());
+        let share = { let l = state.ledger.lock().await; routing::routed_share(&state.projected(&l), m) };
+        assert_eq!(share, MAX_NOTICES_PER_MEMBER / 2, "two children: half each");
+
+        let seeded = Mailbox::Receipts(ReceiptMailbox { protocol: RECEIVE_PROTOCOL.into(),
+            notices: (0..share).map(|i| routed(Some(&x), &format!("x{i}"))).collect(), acked: vec![] });
+        state.open_store().await.unwrap().mailbox_put(m, &serde_json::to_vec(&seeded).unwrap()).await.unwrap();
+        state.notifications.lock().await.remove(&m);
+
+        let e = enqueue_notice(&state, m, routed(Some(&x), "x-over")).await.err().expect("x is at its share");
+        assert_eq!(status(Err::<(), _>(e)), StatusCode::INSUFFICIENT_STORAGE);
+        assert!(enqueue_notice(&state, m, routed(Some(&z), "z1")).await.unwrap(), "the sibling is unaffected");
+        assert!(enqueue_notice(&state, m, routed(None, "plain")).await.unwrap(), "ordinary mail to the router member too");
+    }
+
+    /// Sealing (PRD H3, rev 3): a pure-LCT child's mail is sealed to its CONSENT key, a member
+    /// child's to its hub PIN — never to the router. The router cannot open it; the child can.
+    #[tokio::test]
+    async fn routed_mail_is_sealed_to_the_child_and_the_router_cannot_open_it() {
+        let (_tmp, state, _) = fixture(true).await;
+        let (router_member, router_key) = (Uuid::new_v4(), web4_core::crypto::KeyPair::generate());
+        let child = web4_core::crypto::KeyPair::generate();
+        let (_y, xs) = router_with_children(&state, router_member, &[(&child, "x")]).await;
+        let st = { let l = state.ledger.lock().await; state.projected(&l) };
+
+        let (key, to) = routing::seal_key_for(&st, None, &xs[0]).expect("pure-LCT child: its consent key");
+        assert_eq!((key.to_hex(), to), (child.verifying_key().to_hex(), "member"));
+        let pair = Uuid::new_v4();
+        let sealed = pair_channel::Sealed::from_base64(&state.signer.channel_seal(&key, pair, b"for x only").unwrap()).unwrap();
+        let hub = state.signer.public_key().unwrap();
+        assert_eq!(pair_channel::open(&child, &hub, pair, &sealed).unwrap(), b"for x only");
+        assert!(pair_channel::open(&router_key, &hub, pair, &sealed).is_err(), "the router relays what it cannot read");
+
+        // A member child: its hub pin wins over the consent key.
+        let (member, pin) = (Uuid::new_v4(), web4_core::crypto::KeyPair::generate());
+        witness_event(&state, HubEvent::MemberAdded { member_lct_id: member, added_by: Uuid::nil(), member_name: None,
+            member_pubkey_hex: Some(pin.verifying_key().to_hex()), anchor_level: None, trust_ceiling: None }).await.unwrap();
+        let st = { let l = state.ledger.lock().await; state.projected(&l) };
+        assert_eq!(routing::seal_key_for(&st, Some(member), &xs[0]).unwrap().0.to_hex(), pin.verifying_key().to_hex());
+        // No pin and no edge: nothing to seal to — the caller must refuse, never seal to the router.
+        let stranger = hub_lib::ids::CanonicalLctId::derive(&web4_core::crypto::KeyPair::generate().verifying_key());
+        assert!(routing::seal_key_for(&st, None, &stranger).is_none());
     }
 
     #[tokio::test]
