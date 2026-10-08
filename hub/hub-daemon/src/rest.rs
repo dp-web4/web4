@@ -14385,6 +14385,39 @@ norms:
         assert!(view["routes_to"].is_null(), "a router whose membership ended routes nothing");
     }
 
+    /// The pilot shape (PRD rev 6, CBP probe on #899): x is a hub MEMBER whose own pin derives x
+    /// (LCT-x == LCT-h, e.g. `sprout-being`). Its router reports it with consent from that same key;
+    /// being a member is not being a router, so the report is accepted, and the read shows the edge,
+    /// the route, and that pin as the consent key. Hub B1's retired-router fallback depends on this.
+    #[tokio::test]
+    async fn member_of_routing_a_hub_members_own_pin_lct_can_be_member_of_its_router() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (router, mk, being_k) = (KeyPair::generate(), KeyPair::generate(), KeyPair::generate());
+        let (m, being_member) = (Uuid::new_v4(), Uuid::new_v4());
+        for (id, kp) in [(m, &mk), (being_member, &being_k)] {
+            admin_add_member(State(state.clone()), ConnectInfo(lo),
+                Json(AddMemberBody { lct_id: id, pubkey_hex: kp.verifying_key().to_hex(), name: None })).await.unwrap();
+        }
+        state.mailbox_enable_receipts(m).await.unwrap();
+        let env = routing_envelope(&state, &mk, m, serde_json::json!({
+            "action": "router_register", "certificate": router_cert(state.hub_id, m, &router, &mk)})).await;
+        routing::submit_router(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap();
+        let y = hub_lib::ids::CanonicalLctId::derive(&router.verifying_key());
+        let x = hub_lib::ids::CanonicalLctId::derive(&being_k.verifying_key()); // == derive(the member's pin)
+
+        let mut p = serde_json::json!({"action": "member_of_report", "member": x, "of": y});
+        p["consent"] = consent_json(state.hub_id, &being_k, &y);
+        let env = routing_envelope(&state, &mk, m, p).await;
+        routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .expect("a member's pin-derived LCT is not a router, so it may be a child");
+        let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
+        assert_eq!(view["member_of"], serde_json::json!(y));
+        assert_eq!(view["routes_to"]["member"], serde_json::json!(m));
+        assert_eq!(view["pubkey_hex"], serde_json::json!(being_k.verifying_key().to_hex()),
+            "the consent key IS the member's pin");
+    }
+
     /// Build and sign a withdraw envelope the way a member's client would.
     async fn withdraw_envelope(
         state: &RestState, kp: &KeyPair, signer: Uuid, subject: Uuid, reason: Option<&str>,

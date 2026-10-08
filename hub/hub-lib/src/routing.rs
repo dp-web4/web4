@@ -170,9 +170,14 @@ impl Consent {
         if &CanonicalLctId::derive(&key) != member {
             return Err(e("the consenting key is not the member's key".into()));
         }
-        let at = chrono::DateTime::parse_from_rfc3339(&self.issued_at)
-            .map_err(|_| e("issued_at is not RFC 3339".into()))?
-            .with_timezone(&chrono::Utc);
+        let parsed = chrono::DateTime::parse_from_rfc3339(&self.issued_at)
+            .map_err(|_| e("issued_at is not RFC 3339".into()))?;
+        // PRD H2: RFC 3339 **UTC** (`Z` or `+00:00`). An offset would still sign verbatim and compare
+        // as an instant, but a second implementation (hestia S2) must not drift on spelling (CBP nit).
+        if parsed.offset().local_minus_utc() != 0 {
+            return Err(e("issued_at must be UTC (Z or +00:00)".into()));
+        }
+        let at = parsed.with_timezone(&chrono::Utc);
         let age = (now - at).num_seconds();
         if !(-CLOCK_SKEW_SECS..=CONSENT_MAX_AGE_SECS).contains(&age) {
             return Err(e(format!(
@@ -315,6 +320,11 @@ pub(crate) mod tests {
             "a withdrawal is not a report consent");
         let stale = consent(REPORT_DOMAIN, hub, &x, &yl, now - chrono::Duration::seconds(CONSENT_MAX_AGE_SECS + 5));
         assert!(stale.verify(REPORT_DOMAIN, hub, &xl, &yl, now).is_err(), "stale");
+        let local = now.with_timezone(&chrono::FixedOffset::east_opt(2 * 3600).unwrap()).to_rfc3339();
+        let mut offset = consent(REPORT_DOMAIN, hub, &x, &yl, now);
+        offset.issued_at = local.clone();
+        offset.signature_hex = x.sign(&consent_bytes(REPORT_DOMAIN, hub, &xl, &yl, &local)).to_hex();
+        assert!(offset.verify(REPORT_DOMAIN, hub, &xl, &yl, now).is_err(), "a +02:00 issued_at is refused: UTC only");
         let future = consent(REPORT_DOMAIN, hub, &x, &yl, now + chrono::Duration::seconds(CLOCK_SKEW_SECS + 30));
         assert!(future.verify(REPORT_DOMAIN, hub, &xl, &yl, now).is_err(), "future-dated (two-sided window, rev 5)");
     }
