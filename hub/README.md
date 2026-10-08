@@ -288,6 +288,8 @@ POST /v1/hubs/:id/unlock                              Tier-1 passphrase ignition
 POST /v1/hubs/:id/unlock/challenge | /unlock/attest   Tier-2 M-of-N protected-tier release; needs an
                                                       ignited hub (503 while locked; 501 w/o verifier)
 POST /v1/hubs/:id/members/join                        Member admission request → law gate → queue
+POST /v1/hubs/:id/routers                             A machine's hestia registers as router (dual-signed cert, receipt mode)
+POST /v1/hubs/:id/member-of                           Router reports "LCT-x member-of LCT-y" (x's consent) — PRD_MEMBER_OF_ROUTING
 GET  /v1/hubs/:id/topics | /topics/:tid               Governance discussion, unauthenticated read
 GET  /discuss                                         The same discussion, rendered (no build step)
 POST /v1/hubs/:id/channel                             Sealed member↔hub channel (see below)

@@ -27,6 +27,7 @@
 //! - Authority/need-to-know on reads is V2-8.
 
 mod mailbox;
+mod routing;
 mod unlock;
 pub(crate) use unlock::Tier2;
 use unlock::{unlock_approver_challenge, unlock_attest, unlock_challenge};
@@ -1969,6 +1970,8 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/channel", post(channel_request))
         .route("/v1/hubs/:hub_id/members/join", post(submit_join))
         .route("/v1/hubs/:hub_id/members/withdraw", post(submit_withdraw))
+        .route("/v1/hubs/:hub_id/routers", post(routing::submit_router))
+        .route("/v1/hubs/:hub_id/member-of", post(routing::submit_member_of))
         // V2-9 Phase 2: Sovereign Council proposal + aggregation flow.
         .route("/v1/hubs/:hub_id/council/propose", post(submit_proposal))
         .route("/v1/hubs/:hub_id/council/sign", post(sign_proposal))
@@ -3804,12 +3807,13 @@ struct ChannelInner {
 /// arms (the classification guard test walks this list; adding a dispatch arm
 /// without registering it here fails the test, so a new tool cannot silently
 /// skip freshness classification). (#474)
-const CHANNEL_TOOLS: [&str; 21] = [
+const CHANNEL_TOOLS: [&str; 22] = [
     "constellation_challenge",
     "find_members",
     "find_skill",
     "list_intros",
     "list_members",
+    "member_of",
     "notifications",
     "notifications_enable_receipts",
     "notifications_fetch",
@@ -3834,11 +3838,12 @@ const CHANNEL_TOOLS: [&str; 21] = [
 /// added to `dispatch_channel` without touching the list silently inherited
 /// read tolerance — fail-open for new writes. Allowlisting the reads makes
 /// the default fail-closed: an unclassified new tool REQUIRES freshness.
-const CHANNEL_READ_TOOLS: [&str; 10] = [
+const CHANNEL_READ_TOOLS: [&str; 11] = [
     "find_members",
     "find_skill",
     "list_intros",
     "list_members",
+    "member_of",
     "notifications",
     "notifications_fetch",
     "presence",
@@ -4387,6 +4392,15 @@ async fn dispatch_channel(
         // Gaps are dated from `max(last_seen, boot + grace)`, never from a
         // pre-boot `last_seen`, or an ignite reports the hub's outage as the
         // member's.
+        // Member-of routing read (PRD_MEMBER_OF_ROUTING H4): members only, by construction of
+        // this channel. The bare edge, its witnessing entry, and where the LCT's mail routes.
+        "member_of" => {
+            let lct = inner.args.get("lct").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request("member_of requires 'lct' (canonical lct:web4:mb32)".to_string()))?;
+            let x = hub_lib::ids::CanonicalLctId::parse(lct)
+                .map_err(|e| ApiError::bad_request(format!("member_of lct: {e}")))?;
+            Ok(routing::member_of_view(&state, &x))
+        }
         "presence" => {
             let seen = s.last_seen.lock().await;
             let now = Utc::now();
@@ -6100,6 +6114,7 @@ async fn remove_member_live(s: &RestState, member_lct_id: Uuid, reason: Option<S
             return Err(ApiError::not_found(format!("no member {member_lct_id} to remove")));
         }
     }
+    let (_routing_serial, _) = routing::retire_routers_of(s, member_lct_id).await?; // rev 7: no silent router drop; held through the removal + eviction
     let index = witness_event(s, HubEvent::MemberRemoved {
         member_lct_id,
         removed_by: s.sovereign_lct_id,
@@ -7435,6 +7450,9 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/council/mirror", post(admin_council_mirror))
         .route("/admin/api/council/differential", get(admin_council_differential))
         .route("/admin/api/lct/resolve/:reference", get(admin_lct_resolve))
+        .route("/admin/api/member-of/:lct", get(routing::admin_member_of))
+        .route("/admin/api/routers", get(routing::admin_routers))
+        .route("/admin/api/routers/:lct/retire", post(routing::admin_retire_router))
         .route("/admin/api/roles", get(admin_roles_list))
         .route("/admin/api/roles/create", post(admin_role_create))
         .route("/admin/api/roles/:role_lct_id/fill", post(admin_role_fill))
@@ -7544,6 +7562,7 @@ async fn submit_withdraw(
             Err(_) => Vec::new(),
         }
     };
+    let (_routing_serial, _) = routing::retire_routers_of(&s, payload.member_lct_id).await?; // rev 7: no silent router drop; held through the removal + eviction
     let entry_index = witness_event(&s, HubEvent::MemberWithdrew {
         member_lct_id: payload.member_lct_id,
         reason: payload.reason,
@@ -14127,6 +14146,276 @@ norms:
         assert!(matches!(back.status, ProposalStatus::Committed { entry_index, .. } if entry_index == committed_at_index));
         assert_eq!(back.unique_signers().len(), 2, "both signatures survived with it");
         assert_eq!(store.list_proposals().await.unwrap().len(), 1);
+    }
+
+    // ---- PRD_MEMBER_OF_ROUTING slice Hub A: routers and member-of edges, end to end ----
+
+    async fn routing_envelope(state: &RestState, kp: &KeyPair, signer: Uuid, payload: serde_json::Value)
+        -> hub_lib::envelope::SignedEnvelope {
+        let challenge = state.nonces.issue(signer, Utc::now());
+        let mut env = hub_lib::envelope::SignedEnvelope {
+            challenge_nonce: challenge.nonce.clone(), payload,
+            signature: String::new(), signer_lct_id: signer,
+        };
+        env.signature = kp.sign(&env.signing_bytes().expect("signing bytes")).to_hex();
+        env
+    }
+
+    fn router_cert(hub: Uuid, member: Uuid, router: &KeyPair, member_key: &KeyPair) -> serde_json::Value {
+        router_cert_at(hub, member, router, member_key, 1_790_000_000)
+    }
+
+    fn router_cert_at(hub: Uuid, member: Uuid, router: &KeyPair, member_key: &KeyPair, issued_at: u64) -> serde_json::Value {
+        let payload = hub_lib::routing::RouterCertPayload {
+            protocol: hub_lib::routing::ROUTER_CERT_PROTOCOL.into(),
+            router_lct: hub_lib::ids::CanonicalLctId::derive(&router.verifying_key()).to_string(),
+            router_pubkey_hex: router.verifying_key().to_hex(),
+            hub_lct_id: hub, hub_member_lct: member,
+            hub_member_pubkey_hex: member_key.verifying_key().to_hex(),
+            interface_binding_id: Uuid::new_v4(),
+            receipt_protocol: hub_lib::routing::RECEIPT_PROTOCOL.into(),
+            issued_at,
+        };
+        let bytes = payload.signing_bytes();
+        serde_json::json!({
+            "payload": payload,
+            "router_signature_hex": router.sign(&bytes).to_hex(),
+            "hub_member_signature_hex": member_key.sign(&bytes).to_hex(),
+        })
+    }
+
+    fn consent_json(hub: Uuid, x: &KeyPair, of: &hub_lib::ids::CanonicalLctId) -> serde_json::Value {
+        consent_json_at(hub_lib::routing::REPORT_DOMAIN, hub, x, of, Utc::now())
+    }
+
+    fn consent_json_at(domain: &str, hub: Uuid, x: &KeyPair, of: &hub_lib::ids::CanonicalLctId,
+                       at: chrono::DateTime<Utc>) -> serde_json::Value {
+        let member = hub_lib::ids::CanonicalLctId::derive(&x.verifying_key());
+        let at = at.to_rfc3339();
+        let sig = x.sign(&hub_lib::routing::consent_bytes(domain, hub, &member, of, &at)).to_hex();
+        serde_json::json!({ "pubkey_hex": x.verifying_key().to_hex(), "signature_hex": sig, "issued_at": at })
+    }
+
+    async fn ledger_len_now(state: &RestState) -> usize { state.ledger.lock().await.entries().len() }
+
+    /// Router registration: only the certificate's own member, only with the hub's pinned key, only
+    /// in receipt mode — and every refusal leaves the ledger untouched.
+    #[tokio::test]
+    async fn member_of_routing_router_registration_is_proven_and_refusals_witness_nothing() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (router, mk, other_k) = (KeyPair::generate(), KeyPair::generate(), KeyPair::generate());
+        let (m, other) = (Uuid::new_v4(), Uuid::new_v4());
+        for (id, kp) in [(m, &mk), (other, &other_k)] {
+            admin_add_member(State(state.clone()), ConnectInfo(lo),
+                Json(AddMemberBody { lct_id: id, pubkey_hex: kp.verifying_key().to_hex(), name: None })).await.unwrap();
+        }
+        let cert = router_cert(state.hub_id, m, &router, &mk);
+        let reg = |kp: &KeyPair, signer: Uuid, cert: serde_json::Value| {
+            let (state, kp) = (state.clone(), kp.clone());
+            async move {
+                let env = routing_envelope(&state, &kp, signer, serde_json::json!({"action": "router_register", "certificate": cert})).await;
+                routing::submit_router(State(state.clone()), Path(state.hub_id), Json(env)).await
+            }
+        };
+        let l0 = ledger_len_now(&state).await;
+
+        let e = reg(&mk, m, cert.clone()).await.err().expect("not in receipt mode");
+        assert_eq!(e.status, StatusCode::CONFLICT, "{}", e.message);
+        state.mailbox_enable_receipts(m).await.unwrap();
+        state.mailbox_enable_receipts(other).await.unwrap();
+        let e = reg(&other_k, other, cert.clone()).await.err().expect("someone else's certificate");
+        assert_eq!(e.status, StatusCode::FORBIDDEN, "{}", e.message);
+        let mut forged = cert.clone(); forged["payload"]["hub_member_lct"] = serde_json::json!(other);
+        let e = reg(&other_k, other, forged).await.err().expect("tampered certificate");
+        assert_eq!(e.status, StatusCode::BAD_REQUEST, "{}", e.message);
+        // A certificate naming a key the hub did NOT pin for that member.
+        let unpinned = router_cert(state.hub_id, other, &router, &KeyPair::generate());
+        let e = reg(&other_k, other, unpinned).await.err().expect("key is not the hub's pin");
+        assert!(matches!(e.status, StatusCode::CONFLICT | StatusCode::BAD_REQUEST), "{}", e.message);
+        assert_eq!(ledger_len_now(&state).await, l0, "no refusal reached the ledger");
+
+        let ok = reg(&mk, m, cert.clone()).await.expect("the member registers its own certificate").0;
+        assert_eq!(ok["registered"], true);
+        // H1.7: the same (or an older) certificate cannot re-register; a newer one re-keys.
+        let e = reg(&mk, m, cert).await.err().expect("not newer than the one in force");
+        assert_eq!(e.status, StatusCode::CONFLICT, "{}", e.message);
+        let older = router_cert_at(state.hub_id, m, &router, &mk, 1_780_000_000);
+        assert_eq!(reg(&mk, m, older).await.err().unwrap().status, StatusCode::CONFLICT, "older certificate");
+        let newer = router_cert_at(state.hub_id, m, &router, &mk, 1_790_000_100);
+        reg(&mk, m, newer).await.expect("a strictly newer certificate re-registers");
+        // Rev 7: one router LCT per member — a different LCT is refused until the first is retired.
+        let second = router_cert_at(state.hub_id, m, &KeyPair::generate(), &mk, 1_790_000_300);
+        let e = reg(&mk, m, second).await.err().expect("a second router LCT for the same member");
+        assert_eq!(e.status, StatusCode::CONFLICT, "{}", e.message);
+        assert!(e.message.contains("retire it"), "{}", e.message);
+        let rl = hub_lib::ids::CanonicalLctId::derive(&router.verifying_key());
+        let routers = routing::admin_routers(State(state.clone()), ConnectInfo(lo)).await.unwrap().0;
+        assert_eq!(routers["routers"][0]["router_lct"], serde_json::json!(rl));
+        assert_eq!(routers["routers"][0]["member"], serde_json::json!(m));
+    }
+
+    /// Edges: reported only by the parent's router, only with the member's OWN consent; the read
+    /// shows the bare edge and where mail routes; withdraw and supersede work; a router whose
+    /// membership ends stops routing.
+    #[tokio::test]
+    async fn member_of_routing_edges_need_the_members_consent_and_route_to_the_router() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (router, mk, stranger_k) = (KeyPair::generate(), KeyPair::generate(), KeyPair::generate());
+        let (m, stranger) = (Uuid::new_v4(), Uuid::new_v4());
+        for (id, kp) in [(m, &mk), (stranger, &stranger_k)] {
+            admin_add_member(State(state.clone()), ConnectInfo(lo),
+                Json(AddMemberBody { lct_id: id, pubkey_hex: kp.verifying_key().to_hex(), name: None })).await.unwrap();
+        }
+        state.mailbox_enable_receipts(m).await.unwrap();
+        let env = routing_envelope(&state, &mk, m, serde_json::json!({
+            "action": "router_register", "certificate": router_cert(state.hub_id, m, &router, &mk)})).await;
+        routing::submit_router(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap();
+        let y = hub_lib::ids::CanonicalLctId::derive(&router.verifying_key());
+        let being = KeyPair::generate();
+        let x = hub_lib::ids::CanonicalLctId::derive(&being.verifying_key());
+
+        let report = |kp: &KeyPair, signer: Uuid, consent: Option<serde_json::Value>| {
+            let (state, kp, x, y) = (state.clone(), kp.clone(), x.clone(), y.clone());
+            async move {
+                let mut p = serde_json::json!({"action": "member_of_report", "member": x, "of": y});
+                if let Some(c) = consent { p["consent"] = c; }
+                let env = routing_envelope(&state, &kp, signer, p).await;
+                routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await
+            }
+        };
+        let l0 = ledger_len_now(&state).await;
+        let e = report(&mk, m, None).await.err().expect("no consent");
+        assert_eq!(e.status, StatusCode::FORBIDDEN, "{}", e.message);
+        let e = report(&mk, m, Some(consent_json(state.hub_id, &router, &y))).await.err()
+            .expect("the router cannot consent on the member's behalf");
+        assert_eq!(e.status, StatusCode::FORBIDDEN, "{}", e.message);
+        let e = report(&stranger_k, stranger, Some(consent_json(state.hub_id, &being, &y))).await.err()
+            .expect("only y's router may report members of y");
+        assert_eq!(e.status, StatusCode::FORBIDDEN, "{}", e.message);
+        assert_eq!(ledger_len_now(&state).await, l0, "no refusal reached the ledger");
+
+        let ok = report(&mk, m, Some(consent_json(state.hub_id, &being, &y))).await.expect("consented report").0;
+        assert_eq!(ok["reported"], true);
+        let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
+        assert_eq!(view["member_of"], serde_json::json!(y));
+        assert_eq!(view["routes_to"]["member"], serde_json::json!(m), "mail for x routes to y's router member");
+        assert_eq!(view["witnessed_at"], ok["entry_index"]);
+        let again = report(&mk, m, Some(consent_json(state.hub_id, &being, &y))).await.unwrap().0;
+        assert_eq!(again["already"], true, "a repeat report is idempotent, not a second fact");
+
+        // A router is never a child (one level, D6): y's own LCT cannot be reported member-of y,
+        // and a second router cannot be reported member-of the first.
+        let mut p = serde_json::json!({"action": "member_of_report", "member": y, "of": y});
+        p["consent"] = consent_json(state.hub_id, &router, &y);
+        let env = routing_envelope(&state, &mk, m, p).await;
+        assert_eq!(routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await.err().unwrap().status,
+            StatusCode::CONFLICT);
+
+        // Withdraw: a stranger cannot; y's router can.
+        let w = |kp: &KeyPair, signer: Uuid| {
+            let (state, kp, x) = (state.clone(), kp.clone(), x.clone());
+            async move {
+                let env = routing_envelope(&state, &kp, signer, serde_json::json!({"action": "member_of_withdraw", "member": x})).await;
+                routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await
+            }
+        };
+        assert_eq!(w(&stranger_k, stranger).await.err().unwrap().status, StatusCode::FORBIDDEN);
+        assert_eq!(w(&mk, m).await.unwrap().0["withdrawn"], true);
+        let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
+        assert!(view["member_of"].is_null() && view["routes_to"].is_null());
+
+        // The mark: a consent no later than the last accepted one is refused even after a router
+        // withdrawal (which does not move the mark) — the replay a former parent could attempt.
+        let old = consent_json_at(hub_lib::routing::REPORT_DOMAIN, state.hub_id, &being, &y,
+            Utc::now() - chrono::Duration::seconds(120));
+        assert_eq!(report(&mk, m, Some(old)).await.err().unwrap().status, StatusCode::CONFLICT, "replayed/older consent");
+        report(&mk, m, Some(consent_json(state.hub_id, &being, &y))).await.expect("a fresh consent");
+
+        // The member itself withdraws, with its own signature over the WITHDRAWAL domain; a report
+        // consent presented as a withdrawal is refused. Any member may carry it (the stranger here).
+        tokio::time::sleep(std::time::Duration::from_millis(1100)).await; // strictly later issued_at
+        let as_report = consent_json(state.hub_id, &being, &y);
+        let mut p = serde_json::json!({"action": "member_of_withdraw", "member": x}); p["consent"] = as_report;
+        let env = routing_envelope(&state, &stranger_k, stranger, p).await;
+        assert_eq!(routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await.err().unwrap().status,
+            StatusCode::FORBIDDEN, "a report consent is not a withdrawal");
+        let mut p = serde_json::json!({"action": "member_of_withdraw", "member": x});
+        p["consent"] = consent_json_at(hub_lib::routing::WITHDRAW_DOMAIN, state.hub_id, &being, &y, Utc::now());
+        let env = routing_envelope(&state, &stranger_k, stranger, p).await;
+        let out = routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap().0;
+        assert_eq!(out["withdrawn"], true, "the member ended its own edge");
+
+        // Operator retirement is loud: it names the children it strands.
+        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+        report(&mk, m, Some(consent_json(state.hub_id, &being, &y))).await.unwrap();
+        let r = routing::admin_retire_router(State(state.clone()), ConnectInfo(lo), Path(y.to_string())).await.unwrap().0;
+        assert_eq!(r["children_affected"], serde_json::json!([x]));
+        let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
+        assert!(view["routes_to"].is_null(), "retired: nothing routes");
+        assert_eq!(view["pubkey_hex"], serde_json::json!(being.verifying_key().to_hex()), "H4 returns the consent key");
+        // H1.7's mark survives the retire: the original certificate (still valid, no max age) does
+        // not re-register, nor does an older one naming a different member.
+        for (who_k, who, at) in [(&mk, m, 1_790_000_000), (&stranger_k, stranger, 1_789_999_000)] {
+            if who == stranger { state.mailbox_enable_receipts(stranger).await.unwrap(); }
+            let env = routing_envelope(&state, who_k, who, serde_json::json!({
+                "action": "router_register", "certificate": router_cert_at(state.hub_id, who, &router, who_k, at)})).await;
+            let e = routing::submit_router(State(state.clone()), Path(state.hub_id), Json(env)).await.err()
+                .expect("an older certificate after a retire");
+            assert_eq!(e.status, StatusCode::CONFLICT, "{}", e.message);
+        }
+        // Re-register (newer certificate) so the membership-ends case below starts from a live router.
+        let env = routing_envelope(&state, &mk, m, serde_json::json!({
+            "action": "router_register", "certificate": router_cert_at(state.hub_id, m, &router, &mk, 1_790_000_200)})).await;
+        routing::submit_router(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap();
+
+        // The router's membership ends: the edge stays (it is a fact about the report), but nothing
+        // routes until a router is registered again.
+        let wenv = withdraw_envelope(&state, &mk, m, m, None).await;
+        submit_withdraw(State(state.clone()), Path(state.hub_id), Json(wenv)).await.unwrap();
+        {
+            // Rev 7: the router left by a witnessed, loud RouterRetired, BEFORE the withdrawal.
+            let l = state.ledger.lock().await;
+            let kinds: Vec<&str> = l.entries().iter().rev().take(2).map(|e| e.event.kind()).collect();
+            assert_eq!(kinds, vec!["member_withdrew", "router_retired"], "never a silent drop");
+        }
+        let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
+        assert_eq!(view["member_of"], serde_json::json!(y), "the witnessed edge is unchanged");
+        assert!(view["routes_to"].is_null(), "a router whose membership ended routes nothing");
+    }
+
+    /// The pilot shape (PRD rev 6, CBP probe on #899): x is a hub MEMBER whose own pin derives x
+    /// (LCT-x == LCT-h, e.g. `sprout-being`). Its router reports it with consent from that same key;
+    /// being a member is not being a router, so the report is accepted, and the read shows the edge,
+    /// the route, and that pin as the consent key. Hub B1's retired-router fallback depends on this.
+    #[tokio::test]
+    async fn member_of_routing_a_hub_members_own_pin_lct_can_be_member_of_its_router() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (router, mk, being_k) = (KeyPair::generate(), KeyPair::generate(), KeyPair::generate());
+        let (m, being_member) = (Uuid::new_v4(), Uuid::new_v4());
+        for (id, kp) in [(m, &mk), (being_member, &being_k)] {
+            admin_add_member(State(state.clone()), ConnectInfo(lo),
+                Json(AddMemberBody { lct_id: id, pubkey_hex: kp.verifying_key().to_hex(), name: None })).await.unwrap();
+        }
+        state.mailbox_enable_receipts(m).await.unwrap();
+        let env = routing_envelope(&state, &mk, m, serde_json::json!({
+            "action": "router_register", "certificate": router_cert(state.hub_id, m, &router, &mk)})).await;
+        routing::submit_router(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap();
+        let y = hub_lib::ids::CanonicalLctId::derive(&router.verifying_key());
+        let x = hub_lib::ids::CanonicalLctId::derive(&being_k.verifying_key()); // == derive(the member's pin)
+
+        let mut p = serde_json::json!({"action": "member_of_report", "member": x, "of": y});
+        p["consent"] = consent_json(state.hub_id, &being_k, &y);
+        let env = routing_envelope(&state, &mk, m, p).await;
+        routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .expect("a member's pin-derived LCT is not a router, so it may be a child");
+        let view = routing::admin_member_of(State(state.clone()), ConnectInfo(lo), Path(x.to_string())).await.unwrap().0;
+        assert_eq!(view["member_of"], serde_json::json!(y));
+        assert_eq!(view["routes_to"]["member"], serde_json::json!(m));
+        assert_eq!(view["pubkey_hex"], serde_json::json!(being_k.verifying_key().to_hex()),
+            "the consent key IS the member's pin");
     }
 
     /// Build and sign a withdraw envelope the way a member's client would.

@@ -100,6 +100,16 @@ pub struct MirroredSeat {
     pub occupant: Uuid,
 }
 
+/// Who ended a member-of edge (PRD_MEMBER_OF_ROUTING H2).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MemberOfWithdrawnBy {
+    /// The registered router of the current parent. Does not move the member's `issued_at` mark.
+    Router { member: Uuid },
+    /// The member itself, signing the withdrawal domain string for (`member`, `of`).
+    Member { of: String, consent: crate::routing::Consent },
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum HubEvent {
@@ -170,6 +180,35 @@ pub enum HubEvent {
         /// (that would be a penalty for exiting); the society is told instead.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         roles_vacated: Vec<String>,
+    },
+
+    /// A machine's hestia registered as the ROUTER for its canonical LCT (PRD_MEMBER_OF_ROUTING
+    /// H1), proven by a dual-signed router-interface certificate checked at intake. Replaces any
+    /// earlier router member for the same LCT (re-key).
+    RouterRegistered {
+        router_lct: String,
+        member: Uuid,
+        /// The certificate's `issued_at` (Unix s). A re-registration must be strictly newer (H1.7).
+        issued_at: u64,
+    },
+    /// The router role for an LCT ended (by its member, or the operator).
+    RouterRetired {
+        router_lct: String,
+    },
+    /// "LCT-`member` is reported as member-of LCT-`of`". The projection and every read are the bare
+    /// edge; the member's consent is carried HERE as the evidence (PRD D7, rev 2 — awaiting dp), so a
+    /// later reader can re-verify it and the replay guard has state. One current parent per member; a
+    /// later report supersedes.
+    MemberOfReported {
+        member: String,
+        of: String,
+        consent: crate::routing::Consent,
+    },
+    /// The member's current member-of edge ended — by the parent's router, or by the member itself
+    /// with its own signature over the withdrawal domain string.
+    MemberOfWithdrawn {
+        member: String,
+        by: MemberOfWithdrawnBy,
     },
 
     /// A prospective member submitted a join request that hub law **escalated**
@@ -910,6 +949,10 @@ impl HubEvent {
         "member_profile_updated",
         "member_removed",
     "member_withdrew",
+        "member_of_reported",
+        "member_of_withdrawn",
+        "router_registered",
+        "router_retired",
         "member_skill_declared",
         "obligation_opened",
         "obligation_resolved",
@@ -938,6 +981,10 @@ impl HubEvent {
             Self::MemberAdded { .. } => "member_added",
             Self::MemberRemoved { .. } => "member_removed",
             Self::MemberWithdrew { .. } => "member_withdrew",
+            Self::RouterRegistered { .. } => "router_registered",
+            Self::RouterRetired { .. } => "router_retired",
+            Self::MemberOfReported { .. } => "member_of_reported",
+            Self::MemberOfWithdrawn { .. } => "member_of_withdrawn",
             Self::MemberJoinRequested { .. } => "member_join_requested",
             Self::MemberJoinResolved { .. } => "member_join_resolved",
             Self::MemberJoinReviewRequested { .. } => "member_join_review_requested",

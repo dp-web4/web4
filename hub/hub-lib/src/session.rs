@@ -143,6 +143,15 @@ impl HubSession {
     }
 
     pub async fn remove_member(&mut self, member_lct_id: Uuid, reason: Option<String>) -> Result<&LedgerEntry> {
+        // PRD_MEMBER_OF_ROUTING rev 7: a router never disappears without `RouterRetired`. The
+        // offline path witnesses it too, before the removal, like the daemon paths.
+        let held: Vec<String> = crate::state::HubState::project(&self.ledger).routers.iter()
+            .filter(|(_, r)| r.member.as_uuid() == member_lct_id)
+            .map(|(lct, _)| lct.to_string()).collect();
+        for router_lct in held {
+            eprintln!("warning: retiring router {router_lct} held by the removed member; its member-of children now have no router");
+            self.append(HubEvent::RouterRetired { router_lct }).await?;
+        }
         let event = HubEvent::MemberRemoved {
             member_lct_id,
             removed_by: self.sovereign_lct_id,

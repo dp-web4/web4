@@ -2878,6 +2878,10 @@ mod tests {
             ("GET", "/admin/api/council/differential"),
             // web4#875 Slice B: member <-> canonical LCT resolution names members.
             ("GET", "/admin/api/lct/resolve/hub-being"),
+            // PRD_MEMBER_OF_ROUTING H4: member-of edges and routers are machine topology.
+            ("GET", "/admin/api/routers"),
+            ("POST", "/admin/api/routers/lct:web4:mb32:baaaa/retire"),
+            ("GET", "/admin/api/member-of/lct:web4:mb32:baaaa"),
             // Sprint 1b role-entity write API. These constitute, fill, empty and
             // abolish roles — every one of them signs as the Sovereign, and
             // `/admin/api/roles` enumerates vacancies and retirements the public
@@ -3181,6 +3185,9 @@ mod tests {
             "/v1/hubs/:hub_id/credential",
             "/v1/hubs/:hub_id/events",
             "/v1/hubs/:hub_id/lcts/publish",
+            // PRD_MEMBER_OF_ROUTING slice Hub A: signed-envelope routes, driven end-to-end by
+            // the `member_of_routing_*` tests in rest.rs.
+            "/v1/hubs/:hub_id/member-of",
             "/v1/hubs/:hub_id/members/join",
             // web4#804. Exempt from the SWEEP only: the sweep cannot mint a signed
             // envelope, so it stops at the body extractor. The handler behind it is driven
@@ -3192,6 +3199,7 @@ mod tests {
             "/v1/hubs/:hub_id/pairs/:pair_id/messages",
             "/v1/hubs/:hub_id/pairs/:pair_id/revoke",
             "/v1/hubs/:hub_id/pairs/request",
+            "/v1/hubs/:hub_id/routers", // member-of routing; see member-of above
             "/v1/hubs/:hub_id/unlock",
             // web4 5b: covered route-specifically by the tier-2 quorum tests in rest.rs
             // (`a_threshold_of_verified_council_approvals_releases_once` and siblings).

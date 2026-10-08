@@ -43,6 +43,7 @@ pub mod public_chapter;
 pub mod public_ledger;
 pub mod ratified;
 pub mod replay;
+pub mod routing;
 pub mod session;
 
 #[cfg(feature = "dynamodb")]
