@@ -18,7 +18,7 @@ Provides offline-capable primitives for:
 - Metabolic states — society operational modes with energy, trust, and witness effects
 - Multi-device binding — device constellation management, trust computation, and recovery
 - Society — core organizational primitive composing federation, treasury, ledger, and trust
-- Society Roles — the 7 base-mandatory role taxonomy with role-LCT binding
+- Society Roles — the 8 base-mandatory role taxonomy with role-LCT binding
 - Security primitives — crypto suite definitions, W4ID identifiers, key policies, VCs
 - Core protocol — handshake, transport, discovery, and Web4 URI types
 - MCP protocol types — Web4 context headers, resources, sessions, ATP metering

@@ -89,12 +89,12 @@ console.log(`  recharge(rate=0.3, max=2.0x): ${recharged.toFixed(2)} ATP regener
 
 // ---------------------------------------------------------------------------
 // 7. Society + roles. Entities aren't just floating reputation scores —
-//    they hold roles inside a society. The 7 base-mandatory roles
+//    they hold roles inside a society. The 8 base-mandatory roles
 //    (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator,
-//    Archivist, Citizen) are the same regardless of which society you
+//    Archivist, Citizen, Maintainer) are the same regardless of which society you
 //    bootstrap — the structural taxonomy is part of the Web4 spec.
 // ---------------------------------------------------------------------------
-console.log('\nBootstrap a small society. Inspect the 7 base-mandatory roles.');
+console.log('\nBootstrap a small society. Inspect the base-mandatory roles.');
 const roles = WasmSocietyRole.baseMandatory();
 console.log(`  Base-mandatory roles (${roles.length}):`);
 for (const r of roles) {

@@ -649,6 +649,51 @@ mod tests {
         );
     }
 
+    /// The 7 -> 8 base-mandatory cutover (`society-roles.md` §2.8), at the hub
+    /// consumer. Genesis fills Sovereign + Citizen, so exactly the other six
+    /// base roles — Maintainer among them — are reported unfilled. Filling the
+    /// other five leaves Maintainer as the ONLY unfilled role: a hub missing
+    /// just its Maintainer is not complete. Before the cutover that hub would
+    /// have reported nothing unfilled.
+    #[tokio::test]
+    async fn unfilled_base_roles_includes_maintainer() {
+        let (_tmp, dir) = fresh_hub().await;
+        let alice = Uuid::new_v4();
+        let mut session = HubSession::open(&dir).await.unwrap();
+        session.add_member(alice, Some("Alice".into()), None).await.unwrap();
+
+        let unfilled = session.unfilled_base_roles().await.unwrap();
+        assert_eq!(
+            unfilled,
+            vec![
+                SocietyRole::LawOracle,
+                SocietyRole::PolicyEntity,
+                SocietyRole::Treasurer,
+                SocietyRole::Administrator,
+                SocietyRole::Archivist,
+                SocietyRole::Maintainer,
+            ]
+        );
+
+        for role in [
+            SocietyRole::LawOracle,
+            SocietyRole::PolicyEntity,
+            SocietyRole::Treasurer,
+            SocietyRole::Administrator,
+            SocietyRole::Archivist,
+        ] {
+            session.assign_role(role, alice).await.unwrap();
+        }
+        assert_eq!(
+            session.unfilled_base_roles().await.unwrap(),
+            vec![SocietyRole::Maintainer],
+            "a hub missing only its Maintainer must still report it unfilled"
+        );
+
+        session.assign_role(SocietyRole::Maintainer, alice).await.unwrap();
+        assert!(session.unfilled_base_roles().await.unwrap().is_empty());
+    }
+
     /// The conjunction's *failure* half. `set_law_writes_both_ledger_and_law_store`
     /// pins that both side effects land on the happy path; this pins that neither
     /// is left standing alone when the second one can't.

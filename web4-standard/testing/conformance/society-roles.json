@@ -1,13 +1,13 @@
 {
   "$schema": "https://web4.io/schemas/test-vectors/v1.json",
   "suite": "Society & Role Operations",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Conformance test vectors for Web4 society lifecycle and role management.",
 
   "bootstrap_vectors": [
     {
       "id": "soc-001",
-      "description": "Solo founder bootstraps society — fills all 7 mandatory roles",
+      "description": "Solo founder bootstraps society — fills all 8 base-mandatory roles",
       "operation": "bootstrap",
       "input": {
         "name": "Acme Corp",
@@ -16,10 +16,11 @@
       "expected": {
         "state": "genesis",
         "citizen_count": 1,
-        "role_count": 7,
+        "role_count": 8,
         "roles_present": [
           "sovereign", "law_oracle", "policy_entity",
-          "treasurer", "administrator", "archivist", "citizen"
+          "treasurer", "administrator", "archivist", "citizen",
+          "maintainer"
         ],
         "all_roles_filled_by_founder": true,
         "each_role_has_own_lct": true
@@ -45,14 +46,16 @@
   "role_vectors": [
     {
       "id": "role-001",
-      "description": "7 base-mandatory roles",
+      "description": "8 base-mandatory roles (society-roles.md §2.1–§2.8), exact wire values in spec order",
       "operation": "base_mandatory",
       "expected": {
-        "count": 7,
+        "count": 8,
         "roles": [
           "sovereign", "law_oracle", "policy_entity",
-          "treasurer", "administrator", "archivist", "citizen"
-        ]
+          "treasurer", "administrator", "archivist", "citizen",
+          "maintainer"
+        ],
+        "not_base_mandatory": ["witness", "auditor"]
       }
     },
     {
@@ -132,6 +135,20 @@
       "expected": {
         "valid": false,
         "error_contains": "archivist"
+      }
+    },
+    {
+      "id": "mvs-003",
+      "description": "Society missing ONLY the Maintainer (all other base roles, a witness, two distinct fillers) fails validation — the 7 -> 8 cutover falsifier",
+      "operation": "validate",
+      "state": "operational",
+      "missing_role": "maintainer",
+      "with_witness": true,
+      "distinct_fillers": 2,
+      "expected": {
+        "valid": false,
+        "error_count": 1,
+        "error_contains": "maintainer"
       }
     }
   ]

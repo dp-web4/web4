@@ -116,11 +116,16 @@ try {
 }
 
 try {
-  // WasmSocietyRole.baseMandatory() returns the 7 base-mandatory role definitions.
+  // WasmSocietyRole.baseMandatory() returns the 8 base-mandatory role definitions
+  // (society-roles.md §2.1–§2.8). NOTE: npm web4-trust-core <= 0.2.0 predates the
+  // Maintainer cutover and returns 7; this check passes from the next release on.
   const baseRoles = web4.WasmSocietyRole.baseMandatory();
   check('WasmSocietyRole.baseMandatory() returns array', Array.isArray(baseRoles));
-  check('WasmSocietyRole.baseMandatory() has 7 roles', baseRoles.length === 7,
+  check('WasmSocietyRole.baseMandatory() has 8 roles', baseRoles.length === 8,
         `(got ${baseRoles.length})`);
+  const names = baseRoles.map(r => r.name());
+  check('WasmSocietyRole.baseMandatory() includes maintainer', names.includes('maintainer'),
+        `(got ${names.join(',')})`);
   for (const r of baseRoles) r.free?.();
 } catch (e) {
   check('WasmSocietyRole.baseMandatory()', false, `threw: ${e.message}`);

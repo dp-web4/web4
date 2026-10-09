@@ -254,15 +254,15 @@ The companion `society-roles.md` specification enumerates society roles (base-ma
 
 | Entity Type | Example Roles It Can Fill |
 |---|---|
-| **Human** | Sovereign, Treasurer, Administrator, Archivist, Policy-Entity, Citizen, Witness, Auditor, Mediator, Diplomat, Recovery-Authority, Architect, Agent, Client |
-| **AI** | Policy-Entity, Treasurer, Administrator, Archivist, Validator, Witness, Auditor, Mediator, Architect, Oracle, Dictionary, Agent |
-| **Society** | Sovereign (in federation), Law Oracle (specialized law-publishing society), Treasurer (a treasury-services society), Witness (a witness-services society), Mediator (an arbitration society), Governance-Council, Recovery-Authority |
+| **Human** | Sovereign, Treasurer, Administrator, Archivist, Policy-Entity, Citizen, Witness, Auditor, Mediator, Diplomat, Recovery-Authority, Architect, Maintainer, Agent, Client |
+| **AI** | Policy-Entity, Treasurer, Administrator, Archivist, Validator, Witness, Auditor, Mediator, Architect, Maintainer, Oracle, Dictionary, Agent |
+| **Society** | Sovereign (in federation), Law Oracle (specialized law-publishing society), Treasurer (a treasury-services society), Witness (a witness-services society), Mediator (an arbitration society), Governance-Council, Recovery-Authority, Maintainer (for itself, and as a maintenance service to a member society that delegates it) |
 | **Organization** | Sovereign, Treasurer, Administrator, Membership-Authority, Governance-Council, Auditor, Steward |
-| **Role** | (Role itself is an entity type; roles are first-class. Roles fill roles in a degenerate sense — see §3.2, "The Role Revolution," above.) |
+| **Role** | (Role itself is an entity type; roles are first-class. Roles fill roles in a degenerate sense — see §3.2, "The Role Revolution," above.) A role MAY define a **Maintainer** for its own state; the role's MRH bounds what that Maintainer examines, and the role's granted scope bounds what it may do — `society-roles.md` §2.9. |
 | **Task** | (Tasks are work units, not role-fillers; they are operated on by roles, not held by them.) |
 | **Resource** | (Resources are operated on by roles; do not fill roles themselves.) |
-| **Device** | Validator (hardware-attested), Oracle (sensor-based), Recovery-Authority (TPM-bound recovery), Witness (attestation device) |
-| **Service** | Policy-Entity (rules engine), Validator, Administrator, Oracle, Dictionary, Archivist |
+| **Device** | Validator (hardware-attested), Oracle (sensor-based), Recovery-Authority (TPM-bound recovery), Witness (attestation device), Maintainer (self-test and resource reporting on its own state, acting only within its granted scope) |
+| **Service** | Policy-Entity (rules engine), Validator, Administrator, Oracle, Dictionary, Archivist, Maintainer |
 | **Oracle** | Law Oracle, Policy-Entity (when policy is itself an oracle), Validator, Witness (specialized attestation oracle) |
 | **Accumulator** | Archivist (specialized for accumulation), Witness (broadcast observer) |
 | **Dictionary** | Dictionary role, Policy-Entity (when policy involves semantic translation) |
@@ -278,7 +278,7 @@ For the role-LCT pairing mechanics see §3.4, "Role-Agent Pairing," above; for t
 
 > **See also**: `society-roles.md` for the full society-roles taxonomy (base-mandatory, context-mandatory, optional) with fractal-composability semantics. The roles enumerated below are the SAL-specific subset; the broader taxonomy in `society-roles.md` includes additional functional roles (Policy-Entity, Treasurer, Administrator, Archivist, etc.) that are base-mandatory for every Web4 society.
 >
-> **Note (subsection count vs role count; SAL roles vs base-mandatory roles)**: §4 has eight subsections, but §4.1 (Society) describes an *entity-type context* (§2.1), **not** a role an entity fills — so there are **seven** SAL-specific roles below (Authority, Law Oracle, Witness, Auditor, Agent, Client, Effector) plus the Society context that hosts them. These seven roles are a *different set* from the **base-mandatory** roles defined in `society-roles.md` §2 (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen) — the two sets overlap only on **Law Oracle**. The canonical home of the base-mandatory role list is **`society-roles.md` §2** (resolved per `SOCIETY_SPECIFICATION.md` §1.2.5 / C51, which attributes the base-mandatory roles to that section); the remaining open item is only the role-*name* reconciliation (SAL "Authority Role" vs society-roles "Sovereign"), not the list's home.
+> **Note (subsection count vs role count; SAL roles vs base-mandatory roles)**: §4 has eight subsections, but §4.1 (Society) describes an *entity-type context* (§2.1), **not** a role an entity fills — so there are **seven** SAL-specific roles below (Authority, Law Oracle, Witness, Auditor, Agent, Client, Effector) plus the Society context that hosts them. These seven roles are a *different set* from the **base-mandatory** roles defined in `society-roles.md` §2 (Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen, Maintainer) — the two sets overlap only on **Law Oracle**. The canonical home of the base-mandatory role list is **`society-roles.md` §2** (resolved per `SOCIETY_SPECIFICATION.md` §1.2.5 / C51, which attributes the base-mandatory roles to that section); the remaining open item is only the role-*name* reconciliation (SAL "Authority Role" vs society-roles "Sovereign"), not the list's home.
 
 ### 4.1 Society (entity-type capabilities)
 **Society** is an *entity type* (§2.1), not a role an entity fills — it is included here because the SAL-specific roles below are hosted *within* a society and depend on these capabilities. A **Society** is a delegative entity with:

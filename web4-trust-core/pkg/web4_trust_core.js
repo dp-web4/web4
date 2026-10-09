@@ -936,7 +936,7 @@ export class WasmSociety {
         }
     }
     /**
-     * Bootstrap a new society. Returns the society with all 7 base-mandatory
+     * Bootstrap a new society. Returns the society with all 8 base-mandatory
      * roles assigned to the founder.
      * @param {string} name
      * @param {string} charter_hash
@@ -1053,7 +1053,7 @@ if (Symbol.dispose) WasmSociety.prototype[Symbol.dispose] = WasmSociety.prototyp
 /**
  * WASM-exposed SocietyRole enum.
  *
- * Represents one of the 7 base-mandatory roles, 2 context-mandatory roles,
+ * Represents one of the 8 base-mandatory roles, 2 context-mandatory roles,
  * or a custom role. Use the static methods to enumerate roles.
  */
 export class WasmSocietyRole {
@@ -1074,7 +1074,7 @@ export class WasmSocietyRole {
         wasm.__wbg_wasmsocietyrole_free(ptr, 0);
     }
     /**
-     * Returns the 7 base-mandatory roles as a JS array of WasmSocietyRole.
+     * Returns the 8 base-mandatory roles as a JS array of WasmSocietyRole.
      * @returns {Array<any>}
      */
     static baseMandatory() {
@@ -1123,7 +1123,7 @@ export class WasmSocietyRole {
     }
     /**
      * Create a role by name. Valid names: sovereign, law_oracle, policy_entity,
-     * treasurer, administrator, archivist, citizen, witness, auditor,
+     * treasurer, administrator, archivist, citizen, maintainer, witness, auditor,
      * or "custom:<name>" for custom roles.
      * @param {string} name
      */

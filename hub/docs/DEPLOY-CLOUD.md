@@ -133,8 +133,8 @@ fly ssh console -C "hub init /chapter/data"      # founding charter + sovereign 
 `hub init` resolves the passphrase from a TTY prompt (`HUB_PASSPHRASE` would also satisfy it, but
 this deployment sets none) and seals the identity under it. `fly ssh console` gives you a terminal so
 the prompt works; an empty value is allowed but must be explicit, and on a real chapter must not be
-empty. Genesis currently mints all seven base-mandatory role LCTs and the hub
-discards five of them (`hub-lib/src/init.rs:46`, pending a `web4-core` bootstrap parameter) — this is
+empty. Genesis currently mints all eight base-mandatory role LCTs and the hub
+discards six of them (`hub-lib/src/init.rs:46`, pending a `web4-core` bootstrap parameter) — this is
 known, harmless, and cosmetic in the ledger.
 
 A hub with no law **refuses to serve** under `HUB_PROFILE=production`. Install a starter law:

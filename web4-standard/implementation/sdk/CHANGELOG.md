@@ -2,6 +2,16 @@
 
 All notable changes to the Web4 Python SDK.
 
+## [Unreleased]
+
+### Changed
+- **BREAKING: 8 base-mandatory roles** — `SocietyRole.MAINTAINER` (`"maintainer"`,
+  `society-roles.md` §2.8) added and included in `BASE_MANDATORY_ROLES` (now 8, spec order,
+  Maintainer last); `bootstrap_society_roles()` returns 8 assignments and
+  `validate_minimum_viable()` reports a missing Maintainer. Parity with `web4-core`
+  `SocietyRole::base_mandatory()`, pinned by exact-wire tests on both sides and conformance
+  vectors role-001 / mvs-003.
+
 ## [0.28.0] - 2026-05-19
 
 Cross-society MCP types, conformance xfail resolution, error taxonomy expansion.

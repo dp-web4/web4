@@ -16,7 +16,7 @@
 > Production and advanced development continue in a separate private repository;
 > features may land here later behind stable plugin interfaces.
 
-A single-binary Rust daemon (~6 MB) that turns a community chapter into a sovereign Web4 society — 7 roles, signed founding charter, append-only witnessed ledger, and a multi-surface API: a small MCP `/tools/*` convenience surface, a full REST `/v1` API, a sealed member↔hub channel, and an operator admin web GUI — all driven by the same admin CLI and Docker deployment. First deployment target: a pilot community chapter. Any community willing to operate as a Web4 society can use the same software.
+A single-binary Rust daemon (~6 MB) that turns a community chapter into a sovereign Web4 society — 8 base roles, signed founding charter, append-only witnessed ledger, and a multi-surface API: a small MCP `/tools/*` convenience surface, a full REST `/v1` API, a sealed member↔hub channel, and an operator admin web GUI — all driven by the same admin CLI and Docker deployment. First deployment target: a pilot community chapter. Any community willing to operate as a Web4 society can use the same software.
 
 ## Witnessed law
 
@@ -36,7 +36,7 @@ We don't mandate the policy. We insist that whatever the policy is, is followed 
 | Sprint | Capability | Status |
 |---|---|---|
 | 0 | Workspace scaffold + PRD + sprint plan | ✓ |
-| 1 | Society instantiation (7 roles + signed charter) | ✓ |
+| 1 | Society instantiation (8 base roles + signed charter) | ✓ |
 | 2 | Chapter ledger (hash-chained signed event log) | ✓ |
 | 3 | HTTP surface — small MCP `/tools/*` convenience set + full REST `/v1` API + sealed member channel | ✓ |
 | 4 | Admin CLI + operator admin web GUI | ✓ |
@@ -188,7 +188,7 @@ Read `docs/QUICKSTART.md` for the chapter-organizer onboarding walkthrough.
 | [`docs/PRD.md`](docs/PRD.md) | Formal PRD — problem, solution, scope, requirements, risks |
 | [`docs/SPRINTS.md`](docs/SPRINTS.md) | Sprint 0 → 6 plan, exit criteria each |
 | [`docs/HUB-LAW.md`](docs/HUB-LAW.md) | Template + guidance for writing hub law |
-| [`docs/ROLES.md`](docs/ROLES.md) | The 7 Web4 society roles, how to fill them |
+| [`docs/ROLES.md`](docs/ROLES.md) | The 8 base-mandatory Web4 society roles, how to fill them |
 | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Common errors + recovery |
 | [`docs/ENVIRONMENT.md`](docs/ENVIRONMENT.md) | Every environment variable the daemon reads — including the four that switch a safety check **off** |
 

@@ -645,7 +645,7 @@ class TestR6R7Conformance:
 
 
 # ══════════════════════════════════════════════════════════════════
-#  SOCIETY/ROLE CONFORMANCE (society-roles.json — 8 vectors)
+#  SOCIETY/ROLE CONFORMANCE (society-roles.json — 9 vectors)
 # ══════════════════════════════════════════════════════════════════
 
 
@@ -659,7 +659,7 @@ class TestSocietyRoleConformance:
     # ── soc-001: Solo founder bootstrap ────────────────────────
 
     def test_bootstrap_solo_founder(self) -> None:
-        """soc-001: Solo founder bootstraps society — fills all 7 mandatory roles."""
+        """soc-001: Solo founder bootstraps society — fills all 8 base-mandatory roles."""
         vec = self.suite["bootstrap_vectors"][0]
         inp = vec["input"]
         roles = bootstrap_society_roles(inp["founder_lct"])
@@ -722,14 +722,17 @@ class TestSocietyRoleConformance:
     # ── role-001: Base mandatory roles ─────────────────────────
 
     def test_base_mandatory_roles(self) -> None:
-        """role-001: 7 base-mandatory roles per spec."""
+        """role-001: 8 base-mandatory roles per spec — exact set, exact order."""
         vec = self.suite["role_vectors"][0]
         exp = vec["expected"]
 
         assert len(BASE_MANDATORY_ROLES) == exp["count"]
         role_values = [r.value for r in BASE_MANDATORY_ROLES]
-        for expected_role in exp["roles"]:
-            assert expected_role in role_values, f"Missing mandatory role: {expected_role}"
+        assert role_values == exp["roles"], f"base-mandatory drift: {role_values} != {exp['roles']}"
+        sdk_base = sorted(r.value for r in SocietyRole if r.is_base_mandatory)
+        assert sdk_base == sorted(exp["roles"]), "enum is_base_mandatory disagrees with the vector"
+        for name in exp["not_base_mandatory"]:
+            assert not SocietyRole(name).is_base_mandatory
 
         # Verify is_base_mandatory property
         for role in BASE_MANDATORY_ROLES:
@@ -835,7 +838,7 @@ class TestSocietyRoleConformance:
         """mvs-001: Operational society with single filler fails differentiation check."""
         vec = self.suite["minimum_viable_vectors"][0]
 
-        # Create all 7 base-mandatory roles filled by same entity
+        # Create all 8 base-mandatory roles filled by same entity
         founder = "lct:web4:human:alice"
         roles = bootstrap_society_roles(founder)
 
@@ -860,6 +863,39 @@ class TestSocietyRoleConformance:
         assert len(errors) > 0, f"Should fail with missing {missing_role}"
         error_text = vec["expected"]["error_contains"]
         assert any(error_text in e for e in errors), f"Expected error containing '{error_text}', got: {errors}"
+
+    # ── mvs-003: Missing only Maintainer fails validation ──────
+
+    def test_mvs_missing_only_maintainer(self) -> None:
+        """mvs-003: Society missing ONLY the Maintainer fails validation."""
+        vec = self.suite["minimum_viable_vectors"][2]
+        assert vec["id"] == "mvs-003"
+        missing_role = vec["missing_role"]
+
+        roles = [
+            RoleAssignment(
+                role=r,
+                role_lct_id=f"role-lct-{r.value}",
+                filling_entity_lct_id="lct:web4:human:alice",
+                assigned_by="lct:web4:human:alice",
+            )
+            for r in BASE_MANDATORY_ROLES
+            if r.value != missing_role
+        ]
+        if vec["with_witness"]:
+            roles.append(
+                RoleAssignment(
+                    role=SocietyRole.WITNESS,
+                    role_lct_id="role-lct-witness",
+                    filling_entity_lct_id="lct:web4:human:bob",
+                    assigned_by="lct:web4:human:alice",
+                )
+            )
+        assert len({r.filling_entity_lct_id for r in roles}) == vec["distinct_fillers"]
+
+        errors = validate_minimum_viable(roles, is_operational=vec["state"] == "operational")
+        assert len(errors) == vec["expected"]["error_count"], errors
+        assert vec["expected"]["error_contains"] in errors[0]
 
 
 # ══════════════════════════════════════════════════════════════════

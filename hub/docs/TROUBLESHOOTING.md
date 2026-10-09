@@ -369,7 +369,7 @@ key-at-mint introduces. Prefer one of the two daemon paths above on a live hub.
 
 ### "unknown role 'xyz'"
 
-`hub assign-role` expects one of: `sovereign`, `law_oracle`, `policy_entity`, `treasurer`, `administrator`, `archivist`, `citizen`, `witness`, `auditor`. The matcher is case-insensitive and accepts hyphens (`law-oracle` ≡ `law_oracle`). Custom roles aren't exposed via this CLI in MVP.
+`hub assign-role` expects one of: `sovereign`, `law_oracle`, `policy_entity`, `treasurer`, `administrator`, `archivist`, `citizen`, `maintainer`, `witness`, `auditor`. The matcher is case-insensitive and accepts hyphens (`law-oracle` ≡ `law_oracle`). Custom roles aren't exposed via this CLI in MVP.
 
 ### `--attended-by` parsing error in `hub record-event`
 
