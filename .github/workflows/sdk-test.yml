@@ -88,7 +88,7 @@ jobs:
       - name: Install from wheel in fresh environment
         run: |
           python -m venv /tmp/web4-wheel-test
-          /tmp/web4-wheel-test/bin/pip install dist/web4-*.whl
+          /tmp/web4-wheel-test/bin/pip install dist/web4_sdk-*.whl
 
       - name: Run selftest from installed wheel
         run: /tmp/web4-wheel-test/bin/web4 selftest

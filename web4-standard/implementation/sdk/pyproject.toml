@@ -46,8 +46,8 @@ web4-mcp = "web4.mcp_server:run"
 
 [project.optional-dependencies]
 validation = ["jsonschema>=4.0"]
-mcp = ["mcp>=1.0"]
-dev = ["pytest>=7.0", "pytest-cov>=4.0", "mypy>=1.0", "ruff>=0.4", "jsonschema>=4.0", "mcp>=1.0"]
+mcp = ["mcp>=1.0,<2"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "mypy>=1.0", "ruff>=0.4", "jsonschema>=4.0", "mcp>=1.0,<2"]
 
 [tool.setuptools.packages.find]
 include = ["web4*"]
