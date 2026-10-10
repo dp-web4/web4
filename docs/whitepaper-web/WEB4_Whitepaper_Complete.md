@@ -378,6 +378,8 @@ In Web4, a role is not a label on a user — it is an **entity with its own LCT*
 
 This one move does a lot of work. It is why trust can be role-scoped (the tensor binds to the *pairing*), why delegation is inspectable (authority flows through explicit role links), and why capability markets become possible (roles can be discovered and matched on verifiable history rather than claimed credentials).
 
+The standard also fixes a floor. Every Web4 society must have eight **base-mandatory roles** filled — Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen, and Maintainer — though one entity may hold several, down to a solo founder filling all eight. The **Maintainer** is worth singling out because it is the standard's cleanest statement of a distinction this paper has already drawn. Its job is to examine its entity's own standing state on a declared cadence — which members exist, which wiring is live, which documented assumption still holds, whether the resources the entity's commitments depend on are still there — and to record each finding with its evidence and a *clearing condition*, including the finding that nothing is wrong. It is defined for any entity with an MRH, not only for societies: a hub, a device, a service, or a role may each hold a Maintainer of its own. And it creates no authority. The entity's MRH bounds what the Maintainer may *consider*; the entity's law and whatever scope it has explicitly delegated bound what the Maintainer may *do*. A repair outside that scope is refused by the same gate that refuses any other unauthorized act, and the Maintainer's only recourse is to record the finding and escalate. Relevance is not permission — which is what makes the role safe to run unattended.
+
 ## Societies, authority, and law (SAL)
 
 Entities coordinate in **societies**: groups with membership, shared rules, and collective memory. The **Society–Authority–Law** pattern specifies how governance works without a central platform:
@@ -486,6 +488,8 @@ Compact definitions for every term this paper relies on. The standard's [GLOSSAR
 **R7.** R6 with **R**eputation as a first-class output: the Request↔Result delta feeds back into the actor's T3/V3 tensors. The mechanism by which trust is computed rather than declared.
 
 **Role (as entity).** A capacity — "Data Analyst," "Citizen," "Witness" — holding its own LCT, permission boundaries, and performance history, independent of whoever currently performs it. Agents pair with roles; both records update.
+
+**Base-mandatory roles.** The eight roles every Web4 society must have filled — Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen, Maintainer — with one entity free to hold several. The **Maintainer** examines its entity's own standing state on a declared cadence and records each finding with a clearing condition; its MRH bounds what it examines, its entity's law bounds what it may repair. Any entity with an MRH may define one.
 
 **Witnessing.** The corroboration fabric: entities observing and signing records of other entities' acts, making presence and history tamper-evident through accumulated independent observation rather than central authority.
 
@@ -619,4 +623,4 @@ To contribute to Web4 development or request access to additional technical docu
 
 ---
 
-*Generated: 2026-09-17 12:49:41*
+*Generated: 2026-10-10 04:35:52*
