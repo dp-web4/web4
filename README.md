@@ -205,7 +205,7 @@ That split is deliberate: interoperability and core accountability primitives be
 
 ## License and patents
 
-Code is AGPL-3.0-or-later unless a subdirectory states otherwise. Patent terms are in [PATENTS.md](PATENTS.md); commercial licensing is separate where applicable.
+Code is AGPL-3.0-or-later unless a subdirectory states otherwise. Patent terms are in [PATENTS.md](PATENTS.md); see the [legal and patent scope guide](docs/LEGAL_AND_PATENT_SCOPE.md) for a non-grant explanation of AGPL Section 11, independent implementations, interoperability and component boundaries. Commercial licensing is separate where applicable.
 
 ---
 
