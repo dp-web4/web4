@@ -365,4 +365,4 @@ applies to every channel tool.
 
 AGPL-3.0-or-later. See [`LICENSE`](../LICENSE) at the web4 root.
 
-Commercial licensing available from Metalinxx Inc. for organizations that need non-AGPL terms — inquire via the [project repository](https://github.com/dp-web4/web4).
+The Web4 root [patent notice](../PATENTS.md) describes AGPL Section 11 rights, including permitted commercial use. See the [legal and patent scope guide](../docs/LEGAL_AND_PATENT_SCOPE.md) for independent implementation and bridging boundaries; it does not create a new grant. Commercial licensing is available from Metalinxx Inc. for uses needing separate rights — inquire via the [project repository](https://github.com/dp-web4/web4).
