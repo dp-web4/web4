@@ -48,4 +48,4 @@ python3 test_mcp.py
 
 ## License
 
-MIT - Copyright (c) 2025 Web4 Contributors
+**License status requires verification:** this README historically stated “MIT - Copyright (c) 2025 Web4 Contributors,” but the repository root declares AGPL-3.0-or-later by default unless a subdirectory states otherwise. No independent `mcp-server/LICENSE` was found in the current directory listing. This text preserves the historical claim without determining its legal effect. Verify revision history, notices and rights-holder intent before relying on either interpretation. See [root LICENSE](../LICENSE) and [legal/patent scope guide](../docs/LEGAL_AND_PATENT_SCOPE.md).
