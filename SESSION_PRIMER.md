@@ -57,8 +57,9 @@ Web4 is in **development** phase. The ontology is mature. Work is reusable libra
 
 ## Licensing
 
-- **Everything** in this repo: AGPL-3.0-or-later. (Brief MIT relicense was attempted in Feb 2026 for ARIA grant compatibility; reverted 2026-04-27 after the grant was no-submit and the patent grant in PATENTS.md created a license trap with MIT.)
-- Patent grant terms: see [PATENTS.md](PATENTS.md). AGPL-bounded.
+- Root default: AGPL-3.0-or-later **unless a subdirectory explicitly states otherwise**; check actual licenses, component notices and history before making a definitive exception claim.
+- Patent terms: [PATENTS.md](PATENTS.md); explanatory [legal/patent scope guide](docs/LEGAL_AND_PATENT_SCOPE.md). Section 11's essential-claims contributor-version grant is not a blanket independent-standards-implementation patent grant.
+- The historical MIT notice in `mcp-server/README.md` requires provenance/rights-holder review; do not silently resolve it by assumption.
 
 ## Authentication
 
