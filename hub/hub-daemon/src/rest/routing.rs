@@ -354,5 +354,8 @@ pub(super) fn seal_key_for(state: &HubState, member: Option<Uuid>, lct: &Canonic
     let hex_key = member.and_then(|m| state.member_pubkeys.get(&m).or_else(|| state.council_pubkeys.get(&m)))
         .or_else(|| state.member_of_consent_key.get(lct))?;
     let bytes: [u8; 32] = hex::decode(hex_key).ok()?.try_into().ok()?;
-    Some((web4_core::crypto::PublicKey::from_bytes(&bytes).ok()?, "member"))
+    let key = web4_core::crypto::PublicKey::from_bytes(&bytes).ok()?;
+    // Never seal to a small-order point: the ECDH secret would be predictable (PRD rev 11).
+    if key.is_weak() { return None; }
+    Some((key, "member"))
 }

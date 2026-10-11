@@ -87,6 +87,13 @@ impl PublicKey {
         self.key.to_bytes()
     }
 
+    /// True for a small-order ("weak") point. Such a key decompresses fine, but maps to a
+    /// small-order X25519 point, which makes an ECDH shared secret predictable — so it must
+    /// never be accepted as an identity that is SEALED to (hub PRD_MEMBER_OF_ROUTING rev 11).
+    pub fn is_weak(&self) -> bool {
+        self.key.is_weak()
+    }
+
     /// Verify a signature
     pub fn verify(&self, message: &[u8], signature: &SignatureBytes) -> Result<()> {
         let sig = Signature::from_bytes(&signature.bytes);

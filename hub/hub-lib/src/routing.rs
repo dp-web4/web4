@@ -62,7 +62,13 @@ pub enum RoutingError {
 fn pubkey(hex_str: &str, what: &str) -> Result<PublicKey, String> {
     let raw = hex::decode(hex_str).map_err(|_| format!("{what} is not hex"))?;
     let bytes: [u8; 32] = raw.try_into().map_err(|_| format!("{what} is not 32 bytes"))?;
-    PublicKey::from_bytes(&bytes).map_err(|_| format!("{what} is not an Ed25519 key"))
+    let key = PublicKey::from_bytes(&bytes).map_err(|_| format!("{what} is not an Ed25519 key"))?;
+    // PRD rev 11 (Sprout): a small-order point decompresses fine but makes ECDH to it
+    // predictable. Refused at every key intake here — router, member and consent keys.
+    if key.is_weak() {
+        return Err(format!("{what} is a small-order (weak) point"));
+    }
+    Ok(key)
 }
 
 fn signature(hex_str: &str) -> Option<SignatureBytes> {
@@ -325,6 +331,16 @@ pub(crate) mod tests {
         offset.issued_at = local.clone();
         offset.signature_hex = x.sign(&consent_bytes(REPORT_DOMAIN, hub, &xl, &yl, &local)).to_hex();
         assert!(offset.verify(REPORT_DOMAIN, hub, &xl, &yl, now).is_err(), "a +02:00 issued_at is refused: UTC only");
+        // Small-order key (PRD rev 11): the identity point decompresses but is weak. A consent
+        // naming it is refused even though the "member" LCT derives from it.
+        let mut weak_bytes = [0u8; 32]; weak_bytes[0] = 1;
+        let weak = PublicKey::from_bytes(&weak_bytes).expect("the identity point decompresses");
+        assert!(weak.is_weak());
+        let weak_lct = CanonicalLctId::derive(&weak);
+        let weak_consent = Consent { pubkey_hex: hex::encode(weak_bytes), signature_hex: "00".repeat(64),
+            issued_at: now.to_rfc3339() };
+        let err = weak_consent.verify(REPORT_DOMAIN, hub, &weak_lct, &yl, now).unwrap_err();
+        assert!(err.to_string().contains("small-order"), "{err}");
         let future = consent(REPORT_DOMAIN, hub, &x, &yl, now + chrono::Duration::seconds(CLOCK_SKEW_SECS + 30));
         assert!(future.verify(REPORT_DOMAIN, hub, &xl, &yl, now).is_err(), "future-dated (two-sided window, rev 5)");
     }
