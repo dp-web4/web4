@@ -92,6 +92,11 @@ pub enum ActAddress {
     /// The society at large — a forum post. (Contributed back: HUB's draft has
     /// no all-citizens variant; forum-to-everyone isn't `Role` fan-out.)
     Society { lct_id: Uuid },
+    /// An entity by its CANONICAL LCT (`lct:web4:mb32:b…`), resolved at delivery: a router's
+    /// own mailbox, or a member-of child reached through its machine's router, the destination
+    /// never rewritten (hub PRD_MEMBER_OF_ROUTING H3). `canonical`, not `lct_id`: on every
+    /// other variant `lct_id` is a UUID. MRH = lateral.
+    Lct { canonical: String },
 }
 
 impl ActAddress {
@@ -99,7 +104,7 @@ impl ActAddress {
     pub fn mrh_direction(&self) -> MrhDirection {
         match self {
             ActAddress::FutureSelf { .. } => MrhDirection::Temporal,
-            ActAddress::Peer { .. } | ActAddress::Citizen { .. } => MrhDirection::Lateral,
+            ActAddress::Peer { .. } | ActAddress::Citizen { .. } | ActAddress::Lct { .. } => MrhDirection::Lateral,
             ActAddress::Role { .. } | ActAddress::Society { .. } => MrhDirection::Broad,
         }
     }
