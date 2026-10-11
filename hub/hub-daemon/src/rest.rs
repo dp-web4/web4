@@ -3839,7 +3839,7 @@ struct ChannelInner {
 /// arms (the classification guard test walks this list; adding a dispatch arm
 /// without registering it here fails the test, so a new tool cannot silently
 /// skip freshness classification). (#474)
-const CHANNEL_TOOLS: [&str; 22] = [
+const CHANNEL_TOOLS: [&str; 23] = [
     "constellation_challenge",
     "find_members",
     "find_skill",
@@ -3860,6 +3860,7 @@ const CHANNEL_TOOLS: [&str; 22] = [
     "request_citizenship",
     "request_intro",
     "respond_intro",
+    "route_forward",
     "send_secret",
     "walk_members",
 ];
