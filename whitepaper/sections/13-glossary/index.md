@@ -32,6 +32,8 @@ Compact definitions for every term this paper relies on. The standard's [GLOSSAR
 
 **Role (as entity).** A capacity — "Data Analyst," "Citizen," "Witness" — holding its own LCT, permission boundaries, and performance history, independent of whoever currently performs it. Agents pair with roles; both records update.
 
+**Base-mandatory roles.** The eight roles every Web4 society must have filled — Sovereign, Law Oracle, Policy-Entity, Treasurer, Administrator, Archivist, Citizen, Maintainer — with one entity free to hold several. The **Maintainer** examines its entity's own standing state on a declared cadence and records each finding with a clearing condition; its MRH bounds what it examines, its entity's law bounds what it may repair. Any entity with an MRH may define one.
+
 **Witnessing.** The corroboration fabric: entities observing and signing records of other entities' acts, making presence and history tamper-evident through accumulated independent observation rather than central authority.
 
 **Society.** A bounded group of LCT-bearing members with shared law and collective memory — itself an entity with presence. Societies interact through the same MCP membrane as individuals (fractal governance).
