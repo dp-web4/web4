@@ -1,6 +1,6 @@
 # PRD — Member-of routing: the hub routes to a machine's hestia; hestia routes locally
 
-**Status:** design for review — **rev 8** (addresses Legion, CBP and Sprout reviews on #898 and the #899 reviews; changelog §9). Hub + hestia contract. Implementation slices in §7.
+**Status:** design — **rev 9** (Hub A + B1 merged and live at `99bd2056`; rev 9 settles O1 and the B2 rollout for review) (addresses Legion, CBP and Sprout reviews on #898 and the #899 reviews; changelog §9). Hub + hestia contract. Implementation slices in §7.
 **Date:** 2026-10-07
 **Direction:** dp, 2026-10-07:
 > hestia is per-machine. hub needs to know which member is the machine's hestia (router), and which
@@ -285,11 +285,18 @@ table was not readable from that session; the binding S2/S4 writes must name thi
    Unblocked by rev 2: nothing in it depends on the open questions.
 2. **Hub B1** — `SealedNotice.for_lct` + `sealed_to`, sealing semantics, test vectors per case (H3 Sealing),
    the per-`(router, for_lct)` bound, and H4 `pubkey_hex`.
-3. **Hub B2** — `ActAddress::Lct { canonical }` (web4-core, additive), delivery resolution, `routed_via`.
-   **Rollout order:** `ActAddress` is `#[serde(tag = "to")]` with no catch-all, so a reader on an older
-   web4-core hard-fails folding a ledger that contains `{"to":"lct"}`. Every ledger reader (hub,
-   hestia if it deserializes `ReferencedAct`, fleet tooling) bumps web4-core **before** the hub writes the
-   first `lct` address.
+3. **Hub B2** — `ActAddress::Lct { canonical }` and `Act.on_behalf_of` (web4-core, additive), delivery
+   resolution (H3 rules 0–3), `routed_via`, and the H5 reply path.
+   **Rollout (rev 9, measured — replaces rev 2's reader-first ordering).** `ActAddress` is
+   `#[serde(tag = "to")]` with no catch-all, so an old reader hard-fails on `{"to":"lct"}`. Who reads
+   `ActAddress`, measured 2026-10-11:
+   - **the hub** — the only ledger reader; web4-core and the hub ship in the same tree, so they move together;
+   - **hestia** — `core/src/witness_act.rs` *constructs* acts and has one exhaustive `match` (`address_parts`).
+     It builds against `web4.pin` (`69fa2a01` at the time of writing) and never deserializes the hub ledger.
+     Its next pin bump fails to **compile** until it adds the `Lct` arm — loud, not a runtime fault;
+   - **hub-mesh tooling** — writes `{"to":"peer",…}` JSON and reads hub tool *responses*, never the ledger.
+   So B2 ships web4-core and the hub in **one PR**. The only follow-up is hestia's one match arm at its next
+   pin bump, filed as an issue when B2 merges.
 4. **hestia A** — S1 (with preflight) + S2 (+ S4 for newly bound entities). B3 is settled by
    existing hestia code (rev 4); starts once Hub A's H1/H2 endpoints exist to test against.
 5. **hestia B** — S3 (binding-table resolution, demux before open), and the un-ACKed hold for unknown
@@ -306,14 +313,39 @@ table was not readable from that session; the binding S2/S4 writes must name thi
 | D4 | destination addressing | **additive `ActAddress::Lct { canonical }`** in web4-core, readers bump first | the witnessed act must name the true destination, not the router |
 | D5 | router must be in receipt mode | **yes** | one destructive drain would lose every child's mail (Legion, CBP: agree) |
 | D6 | hub edges are one level (parent = router) | **yes** (rev 2) | rev 1's chain walk was unbuildable under H2; deeper structure is hestia-local |
-| D7 | consent evidence stored in the witnessed event; projection and read are the bare fact | **yes** (rev 2) — **needs dp** | replay guard needs state; third-party re-verification needs evidence; rev 3 sealing to x reads the consent key from it. Read as "no meta in what is reported". If dp meant no meta on the ledger either, the alternative is hub-internal unwitnessed `issued_at` + x's pubkey (Legion N2, Sprout B1) and the audit property is lost |
+| D7 | consent evidence stored in the witnessed event; projection and read are the bare fact | **yes** — **settled (rev 9):** dp merged #899, whose `MemberOfReported` carries the consent, on 2026-10-08 | replay guard needs state; third-party re-verification needs evidence; rev 3 sealing to x reads the consent key from it. Read as "no meta in what is reported". If dp meant no meta on the ledger either, the alternative is hub-internal unwitnessed `issued_at` + x's pubkey (Legion N2, Sprout B1) and the audit property is lost |
 
-### Open — not decided here
-- **O1, the reply path (CBP).** `SealedNotice.from` is a `Uuid`. When x replies to a routed notice, who
-  signs and what is in the sender field — the router's membership with an attested `from_lct: x`, or x
-  through the router? Must be settled in Hub B2; until then x replies through whatever membership it has.
+### H5 — The reply path: x speaks through its router (rev 9, settles O1)
+A pure-LCT child x has no hub membership, so it cannot sign an envelope the hub verifies. Rev 9's answer
+uses the two keys the hub already trusts for x's traffic:
+
+- **The router's membership authenticates the transport.** The envelope is signed by the router member, as
+  every router call is.
+- **x authorizes the act.** The payload carries `on_behalf_of: x` and `child_signature`, x's signature
+  with **the key on x's current edge** (`member_of_consent_key[x]`, the same key the hub seals x's mail to)
+  over:
+  `"web4-act-as-v1\n<hub_id>\n<x>\n<router_member_uuid>\n<act_digest>\n"`,
+  where `act_digest` = sha256-hex of the act's `kind`, the serialized `to`, `pointer_uri` and
+  `content_hash`, newline-joined. It is pinned by a test vector in B2.
+
+The hub accepts only if x's current edge names a parent whose **registered router member is the signer**,
+and the signature verifies. The witnessed `ReferencedAct` then has `actor_lct` = the router member (who
+carried it) and **`on_behalf_of` = x** (who said it). Notices to the recipient carry `from_lct: x` beside
+`from`. A router therefore cannot speak for a child that did not sign, and a child cannot be spoken for by
+a router it is not member-of.
+
+Rejected alternative: the router speaks for x unsigned. That is weaker by construction: the record would
+say "the router says x said", and D1's protection against a foreign router would not extend to speech.
 
 ## 9. Changelog
+
+**rev 9 (2026-10-11)** — after Hub A + B1 merged and went live (`99bd2056`).
+- H5 (new): the reply path. The router membership signs the transport, and x authorizes with its edge's
+  consent key over `web4-act-as-v1`. Recorded as `on_behalf_of` on the act and `from_lct` on the notice.
+  Settles O1 (CBP).
+- §7 B2: rollout measured. The hub is the only `ActAddress` ledger reader, and hestia only constructs acts
+  (one compile-loud match arm at its next pin bump). So B2 is one PR, not reader-first.
+- D7: settled by dp's merge of #899.
 
 **rev 8 (2026-10-07)** — Legion's re-review of #899 (`0e51f578`).
 - H1.7: the strictly-newer check is against a per-router-LCT high-water mark that survives `RouterRetired`, not only the registration in force.
