@@ -1,6 +1,6 @@
 # PRD — Member-of routing: the hub routes to a machine's hestia; hestia routes locally
 
-**Status:** design — **rev 9** (Hub A + B1 merged and live at `99bd2056`; rev 9 settles O1 and the B2 rollout for review) (addresses Legion, CBP and Sprout reviews on #898 and the #899 reviews; changelog §9). Hub + hestia contract. Implementation slices in §7.
+**Status:** design — **rev 10** (Hub A + B1 merged and live at `99bd2056`; rev 9 settles O1 and the B2 rollout for review) (addresses Legion, CBP and Sprout reviews on #898 and the #899 reviews; changelog §9). Hub + hestia contract. Implementation slices in §7.
 **Date:** 2026-10-07
 **Direction:** dp, 2026-10-07:
 > hestia is per-machine. hub needs to know which member is the machine's hestia (router), and which
@@ -310,7 +310,7 @@ table was not readable from that session; the binding S2/S4 writes must name thi
 | D1 | consent from x required for an edge | **yes** | otherwise any router can capture any LCT's mail |
 | D2 | an edge takes precedence over x's direct membership | **yes**, except a retired router falls back to x's own receipt membership (rev 2) | dp: "messages addressed to LCT-x via hub get routed to LCT-y"; x's own mailbox is not best-effort |
 | D3 | read visibility | **members + operator** | edges are machine topology (Legion, CBP: agree) |
-| D4 | destination addressing | **additive `ActAddress::Lct { canonical }`** in web4-core, readers bump first | the witnessed act must name the true destination, not the router |
+| D4 | destination addressing | **additive `ActAddress::Lct { canonical }`** in web4-core; rollout per §7 B2 (rev 9: one PR, measured) | the witnessed act must name the true destination, not the router |
 | D5 | router must be in receipt mode | **yes** | one destructive drain would lose every child's mail (Legion, CBP: agree) |
 | D6 | hub edges are one level (parent = router) | **yes** (rev 2) | rev 1's chain walk was unbuildable under H2; deeper structure is hestia-local |
 | D7 | consent evidence stored in the witnessed event; projection and read are the bare fact | **yes** — **settled (rev 9):** dp merged #899, whose `MemberOfReported` carries the consent, on 2026-10-08 | replay guard needs state; third-party re-verification needs evidence; rev 3 sealing to x reads the consent key from it. Read as "no meta in what is reported". If dp meant no meta on the ledger either, the alternative is hub-internal unwitnessed `issued_at` + x's pubkey (Legion N2, Sprout B1) and the audit property is lost |
@@ -321,15 +321,52 @@ uses the two keys the hub already trusts for x's traffic:
 
 - **The router's membership authenticates the transport.** The envelope is signed by the router member, as
   every router call is.
-- **x authorizes the act.** The payload carries `on_behalf_of: x` and `child_signature`, x's signature
-  with **the key on x's current edge** (`member_of_consent_key[x]`, the same key the hub seals x's mail to)
-  over:
-  `"web4-act-as-v1\n<hub_id>\n<x>\n<router_member_uuid>\n<act_digest>\n"`,
-  where `act_digest` = sha256-hex of the act's `kind`, the serialized `to`, `pointer_uri` and
-  `content_hash`, newline-joined. It is pinned by a test vector in B2.
+- **x authorizes the act.** The payload carries `on_behalf_of: x` and `child_signature`, x's **Ed25519**
+  signature with **the key on x's current edge** (`member_of_consent_key[x]`) over the statement below.
 
-The hub accepts only if x's current edge names a parent whose **registered router member is the signer**,
-and the signature verifies. The witnessed `ReferencedAct` then has `actor_lct` = the router member (who
+**Keys (rev 10, Nova).** x has one key: the **Ed25519 identity key** its LCT derives from
+(`derive_lct_id`), the key that signed its H2 consent. It is used two ways, both already in force for
+member pins today:
+- **signing:** Ed25519 directly (consent, the H5 child signature);
+- **sealing:** `web4_core::pair_channel`. That is static X25519 ECDH (`KeyPair::ecdh_with_peer`), with both
+  Ed25519 keys mapped to X25519 by the standard Edwards→Montgomery map (`ed25519_to_x25519_public`),
+  followed by ChaCha20-Poly1305 bound to `pair_id`.
+
+No separate encryption key exists or is accepted. A key that does not decompress to a valid Edwards point
+is refused both as a consent key and as a sealing target.
+
+**The statement (rev 10, Nova — replay-bound and unambiguous).** Every field is a **netstring**
+(`<decimal byte length>:<bytes>,`), concatenated in this order with no separators. An absent optional
+field is the empty netstring `0:,`:
+
+```
+act_as := ns("web4-act-as-v1") ns(hub_id) ns(x) ns(router_member_uuid)
+          ns(act_id) ns(issued_at) ns(edge_epoch)
+          ns(kind) ns(to) ns(pointer_uri) ns(content_hash)
+```
+- `act_id`: the act's own UUID, chosen by the sender and witnessed as `Act.act_id`;
+- `issued_at`: RFC 3339 UTC, within `now − 10 min … now + 60 s`;
+- `edge_epoch`: decimal `member_of_at[x]`, the ledger index that witnessed x's **current** edge;
+- `to`: the address in tagged-text form: `lct:<canonical>`, `peer:<uuid>`, `citizen:<uuid>`, `role:<name>`
+  or `society:<uuid>`, never serialized JSON;
+- `pointer_uri` and `content_hash`: as submitted (`0:,` if absent).
+
+UUIDs are lowercase hyphenated. Strings are UTF-8 as received, so a field may contain newlines or `:`
+without ambiguity. Cross-language positive and negative vectors are pinned in B2: every field, empty
+optional fields, a newline-bearing field, and a one-byte change per field must fail.
+
+**Acceptance and replay (rev 10, Nova).** The hub accepts only if, **at acceptance**:
+1. x's **current** edge names a parent whose registered router member is the envelope signer;
+2. `edge_epoch` equals `member_of_at[x]` now. A signature made before x moved, was withdrawn or was
+   re-reported, or before its router re-registered, no longer verifies;
+3. `issued_at` is inside the window;
+4. the signature verifies under `member_of_consent_key[x]`;
+5. `act_id` has not been witnessed. A resubmission with the same `act_id` **and the same statement**
+   returns the existing entry (idempotent, no second witness, no second delivery). The same `act_id` with
+   a different statement is **409**.
+
+Revalidation is at acceptance only. Receipts and witnessed entries stay valid after the edge later changes;
+history is not rewritten. The witnessed `ReferencedAct` then has `actor_lct` = the router member (who
 carried it) and **`on_behalf_of` = x** (who said it). Notices to the recipient carry `from_lct: x` beside
 `from`. A router therefore cannot speak for a child that did not sign, and a child cannot be spoken for by
 a router it is not member-of.
@@ -338,6 +375,16 @@ Rejected alternative: the router speaks for x unsigned. That is weaker by constr
 say "the router says x said", and D1's protection against a foreign router would not extend to speech.
 
 ## 9. Changelog
+
+**rev 10 (2026-10-11)** — Nova's review of rev 9.
+- H5 replay: the child statement binds `act_id`, `issued_at` (window) and `edge_epoch`. These are
+  revalidated at acceptance against the current edge and router. A duplicate `act_id` is idempotent; a
+  different statement under it is 409. History is not rewritten.
+- H5 keys: one Ed25519 identity key, signing directly and sealing through pair_channel's Edwards→Montgomery
+  X25519 ECDH (as for member pins). No separate encryption key.
+- H5 encoding: netstrings in a fixed order, `to` in tagged-text form, empty optionals as `0:,`, with
+  positive and negative vectors pinned in B2.
+- D4 table aligned with the rev 9 rollout.
 
 **rev 9 (2026-10-11)** — after Hub A + B1 merged and went live (`99bd2056`).
 - H5 (new): the reply path. The router membership signs the transport, and x authorizes with its edge's
