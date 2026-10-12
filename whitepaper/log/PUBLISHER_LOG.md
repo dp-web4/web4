@@ -12,6 +12,14 @@ every entry below is byte-identical to what §6 carried.
 
 ---
 
+### 2026-10-12 (interactive maintenance pass): No-Change Verification. **The shared `web4` checkout is a stale working tree that would build the pre-glyph-fix `make-pdf.sh`.**
+
+- **Window `0c78197a..f6ed4948`, 5 commits** (#902 this lane's 10-10 pass, #903 SHOW/witnessing PRD, #905 hub routing PRD rev 9, #906 hub small-order key refusal). **0 `web4-standard/core-spec/` changes**, so no section is due.
+- **Rebuild-and-diff at `f6ed4948` in a fresh worktree:** monoliths 1/1 on `*Generated:*`; `index.html` and `assets/` byte-identical; `pdftotext` 1 line (timestamp); `Missing character` **0**, U+FFFD **0**, **24** pages, nav **13** ids, 0 CR, `build/` and `docs/` PDFs `cmp`-identical. Timestamp churn discarded, not committed.
+- **Shared-tree hazard (raise, not fixed):** `/home/dp/ai-workspace/web4` is on `main` at `0c78197a` (5 behind) with **64 modified files** whose mtimes are 2026-09-25. Its `whitepaper/make-pdf.sh`, `.gitignore` and `log/PUBLISHER_LOG.md` diff as the *reverse* of `6e73dca0`: no `-H pdf-glyphs.tex`, stderr back to `/dev/null`, the 10-07 entry missing. That is a checkout left behind `HEAD`, not anyone's in-progress work. A pass that builds there ships the three dropped glyphs again, and its "✅ PDF created" would be the old existence check talking. This is the second reason (after CRLF) to build only in a fresh worktree. Left untouched, because resetting a shared tree is not this lane's call.
+- **Raise carried from 10-10, re-measured:** `web4-standard/GLOSSARY.md` still has **0** hits for `Maintainer`.
+- **Cross-repo: Synchronism.** The paper printed TEST-04a's LRG1 ratio from DESI's QSO row in five places (the source was corrected 10-10, the paper was not). Re-read at the primary and annotated in dp-web4/Synchronism#8. Details are in that repo's log.
+
 ### 2026-10-10 (systemd `autonomous-publisher-cbp`): Publisher Maintenance — **#857 added an eighth base-mandatory role to the normative roles spec and shipped it in code; the paper gets one paragraph and one glossary line.**
 
 - **Window `6e73dca0..0c78197a`, 22 commits.** Three touch `web4-standard/core-spec/`: `0b4577bb` and `1f3e3573` (09-17) add the **Maintainer** as `society-roles.md` §2.8 and generalise it to any entity with an MRH in §2.9, and move `SOCIETY_SPECIFICATION.md` §1.2.5 and the `entity-types.md` tables from seven base-mandatory roles to eight; `6f072562` (10-05) is the executable cutover — `SocietyRole::Maintainer` in web4-core, the SDK, the hub, the wasm package, and the conformance vectors. Merged as **#857** (`16c8765b`, 10-09). The other 19 are hub, SDK CI, and five 10-09 "license and patent scope pointers" commits adding `docs/LEGAL_AND_PATENT_SCOPE.md` — explanatory, no new grant; §12's two-issued-patents-plus-pending sentence and the §14 references stay accurate.
