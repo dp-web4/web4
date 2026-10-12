@@ -245,7 +245,10 @@ read is the bare fact; consent evidence is in the ledger event at `witnessed_at`
 Beings and seats that are hub members today (`hub-being`, `sprout-being`, …) keep working: delivery by
 member UUID is unchanged until an edge exists for that member's canonical identity. Once S2 reports the
 edge **for the membership-derived LCT** (rev 2), H3 rule 2 routes their mail through their machine's
-router — senders change nothing. The per-entity membership then carries no mail and can be withdrawn by
+router — senders change nothing in how they **address**. **(B2a, CBP on #907)** What they can get back
+does change: a legacy send that was always best-effort 200 can now be refused **507 `child_share_full`** (or
+`router_mailbox_full`) once the recipient's edge exists. That is the share invariant working, refused before
+anything is witnessed, and not a regression. The per-entity membership then carries no mail and can be withdrawn by
 its owner (web4 #804) on the operator's schedule — **but not before** the router path is proven for that
 entity, because it is also the retired-router fallback (H3.1). **(rev 3, Sprout N6)** An entity
 whose membership has already been withdrawn has no fallback, so if its router retires its mail returns

@@ -443,10 +443,13 @@ pub(super) async fn resolve_delivery(s: &RestState, state: &HubState, address: &
         // #883 resolver maps the member to exactly one canonical identity". `pin_lct` reads the ONE
         // current pin, which is equivalent while a member holds one pin; when multi-pin lands, the
         // ambiguous case must fall back to legacy delivery here.
+        // Rule 0 holds on this arm too (CBP, #907): a member that is itself a router, or that
+        // serves the router its pin-LCT is member-of, keeps its own mail — never routed upward or
+        // back into its own mailbox under `for_lct`.
         ActAddress::Peer { lct_id } | ActAddress::Citizen { lct_id } => {
-            if let Some(x) = pin_lct(state, *lct_id) {
+            if let Some(x) = pin_lct(state, *lct_id).filter(|x| !state.routers.contains_key(x)) {
                 if let Some(parent) = state.member_of.get(&x) {
-                    if let Some(r) = state.routers.get(parent) {
+                    if let Some(r) = state.routers.get(parent).filter(|r| r.member.as_uuid() != *lct_id) {
                         return Ok(Delivery::Routed { router_lct: parent.clone(), router_member: r.member.as_uuid(),
                             for_lct: x, seal_member: Some(*lct_id) });
                     }

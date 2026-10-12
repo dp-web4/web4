@@ -14592,6 +14592,25 @@ norms:
         assert_eq!(n["for_lct"], serde_json::json!(h), "routed under the member's pin-derived LCT");
     }
 
+    /// H3 rule 0 on the legacy arm (CBP, #907): the router MEMBER's own pin-LCT, made member-of
+    /// its own router, does not route its legacy mail back into its own mailbox under `for_lct`.
+    #[tokio::test]
+    async fn rule_zero_holds_for_a_legacy_address_to_the_router_member() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (m, mk, y, _c, _x) = routed_fixture(&state).await;
+        let h = hub_lib::ids::CanonicalLctId::derive(&mk.verifying_key());
+        let mut p = serde_json::json!({"action": "member_of_report", "member": h, "of": y});
+        p["consent"] = consent_json(state.hub_id, &mk, &y);
+        let env = routing_envelope(&state, &mk, m, p).await;
+        routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .expect("a router member's pin-LCT may be member-of its own router (it needs that key's consent)");
+        let from = sender(&state).await;
+        let out = send_act(&state, from, serde_json::json!({"to": "peer", "lct_id": m})).await.unwrap();
+        assert!(out["routed_via"].is_null(), "a router member's own mail is not routed");
+        let n = &state.mailbox_fetch(m, 100).await.unwrap()["notifications"][0]["notice"];
+        assert!(n.get("for_lct").is_none() || n["for_lct"].is_null());
+    }
+
     /// Build and sign a withdraw envelope the way a member's client would.
     async fn withdraw_envelope(
         state: &RestState, kp: &KeyPair, signer: Uuid, subject: Uuid, reason: Option<&str>,
