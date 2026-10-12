@@ -1,6 +1,6 @@
 # PRD — Member-of routing: the hub routes to a machine's hestia; hestia routes locally
 
-**Status:** design — **rev 11** (Hub A + B1 merged and live at `99bd2056`; rev 9 settles O1 and the B2 rollout for review) (addresses Legion, CBP and Sprout reviews on #898 and the #899 reviews; changelog §9). Hub + hestia contract. Implementation slices in §7.
+**Status:** design — **rev 12** (Hub A + B1 merged and live at `99bd2056`; rev 9 settles O1 and the B2 rollout for review) (addresses Legion, CBP and Sprout reviews on #898 and the #899 reviews; changelog §9). Hub + hestia contract. Implementation slices in §7.
 **Date:** 2026-10-07
 **Direction:** dp, 2026-10-07:
 > hestia is per-machine. hub needs to know which member is the machine's hestia (router), and which
@@ -15,6 +15,32 @@ custody + routing table), #1223 (dedicated router membership), #1230 (dual-signe
 certificate). **Placement:** web4 is authoritative for this mechanism (`docs/reference/HUB_IMPLEMENTATION_AUTHORITY.md`).
 
 ---
+
+## 0. Routing is a daemon function (dp, 2026-10-11)
+
+> hub routing should be a daemon function not agentic. a hub should stand on its own without agent
+> involvement, except for roles specifically requiring it.
+
+This is a constraint on every slice below, not a slice of its own:
+
+- **The hub daemon routes.** Delivery resolution, the share and total bounds, sealing to the child, the
+  `routed_via` and `delivered` report, refusals and alarms are all in-process (Hub A, B1, B2a). No agent
+  session sits between a sender and a mailbox.
+- **The hestia daemon is the router.** S1 (register the router), S2 (report and withdraw edges), S3
+  (drain the router mailbox, demux by `for_lct`, hold unknown children un-ACKed) and the H5 reply path run
+  in the hestia **daemon**, driven by state changes such as certifying the router or binding or unbinding
+  a child. They are not CLI steps an operator or agent has to remember to run. A CLI may expose them for
+  diagnosis, but the daemon does not depend on it.
+- **Agents consume their own mail.** A seat's watcher session, or a being's beat, reads mail addressed to
+  *it*. Neither is ever in the delivery path for someone else's mail. Today's being inbox drain, which runs
+  inside the being's own heartbeat (SAGE `being_inbox_drain`), is a stopgap. It is replaced by S3 in the
+  hestia daemon (hestia #1210).
+- **Roles that require a person or an agent stay that way, and only those.** Admitting a router's
+  membership, and enrolling it for receipt delivery, are governance acts: an operator decides, or law
+  decides (for example a standing norm that admits a certified router membership to receipt mode). Routing
+  never waits on them per message, only once per router.
+
+An implementation that needs an agent to deliver, register, report or drain fails this section.
 
 ## 1. The problem it removes
 
@@ -408,6 +434,12 @@ Rejected alternative: the router speaks for x unsigned. That is weaker by constr
 say "the router says x said", and D1's protection against a foreign router would not extend to speech.
 
 ## 9. Changelog
+
+**rev 12 (2026-10-11)** — dp's principle.
+- §0 (new): routing is a daemon function. The hub routes in-process (already true for A/B1/B2a). hestia's
+  S1–S3 and the H5 replies run in the hestia daemon, triggered by state, not by agent-run CLI steps. Agents
+  only consume their own mail. Governance acts (admission, receipt enrollment) stay with their roles,
+  once per router.
 
 **rev 11 (2026-10-11)** — Sprout's review of rev 10 (sprout-router will be the first H5 router).
 - H5: `router_epoch` added to the statement and revalidated. A same-member re-key moved no epoch before, so
