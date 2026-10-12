@@ -555,8 +555,18 @@ mod tests {
         let full = routing::Delivery::Routed { router_lct: y.clone(), router_member: m, for_lct: xs[0].clone(), seal_member: None };
         let e = routing::precheck_routed(&state, &st, &full).await.err().expect("x is full");
         assert_eq!(e.status, StatusCode::INSUFFICIENT_STORAGE);
-        let ok = routing::Delivery::Routed { router_lct: y, router_member: m, for_lct: xs[1].clone(), seal_member: None };
+        let ok = routing::Delivery::Routed { router_lct: y.clone(), router_member: m, for_lct: xs[1].clone(), seal_member: None };
         assert!(routing::precheck_routed(&state, &st, &ok).await.unwrap().is_some(), "the sibling has room and a key");
+
+        // The router-wide bound (Legion + Sprout on #907): ORDINARY notices fill the router's total
+        // while every child is under its share — the routed precheck must still refuse.
+        let plain = Mailbox::Receipts(ReceiptMailbox { protocol: RECEIVE_PROTOCOL.into(),
+            notices: (0..MAX_NOTICES_PER_MEMBER).map(|i| routed(None, &format!("p{i}"))).collect(), acked: vec![] });
+        state.open_store().await.unwrap().mailbox_put(m, &serde_json::to_vec(&plain).unwrap()).await.unwrap();
+        state.notifications.lock().await.remove(&m);
+        let e = routing::precheck_routed(&state, &st, &ok).await.err().expect("router full of plain mail");
+        assert_eq!(e.status, StatusCode::INSUFFICIENT_STORAGE);
+        assert!(e.message.starts_with("router_mailbox_full"), "{}", e.message);
     }
 
     /// Sealing (PRD H3, rev 3): a pure-LCT child's mail is sealed to its CONSENT key, a member

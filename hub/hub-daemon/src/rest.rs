@@ -4901,12 +4901,9 @@ async fn dispatch_channel(
             // Member-of routing (PRD H3, Hub B2a): where this delivery goes is decided HERE, before
             // anything is witnessed, so "no route" / a full child share is a refusal, never a
             // witnessed act whose notice silently went nowhere.
-            let (delivery, routed_key) = {
-                let state = { let l = s.ledger.lock().await; s.projected(&l) };
-                let d = routing::resolve_delivery(s, &state, &address).await?;
-                let k = routing::precheck_routed(s, &state, &d).await?;
-                (d, k)
-            };
+            // `state` is this call's projection (bound at the top of dispatch_channel).
+            let delivery = routing::resolve_delivery(s, &state, &address).await?;
+            let routed_key = routing::precheck_routed(s, &state, &delivery).await?;
             let notice_kind = kind.clone();
             let notice_uri = uri.clone();
             let act = web4_core::act::Act::addressed(
@@ -4992,18 +4989,26 @@ async fn dispatch_channel(
                 "entry_index": index,
             })
             .to_string();
+            // `delivered` is reported for a routed notice: the precheck closes the common refusals
+            // before the witness, but precheck -> witness -> enqueue is not one transaction, so a
+            // concurrent sender can take the last slot in between. The act then stands witnessed and
+            // the response says the notice was NOT queued, instead of a log line nobody reads.
+            let mut delivered: Option<bool> = None;
             match &delivery {
                 routing::Delivery::Member(rcpt) =>
                     queue_sealed_notice(s, *rcpt, caller_lct_id, &notice_kind, &notice_uri, body.as_bytes()).await,
                 routing::Delivery::Routed { router_member, for_lct, .. } => {
                     let key = routed_key.as_ref().expect("prechecked before witness");
-                    routing::queue_routed_notice(s, *router_member, for_lct, key, caller_lct_id,
-                        &notice_kind, &notice_uri, body.as_bytes()).await
+                    delivered = Some(routing::queue_routed_notice(s, *router_member, for_lct, key, caller_lct_id,
+                        &notice_kind, &notice_uri, body.as_bytes()).await);
                 }
                 routing::Delivery::None => {}
             }
             let mut resp = serde_json::json!({ "recorded": true, "entry_index": index,
                 "routed_via": delivery.routed_via() });
+            if let Some(d) = delivered {
+                resp["delivered"] = serde_json::json!(d);
+            }
             if !r7_out.is_empty() {
                 resp.as_object_mut().unwrap().extend(r7_out);
             }

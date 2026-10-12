@@ -387,9 +387,11 @@ fn pin_lct(state: &HubState, member: Uuid) -> Option<CanonicalLctId> {
     (!key.is_weak()).then(|| CanonicalLctId::derive(&key))
 }
 
-/// The one member whose current pin derives `x`, if exactly one does.
+/// The one member whose current MEMBER pin derives `x`, if exactly one does. Member pins only:
+/// `queue_sealed_notice` seals from `member_pubkeys`, so resolving an LCT to a council-only pin
+/// would witness an act whose notice is then dropped (Sprout, #907 review) — that is 409 instead.
 fn member_by_pin_lct(state: &HubState, x: &CanonicalLctId) -> Option<Uuid> {
-    let mut hits = state.member_pubkeys.keys().chain(state.council_pubkeys.keys())
+    let mut hits = state.member_pubkeys.keys()
         .copied().filter(|m| pin_lct(state, *m).as_ref() == Some(x));
     let first = hits.next()?;
     hits.all(|m| m == first).then_some(first)
@@ -437,7 +439,10 @@ pub(super) async fn resolve_delivery(s: &RestState, state: &HubState, address: &
                 .ok_or_else(|| no_route(format!("{x} is neither a router, member-of a router, nor a member's key")))
         }
         // Rule 2: a legacy member address whose pin-derived LCT has an edge to a live router is
-        // routed like rule 1; otherwise it is delivered exactly as before.
+        // routed like rule 1; otherwise it is delivered exactly as before. PRD H3 says "only if the
+        // #883 resolver maps the member to exactly one canonical identity". `pin_lct` reads the ONE
+        // current pin, which is equivalent while a member holds one pin; when multi-pin lands, the
+        // ambiguous case must fall back to legacy delivery here.
         ActAddress::Peer { lct_id } | ActAddress::Citizen { lct_id } => {
             if let Some(x) = pin_lct(state, *lct_id) {
                 if let Some(parent) = state.member_of.get(&x) {
@@ -466,6 +471,13 @@ pub(super) async fn precheck_routed(s: &RestState, state: &HubState, d: &Deliver
         let store = s.open_store().await.map_err(ApiError::internal)?;
         let cached = cache.get(router_member).map(Vec::as_slice).unwrap_or(&[]);
         let record = s.load_mailbox_record(&*store, *router_member, cached).await.map_err(ApiError::internal)?;
+        // The router-wide bound first, as enqueue_notice_op checks it: ordinary mail to the router
+        // member (rule 0, legacy Peer) also fills the total, which share x N does not bound
+        // (Legion + Sprout, #907 review).
+        if record.full() {
+            return Err(ApiError { status: StatusCode::INSUFFICIENT_STORAGE, message: format!(
+                "router_mailbox_full: router member {router_member}'s receipt mailbox is at its total bound; nothing witnessed") });
+        }
         record.notices().iter().filter(|n| n.for_lct.as_deref() == Some(for_lct.as_str())).count()
     };
     if held >= share {
@@ -476,20 +488,25 @@ pub(super) async fn precheck_routed(s: &RestState, state: &HubState, d: &Deliver
 }
 
 /// Queue a routed notice after the act is witnessed: in the ROUTER member's mailbox, `for_lct`
-/// set, sealed to the child's key. The router relays what it cannot open.
+/// set, sealed to the child's key. The router relays what it cannot open. Returns whether it was
+/// queued, so the caller reports `delivered` honestly (the residual race after the precheck).
 pub(super) async fn queue_routed_notice(s: &RestState, router_member: Uuid, for_lct: &CanonicalLctId,
-    key: &web4_core::crypto::PublicKey, from: Uuid, kind: &str, pointer_uri: &str, body: &[u8]) {
+    key: &web4_core::crypto::PublicKey, from: Uuid, kind: &str, pointer_uri: &str, body: &[u8]) -> bool {
     let pair_id = Uuid::new_v4();
     let sealed = match s.signer.channel_seal(key, pair_id, body) {
         Ok(c) => c,
-        Err(e) => { tracing::warn!("routed notice for {for_lct}: seal failed: {e}"); return; }
+        Err(e) => { tracing::warn!("routed notice for {for_lct}: seal failed: {e}"); return false; }
     };
-    if let Err(e) = enqueue_notice(s, router_member, SealedNotice {
+    match enqueue_notice(s, router_member, SealedNotice {
         pair_id, from, sealed, kind: kind.to_string(), pointer_uri: pointer_uri.to_string(),
         queued_at: Utc::now(), sealed_by: None,
         for_lct: Some(for_lct.to_string()), sealed_to: Some("member".into()),
     }).await {
-        tracing::warn!("routed notice for {for_lct} via router member {router_member}: enqueue failed: {e}");
+        Ok(_) => true,
+        Err(e) => {
+            tracing::warn!("routed notice for {for_lct} via router member {router_member}: enqueue failed after the act was witnessed: {e}");
+            false
+        }
     }
 }
 
