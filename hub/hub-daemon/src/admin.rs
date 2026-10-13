@@ -1306,6 +1306,7 @@ fn event_summary(event: &HubEvent) -> String {
                 ActAddress::Citizen { lct_id } => format!("citizen {}", short(lct_id)),
                 ActAddress::Role { role } => format!("role {}", html_escape(role)),
                 ActAddress::Society { lct_id } => format!("society {}", short(lct_id)),
+                ActAddress::Lct { canonical } => format!("lct {}", html_escape(canonical)),
             };
             format!(
                 "✉️ act <code>{}</code> <span class=\"muted\">from</span> {} → {} <span class=\"muted\">[{}]</span>",

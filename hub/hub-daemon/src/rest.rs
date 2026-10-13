@@ -4898,11 +4898,12 @@ async fn dispatch_channel(
             // member→member async message bus (not just a witness): emit a
             // referenced_act to a peer, the peer drains it via `notifications`.
             // Role/Society/FutureSelf are not point-deliveries — witnessed only.
-            let recipient = match &address {
-                web4_core::act::ActAddress::Citizen { lct_id }
-                | web4_core::act::ActAddress::Peer { lct_id } => Some(*lct_id),
-                _ => None,
-            };
+            // Member-of routing (PRD H3, Hub B2a): where this delivery goes is decided HERE, before
+            // anything is witnessed, so "no route" / a full child share is a refusal, never a
+            // witnessed act whose notice silently went nowhere.
+            // `state` is this call's projection (bound at the top of dispatch_channel).
+            let delivery = routing::resolve_delivery(s, &state, &address).await?;
+            let routed_key = routing::precheck_routed(s, &state, &delivery).await?;
             let notice_kind = kind.clone();
             let notice_uri = uri.clone();
             let act = web4_core::act::Act::addressed(
@@ -4981,17 +4982,33 @@ async fn dispatch_channel(
             }
             // Deliver (best-effort; dropped if the recipient has no pinned key —
             // they can still see the witnessed act on the ledger).
-            if let Some(rcpt) = recipient {
-                let body = serde_json::json!({
-                    "from": caller_lct_id,
-                    "kind": notice_kind,
-                    "pointer_uri": notice_uri,
-                    "entry_index": index,
-                })
-                .to_string();
-                queue_sealed_notice(s, rcpt, caller_lct_id, &notice_kind, &notice_uri, body.as_bytes()).await;
+            let body = serde_json::json!({
+                "from": caller_lct_id,
+                "kind": notice_kind,
+                "pointer_uri": notice_uri,
+                "entry_index": index,
+            })
+            .to_string();
+            // `delivered` is reported for a routed notice: the precheck closes the common refusals
+            // before the witness, but precheck -> witness -> enqueue is not one transaction, so a
+            // concurrent sender can take the last slot in between. The act then stands witnessed and
+            // the response says the notice was NOT queued, instead of a log line nobody reads.
+            let mut delivered: Option<bool> = None;
+            match &delivery {
+                routing::Delivery::Member(rcpt) =>
+                    queue_sealed_notice(s, *rcpt, caller_lct_id, &notice_kind, &notice_uri, body.as_bytes()).await,
+                routing::Delivery::Routed { router_member, for_lct, .. } => {
+                    let key = routed_key.as_ref().expect("prechecked before witness");
+                    delivered = Some(routing::queue_routed_notice(s, *router_member, for_lct, key, caller_lct_id,
+                        &notice_kind, &notice_uri, body.as_bytes()).await);
+                }
+                routing::Delivery::None => {}
             }
-            let mut resp = serde_json::json!({ "recorded": true, "entry_index": index });
+            let mut resp = serde_json::json!({ "recorded": true, "entry_index": index,
+                "routed_via": delivery.routed_via() });
+            if let Some(d) = delivered {
+                resp["delivered"] = serde_json::json!(d);
+            }
             if !r7_out.is_empty() {
                 resp.as_object_mut().unwrap().extend(r7_out);
             }
@@ -7448,6 +7465,10 @@ async fn admin_ledger_tail(
                     Role { role } => {
                         v["to_role"] = serde_json::json!(role);
                         ("role", None)
+                    }
+                    Lct { canonical } => {
+                        v["to_lct"] = serde_json::json!(canonical);
+                        ("lct", None)
                     }
                 };
                 v["to_kind"] = serde_json::json!(to_kind);
@@ -14455,6 +14476,139 @@ norms:
         assert_eq!(view["routes_to"]["member"], serde_json::json!(m));
         assert_eq!(view["pubkey_hex"], serde_json::json!(being_k.verifying_key().to_hex()),
             "the consent key IS the member's pin");
+    }
+
+    // ---- PRD_MEMBER_OF_ROUTING Hub B2a: delivery resolution, end to end ----
+
+    /// A router `m` (receipt mode, registered for LCT y) with one pure-LCT child x; returns
+    /// (m, router key, y, child key, x).
+    async fn routed_fixture(state: &RestState) -> (Uuid, KeyPair, hub_lib::ids::CanonicalLctId, KeyPair, hub_lib::ids::CanonicalLctId) {
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (router, mk, child) = (KeyPair::generate(), KeyPair::generate(), KeyPair::generate());
+        let m = Uuid::new_v4();
+        admin_add_member(State(state.clone()), ConnectInfo(lo),
+            Json(AddMemberBody { lct_id: m, pubkey_hex: mk.verifying_key().to_hex(), name: None })).await.unwrap();
+        state.mailbox_enable_receipts(m).await.unwrap();
+        let env = routing_envelope(state, &mk, m, serde_json::json!({
+            "action": "router_register", "certificate": router_cert(state.hub_id, m, &router, &mk)})).await;
+        routing::submit_router(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap();
+        let y = hub_lib::ids::CanonicalLctId::derive(&router.verifying_key());
+        let x = hub_lib::ids::CanonicalLctId::derive(&child.verifying_key());
+        let mut p = serde_json::json!({"action": "member_of_report", "member": x, "of": y});
+        p["consent"] = consent_json(state.hub_id, &child, &y);
+        let env = routing_envelope(state, &mk, m, p).await;
+        routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap();
+        (m, mk, y, child, x)
+    }
+
+    async fn send_act(state: &RestState, caller: Uuid, to: serde_json::Value) -> Result<serde_json::Value, ApiError> {
+        let inner: ChannelInner = serde_json::from_value(serde_json::json!({"tool": "referenced_act", "args": {
+            "to": to, "kind": "coordination", "pointer_uri": "shared-context/forum/routing-test.md",
+            "content_hash": format!("sha256-content:{}", "c".repeat(64)) }})).unwrap();
+        dispatch_channel(state, caller, Uuid::new_v4(), None, inner).await
+    }
+
+    async fn sender(state: &RestState) -> Uuid {
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (id, kp) = (Uuid::new_v4(), KeyPair::generate());
+        admin_add_member(State(state.clone()), ConnectInfo(lo),
+            Json(AddMemberBody { lct_id: id, pubkey_hex: kp.verifying_key().to_hex(), name: Some("sender".into()) })).await.unwrap();
+        id
+    }
+
+    /// H3 rule 1: mail to a child's canonical LCT goes to its ROUTER's mailbox with `for_lct`,
+    /// sealed to the CHILD (the router cannot open it); the ledger keeps the true destination.
+    #[tokio::test]
+    async fn an_lct_address_routes_to_the_router_sealed_to_the_child() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (m, mk, y, child, x) = routed_fixture(&state).await;
+        let from = sender(&state).await;
+        let out = send_act(&state, from, serde_json::json!({"to": "lct", "canonical": x})).await.expect("routed");
+        assert_eq!(out["routed_via"], serde_json::json!(y));
+
+        let page = state.mailbox_fetch(m, 100).await.unwrap();
+        let n = &page["notifications"][0]["notice"];
+        assert_eq!(n["for_lct"], serde_json::json!(x));
+        assert_eq!(n["sealed_to"], "member");
+        let hub = state.signer.public_key().unwrap();
+        let pair = Uuid::parse_str(n["pair_id"].as_str().unwrap()).unwrap();
+        let sealed = pair_channel::Sealed::from_base64(n["sealed"].as_str().unwrap()).unwrap();
+        assert!(pair_channel::open(&child, &hub, pair, &sealed).is_ok(), "the child opens its own mail");
+        assert!(pair_channel::open(&mk, &hub, pair, &sealed).is_err(), "the router relays what it cannot read");
+
+        let l = state.ledger.lock().await;
+        let act = l.entries().iter().rev().find_map(|e| match &e.event {
+            HubEvent::ReferencedAct { act } => Some(act.clone()), _ => None }).unwrap();
+        assert_eq!(act.address, web4_core::act::ActAddress::Lct { canonical: x.to_string() },
+            "the witnessed act names the true destination, never the router");
+    }
+
+    /// H3 rule 0 and the refusals: a router's own LCT is its own mailbox (no `for_lct`); an LCT
+    /// nobody routes, or whose router has retired with no fallback, is 409 with nothing witnessed.
+    #[tokio::test]
+    async fn rule_zero_and_no_route_refusals_witness_nothing() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (m, _mk, y, _child, x) = routed_fixture(&state).await;
+        let from = sender(&state).await;
+        let out = send_act(&state, from, serde_json::json!({"to": "lct", "canonical": y})).await.expect("rule 0");
+        assert!(out["routed_via"].is_null(), "a router's own mail is not routed");
+        let n = &state.mailbox_fetch(m, 100).await.unwrap()["notifications"][0]["notice"];
+        assert!(n.get("for_lct").is_none() || n["for_lct"].is_null());
+
+        let before = state.ledger.lock().await.entries().len();
+        let stranger = hub_lib::ids::CanonicalLctId::derive(&KeyPair::generate().verifying_key());
+        let e = send_act(&state, from, serde_json::json!({"to": "lct", "canonical": stranger})).await.unwrap_err();
+        assert_eq!(e.status, StatusCode::CONFLICT);
+        assert!(e.message.starts_with("no_route"), "{}", e.message);
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        routing::admin_retire_router(State(state.clone()), ConnectInfo(lo), Path(y.to_string())).await.unwrap();
+        let mid = state.ledger.lock().await.entries().len();
+        let e = send_act(&state, from, serde_json::json!({"to": "lct", "canonical": x})).await.unwrap_err();
+        assert_eq!(e.status, StatusCode::CONFLICT, "retired router, pure-LCT child, no fallback");
+        assert_eq!(state.ledger.lock().await.entries().len(), mid, "nothing witnessed on refusal");
+        assert_eq!(mid, before + 1, "only the retirement was witnessed");
+    }
+
+    /// H3 rule 2: a LEGACY member address whose pin-derived LCT is member-of a live router is
+    /// routed exactly like rule 1 — senders change nothing (§5 migration).
+    #[tokio::test]
+    async fn a_legacy_member_address_with_an_edge_is_routed() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (m, mk, y, _c, _x) = routed_fixture(&state).await;
+        let (being, being_k) = (Uuid::new_v4(), KeyPair::generate());
+        admin_add_member(State(state.clone()), ConnectInfo(lo),
+            Json(AddMemberBody { lct_id: being, pubkey_hex: being_k.verifying_key().to_hex(), name: None })).await.unwrap();
+        let h = hub_lib::ids::CanonicalLctId::derive(&being_k.verifying_key());
+        let mut p = serde_json::json!({"action": "member_of_report", "member": h, "of": y});
+        p["consent"] = consent_json(state.hub_id, &being_k, &y);
+        let env = routing_envelope(&state, &mk, m, p).await;
+        routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap();
+
+        let from = sender(&state).await;
+        let out = send_act(&state, from, serde_json::json!({"to": "peer", "lct_id": being})).await.unwrap();
+        assert_eq!(out["routed_via"], serde_json::json!(y));
+        let n = &state.mailbox_fetch(m, 100).await.unwrap()["notifications"][0]["notice"];
+        assert_eq!(n["for_lct"], serde_json::json!(h), "routed under the member's pin-derived LCT");
+    }
+
+    /// H3 rule 0 on the legacy arm (CBP, #907): the router MEMBER's own pin-LCT, made member-of
+    /// its own router, does not route its legacy mail back into its own mailbox under `for_lct`.
+    #[tokio::test]
+    async fn rule_zero_holds_for_a_legacy_address_to_the_router_member() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (m, mk, y, _c, _x) = routed_fixture(&state).await;
+        let h = hub_lib::ids::CanonicalLctId::derive(&mk.verifying_key());
+        let mut p = serde_json::json!({"action": "member_of_report", "member": h, "of": y});
+        p["consent"] = consent_json(state.hub_id, &mk, &y);
+        let env = routing_envelope(&state, &mk, m, p).await;
+        routing::submit_member_of(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .expect("a router member's pin-LCT may be member-of its own router (it needs that key's consent)");
+        let from = sender(&state).await;
+        let out = send_act(&state, from, serde_json::json!({"to": "peer", "lct_id": m})).await.unwrap();
+        assert!(out["routed_via"].is_null(), "a router member's own mail is not routed");
+        let n = &state.mailbox_fetch(m, 100).await.unwrap()["notifications"][0]["notice"];
+        assert!(n.get("for_lct").is_none() || n["for_lct"].is_null());
     }
 
     /// Build and sign a withdraw envelope the way a member's client would.

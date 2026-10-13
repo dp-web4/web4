@@ -359,3 +359,157 @@ pub(super) fn seal_key_for(state: &HubState, member: Option<Uuid>, lct: &Canonic
     if key.is_weak() { return None; }
     Some((key, "member"))
 }
+
+// ---- Hub B2a: delivery resolution (PRD_MEMBER_OF_ROUTING H3 rules 0-3) ----------------------
+
+/// Where one point-delivery goes, decided BEFORE anything is witnessed.
+pub(super) enum Delivery {
+    /// Not a point delivery (Role / Society / FutureSelf): witnessed only, as before.
+    None,
+    /// A member's own mailbox, as before (and H3 rule 0: a router's own LCT; the retired-router
+    /// fallback to x's own receipt membership).
+    Member(Uuid),
+    /// H3 rule 1/2: x is member-of a router; its notice goes to the router member's mailbox with
+    /// `for_lct: x`, sealed to x's own key (never the router's).
+    Routed { router_lct: CanonicalLctId, router_member: Uuid, for_lct: CanonicalLctId, seal_member: Option<Uuid> },
+}
+
+impl Delivery {
+    pub(super) fn routed_via(&self) -> Option<&CanonicalLctId> {
+        match self { Delivery::Routed { router_lct, .. } => Some(router_lct), _ => None }
+    }
+}
+
+/// The canonical LCT a member's CURRENT pin derives (its LCT-h), if it has a usable pin.
+fn pin_lct(state: &HubState, member: Uuid) -> Option<CanonicalLctId> {
+    let bytes = pinned_key(state, member)?;
+    let key = web4_core::crypto::PublicKey::from_bytes(&bytes).ok()?;
+    (!key.is_weak()).then(|| CanonicalLctId::derive(&key))
+}
+
+/// The one member whose current MEMBER pin derives `x`, if exactly one does. Member pins only:
+/// `queue_sealed_notice` seals from `member_pubkeys`, so resolving an LCT to a council-only pin
+/// would witness an act whose notice is then dropped (Sprout, #907 review) — that is 409 instead.
+fn member_by_pin_lct(state: &HubState, x: &CanonicalLctId) -> Option<Uuid> {
+    let mut hits = state.member_pubkeys.keys()
+        .copied().filter(|m| pin_lct(state, *m).as_ref() == Some(x));
+    let first = hits.next()?;
+    hits.all(|m| m == first).then_some(first)
+}
+
+async fn in_receipt_mode(s: &RestState, member: Uuid) -> Result<bool, ApiError> {
+    let cache = s.notifications.lock().await;
+    let store = s.open_store().await.map_err(ApiError::internal)?;
+    let cached = cache.get(&member).map(Vec::as_slice).unwrap_or(&[]);
+    Ok(s.load_mailbox_record(&*store, member, cached).await.map_err(ApiError::internal)?.is_receipts())
+}
+
+fn no_route(msg: String) -> ApiError {
+    ApiError { status: StatusCode::CONFLICT, message: format!("no_route: {msg}") }
+}
+
+/// H3 rules 0-3. Fails closed with 409 (`no_route`) rather than guessing a mailbox.
+pub(super) async fn resolve_delivery(s: &RestState, state: &HubState, address: &web4_core::act::ActAddress)
+    -> Result<Delivery, ApiError> {
+    use web4_core::act::ActAddress;
+    match address {
+        ActAddress::Lct { canonical: c } => {
+            let x = canonical("to.canonical", c)?;
+            // Rule 0: a router's own LCT is its own mailbox; a router never routes upward.
+            if let Some(r) = state.routers.get(&x) {
+                return Ok(Delivery::Member(r.member.as_uuid()));
+            }
+            let own = member_by_pin_lct(state, &x);
+            if let Some(parent) = state.member_of.get(&x) {
+                if let Some(r) = state.routers.get(parent) {
+                    return Ok(Delivery::Routed { router_lct: parent.clone(), router_member: r.member.as_uuid(),
+                        for_lct: x, seal_member: own });
+                }
+                // The parent's router is retired: x's OWN receipt membership, if it has one (D2,
+                // rev 2) — its real mailbox, not a best-effort guess. Otherwise refuse.
+                if let Some(m) = own {
+                    if in_receipt_mode(s, m).await? {
+                        return Ok(Delivery::Member(m));
+                    }
+                }
+                return Err(no_route(format!("{x}'s router {parent} is retired and {x} has no receipt-mode membership of its own")));
+            }
+            // No edge: an LCT that is exactly one member's pin is that member.
+            own.map(Delivery::Member)
+                .ok_or_else(|| no_route(format!("{x} is neither a router, member-of a router, nor a member's key")))
+        }
+        // Rule 2: a legacy member address whose pin-derived LCT has an edge to a live router is
+        // routed like rule 1; otherwise it is delivered exactly as before. PRD H3 says "only if the
+        // #883 resolver maps the member to exactly one canonical identity". `pin_lct` reads the ONE
+        // current pin, which is equivalent while a member holds one pin; when multi-pin lands, the
+        // ambiguous case must fall back to legacy delivery here.
+        // Rule 0 holds on this arm too (CBP, #907): a member that is itself a router, or that
+        // serves the router its pin-LCT is member-of, keeps its own mail — never routed upward or
+        // back into its own mailbox under `for_lct`.
+        ActAddress::Peer { lct_id } | ActAddress::Citizen { lct_id } => {
+            if let Some(x) = pin_lct(state, *lct_id).filter(|x| !state.routers.contains_key(x)) {
+                if let Some(parent) = state.member_of.get(&x) {
+                    if let Some(r) = state.routers.get(parent).filter(|r| r.member.as_uuid() != *lct_id) {
+                        return Ok(Delivery::Routed { router_lct: parent.clone(), router_member: r.member.as_uuid(),
+                            for_lct: x, seal_member: Some(*lct_id) });
+                    }
+                }
+            }
+            Ok(Delivery::Member(*lct_id))
+        }
+        _ => Ok(Delivery::None),
+    }
+}
+
+/// Pre-witness checks for a routed delivery: a key to seal to (x's own, never the router's), and
+/// room in x's SHARE of the router mailbox. Either failing refuses BEFORE the act is witnessed.
+pub(super) async fn precheck_routed(s: &RestState, state: &HubState, d: &Delivery)
+    -> Result<Option<web4_core::crypto::PublicKey>, ApiError> {
+    let Delivery::Routed { router_member, for_lct, seal_member, .. } = d else { return Ok(None) };
+    let (key, _) = seal_key_for(state, *seal_member, for_lct)
+        .ok_or_else(|| no_route(format!("no key to seal {for_lct}'s mail to; it is never sealed to the router")))?;
+    let share = routed_share(state, *router_member);
+    let held = {
+        let cache = s.notifications.lock().await;
+        let store = s.open_store().await.map_err(ApiError::internal)?;
+        let cached = cache.get(router_member).map(Vec::as_slice).unwrap_or(&[]);
+        let record = s.load_mailbox_record(&*store, *router_member, cached).await.map_err(ApiError::internal)?;
+        // The router-wide bound first, as enqueue_notice_op checks it: ordinary mail to the router
+        // member (rule 0, legacy Peer) also fills the total, which share x N does not bound
+        // (Legion + Sprout, #907 review).
+        if record.full() {
+            return Err(ApiError { status: StatusCode::INSUFFICIENT_STORAGE, message: format!(
+                "router_mailbox_full: router member {router_member}'s receipt mailbox is at its total bound; nothing witnessed") });
+        }
+        record.notices().iter().filter(|n| n.for_lct.as_deref() == Some(for_lct.as_str())).count()
+    };
+    if held >= share {
+        return Err(ApiError { status: StatusCode::INSUFFICIENT_STORAGE, message: format!(
+            "child_share_full: {for_lct} has {held} unacknowledged routed notices (its share {share}); nothing witnessed") });
+    }
+    Ok(Some(key))
+}
+
+/// Queue a routed notice after the act is witnessed: in the ROUTER member's mailbox, `for_lct`
+/// set, sealed to the child's key. The router relays what it cannot open. Returns whether it was
+/// queued, so the caller reports `delivered` honestly (the residual race after the precheck).
+pub(super) async fn queue_routed_notice(s: &RestState, router_member: Uuid, for_lct: &CanonicalLctId,
+    key: &web4_core::crypto::PublicKey, from: Uuid, kind: &str, pointer_uri: &str, body: &[u8]) -> bool {
+    let pair_id = Uuid::new_v4();
+    let sealed = match s.signer.channel_seal(key, pair_id, body) {
+        Ok(c) => c,
+        Err(e) => { tracing::warn!("routed notice for {for_lct}: seal failed: {e}"); return false; }
+    };
+    match enqueue_notice(s, router_member, SealedNotice {
+        pair_id, from, sealed, kind: kind.to_string(), pointer_uri: pointer_uri.to_string(),
+        queued_at: Utc::now(), sealed_by: None,
+        for_lct: Some(for_lct.to_string()), sealed_to: Some("member".into()),
+    }).await {
+        Ok(_) => true,
+        Err(e) => {
+            tracing::warn!("routed notice for {for_lct} via router member {router_member}: enqueue failed after the act was witnessed: {e}");
+            false
+        }
+    }
+}
+

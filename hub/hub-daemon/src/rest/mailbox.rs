@@ -538,6 +538,37 @@ mod tests {
         assert!(enqueue_notice(&state, m, routed(None, "plain")).await.unwrap(), "ordinary mail to the router member too");
     }
 
+    /// B2a: a child at its share is refused at the PRE-WITNESS check, so the act is never
+    /// witnessed for a notice that could not be queued.
+    #[tokio::test]
+    async fn the_routed_precheck_refuses_a_full_child_share() {
+        let (_tmp, state, _) = fixture(true).await;
+        let m = Uuid::new_v4();
+        let (k1, k2) = (web4_core::crypto::KeyPair::generate(), web4_core::crypto::KeyPair::generate());
+        let (y, xs) = router_with_children(&state, m, &[(&k1, "x"), (&k2, "z")]).await;
+        let share = { let l = state.ledger.lock().await; routing::routed_share(&state.projected(&l), m) };
+        let seeded = Mailbox::Receipts(ReceiptMailbox { protocol: RECEIVE_PROTOCOL.into(),
+            notices: (0..share).map(|i| routed(Some(xs[0].as_str()), &format!("x{i}"))).collect(), acked: vec![] });
+        state.open_store().await.unwrap().mailbox_put(m, &serde_json::to_vec(&seeded).unwrap()).await.unwrap();
+        state.notifications.lock().await.remove(&m);
+        let st = { let l = state.ledger.lock().await; state.projected(&l) };
+        let full = routing::Delivery::Routed { router_lct: y.clone(), router_member: m, for_lct: xs[0].clone(), seal_member: None };
+        let e = routing::precheck_routed(&state, &st, &full).await.err().expect("x is full");
+        assert_eq!(e.status, StatusCode::INSUFFICIENT_STORAGE);
+        let ok = routing::Delivery::Routed { router_lct: y.clone(), router_member: m, for_lct: xs[1].clone(), seal_member: None };
+        assert!(routing::precheck_routed(&state, &st, &ok).await.unwrap().is_some(), "the sibling has room and a key");
+
+        // The router-wide bound (Legion + Sprout on #907): ORDINARY notices fill the router's total
+        // while every child is under its share — the routed precheck must still refuse.
+        let plain = Mailbox::Receipts(ReceiptMailbox { protocol: RECEIVE_PROTOCOL.into(),
+            notices: (0..MAX_NOTICES_PER_MEMBER).map(|i| routed(None, &format!("p{i}"))).collect(), acked: vec![] });
+        state.open_store().await.unwrap().mailbox_put(m, &serde_json::to_vec(&plain).unwrap()).await.unwrap();
+        state.notifications.lock().await.remove(&m);
+        let e = routing::precheck_routed(&state, &st, &ok).await.err().expect("router full of plain mail");
+        assert_eq!(e.status, StatusCode::INSUFFICIENT_STORAGE);
+        assert!(e.message.starts_with("router_mailbox_full"), "{}", e.message);
+    }
+
     /// Sealing (PRD H3, rev 3): a pure-LCT child's mail is sealed to its CONSENT key, a member
     /// child's to its hub PIN — never to the router. The router cannot open it; the child can.
     #[tokio::test]
