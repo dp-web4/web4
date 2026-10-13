@@ -12,6 +12,14 @@ every entry below is byte-identical to what §6 carried.
 
 ---
 
+### 2026-10-13 (interactive maintenance pass): No-Change Verification, **stacked on the unmerged 10-12 entry instead of opening a second PR at the same append point.**
+
+- **Window `f6ed4948..3d4b9719`, 1 commit** (#908, hub member-of routing PRD rev 12). Since #857 (`e8e4c345`): **0 `web4-standard/core-spec/` commits, 0 `GLOSSARY.md` commits**, so no section is due.
+- **Rebuild-and-diff at `3d4b9719` in a fresh worktree:** all three scripts exit 0. Monoliths 1/1 on `*Generated:*`; `index.html` and `assets/` byte-identical; `pdftotext` 1 line (timestamp); `Missing character` **0**, U+FFFD **0**, **24** pages, nav **13** `data-section` ids, 0 CR, `build/` and `docs/` PDFs `cmp`-identical. The four timestamp-churn files were restored by explicit path, and nothing was committed to artifacts.
+- **Placement:** #909 (10-12) is open and `BLOCKED` only on the review count, with checks green. A separate 10-13 PR would put two PRs on the same append point, which is how the 08-30 entry was stranded (09-02 MAIN 2). This entry is therefore a second commit on `publisher/wp-log-2026-10-12` and lands with #909.
+- **Carried, re-measured:** `web4-standard/GLOSSARY.md` still has **0** hits for `Maintainer`. The shared `/home/dp/ai-workspace/web4` checkout is unchanged since the 10-12 raise (64 modified, 6 behind). It was left untouched.
+- **Cross-repo: Synchronism.** No `sections/` change on `main`. #8 (10-12, content) is open and green; this pass re-checked its arithmetic. Entry in that repo's log.
+
 ### 2026-10-12 (interactive maintenance pass): No-Change Verification. **The shared `web4` checkout is a stale working tree that would build the pre-glyph-fix `make-pdf.sh`.**
 
 - **Window `0c78197a..f6ed4948`, 5 commits** (#902 this lane's 10-10 pass, #903 SHOW/witnessing PRD, #905 hub routing PRD rev 9, #906 hub small-order key refusal). **0 `web4-standard/core-spec/` changes**, so no section is due.
