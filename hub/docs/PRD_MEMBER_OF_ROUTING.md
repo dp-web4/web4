@@ -1,6 +1,6 @@
 # PRD — Member-of routing: the hub routes to a machine's hestia; hestia routes locally
 
-**Status:** design — **rev 11** (Hub A + B1 merged and live at `99bd2056`; rev 9 settles O1 and the B2 rollout for review) (addresses Legion, CBP and Sprout reviews on #898 and the #899 reviews; changelog §9). Hub + hestia contract. Implementation slices in §7.
+**Status:** design — **rev 12.1** (Hub A + B1 merged and live at `99bd2056`; B2a in review as #907; §0 records dp's daemon principle) (addresses Legion, CBP and Sprout reviews on #898 and the #899 reviews; changelog §9). Hub + hestia contract. Implementation slices in §7.
 **Date:** 2026-10-07
 **Direction:** dp, 2026-10-07:
 > hestia is per-machine. hub needs to know which member is the machine's hestia (router), and which
@@ -15,6 +15,58 @@ custody + routing table), #1223 (dedicated router membership), #1230 (dual-signe
 certificate). **Placement:** web4 is authoritative for this mechanism (`docs/reference/HUB_IMPLEMENTATION_AUTHORITY.md`).
 
 ---
+
+## 0. Routing is a daemon function (dp, 2026-10-11)
+
+> hub routing should be a daemon function not agentic. a hub should stand on its own without agent
+> involvement, except for roles specifically requiring it.
+
+This is a constraint on every slice below, not a slice of its own:
+
+- **The hub daemon routes.** Delivery resolution, the share and total bounds, sealing to the child, the
+  `routed_via` and `delivered` report, refusals and alarms are all in-process. Hub A and B1 are live;
+  B2a (#907) is in review and built to the same rule. No agent session sits between a sender and a mailbox.
+- **The hestia daemon is the router — target, not current state.** S1 (register the router), S2 (report
+  and withdraw edges), S3 (drain the router mailbox, demux by `for_lct`, hold unknown children un-ACKed)
+  and the H5 reply path must run in the hestia **daemon**. They are not CLI steps an operator or agent has
+  to remember to run. A CLI may expose them for diagnosis, but the daemon does not depend on it.
+  **As of rev 12 hestia fails this** (Sprout, measured on hestia `d01c740f`): `fleet_receiver::drain_once`,
+  `router_forwarder::drain_router_once`, `bind_local` and `bind_router_ingress` are called only from
+  `cli.rs`; the daemon's one caller is the sending side (`originate_once_constrained`). S1–S3 close that
+  measured gap.
+- **Level-triggered, not only edge-triggered (rev 12.1, CBP).** The daemon reconciles desired state
+  (local bindings, current certificate) against reported state (the H4 edge read) on start and
+  periodically, retrying with backoff. A state change is a hint to reconcile now, not the only trigger, so
+  a bind made while the hub is down, or an H2 that failed, or a restart between bind and report, heals
+  without anyone re-running a step.
+- **A daemon refusal reaches someone (rev 12.1, CBP).** An S1 preflight refusal, an S3 hold of an unknown
+  `for_lct`, or a reconcile that keeps failing raises an operator notice, not only a log line. "No agent in
+  the path" must not become "no one notices".
+- **Agents consume their own mail.** A seat's watcher session, or a being's beat, reads mail addressed to
+  *it*. Neither is ever in the delivery path for someone else's mail. Today's being inbox drain, which runs
+  inside the being's own heartbeat (SAGE `being_inbox_drain`), is a stopgap, and so is `hub-watch`'s
+  drain. Both are retired by S3 in the hestia daemon on parity (hestia #1210, acceptance 1). `hub-watch`
+  stays as the seat's consumer, firing the seat's own session; it stops being a drain.
+- **Roles that require a person or an agent stay that way, and only those.** Admitting a router's
+  membership, and enrolling it for receipt delivery, are governance acts: an operator decides, or law
+  decides (for example a standing norm that admits a certified router membership to receipt mode). Routing
+  never waits on them per message, only once per router.
+
+**Which existing verbs are which (rev 12.1, Legion, CBP).** hestia's F3 D3 surface is all `hestia hub`
+CLI today. Under §0 it splits:
+
+| Verb / slice | Class | Who runs it |
+|---|---|---|
+| `receiver-router-join` (#1223) | governance: once-per-router identity | operator / law; CLI is fine |
+| `receiver-router-certify` (#1230), incl. S4's re-certify | governance: once-per-router (per re-key / re-parent) | operator / law; CLI is fine. Certify is also the state S1 reacts to |
+| admission, receipt enrollment | governance: once per router | operator / law |
+| `receiver-router-bind`, neighbour bind | state the daemon reacts to | may be set by CLI; everything after it is daemon |
+| S1 register, S2 report / withdraw, S3 drain + demux, H5 reply | routing | **daemon, state-triggered and reconciled** |
+
+D3's bind verbs and this PRD's S1–S3 are the same work, not parallel tracks: S1 must not be built as a
+`receiver-router-register` CLI step beside them.
+
+An implementation that needs an agent to deliver, register, report or drain fails this section.
 
 ## 1. The problem it removes
 
@@ -408,6 +460,23 @@ Rejected alternative: the router speaks for x unsigned. That is weaker by constr
 say "the router says x said", and D1's protection against a foreign router would not extend to speech.
 
 ## 9. Changelog
+
+**rev 12.1 (2026-10-12)** — CBP, Legion and Sprout reviews of rev 12 (all MERGE, edits non-blocking).
+- §0: hestia bullet marked target-not-current with Sprout's measured CLI-only call sites; B2a stated as
+  in review (#907), not live; Status line updated.
+- §0: level-triggered reconcile against the H4 read, with backoff (CBP 1); refusals and holds raise an
+  operator notice (CBP 3).
+- §0: verb table classifying D3's CLI surface; certification (including S4's re-certify) is a
+  once-per-router governance act; D3 bind and S1–S3 are one track (CBP 2, Legion 2).
+- §0: `hub-watch`'s drain is retired by S3 alongside SAGE's (Legion minor).
+- Not taken into the PRD: Sprout's S3 lock note (don't hold the daemon state lock across hub I/O) lives in
+  the S3 design.
+
+**rev 12 (2026-10-11)** — dp's principle.
+- §0 (new): routing is a daemon function. The hub routes in-process (already true for A/B1/B2a). hestia's
+  S1–S3 and the H5 replies run in the hestia daemon, triggered by state, not by agent-run CLI steps. Agents
+  only consume their own mail. Governance acts (admission, receipt enrollment) stay with their roles,
+  once per router.
 
 **rev 11 (2026-10-11)** — Sprout's review of rev 10 (sprout-router will be the first H5 router).
 - H5: `router_epoch` added to the statement and revalidated. A same-member re-key moved no epoch before, so
