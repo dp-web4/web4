@@ -1,5 +1,15 @@
 # Next release cut: deliverables, version justification, and the bar
 
+> **Status refresh 2026-10-14.** The tables below are the 08-30 measurement and are kept as the record. Since then:
+> - Gate 6 (CHANGELOG with the breaking notes) and gate 8 (pyproject 0.4.0) are **done** (#861). Sequence steps 1-2 are done.
+> - Gate 7 is **moot for the Rust signature change**: the `web4-standard/implementation` hits are the Python SDK's own `action.compute_reputation(quality=...)`, a different API from the crate's `compute_reputation(t3_from, v3_from, ...)`.
+> - Gate 10 / step 6: `web4.pin` already moved past `SocietyRole::Maintainer` (hestia#1294, web4 31990db7).
+> - `web4-policy` now declares versioned path deps and is in the publish order (CHANGELOG "Unreleased"), so 2.3's first bullet no longer holds.
+> - Section 5 is overtaken: hestia's installer no longer defaults to v0.0.3, and hestia v0.3.0-rc.1/rc.2 shipped in lockstep with the desktop app.
+> - What remains for the crates: run gates 1, 2, 4, 5 on the cut commit, then publish (manual; there is no publish workflow) and flip gate 9's docs.
+>
+> The cross-product plan and its live checklist are web4#904.
+
 **Status as of 2026-08-30.** Measured, not estimated. Every number below has the command that produced it.
 
 ## 1. Where we actually are
