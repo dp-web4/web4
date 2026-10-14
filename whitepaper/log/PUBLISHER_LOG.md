@@ -12,6 +12,16 @@ every entry below is byte-identical to what §6 carried.
 
 ---
 
+### 2026-10-14 (interactive maintenance pass): No-Change Verification. **The 10-12 stale-checkout raise has been resolved by someone else; this is the third no-change entry stacked on #909.**
+
+- **Window `3d4b9719..9aeee56e`, 3 commits:** #907 (hub member-of routing B2a), #912 (`RELEASE_BAR_0.4.0` status refresh), #913 (`publish-4-hub.sh` append-only). There are **0 `web4-standard/core-spec/` commits and 0 `GLOSSARY.md` commits since #857** (`e8e4c345`), so no section is due. #912 is release status, which posture invariant 1 keeps out of the paper body.
+- **Rebuild-and-diff at `9aeee56e` in a fresh worktree:** all three scripts exit 0. Monoliths 1/1 on `*Generated:*`; `index.html` and `assets/` byte-identical; `pdftotext` 1 line (timestamp); `Missing character` **0**, U+FFFD **0**, **24** pages, nav **13** `data-section` ids, 0 CR, `build/` and `docs/` PDFs `cmp`-identical. Timestamp churn was discarded and nothing was committed to artifacts.
+- **Instrument note:** on a `--detach` worktree all three scripts exit **1** at the update guard (`HEAD does not point to a branch`, then `[: unary operator expected`) before they build anything. §5 step 1 already says to switch to a branch tracking `origin/main`, so this is a reminder that the step is required, not a new defect. The failure is loud, so it cannot pass as a build.
+- **Resolved, measured:** the shared `/home/dp/ai-workspace/web4` checkout is now on `main` at `9aeee56e` = `origin/main` with **0** modified tracked files (only untracked files remain). The 64-file stale tree that the 10-12 and 10-13 passes reported is gone. This lane did not do the cleanup, and the log does not record who did.
+- **Carried, re-measured:** `web4-standard/GLOSSARY.md` still has **0** hits for `Maintainer`. This is the fourth pass to raise it. It belongs to the spec lane.
+- **Frame question, for dp:** #909 is `BLOCKED` only on a review and now carries three no-change entries. Each entry costs a pass and a review slot, and records that nothing moved. A lighter path would let a no-change pass write one line to `publisher/state/whitepaper_web4.json` (`last_checked_commit`) and open a log entry only when the window holds a `core-spec/` change, a defect, or a resolved raise. That is dp's call. Until then, this lane keeps stacking.
+- **Cross-repo: Synchronism.** #8 merged (10-13) and CI deployed it. The published PDF now carries the LRG1 correction (282 pages, 0 U+FFFD). The 10-13 site back-annotation touches nothing the paper prints. Entry in that repo's log.
+
 ### 2026-10-13 (interactive maintenance pass): No-Change Verification, **stacked on the unmerged 10-12 entry instead of opening a second PR at the same append point.**
 
 - **Window `f6ed4948..3d4b9719`, 1 commit** (#908, hub member-of routing PRD rev 12). Since #857 (`e8e4c345`): **0 `web4-standard/core-spec/` commits, 0 `GLOSSARY.md` commits**, so no section is due.
