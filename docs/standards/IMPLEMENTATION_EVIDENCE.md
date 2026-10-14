@@ -13,7 +13,8 @@ This file gives reviewers a direct path from a standards requirement to inspecta
 | Witness chain | [Hestia README](https://github.com/dp-web4/hestia/blob/main/README.md) | Measured; hash-linked SQLCipher-backed event production |
 | Human escalation | [PRD_GOVERNANCE](https://github.com/dp-web4/hestia/blob/main/docs/PRD_GOVERNANCE.md) | Measured |
 | Peer arbitration | [Hestia README](https://github.com/dp-web4/hestia/blob/main/README.md) | Built / manually exercised; stronger independence rules still maturing |
-| Scoped delegation / revocation | [Hestia README](https://github.com/dp-web4/hestia/blob/main/README.md) | Measured |
+| Scoped delegation / revocation | [Hestia README](https://github.com/dp-web4/hestia/blob/main/README.md) | Measured as signed, revocable objects and for scope arbitration; not consulted on tool-call gating (as of 2026-10-14) |
+| Agent identity at the gate | [Hestia PRD_ASSURANCE FR-1](https://github.com/dp-web4/hestia/blob/main/docs/PRD_ASSURANCE.md) | Caller-asserted over unauthenticated local MCP; authenticated transport identity (FR-1) not started |
 | Contextual trust derivation | [Hestia README](https://github.com/dp-web4/hestia/blob/main/README.md) | Measured, evidence-derived |
 | Vault | [Hestia README](https://github.com/dp-web4/hestia/blob/main/README.md) | Measured |
 | Multi-agent / society semantics | [Hub docs](../../hub/docs/) | Running reference implementation plus active PRDs |
@@ -22,7 +23,7 @@ This file gives reviewers a direct path from a standards requirement to inspecta
 ## 2. Authority and accountability
 
 - [Hestia governance PRD](https://github.com/dp-web4/hestia/blob/main/docs/PRD_GOVERNANCE.md)  
-  Canonical acting path: authenticated member -> role / authority -> gate -> verdict -> escalation where needed -> witness.
+  Canonical acting path: authenticated member -> role / authority -> gate -> verdict -> escalation where needed -> witness. This is the designed path; today the first step is a caller-asserted member, not an authenticated one (FR-1 not started).
 
 - [R6/R7 action and result envelopes](https://github.com/dp-web4/hestia/blob/main/docs/PRD_R6_R7_ENVELOPES.md)  
   Evidence carrier for consequential acts and outcomes.
