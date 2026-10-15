@@ -1532,16 +1532,18 @@ const NOTICE_TTL_SECS: i64 = 7 * 24 * 3600;
 /// another (see [`enqueue_notice`]).
 const NOTICE_DROPPED_KIND: &str = "notice-dropped";
 
+/// Returns whether the notice was queued (#910): `referenced_act` reports it as `delivered`, so a
+/// post-witness drop is visible to the sender rather than only in a `warn!`.
 async fn queue_sealed_notice(
     s: &RestState, recipient: Uuid, from: Uuid, kind: &str, pointer_uri: &str, body: &[u8],
-) {
+) -> bool {
     let pubkey_hex = {
         let ledger = s.ledger.lock().await;
         s.projected(&ledger).member_pubkeys.get(&recipient).cloned()
     };
     let Some(pubkey_hex) = pubkey_hex else {
         tracing::warn!("queue_sealed_notice: no pinned pubkey for {recipient}; notice dropped");
-        return;
+        return false;
     };
     let pubkey = match hex::decode(&pubkey_hex)
         .ok()
@@ -1549,15 +1551,15 @@ async fn queue_sealed_notice(
         .and_then(|a| web4_core::crypto::PublicKey::from_bytes(&a).ok())
     {
         Some(pk) => pk,
-        None => { tracing::warn!("queue_sealed_notice: bad pubkey for {recipient}"); return; }
+        None => { tracing::warn!("queue_sealed_notice: bad pubkey for {recipient}"); return false; }
     };
     let pair_id = Uuid::new_v4();
     let sealed = match s.signer.channel_seal(&pubkey, pair_id, body) {
         Ok(c) => c,
-        Err(e) => { tracing::warn!("queue_sealed_notice: seal failed: {e}"); return; }
+        Err(e) => { tracing::warn!("queue_sealed_notice: seal failed: {e}"); return false; }
     };
     // Hub-sealed: sealed_by = None (recipient opens with the hub pubkey).
-    if let Err(e) = enqueue_notice(s, recipient, SealedNotice {
+    match enqueue_notice(s, recipient, SealedNotice {
         pair_id,
         from,
         sealed,
@@ -1568,7 +1570,11 @@ async fn queue_sealed_notice(
         for_lct: None,
         sealed_to: None,
     }).await {
-        tracing::warn!("queue_sealed_notice: enqueue failed for {recipient}: {e}");
+        Ok(_) => true,
+        Err(e) => {
+            tracing::warn!("queue_sealed_notice: enqueue failed for {recipient}: {e}");
+            false
+        }
     }
 }
 
@@ -1698,7 +1704,7 @@ async fn enqueue_notice_op(
         })
         .to_string();
         let pointer = format!("web4:notice-dropped:{}", d.pair_id);
-        Box::pin(queue_sealed_notice(
+        let _ = Box::pin(queue_sealed_notice(
             s, d.from, s.hub_id, NOTICE_DROPPED_KIND, &pointer, body.as_bytes(),
         ))
         .await;
@@ -1894,7 +1900,7 @@ async fn notify_citizen(
         Utc::now(),
     );
     let _ = witness_event(s, HubEvent::ReferencedAct { act }).await;
-    queue_sealed_notice(s, recipient, from, kind, pointer_uri, body).await;
+    let _ = queue_sealed_notice(s, recipient, from, kind, pointer_uri, body).await;
 }
 
 /// On a granted quorum, open the protected-tier Sealed item: read its sealing credential
@@ -4904,6 +4910,7 @@ async fn dispatch_channel(
             // `state` is this call's projection (bound at the top of dispatch_channel).
             let delivery = routing::resolve_delivery(s, &state, &address).await?;
             let routed_key = routing::precheck_routed(s, &state, &delivery).await?;
+            routing::precheck_member(s, &delivery).await?;
             let notice_kind = kind.clone();
             let notice_uri = uri.clone();
             let act = web4_core::act::Act::addressed(
@@ -4980,8 +4987,8 @@ async fn dispatch_channel(
                     }
                 }
             }
-            // Deliver (best-effort; dropped if the recipient has no pinned key —
-            // they can still see the witnessed act on the ledger).
+            // Deliver. A recipient with no pinned key still gets the witnessed act on the ledger, but
+            // no notice: the response says `delivered: false` rather than dropping it silently (#910).
             let body = serde_json::json!({
                 "from": caller_lct_id,
                 "kind": notice_kind,
@@ -4989,14 +4996,16 @@ async fn dispatch_channel(
                 "entry_index": index,
             })
             .to_string();
-            // `delivered` is reported for a routed notice: the precheck closes the common refusals
+            // `delivered` is reported for member and routed notices: the precheck closes the common refusals
             // before the witness, but precheck -> witness -> enqueue is not one transaction, so a
             // concurrent sender can take the last slot in between. The act then stands witnessed and
             // the response says the notice was NOT queued, instead of a log line nobody reads.
             let mut delivered: Option<bool> = None;
             match &delivery {
-                routing::Delivery::Member(rcpt) =>
-                    queue_sealed_notice(s, *rcpt, caller_lct_id, &notice_kind, &notice_uri, body.as_bytes()).await,
+                routing::Delivery::Member(rcpt) => {
+                    delivered = Some(queue_sealed_notice(s, *rcpt, caller_lct_id, &notice_kind, &notice_uri,
+                        body.as_bytes()).await);
+                }
                 routing::Delivery::Routed { router_member, for_lct, .. } => {
                     let key = routed_key.as_ref().expect("prechecked before witness");
                     delivered = Some(routing::queue_routed_notice(s, *router_member, for_lct, key, caller_lct_id,
@@ -14543,6 +14552,37 @@ norms:
             "the witnessed act names the true destination, never the router");
     }
 
+    /// #910: a peer act whose recipient has no pinned key is still witnessed, but the response says
+    /// the notice was not queued instead of dropping it with only a log line.
+    #[tokio::test]
+    async fn member_delivery_without_a_pinned_key_reports_not_delivered() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let from = sender(&state).await;
+        let nobody = Uuid::new_v4();
+        let out = send_act(&state, from, serde_json::json!({"to": "peer", "lct_id": nobody})).await
+            .expect("the act is witnessed");
+        assert_eq!(out["recorded"], serde_json::json!(true));
+        assert_eq!(out["delivered"], serde_json::json!(false), "{out}");
+    }
+
+    /// #910: a peer act to a member whose RECEIPT mailbox is at its bound is refused 507 before
+    /// anything is witnessed (it used to be witnessed, then the notice dropped with a `warn!`).
+    #[tokio::test]
+    async fn member_delivery_to_a_full_receipt_mailbox_is_refused_before_the_witness() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let from = sender(&state).await;
+        let rcpt = sender(&state).await;
+        state.mailbox_enable_receipts(rcpt).await.unwrap();
+        for i in 0..MAX_NOTICES_PER_MEMBER {
+            assert!(queue_sealed_notice(&state, rcpt, from, "fill", &format!("fill/{i}"), b"x").await);
+        }
+        let before = state.ledger.lock().await.entries().len();
+        let e = send_act(&state, from, serde_json::json!({"to": "peer", "lct_id": rcpt})).await.unwrap_err();
+        assert_eq!(e.status, StatusCode::INSUFFICIENT_STORAGE);
+        assert!(e.message.starts_with("recipient_mailbox_full"), "{}", e.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing witnessed");
+    }
+
     /// H3 rule 0 and the refusals: a router's own LCT is its own mailbox (no `for_lct`); an LCT
     /// nobody routes, or whose router has retired with no fallback, is 409 with nothing witnessed.
     #[tokio::test]
@@ -14552,6 +14592,7 @@ norms:
         let from = sender(&state).await;
         let out = send_act(&state, from, serde_json::json!({"to": "lct", "canonical": y})).await.expect("rule 0");
         assert!(out["routed_via"].is_null(), "a router's own mail is not routed");
+        assert_eq!(out["delivered"], serde_json::json!(true), "member delivery reports it was queued (#910)");
         let n = &state.mailbox_fetch(m, 100).await.unwrap()["notifications"][0]["notice"];
         assert!(n.get("for_lct").is_none() || n["for_lct"].is_null());
 

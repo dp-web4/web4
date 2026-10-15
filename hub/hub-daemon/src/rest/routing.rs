@@ -490,6 +490,23 @@ pub(super) async fn precheck_routed(s: &RestState, state: &HubState, d: &Deliver
     Ok(Some(key))
 }
 
+/// Member delivery (#910, Nova on #907): refuse 507 BEFORE the act is witnessed when the recipient's
+/// receipt mailbox is at its bound, as `enqueue_notice_op` would after it. Only receipt mode can be
+/// full (`Mailbox::full`); a legacy mailbox evicts its oldest instead and alarms that sender, as before.
+pub(super) async fn precheck_member(s: &RestState, d: &Delivery) -> Result<(), ApiError> {
+    let Delivery::Member(rcpt) = d else { return Ok(()) };
+    let cache = s.notifications.lock().await;
+    let store = s.open_store().await.map_err(ApiError::internal)?;
+    let cached = cache.get(rcpt).map(Vec::as_slice).unwrap_or(&[]);
+    let record = s.load_mailbox_record(&*store, *rcpt, cached).await.map_err(ApiError::internal)?;
+    if record.full() {
+        return Err(ApiError { status: StatusCode::INSUFFICIENT_STORAGE, message: format!(
+            "recipient_mailbox_full: member {rcpt}'s receipt mailbox is at its bound; nothing witnessed \
+             (it clears as the recipient acknowledges)") });
+    }
+    Ok(())
+}
+
 /// Queue a routed notice after the act is witnessed: in the ROUTER member's mailbox, `for_lct`
 /// set, sealed to the child's key. The router relays what it cannot open. Returns whether it was
 /// queued, so the caller reports `delivered` honestly (the residual race after the precheck).

@@ -569,6 +569,37 @@ mod tests {
         assert!(e.message.starts_with("router_mailbox_full"), "{}", e.message);
     }
 
+    /// #910: a member whose RECEIPT mailbox is at its bound is refused at the pre-witness check; a
+    /// legacy mailbox at the same count is not (it evicts its oldest and alarms that sender).
+    #[tokio::test]
+    async fn the_member_precheck_refuses_a_full_receipt_mailbox_only() {
+        let (_tmp, state, _) = fixture(true).await;
+        let (m, legacy) = (Uuid::new_v4(), Uuid::new_v4());
+        state.mailbox_enable_receipts(m).await.unwrap();
+        let d = routing::Delivery::Member(m);
+        routing::precheck_member(&state, &d).await.expect("an empty receipt mailbox has room");
+
+        let full = Mailbox::Receipts(ReceiptMailbox { protocol: RECEIVE_PROTOCOL.into(),
+            notices: (0..MAX_NOTICES_PER_MEMBER).map(|i| routed(None, &format!("p{i}"))).collect(), acked: vec![] });
+        state.open_store().await.unwrap().mailbox_put(m, &serde_json::to_vec(&full).unwrap()).await.unwrap();
+        state.notifications.lock().await.remove(&m);
+        let e = routing::precheck_member(&state, &d).await.err().expect("receipt mailbox at its bound");
+        assert_eq!(e.status, StatusCode::INSUFFICIENT_STORAGE);
+        assert!(e.message.starts_with("recipient_mailbox_full"), "{}", e.message);
+
+        // Through the store, as the receipt half is: on a durable store the precheck reads the
+        // row and ignores the cache, so a cache-only fill would test an empty mailbox (Sprout, #916).
+        let at_bound = Mailbox::Legacy((0..MAX_NOTICES_PER_MEMBER).map(|i| routed(None, &format!("l{i}"))).collect());
+        state.open_store().await.unwrap().mailbox_put(legacy, &serde_json::to_vec(&at_bound).unwrap()).await.unwrap();
+        state.notifications.lock().await.remove(&legacy);
+        let st = state.open_store().await.unwrap();
+        let cached = state.notifications.lock().await.get(&legacy).cloned().unwrap_or_default();
+        assert_eq!(state.load_mailbox_record(&*st, legacy, &cached).await.unwrap().notices().len(),
+            MAX_NOTICES_PER_MEMBER, "the precheck reads a legacy mailbox AT the bound");
+        routing::precheck_member(&state, &routing::Delivery::Member(legacy)).await
+            .expect("a legacy mailbox is never refused here: it evicts");
+    }
+
     /// Sealing (PRD H3, rev 3): a pure-LCT child's mail is sealed to its CONSENT key, a member
     /// child's to its hub PIN — never to the router. The router cannot open it; the child can.
     #[tokio::test]
