@@ -14,7 +14,7 @@ The public stack includes working or actively exercised mechanisms for:
 
 - persistent human and agent identity;
 - role / authority separation;
-- signed, scoped, revocable delegation;
+- signed, scoped, revocable delegation (exercised today for scope arbitration, not yet for authorizing individual tool calls);
 - per-member policy and least-privilege constraints;
 - allow / deny runtime decisions;
 - human escalation and witnessed rulings;
@@ -30,6 +30,8 @@ The public stack includes working or actively exercised mechanisms for:
 The current open Hestia reference deployment is **A1**: cooperative and tamper-evident, not tamper-proof against a determined same-UID actor.
 
 A2 separate-principal enforcement, broader OS / network enforcement, hardware binding, and full federation remain work in progress.
+
+Agent identity at the Hestia gate is asserted by the calling agent, not authenticated: authenticated transport identity is not started (Hestia PRD_ASSURANCE FR-1).
 
 That boundary is documented because a useful standard must distinguish evidence semantics from enforcement strength.
 
