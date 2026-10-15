@@ -88,16 +88,18 @@ Rust:
 
 ```toml
 [dependencies]
-web4-core = "0.3"
-web4-trust-core = "0.2"
+web4-core = "0.4"
+web4-trust-core = "0.3"
+web4-policy = "0.1"
 ```
 
 Current published versions:
 
-- `web4-core` 0.3.0 on crates.io + PyPI
-- `web4-trust-core` 0.2.0 on crates.io
+- `web4-core` 0.4.0 on crates.io (2026-10-15); 0.3.0 on PyPI
+- `web4-trust-core` 0.3.0 on crates.io (2026-10-15); 0.2.0 on npm
+- `web4-policy` 0.1.0 on crates.io (2026-10-15, first publish)
 - `web4-trust` 0.2.0 on PyPI
-- `web4-core` 0.4.0 in source on `main`
+- Python wheels, the npm package and the hub crates at the new versions are still to publish ([#904](https://github.com/dp-web4/web4/issues/904))
 
 See [docs/proof/PUBLISHED.md](docs/proof/PUBLISHED.md) for the publication trail.
 

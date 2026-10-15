@@ -7,11 +7,13 @@ The Web4 package family currently consists of:
 - **`web4-sdk`** (Python) — high-level SDK at `web4-standard/implementation/sdk/` (previously published on PyPI as `web4`; renamed because that PyPI name is held by an unrelated dormant project). `import web4` unchanged.
 - **`web4-core`** (Python + Rust crate) — core primitives, PyO3 bindings. `pip install web4-core` / `cargo add web4-core`.
 - **`web4-trust`** (Python wheel) / **`web4-trust-core`** (Rust crate + npm WASM bindings) — trust tensors and the trust ledger. `pip install web4-trust` / `cargo add web4-trust-core` / `npm install web4-trust-core`.
-- **`web4-policy`** (Rust crate) and the hub crates **`web4-hub-lib`**, **`web4-hub-plugin`**, **`web4-hub-daemon`** (binary `hub`) — first publish pending (see below).
+- **`web4-policy`** (Rust crate, `cargo add web4-policy`, first published 2026-10-15) and the hub crates **`web4-hub-lib`**, **`web4-hub-plugin`**, **`web4-hub-daemon`** (binary `hub`) — hub first publish pending (see below).
 
-## Unreleased — web4-core 0.4.0, web4-trust-core / web4-trust 0.3.0, web4-policy 0.1.0, hub 0.1.0-alpha.0
+## web4-core 0.4.0, web4-trust-core / web4-trust 0.3.0, web4-policy 0.1.0, hub 0.1.0-alpha.0 — partly published
 
-Release prep (not yet published). Intended publish order, each after the previous is indexed:
+**Published to crates.io 2026-10-15** from `main` at `ca02ee2c`: `web4-core` 0.4.0, `web4-trust-core` 0.3.0,
+`web4-policy` 0.1.0. **Not yet published:** the hub crates, the `web4-core` / `web4-trust` wheels and the
+`web4-trust-core` npm package (tracked in #904). Publish order, each after the previous is indexed:
 `web4-core` → `web4-trust-core` + `web4-policy` → `web4-hub-lib` + `web4-hub-plugin` → `web4-hub-daemon`; then the
 `web4-core` / `web4-trust` wheels and the `web4-trust-core` npm package.
 

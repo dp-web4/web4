@@ -4,7 +4,38 @@ This document records the package family releases, what shipped, where to find i
 
 ---
 
-## Current Release: web4-core v0.3.0 (2026-07-09)
+## Current Release: Rust crates web4-core 0.4.0, web4-trust-core 0.3.0, web4-policy 0.1.0 (2026-10-15)
+
+First step of the ecosystem release ([#904](https://github.com/dp-web4/web4/issues/904)). The three Rust crates were
+published to crates.io from CBP, in dependency order, from `main` at `ca02ee2c`. Their sources there are byte-identical
+to the web4 commit hestia pins (`31990db7`), so the published crates are the code hestia builds and tests against.
+`web4-policy` is a first publish. Git tags: `web4-core-rust-v0.4.0`, `web4-trust-core-rust-v0.3.0`,
+`web4-policy-rust-v0.1.0`.
+
+### Quick install
+
+```toml
+[dependencies]
+web4-core = "0.4"
+web4-trust-core = "0.3"
+web4-policy = "0.1"
+```
+
+### What was published
+
+| Package | Registry | Version | Released | License |
+|---|---|---|---|---|
+| `web4-core` | [crates.io](https://crates.io/crates/web4-core) | **0.4.0** | 2026-10-15 | AGPL-3.0-or-later |
+| `web4-trust-core` | [crates.io](https://crates.io/crates/web4-trust-core) | **0.3.0** | 2026-10-15 | AGPL-3.0-or-later |
+| `web4-policy` | [crates.io](https://crates.io/crates/web4-policy) | **0.1.0** | 2026-10-15 | AGPL-3.0-or-later |
+
+**Not yet published at these versions:** the `web4-core` (0.3.0) and `web4-trust` (0.2.0) wheels on PyPI, the
+`web4-trust-core` npm package (0.2.0), and the hub crates (`web4-hub-lib`, `web4-hub-plugin`, `web4-hub-daemon`).
+Notes: [`CHANGELOG.md`](../../CHANGELOG.md).
+
+---
+
+## Previous Release: web4-core v0.3.0 (2026-07-09)
 
 Single-package release: `web4-core` (Rust crate + Python cp312 manylinux_2_34 wheel) published from CBP after 171 green tests, a clean `cargo publish --dry-run`, and a fresh-venv wheel install check. The trust family (`web4-trust-core` / `web4-trust`) remains at 0.2.0.
 
