@@ -1,6 +1,6 @@
 # Web4 Implementation Status
 
-**Last updated:** September 8, 2026
+**Last updated:** October 15, 2026 (published artifacts only; other sections as of September 8)
 
 ---
 
@@ -36,12 +36,13 @@ Current published package line:
 
 | Package | Registry | Version | Install |
 |---|---|---:|---|
-| **web4-core** (Rust) | [crates.io](https://crates.io/crates/web4-core) | **0.3.0** | `cargo add web4-core` |
+| **web4-core** (Rust) | [crates.io](https://crates.io/crates/web4-core) | **0.4.0** | `cargo add web4-core` |
 | **web4-core** (Python) | [PyPI](https://pypi.org/project/web4-core/) | **0.3.0** | `pip install web4-core` |
-| **web4-trust-core** (Rust) | [crates.io](https://crates.io/crates/web4-trust-core) | **0.2.0** | `cargo add web4-trust-core` |
+| **web4-trust-core** (Rust) | [crates.io](https://crates.io/crates/web4-trust-core) | **0.3.0** | `cargo add web4-trust-core` |
+| **web4-policy** (Rust) | [crates.io](https://crates.io/crates/web4-policy) | **0.1.0** | `cargo add web4-policy` |
 | **web4-trust** (Python) | [PyPI](https://pypi.org/project/web4-trust/) | **0.2.0** | `pip install web4-trust` |
 
-`web4-core` source on `main` is **0.4.0**. The publication trail, including the yanked 0.1.0 Python wheel and subsequent correction, is in [`docs/proof/PUBLISHED.md`](docs/proof/PUBLISHED.md).
+The three Rust crates were published 2026-10-15 from `main` at `ca02ee2c` (the same crate sources hestia builds against). The Python wheels and the `web4-trust-core` npm package at the new versions, and the hub crates, are not yet published; the cross-product plan is [#904](https://github.com/dp-web4/web4/issues/904). The publication trail, including the yanked 0.1.0 Python wheel and subsequent correction, is in [`docs/proof/PUBLISHED.md`](docs/proof/PUBLISHED.md).
 
 All packages are AGPL-3.0-or-later unless a subdirectory states otherwise. Patent terms and commercial licensing boundaries are in [PATENTS.md](PATENTS.md).
 
