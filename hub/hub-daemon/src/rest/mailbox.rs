@@ -587,9 +587,15 @@ mod tests {
         assert_eq!(e.status, StatusCode::INSUFFICIENT_STORAGE);
         assert!(e.message.starts_with("recipient_mailbox_full"), "{}", e.message);
 
-        let mut cache = state.notifications.lock().await;
-        cache.insert(legacy, (0..MAX_NOTICES_PER_MEMBER).map(|i| routed(None, &format!("l{i}"))).collect());
-        drop(cache);
+        // Through the store, as the receipt half is: on a durable store the precheck reads the
+        // row and ignores the cache, so a cache-only fill would test an empty mailbox (Sprout, #916).
+        let at_bound = Mailbox::Legacy((0..MAX_NOTICES_PER_MEMBER).map(|i| routed(None, &format!("l{i}"))).collect());
+        state.open_store().await.unwrap().mailbox_put(legacy, &serde_json::to_vec(&at_bound).unwrap()).await.unwrap();
+        state.notifications.lock().await.remove(&legacy);
+        let st = state.open_store().await.unwrap();
+        let cached = state.notifications.lock().await.get(&legacy).cloned().unwrap_or_default();
+        assert_eq!(state.load_mailbox_record(&*st, legacy, &cached).await.unwrap().notices().len(),
+            MAX_NOTICES_PER_MEMBER, "the precheck reads a legacy mailbox AT the bound");
         routing::precheck_member(&state, &routing::Delivery::Member(legacy)).await
             .expect("a legacy mailbox is never refused here: it evicts");
     }
