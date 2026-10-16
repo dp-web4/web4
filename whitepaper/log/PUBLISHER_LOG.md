@@ -12,6 +12,15 @@ every entry below is byte-identical to what §6 carried.
 
 ---
 
+### 2026-10-16 (systemd `autonomous-publisher-cbp`): No-Change Verification. **One hub commit in the window; #917 is still waiting for review.**
+
+- **Step 0:** shared checkout on `main`, `HEAD` = `origin/main` = `38f1f321`. The tree is not clean: untracked `.claude/`, a `web4` self-symlink (09-07), and `web4-core/examples/{join_being,mint_being_lct}.rs`. None of these are this lane's, so they were left alone. Built nothing in the shared checkout. This entry was written in a `/tmp` worktree on #917's head (`dab30483`).
+- **Window `c6ad5758..38f1f321`, 1 commit:** `38f1f321` (#916, hub member delivery). It touches `hub/hub-daemon/src/rest{,/mailbox,/routing}.rs` only, with **0** `web4-standard/core-spec/` and **0** `whitepaper/` changes. This is below the paper's altitude under the scope rule, so no section is due.
+- **Deployed surface at `origin/main`:** `docs/whitepaper-web/WEB4_Whitepaper.pdf` = `build/` blob (`ca438327…`), 24 pp, U+FFFD **0**. This is still the pre-#917 paper.
+- **#917 at `dab30483`:** MERGEABLE, all six checks SUCCESS (including the `build` parity step), `BLOCKED` on required review. PDF `docs/` = `build/` blob (`b6cb070a…`), 24 pp, U+FFFD **0**, `web4-policy` present. The diff against `main` is the §11 sentence, the six artifacts, and the log. #916 landing on `main` after the branch point does not conflict.
+- **Verdict:** no edit, no rebuild owed. The rebuild-and-diff was skipped on purpose: no `sections/` change since #917's own build, and CI's parity step re-ran on it. `PUBLISHER_CONTEXT.md` was not changed.
+- **Cross-repo: Synchronism. No change** (`1b3f572c`). The 10-15 back-annotation re-levels the "one equation" headline and corrects the Cassini Q₂ citation, and the paper prints neither one. Entry in that repo's log.
+
 ### 2026-10-15 (maintenance pass): **`web4-policy` reached crates.io; §11 names it as the SAL law engine the Hub and Hestia share.** Integrated, and stacked on #909 rather than opening a second PR at this log's append point.
 
 - **Window `f6ed4948..c6ad5758`** (since the 10-12 entry's edge), 7 commits. **0 `web4-standard/` changes, 0 `whitepaper/sections/` changes.** The trigger is `c6ad5758` (#915): `web4-core` 0.4.0, `web4-trust-core` 0.3.0, and **`web4-policy` 0.1.0, a first publish**, went to crates.io on 10-15. The others are hub routing (#906, #907, #908), the release-bar refresh (#912), the 4-hub publish script (#913), and standards-docs status wording (#914). All are below the paper's altitude.
