@@ -1243,6 +1243,44 @@ mod tests {
         assert_eq!(ledger_len(&state).await, l1, "not witnessed a second time");
     }
 
+    /// `op_act_id` is computable from public inputs, and an H5 act-as carrier picks its own `act_id`.
+    /// An act-as squatting `op_act_id(who, op)` — carried by another member, or by `who` itself — is
+    /// never adopted as `who`'s witness: the crash retry lands `who`'s own ordinary act (Sprout +
+    /// Legion, #920).
+    #[tokio::test]
+    async fn a_crash_retry_never_adopts_an_act_as_that_squats_its_act_id() {
+        let (_tmp, state, sov) = fixture(true).await;
+        let who = sov.lct.id;
+        for (op, carrier) in [("op-squat", Uuid::new_v4()), ("op-squat-self", who)] {
+            let mut squat = web4_core::act::Act::addressed(carrier, web4_core::act::ActAddress::Citizen { lct_id: who },
+                "coordination", web4_core::act::SubstanceRef::new("forum/x.md", format!("sha256-content:{}", "b".repeat(64)),
+                web4_core::act::SubstanceMedium::Message), Utc::now());
+            squat.act_id = op_act_id(who, op);
+            let on_behalf_of = Some(hub_lib::routing::ActAs { lct: "child".into(), issued_at: Utc::now().to_rfc3339(),
+                edge_epoch: 0, router_epoch: 0, signature_hex: String::new() });
+            let squatted = witness_event(&state, HubEvent::ReferencedAct { act: squat, on_behalf_of }).await.unwrap();
+
+            let binding = serde_json::json!({"to": who, "pointer_uri": "secret",
+                "content_hash": format!("sha256-content:{}", "a".repeat(64)),
+                "sealed_sha256": web4_core::sha256_hex("s".as_bytes()), "pair_id": Uuid::from_u128(0x1210)});
+            let rec = SendOp { binding, act_id: op_act_id(who, op), notice_id: String::new(),
+                created_at: Utc::now().timestamp(), entry_index: None, durable: true };
+            let n = SealedNotice { from: who, sealed: "s".into(), kind: "secret".into(), pointer_uri: "secret".into(),
+                sealed_by: Some(who), ..notice() };
+            enqueue_notice_op(&state, who, n, Some((who, op, &rec))).await.unwrap();
+            let l0 = ledger_len(&state).await;
+            let out = channel(&state, &sov, "send_secret", secret_args(who, "s", Some(op)), true).await.unwrap();
+            let index = out["entry_index"].as_u64().unwrap();
+            assert_ne!(index, squatted, "{op}: adopted the act-as entry as the sender's witness");
+            assert_eq!(ledger_len(&state).await, l0 + 1, "{op}: the sender's own act landed once");
+            let ledger = state.ledger.lock().await;
+            match &ledger.entries().iter().find(|e| e.index == index).unwrap().event {
+                HubEvent::ReferencedAct { act, on_behalf_of: None } => assert_eq!(act.actor_lct, who),
+                other => panic!("{op}: not the sender's ordinary act: {other:?}"),
+            }
+        }
+    }
+
 
     fn status<T>(r: Result<T, MailboxError>) -> StatusCode {
         match r {

@@ -1755,12 +1755,16 @@ async fn land_act(
     Err(ApiError::internal(last.expect("three attempts")))
 }
 
-/// The act for `act_id` if it is already on the ledger (a retry after a crash between queueing
-/// and witnessing). Newest first: a retry is close to its original.
-async fn find_act(s: &RestState, act_id: Uuid) -> Option<u64> {
+/// `sender`'s own act for `act_id` if it is already on the ledger (a retry after a crash between
+/// queueing and witnessing). Newest first: a retry is close to its original. Only an ORDINARY act
+/// spoken by `sender` matches: `op_act_id` is computable from public inputs, so an act-as (H5, whose
+/// carrier picks its `act_id`) may already hold this id, and must never be adopted as `sender`'s
+/// witness (Sprout + Legion, #920).
+async fn find_act(s: &RestState, sender: Uuid, act_id: Uuid) -> Option<u64> {
     let ledger = s.ledger.lock().await;
     ledger.entries().iter().rev().find_map(|e| match &e.event {
-        HubEvent::ReferencedAct { act, .. } if act.act_id == act_id => Some(e.index),
+        HubEvent::ReferencedAct { act, on_behalf_of: None }
+            if act.act_id == act_id && act.actor_lct == sender => Some(e.index),
         _ => None,
     })
 }
@@ -1785,7 +1789,7 @@ async fn resume_send_op(
              content hash or sealed body differ). Nothing was sent; use a new operation_id.") });
     }
     if op.entry_index.is_none() {
-        let index = match find_act(s, op.act_id).await {
+        let index = match find_act(s, sender, op.act_id).await {
             Some(i) => i,
             None => {
                 let signed = authorize_event(s, HubEvent::ReferencedAct { act: act.clone(), on_behalf_of: None }).await?;

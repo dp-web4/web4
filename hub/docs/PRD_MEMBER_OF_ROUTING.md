@@ -424,13 +424,20 @@ RFC 3339 has several spellings of one instant. Cross-language positive and negat
 optional fields, a newline-bearing field, and a one-byte change per field must fail.
 
 **Acceptance and replay (rev 10, Nova; order and router epoch rev 11, Sprout).** Evaluated in this order:
-0. **`act_id` first.** `act_id` is unique **hub-wide** across all witnessed acts. If it is already
+0. **`act_id` first.** An act-as may not reuse **any** witnessed `act_id`. If it is already
    witnessed:
    - the same statement → return the existing entry, whatever the current edge or router (a retry after a
      lost response is not a failure);
    - a different statement → **409** `act_id_conflict`.
 
    Only a new `act_id` continues.
+
+   The converse is *not* enforced (rev 13, Sprout + Legion on #920): an ordinary act is not refused for an
+   `act_id` an act-as already holds. `send_secret`'s `op_act_id(sender, op)` is computable from public
+   inputs, so refusing would let a carrier squat a sender's operation ids. Instead `send_secret`'s crash
+   recovery adopts only an ordinary act spoken by that sender, never an act-as entry. So `act_id` is unique
+   among act-as entries, not hub-wide. A replay returns the existing entry and does not redeliver; if the
+   first attempt reported `delivered: false`, the retry reports that entry and cannot change it.
 1. x's **current** edge names a parent whose registered router member is the envelope signer;
 2. `edge_epoch` equals `member_of_at[x]` **and** `router_epoch` equals the in-force registration's index.
    A signature made before x moved, was withdrawn or was re-reported, or before its router re-registered
@@ -477,7 +484,8 @@ say "the router says x said", and D1's protection against a foreign router would
 **rev 13 (2026-10-16)** — B2b as built. `on_behalf_of` lives on the hub event, not on web4-core's `Act`
 (dp: web4-core 0.4.0 is published). The not-the-router refusal gets the code `not_the_router`. Refusal
 codes are a `code` field in the error body beside the message. `consequence` is outside the statement,
-named as a gap.
+named as a gap. Review (Sprout, Legion): step 0's uniqueness is among act-as entries, and
+`send_secret` crash recovery matches only the sender's own ordinary act; `x` must be sent in canonical spelling.
 
 **rev 12.1 (2026-10-12)** — CBP, Legion and Sprout reviews of rev 12 (all MERGE, edits non-blocking).
 - §0: hestia bullet marked target-not-current with Sprout's measured CLI-only call sites; B2a stated as

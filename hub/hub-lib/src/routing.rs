@@ -301,6 +301,11 @@ impl ActAs {
         // 1. x's CURRENT edge names a parent whose registered router member carried the envelope.
         let x = CanonicalLctId::parse(&self.lct)
             .map_err(|_| NotTheRouter("on_behalf_of is not a canonical LCT".into()))?;
+        // The spelling signed, stored and replied to (`lct:<from_lct>`) is the canonical one. `parse` admits
+        // one spelling today; this keeps it so if `parse` ever loosens (Legion, #920).
+        if x.to_string() != self.lct {
+            return Err(NotTheRouter("on_behalf_of lct is not in canonical spelling".into()));
+        }
         let parent = state.member_of.get(&x)
             .ok_or_else(|| NotTheRouter(format!("{x} has no current member-of edge")))?;
         let router = state.routers.get(parent)

@@ -530,7 +530,7 @@ pub(super) fn parse_act_as(args: &serde_json::Value) -> Result<Option<(Uuid, hub
     })))
 }
 
-/// H5 step 0: `act_id` is unique hub-wide. Already witnessed with the SAME statement -> the existing
+/// H5 step 0: an act-as may not reuse a witnessed `act_id`. Already witnessed with the SAME statement -> the existing
 /// entry (a retry after a lost response). With a different statement, or as an ordinary act -> 409
 /// `act_id_conflict`. `None` = a new act_id; continue to steps 1-4.
 pub(super) async fn act_as_replay(s: &RestState, state: &HubState, act: &web4_core::act::Act,
