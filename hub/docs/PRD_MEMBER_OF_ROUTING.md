@@ -436,8 +436,10 @@ optional fields, a newline-bearing field, and a one-byte change per field must f
    `act_id` an act-as already holds. `send_secret`'s `op_act_id(sender, op)` is computable from public
    inputs, so refusing would let a carrier squat a sender's operation ids. Instead `send_secret`'s crash
    recovery adopts only an ordinary act spoken by that sender, never an act-as entry. So `act_id` is unique
-   among act-as entries, not hub-wide. A replay returns the existing entry and does not redeliver; if the
-   first attempt reported `delivered: false`, the retry reports that entry and cannot change it.
+   among act-as entries, not hub-wide. A replay returns the existing entry (`replayed: true`,
+   `entry_index`) and does not redeliver. It carries **no `delivered`** (CBP on #920): whether the first
+   attempt's notice landed is not recorded, so a router that lost the first response cannot learn it from
+   the retry, and the retry cannot change that outcome.
 1. x's **current** edge names a parent whose registered router member is the envelope signer;
 2. `edge_epoch` equals `member_of_at[x]` **and** `router_epoch` equals the in-force registration's index.
    A signature made before x moved, was withdrawn or was re-reported, or before its router re-registered

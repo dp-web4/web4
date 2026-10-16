@@ -315,7 +315,10 @@ impl ActAs {
         }
         // 2. Both epochs current: a signature from before x moved, or before its router re-registered
         //    (a same-member re-key included), no longer verifies.
-        let edge_at = state.member_of_at.get(&x).copied().unwrap_or(u64::MAX);
+        // `member_of` and `member_of_at` move together; if they ever diverge, refuse rather than compare
+        // against a sentinel a signer could name (CBP, #920).
+        let edge_at = state.member_of_at.get(&x).copied()
+            .ok_or_else(|| StaleEpoch(format!("{x}'s edge has no recorded epoch")))?;
         if self.edge_epoch != edge_at || self.router_epoch != router.registered_at {
             return Err(StaleEpoch(format!(
                 "signed for edge_epoch {} / router_epoch {}; current are {edge_at} / {}",
