@@ -315,6 +315,12 @@ pub struct SealedNotice {
     /// (PRD rev 3). `None` on ordinary notices.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sealed_to: Option<String>,
+    /// PRD H5: the member-of child that SAID this act, when its router member carried it
+    /// (`from` is then the router member). Replies, receipts and unreachable reports go to
+    /// `lct:<from_lct>` when present, never to `from`, which would land in the router's own mailbox.
+    /// `None` on every other notice, omitted from the JSON, so their `notice_id`s are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_lct: Option<String>,
 }
 
 /// Cached projection: a folded `HubState` plus the ledger position it reflects.
@@ -1537,6 +1543,14 @@ const NOTICE_DROPPED_KIND: &str = "notice-dropped";
 async fn queue_sealed_notice(
     s: &RestState, recipient: Uuid, from: Uuid, kind: &str, pointer_uri: &str, body: &[u8],
 ) -> bool {
+    queue_sealed_notice_from(s, recipient, from, None, kind, pointer_uri, body).await
+}
+
+/// [`queue_sealed_notice`], with H5's `from_lct`: the child that said the act its router carried.
+async fn queue_sealed_notice_from(
+    s: &RestState, recipient: Uuid, from: Uuid, from_lct: Option<&str>, kind: &str, pointer_uri: &str,
+    body: &[u8],
+) -> bool {
     let pubkey_hex = {
         let ledger = s.ledger.lock().await;
         s.projected(&ledger).member_pubkeys.get(&recipient).cloned()
@@ -1568,7 +1582,7 @@ async fn queue_sealed_notice(
         queued_at: Utc::now(),
         sealed_by: None,
         for_lct: None,
-        sealed_to: None,
+        sealed_to: None, from_lct: from_lct.map(str::to_string),
     }).await {
         Ok(_) => true,
         Err(e) => {
@@ -1724,7 +1738,7 @@ async fn land_act(
     for _ in 0..3 {
         let (unsigned, signature) = match next.take() {
             Some(pair) => pair,
-            None => authorize_event(s, HubEvent::ReferencedAct { act: act.clone() }).await?,
+            None => authorize_event(s, HubEvent::ReferencedAct { act: act.clone(), on_behalf_of: None }).await?,
         };
         let res = {
             let mut ledger = s.ledger.lock().await;
@@ -1746,7 +1760,7 @@ async fn land_act(
 async fn find_act(s: &RestState, act_id: Uuid) -> Option<u64> {
     let ledger = s.ledger.lock().await;
     ledger.entries().iter().rev().find_map(|e| match &e.event {
-        HubEvent::ReferencedAct { act } if act.act_id == act_id => Some(e.index),
+        HubEvent::ReferencedAct { act, .. } if act.act_id == act_id => Some(e.index),
         _ => None,
     })
 }
@@ -1774,7 +1788,7 @@ async fn resume_send_op(
         let index = match find_act(s, op.act_id).await {
             Some(i) => i,
             None => {
-                let signed = authorize_event(s, HubEvent::ReferencedAct { act: act.clone() }).await?;
+                let signed = authorize_event(s, HubEvent::ReferencedAct { act: act.clone(), on_behalf_of: None }).await?;
                 land_act(s, act, signed).await?
             }
         };
@@ -1841,7 +1855,7 @@ async fn send_secret_ordered(
         #[cfg(test)]
         mailbox::test_send_op_after_lookup(op).await;
     }
-    let signed = authorize_event(s, HubEvent::ReferencedAct { act: act.clone() }).await?;
+    let signed = authorize_event(s, HubEvent::ReferencedAct { act: act.clone(), on_behalf_of: None }).await?;
     let rec = mailbox::SendOp { binding: binding.clone(), act_id: act.act_id, notice_id: String::new(),
         created_at: now, entry_index: None, durable: true };
     let queued = enqueue_notice_op(s, to, notice, op_id.map(|o| (sender, o, &rec))).await
@@ -1899,7 +1913,7 @@ async fn notify_citizen(
         ),
         Utc::now(),
     );
-    let _ = witness_event(s, HubEvent::ReferencedAct { act }).await;
+    let _ = witness_event(s, HubEvent::ReferencedAct { act, on_behalf_of: None }).await;
     let _ = queue_sealed_notice(s, recipient, from, kind, pointer_uri, body).await;
 }
 
@@ -2600,9 +2614,21 @@ pub async fn operator_auth_gate(
     next.run(req).await
 }
 
+/// Structured refusal codes (member-of routing, PRD H3/H5). An error whose message begins
+/// `<code>: ` also carries `"code"` in its body, so a router can tell "re-sign" (`stale_epoch`,
+/// `issued_at_outside_window`) from "refused" without parsing prose.
+const ERROR_CODES: &[&str] = &["no_route", "router_mailbox_full", "child_share_full",
+    "recipient_mailbox_full", "not_the_router", "stale_epoch", "issued_at_outside_window",
+    "bad_child_signature", "act_id_conflict"];
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
-        let body = serde_json::json!({"error": self.message});
+        let mut body = serde_json::json!({"error": self.message});
+        if let Some((code, _)) = self.message.split_once(": ") {
+            if ERROR_CODES.contains(&code) {
+                body["code"] = serde_json::json!(code);
+            }
+        }
         (self.status, Json(body)).into_response()
     }
 }
@@ -4908,19 +4934,49 @@ async fn dispatch_channel(
             // anything is witnessed, so "no route" / a full child share is a refusal, never a
             // witnessed act whose notice silently went nowhere.
             // `state` is this call's projection (bound at the top of dispatch_channel).
-            let delivery = routing::resolve_delivery(s, &state, &address).await?;
-            let routed_key = routing::precheck_routed(s, &state, &delivery).await?;
-            routing::precheck_member(s, &delivery).await?;
             let notice_kind = kind.clone();
             let notice_uri = uri.clone();
-            let act = web4_core::act::Act::addressed(
+            let mut act = web4_core::act::Act::addressed(
                 caller_lct_id,
-                address,
+                address.clone(),
                 kind,
                 web4_core::act::SubstanceRef::new(uri, content_hash, medium),
                 Utc::now(),
             ).with_consequence(consequence);
-            let index = witness_event(s, HubEvent::ReferencedAct { act }).await?;
+            // H5 (PRD_MEMBER_OF_ROUTING, Hub B2b): a member-of child speaks through its router. The
+            // caller (the envelope signer) is the router member that CARRIES the act; the child x
+            // signed it. Acceptance order: act_id (step 0), then the edge, the epochs, the window and
+            // the signature (steps 1-4), all before anything is witnessed or delivered. The lock spans
+            // step 0 through the witness so one act_id cannot be accepted twice.
+            let act_as = routing::parse_act_as(&inner.args)?;
+            let _act_as_guard = match &act_as {
+                Some(_) => Some(routing::ACT_AS_LOCK.lock().await),
+                None => None,
+            };
+            let mut on_behalf_of = None;
+            if let Some((act_id, a)) = act_as {
+                if r7_op.is_some() {
+                    return Err(ApiError::bad_request("on_behalf_of cannot carry an r7 block: an obligation's \
+                        subject is the caller".to_string()));
+                }
+                if hub_lib::routing::address_text(&act.address).is_none() {
+                    return Err(ApiError::bad_request("on_behalf_of: a child does not write to its own future \
+                        through a router (to = future_self)".to_string()));
+                }
+                act.act_id = act_id;
+                let fresh = { let l = s.ledger.lock().await; s.projected(&l) };
+                if let Some(index) = routing::act_as_replay(s, &fresh, &act, &a).await? {
+                    return Ok(serde_json::json!({ "recorded": true, "entry_index": index, "replayed": true,
+                        "on_behalf_of": a.lct }));
+                }
+                a.verify(&fresh, s.hub_id, &act, Utc::now()).map_err(routing::act_as_refused)?;
+                on_behalf_of = Some(a);
+            }
+            let from_lct = on_behalf_of.as_ref().map(|a| a.lct.clone());
+            let delivery = routing::resolve_delivery(s, &state, &address).await?;
+            let routed_key = routing::precheck_routed(s, &state, &delivery).await?;
+            routing::precheck_member(s, &delivery).await?;
+            let index = witness_event(s, HubEvent::ReferencedAct { act, on_behalf_of }).await?;
             // §5.1 R7 carrier effects (r7 already validated fail-closed above).
             let mut r7_out = serde_json::Map::new();
             if let Some(op) = r7_op {
@@ -4989,13 +5045,16 @@ async fn dispatch_channel(
             }
             // Deliver. A recipient with no pinned key still gets the witnessed act on the ledger, but
             // no notice: the response says `delivered: false` rather than dropping it silently (#910).
-            let body = serde_json::json!({
+            let mut body = serde_json::json!({
                 "from": caller_lct_id,
                 "kind": notice_kind,
                 "pointer_uri": notice_uri,
                 "entry_index": index,
-            })
-            .to_string();
+            });
+            if let Some(x) = &from_lct {
+                body["from_lct"] = serde_json::json!(x);
+            }
+            let body = body.to_string();
             // `delivered` is reported for member and routed notices: the precheck closes the common refusals
             // before the witness, but precheck -> witness -> enqueue is not one transaction, so a
             // concurrent sender can take the last slot in between. The act then stands witnessed and
@@ -5003,13 +5062,13 @@ async fn dispatch_channel(
             let mut delivered: Option<bool> = None;
             match &delivery {
                 routing::Delivery::Member(rcpt) => {
-                    delivered = Some(queue_sealed_notice(s, *rcpt, caller_lct_id, &notice_kind, &notice_uri,
-                        body.as_bytes()).await);
+                    delivered = Some(queue_sealed_notice_from(s, *rcpt, caller_lct_id, from_lct.as_deref(),
+                        &notice_kind, &notice_uri, body.as_bytes()).await);
                 }
                 routing::Delivery::Routed { router_member, for_lct, .. } => {
                     let key = routed_key.as_ref().expect("prechecked before witness");
                     delivered = Some(routing::queue_routed_notice(s, *router_member, for_lct, key, caller_lct_id,
-                        &notice_kind, &notice_uri, body.as_bytes()).await);
+                        from_lct.as_deref(), &notice_kind, &notice_uri, body.as_bytes()).await);
                 }
                 routing::Delivery::None => {}
             }
@@ -5017,6 +5076,9 @@ async fn dispatch_channel(
                 "routed_via": delivery.routed_via() });
             if let Some(d) = delivered {
                 resp["delivered"] = serde_json::json!(d);
+            }
+            if let Some(x) = &from_lct {
+                resp["on_behalf_of"] = serde_json::json!(x);
             }
             if !r7_out.is_empty() {
                 resp.as_object_mut().unwrap().extend(r7_out);
@@ -5205,7 +5267,7 @@ async fn dispatch_channel(
                 queued_at: Utc::now(),
                 sealed_by: None,
                 for_lct: None,
-                sealed_to: None,
+                sealed_to: None, from_lct: None,
             };
             // The historical helper name reflects its first caller; the mechanism is generic:
             // atomically queue notice + sender-op record, then land the deterministic act.
@@ -5292,7 +5354,7 @@ async fn dispatch_channel(
                 queued_at: Utc::now(),
                 sealed_by: Some(caller_lct_id),
                 for_lct: None,
-                sealed_to: None,
+                sealed_to: None, from_lct: None,
             };
             send_secret_ordered(s, caller_lct_id, to, notice, act, operation_id.as_deref(), binding).await
         }
@@ -6363,7 +6425,7 @@ async fn enable_mailbox_receipts_as_operator(
         ),
         Utc::now(),
     );
-    let entry_index = witness_event(s, HubEvent::ReferencedAct { act }).await?;
+    let entry_index = witness_event(s, HubEvent::ReferencedAct { act, on_behalf_of: None }).await?;
     // The act is on the ledger first. A failed write here leaves it asserting an enrollment
     // that did not happen, so the error says exactly that and the retry (idempotent) applies it.
     match s.mailbox_enable_receipts(lct_id).await {
@@ -7461,7 +7523,7 @@ async fn admin_ledger_tail(
                 "actor": e.actor_lct_id,
                 "event": e.event.kind(),
             });
-            if let HubEvent::ReferencedAct { act } = &e.event {
+            if let HubEvent::ReferencedAct { act, .. } = &e.event {
                 use web4_core::act::ActAddress::*;
                 // The SENDER. `actor` above is the entry signer (always the
                 // Sovereign); this is the entity the act is from.
@@ -10026,7 +10088,7 @@ mod lct_registry_tests {
             queued_at: Utc::now(),
             sealed_by: None,
             for_lct: None,
-            sealed_to: None,
+            sealed_to: None, from_lct: None,
         };
         assert!(enqueue_notice(&state, recipient, notice.clone()).await.unwrap());
 
@@ -14517,6 +14579,101 @@ norms:
         dispatch_channel(state, caller, Uuid::new_v4(), None, inner).await
     }
 
+    /// H5: carrier `m` sends `to` (tagged text `to_text`) on behalf of child `x`, signed by `child`.
+    #[allow(clippy::too_many_arguments)]
+    async fn send_act_as(state: &RestState, m: Uuid, child: &KeyPair, x: &hub_lib::ids::CanonicalLctId,
+        to: serde_json::Value, to_text: &str, act_id: Uuid, pointer: &str, issued_at: &str)
+        -> Result<serde_json::Value, ApiError> {
+        let (edge, router) = {
+            let l = state.ledger.lock().await;
+            let st = state.projected(&l);
+            let y = st.member_of.get(x).cloned().unwrap();
+            (st.member_of_at[x], st.routers[&y].registered_at)
+        };
+        let content_hash = format!("sha256-content:{}", "c".repeat(64));
+        let sig = child.sign(&hub_lib::routing::act_as_bytes(state.hub_id, x.as_str(), m, act_id, issued_at,
+            edge, router, "coordination", to_text, pointer, &content_hash)).to_hex();
+        let inner: ChannelInner = serde_json::from_value(serde_json::json!({"tool": "referenced_act", "args": {
+            "to": to, "kind": "coordination", "pointer_uri": pointer, "content_hash": content_hash,
+            "on_behalf_of": { "lct": x, "act_id": act_id, "issued_at": issued_at,
+                "edge_epoch": edge, "router_epoch": router, "child_signature": sig } }})).unwrap();
+        dispatch_channel(state, m, Uuid::new_v4(), None, inner).await
+    }
+
+    /// H5 end to end: the router member carries, the child said it. The ledger records both and the
+    /// child's signature re-verifies from the ledger alone; the recipient's notice names `from_lct`.
+    /// A retry returns the same entry; a different statement under that act_id is `act_id_conflict`.
+    #[tokio::test]
+    async fn act_as_carried_by_the_router_is_witnessed_with_the_child_as_speaker() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (m, _mk, _y, child, x) = routed_fixture(&state).await;
+        let rcpt = sender(&state).await;
+        state.mailbox_enable_receipts(rcpt).await.unwrap();
+        let act_id = Uuid::new_v4();
+        let to = serde_json::json!({"to": "peer", "lct_id": rcpt});
+        let to_text = format!("peer:{rcpt}");
+        let at = Utc::now().to_rfc3339();
+        let out = send_act_as(&state, m, &child, &x, to.clone(), &to_text, act_id, "forum/reply.md", &at).await
+            .expect("accepted");
+        assert_eq!(out["on_behalf_of"], serde_json::json!(x));
+        assert_eq!(out["delivered"], serde_json::json!(true));
+        let index = out["entry_index"].as_u64().unwrap();
+
+        let (act, act_as) = {
+            let l = state.ledger.lock().await;
+            match &l.entries().iter().find(|e| e.index == index).unwrap().event {
+                HubEvent::ReferencedAct { act, on_behalf_of: Some(a) } => (act.clone(), a.clone()),
+                other => panic!("not an act-as entry: {other:?}"),
+            }
+        };
+        assert_eq!(act.actor_lct, m, "the router member carried it");
+        assert_eq!(act.act_id, act_id);
+        let sig = web4_core::crypto::SignatureBytes::from_bytes(
+            hex::decode(&act_as.signature_hex).unwrap().try_into().unwrap());
+        child.verifying_key().verify(&act_as.statement(state.hub_id, &act).unwrap(), &sig)
+            .expect("the child's signature re-verifies from the ledger alone");
+
+        let page = state.mailbox_fetch(rcpt, 10).await.unwrap();
+        let n = &page["notifications"][0]["notice"];
+        assert_eq!(n["from"], serde_json::json!(m));
+        assert_eq!(n["from_lct"], serde_json::json!(x), "replies go to lct:<from_lct>, not the router");
+
+        let before = state.ledger.lock().await.entries().len();
+        let again = send_act_as(&state, m, &child, &x, to.clone(), &to_text, act_id, "forum/reply.md", &at).await
+            .expect("a retry is not a failure");
+        assert_eq!(again["replayed"], serde_json::json!(true));
+        assert_eq!(again["entry_index"], serde_json::json!(index));
+        let e = send_act_as(&state, m, &child, &x, to, &to_text, act_id, "forum/other.md", &at).await.unwrap_err();
+        assert_eq!(e.status, StatusCode::CONFLICT);
+        assert!(e.message.starts_with("act_id_conflict:"), "{}", e.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "neither the retry nor the conflict witnessed");
+    }
+
+    /// H5 refusals witness nothing: a carrier that is not x's router member, and a stale edge epoch.
+    /// The error body carries the structured `code`.
+    #[tokio::test]
+    async fn act_as_refusals_witness_nothing_and_carry_a_code() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (_m, _mk, _y, child, x) = routed_fixture(&state).await;
+        let stranger = sender(&state).await;
+        let rcpt = sender(&state).await;
+        let before = state.ledger.lock().await.entries().len();
+        let e = send_act_as(&state, stranger, &child, &x, serde_json::json!({"to": "peer", "lct_id": rcpt}),
+            &format!("peer:{rcpt}"), Uuid::new_v4(), "forum/r.md", &Utc::now().to_rfc3339()).await.unwrap_err();
+        assert_eq!(e.status, StatusCode::FORBIDDEN);
+        assert!(e.message.starts_with("not_the_router:"), "{}", e.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before);
+
+        let resp = e.into_response();
+        let body: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap()).unwrap();
+        assert_eq!(body["code"], "not_the_router");
+        let plain = ApiError::bad_request("referenced_act requires 'kind'").into_response();
+        let body: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(plain.into_body(), usize::MAX).await.unwrap()).unwrap();
+        assert!(body.get("code").is_none(), "only listed codes are lifted out of the message");
+    }
+
     async fn sender(state: &RestState) -> Uuid {
         let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
         let (id, kp) = (Uuid::new_v4(), KeyPair::generate());
@@ -14547,7 +14704,7 @@ norms:
 
         let l = state.ledger.lock().await;
         let act = l.entries().iter().rev().find_map(|e| match &e.event {
-            HubEvent::ReferencedAct { act } => Some(act.clone()), _ => None }).unwrap();
+            HubEvent::ReferencedAct { act, .. } => Some(act.clone()), _ => None }).unwrap();
         assert_eq!(act.address, web4_core::act::ActAddress::Lct { canonical: x.to_string() },
             "the witnessed act names the true destination, never the router");
     }
@@ -16166,7 +16323,7 @@ norms:
         // The witnessed act is a verbatim core Act carrying the notify kind, addressed to the
         // citizen, content-bound to the exact body (sha256), with no ciphertext on the ledger.
         let witnessed = ledger.entries().iter().find_map(|e| match &e.event {
-            HubEvent::ReferencedAct { act } => Some(act.clone()),
+            HubEvent::ReferencedAct { act, .. } => Some(act.clone()),
             _ => None,
         }).expect("a referenced_act was witnessed");
         assert_eq!(witnessed.kind, "notify:test");
@@ -16248,7 +16405,7 @@ norms:
             ),
             Utc::now(),
         );
-        witness_event(&state, HubEvent::ReferencedAct { act }).await.unwrap();
+        witness_event(&state, HubEvent::ReferencedAct { act, on_behalf_of: None }).await.unwrap();
 
         let resp = admin_ledger_tail(
             State(state.clone()),

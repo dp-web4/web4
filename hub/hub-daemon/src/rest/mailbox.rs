@@ -436,7 +436,7 @@ mod tests {
     fn notice() -> SealedNotice {
         SealedNotice { pair_id: Uuid::new_v4(), from: Uuid::new_v4(), sealed: "opaque".into(),
             kind: "test".into(), pointer_uri: "test".into(), queued_at: Utc::now(), sealed_by: None,
-            for_lct: None, sealed_to: None }
+            for_lct: None, sealed_to: None, from_lct: None }
     }
     fn sql(tmp: &tempfile::TempDir, query: &str) {
         rusqlite::Connection::open(tmp.path().join("hub/hub.db")).unwrap().execute_batch(query).unwrap();
@@ -477,7 +477,7 @@ mod tests {
         let back: SealedNotice = serde_json::from_str(&json).unwrap();
         assert_eq!(notice_id(Uuid::nil(), &back), notice_id(Uuid::nil(), &n));
         let r = routed(Some("lct:web4:mb32:bx"), "p");
-        assert_ne!(notice_id(Uuid::nil(), &r), notice_id(Uuid::nil(), &SealedNotice { for_lct: None, sealed_to: None, ..r.clone() }),
+        assert_ne!(notice_id(Uuid::nil(), &r), notice_id(Uuid::nil(), &SealedNotice { for_lct: None, sealed_to: None, from_lct: None, ..r.clone() }),
             "a routed notice's destination is part of what its id commits to");
     }
 
@@ -930,7 +930,7 @@ mod tests {
 
         let ledger = state.ledger.lock().await;
         let routed: Vec<_> = ledger.entries().iter().filter_map(|e| match &e.event {
-            HubEvent::ReferencedAct { act } if act.kind == "route.forward" => Some(act),
+            HubEvent::ReferencedAct { act, .. } if act.kind == "route.forward" => Some(act),
             _ => None,
         }).collect();
         assert_eq!(routed.len(), 1);
@@ -1166,7 +1166,7 @@ mod tests {
         let act_id = op_act_id(who, "op-twin");
         let ledger = state.ledger.lock().await;
         let count = ledger.entries().iter().filter(|e| matches!(
-            &e.event, HubEvent::ReferencedAct { act } if act.act_id == act_id
+            &e.event, HubEvent::ReferencedAct { act, .. } if act.act_id == act_id
         )).count();
         assert_eq!(count, 1, "same operation_id landed more than one ReferencedAct");
     }
@@ -1236,7 +1236,7 @@ mod tests {
             "secret", web4_core::act::SubstanceRef::new("secret", format!("sha256-content:{}", "a".repeat(64)),
             web4_core::act::SubstanceMedium::Message), Utc::now());
         act.act_id = op_act_id(who, "op-landed");
-        let landed = witness_event(&state, HubEvent::ReferencedAct { act }).await.unwrap();
+        let landed = witness_event(&state, HubEvent::ReferencedAct { act, on_behalf_of: None }).await.unwrap();
         let l1 = ledger_len(&state).await;
         let out = channel(&state, &sov, "send_secret", secret_args(who, "s", Some("op-landed")), true).await.unwrap();
         assert_eq!(out["entry_index"], landed, "found by act_id");

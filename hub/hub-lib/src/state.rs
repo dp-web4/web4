@@ -274,6 +274,10 @@ pub struct RoleOccupancyChange {
     /// older certificate (Legion, #899 re-review).
     #[serde(skip)]
     pub router_mark: BTreeMap<crate::ids::CanonicalLctId, u64>,
+    /// Every witnessed `ReferencedAct`'s `act_id` -> its ledger index. H5 step 0: `act_id` is unique
+    /// hub-wide, and a retried act-as returns its existing entry.
+    #[serde(skip)]
+    pub act_index: BTreeMap<uuid::Uuid, u64>,
     /// Member LCT -> its current member-of parent (H2). One level, one parent per member.
     #[serde(skip)]
     pub member_of: BTreeMap<crate::ids::CanonicalLctId, crate::ids::CanonicalLctId>,
@@ -437,6 +441,9 @@ pub struct RegistryEntry {
 pub struct RouterEntry {
     pub member: crate::ids::HubMemberId,
     pub issued_at: u64,
+    /// The ledger index of the `RouterRegistered` in force: H5's `router_epoch`. It moves on every
+    /// re-registration, a same-member re-key included (PRD rev 11, Sprout).
+    pub registered_at: u64,
 }
 
 /// An open R7 obligation: the subject committed to `request_id` due by `due_at`,
@@ -1421,8 +1428,8 @@ impl HubState {
             | HubEvent::VaultUnlockAttested { .. }
             | HubEvent::VaultUnlockResolved { .. }
             // Referenced acts are thin witnessed records; the substance lives at
-            // pointer_uri, not in HubState.
-            | HubEvent::ReferencedAct { .. } => {
+            // pointer_uri, not in HubState (their act_id is indexed below).
+            => {
                 // Not projected into HubState yet — these affect society.json /
                 // charter.json / hub-law.yaml instead. Future sprints surface
                 // them here too.
@@ -1537,10 +1544,15 @@ impl HubState {
                     let m = crate::ids::HubMemberId::from_uuid(*member);
                     let mark = self.router_mark.entry(r.clone()).or_insert(*issued_at);
                     *mark = (*mark).max(*issued_at);
-                    self.routers.insert(r, RouterEntry { member: m, issued_at: *issued_at });
+                    self.routers.insert(r, RouterEntry { member: m, issued_at: *issued_at, registered_at: index });
                 }
             }
-            HubEvent::RouterRetired { router_lct } => {
+            HubEvent::ReferencedAct { act, .. } => {
+                // First witness wins: a later entry cannot claim an act_id (the daemon refuses it
+                // at intake; this keeps a replayed ledger deterministic too).
+                self.act_index.entry(act.act_id).or_insert(index);
+            }
+                        HubEvent::RouterRetired { router_lct } => {
                 self.routers.remove(router_lct.as_str());
             }
             HubEvent::MemberOfReported { member, of, consent } => {

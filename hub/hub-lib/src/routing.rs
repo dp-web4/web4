@@ -196,6 +196,149 @@ impl Consent {
     }
 }
 
+// ---- H5: the reply path. A member-of child speaks through its router (PRD rev 9-13). ----
+
+/// Domain of the H5 statement. A consent can never be replayed as an act-as, or the reverse.
+pub const ACT_AS_DOMAIN: &str = "web4-act-as-v1";
+
+/// A child's authorization of an act its router member carries (PRD H5). Stored on the witnessed
+/// `ReferencedAct` (rev 13: on the hub event, not on web4-core's `Act`, so the published crate is
+/// unchanged). Together with that act it is everything [`act_as_bytes`] needs, so anyone holding the
+/// ledger can re-verify who said it.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ActAs {
+    /// x: the child's canonical LCT.
+    pub lct: String,
+    /// RFC 3339 UTC, signed exactly as sent and never re-formatted (rev 11).
+    pub issued_at: String,
+    /// `member_of_at[x]`: the ledger index that witnessed x's current edge.
+    pub edge_epoch: u64,
+    /// The ledger index of the `RouterRegistered` in force for x's parent.
+    pub router_epoch: u64,
+    /// x's Ed25519 signature over [`act_as_bytes`], with the key on its current edge.
+    pub signature_hex: String,
+}
+
+/// Why an act-as was refused. `code()` is the structured code a router keys on: `stale_epoch` and
+/// `issued_at_outside_window` mean "re-sign through x"; the others mean "refused" (PRD H5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ActAsRefusal {
+    NotTheRouter(String),
+    StaleEpoch(String),
+    IssuedAtOutsideWindow(String),
+    BadChildSignature(String),
+}
+
+impl ActAsRefusal {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::NotTheRouter(_) => "not_the_router",
+            Self::StaleEpoch(_) => "stale_epoch",
+            Self::IssuedAtOutsideWindow(_) => "issued_at_outside_window",
+            Self::BadChildSignature(_) => "bad_child_signature",
+        }
+    }
+    pub fn detail(&self) -> &str {
+        match self {
+            Self::NotTheRouter(m) | Self::StaleEpoch(m) | Self::IssuedAtOutsideWindow(m)
+            | Self::BadChildSignature(m) => m,
+        }
+    }
+}
+
+/// `to` in the tagged-text form H5 signs: `lct:<canonical>`, `peer:<uuid>`, `citizen:<uuid>`,
+/// `role:<name>` or `society:<uuid>`. `FutureSelf` has no form: a child does not write to its own
+/// future through a router, so such an act-as is refused.
+pub fn address_text(a: &web4_core::act::ActAddress) -> Option<String> {
+    use web4_core::act::ActAddress as A;
+    Some(match a {
+        A::Lct { canonical } => format!("lct:{canonical}"),
+        A::Peer { lct_id } => format!("peer:{lct_id}"),
+        A::Citizen { lct_id } => format!("citizen:{lct_id}"),
+        A::Role { role } => format!("role:{role}"),
+        A::Society { lct_id } => format!("society:{lct_id}"),
+        A::FutureSelf { .. } => return None,
+    })
+}
+
+fn netstring(out: &mut Vec<u8>, field: &str) {
+    out.extend_from_slice(field.len().to_string().as_bytes());
+    out.push(b':');
+    out.extend_from_slice(field.as_bytes());
+    out.push(b',');
+}
+
+/// The statement x signs (PRD H5, rev 10): every field a netstring (`<byte length>:<bytes>,`), in
+/// this order, no separators; an absent optional field is `0:,`. UUIDs lowercase hyphenated.
+/// Pinned by `act_as_bytes_vector`.
+#[allow(clippy::too_many_arguments)]
+pub fn act_as_bytes(hub: Uuid, x: &str, router_member: Uuid, act_id: Uuid, issued_at: &str,
+                    edge_epoch: u64, router_epoch: u64, kind: &str, to: &str,
+                    pointer_uri: &str, content_hash: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    for f in [ACT_AS_DOMAIN, &hub.to_string(), x, &router_member.to_string(), &act_id.to_string(),
+              issued_at, &edge_epoch.to_string(), &router_epoch.to_string(), kind, to, pointer_uri,
+              content_hash] {
+        netstring(&mut out, f);
+    }
+    out
+}
+
+impl ActAs {
+    /// The bytes x signed for `act` on `hub`: the carrier is `act.actor_lct`, and every other field
+    /// comes from the act itself. `None` for an address with no tagged-text form.
+    pub fn statement(&self, hub: Uuid, act: &web4_core::act::Act) -> Option<Vec<u8>> {
+        Some(act_as_bytes(hub, &self.lct, act.actor_lct, act.act_id, &self.issued_at,
+            self.edge_epoch, self.router_epoch, &act.kind, &address_text(&act.address)?,
+            &act.substance.uri, &act.substance.content_hash))
+    }
+
+    /// H5 acceptance steps 1-4, in order, against the projection at `now`. Step 0 (`act_id`) needs
+    /// the ledger and is the daemon's, before this.
+    pub fn verify(&self, state: &HubState, hub: Uuid, act: &web4_core::act::Act,
+                  now: chrono::DateTime<chrono::Utc>) -> Result<(), ActAsRefusal> {
+        use ActAsRefusal::*;
+        // 1. x's CURRENT edge names a parent whose registered router member carried the envelope.
+        let x = CanonicalLctId::parse(&self.lct)
+            .map_err(|_| NotTheRouter("on_behalf_of is not a canonical LCT".into()))?;
+        let parent = state.member_of.get(&x)
+            .ok_or_else(|| NotTheRouter(format!("{x} has no current member-of edge")))?;
+        let router = state.routers.get(parent)
+            .ok_or_else(|| NotTheRouter(format!("{x}'s parent {parent} is not a registered router")))?;
+        if router.member != HubMemberId::from_uuid(act.actor_lct) {
+            return Err(NotTheRouter(format!("the carrier is not the router member of {x}'s parent {parent}")));
+        }
+        // 2. Both epochs current: a signature from before x moved, or before its router re-registered
+        //    (a same-member re-key included), no longer verifies.
+        let edge_at = state.member_of_at.get(&x).copied().unwrap_or(u64::MAX);
+        if self.edge_epoch != edge_at || self.router_epoch != router.registered_at {
+            return Err(StaleEpoch(format!(
+                "signed for edge_epoch {} / router_epoch {}; current are {edge_at} / {}",
+                self.edge_epoch, self.router_epoch, router.registered_at)));
+        }
+        // 3. issued_at: UTC, inside now - 10 min ..= now + 60 s (the H2 window).
+        let parsed = chrono::DateTime::parse_from_rfc3339(&self.issued_at)
+            .map_err(|_| IssuedAtOutsideWindow("issued_at is not RFC 3339".into()))?;
+        if parsed.offset().local_minus_utc() != 0 {
+            return Err(IssuedAtOutsideWindow("issued_at must be UTC (Z or +00:00)".into()));
+        }
+        let age = (now - parsed.with_timezone(&chrono::Utc)).num_seconds();
+        if !(-CLOCK_SKEW_SECS..=CONSENT_MAX_AGE_SECS).contains(&age) {
+            return Err(IssuedAtOutsideWindow(format!(
+                "issued {age}s from now; must be within -{CLOCK_SKEW_SECS}..{CONSENT_MAX_AGE_SECS}s")));
+        }
+        // 4. x's signature, with the key on its current edge (weak keys refused, as at every intake).
+        let key_hex = state.member_of_consent_key.get(&x)
+            .ok_or_else(|| BadChildSignature(format!("no consent key on {x}'s edge")))?;
+        let key = pubkey(key_hex, "edge consent key").map_err(BadChildSignature)?;
+        let bytes = self.statement(hub, act)
+            .ok_or_else(|| BadChildSignature("the act's address has no tagged-text form".into()))?;
+        let sig = signature(&self.signature_hex)
+            .ok_or_else(|| BadChildSignature("child_signature is not 64-byte hex".into()))?;
+        key.verify(&bytes, &sig).map_err(|_| BadChildSignature("child_signature does not verify".into()))
+    }
+}
+
 /// Where mail for `lct` goes (H3 rules 0 and 1): a registered router receives its own mail; a member
 /// with a current edge to a registered router goes to that router. One level, no walk (D6).
 pub fn route_target(state: &HubState, lct: &CanonicalLctId) -> Option<(CanonicalLctId, HubMemberId)> {
@@ -241,6 +384,102 @@ pub(crate) mod tests {
             signature_hex: x.sign(&consent_bytes(domain, hub, &member, of, &issued_at)).to_hex(),
             issued_at,
         }
+    }
+
+    /// CROSS-REPO VECTOR (H5). Any second implementation (hestia S3's router) must produce these
+    /// exact bytes; pin the same string there. Covers an empty optional field and a newline-bearing one.
+    #[test]
+    fn act_as_bytes_vector() {
+        let hub = Uuid::parse_str("11111111-1111-4111-8111-111111111111").unwrap();
+        let rm = Uuid::parse_str("22222222-2222-4222-8222-222222222222").unwrap();
+        let act = Uuid::parse_str("33333333-3333-4333-8333-333333333333").unwrap();
+        let b = act_as_bytes(hub, "lct:web4:mb32:child", rm, act, "2026-10-16T12:00:00Z", 7, 3,
+            "coordination", "lct:web4:mb32:peer", "forum/a\nb.md", "");
+        assert_eq!(String::from_utf8(b).unwrap(), concat!(
+            "14:web4-act-as-v1,",
+            "36:11111111-1111-4111-8111-111111111111,",
+            "19:lct:web4:mb32:child,",
+            "36:22222222-2222-4222-8222-222222222222,",
+            "36:33333333-3333-4333-8333-333333333333,",
+            "20:2026-10-16T12:00:00Z,",
+            "1:7,", "1:3,",
+            "12:coordination,",
+            "18:lct:web4:mb32:peer,",
+            "12:forum/a\nb.md,",
+            "0:,"));
+    }
+
+    /// A one-field change anywhere moves the bytes (netstrings leave no ambiguity to exploit:
+    /// moving a byte across a field boundary changes a length prefix).
+    #[test]
+    fn act_as_bytes_every_field_binds() {
+        let (h, r, a) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let base = || act_as_bytes(h, "x", r, a, "t", 1, 2, "k", "lct:p", "u", "c");
+        let variants = [
+            act_as_bytes(Uuid::new_v4(), "x", r, a, "t", 1, 2, "k", "lct:p", "u", "c"),
+            act_as_bytes(h, "y", r, a, "t", 1, 2, "k", "lct:p", "u", "c"),
+            act_as_bytes(h, "x", Uuid::new_v4(), a, "t", 1, 2, "k", "lct:p", "u", "c"),
+            act_as_bytes(h, "x", r, Uuid::new_v4(), "t", 1, 2, "k", "lct:p", "u", "c"),
+            act_as_bytes(h, "x", r, a, "T", 1, 2, "k", "lct:p", "u", "c"),
+            act_as_bytes(h, "x", r, a, "t", 9, 2, "k", "lct:p", "u", "c"),
+            act_as_bytes(h, "x", r, a, "t", 1, 9, "k", "lct:p", "u", "c"),
+            act_as_bytes(h, "x", r, a, "t", 1, 2, "K", "lct:p", "u", "c"),
+            act_as_bytes(h, "x", r, a, "t", 1, 2, "k", "lct:q", "u", "c"),
+            act_as_bytes(h, "x", r, a, "t", 1, 2, "k", "lct:p", "U", "c"),
+            act_as_bytes(h, "x", r, a, "t", 1, 2, "k", "lct:p", "u", "C"),
+            // a byte moved across a boundary: "k" + "lct:p" vs "kl" + "ct:p"
+            act_as_bytes(h, "x", r, a, "t", 1, 2, "kl", "ct:p", "u", "c"),
+        ];
+        for (i, v) in variants.iter().enumerate() {
+            assert_ne!(v, &base(), "variant {i} did not change the statement");
+        }
+    }
+
+    /// H5 steps 1-4 against a projection: the happy path, then one refusal per step, each with its code.
+    #[test]
+    fn act_as_verify_steps_in_order() {
+        use web4_core::act::{Act, ActAddress, SubstanceMedium, SubstanceRef};
+        let hub = Uuid::new_v4();
+        let (router, child) = (KeyPair::generate(), KeyPair::generate());
+        let (y, x) = (CanonicalLctId::derive(&router.verifying_key()), CanonicalLctId::derive(&child.verifying_key()));
+        let m = Uuid::new_v4();
+        let mut state = HubState::default();
+        state.apply(&HubEvent::RouterRegistered { router_lct: y.to_string(), member: m, issued_at: 10 }, Utc::now(), 4);
+        let c = consent(REPORT_DOMAIN, hub, &child, &y, Utc::now());
+        state.apply(&HubEvent::MemberOfReported { member: x.to_string(), of: y.to_string(), consent: c }, Utc::now(), 9);
+
+        let act = Act::addressed(m, ActAddress::Lct { canonical: "lct:web4:mb32:peer".into() }, "coordination",
+            SubstanceRef::new("forum/p.md", "sha256-content:00", SubstanceMedium::Other), Utc::now());
+        let sign = |a: &ActAs, act: &Act| ActAs { signature_hex: child.sign(&a.statement(hub, act).unwrap()).to_hex(), ..a.clone() };
+        let unsigned = ActAs { lct: x.to_string(), issued_at: Utc::now().to_rfc3339(), edge_epoch: 9, router_epoch: 4,
+            signature_hex: String::new() };
+        let ok = sign(&unsigned, &act);
+        ok.verify(&state, hub, &act, Utc::now()).expect("the child signed, through its router");
+
+        let code = |r: Result<(), ActAsRefusal>| r.unwrap_err().code();
+        // 1. carried by someone other than x's router member
+        let other = Act { actor_lct: Uuid::new_v4(), ..act.clone() };
+        assert_eq!(code(sign(&unsigned, &other).verify(&state, hub, &other, Utc::now())), "not_the_router");
+        // 2. stale edge, stale router registration (a same-member re-key moves router_epoch)
+        assert_eq!(code(sign(&ActAs { edge_epoch: 8, ..unsigned.clone() }, &act).verify(&state, hub, &act, Utc::now())), "stale_epoch");
+        let mut rekeyed = state.clone();
+        rekeyed.apply(&HubEvent::RouterRegistered { router_lct: y.to_string(), member: m, issued_at: 11 }, Utc::now(), 12);
+        assert_eq!(code(ok.verify(&rekeyed, hub, &act, Utc::now())), "stale_epoch");
+        // 3. outside the window, and a non-UTC spelling of a valid instant
+        let old = (Utc::now() - chrono::Duration::minutes(11)).to_rfc3339();
+        assert_eq!(code(sign(&ActAs { issued_at: old, ..unsigned.clone() }, &act).verify(&state, hub, &act, Utc::now())),
+            "issued_at_outside_window");
+        let offset = Utc::now().with_timezone(&chrono::FixedOffset::east_opt(3600).unwrap()).to_rfc3339();
+        assert_eq!(code(sign(&ActAs { issued_at: offset, ..unsigned.clone() }, &act).verify(&state, hub, &act, Utc::now())),
+            "issued_at_outside_window");
+        // 4. signed by the router, not x; and a signed act whose content changed after signing
+        let by_router = ActAs { signature_hex: router.sign(&unsigned.statement(hub, &act).unwrap()).to_hex(), ..unsigned.clone() };
+        assert_eq!(code(by_router.verify(&state, hub, &act, Utc::now())), "bad_child_signature");
+        let altered = Act { kind: "handoff".into(), ..act.clone() };
+        assert_eq!(code(ok.verify(&state, hub, &altered, Utc::now())), "bad_child_signature");
+        // no tagged-text form for FutureSelf
+        let selfward = Act { address: ActAddress::FutureSelf { entity: m }, ..act.clone() };
+        assert!(ok.statement(hub, &selfward).is_none());
     }
 
     /// CROSS-REPO VECTOR. hestia's `signing_bytes` for this payload must produce these exact bytes;
