@@ -507,11 +507,71 @@ pub(super) async fn precheck_member(s: &RestState, d: &Delivery) -> Result<(), A
     Ok(())
 }
 
+// ---- H5 (Hub B2b): a member-of child speaks through its router. ----
+
+/// Serializes H5 acceptance from step 0 (`act_id`) through the witness. It is `ROUTING_LOCK`, the lock
+/// every edge and router change already holds through its own witness, so acceptance is atomic
+/// against them as well as against a second carrier of the same `act_id`. Without it, a withdrawal,
+/// re-key or retirement could land between "verified" and "witnessed", and the ledger would show x
+/// speaking through a router it had already left (NOVA's revoked-between-decision-and-commit
+/// falsifier, hub/docs/APPROVAL_EXECUTION_BINDING_PROPAGATION_2026-10-16.md).
+pub(super) async fn act_as_serial() -> tokio::sync::MutexGuard<'static, ()> {
+    ROUTING_LOCK.lock().await
+}
+
+/// The `on_behalf_of` block of a `referenced_act`: `{lct, act_id, issued_at, edge_epoch,
+/// router_epoch, child_signature}`. Absent = an ordinary act. Present but malformed = 400.
+pub(super) fn parse_act_as(args: &serde_json::Value) -> Result<Option<(Uuid, hub_lib::routing::ActAs)>, ApiError> {
+    let Some(v) = args.get("on_behalf_of") else { return Ok(None) };
+    let bad = |m: &str| ApiError::bad_request(format!("on_behalf_of: {m}"));
+    let str_of = |k: &str| v.get(k).and_then(|x| x.as_str()).ok_or_else(|| bad(&format!("'{k}' (string) is required")));
+    let u64_of = |k: &str| v.get(k).and_then(|x| x.as_u64()).ok_or_else(|| bad(&format!("'{k}' (integer) is required")));
+    let act_id = Uuid::parse_str(str_of("act_id")?).map_err(|_| bad("'act_id' is not a UUID"))?;
+    Ok(Some((act_id, hub_lib::routing::ActAs {
+        lct: str_of("lct")?.to_string(),
+        issued_at: str_of("issued_at")?.to_string(),
+        edge_epoch: u64_of("edge_epoch")?,
+        router_epoch: u64_of("router_epoch")?,
+        signature_hex: str_of("child_signature")?.to_string(),
+    })))
+}
+
+/// H5 step 0: an act-as may not reuse a witnessed `act_id`. Already witnessed with the SAME statement -> the existing
+/// entry (a retry after a lost response). With a different statement, or as an ordinary act -> 409
+/// `act_id_conflict`. `None` = a new act_id; continue to steps 1-4.
+pub(super) async fn act_as_replay(s: &RestState, state: &HubState, act: &web4_core::act::Act,
+    act_as: &hub_lib::routing::ActAs) -> Result<Option<u64>, ApiError> {
+    let Some(&index) = state.act_index.get(&act.act_id) else { return Ok(None) };
+    let same = {
+        let ledger = s.ledger.lock().await;
+        ledger.entries().iter().find(|e| e.index == index).and_then(|e| match &e.event {
+            HubEvent::ReferencedAct { act: prev, on_behalf_of: Some(prev_as) } =>
+                Some(prev_as.statement(s.hub_id, prev) == act_as.statement(s.hub_id, act)),
+            _ => None,
+        }).unwrap_or(false)
+    };
+    if same { return Ok(Some(index)) }
+    Err(ApiError { status: StatusCode::CONFLICT, message: format!(
+        "act_id_conflict: act_id {} is already witnessed (entry {index}) with a different statement", act.act_id) })
+}
+
+/// An H5 refusal as an HTTP error carrying its structured code (see `ERROR_CODES`).
+pub(super) fn act_as_refused(r: hub_lib::routing::ActAsRefusal) -> ApiError {
+    use hub_lib::routing::ActAsRefusal::*;
+    let status = match r {
+        NotTheRouter(_) | BadChildSignature(_) => StatusCode::FORBIDDEN,
+        StaleEpoch(_) | IssuedAtOutsideWindow(_) => StatusCode::CONFLICT,
+    };
+    ApiError { status, message: format!("{}: {}", r.code(), r.detail()) }
+}
+
 /// Queue a routed notice after the act is witnessed: in the ROUTER member's mailbox, `for_lct`
 /// set, sealed to the child's key. The router relays what it cannot open. Returns whether it was
 /// queued, so the caller reports `delivered` honestly (the residual race after the precheck).
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn queue_routed_notice(s: &RestState, router_member: Uuid, for_lct: &CanonicalLctId,
-    key: &web4_core::crypto::PublicKey, from: Uuid, kind: &str, pointer_uri: &str, body: &[u8]) -> bool {
+    key: &web4_core::crypto::PublicKey, from: Uuid, from_lct: Option<&str>, kind: &str, pointer_uri: &str,
+    body: &[u8]) -> bool {
     let pair_id = Uuid::new_v4();
     let sealed = match s.signer.channel_seal(key, pair_id, body) {
         Ok(c) => c,
@@ -520,7 +580,7 @@ pub(super) async fn queue_routed_notice(s: &RestState, router_member: Uuid, for_
     match enqueue_notice(s, router_member, SealedNotice {
         pair_id, from, sealed, kind: kind.to_string(), pointer_uri: pointer_uri.to_string(),
         queued_at: Utc::now(), sealed_by: None,
-        for_lct: Some(for_lct.to_string()), sealed_to: Some("member".into()),
+        for_lct: Some(for_lct.to_string()), sealed_to: Some("member".into()), from_lct: from_lct.map(str::to_string),
     }).await {
         Ok(_) => true,
         Err(e) => {

@@ -1,6 +1,6 @@
 # PRD — Member-of routing: the hub routes to a machine's hestia; hestia routes locally
 
-**Status:** design — **rev 12.1** (Hub A + B1 merged and live at `99bd2056`; B2a in review as #907; §0 records dp's daemon principle) (addresses Legion, CBP and Sprout reviews on #898 and the #899 reviews; changelog §9). Hub + hestia contract. Implementation slices in §7.
+**Status:** design — **rev 13** (Hub A, B1, B2a (#907) and the member-delivery precheck (#916) merged; B2b, the H5 reply path, is this revision's PR; §0 records dp's daemon-routing principle; changelog §9). Hub + hestia contract. Implementation slices in §7.
 **Date:** 2026-10-07
 **Direction:** dp, 2026-10-07:
 > hestia is per-machine. hub needs to know which member is the machine's hestia (router), and which
@@ -424,13 +424,22 @@ RFC 3339 has several spellings of one instant. Cross-language positive and negat
 optional fields, a newline-bearing field, and a one-byte change per field must fail.
 
 **Acceptance and replay (rev 10, Nova; order and router epoch rev 11, Sprout).** Evaluated in this order:
-0. **`act_id` first.** `act_id` is unique **hub-wide** across all witnessed acts. If it is already
+0. **`act_id` first.** An act-as may not reuse **any** witnessed `act_id`. If it is already
    witnessed:
    - the same statement → return the existing entry, whatever the current edge or router (a retry after a
      lost response is not a failure);
    - a different statement → **409** `act_id_conflict`.
 
    Only a new `act_id` continues.
+
+   The converse is *not* enforced (rev 13, Sprout + Legion on #920): an ordinary act is not refused for an
+   `act_id` an act-as already holds. `send_secret`'s `op_act_id(sender, op)` is computable from public
+   inputs, so refusing would let a carrier squat a sender's operation ids. Instead `send_secret`'s crash
+   recovery adopts only an ordinary act spoken by that sender, never an act-as entry. So `act_id` is unique
+   among act-as entries, not hub-wide. A replay returns the existing entry (`replayed: true`,
+   `entry_index`) and does not redeliver. It carries **no `delivered`** (CBP on #920): whether the first
+   attempt's notice landed is not recorded, so a router that lost the first response cannot learn it from
+   the retry, and the retry cannot change that outcome.
 1. x's **current** edge names a parent whose registered router member is the envelope signer;
 2. `edge_epoch` equals `member_of_at[x]` **and** `router_epoch` equals the in-force registration's index.
    A signature made before x moved, was withdrawn or was re-reported, or before its router re-registered
@@ -453,6 +462,22 @@ allowed.
 mailbox. hub-mesh's `hub-watch` (unreachable receipts) and `hub-notify` (replies) change with B2, filed
 alongside hestia's match arm.
 
+**Where the evidence lives (rev 13, dp 2026-10-16).** web4-core 0.4.0 shipped to crates.io before B2b,
+and a new public field on `Act` would break every struct-literal construction of it, hestia's included.
+So `on_behalf_of` is carried on the hub's witnessed event, `HubEvent::ReferencedAct { act, on_behalf_of }`,
+as an optional field: `{lct, issued_at, edge_epoch, router_epoch, signature_hex}`. `act_id`, the carrier
+(`act.actor_lct`) and every signed act field come from the act itself, so the ledger entry alone
+re-verifies the child's signature. Entries without it, every pre-H5 entry included, keep their bytes.
+`web4_core::act::Act` is unchanged. The statement does not cover `consequence`: a carrier could relabel an
+act's reversibility, and should a governed path ever key on a child's act being irreversible, it must be
+added (a `web4-act-as-v2` domain).
+
+**Revocation boundary (rev 13, NOVA's propagation review).** Acceptance (steps 0-4) and the witness
+run under the same lock as every edge and router change. A withdrawal, re-key or retirement therefore
+lands either before the check, and the act is refused (`stale_epoch` / `not_the_router`), or after the
+witness, and the act stands. Never in between. One `act_id` presented concurrently commits once; the
+other presentation gets the same entry back.
+
 Revalidation is at acceptance only. Receipts and witnessed entries stay valid after the edge later changes;
 history is not rewritten. The witnessed `ReferencedAct` then has `actor_lct` = the router member (who
 carried it) and **`on_behalf_of` = x** (who said it). Notices to the recipient carry `from_lct: x` beside
@@ -463,6 +488,12 @@ Rejected alternative: the router speaks for x unsigned. That is weaker by constr
 say "the router says x said", and D1's protection against a foreign router would not extend to speech.
 
 ## 9. Changelog
+
+**rev 13 (2026-10-16)** — B2b as built. `on_behalf_of` lives on the hub event, not on web4-core's `Act`
+(dp: web4-core 0.4.0 is published). The not-the-router refusal gets the code `not_the_router`. Refusal
+codes are a `code` field in the error body beside the message. `consequence` is outside the statement,
+named as a gap. Review (Sprout, Legion): step 0's uniqueness is among act-as entries, and
+`send_secret` crash recovery matches only the sender's own ordinary act; `x` must be sent in canonical spelling.
 
 **rev 12.1 (2026-10-12)** — CBP, Legion and Sprout reviews of rev 12 (all MERGE, edits non-blocking).
 - §0: hestia bullet marked target-not-current with Sprout's measured CLI-only call sites; B2a stated as

@@ -783,7 +783,15 @@ pub enum HubEvent {
     /// recipient-sealed body is a *delivery* concern carried on the mailbox
     /// envelope (the daemon's `SealedNotice`), never duplicated onto this
     /// witnessed record — its integrity is bound instead by `content_hash`.
-    ReferencedAct { act: Act },
+    ReferencedAct {
+        act: Act,
+        /// H5 (PRD_MEMBER_OF_ROUTING rev 13): set when a router member carried this act for a
+        /// member-of child that signed it. `act.actor_lct` is the router member (who carried it);
+        /// this is who said it, with the child's signature so anyone can re-verify. Absent on every
+        /// other act, and on every entry written before H5, so their bytes are unchanged.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        on_behalf_of: Option<crate::routing::ActAs>,
+    },
 
     /// R7 reputation back-propagation: a role-contextualized trust/value delta
     /// recorded on the ledger — the *witnessed* half of reputation. The delta is
@@ -1093,9 +1101,9 @@ mod tests {
 
         // ...and the inner act bytes survive the wrap/unwrap unchanged (verbatim payload).
         let value_before: serde_json::Value = serde_json::from_str(act_json).unwrap();
-        let event = HubEvent::ReferencedAct { act };
+        let event = HubEvent::ReferencedAct { act, on_behalf_of: None };
         assert_eq!(event.kind(), "referenced_act");
-        let HubEvent::ReferencedAct { act: unwrapped } = &event else { unreachable!() };
+        let HubEvent::ReferencedAct { act: unwrapped, .. } = &event else { unreachable!() };
         assert_eq!(serde_json::to_value(unwrapped).unwrap(), value_before);
     }
 

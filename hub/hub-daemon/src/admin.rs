@@ -1298,7 +1298,7 @@ fn event_summary(event: &HubEvent) -> String {
                 short(challenge_id),
             )
         }
-        HubEvent::ReferencedAct { act } => {
+        HubEvent::ReferencedAct { act, on_behalf_of } => {
             use web4_core::act::ActAddress;
             let dst = match &act.address {
                 ActAddress::FutureSelf { entity } => format!("future-self {}", short(entity)),
@@ -1308,10 +1308,15 @@ fn event_summary(event: &HubEvent) -> String {
                 ActAddress::Society { lct_id } => format!("society {}", short(lct_id)),
                 ActAddress::Lct { canonical } => format!("lct {}", html_escape(canonical)),
             };
+            // H5: the router member carried it; the child said it.
+            let speaker = match on_behalf_of {
+                Some(a) => format!("{} <span class=\"muted\">via</span> {}", html_escape(&a.lct), short(&act.actor_lct)),
+                None => short(&act.actor_lct),
+            };
             format!(
                 "✉️ act <code>{}</code> <span class=\"muted\">from</span> {} → {} <span class=\"muted\">[{}]</span>",
                 html_escape(&act.kind),
-                short(&act.actor_lct),
+                speaker,
                 dst,
                 html_escape(&act.substance.uri),
             )
