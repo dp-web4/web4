@@ -4951,10 +4951,11 @@ async fn dispatch_channel(
             // caller (the envelope signer) is the router member that CARRIES the act; the child x
             // signed it. Acceptance order: act_id (step 0), then the edge, the epochs, the window and
             // the signature (steps 1-4), all before anything is witnessed or delivered. The lock spans
-            // step 0 through the witness so one act_id cannot be accepted twice.
+            // step 0 through the witness, so one act_id cannot be accepted twice and no edge or router
+            // change can land between the checks and the witness.
             let act_as = routing::parse_act_as(&inner.args)?;
             let _act_as_guard = match &act_as {
-                Some(_) => Some(routing::ACT_AS_LOCK.lock().await),
+                Some(_) => Some(routing::act_as_serial().await),
                 None => None,
             };
             let mut on_behalf_of = None;
@@ -14651,6 +14652,47 @@ norms:
         assert_eq!(e.status, StatusCode::CONFLICT);
         assert!(e.message.starts_with("act_id_conflict:"), "{}", e.message);
         assert_eq!(state.ledger.lock().await.entries().len(), before, "neither the retry nor the conflict witnessed");
+    }
+
+    /// NOVA's redemption falsifiers (APPROVAL_EXECUTION_BINDING_PROPAGATION_2026-10-16): one act_id
+    /// presented by two concurrent carriers commits at most once (the other gets the same entry
+    /// back); two independent act_ids presented concurrently both commit (the positive control).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn act_as_one_grant_two_concurrent_redeemers_commits_once() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (m, _mk, _y, child, x) = routed_fixture(&state).await;
+        let rcpt = sender(&state).await;
+        let to = serde_json::json!({"to": "peer", "lct_id": rcpt});
+        let to_text = format!("peer:{rcpt}");
+        let at = Utc::now().to_rfc3339();
+
+        // A real race: N redeemers of ONE act_id on a multi-threaded runtime. (tokio::join! in one
+        // task never interleaved them, so it could not tell the lock was there; measured.)
+        const N: usize = 8;
+        let before = state.ledger.lock().await.entries().len();
+        let id = Uuid::new_v4();
+        let mut tasks = Vec::new();
+        for _ in 0..N {
+            let (st, ch, xx, to, tt, at) = (state.clone(), child.clone(), x.clone(), to.clone(), to_text.clone(), at.clone());
+            tasks.push(tokio::spawn(async move {
+                send_act_as(&st, m, &ch, &xx, to, &tt, id, "forum/once.md", &at).await
+            }));
+        }
+        let mut outs = Vec::new();
+        for t in tasks { outs.push(t.await.unwrap().expect("every presentation is answered")); }
+        let first = &outs[0]["entry_index"];
+        assert!(outs.iter().all(|o| &o["entry_index"] == first), "all name the one entry");
+        let commits = outs.iter().filter(|o| o.get("replayed").is_none()).count();
+        assert_eq!(commits, 1, "exactly one commits; the rest are replays");
+        assert_eq!(state.ledger.lock().await.entries().len(), before + 1, "one commitment on the ledger");
+
+        let (c, d) = tokio::join!(
+            send_act_as(&state, m, &child, &x, to.clone(), &to_text, Uuid::new_v4(), "forum/c.md", &at),
+            send_act_as(&state, m, &child, &x, to, &to_text, Uuid::new_v4(), "forum/d.md", &at));
+        let (c, d) = (c.expect("independent grant c"), d.expect("independent grant d"));
+        assert_ne!(c["entry_index"], d["entry_index"]);
+        assert!(c.get("replayed").is_none() && d.get("replayed").is_none());
+        assert_eq!(state.ledger.lock().await.entries().len(), before + 3, "both independent grants commit");
     }
 
     /// H5 refusals witness nothing: a carrier that is not x's router member, and a stale edge epoch.

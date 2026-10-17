@@ -509,9 +509,15 @@ pub(super) async fn precheck_member(s: &RestState, d: &Delivery) -> Result<(), A
 
 // ---- H5 (Hub B2b): a member-of child speaks through its router. ----
 
-/// Serializes H5 acceptance from step 0 (`act_id`) through the witness, so two concurrent carriers
-/// of one `act_id` cannot both pass step 0. Held only by act-as calls.
-pub(super) static ACT_AS_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+/// Serializes H5 acceptance from step 0 (`act_id`) through the witness. It is `ROUTING_LOCK`, the lock
+/// every edge and router change already holds through its own witness, so acceptance is atomic
+/// against them as well as against a second carrier of the same `act_id`. Without it, a withdrawal,
+/// re-key or retirement could land between "verified" and "witnessed", and the ledger would show x
+/// speaking through a router it had already left (NOVA's revoked-between-decision-and-commit
+/// falsifier, hub/docs/APPROVAL_EXECUTION_BINDING_PROPAGATION_2026-10-16.md).
+pub(super) async fn act_as_serial() -> tokio::sync::MutexGuard<'static, ()> {
+    ROUTING_LOCK.lock().await
+}
 
 /// The `on_behalf_of` block of a `referenced_act`: `{lct, act_id, issued_at, edge_epoch,
 /// router_epoch, child_signature}`. Absent = an ordinary act. Present but malformed = 400.

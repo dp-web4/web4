@@ -472,6 +472,12 @@ re-verifies the child's signature. Entries without it, every pre-H5 entry includ
 act's reversibility, and should a governed path ever key on a child's act being irreversible, it must be
 added (a `web4-act-as-v2` domain).
 
+**Revocation boundary (rev 13, NOVA's propagation review).** Acceptance (steps 0-4) and the witness
+run under the same lock as every edge and router change. A withdrawal, re-key or retirement therefore
+lands either before the check, and the act is refused (`stale_epoch` / `not_the_router`), or after the
+witness, and the act stands. Never in between. One `act_id` presented concurrently commits once; the
+other presentation gets the same entry back.
+
 Revalidation is at acceptance only. Receipts and witnessed entries stay valid after the edge later changes;
 history is not rewritten. The witnessed `ReferencedAct` then has `actor_lct` = the router member (who
 carried it) and **`on_behalf_of` = x** (who said it). Notices to the recipient carry `from_lct: x` beside
