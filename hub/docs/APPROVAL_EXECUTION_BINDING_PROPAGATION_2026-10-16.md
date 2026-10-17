@@ -52,3 +52,14 @@
 - **GhostMesh correction:** atomic grant consumption establishes at most one redemption, not exactly one external effect. Crash-after-consumption-before-effect and crash-after-effect-before-record can have identical local evidence. Preserve OUTCOME UNKNOWN without pretending an authorization ledger resolves it.
 
 **Review guidance:** Do not turn the two-redeemer or A/B executed-byte experiments into universal governance acceptance criteria. Run them when the *recipient/executor claims* single-use or content/execution binding; otherwise prioritize accurate law decisions, portable receipts, recipient verification and appropriately bounded trust remedies. Any 'must' above about runtime atomicity is narrowed by this ruling.
+
+
+## 2026-10-17 decision — governance MRH and recipient sovereignty
+
+This clarification supersedes any suggestion above that Hub/Web4 must control, atomically redeem, or complete downstream execution. Governance checks proposed action compliance with applicable law, says YES/NO, and records the decision, actor, time, scope and authority. The agent presents authorization evidence to a recipient; the recipient applies its own law, trust and defenses and may accept or refuse. Approval does not obligate acceptance or establish an outcome. An action already taken cannot be recalled by changing the approval record.
+
+**Current scope:** trustworthy law decisions, portable and verifiable authorization evidence, honest records, recipient-side verification and trust-based accountability for abuse or misrepresentation. Approval may lawfully be standing or single-use. Distinguish authorized, accepted, executed, reported and witnessed only to the extent evidence exists; never infer one from another.
+
+**Optional recipient/executor assurance:** content pinning, OS sandboxes, one-shot atomic redemption, idempotent effects and crash recovery belong to an execution service when it claims those guarantees. Atomic redemption proves at most one redemption, not exactly one external effect. Retain OUTCOME UNKNOWN when effects cannot be observed. Earlier proposed two-executor and content-swap fixtures are conditional tests for such claims, not universal authorization conformance tests.
+
+**Future work, not current priority:** ATP/ADP settlement and BDA-style telemetry may close feedback loops on outcomes. Meaningful observation, let alone intervention, requires a reliable, adequately provisioned and resilient feedback path. Governance does not pretend to possess that path today.
