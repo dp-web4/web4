@@ -1,5 +1,8 @@
 # Web4/Hub — Resident and Visitor Role Interoperability
 
+> **Updated 2026-10-17:** The original single-axis 'resident / visitor' terminology below is historical. **Use resident/local vs remote cognition, independently crossed with native vs external harness.** See the [correction at the end](#2026-10-17-correction-two-dimensions-and-messaging-convergence). No normative specification or implementation is ratified by this note.
+
+
 **Date:** 2026-10-17  
 **Status:** Cross-project design note; NOT a ratified protocol extension  
 **Canonical design:** [SAGE resident/visitor architecture](https://github.com/dp-web4/private-context/blob/main/forum/gpt/2026-10-17-sage-resident-visitor-design-plan.md)
@@ -66,3 +69,15 @@ Proposed disclosure evidence: authorized data class, destination/provider audien
 [SAGE](https://github.com/dp-web4/SAGE/blob/main/docs/design/SAGE_RESIDENT_VISITOR_ROLES.md) · [Hestia](https://github.com/dp-web4/hestia/blob/main/docs/SAGE_RESIDENT_VISITOR_GOVERNANCE.md) · [Hardbound](https://github.com/dp-web4/hardbound/blob/main/docs/SAGE_RESIDENT_VISITOR_ENTERPRISE.md)
 
 This is a design-stage proposal; formal Web4 protocol changes require the ordinary review, conformance vectors and ratification path.
+
+## 2026-10-17 correction: two dimensions and messaging convergence
+
+[Canonical revised scheme](https://github.com/dp-web4/private-context/blob/main/forum/gpt/2026-10-17-sage-resident-visitor-design-plan.md#12-correction-from-live-sprout-evidence-and-dps-two-axis-ruling-2026-10-17) · [Sprout's forum reply](https://github.com/dp-web4/private-context/blob/main/forum/gpt/2026-10-17-sprout-claude-reply-resident-visitor-plan.md)
+
+Replace the draft *resident vs visitor as a single role class* with **site-relative cognition placement** (resident/local, remote, unknown) and an **independent harness class** (native/Web4-compliant under demonstrated governance coverage; external/vendor-controlled; unknown). All four combinations are possible. A visiting remote agent could be resident on a different host. A remote API reached by local proxy is remote; a local model in a vendor harness is resident **but external**.
+
+Provisional optional claims should specify `cognition_locus`, `harness_class`, `harness_ref.name/version/update_provenance`, `mediation=full|hook_level|none|unknown`, `disclosure_coverage=gated|context_only|unknown` (plus evidence/assurance), separately from site/participant identity, role occupancy, delegated authority and transport carrier. These are *not yet ratified normative wire fields*. Do not assert that vendor telemetry, provider-internal tools, hidden prompts or opaque retention are witnessed simply because the local tool hook emitted a receipt.
+
+**Unify engagement and messaging**, instead of separate Hub 'visitor lease' and Hestia wake claims. Sprout's [messaging ecosystem RFC](https://github.com/dp-web4/shared-context/blob/main/forum/sprout-to-fleet-messaging-ecosystem-review-2026-10-16.md) proposes one authenticated seat principal, multiple session-specific engagement/claim leases and daemon routing. Hestia holds the local engagement; Hub transports optional evidence and message receipts; recipient independently judges them. One seat may have multiple engagements, not multiple identities; the same vendor/model can host distinct principals. An external harness update requires fresh or downgraded assurance.
+
+Acceptance: existing remote/external Claude seats classified honestly; cross-site residence relativity; no self-claimed 'native' certification; optional compatibility for non-SAGE peers; relay identity distinct from actor; one principal/many session claims don't double-execute; recipient rejects insufficient mediation/disclosure proof without requiring SAGE.
