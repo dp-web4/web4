@@ -39,3 +39,16 @@
 5. Preserve provenance and disclosure boundaries: Hardbound is private; external sharing should stick to public generic invariants or independently disclosed observations.
 
 **Design rule:** approval is neither execution nor witness; grant authority must remain bound to the actual committed act, under explicit law and a correctly represented assurance profile.
+
+
+## 2026-10-17 correction — governance MRH and recipient sovereignty (dp ruling)
+
+**This section supersedes any implication above that Hub/Web4 approval must control or atomically complete external execution.** Governance checks a *proposed* action against applicable law and returns YES/NO with provenance-bearing evidence. The acting agent presents that authorization to the recipient. **The recipient independently decides whether to accept** using its own law, trust and defenses; issuing governance does not control what happens after. A prior YES is neither an obligation to accept, evidence of effect, nor an assertion of exactly-once execution.
+
+- **Required now:** stable, verifiable authorization identity and applicable-law record (issuer, actor/delegation, scope, intended action or category, policy version and decision time), tamper-evident provenance, validation at the recipient, and the ability to contest or reduce trust for abuse/misrepresentation. Approval MAY cover a reusable class under law; do not default to one-shot.
+- **Execution-specific, optional:** a recipient/executor may demand immutable payloads, atomic redemption, idempotency or a sandbox as conditions for acceptance. These are recipient-side security/transaction contracts, not universal Web4 governance requirements. The previous 'six statuses' are distinguishable *if observed*, not six mandatory governance-controlled stages.
+- **Limits of knowledge:** an issuer cannot claim executed/failed/completed solely from its decision; executor self-reports are claims, not independent observations. A bullet cannot be recalled; time-of-decision provenance remains traceable. Revocation governs later authority, not physical effects already committed.
+- **Future separate layer:** useful post-action BDA-style telemetry and ATP/ADP accounting can improve outcome feedback and reputation. Meaningful monitoring or control requires a reliable, resilient, adequate-bandwidth feedback path. This is **not a current top priority or release blocker**.
+- **GhostMesh correction:** atomic grant consumption establishes at most one redemption, not exactly one external effect. Crash-after-consumption-before-effect and crash-after-effect-before-record can have identical local evidence. Preserve OUTCOME UNKNOWN without pretending an authorization ledger resolves it.
+
+**Review guidance:** Do not turn the two-redeemer or A/B executed-byte experiments into universal governance acceptance criteria. Run them when the *recipient/executor claims* single-use or content/execution binding; otherwise prioritize accurate law decisions, portable receipts, recipient verification and appropriately bounded trust remedies. Any 'must' above about runtime atomicity is narrowed by this ruling.
