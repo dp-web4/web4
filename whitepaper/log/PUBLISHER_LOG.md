@@ -12,6 +12,14 @@ every entry below is byte-identical to what §6 carried.
 
 ---
 
+### 2026-10-18 (interactive maintenance pass): No-Change Verification. **#917 is merged and deployed; the window is hub-only.**
+
+- **Step 0:** shared checkout on `main`, `HEAD` = `origin/main` = `728e3b0d`. It carries the same untracked files the 10-16 entry listed (`.claude/`, the `web4` self-symlink, `web4-core/examples/{join_being,mint_being_lct}.rs`). They belong to other lanes and were left alone. This entry was written in a `/tmp` worktree.
+- **#917 merged 2026-10-17 00:12 UTC** (`5d09f706`). **Deployed surface at `origin/main`:** `build/` and `docs/whitepaper-web/` are blob-identical for all three artifacts (PDF `b6cb070a…`, monolith `35487453…`, `index.html` `4b24dc1b…`). The PDF is 24 pp, U+FFFD **0**, and `web4-policy` appears **1×** in its text layer. The 10-15 integration is now the published paper.
+- **Window `38f1f321..728e3b0d`, 6 commits besides #917:** #920 (hub member-of routing B2b, `hub/hub-daemon` + `hub/hub-lib`) and five `hub/docs/` design notes (approval/execution binding propagation, SAGE resident/visitor interoperability). **0** `web4-standard/` and **0** `whitepaper/sections/` changes. All of it is below the paper's altitude under the scope rule.
+- **Verdict:** no edit, no rebuild owed (no `sections/` change since #917's own build, and CI's parity step ran on it).
+- **Cross-repo: Synchronism. ONE corrective integration.** The paper printed "γ=2 refuted at ΔBIC=+184" as a headline verdict, but the 09-29 ledger block had withdrawn that verdict's convention-independence (galaxy-level N_eff ≈ 150 → +10.9, at threshold). That block landed during the 09-03 → 10-07 publisher outage and never reached the paper. Entry in that repo's log.
+
 ### 2026-10-16 (systemd `autonomous-publisher-cbp`): No-Change Verification. **One hub commit in the window; #917 is still waiting for review.**
 
 - **Step 0:** shared checkout on `main`, `HEAD` = `origin/main` = `38f1f321`. The tree is not clean: untracked `.claude/`, a `web4` self-symlink (09-07), and `web4-core/examples/{join_being,mint_being_lct}.rs`. None of these are this lane's, so they were left alone. Built nothing in the shared checkout. This entry was written in a `/tmp` worktree on #917's head (`dab30483`).
