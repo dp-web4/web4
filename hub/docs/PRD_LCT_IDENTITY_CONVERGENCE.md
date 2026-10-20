@@ -166,19 +166,31 @@ No wire behavior change:
 - evidence-tag compatibility UUID pin fallback;
 - parity tests.
 
-#### Slice C design (2026-10-20, hub-claude; for review before code)
+#### Slice C design (2026-10-20, hub-claude; for review before code; rev 2 addresses the CBP and Sprout reviews on #924)
 
 **What exists, measured on HUB on 2026-10-20.**
 - The sealed channel authenticates a caller with **only** the key pinned to its member UUID
   (`channel_request` → `resolver.lookup(member).public_key` → `channel_open`).
 - Slice B maps a member to its canonical LCT by **deriving** the canonical id from that same pin. Nothing
   reads the LCT document's `operational_keys` (`Lct::operational_key_for`, vouched by the binding key).
-- **0 of 58** registry documents on HUB carry any operational key, for any purpose.
+- **3 of 58** registry documents on HUB carry an operational key. All three are `witnessing` vouches from
+  the citizenship pilot, and all three proofs verify under their binding keys. One is at version 6, so
+  republishing did not drop it. **0 of 58** carry a `hub-channel` key. (rev 2: the first draft said "0 of 58,
+  any purpose". That count read `GET …/lcts`, which lists entries without their documents. CBP's
+  review caught the conflict with `WITNESS_PURPOSE`'s doc comment, and the comment was right. Whether any
+  *other* document ever carried a vouch and lost it needs the ledger history, which this seat cannot read,
+  so the publisher half gets a preservation test either way.)
 
 So a hub-only Slice C would have no users. It ships as two halves:
 
 1. **Hub (verifier).**
-   - Purpose `hub-channel`: one active vouched key per purpose, as `operational_key_for` already enforces.
+   - Purpose `hub-channel`, as a web4-core constant `HUB_CHANNEL_PURPOSE` beside `WITNESS_PURPOSE`. The hub,
+     hestia `lct publish` and SAGE `mint_being_lct.rs` all import it; none of them spells the literal (the
+     `witnessing`/`witness` split of 2026-08-21 is why). One active vouched key per purpose, as
+     `authorize_operational_key` already enforces.
+   - The hub reads the document from the ledger projection **at request time**, with no cache. A rotation
+     (`authorize_operational_key` replaces the key for the purpose, then a republish) takes effect on the first
+     request after its `LctPublished` is projected.
    - For a caller whose member resolves (Slice B `resolve`) to a published canonical document that vouches
      a `hub-channel` key, `channel_open` is tried with **that key first**, then with the pin.
    - The key that opened is the evidence:
@@ -186,35 +198,73 @@ So a hub-only Slice C would have no users. It ships as two halves:
      - `member_key_pin {member, key}` (the compatibility path, named as such);
      - `self_vouched_external {key}`, for a non-member asking citizenship (unchanged).
    - The evidence rides on the channel response as `caller_auth`.
-   - The response is sealed to the same key that opened the request, so a client using a vouched key
-     never needs the pin.
+   - The response is sealed to the same key that opened the request.
+   - Hub-originated mailbox notices (`queue_sealed_notice_from`, which today seals only to the pin) are sealed
+     to the vouched `hub-channel` key when one resolves, else to the pin (C6). Without C6, a vouched-only
+     client could authenticate but could not read its mailbox. A notice queued before the vouch stays sealed to
+     the pin. So a client can retire its pin only after draining, and until then it is not vouched-only.
 2. **Publisher (hestia `lct publish` / SAGE identity).**
-   - Vouch the seat's or being's channel key under `hub-channel`, signed by the binding key, using
+   - Vouch the seat's or being's channel key under `HUB_CHANNEL_PURPOSE`, signed by the binding key, using
      web4-core's existing vouching message. No format change.
+   - A republish preserves every `operational_keys` entry it does not deliberately replace. The hub stores the
+     document it is given, so a publisher that re-mints without the keys erases them.
+   - SAGE beings: the binding seed **is** `channel_key.bin`, so binding key = pin, and vouching `hub-channel`
+     changes no key in use. The cold-binding-key benefit arrives only when a being gets a separate
+     operational seed. Re-minting does not touch `binding_proof` or the `citizenships` ref (Sprout).
+
+**Which key each path uses after C.** There are three key notions on the channel. C changes one of them.
+- **Hub ↔ member** (`channel_request`, its response, hub-sealed notices): the `hub-channel` vouched key, else
+  the pin. This is the only path C touches.
+- **Member ↔ member** (`send_secret` relay, `sealed_by = sender`): the hub is content-blind and C does not
+  change it. On the hestia side, `pairing.rs` supersedes the registry-`sealed_by` resolution: a confirmed
+  pair already holds the peer's ephemeral key by `pair_id`. Its one remaining lookup is the peer's static LCT
+  pubkey (the binding key), which is the resolver's public-key fact and not an operational purpose.
+  `hub-channel` does not replace it and is not used for it.
+- **Member-of consent** (H2–H5, the key on x's member-of edge, witnessed in `MemberOfReported`): unchanged. It is
+  the key x signs consent and act-as statements with, and for a pure-LCT child it is also what that child's
+  notices are sealed to. Today it equals the member's pin (the 14554 test). Whether it should become
+  `operational_key_for(HUB_CHANNEL_PURPOSE)` is a rotation question, so it belongs to Slice D. In C, a
+  pure-LCT child's notices are sealed to its consent key exactly as they are now.
+
+**The binding key is not cold until the pin is refused.** Slice B derives the canonical id from the pin, so on
+every current member the pin **is** the LCT's binding `public_key`. Under C2 it remains an accepted channel
+credential after a vouched key exists. C4 therefore *allows* a cold binding key but does not *deliver* one.
+The exit is the law step `identity.channel.require_vouched`. A per-member opt-in ("this member refuses its pin")
+would let early movers get there sooner. It is not in C because it needs a witnessed per-member flag, and C
+witnesses nothing new. It is a Slice D candidate.
 
 **Decisions to confirm (defaults in bold):**
 
 | # | question | default | why |
 |---|---|---|---|
-| C1 | purpose string | **`hub-channel`** | distinct from `witnessing`; one key per purpose keeps rotation independent |
-| C2 | pin still accepted once a vouched key exists? | **yes, for now; evidence distinguishes them** | FR4 keeps the pin as fallback "until migrated"; refusing it is a later, law-gated step (`identity.channel.require_vouched`) |
+| C1 | purpose string | **`hub-channel`, as web4-core `HUB_CHANNEL_PURPOSE`** | distinct from `witnessing`; one key per purpose keeps rotation independent; three consumers import one constant |
+| C2 | pin still accepted once a vouched key exists? | **yes, for now; evidence distinguishes them** | FR4 keeps the pin as fallback "until migrated"; refusing it is a later, law-gated step (`identity.channel.require_vouched`). Until then the binding key is not cold (see above) |
 | C3 | where the evidence lands | **response `caller_auth` now; the ledger in Slice D** | consequential acts get lifecycle and auth evidence together on the witnessed record, once, rather than two partial fields |
-| C4 | vouched key ≠ pin | **allowed** | the point of an operational key is to keep the binding key cold |
-| C5 | vouched key whose proof fails | **ignored (fail closed to the pin), and flagged in `caller_auth.notes`** | `operational_key_for` already returns `None` for a bad proof; never authenticate on it |
+| C4 | vouched key ≠ pin | **allowed** | the point of an operational key is to keep the binding key cold. Allowing it is necessary but not sufficient while C2 holds |
+| C5 | vouched key whose proof fails | **ignored (fail closed to the pin), and flagged in `caller_auth.notes`** | never authenticate on it. `operational_key_for` returns `None` both for "no such purpose" and for "proof fails", so it cannot drive the note by itself. The note is set when an entry with `purpose == HUB_CHANNEL_PURPOSE` exists **and** `operational_key_for` returns `None`. `find` takes the first *valid* entry, so a document holding one bad and one good entry authenticates on the good one, with no note |
+| C6 | what hub-originated notices are sealed to | **the vouched `hub-channel` key when it resolves, else the pin** | otherwise the response leg converges and the mailbox leg does not. The notice names the key it was sealed to in an optional field that is omitted on the pin path, so legacy notices and their content-derived ids stay byte-identical |
+| C7 | rollback: any member may relay a validly bound document, and a republish overwrites in place | **the hub refuses a republish that re-introduces a `(purpose, pubkey)` this LCT's ledger history has already superseded** | without it, any member holding an old public document restores a rotated-away (possibly compromised) key. `opkey:v1` has no sequence, issued_at or expiry, and Slice C turns this from a `witnessing` exposure into channel *authentication*. The rule is computed from the ledger projection, needs no format change, and also covers relayed publishes (beings via hestia). Returning to an old key means minting a new one. A non-subject republish that *removes* a key is an availability loss, not an auth gain while C2 holds, so it is noted and not refused in C. A monotone `opkey:v2` counter, which protects verifiers that never see this hub's history, is the follow-up and is not in C (Sprout) |
 
 **Parity tests (FR7).**
 - A UUID-only member authenticates exactly as before, as `member_key_pin`.
 - A member with a vouched `hub-channel` key authenticates with it, as `lct_vouched_operational_key`, and
   still with its pin.
-- A tampered vouching proof never authenticates.
+- A tampered vouching proof never authenticates and sets the C5 note. With one tampered and one valid
+  `hub-channel` entry, the call authenticates on the valid one and sets no note.
 - The response is sealed to the opening key.
-- A non-member's citizenship path is unchanged.
+- A hub-originated notice to a member with a vouched key opens with that key (C6). A legacy member's notice is
+  byte-identical to today's, and so is its `notice_id`.
+- Replaying an older document never restores a replaced `hub-channel` key, whoever relays it (C7).
+- Publisher side: a republish preserves existing `operational_keys` (the `witnessing` vouch survives adding
+  `hub-channel`).
+- A non-member's citizenship path is unchanged. `send_secret` relay and member-of consent sealing are unchanged.
 - An old ledger replays byte for byte. Nothing new is witnessed in C.
 
 **Not in C:**
-- requiring the vouched key (law, C2);
+- requiring the vouched key (law, C2), or a per-member "refuse my pin" opt-in (Slice D candidate);
 - writing auth evidence to the ledger (Slice D);
-- canonical rotation (Slice D).
+- canonical rotation, including whether the member-of consent key converges on `hub-channel` (Slice D);
+- a monotone `opkey:v2` vouching counter (C7 follow-up; a format change).
 
 ### Slice D — lifecycle + MRH projection
 
