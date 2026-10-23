@@ -1,4 +1,4 @@
-# Public landing audit — 2026-10-23
+# Public landing audit, 2026-10-23
 
 **Scope:** 57 publicly visible dp-web4 repositories inventoried; initial root-README and representative status-page sampling. This is **not** a completed tree-by-tree/URL-by-URL/command-by-command validation of all 57. No deployment claims inferred from a source revision.
 

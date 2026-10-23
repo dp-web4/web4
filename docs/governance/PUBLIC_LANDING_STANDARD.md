@@ -18,6 +18,7 @@ Every actively maintained public repository should show, near the beginning:
 - SAGE results are specific to being + model + runtime + history + intervention; fleet generalization requires distinct evidence.
 - Treat self-description as observable behavior, not proof of internal mechanism or subjective experience.
 - Preserve historical claims as dated, contextual evidence; annotate later developments rather than erasing earlier results.
+- **Fix verified facts; caveat only unverified ones.** When the current fact is in hand with dated evidence (a package version on its registry, a census, a merged change in use), state it, and keep the earlier figure as dated history. A caveat ("may be stale, verify before relying on it") is for a claim nobody has checked; it is not a substitute for a fact someone has.
 - Forks preserve upstream authorship; mirrors link to canonical code and do not independently redefine status.
 
 ## Maintenance / PR requirements
