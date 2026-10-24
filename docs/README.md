@@ -37,6 +37,10 @@ Documentation organized by purpose and audience.
 - [Cross-Architecture Evidence Reconstruction (CAER)](PRD_CROSS_ARCHITECTURE_EVIDENCE_RECONSTRUCTION.md) — blind, adversarial, cross-system reconstruction of action truth from native evidence.
 - [Agent Action Evidence Profile (AAEP)](PRD_ACTION_EVIDENCE.md) — portable evidence contract for identity, authority, policy, action, and witnessed result.
 
+## Position papers (design rationale, non-normative)
+
+- [Web4: Governance Infrastructure for Sovereign Participants](position/WEB4_GOVERNANCE_POSITION_2026-10-24.md) — goals and non-goals, contextual correctness within an MRH, lawful law, recursive sovereignty, and what SAGE and Hestia have shown. The canonical specifications control semantics.
+
 ## Whitepaper
 
 The full technical whitepaper is in [`whitepaper-web/`](whitepaper-web/) with web navigation.
