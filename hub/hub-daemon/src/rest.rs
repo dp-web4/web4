@@ -9696,25 +9696,11 @@ async fn publish_lct(
     // has already SUPERSEDED (a later accepted version introduced a never-carried key for the purpose)
     // is refused before it is witnessed, or an old public document would restore a rotated-away key.
     // Removal-only drops are not covered here (opkey:v2 follow-up); see the PRD's C7 cost note.
-    // Checked twice: here, to refuse early, and again under the ledger lock that builds the entry
-    // (`commit_pair_event_checked`), so a publish that lands in between cannot slip a replay through.
-    let rollback_check = {
-        let (doc, lct_id) = (payload.document.clone(), lct_id.clone());
-        move |st: &HubState| -> Result<(), ApiError> {
-            let Ok(canonical) = hub_lib::ids::CanonicalLctId::parse(&lct_id) else { return Ok(()) };
-            match st.opkey_rollback(&canonical, &doc) {
-                Some((purpose, key)) => Err(ApiError {
-                    status: StatusCode::CONFLICT,
-                    message: format!(
-                        "opkey_superseded: the document vouches {purpose} key {key}, which a later accepted \
-                         version of {lct_id} superseded; replaying an older document cannot restore it \
-                         (mint and vouch a new key instead)"),
-                }),
-                None => Ok(()),
-            }
-        }
-    };
-    rollback_check(&projected)?;
+    // Checked ONCE, under the ledger lock that builds the entry (`commit_pair_event_checked`), so a
+    // publish landing in between cannot slip a replay through. There is deliberately no earlier check
+    // on the preamble's projection: with one, the route test would pass even if the commit went back
+    // to the unchecked path (#928 review (b)).
+    let rollback_check = opkey_rollback_check(lct_id.clone(), payload.document.clone());
 
     let event = HubEvent::LctPublished {
         lct_id: lct_id.clone(),
@@ -9751,7 +9737,7 @@ async fn publish_lct(
     }
     drop(law_guard);
 
-    let (entry_index, entry_hash) = commit_pair_event_checked(&s, event, &rollback_check).await?;
+    let (entry_index, entry_hash) = commit_pair_event_checked(&s, event, Some(rollback_check)).await?;
     Ok(Json(LctPublishAccepted { lct_id, version, entry_index, entry_hash }))
 }
 
@@ -9846,15 +9832,33 @@ async fn list_lcts(
 }
 
 async fn commit_pair_event(s: &RestState, event: HubEvent) -> Result<(u64, String), ApiError> {
-    commit_pair_event_checked(s, event, |_| Ok(())).await
+    commit_pair_event_checked(s, event, None::<fn(&HubState) -> Result<(), ApiError>>).await
+}
+
+/// Slice C, C7: the publish route's rollback guard as a named check, so the route and its tests run
+/// the same code. Refuses 409 `opkey_superseded` when `doc` vouches a key this LCT already superseded.
+fn opkey_rollback_check(lct_id: String, doc: web4_core::lct::Lct) -> impl Fn(&HubState) -> Result<(), ApiError> {
+    move |st: &HubState| {
+        let Ok(canonical) = hub_lib::ids::CanonicalLctId::parse(&lct_id) else { return Ok(()) };
+        match st.opkey_rollback(&canonical, &doc) {
+            Some((purpose, key)) => Err(ApiError {
+                status: StatusCode::CONFLICT,
+                message: format!(
+                    "opkey_superseded: the document vouches {purpose} key {key}, which a later accepted \
+                     version of {lct_id} superseded; replaying an older document cannot restore it \
+                     (mint and vouch a new key instead)"),
+            }),
+            None => Ok(()),
+        }
+    }
 }
 
 /// [`commit_pair_event`] with a precondition re-checked against the projection taken UNDER the same
 /// ledger lock that builds the entry. Anything witnessed after the build makes `append_signed` refuse
 /// the stale tail, so the check and the append see the same ledger. Slice C, C7: the rollback guard's
 /// route check otherwise raced a concurrent publish (CBP, Sprout and Legion on #928).
-async fn commit_pair_event_checked(s: &RestState, event: HubEvent,
-    check: impl Fn(&HubState) -> Result<(), ApiError>) -> Result<(u64, String), ApiError> {
+async fn commit_pair_event_checked<F: Fn(&HubState) -> Result<(), ApiError>>(s: &RestState, event: HubEvent,
+    check: Option<F>) -> Result<(u64, String), ApiError> {
     // HUB-001: pair lifecycle events are governed writes — refuse on law mismatch.
     s.ensure_law_integrity_for_write().await?;
     let event_kind_str = event.kind().to_string();
@@ -9862,7 +9866,10 @@ async fn commit_pair_event_checked(s: &RestState, event: HubEvent,
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
     let (unsigned, intent) = {
         let ledger = s.ledger.lock().await;
-        check(&s.projected(&ledger))?;
+        // Only a checked caller pays for the projection under the lock (#928 review (a)).
+        if let Some(check) = &check {
+            check(&s.projected(&ledger))?;
+        }
         let unsigned = ledger.build_entry(s.sovereign_lct_id, event.clone(), Utc::now())
             .map_err(ApiError::internal)?;
         let intent = SignIntent {
@@ -11810,11 +11817,10 @@ norms:
         let before = state.ledger.lock().await.entries().len();
         let event = HubEvent::LctPublished { lct_id: lct_id.clone(), document: replay.clone(),
             published_by: m, provenance: hub_lib::events::LctProvenance::SelfIssued, published_at: Utc::now() };
-        let err = commit_pair_event_checked(&state, event, |st: &HubState| match st.opkey_rollback(&canonical, &replay) {
-            Some(_) => Err(ApiError::conflict("opkey_superseded: test")),
-            None => Ok(()),
-        }).await.unwrap_err();
+        let err = commit_pair_event_checked(&state, event,
+            Some(opkey_rollback_check(lct_id.clone(), replay.clone()))).await.unwrap_err();
         assert_eq!(err.status, StatusCode::CONFLICT);
+        assert!(err.message.starts_with("opkey_superseded:"), "{}", err.message);
         assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing appended");
     }
 
