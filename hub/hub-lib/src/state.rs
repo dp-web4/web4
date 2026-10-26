@@ -418,6 +418,17 @@ pub struct RoleOccupancyChange {
     /// and still looked up by `&str` through `Borrow<str>`.
     pub registry: BTreeMap<crate::ids::CanonicalLctId, RegistryEntry>,
 
+    /// LCT identity convergence Slice C, C7 (rollback guard): per canonical LCT, every
+    /// `(purpose, pubkey_hex)` its accepted documents have validly vouched. Derived from `LctPublished`,
+    /// not witnessed, so an old ledger replays to the same set.
+    #[serde(skip)]
+    pub seen_opkeys: BTreeMap<crate::ids::CanonicalLctId, BTreeSet<(String, String)>>,
+    /// C7: the vouched keys a later accepted document superseded, by introducing a key for the same
+    /// purpose this LCT had never carried. The publish route refuses a document that carries one
+    /// (`opkey_rollback`), so replaying an old document cannot restore a rotated-away key.
+    #[serde(skip)]
+    pub superseded_opkeys: BTreeMap<crate::ids::CanonicalLctId, BTreeSet<(String, String)>>,
+
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
 }
@@ -1589,6 +1600,7 @@ impl HubState {
                 // (measured on HUB 2026-10-03: 58 of 58 live entries canonical).
                 let Ok(key) = crate::ids::CanonicalLctId::parse(lct_id) else { return; };
                 let version = self.registry.get(&key).map_or(1, |e| e.version + 1);
+                self.fold_opkeys(&key, document);
                 self.registry.insert(key, RegistryEntry {
                     document: document.clone(),
                     provenance: *provenance,
@@ -1728,6 +1740,46 @@ impl HubState {
     }
 
     pub fn member_count(&self) -> usize { self.members.len() }
+}
+
+/// The `(purpose, pubkey_hex)` pairs a document vouches validly.
+fn valid_opkeys(doc: &web4_core::lct::Lct) -> BTreeSet<(String, String)> {
+    doc.valid_operational_keys().into_iter().map(|(p, k)| (p, k.to_hex())).collect()
+}
+
+impl HubState {
+    /// LCT identity convergence Slice C, C7. Per purpose P, with `seen(P)` = every key this LCT has
+    /// validly carried for P: when the incoming document vouches a P key this LCT has never carried, it
+    /// supersedes every previously carried P key it does not itself carry. Only the binding-key holder
+    /// can mint a never-carried key, so only the subject can cause a supersession (a relayer can only
+    /// reassemble old vouches). A key still carried is never superseded, so `{K0}` → `{K0, K1}`
+    /// supersedes nothing. A removal that introduces nothing supersedes nothing either (stated cost:
+    /// to revoke, rotate in one publish). Record-only: it never refuses a historical event on replay.
+    fn fold_opkeys(&mut self, id: &crate::ids::CanonicalLctId, doc: &web4_core::lct::Lct) {
+        let incoming = valid_opkeys(doc);
+        let seen = self.seen_opkeys.entry(id.clone()).or_default();
+        let purposes: BTreeSet<&String> = incoming.iter().map(|(p, _)| p).collect();
+        let mut superseded = Vec::new();
+        for p in purposes {
+            let inc_p: BTreeSet<&(String, String)> = incoming.iter().filter(|(q, _)| q == p).collect();
+            let seen_p: BTreeSet<&(String, String)> = seen.iter().filter(|(q, _)| q == p).collect();
+            if inc_p.difference(&seen_p).next().is_some() {
+                superseded.extend(seen_p.difference(&inc_p).map(|k| (*k).clone()));
+            }
+        }
+        seen.extend(incoming);
+        if !superseded.is_empty() {
+            self.superseded_opkeys.entry(id.clone()).or_default().extend(superseded);
+        }
+    }
+
+    /// C7, the publish-route check: the first validly vouched `(purpose, pubkey_hex)` in `doc` that
+    /// this LCT has already superseded, if any. Such a document is refused before it is witnessed.
+    pub fn opkey_rollback(&self, id: &crate::ids::CanonicalLctId, doc: &web4_core::lct::Lct)
+        -> Option<(String, String)> {
+        let superseded = self.superseded_opkeys.get(id)?;
+        valid_opkeys(doc).into_iter().find(|k| superseded.contains(k))
+    }
 }
 
 #[cfg(test)]
@@ -3777,4 +3829,131 @@ mod tests {
             "the inversion resolves an unpublished but ADMITTED member");
     }
 
+    // ------------------------------------------------------------------
+    // LCT identity convergence Slice C, C7: the opkey rollback guard.
+    // ------------------------------------------------------------------
+
+    mod c7 {
+        use super::super::*;
+        use web4_core::crypto::{KeyPair, PublicKey};
+        use web4_core::lct::{EntityType, Lct, HUB_CHANNEL_PURPOSE as P};
+
+        /// A document from `base` whose `hub-channel` vouches are exactly `keys`, each signed by `binding`.
+        fn with_keys(base: &Lct, binding: &KeyPair, keys: &[&PublicKey]) -> Lct {
+            let mut doc = base.clone();
+            doc.operational_keys.clear();
+            for k in keys {
+                let mut one = base.clone();
+                one.authorize_operational_key(P, (*k).clone(), binding);
+                doc.operational_keys.extend(one.operational_keys.into_iter().filter(|o| o.purpose == P));
+            }
+            doc
+        }
+
+        fn publish(state: &mut HubState, doc: &Lct) {
+            state.apply(&HubEvent::LctPublished {
+                lct_id: web4_core::lct::derive_lct_id(&doc.public_key),
+                document: doc.clone(),
+                published_by: doc.id,
+                provenance: crate::events::LctProvenance::SelfIssued,
+                published_at: Utc::now(),
+            }, Utc::now(), 1);
+        }
+
+        fn setup() -> (Lct, KeyPair, crate::ids::CanonicalLctId, [PublicKey; 3]) {
+            let (lct, binding) = Lct::new(EntityType::Human, None);
+            let id = crate::ids::CanonicalLctId::derive(&lct.public_key);
+            let ks = [0, 1, 2].map(|_| KeyPair::generate().verifying_key());
+            (lct, binding, id, ks)
+        }
+
+        /// A rotation in one publish supersedes the old key: replaying the old document is refused,
+        /// whoever relays it. The current key stays publishable.
+        #[test]
+        fn rotation_supersedes_and_replay_is_refused() {
+            let (lct, b, id, [k0, k1, _]) = setup();
+            let mut s = HubState::default();
+            let old = with_keys(&lct, &b, &[&k0]);
+            publish(&mut s, &old);
+            publish(&mut s, &with_keys(&lct, &b, &[&k1]));
+            assert_eq!(s.opkey_rollback(&id, &old), Some((P.to_string(), k0.to_hex())));
+            assert_eq!(s.opkey_rollback(&id, &with_keys(&lct, &b, &[&k1])), None);
+        }
+
+        /// A key still carried is never superseded: `{K0}` → `{K0, K1}` supersedes nothing, and K0 can
+        /// still be published (the set difference).
+        #[test]
+        fn adding_a_key_supersedes_nothing() {
+            let (lct, b, id, [k0, k1, _]) = setup();
+            let mut s = HubState::default();
+            publish(&mut s, &with_keys(&lct, &b, &[&k0]));
+            publish(&mut s, &with_keys(&lct, &b, &[&k0, &k1]));
+            assert!(s.superseded_opkeys.get(&id).is_none_or(|x| x.is_empty()));
+            assert_eq!(s.opkey_rollback(&id, &with_keys(&lct, &b, &[&k0])), None);
+        }
+
+        /// CBP's overlap case: with `{K0, K1}` stored, a non-subject's `{K0}` introduces nothing, so it
+        /// supersedes nothing, and the subject can still republish `{K1}`.
+        #[test]
+        fn a_relayed_subset_supersedes_nothing() {
+            let (lct, b, id, [k0, k1, _]) = setup();
+            let mut s = HubState::default();
+            publish(&mut s, &with_keys(&lct, &b, &[&k0, &k1]));
+            publish(&mut s, &with_keys(&lct, &b, &[&k0]));
+            assert_eq!(s.opkey_rollback(&id, &with_keys(&lct, &b, &[&k1])), None);
+        }
+
+        /// CBP's removal remnant: after `{K_r, K1}` → `{K1}`, a relayer's `{K_r}` supersedes nothing and
+        /// the subject can still republish `{K1}`.
+        #[test]
+        fn a_removal_remnant_supersedes_nothing() {
+            let (lct, b, id, [kr, k1, _]) = setup();
+            let mut s = HubState::default();
+            publish(&mut s, &with_keys(&lct, &b, &[&kr, &k1]));
+            publish(&mut s, &with_keys(&lct, &b, &[&k1]));
+            publish(&mut s, &with_keys(&lct, &b, &[&kr]));
+            assert_eq!(s.opkey_rollback(&id, &with_keys(&lct, &b, &[&k1])), None);
+        }
+
+        /// DOCUMENTED GAP (not covered by C; `opkey:v2` should flip this): an overlapped rotation
+        /// `{K0}` → `{K0, K1}` → `{K1}` drops K0 without introducing anything at the drop, so a replay of
+        /// `{K0}` is NOT refused. To revoke, rotate in one publish.
+        #[test]
+        fn gap_overlapped_rotation_leaves_the_old_key_restorable() {
+            let (lct, b, id, [k0, k1, _]) = setup();
+            let mut s = HubState::default();
+            publish(&mut s, &with_keys(&lct, &b, &[&k0]));
+            publish(&mut s, &with_keys(&lct, &b, &[&k0, &k1]));
+            publish(&mut s, &with_keys(&lct, &b, &[&k1]));
+            assert_eq!(s.opkey_rollback(&id, &with_keys(&lct, &b, &[&k0])), None,
+                "pinned gap: a removal-only drop is not a revocation in C");
+        }
+
+        /// A tampered vouch is not a valid key: it is never recorded as seen, and it supersedes nothing.
+        #[test]
+        fn an_invalid_vouch_is_ignored() {
+            let (lct, b, id, [k0, k1, _]) = setup();
+            let mut s = HubState::default();
+            publish(&mut s, &with_keys(&lct, &b, &[&k0]));
+            let mut forged = with_keys(&lct, &b, &[&k1]);
+            forged.operational_keys[0].proof = with_keys(&lct, &b, &[&k0]).operational_keys[0].proof.clone();
+            publish(&mut s, &forged);
+            assert!(s.superseded_opkeys.get(&id).is_none_or(|x| x.is_empty()), "a forged K1 supersedes nothing");
+            assert!(!s.seen_opkeys[&id].contains(&(P.to_string(), k1.to_hex())));
+        }
+
+        /// The sets are derived: replaying the same events into a fresh projection gives the same sets.
+        #[test]
+        fn replay_rebuilds_the_same_sets() {
+            let (lct, b, id, [k0, k1, k2]) = setup();
+            let docs = [with_keys(&lct, &b, &[&k0]), with_keys(&lct, &b, &[&k0, &k1]),
+                        with_keys(&lct, &b, &[&k2])];
+            let (mut a, mut c) = (HubState::default(), HubState::default());
+            for d in &docs { publish(&mut a, d); }
+            for d in &docs { publish(&mut c, d); }
+            assert_eq!(a.seen_opkeys, c.seen_opkeys);
+            assert_eq!(a.superseded_opkeys, c.superseded_opkeys);
+            assert_eq!(a.superseded_opkeys[&id].len(), 2, "k2 supersedes both k0 and k1");
+        }
+    }
 }

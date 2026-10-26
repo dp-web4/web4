@@ -533,6 +533,19 @@ impl Lct {
         self.operational_keys.push(OperationalKey { pubkey: operational_pubkey, purpose, proof });
     }
 
+    /// Every `(purpose, key)` this document vouches **validly** (its proof verifies under the binding
+    /// key), in document order; entries that fail are omitted. `operational_key_for` returns only the
+    /// first valid key per purpose; a verifier tracking key history (the hub's rollback guard, Slice C
+    /// C7) needs them all.
+    pub fn valid_operational_keys(&self) -> Vec<(String, PublicKey)> {
+        let lct_id = self.lct_id();
+        self.operational_keys
+            .iter()
+            .filter(|k| self.public_key.verify(&opkey_message(&lct_id, &k.purpose, &k.pubkey), &k.proof).is_ok())
+            .map(|k| (k.purpose.clone(), k.pubkey.clone()))
+            .collect()
+    }
+
     /// The vouched operational public key for `purpose`, **iff** its vouching
     /// signature verifies against this LCT's binding key. Fail-closed: a key whose
     /// proof does not verify (tampered, or vouched by a foreign key) is not
