@@ -1363,6 +1363,12 @@ fn event_summary(event: &HubEvent) -> String {
             short(published_by),
             provenance,
         ),
+        HubEvent::LctRotated { old, new, submitted_by, .. } => format!(
+            "🔁 LCT rotated (verified): <code>{}</code> → <code>{}</code> relayed by {}",
+            html_escape(old),
+            html_escape(new),
+            short(submitted_by),
+        ),
         HubEvent::MemberJoinRequested { member_lct_id, name, .. } => format!(
             "🚪 join requested by {} {} <span class=\"muted\">[escalated → review]</span>",
             short(member_lct_id),

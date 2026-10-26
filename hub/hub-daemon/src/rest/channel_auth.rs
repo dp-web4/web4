@@ -126,7 +126,7 @@ fn caller_auth_evidence(v: Option<&serde_json::Value>) -> (hub_lib::events::Call
 /// present; an unresolvable fact is `"unknown"` and listed in `unknown`.
 pub(super) fn identity_evidence(state: &HubState, actor: Uuid, caller_auth: Option<&serde_json::Value>,
     sovereign: Option<&PublicKey>) -> hub_lib::events::IdentityEvidence {
-    use hub_lib::events::{HubObservations, IdentityEvidence, LastWitnessedAct};
+    use hub_lib::events::{HubObservations, IdentityEvidence, LastWitnessedAct, SuccessorClaim, SupersededKeyUsed};
     use hub_lib::lct_resolve::{resolve, Reference, Resolution};
     let mut unknown = Vec::new();
     let (caller_auth, ca_unknown) = caller_auth_evidence(caller_auth);
@@ -161,8 +161,27 @@ pub(super) fn identity_evidence(state: &HubState, actor: Uuid, caller_auth: Opti
         Some((index, at)) => LastWitnessedAct { index: index.to_string(), at: at.to_rfc3339() },
         None => LastWitnessedAct { index: NONE.into(), at: NONE.into() },
     };
+    // Slice D-b1: rotation evidence for the actor's canonical.
+    let (superseded_key_used, successor_conflict) = match link.as_ref() {
+        None => {
+            unknown.push("hub_observations.superseded_key_used".into());
+            (SupersededKeyUsed { by: UNKNOWN.into(), rotated_at: UNKNOWN.into() }, Vec::new())
+        }
+        Some(l) => {
+            let lineage = hub_lib::lct_rotation::lineage(state, &l.canonical);
+            let claims: Vec<SuccessorClaim> = lineage.successor_conflict.iter()
+                .map(|r| SuccessorClaim { canonical: r.canonical.to_string(), index: r.index.to_string() }).collect();
+            let used = match (&lineage.successor, lineage.successor_conflict.first()) {
+                (Some(s), _) => SupersededKeyUsed { by: s.canonical.to_string(), rotated_at: s.index.to_string() },
+                (None, Some(first)) => SupersededKeyUsed { by: "successor_conflict".into(),
+                    rotated_at: first.index.to_string() },
+                (None, None) => SupersededKeyUsed { by: NONE.into(), rotated_at: NONE.into() },
+            };
+            (used, claims)
+        }
+    };
     IdentityEvidence { caller_auth, canonical, registry_version, claimed_status, against_interest,
-        hub_observations: HubObservations { last_witnessed_act }, unknown }
+        hub_observations: HubObservations { last_witnessed_act, superseded_key_used, successor_conflict }, unknown }
 }
 
 /// THE constructor for a new `ReferencedAct` (Slice D-a): it always assembles the identity evidence, so

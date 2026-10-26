@@ -2075,6 +2075,7 @@ pub fn router(state: RestState) -> Router {
         // Request / confirm / revoke are signed-envelope acts; list /
         // detail are public reads (hub law gates later).
         .route("/v1/hubs/:hub_id/lcts/publish", post(publish_lct))
+        .route("/v1/hubs/:hub_id/lcts/rotate", post(rotate_lct))
         .route("/v1/hubs/:hub_id/lcts", get(list_lcts))
         .route("/v1/hubs/:hub_id/lcts/:lct_id", get(get_lct))
         // A member's pinned pairing pubkey, keyed by member uuid — the value the
@@ -9768,6 +9769,95 @@ async fn publish_lct(
     Ok(Json(LctPublishAccepted { lct_id, version, entry_index, entry_hash }))
 }
 
+
+// ---- LCT identity convergence Slice D-b1: verified rotation ----
+
+#[derive(Deserialize)]
+struct LctRotatePayload {
+    /// Discriminator; must read `lct_rotate`.
+    action: String,
+    #[serde(flatten)]
+    statement: hub_lib::lct_rotation::RotationStatement,
+}
+
+#[derive(Serialize, Debug)]
+struct LctRotateAccepted {
+    old: String,
+    new: String,
+    entry_index: u64,
+    /// True when this `old → new` pair was already witnessed: nothing new was written, and
+    /// `entry_index` is the first `LctRotated` (a replay, or the pair re-signed later; Legion #930).
+    replayed: bool,
+}
+
+/// `POST /v1/hubs/:hub_id/lcts/rotate`: witness a verified rotation (`LctRotated`).
+///
+/// surface: rotate_lct   act: link two published LCTs as predecessor → successor in the ledger
+/// S: med/irreversible [construct: an append-only lineage edge; a later fork is evidence beside it, never a rewrite]
+/// R: pass [construct: pair_endpoint_preamble, the envelope signed by a pinned member or the Sovereign]
+/// W: pass [construct: RotationStatement::verify, BOTH binding keys read from the registry sign the statement]
+/// O: pass [construct: verify + hub law before commit_pair_event_checked; re-verified under the build lock]
+/// A: pass [construct: LctRotated carries the statement and both signatures, re-verifiable from the ledger]
+/// V: present [construct: hub law Deny/Escalate on lct_rotated; the 600 s issued_at window]
+/// verdict: PASS
+async fn rotate_lct(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<LctRotateAccepted>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!("hub id {} does not match this hub {}", hub_id, s.hub_id)));
+    }
+    let projected = pair_endpoint_preamble(&s, &envelope).await?;
+    let payload: LctRotatePayload = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("payload not an lct_rotate: {}", e)))?;
+    if payload.action != "lct_rotate" {
+        return Err(ApiError::bad_request(format!("expected action=lct_rotate, got {}", payload.action)));
+    }
+    let st = payload.statement;
+    let accepted = |entry_index: u64, replayed: bool| Json(LctRotateAccepted {
+        old: st.old.to_string(), new: st.new.to_string(), entry_index, replayed });
+    if let Some(index) = projected.rotation_index(&st.old, &st.new) {
+        return Ok(accepted(index, true));
+    }
+    st.verify(&projected, s.hub_id, Utc::now())
+        .map_err(|e| ApiError { status: StatusCode::FORBIDDEN, message: format!("lct_rotate refused: {e}") })?;
+
+    let event = HubEvent::LctRotated {
+        old: st.old.to_string(), new: st.new.to_string(), issued_at: st.issued_at.clone(),
+        old_signature_hex: st.old_signature_hex.clone(), new_signature_hex: st.new_signature_hex.clone(),
+        submitted_by: envelope.signer_lct_id,
+    };
+    let law_guard = s.law.read().await;
+    if let Some(law) = law_guard.as_ref() {
+        let req = build_r6_request(&envelope, &event, s.sovereign_lct_id).map_err(ApiError::internal)?;
+        match law.evaluate_outcome(&req).decision {
+            Decision::Allow => {}
+            Decision::Warn => tracing::warn!("lct_rotate flagged by hub law (proceeding)"),
+            Decision::Deny => return Err(ApiError { status: StatusCode::FORBIDDEN,
+                message: "lct_rotate denied by hub law".into() }),
+            Decision::Escalate => return Err(ApiError { status: StatusCode::ACCEPTED,
+                message: "lct_rotate escalated to council; use propose/sign".into() }),
+        }
+    }
+    drop(law_guard);
+
+    // Under the build lock: a concurrent submission of the same pair must not land twice. Its
+    // refusal is answered with the index that did land, as a replay.
+    let (old, new) = (st.old.clone(), st.new.clone());
+    let once = move |state: &HubState| match state.rotation_index(&old, &new) {
+        Some(i) => Err(ApiError { status: StatusCode::CONFLICT, message: format!("rotation_exists:{i}") }),
+        None => Ok(()),
+    };
+    match commit_pair_event_checked(&s, event, Some(once)).await {
+        Ok((entry_index, _)) => Ok(accepted(entry_index, false)),
+        Err(e) => match e.message.strip_prefix("rotation_exists:").and_then(|i| i.parse().ok()) {
+            Some(index) => Ok(accepted(index, true)),
+            None => Err(e),
+        },
+    }
+}
+
 /// Resolve one published LCT. Unknown id → 404, nothing fabricated.
 /// The pinned pairing pubkey for a member, keyed by member uuid.
 #[derive(serde::Serialize)]
@@ -10707,6 +10797,122 @@ norms:
         let env = publish_envelope(&state, &sov, payload_for(&v2, &lct_id, sov.lct.id, "self_issued"));
         publish_lct(State(state.clone()), Path(state.hub_id), Json(env)).await
             .expect("the current document still republishes");
+    }
+
+    // ---- LCT identity convergence Slice D-b1: verified rotation (PRD D4 tests) ----
+
+    async fn d_b1_publish(state: &RestState, sov: &IdentityFile) -> (KeyPair, hub_lib::ids::CanonicalLctId) {
+        let (doc, binding, lct_id) = publishable_lct(EntityType::Human);
+        let env = publish_envelope(state, sov, payload_for(&doc, &lct_id, sov.lct.id, "self_issued"));
+        publish_lct(State(state.clone()), Path(state.hub_id), Json(env)).await.expect("published");
+        (binding, hub_lib::ids::CanonicalLctId::parse(&lct_id).unwrap())
+    }
+
+    /// Submit `old → new` signed by `old_key` and `new_key` (either may be the wrong key, for refusals).
+    async fn d_b1_rotate(state: &RestState, sov: &IdentityFile, old: &hub_lib::ids::CanonicalLctId,
+        new: &hub_lib::ids::CanonicalLctId, old_key: &KeyPair, new_key: &KeyPair, issued_at: &str)
+        -> Result<Json<LctRotateAccepted>, ApiError> {
+        let bytes = hub_lib::lct_rotation::rotation_bytes(state.hub_id, old, new, issued_at);
+        let env = publish_envelope(state, sov, serde_json::json!({
+            "action": "lct_rotate", "old": old, "new": new, "issued_at": issued_at,
+            "old_signature_hex": hex::encode(old_key.sign(&bytes).bytes),
+            "new_signature_hex": hex::encode(new_key.sign(&bytes).bytes),
+        }));
+        rotate_lct(State(state.clone()), Path(state.hub_id), Json(env)).await
+    }
+
+    async fn d_b1_lineage(state: &RestState, c: &hub_lib::ids::CanonicalLctId) -> hub_lib::lct_rotation::LctLineage {
+        let l = state.ledger.lock().await;
+        hub_lib::lct_rotation::lineage(&HubState::project(&*l), c)
+    }
+
+    /// D4: both halves are required. New-key-only and old-key-only statements are refused with nothing
+    /// witnessed; with both, the lineage links both ways.
+    #[tokio::test]
+    async fn slice_d_b1_rotation_needs_both_signatures_and_links_both_ways() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (ka, a) = d_b1_publish(&state, &sov).await;
+        let (kb, b) = d_b1_publish(&state, &sov).await;
+        let now = Utc::now().to_rfc3339();
+        let before = state.ledger.lock().await.entries().len();
+
+        let err = d_b1_rotate(&state, &sov, &a, &b, &kb, &kb, &now).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::FORBIDDEN, "signed by the new key alone: {}", err.message);
+        let err = d_b1_rotate(&state, &sov, &a, &b, &ka, &ka, &now).await.unwrap_err();
+        assert!(err.message.contains("countersign"), "the successor did not consent: {}", err.message);
+        let stale = (Utc::now() - chrono::Duration::hours(1)).to_rfc3339();
+        assert_eq!(d_b1_rotate(&state, &sov, &a, &b, &ka, &kb, &stale).await.unwrap_err().status,
+            StatusCode::FORBIDDEN, "outside the issued_at window");
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing witnessed");
+
+        let ok = d_b1_rotate(&state, &sov, &a, &b, &ka, &kb, &now).await.expect("both halves verify").0;
+        assert!(!ok.replayed);
+        let la = d_b1_lineage(&state, &a).await;
+        assert_eq!(la.successor.as_ref().map(|r| (&r.canonical, r.index)), Some((&b, ok.entry_index)));
+        assert!(la.successor_conflict.is_empty());
+        let lb = d_b1_lineage(&state, &b).await;
+        assert_eq!(lb.predecessors.iter().map(|r| &r.canonical).collect::<Vec<_>>(), vec![&a]);
+    }
+
+    /// A replay is not a fork, and the same pair re-signed later is folded into the first: both answer
+    /// `replayed` with the first index and write nothing (Legion #930).
+    #[tokio::test]
+    async fn slice_d_b1_replay_and_resign_fold_into_the_first() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (ka, a) = d_b1_publish(&state, &sov).await;
+        let (kb, b) = d_b1_publish(&state, &sov).await;
+        let t1 = Utc::now().to_rfc3339();
+        let first = d_b1_rotate(&state, &sov, &a, &b, &ka, &kb, &t1).await.unwrap().0;
+        let len = state.ledger.lock().await.entries().len();
+        let replay = d_b1_rotate(&state, &sov, &a, &b, &ka, &kb, &t1).await.unwrap().0;
+        let t2 = (Utc::now() + chrono::Duration::seconds(5)).to_rfc3339();
+        let resigned = d_b1_rotate(&state, &sov, &a, &b, &ka, &kb, &t2).await.unwrap().0;
+        for r in [&replay, &resigned] {
+            assert!(r.replayed);
+            assert_eq!(r.entry_index, first.entry_index);
+        }
+        assert_eq!(state.ledger.lock().await.entries().len(), len, "nothing new witnessed");
+        assert!(d_b1_lineage(&state, &a).await.successor_conflict.is_empty(), "a replay is not a fork");
+    }
+
+    /// A fork (one old key, two distinct successors) is witnessed twice, never overwritten, and reported
+    /// as `successor_conflict` with no single verified `successor`.
+    #[tokio::test]
+    async fn slice_d_b1_a_fork_is_evidence_not_a_verdict() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (ka, a) = d_b1_publish(&state, &sov).await;
+        let (kb, b) = d_b1_publish(&state, &sov).await;
+        let (kc, c) = d_b1_publish(&state, &sov).await;
+        let now = Utc::now().to_rfc3339();
+        let ib = d_b1_rotate(&state, &sov, &a, &b, &ka, &kb, &now).await.unwrap().0.entry_index;
+        let ic = d_b1_rotate(&state, &sov, &a, &c, &ka, &kc, &now).await.unwrap().0;
+        assert!(!ic.replayed, "a distinct successor is witnessed, not folded");
+        let la = d_b1_lineage(&state, &a).await;
+        assert!(la.successor.is_none(), "no single verified successor");
+        assert_eq!(la.successor_conflict.iter().map(|r| (r.canonical.clone(), r.index)).collect::<Vec<_>>(),
+            vec![(b.clone(), ib), (c.clone(), ic.entry_index)], "both kept, in ledger order");
+    }
+
+    /// A `rotated_from` edge in a document is a self-claim: reported as `claimed_predecessors` until a
+    /// verified rotation backs it, then as a predecessor.
+    #[tokio::test]
+    async fn slice_d_b1_rotated_from_edge_is_only_claimed_until_verified() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (ka, a) = d_b1_publish(&state, &sov).await;
+        let (mut doc, kb, b_id) = publishable_lct(EntityType::Human);
+        doc.mrh.bound.push(web4_core::lct::MrhEdge { lct_id: a.to_string(), edge_type: "rotated_from".into(),
+            ts: Utc::now() });
+        doc.sign_binding(&kb);
+        let env = publish_envelope(&state, &sov, payload_for(&doc, &b_id, sov.lct.id, "self_issued"));
+        publish_lct(State(state.clone()), Path(state.hub_id), Json(env)).await.expect("published");
+        let b = hub_lib::ids::CanonicalLctId::parse(&b_id).unwrap();
+        let lb = d_b1_lineage(&state, &b).await;
+        assert_eq!(lb.claimed_predecessors, vec![a.to_string()]);
+        assert!(lb.predecessors.is_empty());
+        d_b1_rotate(&state, &sov, &a, &b, &ka, &kb, &Utc::now().to_rfc3339()).await.unwrap();
+        let lb = d_b1_lineage(&state, &b).await;
+        assert!(lb.claimed_predecessors.is_empty(), "now backed");
+        assert_eq!(lb.predecessors.len(), 1);
     }
 
     #[tokio::test]
@@ -11744,7 +11950,9 @@ norms:
             assert_eq!(e[f], "unknown", "{f}");
         }
         assert_eq!(e["unknown"], serde_json::json!(["canonical", "registry_version", "claimed_status",
-            "against_interest"]));
+            "against_interest", "hub_observations.superseded_key_used"]));
+        assert_eq!(e["hub_observations"]["superseded_key_used"],
+            serde_json::json!({"by": "unknown", "rotated_at": "unknown"}), "D-b1: keeps its shape");
 
         let act = web4_core::act::Act::addressed(state.sovereign_lct_id,
             web4_core::act::ActAddress::Citizen { lct_id: m }, "notify:x",
@@ -11924,6 +12132,47 @@ norms:
         witness_event(&state, HubEvent::MemberRemoved { member_lct_id: gone, removed_by: state.sovereign_lct_id,
             reason: None }).await.unwrap();
         assert!(witness_event(&state, event).await.unwrap_err().message.starts_with("caller_auth_stale:"));
+    }
+
+    /// Slice D-b1: after a verified rotation away from the actor's canonical, its acts are still processed
+    /// (D adds no refusal) but carry `superseded_key_used {by, rotated_at}`; a fork reports
+    /// `by: successor_conflict` and lists every successor. Before any rotation: `"none"`.
+    #[tokio::test]
+    async fn slice_d_b1_acts_by_a_rotated_away_canonical_carry_superseded_key_used() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let ck = KeyPair::generate();
+        let (m, _binding, a) = slice_c_member(&state, Some(&ck)).await;
+        let (peer, _, _) = slice_c_member(&state, None).await;
+        let e = slice_d_evidence(&state, slice_d_act(&state, m, &ck, peer).await).await;
+        assert_eq!(e["hub_observations"]["superseded_key_used"], serde_json::json!({"by": "none", "rotated_at": "none"}));
+        assert_eq!(e["hub_observations"]["successor_conflict"], serde_json::json!([]));
+
+        let publish = |kp: KeyPair| { let state = state.clone(); async move {
+            let (mut doc, _) = web4_core::lct::Lct::new(web4_core::lct::EntityType::Human, None);
+            doc.public_key = kp.verifying_key();
+            doc.sign_binding(&kp);
+            let id = web4_core::lct::derive_lct_id(&doc.public_key);
+            slice_c_land(&state, Uuid::new_v4(), &id, &doc).await;
+            id } };
+        let b = publish(KeyPair::generate()).await;
+        // The route verifies both signatures (tested on the route); the fold and the evidence read the
+        // witnessed event, so it is witnessed directly here.
+        let rotate = |new: String| { let (state, a) = (state.clone(), a.clone()); async move {
+            witness_event(&state, HubEvent::LctRotated { old: a, new, issued_at: Utc::now().to_rfc3339(),
+                old_signature_hex: String::new(), new_signature_hex: String::new(), submitted_by: Uuid::nil() })
+                .await.unwrap() } };
+        let ib = rotate(b.clone()).await;
+        let e = slice_d_evidence(&state, slice_d_act(&state, m, &ck, peer).await).await;
+        slice_d_all_leaves_strings(&e, "identity_evidence");
+        assert_eq!(e["hub_observations"]["superseded_key_used"],
+            serde_json::json!({"by": b, "rotated_at": ib.to_string()}), "still processed, flagged");
+
+        let c = publish(KeyPair::generate()).await;
+        let ic = rotate(c.clone()).await;
+        let e = slice_d_evidence(&state, slice_d_act(&state, m, &ck, peer).await).await;
+        assert_eq!(e["hub_observations"]["superseded_key_used"]["by"], "successor_conflict");
+        assert_eq!(e["hub_observations"]["successor_conflict"], serde_json::json!([
+            {"canonical": b, "index": ib.to_string()}, {"canonical": c, "index": ic.to_string()}]));
     }
 
     // ---- LCT identity convergence Slice C: signer convergence (PRD parity tests) ----

@@ -435,6 +435,13 @@ pub struct RoleOccupancyChange {
     /// (`opkey_rollback`), so replaying an old document cannot restore a rotated-away key.
     #[serde(skip)]
     pub superseded_opkeys: BTreeMap<crate::ids::CanonicalLctId, BTreeSet<(String, String)>>,
+    /// Slice D-b1: verified rotations (`LctRotated`), old → every distinct successor with the index
+    /// that witnessed it, in ledger order. More than one is a fork (`successor_conflict`).
+    #[serde(skip)]
+    pub lct_successors: BTreeMap<crate::ids::CanonicalLctId, Vec<(crate::ids::CanonicalLctId, u64)>>,
+    /// The reverse of `lct_successors`: new → its verified predecessors.
+    #[serde(skip)]
+    pub lct_predecessors: BTreeMap<crate::ids::CanonicalLctId, Vec<(crate::ids::CanonicalLctId, u64)>>,
 
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
@@ -1620,6 +1627,16 @@ impl HubState {
                     version,
                 });
             }
+            HubEvent::LctRotated { old, new, .. } => {
+                // The route verified both signatures and both documents before witnessing. A pair
+                // already folded is never folded twice (the route answers with the first index).
+                let (Ok(old), Ok(new)) = (crate::ids::CanonicalLctId::parse(old),
+                    crate::ids::CanonicalLctId::parse(new)) else { return; };
+                if self.rotation_index(&old, &new).is_none() {
+                    self.lct_successors.entry(old.clone()).or_default().push((new.clone(), index));
+                    self.lct_predecessors.entry(new).or_default().push((old, index));
+                }
+            }
             HubEvent::CouncilMemberAdded { member_lct_id, member_pubkey_hex, member_name, .. } => {
                 self.council_holders.insert(*member_lct_id);
                 self.council_pubkeys.insert(*member_lct_id, member_pubkey_hex.clone());
@@ -1786,6 +1803,11 @@ impl HubState {
 
     /// C7, the publish-route check: the first validly vouched `(purpose, pubkey_hex)` in `doc` that
     /// this LCT has already superseded, if any. Such a document is refused before it is witnessed.
+    /// Slice D-b1: the index of the `LctRotated` that witnessed `old → new`, if that pair was folded.
+    pub fn rotation_index(&self, old: &crate::ids::CanonicalLctId, new: &crate::ids::CanonicalLctId) -> Option<u64> {
+        self.lct_successors.get(old)?.iter().find(|(n, _)| n == new).map(|(_, i)| *i)
+    }
+
     pub fn opkey_rollback(&self, id: &crate::ids::CanonicalLctId, doc: &web4_core::lct::Lct)
         -> Option<(String, String)> {
         let superseded = self.superseded_opkeys.get(id)?;

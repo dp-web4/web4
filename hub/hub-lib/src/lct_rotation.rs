@@ -1,0 +1,125 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Metalinxx Inc.
+
+//! LCT identity convergence Slice D-b1 (hub/docs/PRD_LCT_IDENTITY_CONVERGENCE.md, D4): verified rotation.
+//!
+//! A rotation is ONE statement, `web4-lct-rotate-v1\n<hub>\n<old>\n<new>\n<issued_at>\n` (the H2
+//! consent shape), signed by the OLD document's binding key AND countersigned by the NEW one over the
+//! same bytes. The old signature proves the predecessor's holder chose this successor; the new one is
+//! the successor's consent, without which a holder of A could graft its history (or its slashing) onto
+//! any published X. Both documents must already be published, so each key is read from the registry,
+//! never from the statement.
+//!
+//! Forks are evidence, never resolved: one old key naming two distinct successors yields two
+//! `LctRotated` entries and a `successor_conflict`, with no single verified successor. A replay, or the
+//! same `old→new` pair re-signed later, is folded into the first entry (Legion, #930).
+//!
+//! What this proves: possession of both binding keys at signing time. It covers PLANNED rotation; a
+//! thief holding the old key can produce the same statement, so compromise recovery is out of D.
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+use web4_core::crypto::SignatureBytes;
+
+use crate::ids::CanonicalLctId;
+use crate::routing::{CLOCK_SKEW_SECS, CONSENT_MAX_AGE_SECS};
+use crate::state::HubState;
+
+pub const ROTATE_DOMAIN: &str = "web4-lct-rotate-v1";
+
+/// The exact bytes both binding keys sign. `issued_at` is signed verbatim, as sent.
+pub fn rotation_bytes(hub: Uuid, old: &CanonicalLctId, new: &CanonicalLctId, issued_at: &str) -> Vec<u8> {
+    format!("{ROTATE_DOMAIN}\n{hub}\n{old}\n{new}\n{issued_at}\n").into_bytes()
+}
+
+/// A rotation as submitted: both canonicals, the signed `issued_at`, and the two signatures (hex).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RotationStatement {
+    pub old: CanonicalLctId,
+    pub new: CanonicalLctId,
+    /// RFC 3339, UTC. Signed as sent.
+    pub issued_at: String,
+    pub old_signature_hex: String,
+    pub new_signature_hex: String,
+}
+
+fn signature(hex_str: &str) -> Option<SignatureBytes> {
+    let raw: [u8; 64] = hex::decode(hex_str).ok()?.try_into().ok()?;
+    Some(SignatureBytes::from_bytes(raw))
+}
+
+impl RotationStatement {
+    /// Verify against `state` (the registry both keys are read from) at `now`. Returns the parsed
+    /// `issued_at`. Fail-closed: every check must hold.
+    pub fn verify(&self, state: &HubState, hub: Uuid, now: DateTime<Utc>) -> Result<DateTime<Utc>, String> {
+        if self.old == self.new {
+            return Err("old and new are the same LCT; a republish is not a rotation".into());
+        }
+        let old_doc = state.registry.get(&self.old)
+            .ok_or_else(|| format!("{} (old) is not published here", self.old))?;
+        let new_doc = state.registry.get(&self.new)
+            .ok_or_else(|| format!("{} (new) is not published here", self.new))?;
+        let at = DateTime::parse_from_rfc3339(&self.issued_at)
+            .map_err(|_| format!("issued_at '{}' is not RFC 3339", self.issued_at))?;
+        if at.offset().local_minus_utc() != 0 {
+            return Err("issued_at must be UTC".into());
+        }
+        let at = at.with_timezone(&Utc);
+        let age = (now - at).num_seconds();
+        if !(-CLOCK_SKEW_SECS..=CONSENT_MAX_AGE_SECS).contains(&age) {
+            return Err(format!("issued_at is outside the window ({age} s old; allowed {}..={})",
+                -CLOCK_SKEW_SECS, CONSENT_MAX_AGE_SECS));
+        }
+        let bytes = rotation_bytes(hub, &self.old, &self.new, &self.issued_at);
+        let old_sig = signature(&self.old_signature_hex).ok_or("old_signature_hex is not a 64-byte hex signature")?;
+        let new_sig = signature(&self.new_signature_hex).ok_or("new_signature_hex is not a 64-byte hex signature")?;
+        old_doc.document.public_key.verify(&bytes, &old_sig)
+            .map_err(|_| format!("the old signature does not verify under {}'s binding key", self.old))?;
+        new_doc.document.public_key.verify(&bytes, &new_sig)
+            .map_err(|_| format!("the new signature does not verify under {}'s binding key (the successor \
+                must countersign)", self.new))?;
+        Ok(at)
+    }
+}
+
+/// One witnessed rotation edge, from the other end's point of view.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RotationRef {
+    pub canonical: CanonicalLctId,
+    /// The ledger index of the `LctRotated` that witnessed it.
+    pub index: u64,
+}
+
+/// What the hub can say about a canonical's rotation lineage. Evidence, never a verdict (FR5).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LctLineage {
+    /// The single verified successor: set only when exactly one distinct successor was witnessed.
+    pub successor: Option<RotationRef>,
+    /// Two or more distinct witnessed successors (a fork): every one, in ledger order, and no
+    /// `successor`. Law decides; the hub picks no winner.
+    pub successor_conflict: Vec<RotationRef>,
+    /// Verified predecessors (each countersigned by this canonical), in ledger order.
+    pub predecessors: Vec<RotationRef>,
+    /// `rotated_from` MRH edges in this canonical's own document that no `LctRotated` backs: a
+    /// self-claim, signed only by this key.
+    pub claimed_predecessors: Vec<String>,
+}
+
+pub fn lineage(state: &HubState, canonical: &CanonicalLctId) -> LctLineage {
+    let refs = |m: &std::collections::BTreeMap<CanonicalLctId, Vec<(CanonicalLctId, u64)>>| -> Vec<RotationRef> {
+        m.get(canonical).map(|v| v.iter().map(|(c, i)| RotationRef { canonical: c.clone(), index: *i }).collect())
+            .unwrap_or_default()
+    };
+    let successors = refs(&state.lct_successors);
+    let predecessors = refs(&state.lct_predecessors);
+    let (successor, successor_conflict) = match successors.as_slice() {
+        [one] => (Some(one.clone()), Vec::new()),
+        _ => (None, if successors.len() > 1 { successors } else { Vec::new() }),
+    };
+    let claimed_predecessors = state.registry.get(canonical).map(|e| e.document.mrh.bound.iter()
+        .filter(|edge| edge.edge_type == "rotated_from")
+        .filter(|edge| !predecessors.iter().any(|p| p.canonical.as_str() == edge.lct_id))
+        .map(|edge| edge.lct_id.clone()).collect()).unwrap_or_default();
+    LctLineage { successor, successor_conflict, predecessors, claimed_predecessors }
+}

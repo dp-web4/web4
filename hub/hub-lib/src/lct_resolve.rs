@@ -91,6 +91,8 @@ impl Reference {
 pub struct Presence {
     pub canonical: CanonicalLctId,
     pub entry: RegistryEntry,
+    /// Slice D-b1: verified rotation lineage, plus any unbacked `rotated_from` self-claims.
+    pub lineage: crate::lct_rotation::LctLineage,
 }
 
 /// The evidence for one member → canonical link: which pin's key derived it.
@@ -101,6 +103,8 @@ pub struct Link {
     pub pin: KeyPin,
     /// True when this pin is the member's key in force (the last one witnessed).
     pub current: bool,
+    /// Slice D-b1: verified rotation lineage, plus any unbacked `rotated_from` self-claims.
+    pub lineage: crate::lct_rotation::LctLineage,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -193,7 +197,8 @@ fn resolve_member(state: &HubState, member: Uuid, sovereign_key: Option<&PublicK
         let current = decode(&pin.pubkey_hex).map(|k| k.to_bytes()) == current_bytes;
         // A key re-pinned unchanged is one presence, not two: keep the latest pin as its evidence.
         links.retain(|l| l.canonical != canonical);
-        links.push(Link { canonical, entry, pin, current });
+        let lineage = crate::lct_rotation::lineage(state, &canonical);
+        links.push(Link { canonical, entry, pin, current, lineage });
     }
     if links.is_empty() {
         Resolution::Unmapped { member: id, name, reason: UnmappedReason::NoPublishedPresence { derived_unpublished: unpublished } }
@@ -225,7 +230,8 @@ pub fn resolve(state: &HubState, reference: &Reference, sovereign_key: Option<&P
             };
             let owners = owners_of(state, c, sovereign_key);
             match owners.as_slice() {
-                [] => Resolution::PresenceOnly { presence: Presence { canonical: c.clone(), entry: entry.clone() } },
+                [] => Resolution::PresenceOnly { presence: Presence { canonical: c.clone(), entry: entry.clone(),
+                    lineage: crate::lct_rotation::lineage(state, c) } },
                 [one] => resolve_member(state, *one, sovereign_key),
                 _ => Resolution::Ambiguous { members: ids(owners), presences: vec![c.clone()] },
             }
@@ -250,7 +256,8 @@ pub fn resolve(state: &HubState, reference: &Reference, sovereign_key: Option<&P
                 // Every claiming document belongs to the one member (e.g. before and after a re-key).
                 ([one], false, _) => resolve_member(state, *one, sovereign_key),
                 // One document, no member: the presence exists; membership is not shown.
-                ([], true, [(c, e)]) => Resolution::PresenceOnly { presence: Presence { canonical: (*c).clone(), entry: (*e).clone() } },
+                ([], true, [(c, e)]) => Resolution::PresenceOnly { presence: Presence { canonical: (*c).clone(), entry: (*e).clone(),
+                    lineage: crate::lct_rotation::lineage(state, c) } },
                 _ => Resolution::Ambiguous { members: ids(owners), presences: claimed.iter().map(|(c, _)| (*c).clone()).collect() },
             }
         }
