@@ -580,7 +580,7 @@ pub(super) async fn queue_routed_notice(s: &RestState, router_member: Uuid, for_
     match enqueue_notice(s, router_member, SealedNotice {
         pair_id, from, sealed, kind: kind.to_string(), pointer_uri: pointer_uri.to_string(),
         queued_at: Utc::now(), sealed_by: None,
-        for_lct: Some(for_lct.to_string()), sealed_to: Some("member".into()), from_lct: from_lct.map(str::to_string),
+        for_lct: Some(for_lct.to_string()), sealed_to: Some("member".into()), sealed_to_key: None, from_lct: from_lct.map(str::to_string),
     }).await {
         Ok(_) => true,
         Err(e) => {

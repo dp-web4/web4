@@ -533,6 +533,19 @@ impl Lct {
         self.operational_keys.push(OperationalKey { pubkey: operational_pubkey, purpose, proof });
     }
 
+    /// Every `(purpose, key)` this document vouches **validly** (its proof verifies under the binding
+    /// key), in document order; entries that fail are omitted. `operational_key_for` returns only the
+    /// first valid key per purpose; a verifier tracking key history (the hub's rollback guard, Slice C
+    /// C7) needs them all.
+    pub fn valid_operational_keys(&self) -> Vec<(String, PublicKey)> {
+        let lct_id = self.lct_id();
+        self.operational_keys
+            .iter()
+            .filter(|k| self.public_key.verify(&opkey_message(&lct_id, &k.purpose, &k.pubkey), &k.proof).is_ok())
+            .map(|k| (k.purpose.clone(), k.pubkey.clone()))
+            .collect()
+    }
+
     /// The vouched operational public key for `purpose`, **iff** its vouching
     /// signature verifies against this LCT's binding key. Fail-closed: a key whose
     /// proof does not verify (tampered, or vouched by a foreign key) is not
@@ -1040,6 +1053,22 @@ mod tests {
         // survives the wire (registry-resolvable)
         let restored: Lct = serde_json::from_str(&serde_json::to_string(&role).unwrap()).unwrap();
         assert_eq!(restored.authority_ratchet.as_ref().unwrap().level(), 0);
+    }
+
+    #[test]
+    fn valid_operational_keys_lists_every_valid_vouch_and_omits_a_forged_one() {
+        let (mut lct, binding) = Lct::new(EntityType::Human, None);
+        let (w, c, forged) = (KeyPair::generate(), KeyPair::generate(), KeyPair::generate());
+        lct.authorize_operational_key(WITNESS_PURPOSE, w.verifying_key(), &binding);
+        lct.authorize_operational_key(HUB_CHANNEL_PURPOSE, c.verifying_key(), &binding);
+        // A forged entry: another key under the channel entry's proof, which does not cover it.
+        let mut bad = lct.operational_keys.last().unwrap().clone();
+        bad.pubkey = forged.verifying_key();
+        lct.operational_keys.push(bad);
+        let got = lct.valid_operational_keys();
+        assert_eq!(got, vec![(WITNESS_PURPOSE.to_string(), w.verifying_key()),
+                             (HUB_CHANNEL_PURPOSE.to_string(), c.verifying_key())]);
+        assert_eq!(lct.operational_key_for(HUB_CHANNEL_PURPOSE), Some(c.verifying_key()));
     }
 
     #[test]
