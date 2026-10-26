@@ -1398,6 +1398,12 @@ async fn authorize_event(
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
     let (unsigned, intent) = {
         let ledger = s.ledger.lock().await;
+        // Slice D-a, CBP #933: the authenticating key is re-checked against the ledger this entry
+        // extends, under the same lock that builds it, on the first attempt and on every retry.
+        if let HubEvent::ReferencedAct { act, identity_evidence: Some(e), .. } = &event {
+            channel_auth::caller_auth_still_valid(&s.projected(&ledger), act.actor_lct, &e.caller_auth,
+                channel_auth::sovereign_key(s).as_ref())?;
+        }
         let unsigned = ledger
             .build_entry(s.sovereign_lct_id, event.clone(), Utc::now())
             .map_err(ApiError::internal)?;
@@ -2655,7 +2661,7 @@ pub async fn operator_auth_gate(
 /// `issued_at_outside_window`) from "refused" without parsing prose.
 const ERROR_CODES: &[&str] = &["no_route", "router_mailbox_full", "child_share_full",
     "recipient_mailbox_full", "not_the_router", "stale_epoch", "issued_at_outside_window",
-    "bad_child_signature", "act_id_conflict", "opkey_superseded"];
+    "bad_child_signature", "act_id_conflict", "opkey_superseded", "caller_auth_stale"];
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
@@ -11861,6 +11867,52 @@ norms:
         let e = slice_d_evidence(&state, newest(&state).await).await;
         assert_eq!(e["caller_auth"]["method"], "operator_plane");
         slice_d_all_leaves_strings(&e, "identity_evidence");
+    }
+
+    /// CBP #933: a rotation inside the stale-tail window. The act was authenticated with vouched key K0
+    /// and signed; then the LCT publishes a document that supersedes K0, which moves the tail. The retry
+    /// must refuse (409 `caller_auth_stale`) and land nothing, not land a vouched-key claim for a key the
+    /// ledger has already superseded. The same holds with no retry (rotation before the first build), and
+    /// for a pin that was re-keyed mid-flight.
+    #[tokio::test]
+    async fn slice_d_a_a_key_rotated_in_flight_never_lands_as_caller_auth() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (k0, k1) = (KeyPair::generate(), KeyPair::generate());
+        let (m, binding, lct_id, base) = slice_c_member_keys(&state, &[&k0]).await;
+        let (peer, _, _) = slice_c_member(&state, None).await;
+        let sov = channel_auth::sovereign_key(&state);
+        let v = { let s = { let l = state.ledger.lock().await; state.projected(&l) };
+            channel_auth::vouched_channel_key(&s, m, sov.as_ref()).0.unwrap() };
+        let auth = channel_auth::caller_auth_lct(&v, &k0.verifying_key());
+        let act = || web4_core::act::Act::addressed(m, web4_core::act::ActAddress::Peer { lct_id: peer }, "memo",
+            web4_core::act::SubstanceRef::new("x", web4_core::sha256_hex(b"x"),
+                web4_core::act::SubstanceMedium::Message), Utc::now());
+
+        let event = channel_auth::referenced_act_event(&state, act(), None, Some(&auth)).await;
+        let signed = authorize_event(&state, event.clone()).await.expect("K0 is current when signed");
+        slice_c_land(&state, m, &lct_id, &slice_c_doc(&base, &binding, &[&k1])).await; // supersedes K0
+        let len = state.ledger.lock().await.entries().len();
+        let err = land_act(&state, &event, signed).await.expect_err("the retry refuses");
+        assert_eq!(err.status, StatusCode::CONFLICT);
+        assert!(err.message.starts_with("caller_auth_stale:"), "{}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), len, "nothing landed");
+
+        // No retry involved: the rotation is already on the ledger when the first entry is built.
+        let event = channel_auth::referenced_act_event(&state, act(), None, Some(&auth)).await;
+        assert!(witness_event(&state, event).await.unwrap_err().message.starts_with("caller_auth_stale:"));
+
+        // Control: the current key lands.
+        let v1 = { let s = { let l = state.ledger.lock().await; state.projected(&l) };
+            channel_auth::vouched_channel_key(&s, m, sov.as_ref()).0.unwrap() };
+        let ok = channel_auth::caller_auth_lct(&v1, &k1.verifying_key());
+        witness_event(&state, channel_auth::referenced_act_event(&state, act(), None, Some(&ok)).await).await
+            .expect("the current key lands");
+
+        // A pin re-keyed mid-flight.
+        let old_pin = channel_auth::caller_auth_pin(m, &binding.verifying_key());
+        let event = channel_auth::referenced_act_event(&state, act(), None, Some(&old_pin)).await;
+        pin_member_key(&state, m, &KeyPair::generate().verifying_key().to_hex()).await.unwrap();
+        assert!(witness_event(&state, event).await.unwrap_err().message.starts_with("caller_auth_stale:"));
     }
 
     // ---- LCT identity convergence Slice C: signer convergence (PRD parity tests) ----

@@ -175,6 +175,35 @@ pub(super) async fn referenced_act_event(s: &RestState, act: web4_core::act::Act
     HubEvent::ReferencedAct { act, on_behalf_of, identity_evidence: Some(evidence) }
 }
 
+/// The key `caller_auth` names must still be the actor's key AT THE ENTRY'S POSITION (CBP #933): a
+/// rotation that lands between authentication and the append supersedes it, and an entry carrying a
+/// vouched-key claim for a key the ledger has already superseded would admit the in-flight act of a
+/// rotated-away (perhaps compromised) key. `authorize_event` runs this under the ledger lock that builds
+/// the entry, so `state` is exactly the ledger the entry extends (`append_signed` refuses a moved tail).
+/// Refuses 409 `caller_auth_stale`; the client re-sends with its current key.
+pub(super) fn caller_auth_still_valid(state: &HubState, actor: Uuid, ca: &hub_lib::events::CallerAuthEvidence,
+    sovereign: Option<&PublicKey>) -> Result<(), ApiError> {
+    let stale = |why: String| Err(ApiError { status: StatusCode::CONFLICT, message: format!(
+        "caller_auth_stale: {why} before this act landed; nothing was witnessed. Re-send with your current key.") });
+    match ca.method.as_str() {
+        "lct_vouched_operational_key" => {
+            let current = vouched_channel_key(state, actor, sovereign).0;
+            let still = current.as_ref().is_some_and(|v| v.canonical.to_string() == ca.canonical
+                && v.keys.iter().any(|k| k.to_hex() == ca.key));
+            if still { Ok(()) } else {
+                stale(format!("the {HUB_CHANNEL_PURPOSE} key {} that authenticated this request is no longer \
+                    vouched by {} (superseded or rotated)", ca.key, ca.canonical))
+            }
+        }
+        "member_key_pin" => match state.member_pubkeys.get(&actor) {
+            Some(pin) if !pin.eq_ignore_ascii_case(&ca.key) =>
+                stale(format!("member {actor}'s pinned key changed from {}", ca.key)),
+            _ => Ok(()),
+        },
+        _ => Ok(()),
+    }
+}
+
 /// A retry of an already-built act re-assembles its evidence against the CURRENT ledger, keeping the
 /// caller_auth it was gated on, so the entry that lands carries the value that attempt's gate matched.
 pub(super) async fn regated(s: &RestState, event: &HubEvent) -> HubEvent {
