@@ -182,7 +182,7 @@ pub(super) async fn referenced_act_event(s: &RestState, act: web4_core::act::Act
 /// the entry, so `state` is exactly the ledger the entry extends (`append_signed` refuses a moved tail).
 /// Refuses 409 `caller_auth_stale`; the client re-sends with its current key.
 pub(super) fn caller_auth_still_valid(state: &HubState, actor: Uuid, ca: &hub_lib::events::CallerAuthEvidence,
-    sovereign: Option<&PublicKey>) -> Result<(), ApiError> {
+    sovereign: Option<&PublicKey>, sovereign_lct_id: Uuid) -> Result<(), ApiError> {
     let stale = |why: String| Err(ApiError { status: StatusCode::CONFLICT, message: format!(
         "caller_auth_stale: {why} before this act landed; nothing was witnessed. Re-send with your current key.") });
     match ca.method.as_str() {
@@ -195,10 +195,14 @@ pub(super) fn caller_auth_still_valid(state: &HubState, actor: Uuid, ca: &hub_li
                     vouched by {} (superseded or rotated)", ca.key, ca.canonical))
             }
         }
-        "member_key_pin" => match state.member_pubkeys.get(&actor) {
-            Some(pin) if !pin.eq_ignore_ascii_case(&ca.key) =>
-                stale(format!("member {actor}'s pinned key changed from {}", ca.key)),
-            _ => Ok(()),
+        // The pin as the ledger holds it at this position: a member's, else a council holder's. The
+        // founding Sovereign's key is not a ledger pin (it is the identity file), so it is the only actor
+        // allowed to have none. A pin REMOVED mid-flight (MemberRemoved) is as stale as a changed one.
+        "member_key_pin" => match state.member_pubkeys.get(&actor).or_else(|| state.council_pubkeys.get(&actor)) {
+            Some(pin) if pin.eq_ignore_ascii_case(&ca.key) => Ok(()),
+            Some(_) => stale(format!("member {actor}'s pinned key changed from {}", ca.key)),
+            None if actor == sovereign_lct_id => Ok(()),
+            None => stale(format!("member {actor}'s pin was removed")),
         },
         _ => Ok(()),
     }

@@ -1402,7 +1402,7 @@ async fn authorize_event(
         // extends, under the same lock that builds it, on the first attempt and on every retry.
         if let HubEvent::ReferencedAct { act, identity_evidence: Some(e), .. } = &event {
             channel_auth::caller_auth_still_valid(&s.projected(&ledger), act.actor_lct, &e.caller_auth,
-                channel_auth::sovereign_key(s).as_ref())?;
+                channel_auth::sovereign_key(s).as_ref(), s.sovereign_lct_id)?;
         }
         let unsigned = ledger
             .build_entry(s.sovereign_lct_id, event.clone(), Utc::now())
@@ -11912,6 +11912,17 @@ norms:
         let old_pin = channel_auth::caller_auth_pin(m, &binding.verifying_key());
         let event = channel_auth::referenced_act_event(&state, act(), None, Some(&old_pin)).await;
         pin_member_key(&state, m, &KeyPair::generate().verifying_key().to_hex()).await.unwrap();
+        assert!(witness_event(&state, event).await.unwrap_err().message.starts_with("caller_auth_stale:"));
+
+        // A pin REMOVED mid-flight (the member left) is as stale as a changed one (hub-claude review).
+        let (gone, gone_key, _) = slice_c_member(&state, None).await;
+        let gone_pin = channel_auth::caller_auth_pin(gone, &gone_key.verifying_key());
+        let gone_act = web4_core::act::Act::addressed(gone, web4_core::act::ActAddress::Peer { lct_id: peer },
+            "memo", web4_core::act::SubstanceRef::new("x", web4_core::sha256_hex(b"x"),
+                web4_core::act::SubstanceMedium::Message), Utc::now());
+        let event = channel_auth::referenced_act_event(&state, gone_act, None, Some(&gone_pin)).await;
+        witness_event(&state, HubEvent::MemberRemoved { member_lct_id: gone, removed_by: state.sovereign_lct_id,
+            reason: None }).await.unwrap();
         assert!(witness_event(&state, event).await.unwrap_err().message.starts_with("caller_auth_stale:"));
     }
 
