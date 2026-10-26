@@ -296,8 +296,16 @@ witnesses nothing new. It is a Slice D candidate.
 
 **What exists, measured on HUB on 2026-10-26** (all 59 registry documents fetched one by one):
 - **Lifecycle is self-asserted.** `Lct.status` (`Active | Dormant | Void | Slashed`) is a field the publisher
-  writes into its own document. All 59 say `active`. No hub-witnessed lifecycle event exists, and no
-  `rotated` / `superseded` state exists in web4-core.
+  writes into its own document. All 59 say `active`. The hub witnesses no lifecycle event, and no
+  `rotated` / `superseded` state exists in web4-core. web4-core does have `Ledger::update_status`
+  (`web4-core/src/ledger.rs`), which records status transitions as ledger entries. The hub never calls it:
+  its only `LctStatus` use is `Active` at `hub-lib/src/hub.rs`. It's a setter with no actor and no
+  signature, so **D deliberately bypasses it.** Wiring it in as is would add a second kind of status that
+  reads as observed while being unauthenticated. A later slice may reuse it only once it gains an actor and
+  a signed statement.
+- **`rotated_from` already means two things.** `POST /admin/api/roles/:id/assign` returns
+  `"rotated_from": previous` (`hub-daemon/src/rest.rs`), where it means the seat's previous **occupant**,
+  not a key rotation. D-c keeps the two apart (see D-c).
 - **Rotation is an unverified claim.** It's represented as a `rotated_from` MRH edge on the **new**
   document (the publish route comment and `rotated_key_lands_as_a_distinct_identity…`), signed only by
   the new key. Anyone can mint a document claiming to succeed anyone's LCT. **0 of 59** documents carry one
@@ -315,26 +323,74 @@ witnesses nothing new. It is a Slice D candidate.
   hub_observations: [superseded opkeys seen, member removed/re-keyed, …], unknown: [what could not be
   resolved] }`. FR5's "unknown is not active" holds by construction: a missing fact is listed in `unknown`,
   never defaulted.
+  - **Self-claims are asymmetric.** A self-asserted `active` is worth nothing. A self-asserted
+    `dormant` / `void` / `slashed` goes against the member's own interest, and today it's the cheapest way
+    a member can revoke itself. Both stay `claimed_status`. A non-active claim is also flagged
+    `against_interest: true`, so law can honour it without trusting the positive case. Default law does
+    **not** honour it in D. Whether it should is a law question, listed under "Not in D".
+  - **Silence is not dormancy.** Beings go quiet for ordinary reasons: sensors down, the raising timer, a
+    reboot. Liveness is reported only as the raw `hub_observations: last_witnessed_act {index, at}`, never
+    as a derived `dormant`. This is the `unknown` rule applied to time: silent is not dormant, just as
+    unknown is not active.
+  - **Rotation observations** (from D-b): `superseded_key_used {by: <new canonical>}` when an act is signed
+    by a key that has been rotated away, and `successor_conflict [..]` when one old key names more than one
+    successor.
 - **To the gate:** `R6Request` gains an optional `evidence` field (YAML/JSON, like `payload`). Default
   law ignores it, so behaviour is unchanged. A society's law can match on it (for example, refuse
   `referenced_act` when `caller_auth.method == member_key_pin` once that is law, which is C2's exit, or when
   `claimed_status != active`).
 - **To the ledger:** consequential witnessed acts carry the evidence they relied on (accountability clause A).
-  First target: `ReferencedAct` gains an optional `caller_auth`, skip-if-none, so old entries keep their
-  bytes. That's the same pattern as `on_behalf_of`. Other events follow only where a reviewer names one.
+  First target: `ReferencedAct` gains optional `caller_auth`, `registry_version`, and `evidence_digest`
+  (a digest of the canonical `IdentityEvidence` bytes the gate saw). All three are skip-if-none, so old
+  entries keep their bytes. That's the same pattern as `on_behalf_of`. `caller_auth` alone records less
+  than the gate may have relied on. Once law matches on `claimed_status` or registry state, a replay can
+  re-derive the decision only if it can name the exact evidence. Other events follow only where a reviewer
+  names one.
 
 **D-b: verified rotation and the pin's exit**
-- **A rotation statement signed by the OLD binding key:**
-  `web4-lct-rotate-v1\n<hub>\n<old canonical>\n<new canonical>\n<issued_at>\n` (the H2 consent shape). The
-  hub witnesses `LctRotated {old, new, statement}` only when both documents are published and the old key's
-  signature verifies. The resolver then reports `successor` / `predecessor` as **verified**. A bare
-  `rotated_from` edge stays a self-claim, reported as `claimed_predecessor`.
+- **A rotation statement with both halves.** The statement is
+  `web4-lct-rotate-v1\n<hub>\n<old canonical>\n<new canonical>\n<issued_at>\n` (the H2 consent shape),
+  signed by the **old** binding key **and countersigned by the new** binding key over the same bytes. The
+  hub witnesses `LctRotated {old, new, statement, old_sig, new_sig}` only when both documents are published
+  and **both** signatures verify. The resolver then reports `successor` / `predecessor` as **verified**.
+  - **Why both:** if only the old key signed, a holder of key A could name any published LCT X as its
+    "successor". The resolver would then report the lineage as verified in both directions, and A could
+    push its history, or its slashing, onto X. The new side has to consent. A countersignature on the same
+    bytes is used rather than the new document's `rotated_from` edge, because that edge is already
+    ambiguous (see "What exists") and lives in a document that can be republished.
+  - A bare `rotated_from` edge stays a self-claim, reported as `claimed_predecessor`.
+- **Forks are evidence, never resolved silently.** One old key can sign `old→A` and later `old→B`. That
+  happens through compromise, or simply because a being's instance was rebuilt twice. Each well-formed
+  statement is witnessed as its own `LctRotated`, and none is overwritten or dropped. Once an old key has
+  more than one witnessed successor, the resolver reports **no** single verified `successor`. It reports
+  `hub_observations: successor_conflict [{new, index}, ..]`, and law decides. "First one wins" is
+  rejected: it is a verdict chosen silently, which FR5 rules out.
+- **Supersession.** After `LctRotated`, any act authenticated by the old canonical's keys is still
+  processed as it is today, since D adds no refusal. Its evidence carries
+  `hub_observations: superseded_key_used {by: <new canonical>, rotated_at: <index>}`, so a society's law
+  can refuse acts from a key that has been rotated away.
+- **What D4 proves, and what it does not.** An old-key signature proves possession of the old key, and a
+  thief holding it can produce exactly the same statement. So D4 covers **planned** rotation. **Compromise
+  recovery** is a different mechanism (vault, hardware anchor, or witness quorum; tied to D6 and C268-N1)
+  and is listed under "Not in D". Supersession evidence makes a planned rotation useful against later
+  misuse of the old key. It does not help when the attacker rotates first.
 - **Member re-key** (`hub set-member-key`): a pin change moves the canonical id (Slice B derives it from the
   pin). With a rotation statement it's lineage; without one, it's a new presence whose history is not linked.
   It's evidence either way, never refused by C/D.
+  - **Lost old key** is the common case for beings. On sprout, a being's key lives with its instance, so a
+    rebuild or wipe loses it and no old-key statement is possible. "A new presence whose history is not
+    linked" is the correct default. The gap is named under "Not in D": a sovereign- or operator-signed
+    lineage attestation, labelled `attested_predecessor` and never `verified`.
 - **Per-member pin refusal:** the C2 exit, earlier than law. A witnessed `ChannelPinRefused {member}` that the
-  member requests **over a channel authenticated by its vouched key**, so it can't lock itself out. It's
-  reversible the same way. After it, `caller_auth` can never be `member_key_pin` for that member.
+  member requests **over a channel authenticated by its vouched key**, so it can't lock itself out at that
+  moment. It's reversible the same way. After it, `caller_auth` can never be `member_key_pin` for that
+  member.
+  - **Lockout afterwards is accepted explicitly.** If the vouched key is lost after a refusal, the member
+    has no pin path and no vouched key, and reversing the refusal "the same way" would need the lost key.
+    D accepts this: it is what a cold binding key means. Recovery is a re-key to a **new canonical**, linked
+    by D4 if the binding key is still held, and otherwise unlinked (the `attested_predecessor` gap). For a
+    being whose vouched key sits on the same disk as its instance, losing the key therefore forces a new
+    canonical.
 - **Consent key → `hub-channel`** (C's deferral): **no change in D.** The member-of consent key stays the key
   that signed the edge (H2). Converging it is a re-report of the edge, which the member can already do. D
   adds nothing here, and this paragraph exists so the question is closed, not lost.
@@ -342,13 +398,26 @@ witnesses nothing new. It is a Slice D candidate.
 **D-c: MRH projection** (FR6)
 - A read-only `GET /v1/hubs/<hub>/lcts/<canonical>/mrh`, computed from the projection:
   - citizenship and membership;
-  - role occupancy;
+  - role occupancy, as `previous_occupant` / `occupant` edges. These are never named `rotated_from`, so a
+    seat's change of occupant can't be confused with a verified key rotation (`successor` / `predecessor`);
   - pairings and introductions;
   - member-of edges;
   - witnessing (registry `witnessing` vouches plus witnessed acts).
-- No second store. Every edge carries the ledger index it came from, so a reader can check it.
+- No second store. Every edge carries a `source`. `ledger` edges cite the ledger index they came from, so a
+  reader can check them. Anything not backed by a ledger event is labelled `registry` and cites
+  `registry_version`, never a ledger index. D-c's first step is to enumerate, per edge type, which source
+  it actually has. Whether registry `witnessing` vouches are ledger events is **unmeasured**, and D7's
+  "every edge cites a ledger index" is narrowed to `ledger` edges until that is measured.
 - It's kept separate from the document's own self-declared `mrh` (the 45 `parent` edges). The response
-  labels the two sources.
+  labels that as a third source, `self_declared`.
+- **Exposure.** Listing pairings and introductions publishes the social graph, and pairing topology is
+  sensitive because sealed material rides paired channels. So the route is **authenticated**, and edges
+  are filtered by reader:
+  - **pairings and introductions:** visible only to their parties and the sovereign;
+  - **citizenship, role occupancy, member-of, rotation:** visible to any authenticated member (already
+    public in substance);
+  - **unauthenticated reads:** get the `self_declared` set only, which is what the registry already
+    serves.
 
 **Decisions to confirm (defaults in bold):**
 
@@ -356,26 +425,51 @@ witnesses nothing new. It is a Slice D candidate.
 |---|---|---|---|
 | D1 | is the document's `status` lifecycle evidence? | **only as `claimed_status`, labelled self-asserted** | all 59 say active by default; a hub-observed fact and a self-claim must not read the same |
 | D2 | where evidence reaches the gate | **an optional `R6Request.evidence`; default law ignores it** | law decides; C2's exit becomes a law rule, not code |
-| D3 | which ledger events carry evidence first | **`ReferencedAct.caller_auth` only** | it is the consequential act the channel carries; the others are named per review |
-| D4 | how rotation is verified | **a statement signed by the old key, witnessed as `LctRotated`** | a `rotated_from` edge signed only by the new key proves nothing about the old one |
-| D5 | per-member pin refusal | **yes, witnessed, requested over a vouched-key channel, reversible the same way** | delivers C4's cold binding key to early movers without waiting for law |
+| D3 | which ledger events carry evidence first | **`ReferencedAct` only: `caller_auth` + `registry_version` + `evidence_digest`** | it is the consequential act the channel carries, and the gate's decision must be re-derivable from the entry; the others are named per review |
+| D4 | how rotation is verified | **one statement signed by the old key and countersigned by the new, witnessed as `LctRotated`; forks are witnessed and reported as `successor_conflict`; later old-key acts carry `superseded_key_used`** | a `rotated_from` edge signed only by the new key proves nothing about the old one; an old key alone could graft its lineage onto anyone; "first one wins" is a silent verdict |
+| D5 | per-member pin refusal | **yes, witnessed, requested over a vouched-key channel, reversible the same way; losing the vouched key afterwards is an accepted lockout (recovery = new canonical)** | delivers C4's cold binding key to early movers without waiting for law |
 | D6 | re-rooting a canonical LCT onto a vault identity (`legacy_alias`, C4) | **out of D**; it needs its own design with Legion | it changes what "canonical" means for a member, not just evidence |
-| D7 | MRH projection writes anything? | **no: read-only, every edge cites a ledger index** | FR6: the ledger stays authoritative |
+| D7 | MRH projection writes anything? | **no: read-only, every edge labelled `ledger` (cites an index), `registry` (cites a version), or `self_declared`; authenticated, pairings visible to their parties only** | FR6: the ledger stays authoritative; the pairing graph is sensitive |
 
 **Tests (per sub-slice):**
 - **D-a:**
   - the gate sees `evidence`, and default law is unchanged;
   - a `ReferencedAct` carries `caller_auth`, old entries replay byte for byte;
-  - `unknown` lists a missing registry document instead of reporting active.
+  - `unknown` lists a missing registry document instead of reporting active;
+  - the gate decision can be re-derived from the ledger entry: `evidence_digest` matches the evidence
+    replayed at `registry_version`;
+  - a non-active `claimed_status` carries `against_interest: true`, and default law is unchanged;
+  - a quiet member reports `last_witnessed_act`, never `dormant`.
 - **D-b:**
   - a rotation statement signed by the new key alone is refused;
-  - a verified one links `successor` both ways;
+  - one signed by the old key alone is refused, i.e. naming a successor that has not countersigned;
+  - a statement with both signatures links `successor` both ways;
+  - a second successor for the same old key is witnessed, never overwrites the first, and yields
+    `successor_conflict` with no single verified `successor`;
+  - an act by the old canonical after `LctRotated` carries `superseded_key_used`;
   - pin refusal requires the vouched-key channel, and after it the pin no longer authenticates;
   - reversal works.
-- **D-c:** each edge's ledger index resolves to the event it cites; nothing is written.
+- **D-c:**
+  - each `ledger` edge's index resolves to the event it cites; nothing is written;
+  - role-occupancy edges are `previous_occupant`, never `rotated_from`;
+  - a non-party reader does not see a pairing; an unauthenticated reader gets `self_declared` only.
 
-**Not in D:** `opkey:v2` (C7 follow-up), the canonical re-root (D6), and any trust verdict. FR5: the resolver
-returns evidence, and law decides.
+**Not in D:**
+- `opkey:v2` (C7 follow-up);
+- the canonical re-root (D6);
+- **compromise recovery**, i.e. rotation when the old key may be in hostile hands (vault, hardware
+  anchor, or witness quorum; D6 and C268-N1). D4 covers planned rotation only;
+- **lost-key lineage**: a sovereign- or operator-signed `attested_predecessor`, never reported as
+  `verified`. Without it, a being rebuilt without its key is an unlinked new presence. That is the
+  intended default, not a defect;
+- whether default law honours a self-declared `void` / `slashed` (a law question; D only surfaces it);
+- reusing `Ledger::update_status` (bypassed until it has an actor and a signature);
+- any trust verdict. FR5: the resolver returns evidence, and law decides.
+
+*Revised 2026-10-26 after the Legion (6414105527) and Sprout (6414108992) reviews. On forks, the two
+reviews differ: Legion proposed "first witnessed, second is conflict evidence", Sprout proposed "both
+witnessed, law decides". This draft takes Sprout's, because it keeps Legion's requirement (never overwritten,
+never dropped) without the hub choosing a winner.*
 
 ## 7. Done
 
