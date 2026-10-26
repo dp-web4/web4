@@ -1385,6 +1385,14 @@ async fn authorize_event(
     if !matches!(event, HubEvent::LawAmended { .. }) {
         s.ensure_law_integrity_for_write().await?;
     }
+    // Slice D-a: a NEW act carries its identity evidence. Only entries written before D-a lack it, and
+    // they are never re-gated, so refusing here costs nothing and pins the one-constructor rule against
+    // a path a grep cannot see (an event that arrives by deserialization; Legion, #933).
+    if matches!(event, HubEvent::ReferencedAct { identity_evidence: None, .. }) {
+        return Err(ApiError::internal(anyhow::anyhow!(
+            "refusing to witness a referenced_act without identity evidence (Slice D-a); build it with \
+             channel_auth::referenced_act_event")));
+    }
     let event_kind_str = event.kind().to_string();
     let event_value = serde_json::to_value(&event)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
@@ -1939,7 +1947,8 @@ async fn notify_citizen(
         ),
         Utc::now(),
     );
-    let event = channel_auth::referenced_act_event(s, act, None, None).await;
+    let event = channel_auth::referenced_act_event(s, act, None,
+        Some(&channel_auth::caller_auth_hub_originated())).await;
     let _ = witness_event(s, event).await;
     let _ = queue_sealed_notice(s, recipient, from, kind, pointer_uri, body).await;
 }
@@ -6488,7 +6497,8 @@ async fn enable_mailbox_receipts_as_operator(
         ),
         Utc::now(),
     );
-    let event = channel_auth::referenced_act_event(s, act, None, None).await;
+    let event = channel_auth::referenced_act_event(s, act, None,
+        Some(&channel_auth::caller_auth_operator_plane())).await;
     let entry_index = witness_event(s, event).await?;
     // The act is on the ledger first. A failed write here leaves it asserting an enrollment
     // that did not happen, so the error says exactly that and the retry (idempotent) applies it.
@@ -11823,6 +11833,36 @@ norms:
             serde_json::json!(moved.to_string()), "the landed entry carries what its own gate saw");
     }
 
+    /// Legion #933: the gate refuses a new act with no evidence (pins the one-constructor rule against
+    /// a deserialized event), and every act the hub originates names its own `caller_auth.method`, so
+    /// `"unknown"` never arises from a correct hub and law can deny it without exceptions.
+    #[tokio::test]
+    async fn slice_d_a_gate_refuses_bare_acts_and_hub_acts_name_their_method() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (m, _, _) = slice_c_member(&state, None).await;
+        let act = web4_core::act::Act::addressed(state.sovereign_lct_id,
+            web4_core::act::ActAddress::Citizen { lct_id: m }, "notify:x",
+            web4_core::act::SubstanceRef::new("x", web4_core::sha256_hex(b"x"),
+                web4_core::act::SubstanceMedium::Message), Utc::now());
+        let before = state.ledger.lock().await.entries().len();
+        assert!(witness_event(&state, HubEvent::ReferencedAct { act, on_behalf_of: None, identity_evidence: None })
+            .await.is_err(), "a bare act is refused");
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "and nothing was written");
+
+        let newest = |state: &RestState| { let state = state.clone(); async move {
+            let l = state.ledger.lock().await;
+            l.entries().last().map(|e| e.index).unwrap() } };
+        notify_citizen(&state, m, state.sovereign_lct_id, "notify:test", "ptr/1", b"hi").await;
+        let e = slice_d_evidence(&state, newest(&state).await).await;
+        assert_eq!(e["caller_auth"]["method"], "hub_originated");
+        assert!(!e["unknown"].as_array().unwrap().iter().any(|u| u == "caller_auth"), "{e}");
+
+        enable_mailbox_receipts_as_operator(&state, m, "a test reason").await.expect("enrolled");
+        let e = slice_d_evidence(&state, newest(&state).await).await;
+        assert_eq!(e["caller_auth"]["method"], "operator_plane");
+        slice_d_all_leaves_strings(&e, "identity_evidence");
+    }
+
     // ---- LCT identity convergence Slice C: signer convergence (PRD parity tests) ----
 
     /// A member whose pin IS its LCT's binding key, with a published document vouching `channel` (when
@@ -16984,7 +17024,7 @@ norms:
             ),
             Utc::now(),
         );
-        witness_event(&state, HubEvent::ReferencedAct { act, on_behalf_of: None, identity_evidence: None }).await.unwrap();
+        witness_event(&state, channel_auth::referenced_act_event(&state, act, None, None).await).await.unwrap();
 
         let resp = admin_ledger_tail(
             State(state.clone()),

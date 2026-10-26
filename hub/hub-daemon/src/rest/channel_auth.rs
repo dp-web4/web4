@@ -88,6 +88,18 @@ pub(super) fn caller_auth_external(key: &PublicKey) -> serde_json::Value {
     serde_json::json!({"method": "self_vouched_external", "key": key.to_hex()})
 }
 
+/// An act the hub itself originates (a notice to a citizen): no request authenticated it. Named so that
+/// law can deny `"unknown"` without an exception for the hub's own acts (Legion, #933).
+pub(super) fn caller_auth_hub_originated() -> serde_json::Value {
+    serde_json::json!({"method": "hub_originated"})
+}
+
+/// An act the operator caused on the loopback operator plane (:8772). Admission there is the loopback
+/// bind, not a key, so no key leaf is claimed.
+pub(super) fn caller_auth_operator_plane() -> serde_json::Value {
+    serde_json::json!({"method": "operator_plane"})
+}
+
 // ---- Slice D-a: identity evidence on the event (gate + ledger see one value) ----
 
 const UNKNOWN: &str = "unknown";

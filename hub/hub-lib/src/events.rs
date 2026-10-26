@@ -120,6 +120,12 @@ pub enum MemberOfWithdrawnBy {
 /// `"unknown"` (Legion: `"unknown"` in place of an object fails open one level down). A fact that is known
 /// and empty is `"none"` (Sprout: "never acted" is a fact, not an unknown). `unknown` indexes the fields
 /// that are `"unknown"`.
+///
+/// **For law authors:** a positive condition (`allow if method == lct_vouched_operational_key`) fails
+/// closed on `"unknown"`; a negative one (`deny if method == member_key_pin`) fails OPEN on it. Write
+/// the negative form only together with a deny on `"unknown"`. Every act the hub originates names its
+/// own `caller_auth.method` (`hub_originated`, `operator_plane`), so in a correct hub `"unknown"` is a
+/// defect, and denying it costs no legitimate act (Legion, #933).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct IdentityEvidence {
     /// Which key authenticated the request (Slice C's `caller_auth`): `method`, plus the leaves for it.
