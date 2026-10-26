@@ -361,6 +361,15 @@ witnesses nothing new. It is a Slice D candidate.
     1795, 1862, 1920, 4984, 6433; the `rest/mailbox.rs` sites are test fixtures and `rest/routing.rs` only
     matches on it). D-a replaces them with **one constructor that always assembles the evidence**, so a bare
     literal is not the normal path.
+  - **The retry paths rebuild the event from the bare `act`** (CBP, re-review on a8f4052e). `land_act`
+    (`rest.rs:1732`) re-authorizes a stale tail with `ReferencedAct { act: act.clone(), on_behalf_of: None }`
+    (1741), `resume_send_op` (1782) rebuilds it the same way on crash-retry (1795), and `notify_citizen`
+    (1903) builds a hub-originated act with the Sovereign as actor (1920). When the field is added, `None` is
+    the shortest thing to type at each of them. So: `land_act` takes the **event**, not the `act`, and a
+    stale-tail retry re-gates through the constructor, landing the value that attempt's gate matched;
+    `resume_send_op` re-assembles through the constructor (the original event is not persisted); and
+    hub-originated acts **carry evidence for the Sovereign actor**, with no exempt list, because an exemption
+    is a `None` path by another name.
   - The ledger records the same value the gate matched. There is no second copy, so a rule cannot check one
     value while the record keeps another, and a replay re-derives the decision from the entry itself. (The
     previous revision's `evidence_digest` is dropped: it was there to name evidence the entry did not
@@ -470,6 +479,9 @@ witnesses nothing new. It is a Slice D candidate.
   - with `caller_auth` unresolved, a law `r6.request.payload.identity_evidence.caller_auth.method != <x>
     → deny` denies (the object keeps its shape, leaves `"unknown"`);
   - every `ReferencedAct` authorize/witness path carries `identity_evidence` (no new act with `None`);
+  - no non-test `ReferencedAct` reaches `authorize_event` or `witness_event` with `identity_evidence: None`,
+    including `notify_citizen`'s hub-originated act;
+  - a stale-tail retry in `land_act` lands `Some(evidence)` value-equal to what that attempt's gate matched;
   - evidence placed inside a caller-supplied `act` is not what the gate's `identity_evidence` selector reads;
   - the evidence on the ledger entry is value-equal to what the gate matched (the gate matches a
     `serde_yaml::Value`, the ledger stores the serialised event, so the bytes differ by format);
@@ -516,6 +528,12 @@ value) are taken into D-a, D2 and D3. §3 (the successor's consent) was already 
 idempotence (D-b + test); `"unknown"` at leaves only, structured fields keep their shape (D-a, D2, test);
 the field on the variant beside `on_behalf_of`, not in `act`, built by one constructor at all 7 production
 sites (D-a, D2, tests); "byte-identical" → "value-equal". Nova's FR5 review is the open gate.*
+
+*CBP's re-review (6414261872, on a8f4052e): MERGE, no doc blockers. Should-fix for D-a code taken: the
+fail-open one level up (`identity_evidence` itself `None`) on the `land_act` / `resume_send_op` /
+`notify_citizen` rebuild paths (sites verified on `origin/main`); `land_act` takes the event; hub-originated
+acts carry evidence rather than being exempt (HUB's choice between CBP's two options; flagged for review);
+two tests.*
 
 ## 7. Done
 
