@@ -292,6 +292,91 @@ witnesses nothing new. It is a Slice D candidate.
 - ledger->MRH projection;
 - rotation tests.
 
+#### Slice D design (2026-10-26, hub-claude; draft for review before code)
+
+**What exists, measured on HUB on 2026-10-26** (all 59 registry documents fetched one by one):
+- **Lifecycle is self-asserted.** `Lct.status` (`Active | Dormant | Void | Slashed`) is a field the publisher
+  writes into its own document. All 59 say `active`. No hub-witnessed lifecycle event exists, and no
+  `rotated` / `superseded` state exists in web4-core.
+- **Rotation is an unverified claim.** It's represented as a `rotated_from` MRH edge on the **new**
+  document (the publish route comment and `rotated_key_lands_as_a_distinct_identity…`), signed only by
+  the new key. Anyone can mint a document claiming to succeed anyone's LCT. **0 of 59** documents carry one
+  today, so nothing depends on the unverified form yet.
+- **MRH edges in documents:** 45 `parent`, 4 `sovereign_role`. Ledger facts that FR6 names (citizenship,
+  role occupancy, pairings, witnessing) are in the projection but are not exposed as MRH edges.
+- **The law gate sees no identity evidence.** `build_r6_request` passes `role` (sovereign | citizen),
+  `action` and `payload`. Slice C's `caller_auth` reaches the channel response, not the gate or the ledger.
+
+**Split into three, each reviewable alone:**
+
+**D-a: evidence to the gate and the ledger** (C3's deferral, FR5)
+- An `IdentityEvidence` value, assembled at request time by the resolver. It's **evidence, never a verdict**:
+  `{ caller_auth (C3), canonical, registry_version, claimed_status (the document's own, labelled self-asserted),
+  hub_observations: [superseded opkeys seen, member removed/re-keyed, …], unknown: [what could not be
+  resolved] }`. FR5's "unknown is not active" holds by construction: a missing fact is listed in `unknown`,
+  never defaulted.
+- **To the gate:** `R6Request` gains an optional `evidence` field (YAML/JSON, like `payload`). Default
+  law ignores it, so behaviour is unchanged. A society's law can match on it (for example, refuse
+  `referenced_act` when `caller_auth.method == member_key_pin` once that is law, which is C2's exit, or when
+  `claimed_status != active`).
+- **To the ledger:** consequential witnessed acts carry the evidence they relied on (accountability clause A).
+  First target: `ReferencedAct` gains an optional `caller_auth`, skip-if-none, so old entries keep their
+  bytes. That's the same pattern as `on_behalf_of`. Other events follow only where a reviewer names one.
+
+**D-b: verified rotation and the pin's exit**
+- **A rotation statement signed by the OLD binding key:**
+  `web4-lct-rotate-v1\n<hub>\n<old canonical>\n<new canonical>\n<issued_at>\n` (the H2 consent shape). The
+  hub witnesses `LctRotated {old, new, statement}` only when both documents are published and the old key's
+  signature verifies. The resolver then reports `successor` / `predecessor` as **verified**. A bare
+  `rotated_from` edge stays a self-claim, reported as `claimed_predecessor`.
+- **Member re-key** (`hub set-member-key`): a pin change moves the canonical id (Slice B derives it from the
+  pin). With a rotation statement it's lineage; without one, it's a new presence whose history is not linked.
+  It's evidence either way, never refused by C/D.
+- **Per-member pin refusal:** the C2 exit, earlier than law. A witnessed `ChannelPinRefused {member}` that the
+  member requests **over a channel authenticated by its vouched key**, so it can't lock itself out. It's
+  reversible the same way. After it, `caller_auth` can never be `member_key_pin` for that member.
+- **Consent key → `hub-channel`** (C's deferral): **no change in D.** The member-of consent key stays the key
+  that signed the edge (H2). Converging it is a re-report of the edge, which the member can already do. D
+  adds nothing here, and this paragraph exists so the question is closed, not lost.
+
+**D-c: MRH projection** (FR6)
+- A read-only `GET /v1/hubs/<hub>/lcts/<canonical>/mrh`, computed from the projection:
+  - citizenship and membership;
+  - role occupancy;
+  - pairings and introductions;
+  - member-of edges;
+  - witnessing (registry `witnessing` vouches plus witnessed acts).
+- No second store. Every edge carries the ledger index it came from, so a reader can check it.
+- It's kept separate from the document's own self-declared `mrh` (the 45 `parent` edges). The response
+  labels the two sources.
+
+**Decisions to confirm (defaults in bold):**
+
+| # | question | default | why |
+|---|---|---|---|
+| D1 | is the document's `status` lifecycle evidence? | **only as `claimed_status`, labelled self-asserted** | all 59 say active by default; a hub-observed fact and a self-claim must not read the same |
+| D2 | where evidence reaches the gate | **an optional `R6Request.evidence`; default law ignores it** | law decides; C2's exit becomes a law rule, not code |
+| D3 | which ledger events carry evidence first | **`ReferencedAct.caller_auth` only** | it is the consequential act the channel carries; the others are named per review |
+| D4 | how rotation is verified | **a statement signed by the old key, witnessed as `LctRotated`** | a `rotated_from` edge signed only by the new key proves nothing about the old one |
+| D5 | per-member pin refusal | **yes, witnessed, requested over a vouched-key channel, reversible the same way** | delivers C4's cold binding key to early movers without waiting for law |
+| D6 | re-rooting a canonical LCT onto a vault identity (`legacy_alias`, C4) | **out of D**; it needs its own design with Legion | it changes what "canonical" means for a member, not just evidence |
+| D7 | MRH projection writes anything? | **no: read-only, every edge cites a ledger index** | FR6: the ledger stays authoritative |
+
+**Tests (per sub-slice):**
+- **D-a:**
+  - the gate sees `evidence`, and default law is unchanged;
+  - a `ReferencedAct` carries `caller_auth`, old entries replay byte for byte;
+  - `unknown` lists a missing registry document instead of reporting active.
+- **D-b:**
+  - a rotation statement signed by the new key alone is refused;
+  - a verified one links `successor` both ways;
+  - pin refusal requires the vouched-key channel, and after it the pin no longer authenticates;
+  - reversal works.
+- **D-c:** each edge's ledger index resolves to the event it cites; nothing is written.
+
+**Not in D:** `opkey:v2` (C7 follow-up), the canonical re-root (D6), and any trust verdict. FR5: the resolver
+returns evidence, and law decides.
+
 ## 7. Done
 
 Done means Hub can answer, without guessing:
