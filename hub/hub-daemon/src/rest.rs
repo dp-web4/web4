@@ -1572,7 +1572,9 @@ async fn queue_sealed_notice_from(
     // Slice C, C6: seal to the recipient's vouched `hub-channel` key when one resolves, else its pin,
     // so a client that authenticates with the vouched key can also read its mailbox.
     let (pubkey, sealed_to_key) = match vouched {
-        Some(v) => { let h = v.key.to_hex(); (v.key, Some(h)) }
+        // keys[0]: the first usable vouched key in document order (the publisher's normal path vouches
+        // exactly one per purpose; see the PRD C-list on several keys).
+        Some(v) => { let k = v.keys[0].clone(); let h = k.to_hex(); (k, Some(h)) }
         None => match hex::decode(&pubkey_hex)
             .ok()
             .and_then(|b| <[u8; 32]>::try_from(b).ok())
@@ -4028,9 +4030,12 @@ async fn channel_request(
     // Open = authenticate (AEAD proves key possession) + decrypt, in one step. The key that opened is
     // the caller's key for this request: the response is sealed back to it, and it is the evidence.
     let opened = |key: &web4_core::crypto::PublicKey| s.signer.channel_open(key, req.pair_id, &req.sealed).ok();
-    let vouched_open = vouched.as_ref().and_then(|v| opened(&v.key).map(|p| (v, p)));
-    let (caller_pubkey, plaintext, mut caller_auth) = if let Some((v, p)) = vouched_open {
-        (v.key.clone(), p, channel_auth::caller_auth_lct(v))
+    // Every usable vouched key is tried, in document order (CBP #928 finding 3), then the pin.
+    let vouched_open = vouched.as_ref().and_then(|v| v.keys.iter()
+        .find_map(|k| opened(k).map(|p| (v, k.clone(), p))));
+    let (caller_pubkey, plaintext, mut caller_auth) = if let Some((v, k, p)) = vouched_open {
+        let auth = channel_auth::caller_auth_lct(v, &k);
+        (k, p, auth)
     } else if let Some(pin) = &pinned {
         let p = opened(pin).ok_or_else(|| ApiError::unauthorized(
             "channel authentication/decryption failed".to_string()))?;
@@ -9691,17 +9696,25 @@ async fn publish_lct(
     // has already SUPERSEDED (a later accepted version introduced a never-carried key for the purpose)
     // is refused before it is witnessed, or an old public document would restore a rotated-away key.
     // Removal-only drops are not covered here (opkey:v2 follow-up); see the PRD's C7 cost note.
-    if let Ok(canonical) = hub_lib::ids::CanonicalLctId::parse(&lct_id) {
-        if let Some((purpose, key)) = projected.opkey_rollback(&canonical, &payload.document) {
-            return Err(ApiError {
-                status: StatusCode::CONFLICT,
-                message: format!(
-                    "opkey_superseded: the document vouches {purpose} key {key}, which a later accepted \
-                     version of {lct_id} superseded; replaying an older document cannot restore it \
-                     (mint and vouch a new key instead)"),
-            });
+    // Checked twice: here, to refuse early, and again under the ledger lock that builds the entry
+    // (`commit_pair_event_checked`), so a publish that lands in between cannot slip a replay through.
+    let rollback_check = {
+        let (doc, lct_id) = (payload.document.clone(), lct_id.clone());
+        move |st: &HubState| -> Result<(), ApiError> {
+            let Ok(canonical) = hub_lib::ids::CanonicalLctId::parse(&lct_id) else { return Ok(()) };
+            match st.opkey_rollback(&canonical, &doc) {
+                Some((purpose, key)) => Err(ApiError {
+                    status: StatusCode::CONFLICT,
+                    message: format!(
+                        "opkey_superseded: the document vouches {purpose} key {key}, which a later accepted \
+                         version of {lct_id} superseded; replaying an older document cannot restore it \
+                         (mint and vouch a new key instead)"),
+                }),
+                None => Ok(()),
+            }
         }
-    }
+    };
+    rollback_check(&projected)?;
 
     let event = HubEvent::LctPublished {
         lct_id: lct_id.clone(),
@@ -9738,7 +9751,7 @@ async fn publish_lct(
     }
     drop(law_guard);
 
-    let (entry_index, entry_hash) = commit_pair_event(&s, event).await?;
+    let (entry_index, entry_hash) = commit_pair_event_checked(&s, event, &rollback_check).await?;
     Ok(Json(LctPublishAccepted { lct_id, version, entry_index, entry_hash }))
 }
 
@@ -9833,6 +9846,15 @@ async fn list_lcts(
 }
 
 async fn commit_pair_event(s: &RestState, event: HubEvent) -> Result<(u64, String), ApiError> {
+    commit_pair_event_checked(s, event, |_| Ok(())).await
+}
+
+/// [`commit_pair_event`] with a precondition re-checked against the projection taken UNDER the same
+/// ledger lock that builds the entry. Anything witnessed after the build makes `append_signed` refuse
+/// the stale tail, so the check and the append see the same ledger. Slice C, C7: the rollback guard's
+/// route check otherwise raced a concurrent publish (CBP, Sprout and Legion on #928).
+async fn commit_pair_event_checked(s: &RestState, event: HubEvent,
+    check: impl Fn(&HubState) -> Result<(), ApiError>) -> Result<(u64, String), ApiError> {
     // HUB-001: pair lifecycle events are governed writes — refuse on law mismatch.
     s.ensure_law_integrity_for_write().await?;
     let event_kind_str = event.kind().to_string();
@@ -9840,6 +9862,7 @@ async fn commit_pair_event(s: &RestState, event: HubEvent) -> Result<(u64, Strin
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
     let (unsigned, intent) = {
         let ledger = s.ledger.lock().await;
+        check(&s.projected(&ledger))?;
         let unsigned = ledger.build_entry(s.sovereign_lct_id, event.clone(), Utc::now())
             .map_err(ApiError::internal)?;
         let intent = SignIntent {
@@ -11703,6 +11726,96 @@ norms:
         assert_eq!(r.caller_auth["method"], "lct_vouched_operational_key");
         assert_eq!(r.caller_auth["version"], serde_json::json!(2));
         assert!(r.caller_auth.get("notes").is_none(), "{}", r.caller_auth);
+    }
+
+    /// A member's document with `hub-channel` vouches exactly `keys`; returns (member, binding, lct_id, doc base).
+    async fn slice_c_member_keys(state: &RestState, keys: &[&KeyPair])
+        -> (Uuid, KeyPair, String, web4_core::lct::Lct) {
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (mut base, binding) = web4_core::lct::Lct::new(web4_core::lct::EntityType::Human, None);
+        base.sign_binding(&binding);
+        let member = Uuid::new_v4();
+        admin_add_member(State(state.clone()), ConnectInfo(lo), Json(AddMemberBody {
+            lct_id: member, pubkey_hex: binding.verifying_key().to_hex(), name: None })).await.unwrap();
+        let lct_id = web4_core::lct::derive_lct_id(&base.public_key);
+        slice_c_land(state, member, &lct_id, &slice_c_doc(&base, &binding, keys)).await;
+        (member, binding, lct_id, base)
+    }
+
+    fn slice_c_doc(base: &web4_core::lct::Lct, binding: &KeyPair, keys: &[&KeyPair]) -> web4_core::lct::Lct {
+        let mut doc = base.clone();
+        doc.operational_keys.clear();
+        for k in keys {
+            let mut one = base.clone();
+            one.authorize_operational_key(web4_core::lct::HUB_CHANNEL_PURPOSE, k.verifying_key(), binding);
+            doc.operational_keys.extend(one.operational_keys);
+        }
+        doc
+    }
+
+    /// Land a document straight into the ledger, bypassing the publish route (as a race or any other
+    /// path that witnesses `LctPublished` without the route check would).
+    async fn slice_c_land(state: &RestState, member: Uuid, lct_id: &str, doc: &web4_core::lct::Lct) {
+        witness_event(state, HubEvent::LctPublished { lct_id: lct_id.to_string(), document: doc.clone(),
+            published_by: member, provenance: hub_lib::events::LctProvenance::SelfIssued,
+            published_at: Utc::now() }).await.unwrap();
+    }
+
+    /// CBP #928 finding 1, C7 at the point of use: `{K0}`, `{K1}`, `{K0}` landed in that order (the route
+    /// check bypassed, as by a race) leaves `{K0}` as the current document, but K0 was superseded. It must
+    /// not authenticate or receive notices; the pin does, with a note.
+    #[tokio::test]
+    async fn slice_c_a_superseded_key_is_never_used_whatever_order_the_ledger_landed_in() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (k0, k1) = (KeyPair::generate(), KeyPair::generate());
+        let (m, binding, lct_id, base) = slice_c_member_keys(&state, &[&k0]).await;
+        slice_c_land(&state, m, &lct_id, &slice_c_doc(&base, &binding, &[&k1])).await;
+        slice_c_land(&state, m, &lct_id, &slice_c_doc(&base, &binding, &[&k0])).await;
+
+        assert!(slice_c_call(&state, m, &k0).await.0.is_err(), "a superseded key never authenticates");
+        let r = slice_c_call(&state, m, &binding).await.0.expect("the pin does");
+        assert_eq!(r.caller_auth["method"], "member_key_pin");
+        assert!(r.caller_auth["notes"][0].as_str().unwrap().contains("superseded"), "{}", r.caller_auth);
+        assert!(queue_sealed_notice(&state, m, Uuid::new_v4(), "coordination", "forum/z.md", b"x").await);
+        let n = state.mailbox_legacy_drain(m).await.unwrap().remove(0);
+        assert!(n.sealed_to_key.is_none(), "no notice is sealed to a superseded key");
+    }
+
+    /// CBP #928 finding 3: a document vouching several valid `hub-channel` keys authenticates any of them.
+    #[tokio::test]
+    async fn slice_c_every_valid_vouched_key_authenticates() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (k0, k1) = (KeyPair::generate(), KeyPair::generate());
+        let (m, _binding, _, _) = slice_c_member_keys(&state, &[&k0, &k1]).await;
+        for k in [&k0, &k1] {
+            let r = slice_c_call(&state, m, k).await.0.expect("each vouched key authenticates");
+            assert_eq!(r.caller_auth["key"], serde_json::json!(k.verifying_key().to_hex()));
+        }
+    }
+
+    /// The C7 race fix: `commit_pair_event_checked` runs its check against the projection taken under
+    /// the build lock, so it sees an event witnessed after the caller's earlier read; a refusal appends
+    /// nothing.
+    #[tokio::test]
+    async fn slice_c_the_checked_commit_sees_the_ledger_at_build_time() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (k0, k1) = (KeyPair::generate(), KeyPair::generate());
+        let (m, binding, lct_id, base) = slice_c_member_keys(&state, &[&k0]).await;
+        let stale = { let l = state.ledger.lock().await; state.projected(&l) };
+        // A rotation lands after the stale read.
+        slice_c_land(&state, m, &lct_id, &slice_c_doc(&base, &binding, &[&k1])).await;
+        let replay = slice_c_doc(&base, &binding, &[&k0]);
+        let canonical = hub_lib::ids::CanonicalLctId::parse(&lct_id).unwrap();
+        assert!(stale.opkey_rollback(&canonical, &replay).is_none(), "the stale read would let it through");
+        let before = state.ledger.lock().await.entries().len();
+        let event = HubEvent::LctPublished { lct_id: lct_id.clone(), document: replay.clone(),
+            published_by: m, provenance: hub_lib::events::LctProvenance::SelfIssued, published_at: Utc::now() };
+        let err = commit_pair_event_checked(&state, event, |st: &HubState| match st.opkey_rollback(&canonical, &replay) {
+            Some(_) => Err(ApiError::conflict("opkey_superseded: test")),
+            None => Ok(()),
+        }).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::CONFLICT);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing appended");
     }
 
     /// C6: a hub-originated notice to a member with a vouched key is sealed to that key and names it; a
