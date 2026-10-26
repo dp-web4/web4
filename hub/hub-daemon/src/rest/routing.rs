@@ -545,7 +545,7 @@ pub(super) async fn act_as_replay(s: &RestState, state: &HubState, act: &web4_co
     let same = {
         let ledger = s.ledger.lock().await;
         ledger.entries().iter().find(|e| e.index == index).and_then(|e| match &e.event {
-            HubEvent::ReferencedAct { act: prev, on_behalf_of: Some(prev_as) } =>
+            HubEvent::ReferencedAct { act: prev, on_behalf_of: Some(prev_as), .. } =>
                 Some(prev_as.statement(s.hub_id, prev) == act_as.statement(s.hub_id, act)),
             _ => None,
         }).unwrap_or(false)

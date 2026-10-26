@@ -110,6 +110,68 @@ pub enum MemberOfWithdrawnBy {
     Member { of: String, consent: crate::routing::Consent },
 }
 
+/// LCT identity convergence Slice D-a: what the hub knows about an act's actor, assembled at witness
+/// time. **Evidence, never a verdict:** law decides what it licenses (FR5).
+///
+/// **Every field is always present, and every leaf is a string.** A fact the hub could not resolve is
+/// the literal `"unknown"`, never omitted and never null, because a law condition on an absent field
+/// fails open (`Condition::matches` is false on a selector that resolves to nothing, so `!= active`
+/// would not fire). A structured field that cannot be resolved keeps its shape, with every leaf
+/// `"unknown"` (Legion: `"unknown"` in place of an object fails open one level down). A fact that is known
+/// and empty is `"none"` (Sprout: "never acted" is a fact, not an unknown). `unknown` indexes the fields
+/// that are `"unknown"`.
+///
+/// **For law authors:** a positive condition (`allow if method == lct_vouched_operational_key`) fails
+/// closed on `"unknown"`; a negative one (`deny if method == member_key_pin`) fails OPEN on it. Write
+/// the negative form only together with a deny on `"unknown"`. Every act the hub originates names its
+/// own `caller_auth.method` (`hub_originated`, `operator_plane`), so in a correct hub `"unknown"` is a
+/// defect, and denying it costs no legitimate act (Legion, #933).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IdentityEvidence {
+    /// Which key authenticated the request (Slice C's `caller_auth`): `method`, plus the leaves for it.
+    pub caller_auth: CallerAuthEvidence,
+    /// The actor's current canonical LCT (Slice B), or `"unknown"`.
+    pub canonical: String,
+    /// The registry version the document was read at, or `"unknown"`.
+    pub registry_version: String,
+    /// The document's OWN `status` (`active` | `dormant` | `void` | `slashed`): self-asserted, so a
+    /// self-asserted `active` is worth nothing.
+    pub claimed_status: String,
+    /// `"true"` when `claimed_status` is non-active: a claim against the member's own interest, which
+    /// law MAY honour without trusting the positive case. `"false"` for `active`; `"unknown"` if unknown.
+    pub against_interest: String,
+    pub hub_observations: HubObservations,
+    /// Paths of the leaves that are `"unknown"`, e.g. `["caller_auth", "canonical"]`.
+    pub unknown: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CallerAuthEvidence {
+    /// `lct_vouched_operational_key` | `member_key_pin` | `self_vouched_external` | `unknown`.
+    pub method: String,
+    pub canonical: String,
+    pub purpose: String,
+    pub key: String,
+    pub version: String,
+    pub member: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HubObservations {
+    /// The newest witnessed act by this actor, as carrier or as speaker via `on_behalf_of` (Sprout:
+    /// beings' acts are often relayed). Liveness is reported only as this raw fact, never as a derived
+    /// `dormant`: silence is not dormancy.
+    pub last_witnessed_act: LastWitnessedAct,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LastWitnessedAct {
+    /// Ledger index, or `"none"` (never acted), or `"unknown"`.
+    pub index: String,
+    /// RFC 3339, or `"none"` / `"unknown"` with `index`.
+    pub at: String,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum HubEvent {
@@ -791,6 +853,13 @@ pub enum HubEvent {
         /// other act, and on every entry written before H5, so their bytes are unchanged.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         on_behalf_of: Option<crate::routing::ActAs>,
+        /// LCT identity convergence Slice D-a: the identity evidence this act was gated on, assembled
+        /// by the hub at witness time. Beside `on_behalf_of`, never inside `act` (the caller supplies
+        /// `act`, so evidence there could be forged). It is in the event, so the law gate (which sees
+        /// the whole event as its payload) and the ledger see the same value. `None` only on entries
+        /// written before D-a, whose bytes are unchanged; every new act carries it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        identity_evidence: Option<IdentityEvidence>,
     },
 
     /// R7 reputation back-propagation: a role-contextualized trust/value delta
@@ -1101,10 +1170,26 @@ mod tests {
 
         // ...and the inner act bytes survive the wrap/unwrap unchanged (verbatim payload).
         let value_before: serde_json::Value = serde_json::from_str(act_json).unwrap();
-        let event = HubEvent::ReferencedAct { act, on_behalf_of: None };
+        let event = HubEvent::ReferencedAct { act, on_behalf_of: None, identity_evidence: None };
         assert_eq!(event.kind(), "referenced_act");
         let HubEvent::ReferencedAct { act: unwrapped, .. } = &event else { unreachable!() };
         assert_eq!(serde_json::to_value(unwrapped).unwrap(), value_before);
+    }
+
+    /// Slice D-a: an entry written before identity evidence existed keeps its bytes. It has no
+    /// `identity_evidence` key, parses with `None`, and re-serializes identically, so its signature
+    /// still verifies. Only new entries carry the field.
+    #[test]
+    fn referenced_act_without_identity_evidence_keeps_its_bytes() {
+        let act = Act::addressed(Uuid::nil(), web4_core::act::ActAddress::Citizen { lct_id: Uuid::nil() },
+            "notify:x", web4_core::act::SubstanceRef::new("x", "sha256-content:00",
+                web4_core::act::SubstanceMedium::Message), chrono::DateTime::UNIX_EPOCH);
+        let old = serde_json::to_string(&HubEvent::ReferencedAct {
+            act, on_behalf_of: None, identity_evidence: None }).unwrap();
+        assert!(!old.contains("identity_evidence"), "{old}");
+        let back: HubEvent = serde_json::from_str(&old).unwrap();
+        assert!(matches!(&back, HubEvent::ReferencedAct { identity_evidence: None, .. }));
+        assert_eq!(serde_json::to_string(&back).unwrap(), old);
     }
 
     /// The list and the function must not drift apart.
