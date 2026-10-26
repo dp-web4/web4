@@ -1801,13 +1801,13 @@ impl HubState {
         }
     }
 
-    /// C7, the publish-route check: the first validly vouched `(purpose, pubkey_hex)` in `doc` that
-    /// this LCT has already superseded, if any. Such a document is refused before it is witnessed.
     /// Slice D-b1: the index of the `LctRotated` that witnessed `old → new`, if that pair was folded.
     pub fn rotation_index(&self, old: &crate::ids::CanonicalLctId, new: &crate::ids::CanonicalLctId) -> Option<u64> {
         self.lct_successors.get(old)?.iter().find(|(n, _)| n == new).map(|(_, i)| *i)
     }
 
+    /// C7, the publish-route check: the first validly vouched `(purpose, pubkey_hex)` in `doc` that
+    /// this LCT has already superseded, if any. Such a document is refused before it is witnessed.
     pub fn opkey_rollback(&self, id: &crate::ids::CanonicalLctId, doc: &web4_core::lct::Lct)
         -> Option<(String, String)> {
         let superseded = self.superseded_opkeys.get(id)?;

@@ -21,6 +21,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use web4_core::crypto::SignatureBytes;
+use web4_core::lct::LctStatus;
 
 use crate::ids::CanonicalLctId;
 use crate::routing::{CLOCK_SKEW_SECS, CONSENT_MAX_AGE_SECS};
@@ -60,6 +61,24 @@ impl RotationStatement {
             .ok_or_else(|| format!("{} (old) is not published here", self.old))?;
         let new_doc = state.registry.get(&self.new)
             .ok_or_else(|| format!("{} (new) is not published here", self.new))?;
+        // CBP #934: a rotation is a planned hand-over between two LIVE identities. An old LCT whose current
+        // document says it is no longer active (void, slashed, dormant) has withdrawn its key's authority,
+        // so a leaked binding key cannot hand its history to an attacker's LCT after the revocation. A
+        // non-active successor is refused likewise. The status is the document's own (self-asserted), and
+        // honouring a self-declared non-active status here is the against-interest direction (D-a).
+        for (which, id, doc) in [("old", &self.old, old_doc), ("new", &self.new, new_doc)] {
+            if doc.document.status != LctStatus::Active {
+                return Err(format!("{id} ({which}) is not active (its current document says {:?}); \
+                    a rotation needs both LCTs active", doc.document.status));
+            }
+        }
+        // Legion #934: no cycles. A `new` that already has a witnessed successor is itself rotated away, so
+        // naming it would close a loop (A→B, B→A) in which neither key reads as current. Because every
+        // canonical in a chain except its tip has a successor, refusing this one hop rules out any cycle.
+        if state.lct_successors.get(&self.new).is_some_and(|v| !v.is_empty()) {
+            return Err(format!("{} (new) has already been rotated away; a rotation cannot name a superseded \
+                LCT as its successor", self.new));
+        }
         let at = DateTime::parse_from_rfc3339(&self.issued_at)
             .map_err(|_| format!("issued_at '{}' is not RFC 3339", self.issued_at))?;
         if at.offset().local_minus_utc() != 0 {

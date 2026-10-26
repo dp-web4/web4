@@ -9790,13 +9790,28 @@ struct LctRotateAccepted {
     replayed: bool,
 }
 
+/// The rotation route's check under the build lock (CBP #934, the #933 shape): against the ledger the
+/// entry extends, (1) a pair that already landed is answered as a replay (`rotation_exists:<index>`), and
+/// (2) the statement is verified AGAIN, so a revocation, or a rotation away from `new`, landing between
+/// the route's first verify and the append is seen.
+fn rotation_commit_check(st: hub_lib::lct_rotation::RotationStatement, hub: Uuid)
+    -> impl Fn(&HubState) -> Result<(), ApiError> {
+    move |state: &HubState| {
+        if let Some(i) = state.rotation_index(&st.old, &st.new) {
+            return Err(ApiError { status: StatusCode::CONFLICT, message: format!("rotation_exists:{i}") });
+        }
+        st.verify(state, hub, Utc::now()).map(|_| ())
+            .map_err(|e| ApiError { status: StatusCode::FORBIDDEN, message: format!("lct_rotate refused: {e}") })
+    }
+}
+
 /// `POST /v1/hubs/:hub_id/lcts/rotate`: witness a verified rotation (`LctRotated`).
 ///
 /// surface: rotate_lct   act: link two published LCTs as predecessor → successor in the ledger
 /// S: med/irreversible [construct: an append-only lineage edge; a later fork is evidence beside it, never a rewrite]
 /// R: pass [construct: pair_endpoint_preamble, the envelope signed by a pinned member or the Sovereign]
 /// W: pass [construct: RotationStatement::verify, BOTH binding keys read from the registry sign the statement]
-/// O: pass [construct: verify + hub law before commit_pair_event_checked; re-verified under the build lock]
+/// O: pass [construct: rotation_commit_check (idempotence + RotationStatement::verify) runs under the build lock, against the ledger the entry extends; verify + hub law also run before it]
 /// A: pass [construct: LctRotated carries the statement and both signatures, re-verifiable from the ledger]
 /// V: present [construct: hub law Deny/Escalate on lct_rotated; the 600 s issued_at window]
 /// verdict: PASS
@@ -9842,14 +9857,7 @@ async fn rotate_lct(
     }
     drop(law_guard);
 
-    // Under the build lock: a concurrent submission of the same pair must not land twice. Its
-    // refusal is answered with the index that did land, as a replay.
-    let (old, new) = (st.old.clone(), st.new.clone());
-    let once = move |state: &HubState| match state.rotation_index(&old, &new) {
-        Some(i) => Err(ApiError { status: StatusCode::CONFLICT, message: format!("rotation_exists:{i}") }),
-        None => Ok(()),
-    };
-    match commit_pair_event_checked(&s, event, Some(once)).await {
+    match commit_pair_event_checked(&s, event, Some(rotation_commit_check(st.clone(), s.hub_id))).await {
         Ok((entry_index, _)) => Ok(accepted(entry_index, false)),
         Err(e) => match e.message.strip_prefix("rotation_exists:").and_then(|i| i.parse().ok()) {
             Some(index) => Ok(accepted(index, true)),
@@ -10913,6 +10921,74 @@ norms:
         let lb = d_b1_lineage(&state, &b).await;
         assert!(lb.claimed_predecessors.is_empty(), "now backed");
         assert_eq!(lb.predecessors.len(), 1);
+    }
+
+    /// Publish a fresh LCT; return its document and key too, so a test can republish it with a new status.
+    async fn d_b1_publish_doc(state: &RestState, sov: &IdentityFile) -> (Lct, KeyPair, hub_lib::ids::CanonicalLctId) {
+        let (doc, binding, lct_id) = publishable_lct(EntityType::Human);
+        let env = publish_envelope(state, sov, payload_for(&doc, &lct_id, sov.lct.id, "self_issued"));
+        publish_lct(State(state.clone()), Path(state.hub_id), Json(env)).await.expect("published");
+        (doc, binding, hub_lib::ids::CanonicalLctId::parse(&lct_id).unwrap())
+    }
+
+    async fn d_b1_set_status(state: &RestState, sov: &IdentityFile, doc: &Lct, id: &hub_lib::ids::CanonicalLctId,
+        status: web4_core::lct::LctStatus) {
+        let mut d = doc.clone();
+        d.status = status;
+        let env = publish_envelope(state, sov, payload_for(&d, id.as_str(), sov.lct.id, "self_issued"));
+        publish_lct(State(state.clone()), Path(state.hub_id), Json(env)).await.expect("republished");
+    }
+
+    /// CBP #934: a leaked old key cannot hand a revoked identity to anyone. A non-active old (or new)
+    /// LCT is refused with nothing witnessed, and so is a revocation that lands between the route's first
+    /// verify and the append (the check runs again under the build lock, as #933's does).
+    #[tokio::test]
+    async fn slice_d_b1_a_revoked_lct_cannot_be_rotated_even_mid_flight() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (da, ka, a) = d_b1_publish_doc(&state, &sov).await;
+        let (db, kb, b) = d_b1_publish_doc(&state, &sov).await;
+        let now = Utc::now().to_rfc3339();
+
+        d_b1_set_status(&state, &sov, &da, &a, web4_core::lct::LctStatus::Slashed).await;
+        let before = state.ledger.lock().await.entries().len();
+        let err = d_b1_rotate(&state, &sov, &a, &b, &ka, &kb, &now).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("not active"), "{}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing witnessed");
+        d_b1_set_status(&state, &sov, &da, &a, web4_core::lct::LctStatus::Active).await;
+
+        d_b1_set_status(&state, &sov, &db, &b, web4_core::lct::LctStatus::Void).await;
+        assert!(d_b1_rotate(&state, &sov, &a, &b, &ka, &kb, &now).await.unwrap_err().message.contains("(new) is not active"));
+        d_b1_set_status(&state, &sov, &db, &b, web4_core::lct::LctStatus::Active).await;
+
+        // Mid-flight: the statement verifies now; the old LCT revokes before the append.
+        let bytes = hub_lib::lct_rotation::rotation_bytes(state.hub_id, &a, &b, &now);
+        let st = hub_lib::lct_rotation::RotationStatement { old: a.clone(), new: b.clone(), issued_at: now.clone(),
+            old_signature_hex: hex::encode(ka.sign(&bytes).bytes), new_signature_hex: hex::encode(kb.sign(&bytes).bytes) };
+        { let l = state.ledger.lock().await; st.verify(&HubState::project(&*l), state.hub_id, Utc::now()).expect("verifies now"); }
+        d_b1_set_status(&state, &sov, &da, &a, web4_core::lct::LctStatus::Void).await;
+        let len = state.ledger.lock().await.entries().len();
+        let event = HubEvent::LctRotated { old: a.to_string(), new: b.to_string(), issued_at: now.clone(),
+            old_signature_hex: st.old_signature_hex.clone(), new_signature_hex: st.new_signature_hex.clone(),
+            submitted_by: sov.lct.id };
+        let err = commit_pair_event_checked(&state, event, Some(rotation_commit_check(st, state.hub_id))).await
+            .unwrap_err();
+        assert_eq!(err.status, StatusCode::FORBIDDEN, "{}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), len, "nothing landed");
+    }
+
+    /// Legion #934: no cycles. After A→B, B→A is refused (A is already rotated away), so a key never ends
+    /// up reading its own successor's successor.
+    #[tokio::test]
+    async fn slice_d_b1_a_rotation_cannot_close_a_cycle() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (ka, a) = d_b1_publish(&state, &sov).await;
+        let (kb, b) = d_b1_publish(&state, &sov).await;
+        let now = Utc::now().to_rfc3339();
+        d_b1_rotate(&state, &sov, &a, &b, &ka, &kb, &now).await.expect("A→B");
+        let err = d_b1_rotate(&state, &sov, &b, &a, &kb, &ka, &now).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("already been rotated away"), "{}", err.message);
     }
 
     #[tokio::test]
