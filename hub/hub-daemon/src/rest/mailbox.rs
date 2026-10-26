@@ -436,7 +436,7 @@ mod tests {
     fn notice() -> SealedNotice {
         SealedNotice { pair_id: Uuid::new_v4(), from: Uuid::new_v4(), sealed: "opaque".into(),
             kind: "test".into(), pointer_uri: "test".into(), queued_at: Utc::now(), sealed_by: None,
-            for_lct: None, sealed_to: None, from_lct: None }
+            for_lct: None, sealed_to: None, sealed_to_key: None, from_lct: None }
     }
     fn sql(tmp: &tempfile::TempDir, query: &str) {
         rusqlite::Connection::open(tmp.path().join("hub/hub.db")).unwrap().execute_batch(query).unwrap();
@@ -477,7 +477,7 @@ mod tests {
         let back: SealedNotice = serde_json::from_str(&json).unwrap();
         assert_eq!(notice_id(Uuid::nil(), &back), notice_id(Uuid::nil(), &n));
         let r = routed(Some("lct:web4:mb32:bx"), "p");
-        assert_ne!(notice_id(Uuid::nil(), &r), notice_id(Uuid::nil(), &SealedNotice { for_lct: None, sealed_to: None, from_lct: None, ..r.clone() }),
+        assert_ne!(notice_id(Uuid::nil(), &r), notice_id(Uuid::nil(), &SealedNotice { for_lct: None, sealed_to: None, sealed_to_key: None, from_lct: None, ..r.clone() }),
             "a routed notice's destination is part of what its id commits to");
     }
 

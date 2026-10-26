@@ -26,6 +26,7 @@
 //!   Step 3, not here.
 //! - Authority/need-to-know on reads is V2-8.
 
+mod channel_auth;
 mod mailbox;
 mod routing;
 mod unlock;
@@ -321,6 +322,12 @@ pub struct SealedNotice {
     /// `None` on every other notice, omitted from the JSON, so their `notice_id`s are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from_lct: Option<String>,
+    /// LCT identity convergence Slice C, C6: the key a HUB-sealed notice was sealed to, when it is the
+    /// recipient's vouched `hub-channel` key rather than its pin, so a client holding several keys knows
+    /// which one opens it. `None` on the pin path, and omitted from the JSON, so every legacy notice and
+    /// its content-derived `notice_id` are byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sealed_to_key: Option<String>,
 }
 
 /// Cached projection: a folded `HubState` plus the ledger position it reflects.
@@ -1551,21 +1558,29 @@ async fn queue_sealed_notice_from(
     s: &RestState, recipient: Uuid, from: Uuid, from_lct: Option<&str>, kind: &str, pointer_uri: &str,
     body: &[u8],
 ) -> bool {
-    let pubkey_hex = {
+    let sovereign = channel_auth::sovereign_key(s);
+    let (pubkey_hex, vouched) = {
         let ledger = s.ledger.lock().await;
-        s.projected(&ledger).member_pubkeys.get(&recipient).cloned()
+        let state = s.projected(&ledger);
+        (state.member_pubkeys.get(&recipient).cloned(),
+         channel_auth::vouched_channel_key(&state, recipient, sovereign.as_ref()).0)
     };
     let Some(pubkey_hex) = pubkey_hex else {
         tracing::warn!("queue_sealed_notice: no pinned pubkey for {recipient}; notice dropped");
         return false;
     };
-    let pubkey = match hex::decode(&pubkey_hex)
-        .ok()
-        .and_then(|b| <[u8; 32]>::try_from(b).ok())
-        .and_then(|a| web4_core::crypto::PublicKey::from_bytes(&a).ok())
-    {
-        Some(pk) => pk,
-        None => { tracing::warn!("queue_sealed_notice: bad pubkey for {recipient}"); return false; }
+    // Slice C, C6: seal to the recipient's vouched `hub-channel` key when one resolves, else its pin,
+    // so a client that authenticates with the vouched key can also read its mailbox.
+    let (pubkey, sealed_to_key) = match vouched {
+        Some(v) => { let h = v.key.to_hex(); (v.key, Some(h)) }
+        None => match hex::decode(&pubkey_hex)
+            .ok()
+            .and_then(|b| <[u8; 32]>::try_from(b).ok())
+            .and_then(|a| web4_core::crypto::PublicKey::from_bytes(&a).ok())
+        {
+            Some(pk) => (pk, None),
+            None => { tracing::warn!("queue_sealed_notice: bad pubkey for {recipient}"); return false; }
+        },
     };
     let pair_id = Uuid::new_v4();
     let sealed = match s.signer.channel_seal(&pubkey, pair_id, body) {
@@ -1582,7 +1597,7 @@ async fn queue_sealed_notice_from(
         queued_at: Utc::now(),
         sealed_by: None,
         for_lct: None,
-        sealed_to: None, from_lct: from_lct.map(str::to_string),
+        sealed_to: None, from_lct: from_lct.map(str::to_string), sealed_to_key,
     }).await {
         Ok(_) => true,
         Err(e) => {
@@ -2623,7 +2638,7 @@ pub async fn operator_auth_gate(
 /// `issued_at_outside_window`) from "refused" without parsing prose.
 const ERROR_CODES: &[&str] = &["no_route", "router_mailbox_full", "child_share_full",
     "recipient_mailbox_full", "not_the_router", "stale_epoch", "issued_at_outside_window",
-    "bad_child_signature", "act_id_conflict"];
+    "bad_child_signature", "act_id_conflict", "opkey_superseded"];
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
@@ -3843,6 +3858,11 @@ struct ChannelRequest {
 #[derive(Serialize)]
 struct ChannelResponse {
     sealed: String,
+    /// LCT identity convergence Slice C (C3): which key authenticated this request:
+    /// `lct_vouched_operational_key` (with canonical, purpose, key, registry version),
+    /// `member_key_pin` (the compatibility path) or `self_vouched_external`; plus `notes` (C5).
+    /// Outside the seal: it names public keys and ids, nothing secret. Old clients ignore it.
+    caller_auth: serde_json::Value,
 }
 
 /// The decrypted inner request: a tool name + free-form args, mirroring the
@@ -3991,27 +4011,50 @@ async fn channel_request(
     // external caller (not yet a member) self-vouches one in caller_pubkey_hex,
     // which only unlocks the request_citizenship action below. A successful
     // channel_open authenticates either way (only the key holder could seal).
-    let caller_pubkey = {
+    let pinned = {
         let resolver = s.resolver.read().await;
-        match resolver.lookup(req.caller_lct_id).map(|lct| lct.public_key) {
-            Some(pinned) => pinned,
-            None => match req.caller_pubkey_hex.as_deref() {
+        resolver.lookup(req.caller_lct_id).map(|lct| lct.public_key)
+    };
+    // LCT identity convergence Slice C: a member whose canonical LCT vouches a `hub-channel` key is
+    // tried with THAT key first, then with its pin (C2). The document is read from the projection at
+    // request time, so a rotation takes effect on the first request after it is projected.
+    let (vouched, auth_note) = if pinned.is_some() {
+        let state = { let l = s.ledger.lock().await; s.projected(&l) };
+        channel_auth::vouched_channel_key(&state, req.caller_lct_id, channel_auth::sovereign_key(&s).as_ref())
+    } else {
+        (None, None)
+    };
+
+    // Open = authenticate (AEAD proves key possession) + decrypt, in one step. The key that opened is
+    // the caller's key for this request: the response is sealed back to it, and it is the evidence.
+    let opened = |key: &web4_core::crypto::PublicKey| s.signer.channel_open(key, req.pair_id, &req.sealed).ok();
+    let vouched_open = vouched.as_ref().and_then(|v| opened(&v.key).map(|p| (v, p)));
+    let (caller_pubkey, plaintext, mut caller_auth) = if let Some((v, p)) = vouched_open {
+        (v.key.clone(), p, channel_auth::caller_auth_lct(v))
+    } else if let Some(pin) = &pinned {
+        let p = opened(pin).ok_or_else(|| ApiError::unauthorized(
+            "channel authentication/decryption failed".to_string()))?;
+        (pin.clone(), p, channel_auth::caller_auth_pin(req.caller_lct_id, pin))
+    } else {
+        {
+            // An external caller (not yet a member) self-vouches a key, which only unlocks the
+            // request_citizenship action below (unchanged).
+            let key = match req.caller_pubkey_hex.as_deref() {
                 Some(hex) => hub_lib::hub::hestia_sovereign_lct(req.caller_lct_id, hex)
                     .map_err(|e| ApiError::bad_request(format!("invalid caller_pubkey_hex: {e}")))?
                     .public_key,
                 None => return Err(ApiError::unauthorized(
                     "caller LCT not known to this hub — include caller_pubkey_hex to request citizenship".to_string(),
                 )),
-            },
+            };
+            let p = opened(&key).ok_or_else(|| ApiError::unauthorized(
+                "channel authentication/decryption failed".to_string()))?;
+            (key.clone(), p, channel_auth::caller_auth_external(&key))
         }
     };
-
-    // Open = authenticate (AEAD proves key possession) + decrypt, in one step.
-    let plaintext = s.signer
-        .channel_open(&caller_pubkey, req.pair_id, &req.sealed)
-        .map_err(|_| ApiError::unauthorized(
-            "channel authentication/decryption failed".to_string(),
-        ))?;
+    if let Some(note) = auth_note {
+        caller_auth["notes"] = serde_json::json!([note]);
+    }
     let inner: ChannelInner = serde_json::from_slice(&plaintext)
         .map_err(|e| ApiError::bad_request(format!("malformed channel request: {e}")))?;
 
@@ -4090,7 +4133,7 @@ async fn channel_request(
         .channel_seal(&caller_pubkey, req.pair_id, &body)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("sealing response: {e}")))?;
 
-    Ok(Json(ChannelResponse { sealed }))
+    Ok(Json(ChannelResponse { sealed, caller_auth }))
 }
 
 /// Per-tier default cap on how many member records one read may return. The
@@ -5272,7 +5315,7 @@ async fn dispatch_channel(
                 queued_at: Utc::now(),
                 sealed_by: None,
                 for_lct: None,
-                sealed_to: None, from_lct: None,
+                sealed_to: None, sealed_to_key: None, from_lct: None,
             };
             // The historical helper name reflects its first caller; the mechanism is generic:
             // atomically queue notice + sender-op record, then land the deterministic act.
@@ -5359,7 +5402,7 @@ async fn dispatch_channel(
                 queued_at: Utc::now(),
                 sealed_by: Some(caller_lct_id),
                 for_lct: None,
-                sealed_to: None, from_lct: None,
+                sealed_to: None, sealed_to_key: None, from_lct: None,
             };
             send_secret_ordered(s, caller_lct_id, to, notice, act, operation_id.as_deref(), binding).await
         }
@@ -9643,6 +9686,23 @@ async fn publish_lct(
     // `rotated_from` MRH edge — identity is never mutated in place.
     let version = projected.registry.get(lct_id.as_str()).map_or(1, |e| e.version + 1);
 
+    // LCT identity convergence Slice C, C7 (the rollback guard): any member may relay a validly bound
+    // document, and a republish overwrites in place. So a document carrying a vouched key that this LCT
+    // has already SUPERSEDED (a later accepted version introduced a never-carried key for the purpose)
+    // is refused before it is witnessed, or an old public document would restore a rotated-away key.
+    // Removal-only drops are not covered here (opkey:v2 follow-up); see the PRD's C7 cost note.
+    if let Ok(canonical) = hub_lib::ids::CanonicalLctId::parse(&lct_id) {
+        if let Some((purpose, key)) = projected.opkey_rollback(&canonical, &payload.document) {
+            return Err(ApiError {
+                status: StatusCode::CONFLICT,
+                message: format!(
+                    "opkey_superseded: the document vouches {purpose} key {key}, which a later accepted \
+                     version of {lct_id} superseded; replaying an older document cannot restore it \
+                     (mint and vouch a new key instead)"),
+            });
+        }
+    }
+
     let event = HubEvent::LctPublished {
         lct_id: lct_id.clone(),
         document: payload.document,
@@ -10093,7 +10153,7 @@ mod lct_registry_tests {
             queued_at: Utc::now(),
             sealed_by: None,
             for_lct: None,
-            sealed_to: None, from_lct: None,
+            sealed_to: None, sealed_to_key: None, from_lct: None,
         };
         assert!(enqueue_notice(&state, recipient, notice.clone()).await.unwrap());
 
@@ -10563,6 +10623,33 @@ norms:
             "provenance": provenance,
             "published_at": Utc::now().to_rfc3339(),
         })
+    }
+
+    /// Slice C, C7 through the route: after a rotation in one publish (`{K0}` → `{K1}`), replaying the
+    /// older document is refused 409 `opkey_superseded` with nothing witnessed, whoever relays it; the
+    /// current document republishes fine.
+    #[tokio::test]
+    async fn slice_c_a_replayed_document_cannot_restore_a_superseded_channel_key() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (base, binding, lct_id) = publishable_lct(EntityType::Human);
+        let (k0, k1) = (KeyPair::generate(), KeyPair::generate());
+        let mut v1 = base.clone();
+        v1.authorize_operational_key(web4_core::lct::HUB_CHANNEL_PURPOSE, k0.verifying_key(), &binding);
+        let mut v2 = base.clone();
+        v2.authorize_operational_key(web4_core::lct::HUB_CHANNEL_PURPOSE, k1.verifying_key(), &binding);
+        for doc in [&v1, &v2] {
+            let env = publish_envelope(&state, &sov, payload_for(doc, &lct_id, sov.lct.id, "self_issued"));
+            publish_lct(State(state.clone()), Path(state.hub_id), Json(env)).await.expect("accepted");
+        }
+        let before = state.ledger.lock().await.entries().len();
+        let env = publish_envelope(&state, &sov, payload_for(&v1, &lct_id, sov.lct.id, "self_issued"));
+        let err = publish_lct(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::CONFLICT);
+        assert!(err.message.starts_with("opkey_superseded:"), "{}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing witnessed");
+        let env = publish_envelope(&state, &sov, payload_for(&v2, &lct_id, sov.lct.id, "self_issued"));
+        publish_lct(State(state.clone()), Path(state.hub_id), Json(env)).await
+            .expect("the current document still republishes");
     }
 
     #[tokio::test]
@@ -11511,6 +11598,137 @@ norms:
         channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
             caller_lct_id: lct, pair_id: pid, sealed, caller_pubkey_hex: None,
         })).await
+    }
+
+    // ---- LCT identity convergence Slice C: signer convergence (PRD parity tests) ----
+
+    /// A member whose pin IS its LCT's binding key, with a published document vouching `channel` (when
+    /// given) under `hub-channel`. Returns (member uuid, binding keypair, canonical id string).
+    async fn slice_c_member(state: &RestState, channel: Option<&KeyPair>) -> (Uuid, KeyPair, String) {
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (mut doc, binding) = web4_core::lct::Lct::new(web4_core::lct::EntityType::Human, None);
+        doc.sign_binding(&binding);
+        if let Some(ck) = channel {
+            doc.authorize_operational_key(web4_core::lct::HUB_CHANNEL_PURPOSE, ck.verifying_key(), &binding);
+        }
+        let member = Uuid::new_v4();
+        admin_add_member(State(state.clone()), ConnectInfo(lo), Json(AddMemberBody {
+            lct_id: member, pubkey_hex: binding.verifying_key().to_hex(), name: Some("slice-c".into()) }))
+            .await.unwrap();
+        let lct_id = web4_core::lct::derive_lct_id(&doc.public_key);
+        witness_event(state, HubEvent::LctPublished { lct_id: lct_id.clone(), document: doc, published_by: member,
+            provenance: hub_lib::events::LctProvenance::SelfIssued, published_at: Utc::now() }).await.unwrap();
+        (member, binding, lct_id)
+    }
+
+    /// Seal `query_hub` as `member` with `key`; return the response and the pair id it used.
+    async fn slice_c_call(state: &RestState, member: Uuid, key: &KeyPair)
+        -> (Result<Json<ChannelResponse>, ApiError>, Uuid) {
+        let hub_pub = state.signer.public_key().unwrap();
+        let pid = Uuid::new_v4();
+        let inner = serde_json::json!({"tool": "query_hub", "args": {}});
+        let sealed = pair_channel::seal(key, &hub_pub, pid, &serde_json::to_vec(&inner).unwrap())
+            .unwrap().to_base64();
+        (channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: member, pair_id: pid, sealed, caller_pubkey_hex: None })).await, pid)
+    }
+
+    /// FR7 parity: a member with no vouched key authenticates exactly as before, as `member_key_pin`.
+    /// A member with a vouched `hub-channel` key authenticates with it (`lct_vouched_operational_key`,
+    /// carrying the registry version), still authenticates with its pin, and the response is sealed to
+    /// the key that opened the request.
+    #[tokio::test]
+    async fn slice_c_vouched_key_first_pin_still_accepted_response_sealed_to_opener() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let hub_pub = state.signer.public_key().unwrap();
+
+        let (legacy, legacy_key, _) = slice_c_member(&state, None).await;
+        let (r, _) = slice_c_call(&state, legacy, &legacy_key).await;
+        let r = r.expect("a UUID-pin member authenticates as before");
+        assert_eq!(r.caller_auth["method"], "member_key_pin");
+
+        let ck = KeyPair::generate();
+        let (m, binding, canonical) = slice_c_member(&state, Some(&ck)).await;
+        let (r, pid) = slice_c_call(&state, m, &ck).await;
+        let r = r.expect("the vouched hub-channel key authenticates");
+        assert_eq!(r.caller_auth["method"], "lct_vouched_operational_key");
+        assert_eq!(r.caller_auth["canonical"], serde_json::json!(canonical));
+        assert_eq!(r.caller_auth["key"], serde_json::json!(ck.verifying_key().to_hex()));
+        assert_eq!(r.caller_auth["version"], serde_json::json!(1));
+        assert!(r.caller_auth.get("notes").is_none());
+        let sealed = pair_channel::Sealed::from_base64(&r.sealed).unwrap();
+        assert!(pair_channel::open(&ck, &hub_pub, pid, &sealed).is_ok(), "sealed to the opening key");
+        assert!(pair_channel::open(&binding, &hub_pub, pid, &sealed).is_err(), "not to the pin");
+
+        let (r, _) = slice_c_call(&state, m, &binding).await;
+        assert_eq!(r.expect("the pin is still accepted (C2)").caller_auth["method"], "member_key_pin");
+        let stranger = KeyPair::generate();
+        assert!(slice_c_call(&state, m, &stranger).await.0.is_err(), "any other key is refused");
+    }
+
+    /// C5: a `hub-channel` entry whose proof does not verify never authenticates, and the pin path
+    /// carries a note saying it was ignored. With one tampered and one valid entry, the valid one
+    /// authenticates and no note is set.
+    #[tokio::test]
+    async fn slice_c_a_tampered_vouch_never_authenticates_and_is_noted() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (good, bad) = (KeyPair::generate(), KeyPair::generate());
+        let (mut doc, binding) = web4_core::lct::Lct::new(web4_core::lct::EntityType::Human, None);
+        doc.sign_binding(&binding);
+        doc.authorize_operational_key(web4_core::lct::HUB_CHANNEL_PURPOSE, bad.verifying_key(), &binding);
+        doc.operational_keys[0].proof = KeyPair::generate().sign(b"not the vouching message");
+        let member = Uuid::new_v4();
+        admin_add_member(State(state.clone()), ConnectInfo(lo), Json(AddMemberBody {
+            lct_id: member, pubkey_hex: binding.verifying_key().to_hex(), name: None })).await.unwrap();
+        let lct_id = web4_core::lct::derive_lct_id(&doc.public_key);
+        witness_event(&state, HubEvent::LctPublished { lct_id: lct_id.clone(), document: doc.clone(),
+            published_by: member, provenance: hub_lib::events::LctProvenance::SelfIssued,
+            published_at: Utc::now() }).await.unwrap();
+
+        assert!(slice_c_call(&state, member, &bad).await.0.is_err(), "a tampered vouch never authenticates");
+        let r = slice_c_call(&state, member, &binding).await.0.expect("the pin still works");
+        assert_eq!(r.caller_auth["method"], "member_key_pin");
+        assert!(r.caller_auth["notes"][0].as_str().unwrap().contains("does not verify"), "{}", r.caller_auth);
+
+        // Add a valid entry beside the tampered one: the valid one authenticates, with no note.
+        let mut two = doc.clone();
+        let mut one = doc.clone();
+        one.authorize_operational_key(web4_core::lct::HUB_CHANNEL_PURPOSE, good.verifying_key(), &binding);
+        two.operational_keys.extend(one.operational_keys.into_iter()
+            .filter(|k| k.pubkey == good.verifying_key()));
+        witness_event(&state, HubEvent::LctPublished { lct_id, document: two, published_by: member,
+            provenance: hub_lib::events::LctProvenance::SelfIssued, published_at: Utc::now() }).await.unwrap();
+        let r = slice_c_call(&state, member, &good).await.0.expect("the valid entry authenticates");
+        assert_eq!(r.caller_auth["method"], "lct_vouched_operational_key");
+        assert_eq!(r.caller_auth["version"], serde_json::json!(2));
+        assert!(r.caller_auth.get("notes").is_none(), "{}", r.caller_auth);
+    }
+
+    /// C6: a hub-originated notice to a member with a vouched key is sealed to that key and names it; a
+    /// legacy member's notice carries no `sealed_to_key`, so its JSON and `notice_id` are unchanged.
+    #[tokio::test]
+    async fn slice_c_hub_notices_are_sealed_to_the_vouched_key() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let ck = KeyPair::generate();
+        let (m, binding, _) = slice_c_member(&state, Some(&ck)).await;
+        let (legacy, legacy_key, _) = slice_c_member(&state, None).await;
+        let from = Uuid::new_v4();
+        assert!(queue_sealed_notice(&state, m, from, "coordination", "forum/x.md", b"hello").await);
+        assert!(queue_sealed_notice(&state, legacy, from, "coordination", "forum/y.md", b"hi").await);
+
+        let n = state.mailbox_legacy_drain(m).await.unwrap().remove(0);
+        assert_eq!(n.sealed_to_key.as_deref(), Some(ck.verifying_key().to_hex().as_str()));
+        let sealed = pair_channel::Sealed::from_base64(&n.sealed).unwrap();
+        assert!(pair_channel::open(&ck, &hub_pub, n.pair_id, &sealed).is_ok(), "opens with the vouched key");
+        assert!(pair_channel::open(&binding, &hub_pub, n.pair_id, &sealed).is_err());
+
+        let l = state.mailbox_legacy_drain(legacy).await.unwrap().remove(0);
+        assert!(l.sealed_to_key.is_none());
+        assert!(!serde_json::to_string(&l).unwrap().contains("sealed_to_key"), "legacy JSON is unchanged");
+        let sealed = pair_channel::Sealed::from_base64(&l.sealed).unwrap();
+        assert!(pair_channel::open(&legacy_key, &hub_pub, l.pair_id, &sealed).is_ok());
     }
 
     #[test]

@@ -1056,6 +1056,22 @@ mod tests {
     }
 
     #[test]
+    fn valid_operational_keys_lists_every_valid_vouch_and_omits_a_forged_one() {
+        let (mut lct, binding) = Lct::new(EntityType::Human, None);
+        let (w, c, forged) = (KeyPair::generate(), KeyPair::generate(), KeyPair::generate());
+        lct.authorize_operational_key(WITNESS_PURPOSE, w.verifying_key(), &binding);
+        lct.authorize_operational_key(HUB_CHANNEL_PURPOSE, c.verifying_key(), &binding);
+        // A forged entry: another key under the channel entry's proof, which does not cover it.
+        let mut bad = lct.operational_keys.last().unwrap().clone();
+        bad.pubkey = forged.verifying_key();
+        lct.operational_keys.push(bad);
+        let got = lct.valid_operational_keys();
+        assert_eq!(got, vec![(WITNESS_PURPOSE.to_string(), w.verifying_key()),
+                             (HUB_CHANNEL_PURPOSE.to_string(), c.verifying_key())]);
+        assert_eq!(lct.operational_key_for(HUB_CHANNEL_PURPOSE), Some(c.verifying_key()));
+    }
+
+    #[test]
     fn operational_key_survives_json_roundtrip() {
         let (mut member, binding_kp) = Lct::new(EntityType::AiSoftware, None);
         member.sign_binding(&binding_kp);
