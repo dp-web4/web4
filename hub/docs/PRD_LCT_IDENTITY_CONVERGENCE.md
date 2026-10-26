@@ -402,7 +402,8 @@ witnesses nothing new. It is a Slice D candidate.
   - **A replay is not a fork** (Legion). Re-submitting the same statement (same old, new and `issued_at`)
     is idempotent: it is not a second `LctRotated` and never yields a `successor_conflict`. A conflict
     counts **distinct** `new` canonicals, so the same `old→new` pair re-signed with a later `issued_at`
-    is not a conflict either.
+    is not a conflict either. It is **folded into the first**: no second `LctRotated` is witnessed, and the
+    route answers with the existing event's index (Legion asked for one answer, 6414289581).
 - **Supersession.** After `LctRotated`, any act authenticated by the old canonical's keys is still
   processed as it is today, since D adds no refusal. Its evidence carries
   `hub_observations: superseded_key_used {by: <new canonical>, rotated_at: <index>}`, so a society's law
@@ -495,6 +496,8 @@ witnesses nothing new. It is a Slice D candidate.
     `successor_conflict` with no single verified `successor`;
   - re-submitting the same statement (same old, new and `issued_at`) is idempotent: no second
     `LctRotated`, no `successor_conflict`;
+  - the same `old→new` pair re-signed with a later `issued_at` is folded into the first: no second
+    `LctRotated`, the existing index is returned, no `successor_conflict`;
   - an act by the old canonical after `LctRotated` carries `superseded_key_used`;
   - pin refusal requires the vouched-key channel, and after it the pin no longer authenticates;
   - reversal works.
@@ -534,6 +537,9 @@ fail-open one level up (`identity_evidence` itself `None`) on the `land_act` / `
 `notify_citizen` rebuild paths (sites verified on `origin/main`); `land_act` takes the event; hub-originated
 acts carry evidence rather than being exempt (HUB's choice between CBP's two options; flagged for review);
 two tests.*
+
+*Legion's re-review (6414289581, on e0b96865): approves the doc; agrees a conflict counts distinct `new`
+canonicals. Clarification taken: a re-signed same pair is folded into the first `LctRotated` (D-b + test).*
 
 ## 7. Done
 
