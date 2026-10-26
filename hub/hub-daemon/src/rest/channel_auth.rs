@@ -87,3 +87,91 @@ pub(super) fn caller_auth_pin(member: Uuid, key: &PublicKey) -> serde_json::Valu
 pub(super) fn caller_auth_external(key: &PublicKey) -> serde_json::Value {
     serde_json::json!({"method": "self_vouched_external", "key": key.to_hex()})
 }
+
+// ---- Slice D-a: identity evidence on the event (gate + ledger see one value) ----
+
+const UNKNOWN: &str = "unknown";
+const NONE: &str = "none";
+
+/// The `caller_auth` value as evidence leaves. Every leaf is present: a method's inapplicable fields are
+/// `"none"`, and an absent `caller_auth` (an act not carried by a channel request) is all `"unknown"`.
+fn caller_auth_evidence(v: Option<&serde_json::Value>) -> (hub_lib::events::CallerAuthEvidence, bool) {
+    use hub_lib::events::CallerAuthEvidence as C;
+    let Some(v) = v else {
+        return (C { method: UNKNOWN.into(), canonical: UNKNOWN.into(), purpose: UNKNOWN.into(),
+            key: UNKNOWN.into(), version: UNKNOWN.into(), member: UNKNOWN.into() }, true);
+    };
+    let leaf = |k: &str| match v.get(k) {
+        Some(serde_json::Value::String(s)) => s.clone(),
+        Some(serde_json::Value::Null) | None => NONE.into(),
+        Some(other) => other.to_string(),
+    };
+    (C { method: leaf("method"), canonical: leaf("canonical"), purpose: leaf("purpose"), key: leaf("key"),
+        version: leaf("version"), member: leaf("member") }, false)
+}
+
+/// Assemble the evidence for `actor` against `state` (FR5: evidence, never a verdict). Every field is
+/// present; an unresolvable fact is `"unknown"` and listed in `unknown`.
+pub(super) fn identity_evidence(state: &HubState, actor: Uuid, caller_auth: Option<&serde_json::Value>,
+    sovereign: Option<&PublicKey>) -> hub_lib::events::IdentityEvidence {
+    use hub_lib::events::{HubObservations, IdentityEvidence, LastWitnessedAct};
+    use hub_lib::lct_resolve::{resolve, Reference, Resolution};
+    let mut unknown = Vec::new();
+    let (caller_auth, ca_unknown) = caller_auth_evidence(caller_auth);
+    if ca_unknown { unknown.push("caller_auth".to_string()); }
+
+    let link = match resolve(state, &Reference::Member(hub_lib::ids::HubMemberId::from_uuid(actor)), sovereign) {
+        Resolution::Resolved { links, .. } => links.into_iter().find(|l| l.current),
+        _ => None,
+    };
+    let (canonical, registry_version, claimed_status) = match &link {
+        Some(l) => (l.canonical.to_string(), l.entry.version.to_string(),
+            serde_json::to_value(&l.entry.document.status).ok()
+                .and_then(|v| v.as_str().map(str::to_string)).unwrap_or_else(|| UNKNOWN.into())),
+        None => {
+            unknown.extend(["canonical", "registry_version", "claimed_status"].map(String::from));
+            (UNKNOWN.into(), UNKNOWN.into(), UNKNOWN.into())
+        }
+    };
+    let against_interest = match claimed_status.as_str() {
+        "active" => "false".to_string(),
+        UNKNOWN => UNKNOWN.to_string(),
+        _ => "true".to_string(),
+    };
+    if against_interest == UNKNOWN && !unknown.contains(&"against_interest".to_string()) {
+        unknown.push("against_interest".into());
+    }
+    // Newest act as carrier, or as speaker via on_behalf_of (relayed acts count; Sprout on #930).
+    let as_member = state.last_act_by_member.get(&actor).copied();
+    let as_lct = (canonical != UNKNOWN).then(|| state.last_act_by_lct.get(&canonical).copied()).flatten();
+    let last = [as_member, as_lct].into_iter().flatten().max_by_key(|(i, _)| *i);
+    let last_witnessed_act = match last {
+        Some((index, at)) => LastWitnessedAct { index: index.to_string(), at: at.to_rfc3339() },
+        None => LastWitnessedAct { index: NONE.into(), at: NONE.into() },
+    };
+    IdentityEvidence { caller_auth, canonical, registry_version, claimed_status, against_interest,
+        hub_observations: HubObservations { last_witnessed_act }, unknown }
+}
+
+/// THE constructor for a new `ReferencedAct` (Slice D-a): it always assembles the identity evidence, so
+/// a new act never carries `identity_evidence: None` (an absent field fails open at the gate; Legion).
+pub(super) async fn referenced_act_event(s: &RestState, act: web4_core::act::Act,
+    on_behalf_of: Option<hub_lib::routing::ActAs>, caller_auth: Option<&serde_json::Value>) -> HubEvent {
+    let sovereign = sovereign_key(s);
+    let state = { let l = s.ledger.lock().await; s.projected(&l) };
+    let evidence = identity_evidence(&state, act.actor_lct, caller_auth, sovereign.as_ref());
+    HubEvent::ReferencedAct { act, on_behalf_of, identity_evidence: Some(evidence) }
+}
+
+/// A retry of an already-built act re-assembles its evidence against the CURRENT ledger, keeping the
+/// caller_auth it was gated on, so the entry that lands carries the value that attempt's gate matched.
+pub(super) async fn regated(s: &RestState, event: &HubEvent) -> HubEvent {
+    match event {
+        HubEvent::ReferencedAct { act, on_behalf_of, identity_evidence } => {
+            let ca = identity_evidence.as_ref().and_then(|e| (e.caller_auth.method != UNKNOWN)
+                .then(|| serde_json::to_value(&e.caller_auth).ok()).flatten());
+            referenced_act_event(s, act.clone(), on_behalf_of.clone(), ca.as_ref()).await
+        }
+        other => other.clone(),
+    }
+}

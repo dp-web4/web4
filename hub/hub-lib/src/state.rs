@@ -281,6 +281,13 @@ pub struct RoleOccupancyChange {
     /// keys on sender + ordinary act instead (`find_act`).
     #[serde(skip)]
     pub act_index: BTreeMap<uuid::Uuid, u64>,
+    /// Slice D-a: the newest witnessed `ReferencedAct` per actor member (`act.actor_lct`) and per canonical
+    /// LCT spoken for via `on_behalf_of` (Sprout: relayed acts count), as `(index, at)`. The raw liveness
+    /// fact behind `IdentityEvidence.hub_observations`; never turned into a derived `dormant`.
+    #[serde(skip)]
+    pub last_act_by_member: BTreeMap<uuid::Uuid, (u64, DateTime<Utc>)>,
+    #[serde(skip)]
+    pub last_act_by_lct: BTreeMap<String, (u64, DateTime<Utc>)>,
     /// Member LCT -> its current member-of parent (H2). One level, one parent per member.
     #[serde(skip)]
     pub member_of: BTreeMap<crate::ids::CanonicalLctId, crate::ids::CanonicalLctId>,
@@ -1561,10 +1568,14 @@ impl HubState {
                     self.routers.insert(r, RouterEntry { member: m, issued_at: *issued_at, registered_at: index });
                 }
             }
-            HubEvent::ReferencedAct { act, .. } => {
+            HubEvent::ReferencedAct { act, on_behalf_of, .. } => {
                 // First witness wins: a later act-as cannot claim an act_id (the daemon refuses it at
                 // intake); a later ordinary act with the same id is not indexed. Deterministic on replay.
                 self.act_index.entry(act.act_id).or_insert(index);
+                self.last_act_by_member.insert(act.actor_lct, (index, ts));
+                if let Some(a) = on_behalf_of {
+                    self.last_act_by_lct.insert(a.lct.clone(), (index, ts));
+                }
             }
             HubEvent::RouterRetired { router_lct } => {
                 self.routers.remove(router_lct.as_str());

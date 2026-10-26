@@ -1747,7 +1747,7 @@ async fn enqueue_notice_op(
 /// ledger tail at signing time; if another act landed since, it is re-authorized and re-signed
 /// (bounded), because `append_signed` refuses a stale tail rather than reorder the chain.
 async fn land_act(
-    s: &RestState, act: &web4_core::act::Act,
+    s: &RestState, event: &HubEvent,
     signed: (hub_lib::ledger::UnsignedEntry, web4_core::crypto::SignatureBytes),
 ) -> Result<u64, ApiError> {
     let mut last = None;
@@ -1755,7 +1755,9 @@ async fn land_act(
     for _ in 0..3 {
         let (unsigned, signature) = match next.take() {
             Some(pair) => pair,
-            None => authorize_event(s, HubEvent::ReferencedAct { act: act.clone(), on_behalf_of: None }).await?,
+            // A retry re-gates: the evidence is re-assembled against the ledger as it now stands, so the
+            // entry that lands carries the value THIS attempt's gate matched (Slice D-a).
+            None => authorize_event(s, channel_auth::regated(s, event).await).await?,
         };
         let res = {
             let mut ledger = s.ledger.lock().await;
@@ -1780,7 +1782,7 @@ async fn land_act(
 async fn find_act(s: &RestState, sender: Uuid, act_id: Uuid) -> Option<u64> {
     let ledger = s.ledger.lock().await;
     ledger.entries().iter().rev().find_map(|e| match &e.event {
-        HubEvent::ReferencedAct { act, on_behalf_of: None }
+        HubEvent::ReferencedAct { act, on_behalf_of: None, .. }
             if act.act_id == act_id && act.actor_lct == sender => Some(e.index),
         _ => None,
     })
@@ -1798,7 +1800,7 @@ fn send_receipt(op: &mailbox::SendOp, op_id: Option<&str>, replayed: bool) -> se
 /// it by its deterministic id or witness it now — once.
 async fn resume_send_op(
     s: &RestState, sender: Uuid, op_id: &str, mut op: mailbox::SendOp,
-    binding: &serde_json::Value, act: &web4_core::act::Act,
+    binding: &serde_json::Value, act: &web4_core::act::Act, caller_auth: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value, ApiError> {
     if &op.binding != binding {
         return Err(ApiError { status: StatusCode::CONFLICT, message: format!(
@@ -1809,8 +1811,9 @@ async fn resume_send_op(
         let index = match find_act(s, sender, op.act_id).await {
             Some(i) => i,
             None => {
-                let signed = authorize_event(s, HubEvent::ReferencedAct { act: act.clone(), on_behalf_of: None }).await?;
-                land_act(s, act, signed).await?
+                let event = channel_auth::referenced_act_event(s, act.clone(), None, caller_auth).await;
+                let signed = authorize_event(s, event.clone()).await?;
+                land_act(s, &event, signed).await?
             }
         };
         op.entry_index = Some(index);
@@ -1834,6 +1837,7 @@ async fn resume_send_op(
 async fn send_secret_ordered(
     s: &RestState, sender: Uuid, to: Uuid, notice: SealedNotice,
     mut act: web4_core::act::Act, op_id: Option<&str>, binding: serde_json::Value,
+    caller_auth: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value, ApiError> {
     let now = Utc::now().timestamp();
 
@@ -1870,13 +1874,14 @@ async fn send_secret_ordered(
             let existing: mailbox::SendOp = serde_json::from_slice(&bytes)
                 .map_err(|e| ApiError::internal(e.into()))?;
             drop(store);
-            return resume_send_op(s, sender, op, existing, &binding, &act).await;
+            return resume_send_op(s, sender, op, existing, &binding, &act, caller_auth).await;
         }
         drop(store);
         #[cfg(test)]
         mailbox::test_send_op_after_lookup(op).await;
     }
-    let signed = authorize_event(s, HubEvent::ReferencedAct { act: act.clone(), on_behalf_of: None }).await?;
+    let event = channel_auth::referenced_act_event(s, act.clone(), None, caller_auth).await;
+    let signed = authorize_event(s, event.clone()).await?;
     let rec = mailbox::SendOp { binding: binding.clone(), act_id: act.act_id, notice_id: String::new(),
         created_at: now, entry_index: None, durable: true };
     let queued = enqueue_notice_op(s, to, notice, op_id.map(|o| (sender, o, &rec))).await
@@ -1885,10 +1890,10 @@ async fn send_secret_ordered(
         Enqueued::Queued { durable, notice_id } => (durable, notice_id),
         // A concurrent attempt with the same operation_id got there first.
         Enqueued::AlreadyAccepted(existing) => {
-            return resume_send_op(s, sender, op_id.expect("op"), existing, &binding, &act).await;
+            return resume_send_op(s, sender, op_id.expect("op"), existing, &binding, &act, caller_auth).await;
         }
     };
-    match land_act(s, &act, signed).await {
+    match land_act(s, &event, signed).await {
         Ok(index) => {
             let done = mailbox::SendOp { notice_id: notice_id.clone(), entry_index: Some(index), durable, ..rec };
             if let Some(op) = op_id {
@@ -1934,7 +1939,8 @@ async fn notify_citizen(
         ),
         Utc::now(),
     );
-    let _ = witness_event(s, HubEvent::ReferencedAct { act, on_behalf_of: None }).await;
+    let event = channel_auth::referenced_act_event(s, act, None, None).await;
+    let _ = witness_event(s, event).await;
     let _ = queue_sealed_notice(s, recipient, from, kind, pointer_uri, body).await;
 }
 
@@ -4129,7 +4135,8 @@ async fn channel_request(
     }
 
     // Authz + dispatch on the decrypted request.
-    let response = dispatch_channel(&s, req.caller_lct_id, req.pair_id, req.caller_pubkey_hex.clone(), inner).await?;
+    let response = dispatch_channel(&s, req.caller_lct_id, req.pair_id, req.caller_pubkey_hex.clone(), inner,
+        Some(&caller_auth)).await?;
 
     // Seal the response back over the same channel.
     let body = serde_json::to_vec(&response)
@@ -4435,6 +4442,7 @@ async fn dispatch_channel(
     pair_id: Uuid,
     caller_pubkey_hex: Option<String>,
     inner: ChannelInner,
+    caller_auth: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value, ApiError> {
     let state = {
         let ledger = s.ledger.lock().await;
@@ -5029,7 +5037,8 @@ async fn dispatch_channel(
             let delivery = routing::resolve_delivery(s, &state, &address).await?;
             let routed_key = routing::precheck_routed(s, &state, &delivery).await?;
             routing::precheck_member(s, &delivery).await?;
-            let index = witness_event(s, HubEvent::ReferencedAct { act, on_behalf_of }).await?;
+            let event = channel_auth::referenced_act_event(s, act, on_behalf_of, caller_auth).await;
+            let index = witness_event(s, event).await?;
             // §5.1 R7 carrier effects (r7 already validated fail-closed above).
             let mut r7_out = serde_json::Map::new();
             if let Some(op) = r7_op {
@@ -5332,6 +5341,7 @@ async fn dispatch_channel(
                 act,
                 Some(&operation_id),
                 binding,
+                caller_auth,
             ).await
         }
 
@@ -5409,7 +5419,7 @@ async fn dispatch_channel(
                 for_lct: None,
                 sealed_to: None, sealed_to_key: None, from_lct: None,
             };
-            send_secret_ordered(s, caller_lct_id, to, notice, act, operation_id.as_deref(), binding).await
+            send_secret_ordered(s, caller_lct_id, to, notice, act, operation_id.as_deref(), binding, caller_auth).await
         }
         // ---- constellation attestation (challenge-response MFA, assurance tiers) ----
         // Wire contract: forum/legion-constellation-attestation-wire-shape-2026-06-11.md.
@@ -6478,7 +6488,8 @@ async fn enable_mailbox_receipts_as_operator(
         ),
         Utc::now(),
     );
-    let entry_index = witness_event(s, HubEvent::ReferencedAct { act, on_behalf_of: None }).await?;
+    let event = channel_auth::referenced_act_event(s, act, None, None).await;
+    let entry_index = witness_event(s, event).await?;
     // The act is on the ledger first. A failed write here leaves it asserting an enrollment
     // that did not happen, so the error says exactly that and the retry (idempotent) applies it.
     match s.mailbox_enable_receipts(lct_id).await {
@@ -11630,6 +11641,188 @@ norms:
         })).await
     }
 
+    // ---- LCT identity convergence Slice D-a: identity evidence on the event ----
+
+    /// Seal a `referenced_act` to `to` as `member` with `key`; return the entry it landed at.
+    async fn slice_d_act(state: &RestState, member: Uuid, key: &KeyPair, to: Uuid) -> u64 {
+        let hub_pub = state.signer.public_key().unwrap();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(key, &hub_pub, pid, "referenced_act", serde_json::json!({
+            "to": {"to": "peer", "lct_id": to}, "kind": "handoff", "pointer_uri": "pr/1#d-a",
+            "content_hash": "git-sha:0123456789abcdef0123456789abcdef01234567" }));
+        let r = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: member, pair_id: pid, sealed, caller_pubkey_hex: None })).await
+            .expect("the act is accepted");
+        let opened = pair_channel::open(key, &hub_pub, pid,
+            &pair_channel::Sealed::from_base64(&r.sealed).unwrap()).unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&opened).unwrap();
+        v["entry_index"].as_u64().unwrap_or_else(|| panic!("no entry_index in {v}"))
+    }
+
+    /// The evidence the entry at `index` carries, as JSON.
+    async fn slice_d_evidence(state: &RestState, index: u64) -> serde_json::Value {
+        let l = state.ledger.lock().await;
+        match &l.entries().iter().find(|e| e.index == index).unwrap().event {
+            HubEvent::ReferencedAct { identity_evidence: Some(e), .. } => serde_json::to_value(e).unwrap(),
+            other => panic!("no identity evidence on {other:?}"),
+        }
+    }
+
+    /// Every leaf of `v` is a string (D-a: structured fields keep their shape; only leaves are values).
+    fn slice_d_all_leaves_strings(v: &serde_json::Value, path: &str) {
+        match v {
+            serde_json::Value::Object(m) => m.iter().for_each(|(k, v)| slice_d_all_leaves_strings(v, &format!("{path}.{k}"))),
+            serde_json::Value::Array(a) => a.iter().for_each(|v| slice_d_all_leaves_strings(v, path)),
+            serde_json::Value::String(_) => {}
+            other => panic!("{path} is not a string: {other}"),
+        }
+    }
+
+    /// A channel act by a member with a vouched key lands with the evidence its gate saw: how the caller
+    /// authenticated, the registry entry, the self-claim, and the newest act BEFORE this one ("none" for
+    /// the first; the earlier index for the second). Every field present, every leaf a string.
+    #[tokio::test]
+    async fn slice_d_a_channel_act_carries_complete_identity_evidence() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let ck = KeyPair::generate();
+        let (m, _binding, canonical) = slice_c_member(&state, Some(&ck)).await;
+        let (peer, _, _) = slice_c_member(&state, None).await;
+
+        let first = slice_d_act(&state, m, &ck, peer).await;
+        let e = slice_d_evidence(&state, first).await;
+        slice_d_all_leaves_strings(&e, "identity_evidence");
+        assert_eq!(e["caller_auth"], serde_json::json!({"method": "lct_vouched_operational_key",
+            "canonical": canonical, "purpose": "hub-channel", "key": ck.verifying_key().to_hex(),
+            "version": "1", "member": "none"}));
+        assert_eq!(e["canonical"], serde_json::json!(canonical));
+        assert_eq!(e["registry_version"], "1");
+        assert_eq!(e["claimed_status"], "active");
+        assert_eq!(e["against_interest"], "false");
+        assert_eq!(e["hub_observations"]["last_witnessed_act"],
+            serde_json::json!({"index": "none", "at": "none"}), "never acted before: known-empty, not unknown");
+        assert_eq!(e["unknown"], serde_json::json!([]));
+
+        let second = slice_d_act(&state, m, &ck, peer).await;
+        let e = slice_d_evidence(&state, second).await;
+        assert_eq!(e["hub_observations"]["last_witnessed_act"]["index"], serde_json::json!(first.to_string()));
+    }
+
+    /// A member with no published LCT: the registry facts are `"unknown"` and indexed in `unknown`; the
+    /// pin's inapplicable leaves are `"none"`. An act with no channel request behind it (a hub notice)
+    /// has an all-`"unknown"` `caller_auth`, also indexed.
+    #[tokio::test]
+    async fn slice_d_a_unknown_and_none_are_distinct_and_indexed() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (key, m) = (KeyPair::generate(), Uuid::new_v4());
+        admin_add_member(State(state.clone()), ConnectInfo("127.0.0.1:5555".parse().unwrap()),
+            Json(AddMemberBody { lct_id: m, pubkey_hex: key.verifying_key().to_hex(), name: None })).await.unwrap();
+        let (peer, _, _) = slice_c_member(&state, None).await;
+        let e = slice_d_evidence(&state, slice_d_act(&state, m, &key, peer).await).await;
+        slice_d_all_leaves_strings(&e, "identity_evidence");
+        assert_eq!(e["caller_auth"]["method"], "member_key_pin");
+        assert_eq!(e["caller_auth"]["member"], serde_json::json!(m.to_string()));
+        for leaf in ["canonical", "purpose", "version"] {
+            assert_eq!(e["caller_auth"][leaf], "none", "{leaf}: not applicable to a pin");
+        }
+        for f in ["canonical", "registry_version", "claimed_status", "against_interest"] {
+            assert_eq!(e[f], "unknown", "{f}");
+        }
+        assert_eq!(e["unknown"], serde_json::json!(["canonical", "registry_version", "claimed_status",
+            "against_interest"]));
+
+        let act = web4_core::act::Act::addressed(state.sovereign_lct_id,
+            web4_core::act::ActAddress::Citizen { lct_id: m }, "notify:x",
+            web4_core::act::SubstanceRef::new("x", web4_core::sha256_hex(b"x"),
+                web4_core::act::SubstanceMedium::Message), Utc::now());
+        let HubEvent::ReferencedAct { identity_evidence: Some(e), .. } =
+            channel_auth::referenced_act_event(&state, act, None, None).await else { panic!("no evidence") };
+        assert_eq!(e.caller_auth.method, "unknown");
+        assert_eq!(e.unknown.first().map(String::as_str), Some("caller_auth"));
+    }
+
+    /// Liveness counts a relayed act: the newest of the member's own acts and the acts spoken AS its
+    /// canonical LCT (on_behalf_of) wins (Sprout, #930).
+    #[tokio::test]
+    async fn slice_d_a_last_witnessed_act_takes_the_newest_of_carried_and_spoken() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let ck = KeyPair::generate();
+        let (m, _b, canonical) = slice_c_member(&state, Some(&ck)).await;
+        let (peer, _, _) = slice_c_member(&state, None).await;
+        let own = slice_d_act(&state, m, &ck, peer).await;
+        let mut st = { let l = state.ledger.lock().await; state.projected(&l) };
+        let sov = channel_auth::sovereign_key(&state);
+        let e = channel_auth::identity_evidence(&st, m, None, sov.as_ref());
+        assert_eq!(e.hub_observations.last_witnessed_act.index, own.to_string());
+        st.last_act_by_lct.insert(canonical.clone(), (own + 7, Utc::now()));
+        let e = channel_auth::identity_evidence(&st, m, None, sov.as_ref());
+        assert_eq!(e.hub_observations.last_witnessed_act.index, (own + 7).to_string(), "a relayed act is newer");
+        st.last_act_by_lct.insert(canonical, (own - 1, Utc::now()));
+        let e = channel_auth::identity_evidence(&st, m, None, sov.as_ref());
+        assert_eq!(e.hub_observations.last_witnessed_act.index, own.to_string(), "an older relayed act loses");
+    }
+
+    /// The law reads it with no R6Request change: the norms see `payload.identity_evidence`, because the
+    /// R6 payload is the whole event.
+    #[tokio::test]
+    async fn slice_d_a_law_norms_read_the_evidence() {
+        const LAW: &str = r#"
+version: "1.0.0"
+norms:
+  - id: NO-UNAUTHENTICATED-ACTS
+    selector: r6.request.payload.identity_evidence.caller_auth.method
+    operator: "=="
+    value: unknown
+    decision: deny
+    priority: 50
+    description: "an act must say how its caller authenticated"
+"#;
+        let (_tmp, state) = fresh_rest_state(Some(LAW)).await;
+        let act = || web4_core::act::Act::addressed(state.sovereign_lct_id,
+            web4_core::act::ActAddress::Citizen { lct_id: Uuid::new_v4() }, "notify:x",
+            web4_core::act::SubstanceRef::new("x", web4_core::sha256_hex(b"x"),
+                web4_core::act::SubstanceMedium::Message), Utc::now());
+        let bare = channel_auth::referenced_act_event(&state, act(), None, None).await;
+        let out = evaluate_law_norms(&state.law, &bare).await.unwrap().expect("law loaded");
+        assert!(matches!(out.decision, Decision::Deny), "{:?}", out.decision);
+        let pin = channel_auth::caller_auth_pin(Uuid::new_v4(), &KeyPair::generate().verifying_key());
+        let authed = channel_auth::referenced_act_event(&state, act(), None, Some(&pin)).await;
+        let out = evaluate_law_norms(&state.law, &authed).await.unwrap().expect("law loaded");
+        assert!(!matches!(out.decision, Decision::Deny), "{:?}", out.decision);
+    }
+
+    /// A retry re-assembles against the ledger as it stands, and keeps the caller_auth it was gated on.
+    #[tokio::test]
+    async fn slice_d_a_regated_refreshes_observations_and_keeps_caller_auth() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let ck = KeyPair::generate();
+        let (m, _b, canonical) = slice_c_member(&state, Some(&ck)).await;
+        let (peer, _, _) = slice_c_member(&state, None).await;
+        let v = { let s = { let l = state.ledger.lock().await; state.projected(&l) };
+            channel_auth::vouched_channel_key(&s, m, channel_auth::sovereign_key(&state).as_ref()).0.unwrap() };
+        let auth = channel_auth::caller_auth_lct(&v, &ck.verifying_key());
+        let act = web4_core::act::Act::addressed(m, web4_core::act::ActAddress::Peer { lct_id: peer }, "memo",
+            web4_core::act::SubstanceRef::new("x", web4_core::sha256_hex(b"x"),
+                web4_core::act::SubstanceMedium::Message), Utc::now());
+        let before = channel_auth::referenced_act_event(&state, act, None, Some(&auth)).await;
+        let landed = slice_d_act(&state, m, &ck, peer).await; // another act lands between attempts
+        let after = channel_auth::regated(&state, &before).await;
+        let (HubEvent::ReferencedAct { identity_evidence: Some(b), .. },
+             HubEvent::ReferencedAct { identity_evidence: Some(a), .. }) = (&before, &after) else { panic!() };
+        assert_eq!(b.hub_observations.last_witnessed_act.index, "none");
+        assert_eq!(a.hub_observations.last_witnessed_act.index, landed.to_string(), "re-assembled");
+        assert_eq!(serde_json::to_value(&a.caller_auth).unwrap(), serde_json::to_value(&b.caller_auth).unwrap());
+        assert_eq!(a.caller_auth.canonical, canonical);
+
+        // Through land_act: the act was signed, then the tail moved (another act by the same member), so
+        // the first append is refused and the retry re-gates. The entry that lands carries the fresh
+        // evidence, not the stale one it was first signed with.
+        let signed = authorize_event(&state, before.clone()).await.unwrap();
+        let moved = slice_d_act(&state, m, &ck, peer).await;
+        let index = land_act(&state, &before, signed).await.expect("the retry lands it");
+        assert_eq!(slice_d_evidence(&state, index).await["hub_observations"]["last_witnessed_act"]["index"],
+            serde_json::json!(moved.to_string()), "the landed entry carries what its own gate saw");
+    }
+
     // ---- LCT identity convergence Slice C: signer convergence (PRD parity tests) ----
 
     /// A member whose pin IS its LCT's binding key, with a published document vouching `channel` (when
@@ -14417,7 +14610,7 @@ priority: 1000
 
     async fn channel(state: &RestState, caller: Uuid, tool: &str, args: serde_json::Value) -> Result<serde_json::Value, ApiError> {
         let inner: ChannelInner = serde_json::from_value(serde_json::json!({ "tool": tool, "args": args })).unwrap();
-        dispatch_channel(state, caller, Uuid::new_v4(), None, inner).await
+        dispatch_channel(state, caller, Uuid::new_v4(), None, inner, None).await
     }
 
     /// The wiring the README called open work since #397: a plugin registered on THIS daemon
@@ -14918,7 +15111,7 @@ norms:
         let inner: ChannelInner = serde_json::from_value(serde_json::json!({"tool": "referenced_act", "args": {
             "to": to, "kind": "coordination", "pointer_uri": "shared-context/forum/routing-test.md",
             "content_hash": format!("sha256-content:{}", "c".repeat(64)) }})).unwrap();
-        dispatch_channel(state, caller, Uuid::new_v4(), None, inner).await
+        dispatch_channel(state, caller, Uuid::new_v4(), None, inner, None).await
     }
 
     /// H5: carrier `m` sends `to` (tagged text `to_text`) on behalf of child `x`, signed by `child`.
@@ -14939,7 +15132,7 @@ norms:
             "to": to, "kind": "coordination", "pointer_uri": pointer, "content_hash": content_hash,
             "on_behalf_of": { "lct": x, "act_id": act_id, "issued_at": issued_at,
                 "edge_epoch": edge, "router_epoch": router, "child_signature": sig } }})).unwrap();
-        dispatch_channel(state, m, Uuid::new_v4(), None, inner).await
+        dispatch_channel(state, m, Uuid::new_v4(), None, inner, None).await
     }
 
     /// H5 end to end: the router member carries, the child said it. The ledger records both and the
@@ -14964,12 +15157,15 @@ norms:
         let (act, act_as) = {
             let l = state.ledger.lock().await;
             match &l.entries().iter().find(|e| e.index == index).unwrap().event {
-                HubEvent::ReferencedAct { act, on_behalf_of: Some(a) } => (act.clone(), a.clone()),
+                HubEvent::ReferencedAct { act, on_behalf_of: Some(a), .. } => (act.clone(), a.clone()),
                 other => panic!("not an act-as entry: {other:?}"),
             }
         };
         assert_eq!(act.actor_lct, m, "the router member carried it");
         assert_eq!(act.act_id, act_id);
+        let fresh = { let l = state.ledger.lock().await; state.projected(&l) };
+        assert_eq!(fresh.last_act_by_lct.get(&x.to_string()).map(|(i, _)| *i), Some(index),
+            "D-a: a relayed act counts toward its speaker's last witnessed act");
         let sig = web4_core::crypto::SignatureBytes::from_bytes(
             hex::decode(&act_as.signature_hex).unwrap().try_into().unwrap());
         child.verifying_key().verify(&act_as.statement(state.hub_id, &act).unwrap(), &sig)
@@ -16788,7 +16984,7 @@ norms:
             ),
             Utc::now(),
         );
-        witness_event(&state, HubEvent::ReferencedAct { act, on_behalf_of: None }).await.unwrap();
+        witness_event(&state, HubEvent::ReferencedAct { act, on_behalf_of: None, identity_evidence: None }).await.unwrap();
 
         let resp = admin_ledger_tail(
             State(state.clone()),

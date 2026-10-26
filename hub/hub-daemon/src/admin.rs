@@ -1298,7 +1298,7 @@ fn event_summary(event: &HubEvent) -> String {
                 short(challenge_id),
             )
         }
-        HubEvent::ReferencedAct { act, on_behalf_of } => {
+        HubEvent::ReferencedAct { act, on_behalf_of, .. } => {
             use web4_core::act::ActAddress;
             let dst = match &act.address {
                 ActAddress::FutureSelf { entity } => format!("future-self {}", short(entity)),
