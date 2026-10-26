@@ -321,8 +321,14 @@ witnesses nothing new. It is a Slice D candidate.
 - An `IdentityEvidence` value, assembled at request time by the resolver. It's **evidence, never a verdict**:
   `{ caller_auth (C3), canonical, registry_version, claimed_status (the document's own, labelled self-asserted),
   hub_observations: [superseded opkeys seen, member removed/re-keyed, …], unknown: [what could not be
-  resolved] }`. FR5's "unknown is not active" holds by construction: a missing fact is listed in `unknown`,
-  never defaulted.
+  resolved] }`. The resolver never defaults a missing fact. That alone does not make FR5's "unknown is
+  not active" true at the law layer (CBP): `Condition::matches` (`web4-policy/src/lib.rs:496`) returns
+  **false** when the selector resolves to nothing, so a rule `claimed_status != active → deny` does not fire
+  on an absent field, and the act is allowed. An omitted fact would read as active.
+  - **So every `IdentityEvidence` field is always present.** A fact that could not be resolved carries the
+    literal string `"unknown"` and is never omitted or null. `unknown: [...]` stays as the index of which
+    fields those are. Then `!= active` fires on unknown however a society writes its law, and no law author
+    has to know that `!=` on an absent field fails open.
   - **Self-claims are asymmetric.** A self-asserted `active` is worth nothing. A self-asserted
     `dormant` / `void` / `slashed` goes against the member's own interest, and today it's the cheapest way
     a member can revoke itself. Both stay `claimed_status`. A non-active claim is also flagged
@@ -335,17 +341,23 @@ witnesses nothing new. It is a Slice D candidate.
   - **Rotation observations** (from D-b): `superseded_key_used {by: <new canonical>}` when an act is signed
     by a key that has been rotated away, and `successor_conflict [..]` when one old key names more than one
     successor.
-- **To the gate:** `R6Request` gains an optional `evidence` field (YAML/JSON, like `payload`). Default
-  law ignores it, so behaviour is unchanged. A society's law can match on it (for example, refuse
-  `referenced_act` when `caller_auth.method == member_key_pin` once that is law, which is C2's exit, or when
-  `claimed_status != active`).
-- **To the ledger:** consequential witnessed acts carry the evidence they relied on (accountability clause A).
-  First target: `ReferencedAct` gains optional `caller_auth`, `registry_version`, and `evidence_digest`
-  (a digest of the canonical `IdentityEvidence` bytes the gate saw). All three are skip-if-none, so old
-  entries keep their bytes. That's the same pattern as `on_behalf_of`. `caller_auth` alone records less
-  than the gate may have relied on. Once law matches on `claimed_status` or registry state, a replay can
-  re-derive the decision only if it can name the exact evidence. Other events follow only where a reviewer
-  names one.
+- **One value, carried on the event, reaches both the gate and the ledger.** `ReferencedAct` gains an
+  optional `identity_evidence: IdentityEvidence`, skip-if-none so old entries keep their bytes (the
+  `on_behalf_of` pattern). `build_r6_request` (`hub-daemon/src/rest.rs:8325`) already sets
+  `payload = serde_yaml::to_value(event)`, the whole event, so law can match
+  `r6.request.payload.identity_evidence.caller_auth.method == member_key_pin` (C2's exit, once that is law)
+  or `….claimed_status != active` with **no `web4-policy` change** (CBP). Default law ignores the field, so
+  behaviour is unchanged.
+  - The ledger records the same bytes the gate matched. There is no second copy, so a rule cannot check one
+    value while the record keeps another, and a replay re-derives the decision from the entry itself. (The
+    previous revision's `evidence_digest` is dropped: it was there to name evidence the entry did not
+    carry, and the entry now carries it.)
+  - A new `R6Request.evidence` field is **not** in D-a. It would need a new `resolve_selector` arm, a touch
+    on every `R6Request { … }` literal that lacks `..Default` (about 24 sites across `rest.rs`,
+    `hub-lib/src/law.rs`, `web4-policy` and `main.rs`, about 6 of which use it), and a change to a crate
+    `RFC-SHARED-POLICY-SUBSTRATE` treats as shared. It's added only for an event that cannot carry the
+    evidence in its own body, and then with Legion's review.
+  - Other events gain `identity_evidence` only where a reviewer names one.
 
 **D-b: verified rotation and the pin's exit**
 - **A rotation statement with both halves.** The statement is
@@ -424,8 +436,8 @@ witnesses nothing new. It is a Slice D candidate.
 | # | question | default | why |
 |---|---|---|---|
 | D1 | is the document's `status` lifecycle evidence? | **only as `claimed_status`, labelled self-asserted** | all 59 say active by default; a hub-observed fact and a self-claim must not read the same |
-| D2 | where evidence reaches the gate | **an optional `R6Request.evidence`; default law ignores it** | law decides; C2's exit becomes a law rule, not code |
-| D3 | which ledger events carry evidence first | **`ReferencedAct` only: `caller_auth` + `registry_version` + `evidence_digest`** | it is the consequential act the channel carries, and the gate's decision must be re-derivable from the entry; the others are named per review |
+| D2 | where evidence reaches the gate | **in the event payload (`ReferencedAct.identity_evidence`), which the gate already sees; every field always present, unresolved = `"unknown"`; no `R6Request.evidence` in D** | law decides; `!=` on an absent field fails open in `web4-policy`; no change to a shared crate |
+| D3 | which ledger events carry evidence first | **`ReferencedAct` only, carrying the same `identity_evidence` value the gate matched** | one value from one assembly; the gate's decision is re-derivable from the entry; the others are named per review |
 | D4 | how rotation is verified | **one statement signed by the old key and countersigned by the new, witnessed as `LctRotated`; forks are witnessed and reported as `successor_conflict`; later old-key acts carry `superseded_key_used`** | a `rotated_from` edge signed only by the new key proves nothing about the old one; an old key alone could graft its lineage onto anyone; "first one wins" is a silent verdict |
 | D5 | per-member pin refusal | **yes, witnessed, requested over a vouched-key channel, reversible the same way; losing the vouched key afterwards is an accepted lockout (recovery = new canonical)** | delivers C4's cold binding key to early movers without waiting for law |
 | D6 | re-rooting a canonical LCT onto a vault identity (`legacy_alias`, C4) | **out of D**; it needs its own design with Legion | it changes what "canonical" means for a member, not just evidence |
@@ -433,11 +445,12 @@ witnesses nothing new. It is a Slice D candidate.
 
 **Tests (per sub-slice):**
 - **D-a:**
-  - the gate sees `evidence`, and default law is unchanged;
-  - a `ReferencedAct` carries `caller_auth`, old entries replay byte for byte;
+  - the gate sees `payload.identity_evidence`, and default law is unchanged;
+  - a `ReferencedAct` carries `identity_evidence`, old entries replay byte for byte;
   - `unknown` lists a missing registry document instead of reporting active;
-  - the gate decision can be re-derived from the ledger entry: `evidence_digest` matches the evidence
-    replayed at `registry_version`;
+  - with the registry document missing, a law `r6.request.payload.identity_evidence.claimed_status != active
+    → deny` denies (the field is `"unknown"`, never absent);
+  - the evidence on the ledger entry is byte-identical to what the gate matched;
   - a non-active `claimed_status` carries `against_interest: true`, and default law is unchanged;
   - a quiet member reports `last_witnessed_act`, never `dormant`.
 - **D-b:**
@@ -466,10 +479,14 @@ witnesses nothing new. It is a Slice D candidate.
 - reusing `Ledger::update_status` (bypassed until it has an actor and a signature);
 - any trust verdict. FR5: the resolver returns evidence, and law decides.
 
-*Revised 2026-10-26 after the Legion (6414105527) and Sprout (6414108992) reviews. On forks, the two
+*Revised 2026-10-26 after the Legion (6414105527), Sprout (6414108992) and CBP (6414138804) reviews. On forks, the two
 reviews differ: Legion proposed "first witnessed, second is conflict evidence", Sprout proposed "both
 witnessed, law decides". This draft takes Sprout's, because it keeps Legion's requirement (never overwritten,
 never dropped) without the hub choosing a winner.*
+
+*CBP's review: §1 (unknown fails open at the law layer) and §2 (evidence through the event payload, one
+value) are taken into D-a, D2 and D3. §3 (the successor's consent) was already met by D4's countersignature.
+§4 (are registry `witnessing` vouches ledger events) is the unmeasured item under D-c and D7.*
 
 ## 7. Done
 
