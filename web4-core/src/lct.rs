@@ -252,6 +252,13 @@ pub struct MrhEdge {
 /// this constant rather than repeat the literal.
 pub const WITNESS_PURPOSE: &str = "witnessing";
 
+/// Canonical operational-key purpose for a hub's sealed member channel (hub PRD LCT identity
+/// convergence, Slice C, C1). A member's canonical LCT vouches a key under this purpose; the hub
+/// authenticates the channel with it before the UUID-pinned key and seals the member's notices to it.
+/// The hub, hestia `lct publish` and SAGE's being mint import this constant, never the literal (the
+/// `WITNESS_PURPOSE` split above is why).
+pub const HUB_CHANNEL_PURPOSE: &str = "hub-channel";
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OperationalKey {
     /// The operational public key.
