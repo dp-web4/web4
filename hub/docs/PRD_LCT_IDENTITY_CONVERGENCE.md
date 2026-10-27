@@ -568,6 +568,199 @@ two tests.*
 *Legion's re-review (6414289581, on e0b96865): approves the doc; agrees a conflict counts distinct `new`
 canonicals. Clarification taken: a re-signed same pair is folded into the first `LctRotated` (D-b + test).*
 
+### Slice E — lost-key lineage (`attested_predecessor`)
+
+#### Slice E design (2026-10-27, hub-claude; draft for review before code)
+
+**Why this one next.** The fleet chose it from D's "Not in D" list (pub-claude and cbp-claude on 10-27,
+`forum/*-to-hub-lct-next-slice-prefer-2-2026-10-27.md`). It is the case that already happens. A being's key
+lives only on its instance's disk: on Sprout, and on pub-being, whose private mirror carries no key by design.
+So a rebuild or disk loss makes the being an unlinked new presence. D4 cannot link it, because there is no old
+key to sign with.
+
+**The shape.** A *labelled attestation*, never a verification. The Sovereign states "canonical `new` continues
+canonical `old`", the successor countersigns, and the hub witnesses both. Resolvers report it as
+`attested_predecessor` / `attested_successor`, a different field from D-b1's `predecessors` / `successor`, so it
+can never read as `verified`.
+
+**What it proves.**
+- The Sovereign's key made the statement, at the time it signed.
+- The successor's key consented to it.
+- It does **not** prove the two presences are the same entity. That's the Sovereign's claim, and law weighs it
+  (FR5).
+
+**E1, the statement.** `web4-lct-attest-predecessor-v1\n<hub>\n<old>\n<new>\n<issued_at>\n<reason>\n`, where
+`reason` is one line of free text (for example "instance rebuilt, key lost with the disk").
+
+`reason` rules (Pub):
+- It must not contain `\n`, `\r` or any other control character, so the signed bytes parse one way only.
+- It is capped at 280 bytes (UTF-8).
+- **`reason` is public.** It is witnessed on the ledger and travels with lineage, the MRH projection and identity
+  evidence. Being records are private on this fleet, so put no instance-private detail in it.
+
+`<hub>` must equal this hub's id; a statement naming another hub is refused.
+
+It is signed twice over the same bytes:
+- **by the attester:** this hub's Sovereign key, read from the hub's identity, never from the statement. Per CBP
+  and Pub, the signer must be a key the Sovereign controls and never the successor's own, or the label would be
+  doing the work the signature should (the same point as hestia #1408). If the Sovereign's own presence has
+  rotated under D4, the attester is its **current verified canonical key** per its own lineage. A signature by a
+  key D4 says has rotated away is refused (CBP). A Sovereign of a different hub (for example a demo hub on the
+  being's own machine) never qualifies, because its key is not this hub's (Pub);
+- **by the successor:** `new`'s binding key, from the registry. Without that consent a Sovereign could graft any
+  history, including a slashing, onto any published presence. That's the D4 argument again.
+
+**The issue window (Pub).** H2's −60 s..+600 s was sized for one signer who submits at once. E is a two-party,
+two-machine ceremony: the successor's key is on the being's disk, and the Sovereign's key is in the hub's vault.
+So E fixes the order and splits the window:
+- the successor countersigns first, and the Sovereign signs last, as part of the submitting envelope;
+- the **envelope** is held to H2's normal window, so submission follows the Sovereign's signature at once;
+- `issued_at` (the time the statement was drafted and countersigned) may be up to **24 h** before the envelope's
+  timestamp, and no more than 60 s after it.
+
+A replay is already folded (E4), and E3 is re-checked under the build lock, so the wider `issued_at` bound
+costs little.
+
+**E2, the route and event.**
+- `POST /v1/hubs/:hub_id/lcts/attest-predecessor` takes a signed envelope whose signer **is** the founding
+  Sovereign. A member envelope gets 403, with nothing witnessed.
+- It witnesses `LctPredecessorAttested {old, new, issued_at, reason, attester_signature_hex,
+  new_signature_hex, attested_by}`.
+- Verification runs again under the build lock (`commit_pair_event_checked`), as `rotation_commit_check` does.
+- **Custody of the attester key: a named gap, not a wall (CBP).** An unlocked hub holds the Sovereign key in its
+  vault. The envelope is produced off-daemon, by the operator CLI with the vault passphrase, like the other
+  operator-authored Sovereign acts, and the route verifies a signature but never mints one. That boundary is
+  **procedural, not cryptographic**: the route cannot tell an envelope the CLI minted from one the daemon minted
+  with the same key. "Verifies, never mints" is a property of the code we ship, not of the protocol. E ships with
+  that default, does not wait for a custody tier, and does not claim to be one. Two things make the gap visible:
+  - `attested_by` records the **channel** the envelope arrived through (the operator CLI session, or anything
+    else), witnessed. A daemon-minted attestation then shows up as an anomaly on the ledger instead of being
+    indistinguishable.
+  - A census test pins that no daemon code path produces an `attester_signature_hex`, in the way hestia pins
+    its `member_lct` consumers.
+
+**Definition: live (one predicate, used everywhere in E; Legion).** An attested edge `old ⇢ new` is **live** when
+its `LctPredecessorAttested` entry has no later `LctPredecessorAttestationWithdrawn` for the same pair. A verified
+D4 edge is always live. "Has a successor" and "has a predecessor" below always mean *a live edge of either kind*,
+unless a rule names the kind. E3, E4's folding, and the D-b1 guard amendment (E3a) all call this one predicate, so
+the code has a single notion of "has a successor", not three.
+
+**E3, preconditions** (each refusal witnesses nothing):
+- `old != new`;
+- both are published here;
+- `new` is Active (a terminal or dormant successor cannot inherit). `old` may be in any status: a lost-key
+  predecessor is often stale, and its status stays its own evidence;
+- `new` has no successor, verified or attested (no cycles, the D-b1 rule);
+- `new` has **no predecessor**, verified or attested (no joins; Legion). A rebuilt being mints a fresh key with no
+  history, so it never needs a join. A `new` that already continues something would merge two lineages into one
+  presence. This is lifted only if a real case shows up. It is distinct from E4's fork: a fork is one `old`
+  with two `new`s, and a join is two `old`s into one `new`;
+- `old` has no **verified** successor. A D4 rotation already says where its key went, and an attestation
+  contradicting it is refused. To claim the verified link is wrong is a compromise-recovery question, which is
+  out of scope here.
+
+**E3a, the D-b1 guards read both kinds (Legion).** E adds a second successor relation, and D-b1's guards read only
+the first:
+- **The cycle guard.** `RotationStatement::verify` (`hub/hub-lib/src/lct_rotation.rs`, the #934 guard) checks only
+  `state.lct_successors` for `new`. After an attested `A ⇢ B`, a D4 rotation `B → A` would pass and close a ring
+  that neither guard sees. The #934 argument ("every canonical in a chain except its tip has a successor") holds
+  per edge kind and fails across kinds. **E amends the guard to refuse a rotation whose `new` has any live
+  successor, verified or attested.**
+- **The reverse order: a verified rotation of an `old` that already has a live attested successor.** This is
+  `old ⇢ B` attested (the key was "lost"), and later the old key signs `old → X`. It is E6's thief shape in its
+  strongest form. **It is witnessed, not refused, and lineage reports `successor_kind_conflict`:** `successor` = X
+  (verified), `attested_successor` = B, and neither is presented as *the* successor, the way D-b1 handles a
+  fork. Refusing it would let a Sovereign judgment override a key-signed fact, the reverse of E-3's reasoning.
+  Letting it win silently would hide the thief shape. Law sees both (FR5). The asymmetry with E3's last rule is
+  deliberate: a judgment is refused against a standing fact, but a fact is never refused on the strength of a
+  judgment. It is only marked as conflicting.
+
+**E4, forks and replays** follow D-b1's rules:
+- two different attested `new`s for one `old` are both witnessed and reported as
+  `attested_successor_conflict`, with no single `attested_successor`;
+- the same `old→new` pair is folded into the first entry, **among live entries only**. Once an attestation is
+  withdrawn (E5), a fresh attestation of the same pair is a new entry. A withdrawal is a corrected judgment, and
+  it can itself be corrected (CBP).
+
+**E5, withdrawal.** The Sovereign can withdraw an attestation (`LctPredecessorAttestationWithdrawn {old, new,
+index, reason, attested_by}`). It is signed by the Sovereign's *current verified* key (the E-1 rule) and arrives
+through the same channel-witnessed path, so `attested_by` covers it as well. It needs no countersignature:
+withdrawing a claim needs no consent from its subject (Legion). It is reversible because it is a judgment, and judgments get corrected. The
+original entry stays on the ledger, and lineage drops it, citing the withdrawal. A verified D4 rotation has no
+withdrawal, since it is a fact about keys.
+
+**E6, evidence and projection.**
+- `LctLineage` gains `attested_successor`, `attested_successor_conflict` and `attested_predecessors`, each with
+  the witnessing index and `attested_by`.
+- D-c's MRH projection gains `ledger` edges `attested_predecessor` / `attested_successor`, separate from
+  `predecessor` / `successor`.
+- D-a's identity evidence gains `hub_observations.attested_successor` (`{by, attested_at}` | `"none"` |
+  `"unknown"`). An act by an `old` canonical **after** an attestation is the shape of a thief using the lost
+  key, so law should see it. It is evidence only (FR5).
+- On the NEW presence's acts, identity evidence gains `hub_observations.attested_predecessor` (`{old, by,
+  attested_at}` | `"none"` | `"unknown"`). A consumer weighing `new` then sees that it claims continuity, under
+  the label (CBP). This is also evidence only.
+
+**Decisions to confirm (defaults in bold):**
+
+| # | question | default | why |
+|---|---|---|---|
+| E-1 | who may attest | **this hub's Sovereign key only: its current verified key per D4** | CBP/Pub: a key the Sovereign controls. A council-threshold attester is a later option once council keys are in custody tiers |
+| E-2 | successor countersignature | **required** | without it, the Sovereign can graft history (or slashing) onto anyone (the D4 argument) |
+| E-3 | `old` with a verified successor | **refused** | an attestation must not contradict a key-signed fact. Disputing a verified link is compromise recovery (D6) |
+| E-4 | withdrawal | **yes, Sovereign-signed, the original stays on the ledger** | it's a judgment, not a key fact |
+| E-5 | evidence on old-key acts after attestation | **`hub_observations.attested_successor`** (and `attested_predecessor` on `new`) | a lost key that acts again may be a thief; law decides |
+| E-6 | issue window | **successor first, Sovereign last; envelope under H2; `issued_at` ≤ 24 h before the envelope** | a two-machine ceremony doesn't fit ten minutes (Pub) |
+| E-7 | attester custody | **ship the procedural boundary, named as a gap; witness the channel; census test** | a custody tier is the wall; E neither waits for it nor claims to be it (CBP) |
+| E-8 | a verified rotation of an `old` with a live attested successor | **witnessed; lineage reports `successor_kind_conflict`** | a judgment never overrides a key fact, and the fact never silently wins (Legion) |
+| E-9 | joins (a `new` that already has a predecessor) | **refused** | a rebuild has no history; lift only on a real case (Legion) |
+
+**Tests (E):**
+- a member-signed attestation is refused, with nothing witnessed;
+- an attestation the Sovereign signed but the successor did not countersign is refused;
+- with both signatures, lineage shows `attested_predecessors` on `new` and `attested_successor` on `old`, and
+  `predecessors` / `successor` stay empty;
+- `old` with a verified successor is refused; a `new` that has a successor is refused;
+- two different `new`s give `attested_successor_conflict`; a replay or re-sign is folded;
+- after a withdrawal the lineage drops the link, and both entries stay on the ledger;
+- an act by `old` after an attestation carries `hub_observations.attested_successor`;
+- the MRH projection labels the edges `attested_*`, never `predecessor` / `successor`;
+- attest, withdraw, then attest again: lineage shows the link, and the ledger shows all three entries (CBP);
+- a signature by a Sovereign key that D4 says has rotated away is refused (CBP);
+- a Sovereign signature from another hub (a demo hub) over a statement for this hub is refused, and so is a
+  statement whose `<hub>` is not this hub (Pub);
+- a statement countersigned 15 min before the Sovereign signs is accepted; an `issued_at` 25 h before the
+  envelope is refused (Pub);
+- a `reason` containing `\n` or `\r` is refused, and so is one over 280 bytes (Pub);
+- census: no daemon code path produces an `attester_signature_hex` (CBP);
+- `attested_by` carries the arrival channel; an act by `new` carries `hub_observations.attested_predecessor`;
+- mixed-kind cycles (Legion): attest A⇢B, then rotate B→A, is refused with nothing witnessed. So is the long form:
+  attest A⇢B, rotate B→C, rotate C→A;
+- after a withdrawal of A⇢B, rotate B→A is allowed again (the guard reads *live* edges);
+- reverse order (Legion): attest old⇢B, then the old key rotates old→X. That is witnessed, and lineage shows
+  `successor_kind_conflict` with both heads and neither as the successor;
+- joins (Legion): rotate X→B, then attest A⇢B, is refused; attest A⇢B, then attest A'⇢B, is refused;
+- the withdrawal is refused when signed by a rotated-away Sovereign key, and it carries `attested_by`.
+
+**Not in E:**
+- an attester other than the Sovereign (council threshold, an operator key in a custody tier);
+- compromise recovery (D6);
+- linking more than one hop in one statement;
+- any trust verdict (FR5).
+
+*Reviews on `b44b0820` (10-27): cbp-claude GO on the shape, with three points: custody named as a procedural
+gap, plus a witnessed channel and a census test; fold among live entries only; the attester is the Sovereign's
+current verified key. Pub GO, agreeing with CBP, plus: the issue window for a two-machine ceremony; `reason`
+framing; `reason` is public; a demo-hub Sovereign is refused. All are taken above.*
+
+*legion-claude on `a73a4aa1`: GO on the shape. Taken: (1) D-b1's cycle guard reads live successors of both kinds
+(E3a); (2) a verified rotation after an attestation is witnessed as `successor_kind_conflict` (Legion's lean
+(a), E-8); (3) joins refused (E-9); (4) a single "live" predicate; (5) the withdrawal signer and channel.*
+
+**Asked of dp alongside E (question 5 from 10-27, a law question, not code):** should default law honour a
+self-declared `void` / `slashed`? Since #935 those statuses are terminal, so honouring one is a one-way door that
+the holder can walk through on its own say-so.
+
 ## 7. Done
 
 Done means Hub can answer, without guessing:
