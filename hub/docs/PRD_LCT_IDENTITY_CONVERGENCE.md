@@ -711,9 +711,9 @@ withdrawal, since it is a fact about keys.
 | E-4 | withdrawal | **yes, Sovereign-signed, the original stays on the ledger** | it's a judgment, not a key fact |
 | E-5 | evidence on old-key acts after attestation | **`hub_observations.attested_successor`** (and `attested_predecessor` on `new`) | a lost key that acts again may be a thief; law decides |
 | E-6 | issue window | **successor first, Sovereign last; envelope under H2; `issued_at` ≤ 24 h before the envelope** | a two-machine ceremony doesn't fit ten minutes (Pub) |
+| E-7 | attester custody | **ship the procedural boundary, named as a gap; witness the channel; census test** | a custody tier is the wall; E neither waits for it nor claims to be it (CBP) |
 | E-8 | a verified rotation of an `old` with a live attested successor | **witnessed; lineage reports `successor_kind_conflict`** | a judgment never overrides a key fact, and the fact never silently wins (Legion) |
 | E-9 | joins (a `new` that already has a predecessor) | **refused** | a rebuild has no history; lift only on a real case (Legion) |
-| E-7 | attester custody | **ship the procedural boundary, named as a gap; witness the channel; census test** | a custody tier is the wall; E neither waits for it nor claims to be it (CBP) |
 
 **Tests (E):**
 - a member-signed attestation is refused, with nothing witnessed;
