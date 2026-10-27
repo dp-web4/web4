@@ -270,6 +270,16 @@ pub struct RoleOccupancyChange {
     #[serde(skip)]
     pub pin_refused: std::collections::BTreeSet<Uuid>,
 
+    /// Slice D-c (FR6): the ledger index that first witnessed each current member, pair and intro, so the
+    /// MRH projection's `ledger` edges cite an entry a reader can check. Indexes over facts already on the
+    /// chain; not serialized.
+    #[serde(skip)]
+    pub member_since: BTreeMap<Uuid, u64>,
+    #[serde(skip)]
+    pub pair_since: BTreeMap<Uuid, u64>,
+    #[serde(skip)]
+    pub intro_since: BTreeMap<Uuid, u64>,
+
     /// Router LCT -> its router interface member and certificate `issued_at` (PRD_MEMBER_OF_ROUTING
     /// H1). The member_of* maps below are the same story. None is serialized: machine topology,
     /// readable through the members-only `member_of` tool and the operator plane.
@@ -1076,6 +1086,7 @@ impl HubState {
                 self.charter_hash = Some(charter_hash.clone());
                 self.founding_sovereign_lct_id = Some(*founding_sovereign_lct_id);
                 // Sovereign is implicitly a member.
+                self.member_since.entry(*founding_sovereign_lct_id).or_insert(index);
                 self.members.entry(*founding_sovereign_lct_id)
                     .or_insert_with(|| Member {
                         lct_id: *founding_sovereign_lct_id,
@@ -1087,6 +1098,7 @@ impl HubState {
             HubEvent::MemberAdded {
                 member_lct_id, member_name, member_pubkey_hex, trust_ceiling, ..
             } => {
+                self.member_since.entry(*member_lct_id).or_insert(index);
                 self.members.entry(*member_lct_id).or_insert_with(|| Member {
                     lct_id: *member_lct_id,
                     name: member_name.clone(),
@@ -1124,6 +1136,7 @@ impl HubState {
                 self.member_pubkeys.remove(member_lct_id);
                 self.member_ceilings.remove(member_lct_id);
                 self.pin_refused.remove(member_lct_id);
+                self.member_since.remove(member_lct_id);
             }
             HubEvent::MemberJoinRequested {
                 request_id, member_lct_id, member_pubkey_hex, name, message,
@@ -1258,6 +1271,7 @@ impl HubState {
                 }
             }
             HubEvent::IntroRequested { intro_id, from_lct, to_lct, purpose } => {
+                self.intro_since.entry(*intro_id).or_insert(index);
                 self.intros.entry(*intro_id).or_insert(Intro {
                     id: *intro_id,
                     from_lct: *from_lct,
@@ -1664,6 +1678,7 @@ impl HubState {
                 // Council holders are also members (co-Sovereigns participate
                 // in chapter life). Auto-add them to the member registry if
                 // not already present, so /admin/members shows them.
+                self.member_since.entry(*member_lct_id).or_insert(index);
                 self.members.entry(*member_lct_id).or_insert_with(|| Member {
                     lct_id: *member_lct_id,
                     name: member_name.clone(),
@@ -1700,6 +1715,7 @@ impl HubState {
                 // Idempotent: if a pair with this id already exists
                 // (replay scenario), keep the original — the ledger's
                 // chain integrity says the first occurrence wins.
+                self.pair_since.entry(*pair_id).or_insert(index);
                 self.pairs.entry(*pair_id).or_insert_with(|| PairState {
                     id: *pair_id,
                     initiator: *initiator_lct_id,
