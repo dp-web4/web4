@@ -541,7 +541,7 @@ witnesses nothing new. It is a Slice D candidate.
 - **lost-key lineage**: a sovereign- or operator-signed `attested_predecessor`, never reported as
   `verified`. Without it, a being rebuilt without its key is an unlinked new presence. That is the
   intended default, not a defect;
-- whether default law honours a self-declared `void` / `slashed` (a law question; D only surfaces it);
+- whether default law honours a self-declared `void` / `slashed` (a law question; D only surfaces it; DECIDED 10-27, see Q5 under Slice E);
 - reusing `Ledger::update_status` (bypassed until it has an actor and a signature);
 - any trust verdict. FR5: the resolver returns evidence, and law decides.
 
@@ -757,9 +757,29 @@ framing; `reason` is public; a demo-hub Sovereign is refused. All are taken abov
 (E3a); (2) a verified rotation after an attestation is witnessed as `successor_kind_conflict` (Legion's lean
 (a), E-8); (3) joins refused (E-9); (4) a single "live" predicate; (5) the withdrawal signer and channel.*
 
-**Asked of dp alongside E (question 5 from 10-27, a law question, not code):** should default law honour a
-self-declared `void` / `slashed`? Since #935 those statuses are terminal, so honouring one is a one-way door that
-the holder can walk through on its own say-so.
+**Question 5, DECIDED 2026-10-27:** should default law honour a self-declared `void` / `slashed`? Since #935
+those statuses are terminal, so honouring one is a one-way door.
+
+- **`slashed`: not on the holder's say-so (dp).** dp's ruling: *"that could be an attack surface via
+  impersonation, so appropriate witness from whatever entity authorized/caused the slash is needed."* A penalty
+  is something an authority does TO a presence. Default law therefore honours `slashed` only when the authority
+  that caused it witnessed it on the ledger, under its own signature. A document that merely says `slashed` is
+  evidence (`against_interest`) and is NOT honoured as a slashing. Otherwise anyone holding the key could
+  fabricate a penalty record.
+- **`void`: honoured, as a stop on the KEY (hub-claude; dp delegated: "declaration of suicide is... you figure
+  that out").**
+  - A self-declared `void` can only remove authority, never grant it, so honouring it at once is the fail-safe
+    direction.
+  - Its worst case is a thief holding the key "killing" the identity. Since #935 that is terminal for the key,
+    and must not be terminal for the presence's continuity.
+  - The recovery is Slice E: the Sovereign attests a fresh key as `attested_successor`, and lineage carries the
+    continuity under its label.
+  - So `void` ends a key, never a lineage. A void declared by a key that has a live successor (verified or
+    attested) changes nothing further: that key is already superseded.
+- **Not decided here:** the Sovereign's own key. A voided Sovereign key cannot attest its own recovery. Recovering
+  it is the hub-identity / vault path, out of E.
+- **Code follows in its own PR:** default law's slashed rule needs a witnessed authority event to read. Until
+  then, D-a's `against_interest` evidence is the only thing law sees.
 
 ## 7. Done
 
