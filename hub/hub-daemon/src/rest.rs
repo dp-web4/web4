@@ -2078,6 +2078,7 @@ pub fn router(state: RestState) -> Router {
         .route("/v1/hubs/:hub_id/lcts/rotate", post(rotate_lct))
         .route("/v1/hubs/:hub_id/lcts", get(list_lcts))
         .route("/v1/hubs/:hub_id/lcts/:lct_id", get(get_lct))
+        .route("/v1/hubs/:hub_id/lcts/:lct_id/mrh", get(get_lct_mrh))
         // A member's pinned pairing pubkey, keyed by member uuid — the value the
         // membership gate already authorizes. Sources the v2 sealed-channel
         // static key for pair-request/confirm, replacing the doc.id registry
@@ -3920,11 +3921,12 @@ struct ChannelInner {
 /// arms (the classification guard test walks this list; adding a dispatch arm
 /// without registering it here fails the test, so a new tool cannot silently
 /// skip freshness classification). (#474)
-const CHANNEL_TOOLS: [&str; 24] = [
+const CHANNEL_TOOLS: [&str; 25] = [
     "constellation_challenge",
     "find_members",
     "find_skill",
     "list_intros",
+    "lct_mrh",
     "list_members",
     "member_of",
     "notifications",
@@ -3953,9 +3955,10 @@ const CHANNEL_TOOLS: [&str; 24] = [
 /// added to `dispatch_channel` without touching the list silently inherited
 /// read tolerance — fail-open for new writes. Allowlisting the reads makes
 /// the default fail-closed: an unclassified new tool REQUIRES freshness.
-const CHANNEL_READ_TOOLS: [&str; 11] = [
+const CHANNEL_READ_TOOLS: [&str; 12] = [
     "find_members",
     "find_skill",
+    "lct_mrh",
     "list_intros",
     "list_members",
     "member_of",
@@ -4897,6 +4900,20 @@ async fn dispatch_channel(
                 notify_citizen(s, from, caller_lct_id, "notify:intro_accepted", &format!("intro/{intro_id}"), notice.as_bytes()).await;
             }
             Ok(out)
+        }
+        "lct_mrh" => {
+            // Slice D-c (FR6, D7): the MRH projection for an authenticated member. Read-only; pairings and
+            // introductions are filtered to their parties and the Sovereign inside `project`.
+            let lct = inner.args.get("lct_id").and_then(|v| v.as_str())
+                .ok_or_else(|| ApiError::bad_request("lct_mrh requires 'lct_id' (a canonical lct:web4: id)"))?;
+            let canonical = hub_lib::ids::CanonicalLctId::parse(lct)
+                .map_err(|_| ApiError::bad_request(format!("{lct} is not a canonical lct:web4: id")))?;
+            let reader = if role == "sovereign" { hub_lib::lct_mrh::Reader::Sovereign }
+                else { hub_lib::lct_mrh::Reader::Member(caller_lct_id) };
+            let view = hub_lib::lct_mrh::project(&state, s.hub_id, &canonical,
+                channel_auth::sovereign_key(s).as_ref(), reader)
+                .ok_or_else(|| ApiError::not_found(format!("lct {lct} is not published here")))?;
+            serde_json::to_value(view).map_err(|e| ApiError::internal(anyhow::anyhow!("serializing mrh: {e}")))
         }
         "pin_refusal" => {
             // Slice D-b2 (D5): the member refuses (or re-admits) its own UUID pin as a channel credential.
@@ -9972,6 +9989,24 @@ async fn get_lct(
     }))
 }
 
+/// LCT identity convergence Slice D-c (FR6, D7): the MRH projection, UNAUTHENTICATED. This plane cannot
+/// tell who is asking, so it serves the `self_declared` edges only (what `get_lct` already serves, labelled).
+/// The witnessed edges are served to authenticated members by the `lct_mrh` channel tool.
+async fn get_lct_mrh(
+    State(s): State<RestState>,
+    Path((hub_id, lct_id)): Path<(Uuid, String)>,
+) -> Result<Json<hub_lib::lct_mrh::MrhProjection>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!("hub id {} does not match this hub {}", hub_id, s.hub_id)));
+    }
+    // 404 like `get_lct`: an id that is not canonical is not published here either.
+    let canonical = hub_lib::ids::CanonicalLctId::parse(&lct_id)
+        .map_err(|_| ApiError::not_found(format!("lct {lct_id} is not published here (not a canonical id)")))?;
+    let state = { let l = s.ledger.lock().await; s.projected(&l) };
+    hub_lib::lct_mrh::project(&state, s.hub_id, &canonical, None, hub_lib::lct_mrh::Reader::Anonymous)
+        .map(Json).ok_or_else(|| ApiError::not_found(format!("lct {lct_id} is not published here")))
+}
+
 /// List published LCTs — ids + provenance + entity_type, per the contract §3.
 async fn list_lcts(
     State(s): State<RestState>,
@@ -12994,6 +13029,117 @@ norms:
         let err = { let l = state.ledger.lock().await; valid(&state.projected(&l)).unwrap_err() };
         assert_eq!(err.status, StatusCode::CONFLICT);
         assert!(err.message.starts_with("caller_auth_stale:") && err.message.contains("refused its pin"), "{}", err.message);
+    }
+
+    // ---- LCT identity convergence Slice D-c: the MRH projection (PRD FR6 / D7 tests) ----
+
+    /// A member like `slice_c_member`, whose document also self-declares a `parent` edge.
+    async fn d_c_member(state: &RestState, channel: Option<&KeyPair>, parent: &str) -> (Uuid, KeyPair, String) {
+        let lo: SocketAddr = "127.0.0.1:5555".parse().unwrap();
+        let (mut doc, binding) = web4_core::lct::Lct::new(web4_core::lct::EntityType::Human, None);
+        doc.mrh.bound.push(web4_core::lct::MrhEdge { lct_id: parent.into(), edge_type: "parent".into(), ts: Utc::now() });
+        doc.sign_binding(&binding);
+        if let Some(ck) = channel {
+            doc.authorize_operational_key(web4_core::lct::HUB_CHANNEL_PURPOSE, ck.verifying_key(), &binding);
+        }
+        let member = Uuid::new_v4();
+        admin_add_member(State(state.clone()), ConnectInfo(lo), Json(AddMemberBody {
+            lct_id: member, pubkey_hex: binding.verifying_key().to_hex(), name: Some("slice-d-c".into()) }))
+            .await.unwrap();
+        let lct_id = web4_core::lct::derive_lct_id(&doc.public_key);
+        witness_event(state, HubEvent::LctPublished { lct_id: lct_id.clone(), document: doc, published_by: member,
+            provenance: hub_lib::events::LctProvenance::SelfIssued, published_at: Utc::now() }).await.unwrap();
+        (member, binding, lct_id)
+    }
+
+    /// Three members; `a` holds a role, loses it to `b`, and gets it back; `a` and `b` pair; `a` introduces
+    /// itself to `c`. Returns (a, b, c) as (member, key, canonical).
+    async fn d_c_world(state: &RestState) -> [(Uuid, KeyPair, String); 3] {
+        let a = d_c_member(state, None, "lct:web4:parent-of-a").await;
+        let b = d_c_member(state, None, "lct:web4:parent-of-b").await;
+        let c = d_c_member(state, None, "lct:web4:parent-of-c").await;
+        let (role_lct_id, role) = (Uuid::new_v4(), web4_core::role::SocietyRole::Custom("d-c seat".into()));
+        witness_event(state, HubEvent::RoleCreated { role_lct_id, role: role.clone(),
+            role_kind: hub_lib::events::RoleKind::Office, charter: None, parent_role_lct_id: None,
+            created_by: state.sovereign_lct_id, initial_occupant: None }).await.unwrap();
+        for who in [a.0, b.0, a.0] {
+            witness_event(state, HubEvent::RoleAssigned { role: role.clone(), role_lct_id, assigned_to: who,
+                assigned_by: state.sovereign_lct_id }).await.unwrap();
+        }
+        witness_event(state, HubEvent::PairingRequested { pair_id: Uuid::new_v4(), initiator_lct_id: a.0,
+            counterparty_lct_id: b.0, purpose: "d-c".into(), proposed_at: Utc::now(), expires_at: None,
+            initiator_ephemeral_pub_hex: None }).await.unwrap();
+        witness_event(state, HubEvent::IntroRequested { intro_id: Uuid::new_v4(), from_lct: a.0, to_lct: c.0,
+            purpose: None }).await.unwrap();
+        [a, b, c]
+    }
+
+    async fn d_c_view(state: &RestState, reader: Uuid, key: &KeyPair, of: &str) -> serde_json::Value {
+        d_b2_call(state, reader, key, "lct_mrh", serde_json::json!({"lct_id": of})).await.expect("lct_mrh").0
+    }
+
+    fn d_c_edges<'v>(view: &'v serde_json::Value, edge_type: &str) -> Vec<&'v serde_json::Value> {
+        view["edges"].as_array().unwrap().iter().filter(|e| e["edge_type"] == edge_type).collect()
+    }
+
+    /// D-c: every `ledger` edge's index resolves to the event it cites, and reading writes nothing. Role
+    /// occupancy is `occupant` / `previous_occupant`, never `rotated_from`.
+    #[tokio::test]
+    async fn slice_d_c_every_ledger_edge_cites_its_event_and_nothing_is_written() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let [a, _b, _c] = d_c_world(&state).await;
+        let before = d_b2_len(&state).await;
+        let view = d_c_view(&state, a.0, &a.1, &a.2).await;
+        assert_eq!(d_b2_len(&state).await, before, "a read writes nothing");
+
+        let entries = state.ledger.lock().await.entries().to_vec();
+        let mut ledger_edges = 0;
+        for e in view["edges"].as_array().unwrap() {
+            if e["source"] != "ledger" { continue; }
+            ledger_edges += 1;
+            let index = e["index"].as_u64().expect("a ledger edge cites an index");
+            let kind = entries.iter().find(|x| x.index == index).expect("the cited entry exists").event.kind();
+            let expected = match e["edge_type"].as_str().unwrap() {
+                "citizen_of" => "member_added",
+                "occupant" | "previous_occupant" => "role_assigned",
+                "paired_with" => "pairing_requested",
+                "introduction_to" | "introduction_from" => "intro_requested",
+                other => panic!("unexpected ledger edge type {other}"),
+            };
+            assert_eq!(kind, expected, "{e}");
+        }
+        assert!(ledger_edges >= 5, "{view}");
+        assert_eq!(d_c_edges(&view, "occupant").len(), 1, "a holds the seat again");
+        assert_eq!(d_c_edges(&view, "previous_occupant").len(), 1, "and held it before");
+        assert!(d_c_edges(&view, "rotated_from").is_empty(), "a seat change is never a rotation");
+        let parent = d_c_edges(&view, "parent");
+        assert_eq!(parent.len(), 1);
+        assert_eq!(parent[0]["source"], "self_declared");
+        assert_eq!(parent[0]["registry_version"], 1);
+        assert!(parent[0].get("index").is_none(), "a self-declared edge cites no ledger index");
+    }
+
+    /// D7: pairings and introductions are visible to their parties only; an unauthenticated read gets the
+    /// self-declared edges only.
+    #[tokio::test]
+    async fn slice_d_c_pairings_are_for_their_parties_and_anonymous_gets_self_declared_only() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let [a, b, c] = d_c_world(&state).await;
+
+        let by_b = d_c_view(&state, b.0, &b.1, &a.2).await;
+        assert_eq!(d_c_edges(&by_b, "paired_with").len(), 1, "b is a party to the pairing");
+        assert!(d_c_edges(&by_b, "introduction_to").is_empty(), "b is not a party to a's intro to c");
+        let by_c = d_c_view(&state, c.0, &c.1, &a.2).await;
+        assert!(d_c_edges(&by_c, "paired_with").is_empty(), "c is not a party to the pairing");
+        assert_eq!(d_c_edges(&by_c, "introduction_to").len(), 1, "c is a party to the intro");
+        assert_eq!(d_c_edges(&by_c, "citizen_of").len(), 1, "citizenship is visible to any member");
+        assert!(by_c["notes"].to_string().contains("parties"), "the filtering is said, not silent");
+
+        let anon = get_lct_mrh(State(state.clone()), Path((state.hub_id, a.2.clone()))).await.unwrap().0;
+        assert!(!anon.edges.is_empty());
+        assert!(anon.edges.iter().all(|e| e.source == "self_declared"), "{:?}", anon.edges);
+        assert_eq!(anon.member, None, "no member attribution to an anonymous reader");
+        assert!(get_lct_mrh(State(state.clone()), Path((state.hub_id, "lct:web4:nope".into()))).await.is_err());
     }
 
     // ---- §5.1 R7 carrier: obligations + deadline→reputation ----

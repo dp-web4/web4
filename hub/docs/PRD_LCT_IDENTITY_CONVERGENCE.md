@@ -468,6 +468,12 @@ witnesses nothing new. It is a Slice D candidate.
   `registry_version`, never a ledger index. D-c's first step is to enumerate, per edge type, which source
   it actually has. Whether registry `witnessing` vouches are ledger events is **unmeasured**, and D7's
   "every edge cites a ledger index" is narrowed to `ledger` edges until that is measured.
+  - **Measured (D-c build, 2026-10-27):** a document's `witnessing` entries are `web4_core::lct::MrhEdge`s, signed
+    only by that document's own binding key, never by the witness, and no ledger event backs them. D-c therefore
+    reports them as `self_declared` (cited by `registry_version`), with the document's other MRH edges. The
+    hub-witnessed side of "witnessing" is a `ledger` edge, `latest_witnessed_act`. Ledger edges citing an index
+    are: `citizen_of`, `occupant` / `previous_occupant`, `paired_with`, `introduction_to` / `_from`, `member_of` /
+    `has_member`, `successor` / `predecessor` / `successor_conflict`, `latest_witnessed_act`.
 - It's kept separate from the document's own self-declared `mrh` (the 45 `parent` edges). The response
   labels that as a third source, `self_declared`.
 - **Exposure.** Listing pairings and introductions publishes the social graph, and pairing topology is
