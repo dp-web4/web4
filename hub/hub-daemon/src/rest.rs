@@ -11116,14 +11116,17 @@ norms:
     }
 
     /// E5 + CBP: a withdrawal drops the edge from lineage (both entries stay on the ledger, and lineage cites
-    /// the withdrawal at both ends); a later attestation of the same pair is a NEW live edge.
+    /// the withdrawal at both ends); a later attestation of the same pair is a NEW live edge. CBP's HOLD on #940
+    /// (with Pub's measurement): the withdrawn ENVELOPE replayed byte for byte is refused; only a fresh ceremony,
+    /// issued after the withdrawal, re-links the pair.
     #[tokio::test]
     async fn slice_e_a_withdraw_then_reattest_is_a_new_edge() {
         let (_tmp, state, sov) = fresh_state().await;
         let (_ka, a) = d_b1_publish(&state, &sov).await;
         let (kb, b) = d_b1_publish(&state, &sov).await;
         let (s, now) = (sov.keypair().unwrap(), Utc::now().to_rfc3339());
-        let i1 = e_attest(&state, &e_statement(state.hub_id, &a, &b, &s, &kb, &now, "x")).await;
+        let original = e_statement(state.hub_id, &a, &b, &s, &kb, &now, "x");
+        let i1 = e_attest(&state, &original).await;
         assert!(e_withdraw(&state, &sov, &a, &b, i1 + 1).await.unwrap_err().contains("not"),
             "a withdrawal must name the live entry");
         let w = e_withdraw(&state, &sov, &a, &b, i1).await.expect("withdrawn");
@@ -11134,7 +11137,16 @@ norms:
                 vec![(i1, w)], "cites the withdrawal");
         }
         assert!(e_withdraw(&state, &sov, &a, &b, i1).await.is_err(), "nothing live to withdraw twice");
-        let i2 = e_attest(&state, &e_statement(state.hub_id, &a, &b, &s, &kb, &now, "x")).await;
+        let err = e_verify(&state, &original).await.unwrap_err();
+        assert!(err.contains("withdrawn"), "the public, withdrawn envelope replayed as-is: {err}");
+        let backdated = e_statement(state.hub_id, &a, &b, &s, &kb,
+            &(Utc::now() - chrono::Duration::minutes(5)).to_rfc3339(), "fresh signatures, old time");
+        assert!(e_verify(&state, &backdated).await.unwrap_err().contains("withdrawn"),
+            "a statement issued before the withdrawal is refused even with fresh signatures");
+        let fresh = e_statement(state.hub_id, &a, &b, &s, &kb, &(Utc::now() + chrono::Duration::seconds(2)).to_rfc3339(),
+            "x");
+        assert_ne!(fresh, original);
+        let i2 = e_attest(&state, &fresh).await;
         assert!(i2 > w);
         assert_eq!(d_b1_lineage(&state, &a).await.attested_successor.map(|r| r.index), Some(i2),
             "attest → withdraw → attest: the link is back, as a new entry");
@@ -11143,6 +11155,23 @@ norms:
             .collect();
         assert_eq!(kinds, ["lct_predecessor_attested", "lct_predecessor_attestation_withdrawn",
             "lct_predecessor_attested"], "the ledger keeps all three");
+    }
+
+    /// CBP #940, the skew case: a statement may be issued up to 60 s AHEAD, so an attestation issued +50 s and
+    /// withdrawn at once carries a time LATER than its own withdrawal. Its replay is still refused, because the
+    /// floor is the withdrawn attestation's own `issued_at` as well as the withdrawal's.
+    #[tokio::test]
+    async fn slice_e_a_future_dated_replay_after_immediate_withdrawal_is_refused() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (_kc, c) = d_b1_publish(&state, &sov).await;
+        let (kd, d) = d_b1_publish(&state, &sov).await;
+        let s = sov.keypair().unwrap();
+        let ahead = e_statement(state.hub_id, &c, &d, &s, &kd,
+            &(Utc::now() + chrono::Duration::seconds(50)).to_rfc3339(), "x");
+        let ic = e_attest(&state, &ahead).await;
+        e_withdraw(&state, &sov, &c, &d, ic).await.expect("withdrawn at once, issued before the attestation's time");
+        assert!(e_verify(&state, &ahead).await.unwrap_err().contains("withdrawn"),
+            "a future-dated attestation's replay after an immediate withdrawal is refused");
     }
 
     /// E3a (Legion): D-b1's cycle guard reads live successors of BOTH kinds. Attest A⇢B, then rotate B→A, is
@@ -11182,6 +11211,25 @@ norms:
         assert!(l.successor_kind_conflict);
         assert_eq!(l.successor.map(|s| (s.canonical, s.index)), Some((x, r.entry_index)), "the fact still reads");
         assert_eq!(l.attested_successor.map(|s| s.canonical), Some(b), "the claim still reads");
+    }
+
+    /// CBP #940 (2): "current" is the one live predicate, so a Sovereign key that has itself been ATTESTED as
+    /// lost (a live attested successor) is refused too: a lost key that signs is the thief shape.
+    #[tokio::test]
+    async fn slice_e_a_sovereign_key_attested_lost_is_refused() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (kb, b) = d_b1_publish(&state, &sov).await;
+        let (_ka, a) = d_b1_publish(&state, &sov).await;
+        let (s, now) = (sov.keypair().unwrap(), Utc::now().to_rfc3339());
+        let sov_canonical = hub_lib::ids::CanonicalLctId::derive(&channel_auth::sovereign_key(&state).unwrap());
+        // The attest route verifies (E-b); the guard reads the witnessed fact, so it is witnessed directly.
+        let (_kn, n) = d_b1_publish(&state, &sov).await;
+        witness_event(&state, HubEvent::LctPredecessorAttested { old: sov_canonical.to_string(), new: n.to_string(),
+            issued_at: now.clone(), reason: "Sovereign key lost".into(), attester_signature_hex: String::new(),
+            new_signature_hex: String::new(), attester_pubkey_hex: String::new(), attested_by: "operator_cli".into(),
+            submitted_by: Uuid::nil() }).await.unwrap();
+        let err = e_verify(&state, &e_statement(state.hub_id, &a, &b, &s, &kb, &now, "x")).await.unwrap_err();
+        assert!(err.contains("attested lost"), "{err}");
     }
 
     /// E1 (CBP): the attester is the Sovereign's CURRENT verified key; once D4 says it rotated away, it no

@@ -466,9 +466,13 @@ pub struct RoleOccupancyChange {
     /// The reverse of `lct_attested_successors`.
     #[serde(skip)]
     pub lct_attested_predecessors: BTreeMap<crate::ids::CanonicalLctId, Vec<(crate::ids::CanonicalLctId, u64, String)>>,
-    /// Slice E5: withdrawn attestations, `(old, new, attestation_index, withdrawal_index)`, in ledger order.
+    /// Slice E5: withdrawn attestations, in ledger order.
     #[serde(skip)]
-    pub lct_attestations_withdrawn: Vec<(crate::ids::CanonicalLctId, crate::ids::CanonicalLctId, u64, u64)>,
+    pub lct_attestations_withdrawn: Vec<crate::lct_attest::WithdrawnAttestation>,
+    /// Slice E: each folded attestation's signed `issued_at`, by its ledger index. A withdrawal records it, so a
+    /// later statement for the pair must be issued after both (no replay of a withdrawn envelope; CBP #940).
+    #[serde(skip)]
+    pub lct_attestation_issued_at: BTreeMap<u64, String>,
 
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
@@ -1682,7 +1686,7 @@ impl HubState {
                     self.lct_predecessors.entry(new).or_default().push((old, index));
                 }
             }
-            HubEvent::LctPredecessorAttested { old, new, attested_by, .. } => {
+            HubEvent::LctPredecessorAttested { old, new, attested_by, issued_at, .. } => {
                 // The route verified before witnessing. E4: the same pair is folded into the first LIVE entry;
                 // after a withdrawal, a fresh attestation of the pair is a new edge (CBP).
                 let (Ok(old), Ok(new)) = (crate::ids::CanonicalLctId::parse(old),
@@ -1691,9 +1695,10 @@ impl HubState {
                     self.lct_attested_successors.entry(old.clone()).or_default()
                         .push((new.clone(), index, attested_by.clone()));
                     self.lct_attested_predecessors.entry(new).or_default().push((old, index, attested_by.clone()));
+                    self.lct_attestation_issued_at.insert(index, issued_at.clone());
                 }
             }
-            HubEvent::LctPredecessorAttestationWithdrawn { old, new, attestation_index, .. } => {
+            HubEvent::LctPredecessorAttestationWithdrawn { old, new, attestation_index, issued_at, .. } => {
                 let (Ok(old), Ok(new)) = (crate::ids::CanonicalLctId::parse(old),
                     crate::ids::CanonicalLctId::parse(new)) else { return; };
                 // Only the live entry it names; a stale or repeated withdrawal changes nothing.
@@ -1707,7 +1712,11 @@ impl HubState {
                     };
                     drop(&mut self.lct_attested_successors, &old);
                     drop(&mut self.lct_attested_predecessors, &new);
-                    self.lct_attestations_withdrawn.push((old, new, *attestation_index, index));
+                    let attested_issued_at = self.lct_attestation_issued_at.get(attestation_index).cloned()
+                        .unwrap_or_default();
+                    self.lct_attestations_withdrawn.push(crate::lct_attest::WithdrawnAttestation { old, new,
+                        index: *attestation_index, withdrawn_at: index, attested_issued_at,
+                        withdrawal_issued_at: issued_at.clone() });
                 }
             }
             HubEvent::CouncilMemberAdded { member_lct_id, member_pubkey_hex, member_name, .. } => {

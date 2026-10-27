@@ -167,9 +167,9 @@ pub fn lineage(state: &HubState, canonical: &CanonicalLctId) -> LctLineage {
         [one] => (Some(one.clone()), Vec::new()),
         _ => (None, if attested_successors.len() > 1 { attested_successors } else { Vec::new() }),
     };
-    let withdrawn_attestations = state.lct_attestations_withdrawn.iter().filter_map(|(old, new, i, w)| {
-        let other = if old == canonical { new } else if new == canonical { old } else { return None };
-        Some(crate::lct_attest::WithdrawnRef { canonical: other.clone(), index: *i, withdrawn_at: *w })
+    let withdrawn_attestations = state.lct_attestations_withdrawn.iter().filter_map(|w| {
+        let other = if &w.old == canonical { &w.new } else if &w.new == canonical { &w.old } else { return None };
+        Some(crate::lct_attest::WithdrawnRef { canonical: other.clone(), index: w.index, withdrawn_at: w.withdrawn_at })
     }).collect();
     LctLineage { successor, successor_conflict, predecessors, claimed_predecessors, attested_successor,
         attested_successor_conflict, attested_predecessors, withdrawn_attestations, successor_kind_conflict }

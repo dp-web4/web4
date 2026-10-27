@@ -73,11 +73,36 @@ pub fn check_reason(reason: &str) -> Result<(), String> {
 /// E1 (CBP): the attester is this hub's Sovereign key, and only while it is CURRENT. A Sovereign presence that
 /// D4 says has rotated away no longer speaks for the hub. The key comes from the hub's identity, never from
 /// the statement, so a Sovereign of another hub (a demo hub on the being's machine) never qualifies.
+///
+/// CBP #940: "current" is the ONE live predicate, so a Sovereign key with a live ATTESTED successor is refused
+/// too. A key attested as lost that then signs is the thief shape E exists to surface; it never fires for an
+/// honest Sovereign, whose lost key cannot sign anything.
 fn check_attester(state: &HubState, sovereign: &PublicKey) -> Result<(), String> {
     let canonical = CanonicalLctId::derive(sovereign);
-    if state.lct_successors.get(&canonical).is_some_and(|v| !v.is_empty()) {
-        return Err(format!("the Sovereign key ({canonical}) has been rotated away (D4); only the Sovereign's \
-            current verified key may attest"));
+    if state.lct_has_live_successor(&canonical) {
+        return Err(format!("the Sovereign key ({canonical}) has been rotated away or attested lost (it has a live \
+            successor); only the Sovereign's current key may attest or withdraw"));
+    }
+    Ok(())
+}
+
+/// CBP / Pub #940: a withdrawn attestation must not come back by replaying its envelope, which is public (both
+/// signatures and the bytes are on the ledger). A statement for a pair with a withdrawal must be issued AFTER
+/// both the withdrawn attestation and the withdrawal. An exact replay carries the original `issued_at`, so it
+/// is refused whatever the clock skew; a fresh ceremony, with fresh consent, passes.
+fn check_not_withdrawn_replay(state: &HubState, old: &CanonicalLctId, new: &CanonicalLctId, at: DateTime<Utc>)
+    -> Result<(), String> {
+    for w in state.lct_attestations_withdrawn.iter().filter(|w| &w.old == old && &w.new == new) {
+        for floor in [&w.attested_issued_at, &w.withdrawal_issued_at] {
+            let Ok(floor) = DateTime::parse_from_rfc3339(floor) else {
+                return Err(format!("{old} ⇢ {new} has a withdrawal (entry {}) whose time cannot be read; \
+                    refusing rather than risk replaying a withdrawn attestation", w.withdrawn_at));
+            };
+            if at <= floor.with_timezone(&Utc) {
+                return Err(format!("{old} ⇢ {new} was withdrawn (entry {}); a new attestation must be issued \
+                    after that withdrawal, so a withdrawn envelope cannot be replayed", w.withdrawn_at));
+            }
+        }
     }
     Ok(())
 }
@@ -149,6 +174,7 @@ impl AttestationStatement {
                 key-signed rotation", self.old));
         }
         let at = parse_issued_at(&self.issued_at, now, ATTEST_MAX_AGE_SECS)?;
+        check_not_withdrawn_replay(state, &self.old, &self.new, at)?;
         let bytes = attestation_bytes(hub, &self.old, &self.new, &self.issued_at, &self.reason);
         let attester_sig = signature(&self.attester_signature_hex)
             .ok_or("attester_signature_hex is not a 64-byte hex signature")?;
@@ -205,6 +231,20 @@ pub struct AttestedRef {
     pub index: u64,
     /// The channel the attestation arrived through (E2, CBP): witnessed, so a daemon-minted one is anomalous.
     pub attested_by: String,
+}
+
+/// A withdrawn attestation as the projection keeps it (E5).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WithdrawnAttestation {
+    pub old: CanonicalLctId,
+    pub new: CanonicalLctId,
+    /// The `LctPredecessorAttested` that was withdrawn.
+    pub index: u64,
+    /// The `LctPredecessorAttestationWithdrawn` that withdrew it.
+    pub withdrawn_at: u64,
+    /// Both signed times, verbatim: a later statement for the pair must be issued after both.
+    pub attested_issued_at: String,
+    pub withdrawal_issued_at: String,
 }
 
 /// An attested edge that a later withdrawal took out of lineage (E5). The ledger keeps both entries.
