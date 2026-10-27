@@ -1001,6 +1001,39 @@ pub enum HubEvent {
         /// The member who relayed the statement (the envelope signer). Authorship is the two signatures.
         submitted_by: Uuid,
     },
+
+    /// LCT identity convergence Slice E: the Sovereign ATTESTS that `new` continues `old` (lost-key lineage),
+    /// and `new` countersigns. `attester_signature_hex` and `new_signature_hex` are over
+    /// `lct_attest::attestation_bytes(hub, old, new, issued_at, reason)`; `attester_pubkey_hex` is the Sovereign
+    /// key that verified, carried so the entry re-verifies from the ledger alone. A LABELLED edge
+    /// (`attested_*`), never read as a verified rotation. `reason` is public. `attested_by` is the channel the
+    /// envelope arrived through (CBP), so a daemon-minted attestation would be anomalous on the ledger.
+    LctPredecessorAttested {
+        old: String,
+        new: String,
+        issued_at: String,
+        reason: String,
+        attester_signature_hex: String,
+        new_signature_hex: String,
+        attester_pubkey_hex: String,
+        attested_by: String,
+        submitted_by: Uuid,
+    },
+
+    /// Slice E5: the Sovereign withdraws the live attestation witnessed at `attestation_index`. Signed over
+    /// `lct_attest::withdrawal_bytes`; no countersignature (withdrawing a claim needs no consent from its
+    /// subject). The original entry stays on the ledger; lineage drops the edge, citing this one.
+    LctPredecessorAttestationWithdrawn {
+        old: String,
+        new: String,
+        attestation_index: u64,
+        issued_at: String,
+        reason: String,
+        attester_signature_hex: String,
+        attester_pubkey_hex: String,
+        attested_by: String,
+        submitted_by: Uuid,
+    },
 }
 
 /// How a published LCT came to exist. Carried on the registry entry so a
@@ -1067,6 +1100,8 @@ impl HubEvent {
         "intro_requested",
         "intro_responded",
         "law_amended",
+        "lct_predecessor_attestation_withdrawn",
+        "lct_predecessor_attested",
         "lct_published",
         "lct_rotated",
         "member_added",
@@ -1158,6 +1193,8 @@ impl HubEvent {
             Self::ObligationResolved { .. } => "obligation_resolved",
             Self::LctPublished { .. } => "lct_published",
             Self::LctRotated { .. } => "lct_rotated",
+            Self::LctPredecessorAttested { .. } => "lct_predecessor_attested",
+            Self::LctPredecessorAttestationWithdrawn { .. } => "lct_predecessor_attestation_withdrawn",
         }
     }
 }

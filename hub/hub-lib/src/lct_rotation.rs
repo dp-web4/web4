@@ -75,9 +75,11 @@ impl RotationStatement {
         // Legion #934: no cycles. A `new` that already has a witnessed successor is itself rotated away, so
         // naming it would close a loop (A→B, B→A) in which neither key reads as current. Because every
         // canonical in a chain except its tip has a successor, refusing this one hop rules out any cycle.
-        if state.lct_successors.get(&self.new).is_some_and(|v| !v.is_empty()) {
-            return Err(format!("{} (new) has already been rotated away; a rotation cannot name a superseded \
-                LCT as its successor", self.new));
+        // Slice E3a (Legion #938): that argument holds per edge KIND, so the guard reads live successors of
+        // both kinds. Otherwise an attested A ⇢ B followed by a rotation B → A closes a ring neither guard sees.
+        if state.lct_has_live_successor(&self.new) {
+            return Err(format!("{} (new) has already been rotated away (it has a live successor, verified or \
+                attested); a rotation cannot name a superseded LCT as its successor", self.new));
         }
         let at = DateTime::parse_from_rfc3339(&self.issued_at)
             .map_err(|_| format!("issued_at '{}' is not RFC 3339", self.issued_at))?;
@@ -123,6 +125,19 @@ pub struct LctLineage {
     /// `rotated_from` MRH edges in this canonical's own document that no `LctRotated` backs: a
     /// self-claim, signed only by this key.
     pub claimed_predecessors: Vec<String>,
+    /// Slice E: the single LIVE attested successor (a Sovereign claim the successor countersigned), set only
+    /// when exactly one distinct one is live. A LABEL, never a verified rotation.
+    pub attested_successor: Option<crate::lct_attest::AttestedRef>,
+    /// Two or more live attested successors (E4): every one, and no `attested_successor`.
+    pub attested_successor_conflict: Vec<crate::lct_attest::AttestedRef>,
+    /// Live attested predecessors, in ledger order.
+    pub attested_predecessors: Vec<crate::lct_attest::AttestedRef>,
+    /// E5: attested edges at either end that a withdrawal took out of lineage, citing it.
+    pub withdrawn_attestations: Vec<crate::lct_attest::WithdrawnRef>,
+    /// E-8 (Legion): this canonical has live successors of BOTH kinds (the old key signed a rotation after its
+    /// loss was attested, or the reverse). `successor` / `successor_conflict` still report the verified fact
+    /// and `attested_*` the claim, but neither is THE successor: law sees both (FR5).
+    pub successor_kind_conflict: bool,
 }
 
 pub fn lineage(state: &HubState, canonical: &CanonicalLctId) -> LctLineage {
@@ -140,5 +155,22 @@ pub fn lineage(state: &HubState, canonical: &CanonicalLctId) -> LctLineage {
         .filter(|edge| edge.edge_type == "rotated_from")
         .filter(|edge| !predecessors.iter().any(|p| p.canonical.as_str() == edge.lct_id))
         .map(|edge| edge.lct_id.clone()).collect()).unwrap_or_default();
-    LctLineage { successor, successor_conflict, predecessors, claimed_predecessors }
+    let attested = |m: &std::collections::BTreeMap<CanonicalLctId, Vec<(CanonicalLctId, u64, String)>>| {
+        m.get(canonical).map(|v| v.iter().map(|(c, i, by)| crate::lct_attest::AttestedRef {
+            canonical: c.clone(), index: *i, attested_by: by.clone() }).collect::<Vec<_>>()).unwrap_or_default()
+    };
+    let attested_successors = attested(&state.lct_attested_successors);
+    let attested_predecessors = attested(&state.lct_attested_predecessors);
+    let successor_kind_conflict = !attested_successors.is_empty()
+        && state.lct_successors.get(canonical).is_some_and(|v| !v.is_empty());
+    let (attested_successor, attested_successor_conflict) = match attested_successors.as_slice() {
+        [one] => (Some(one.clone()), Vec::new()),
+        _ => (None, if attested_successors.len() > 1 { attested_successors } else { Vec::new() }),
+    };
+    let withdrawn_attestations = state.lct_attestations_withdrawn.iter().filter_map(|(old, new, i, w)| {
+        let other = if old == canonical { new } else if new == canonical { old } else { return None };
+        Some(crate::lct_attest::WithdrawnRef { canonical: other.clone(), index: *i, withdrawn_at: *w })
+    }).collect();
+    LctLineage { successor, successor_conflict, predecessors, claimed_predecessors, attested_successor,
+        attested_successor_conflict, attested_predecessors, withdrawn_attestations, successor_kind_conflict }
 }
