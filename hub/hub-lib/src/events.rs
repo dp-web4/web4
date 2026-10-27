@@ -162,6 +162,28 @@ pub struct HubObservations {
     /// beings' acts are often relayed). Liveness is reported only as this raw fact, never as a derived
     /// `dormant`: silence is not dormancy.
     pub last_witnessed_act: LastWitnessedAct,
+    /// Slice D-b1: whether the actor's canonical has been rotated AWAY from (a verified `LctRotated`
+    /// names it as `old`). Evidence only: the act is processed as before, and law may refuse it.
+    pub superseded_key_used: SupersededKeyUsed,
+    /// Slice D-b1: every distinct verified successor when there are two or more (a fork). Empty
+    /// otherwise. The hub picks no winner; law decides.
+    pub successor_conflict: Vec<SuccessorClaim>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SupersededKeyUsed {
+    /// The verified successor canonical; `"successor_conflict"` when there is more than one (see
+    /// `successor_conflict`); `"none"` when never rotated away; `"unknown"` when the canonical is.
+    pub by: String,
+    /// The ledger index of the (first) `LctRotated`, or `"none"` / `"unknown"` with `by`.
+    pub rotated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SuccessorClaim {
+    pub canonical: String,
+    /// The ledger index of the `LctRotated` that witnessed it.
+    pub index: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -949,6 +971,22 @@ pub enum HubEvent {
         provenance: LctProvenance,
         published_at: DateTime<Utc>,
     },
+
+    /// LCT identity convergence Slice D-b1 (D4): a VERIFIED rotation. `old_signature_hex` and
+    /// `new_signature_hex` are both binding-key signatures over
+    /// `lct_rotation::rotation_bytes(hub, old, new, issued_at)`, checked against the published documents
+    /// before witnessing, so anyone can re-verify from the ledger and registry alone. A second distinct
+    /// `new` for the same `old` is witnessed too (a fork, reported as `successor_conflict`); the same
+    /// `old→new` pair is never witnessed twice.
+    LctRotated {
+        old: String,
+        new: String,
+        issued_at: String,
+        old_signature_hex: String,
+        new_signature_hex: String,
+        /// The member who relayed the statement (the envelope signer). Authorship is the two signatures.
+        submitted_by: Uuid,
+    },
 }
 
 /// How a published LCT came to exist. Carried on the registry entry so a
@@ -1015,6 +1053,7 @@ impl HubEvent {
         "intro_responded",
         "law_amended",
         "lct_published",
+        "lct_rotated",
         "member_added",
         "member_admission_reset",
         "member_join_requested",
@@ -1102,6 +1141,7 @@ impl HubEvent {
             Self::ObligationOpened { .. } => "obligation_opened",
             Self::ObligationResolved { .. } => "obligation_resolved",
             Self::LctPublished { .. } => "lct_published",
+            Self::LctRotated { .. } => "lct_rotated",
         }
     }
 }

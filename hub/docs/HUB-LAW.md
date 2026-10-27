@@ -82,7 +82,7 @@ lockstep with `HubEvent::kind()` by a test that reads the function's own source.
 | obligations + trust | `obligation_opened`, `obligation_resolved`, `reputation_recorded` |
 | degraded-window audit | `degraded_reconciled` (F0.1: the witnessed summary of infrastructure-failure windows — recorded by the hub at ignition, never member conduct) |
 | vault unlock (audit) | `vault_unlock_requested`, `vault_unlock_attested`, `vault_unlock_resolved` |
-| records | `event_recorded`, `lct_published`, `referenced_act` |
+| records | `event_recorded`, `lct_published`, `lct_rotated`, `referenced_act` |
 
 **Two action families that are not event kinds**, and both are load-bearing:
 

@@ -3186,6 +3186,8 @@ mod tests {
             "/v1/hubs/:hub_id/credential",
             "/v1/hubs/:hub_id/events",
             "/v1/hubs/:hub_id/lcts/publish",
+            // LCT identity convergence Slice D-b1: driven end-to-end by the `slice_d_b1_*` tests.
+            "/v1/hubs/:hub_id/lcts/rotate",
             // PRD_MEMBER_OF_ROUTING slice Hub A: signed-envelope routes, driven end-to-end by
             // the `member_of_routing_*` tests in rest.rs.
             "/v1/hubs/:hub_id/member-of",

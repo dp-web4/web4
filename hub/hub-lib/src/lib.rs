@@ -36,6 +36,7 @@ pub mod ids;
 pub mod init;
 pub mod law;
 pub mod lct_resolve;
+pub mod lct_rotation;
 pub mod ledger;
 pub mod pair_message;
 pub mod proposal;
