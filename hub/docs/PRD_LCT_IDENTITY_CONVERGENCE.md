@@ -590,15 +590,36 @@ can never read as `verified`.
   (FR5).
 
 **E1, the statement.** `web4-lct-attest-predecessor-v1\n<hub>\n<old>\n<new>\n<issued_at>\n<reason>\n`, where
-`reason` is one line of free text (for example "instance rebuilt, key lost with the disk"). It is signed twice
-over the same bytes:
-- **by the attester:** the founding Sovereign's key, read from the hub's identity, never from the statement.
-  Per CBP and Pub, the signer must be a key the Sovereign controls and never the successor's own, or the label
-  would be doing the work the signature should (the same point as hestia #1408);
+`reason` is one line of free text (for example "instance rebuilt, key lost with the disk").
+
+`reason` rules (Pub):
+- It must not contain `\n`, `\r` or any other control character, so the signed bytes parse one way only.
+- It is capped at 280 bytes (UTF-8).
+- **`reason` is public.** It is witnessed on the ledger and travels with lineage, the MRH projection and identity
+  evidence. Being records are private on this fleet, so put no instance-private detail in it.
+
+`<hub>` must equal this hub's id; a statement naming another hub is refused.
+
+It is signed twice over the same bytes:
+- **by the attester:** this hub's Sovereign key, read from the hub's identity, never from the statement. Per CBP
+  and Pub, the signer must be a key the Sovereign controls and never the successor's own, or the label would be
+  doing the work the signature should (the same point as hestia #1408). If the Sovereign's own presence has
+  rotated under D4, the attester is its **current verified canonical key** per its own lineage. A signature by a
+  key D4 says has rotated away is refused (CBP). A Sovereign of a different hub (for example a demo hub on the
+  being's own machine) never qualifies, because its key is not this hub's (Pub);
 - **by the successor:** `new`'s binding key, from the registry. Without that consent a Sovereign could graft any
   history, including a slashing, onto any published presence. That's the D4 argument again.
 
-The issue window is H2's (−60 s..+600 s), as in D4.
+**The issue window (Pub).** H2's −60 s..+600 s was sized for one signer who submits at once. E is a two-party,
+two-machine ceremony: the successor's key is on the being's disk, and the Sovereign's key is in the hub's vault.
+So E fixes the order and splits the window:
+- the successor countersigns first, and the Sovereign signs last, as part of the submitting envelope;
+- the **envelope** is held to H2's normal window, so submission follows the Sovereign's signature at once;
+- `issued_at` (the time the statement was drafted and countersigned) may be up to **24 h** before the envelope's
+  timestamp, and no more than 60 s after it.
+
+A replay is already folded (E4), and E3 is re-checked under the build lock, so the wider `issued_at` bound
+costs little.
 
 **E2, the route and event.**
 - `POST /v1/hubs/:hub_id/lcts/attest-predecessor` takes a signed envelope whose signer **is** the founding
@@ -606,11 +627,17 @@ The issue window is H2's (−60 s..+600 s), as in D4.
 - It witnesses `LctPredecessorAttested {old, new, issued_at, reason, attester_signature_hex,
   new_signature_hex, attested_by}`.
 - Verification runs again under the build lock (`commit_pair_event_checked`), as `rotation_commit_check` does.
-- **Open: custody of the attester key.** An unlocked hub holds the Sovereign key in its vault, so a route that
-  accepts "the Sovereign's envelope" must not be satisfiable by the daemon signing for itself. The default is
-  that the envelope is produced off-daemon, by the operator CLI with the vault passphrase, exactly like the other
-  operator-authored Sovereign acts. The route verifies a signature; it never mints one. Reviewers: is that
-  boundary enough, or should E wait for a custody tier?
+- **Custody of the attester key: a named gap, not a wall (CBP).** An unlocked hub holds the Sovereign key in its
+  vault. The envelope is produced off-daemon, by the operator CLI with the vault passphrase, like the other
+  operator-authored Sovereign acts, and the route verifies a signature but never mints one. That boundary is
+  **procedural, not cryptographic**: the route cannot tell an envelope the CLI minted from one the daemon minted
+  with the same key. "Verifies, never mints" is a property of the code we ship, not of the protocol. E ships with
+  that default, does not wait for a custody tier, and does not claim to be one. Two things make the gap visible:
+  - `attested_by` records the **channel** the envelope arrived through (the operator CLI session, or anything
+    else), witnessed. A daemon-minted attestation then shows up as an anomaly on the ledger instead of being
+    indistinguishable.
+  - A census test pins that no daemon code path produces an `attester_signature_hex`, in the way hestia pins
+    its `member_lct` consumers.
 
 **E3, preconditions** (each refusal witnesses nothing):
 - `old != new`;
@@ -625,7 +652,9 @@ The issue window is H2's (−60 s..+600 s), as in D4.
 **E4, forks and replays** follow D-b1's rules:
 - two different attested `new`s for one `old` are both witnessed and reported as
   `attested_successor_conflict`, with no single `attested_successor`;
-- the same `old→new` pair is folded into the first entry.
+- the same `old→new` pair is folded into the first entry, **among live entries only**. Once an attestation is
+  withdrawn (E5), a fresh attestation of the same pair is a new entry. A withdrawal is a corrected judgment, and
+  it can itself be corrected (CBP).
 
 **E5, withdrawal.** The Sovereign can withdraw an attestation (`LctPredecessorAttestationWithdrawn {old, new,
 index, reason}`, Sovereign-signed). It is reversible because it is a judgment, and judgments get corrected. The
@@ -640,16 +669,21 @@ withdrawal, since it is a fact about keys.
 - D-a's identity evidence gains `hub_observations.attested_successor` (`{by, attested_at}` | `"none"` |
   `"unknown"`). An act by an `old` canonical **after** an attestation is the shape of a thief using the lost
   key, so law should see it. It is evidence only (FR5).
+- On the NEW presence's acts, identity evidence gains `hub_observations.attested_predecessor` (`{old, by,
+  attested_at}` | `"none"` | `"unknown"`). A consumer weighing `new` then sees that it claims continuity, under
+  the label (CBP). This is also evidence only.
 
 **Decisions to confirm (defaults in bold):**
 
 | # | question | default | why |
 |---|---|---|---|
-| E-1 | who may attest | **the founding Sovereign's key only** | CBP/Pub: a key the Sovereign controls. A council-threshold attester is a later option once council keys are in custody tiers |
+| E-1 | who may attest | **this hub's Sovereign key only: its current verified key per D4** | CBP/Pub: a key the Sovereign controls. A council-threshold attester is a later option once council keys are in custody tiers |
 | E-2 | successor countersignature | **required** | without it, the Sovereign can graft history (or slashing) onto anyone (the D4 argument) |
 | E-3 | `old` with a verified successor | **refused** | an attestation must not contradict a key-signed fact. Disputing a verified link is compromise recovery (D6) |
 | E-4 | withdrawal | **yes, Sovereign-signed, the original stays on the ledger** | it's a judgment, not a key fact |
-| E-5 | evidence on old-key acts after attestation | **`hub_observations.attested_successor`** | a lost key that acts again may be a thief; law decides |
+| E-5 | evidence on old-key acts after attestation | **`hub_observations.attested_successor`** (and `attested_predecessor` on `new`) | a lost key that acts again may be a thief; law decides |
+| E-6 | issue window | **successor first, Sovereign last; envelope under H2; `issued_at` ≤ 24 h before the envelope** | a two-machine ceremony doesn't fit ten minutes (Pub) |
+| E-7 | attester custody | **ship the procedural boundary, named as a gap; witness the channel; census test** | a custody tier is the wall; E neither waits for it nor claims to be it (CBP) |
 
 **Tests (E):**
 - a member-signed attestation is refused, with nothing witnessed;
@@ -660,13 +694,27 @@ withdrawal, since it is a fact about keys.
 - two different `new`s give `attested_successor_conflict`; a replay or re-sign is folded;
 - after a withdrawal the lineage drops the link, and both entries stay on the ledger;
 - an act by `old` after an attestation carries `hub_observations.attested_successor`;
-- the MRH projection labels the edges `attested_*`, never `predecessor` / `successor`.
+- the MRH projection labels the edges `attested_*`, never `predecessor` / `successor`;
+- attest, withdraw, then attest again: lineage shows the link, and the ledger shows all three entries (CBP);
+- a signature by a Sovereign key that D4 says has rotated away is refused (CBP);
+- a Sovereign signature from another hub (a demo hub) over a statement for this hub is refused, and so is a
+  statement whose `<hub>` is not this hub (Pub);
+- a statement countersigned 15 min before the Sovereign signs is accepted; an `issued_at` 25 h before the
+  envelope is refused (Pub);
+- a `reason` containing `\n` or `\r` is refused, and so is one over 280 bytes (Pub);
+- census: no daemon code path produces an `attester_signature_hex` (CBP);
+- `attested_by` carries the arrival channel; an act by `new` carries `hub_observations.attested_predecessor`.
 
 **Not in E:**
 - an attester other than the Sovereign (council threshold, an operator key in a custody tier);
 - compromise recovery (D6);
 - linking more than one hop in one statement;
 - any trust verdict (FR5).
+
+*Reviews on `b44b0820` (10-27): cbp-claude GO on the shape, with three points: custody named as a procedural
+gap, plus a witnessed channel and a census test; fold among live entries only; the attester is the Sovereign's
+current verified key. Pub GO, agreeing with CBP, plus: the issue window for a two-machine ceremony; `reason`
+framing; `reason` is public; a demo-hub Sovereign is refused. All are taken above.*
 
 **Asked of dp alongside E (question 5 from 10-27, a law question, not code):** should default law honour a
 self-declared `void` / `slashed`? Since #935 those statuses are terminal, so honouring one is a one-way door that
