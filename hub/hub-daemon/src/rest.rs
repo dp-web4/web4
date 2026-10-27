@@ -2076,6 +2076,8 @@ pub fn router(state: RestState) -> Router {
         // detail are public reads (hub law gates later).
         .route("/v1/hubs/:hub_id/lcts/publish", post(publish_lct))
         .route("/v1/hubs/:hub_id/lcts/rotate", post(rotate_lct))
+        .route("/v1/hubs/:hub_id/lcts/attest-predecessor", post(attest_predecessor))
+        .route("/v1/hubs/:hub_id/lcts/attest-withdraw", post(attest_withdraw))
         .route("/v1/hubs/:hub_id/lcts", get(list_lcts))
         .route("/v1/hubs/:hub_id/lcts/:lct_id", get(get_lct))
         .route("/v1/hubs/:hub_id/lcts/:lct_id/mrh", get(get_lct_mrh))
@@ -9926,6 +9928,190 @@ async fn rotate_lct(
     }
 }
 
+// ---- LCT identity convergence Slice E-b: attested (lost-key) lineage routes ----
+
+/// The channel these routes record in `attested_by` (E2, CBP #938). Only these two handlers write it, and
+/// `slice_e_b_census_*` pins that no serving code path signs attestation bytes, so an attestation the
+/// daemon minted for itself would carry a different (or no) channel and be anomalous on the ledger.
+const ATTEST_CHANNEL: &str = "rest_sovereign_envelope";
+
+#[derive(Deserialize)]
+struct LctAttestPayload {
+    /// Discriminator; must read `lct_attest_predecessor`.
+    action: String,
+    #[serde(flatten)]
+    statement: hub_lib::lct_attest::AttestationStatement,
+}
+
+#[derive(Deserialize)]
+struct LctAttestWithdrawPayload {
+    /// Discriminator; must read `lct_attest_withdraw`.
+    action: String,
+    #[serde(flatten)]
+    statement: hub_lib::lct_attest::WithdrawalStatement,
+}
+
+#[derive(Serialize, Debug)]
+struct LctAttestAccepted {
+    old: String,
+    new: String,
+    entry_index: u64,
+    /// True when this `old ⇢ new` pair is already LIVE: nothing new was written, and `entry_index` is that
+    /// entry (E4). A pair that was withdrawn is never answered this way; a fresh statement is a new entry.
+    replayed: bool,
+}
+
+/// E2: both routes take a Sovereign envelope only. The envelope was verified against its signer's key by
+/// `pair_endpoint_preamble`, so this is the Sovereign key acting; a member envelope is refused with nothing
+/// witnessed. The attester signature inside the statement is checked separately, against the same key.
+fn require_sovereign_envelope(s: &RestState, envelope: &SignedEnvelope, what: &str) -> Result<(), ApiError> {
+    if envelope.signer_lct_id != s.sovereign_lct_id {
+        return Err(ApiError { status: StatusCode::FORBIDDEN,
+            message: format!("attest_needs_sovereign: {what} is the Sovereign's act; signer {} is not the \
+                Sovereign", envelope.signer_lct_id) });
+    }
+    Ok(())
+}
+
+fn attest_sovereign_key(s: &RestState) -> Result<web4_core::crypto::PublicKey, ApiError> {
+    channel_auth::sovereign_key(s).ok_or_else(|| ApiError { status: StatusCode::SERVICE_UNAVAILABLE,
+        message: "this hub has no readable Sovereign key; an attestation cannot be verified".into() })
+}
+
+/// Under the build lock, against the ledger the entry extends: a pair that became live meanwhile is a
+/// replay (`attestation_exists:<index>`), and the statement is verified AGAIN (a withdrawal, a rotation, or
+/// a predecessor landing between the first verify and the append is seen).
+fn attestation_commit_check(st: hub_lib::lct_attest::AttestationStatement, hub: Uuid,
+    sovereign: web4_core::crypto::PublicKey) -> impl Fn(&HubState) -> Result<(), ApiError> {
+    move |state: &HubState| {
+        if let Some(i) = state.attestation_index(&st.old, &st.new) {
+            return Err(ApiError { status: StatusCode::CONFLICT, message: format!("attestation_exists:{i}") });
+        }
+        st.verify(state, hub, &sovereign, Utc::now()).map(|_| ()).map_err(|e| ApiError {
+            status: StatusCode::FORBIDDEN, message: format!("lct_attest_predecessor refused: {e}") })
+    }
+}
+
+fn withdrawal_commit_check(st: hub_lib::lct_attest::WithdrawalStatement, hub: Uuid,
+    sovereign: web4_core::crypto::PublicKey) -> impl Fn(&HubState) -> Result<(), ApiError> {
+    move |state: &HubState| st.verify(state, hub, &sovereign, Utc::now()).map(|_| ()).map_err(|e| ApiError {
+        status: StatusCode::FORBIDDEN, message: format!("lct_attest_withdraw refused: {e}") })
+}
+
+/// Hub law on an attestation act, the `rotate_lct` shape.
+async fn attest_law_gate(s: &RestState, envelope: &SignedEnvelope, event: &HubEvent, what: &str)
+    -> Result<(), ApiError> {
+    let law_guard = s.law.read().await;
+    if let Some(law) = law_guard.as_ref() {
+        let req = build_r6_request(envelope, event, s.sovereign_lct_id).map_err(ApiError::internal)?;
+        match law.evaluate_outcome(&req).decision {
+            Decision::Allow => {}
+            Decision::Warn => tracing::warn!("{what} flagged by hub law (proceeding)"),
+            Decision::Deny => return Err(ApiError { status: StatusCode::FORBIDDEN,
+                message: format!("{what} denied by hub law") }),
+            Decision::Escalate => return Err(ApiError { status: StatusCode::ACCEPTED,
+                message: format!("{what} escalated to council; use propose/sign") }),
+        }
+    }
+    Ok(())
+}
+
+/// `POST /v1/hubs/:hub_id/lcts/attest-predecessor`: witness a Sovereign attestation that `new` continues
+/// `old` (lost-key lineage), countersigned by `new` (`LctPredecessorAttested`). A LABELLED edge, never a
+/// verified rotation.
+///
+/// surface: attest_predecessor   act: link two published LCTs as attested predecessor ⇢ successor
+/// S: med/reversible [construct: an append-only entry whose effect a Sovereign withdrawal removes from lineage (E5)]
+/// R: pass [construct: pair_endpoint_preamble verifies the envelope; require_sovereign_envelope]
+/// W: pass [construct: AttestationStatement::verify, this hub's CURRENT Sovereign key (one live predicate) + new's binding key over the same bytes]
+/// O: pass [construct: attestation_commit_check (live-pair replay + verify) under the build lock; verify + hub law run before it]
+/// A: pass [construct: LctPredecessorAttested carries the statement, both signatures, attester_pubkey_hex and the channel]
+/// V: present [construct: hub law Deny/Escalate on lct_predecessor_attested; E5 withdrawal; the custody gap is named in the PRD, not claimed closed]
+/// verdict: PASS
+async fn attest_predecessor(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<LctAttestAccepted>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!("hub id {} does not match this hub {}", hub_id, s.hub_id)));
+    }
+    let projected = pair_endpoint_preamble(&s, &envelope).await?;
+    require_sovereign_envelope(&s, &envelope, "an attestation")?;
+    let payload: LctAttestPayload = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("payload not an lct_attest_predecessor: {}", e)))?;
+    if payload.action != "lct_attest_predecessor" {
+        return Err(ApiError::bad_request(format!("expected action=lct_attest_predecessor, got {}", payload.action)));
+    }
+    let st = payload.statement;
+    let sovereign = attest_sovereign_key(&s)?;
+    let accepted = |entry_index: u64, replayed: bool| Json(LctAttestAccepted {
+        old: st.old.to_string(), new: st.new.to_string(), entry_index, replayed });
+    if let Some(index) = projected.attestation_index(&st.old, &st.new) {
+        return Ok(accepted(index, true));
+    }
+    st.verify(&projected, s.hub_id, &sovereign, Utc::now()).map_err(|e| ApiError {
+        status: StatusCode::FORBIDDEN, message: format!("lct_attest_predecessor refused: {e}") })?;
+
+    let event = HubEvent::LctPredecessorAttested {
+        old: st.old.to_string(), new: st.new.to_string(), issued_at: st.issued_at.clone(), reason: st.reason.clone(),
+        attester_signature_hex: st.attester_signature_hex.clone(), new_signature_hex: st.new_signature_hex.clone(),
+        attester_pubkey_hex: sovereign.to_hex(), attested_by: ATTEST_CHANNEL.into(),
+        submitted_by: envelope.signer_lct_id,
+    };
+    attest_law_gate(&s, &envelope, &event, "lct_attest_predecessor").await?;
+    match commit_pair_event_checked(&s, event, Some(attestation_commit_check(st.clone(), s.hub_id, sovereign))).await {
+        Ok((entry_index, _)) => Ok(accepted(entry_index, false)),
+        Err(e) => match e.message.strip_prefix("attestation_exists:").and_then(|i| i.parse().ok()) {
+            Some(index) => Ok(accepted(index, true)),
+            None => Err(e),
+        },
+    }
+}
+
+/// `POST /v1/hubs/:hub_id/lcts/attest-withdraw`: the Sovereign withdraws a live attestation (E5,
+/// `LctPredecessorAttestationWithdrawn`). No countersignature: withdrawing a claim needs no consent from
+/// its subject.
+///
+/// surface: attest_withdraw   act: remove an attested edge from lineage (the ledger keeps both entries)
+/// S: low/reversible [construct: a fresh attestation, issued after this, re-links the pair]
+/// R: pass [construct: pair_endpoint_preamble; require_sovereign_envelope]
+/// W: pass [construct: WithdrawalStatement::verify, the Sovereign's current key, naming the live entry]
+/// O: pass [construct: withdrawal_commit_check under the build lock]
+/// A: pass [construct: LctPredecessorAttestationWithdrawn carries the statement, signature, key and channel]
+/// V: present [construct: hub law on lct_predecessor_attestation_withdrawn]
+/// verdict: PASS
+async fn attest_withdraw(
+    State(s): State<RestState>,
+    Path(hub_id): Path<Uuid>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<LctAttestAccepted>, ApiError> {
+    if hub_id != s.hub_id {
+        return Err(ApiError::not_found(format!("hub id {} does not match this hub {}", hub_id, s.hub_id)));
+    }
+    let projected = pair_endpoint_preamble(&s, &envelope).await?;
+    require_sovereign_envelope(&s, &envelope, "a withdrawal")?;
+    let payload: LctAttestWithdrawPayload = serde_json::from_value(envelope.payload.clone())
+        .map_err(|e| ApiError::bad_request(format!("payload not an lct_attest_withdraw: {}", e)))?;
+    if payload.action != "lct_attest_withdraw" {
+        return Err(ApiError::bad_request(format!("expected action=lct_attest_withdraw, got {}", payload.action)));
+    }
+    let st = payload.statement;
+    let sovereign = attest_sovereign_key(&s)?;
+    st.verify(&projected, s.hub_id, &sovereign, Utc::now()).map_err(|e| ApiError {
+        status: StatusCode::FORBIDDEN, message: format!("lct_attest_withdraw refused: {e}") })?;
+    let event = HubEvent::LctPredecessorAttestationWithdrawn {
+        old: st.old.to_string(), new: st.new.to_string(), attestation_index: st.attestation_index,
+        issued_at: st.issued_at.clone(), reason: st.reason.clone(),
+        attester_signature_hex: st.attester_signature_hex.clone(), attester_pubkey_hex: sovereign.to_hex(),
+        attested_by: ATTEST_CHANNEL.into(), submitted_by: envelope.signer_lct_id,
+    };
+    attest_law_gate(&s, &envelope, &event, "lct_attest_withdraw").await?;
+    let (entry_index, _) = commit_pair_event_checked(&s, event,
+        Some(withdrawal_commit_check(st.clone(), s.hub_id, sovereign))).await?;
+    Ok(Json(LctAttestAccepted { old: st.old.to_string(), new: st.new.to_string(), entry_index, replayed: false }))
+}
+
 /// Resolve one published LCT. Unknown id → 404, nothing fabricated.
 /// The pinned pairing pubkey for a member, keyed by member uuid.
 #[derive(serde::Serialize)]
@@ -11251,6 +11437,207 @@ norms:
         let err = e_verify(&state, &e_statement(state.hub_id, &d, &c, &s, &kc, &now, "x")).await.unwrap_err();
         assert!(err.contains("rotated away"), "{err}");
         assert!(e_withdraw(&state, &sov, &a, &b, i).await.unwrap_err().contains("rotated away"));
+    }
+
+    // ---- LCT identity convergence Slice E-b: the attest / withdraw routes and the off-daemon signer ----
+
+    fn e_b_payload(st: &hub_lib::lct_attest::AttestationStatement) -> serde_json::Value {
+        let mut v = serde_json::to_value(st).unwrap();
+        v["action"] = serde_json::json!("lct_attest_predecessor");
+        v
+    }
+
+    async fn e_b_post(state: &RestState, signer: &IdentityFile, st: &hub_lib::lct_attest::AttestationStatement)
+        -> Result<Json<LctAttestAccepted>, ApiError> {
+        let env = publish_envelope(state, signer, e_b_payload(st));
+        attest_predecessor(State(state.clone()), Path(state.hub_id), Json(env)).await
+    }
+
+    async fn e_b_withdraw(state: &RestState, sov: &IdentityFile, old: &hub_lib::ids::CanonicalLctId,
+        new: &hub_lib::ids::CanonicalLctId, index: u64) -> Result<Json<LctAttestAccepted>, ApiError> {
+        let now = Utc::now().to_rfc3339();
+        let bytes = hub_lib::lct_attest::withdrawal_bytes(state.hub_id, old, new, index, &now, "in error");
+        let env = publish_envelope(state, sov, serde_json::json!({ "action": "lct_attest_withdraw",
+            "old": old, "new": new, "attestation_index": index, "issued_at": now, "reason": "in error",
+            "attester_signature_hex": hex::encode(sov.keypair().unwrap().sign(&bytes).bytes) }));
+        attest_withdraw(State(state.clone()), Path(state.hub_id), Json(env)).await
+    }
+
+    /// E2: the route witnesses a Sovereign envelope carrying a verified statement, records the channel and the
+    /// attester key, and answers a live replay with the first index and no new entry.
+    #[tokio::test]
+    async fn slice_e_b_route_witnesses_records_the_channel_and_folds_a_replay() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (_ka, a) = d_b1_publish(&state, &sov).await;
+        let (kb, b) = d_b1_publish(&state, &sov).await;
+        let st = e_statement(state.hub_id, &a, &b, &sov.keypair().unwrap(), &kb, &Utc::now().to_rfc3339(),
+            "instance rebuilt, key lost with the disk");
+        let ok = e_b_post(&state, &sov, &st).await.expect("accepted").0;
+        assert!(!ok.replayed);
+        {
+            let l = state.ledger.lock().await;
+            let e = l.entries().iter().find(|e| e.index == ok.entry_index).unwrap();
+            let HubEvent::LctPredecessorAttested { attested_by, attester_pubkey_hex, reason, .. } = &e.event
+                else { panic!("wrong kind") };
+            assert_eq!(attested_by, "rest_sovereign_envelope");
+            assert_eq!(attester_pubkey_hex, &channel_auth::sovereign_key(&state).unwrap().to_hex());
+            assert_eq!(reason, "instance rebuilt, key lost with the disk", "reason is witnessed (public)");
+        }
+        let len = state.ledger.lock().await.entries().len();
+        let again = e_b_post(&state, &sov, &st).await.expect("a live replay is answered").0;
+        assert!(again.replayed);
+        assert_eq!(again.entry_index, ok.entry_index);
+        assert_eq!(state.ledger.lock().await.entries().len(), len, "nothing new witnessed");
+    }
+
+    /// E2: a MEMBER envelope is refused 403 with nothing witnessed, even carrying a statement whose attester
+    /// signature is the Sovereign's: the act is the Sovereign's, not a relay.
+    #[tokio::test]
+    async fn slice_e_b_member_envelope_is_refused_with_nothing_witnessed() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (_ka, a) = d_b1_publish(&state, &sov).await;
+        let (kb, b) = d_b1_publish(&state, &sov).await;
+        let member = Uuid::new_v4();
+        let member_key = KeyPair::generate();
+        submit_event(State(state.clone()), Path(state.hub_id), Json(publish_envelope(&state, &sov,
+            serde_json::json!({ "action": "add_member", "member_lct_id": member, "name": "Relay",
+                "member_pubkey_hex": member_key.verifying_key().to_hex() })))).await.expect("member added");
+        let st = e_statement(state.hub_id, &a, &b, &sov.keypair().unwrap(), &kb, &Utc::now().to_rfc3339(), "x");
+        let before = state.ledger.lock().await.entries().len();
+        let env = build_envelope(member, &member_key, &state.nonces.issue(member, Utc::now()), e_b_payload(&st)).unwrap();
+        let err = attest_predecessor(State(state.clone()), Path(state.hub_id), Json(env)).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.starts_with("attest_needs_sovereign"), "{}", err.message);
+        let wenv = build_envelope(member, &member_key, &state.nonces.issue(member, Utc::now()), serde_json::json!({
+            "action": "lct_attest_withdraw", "old": a, "new": b, "attestation_index": 1, "issued_at":
+            Utc::now().to_rfc3339(), "reason": "x", "attester_signature_hex": "00" })).unwrap();
+        let err = attest_withdraw(State(state.clone()), Path(state.hub_id), Json(wenv)).await.unwrap_err();
+        assert!(err.message.starts_with("attest_needs_sovereign"), "{}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing witnessed");
+    }
+
+    /// The route refuses what `verify` refuses (here: no countersignature), 403, nothing witnessed.
+    #[tokio::test]
+    async fn slice_e_b_route_refuses_an_unverified_statement() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (ka, a) = d_b1_publish(&state, &sov).await;
+        let (_kb, b) = d_b1_publish(&state, &sov).await;
+        let st = e_statement(state.hub_id, &a, &b, &sov.keypair().unwrap(), &ka, &Utc::now().to_rfc3339(), "x");
+        let before = state.ledger.lock().await.entries().len();
+        let err = e_b_post(&state, &sov, &st).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.contains("countersign"), "{}", err.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before);
+    }
+
+    /// E5 through the route: withdraw, then the withdrawn envelope replayed through the ROUTE is refused (not
+    /// answered `replayed`), and a fresh statement re-links as a new entry.
+    #[tokio::test]
+    async fn slice_e_b_withdraw_route_and_no_replay_through_the_route() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (_ka, a) = d_b1_publish(&state, &sov).await;
+        let (kb, b) = d_b1_publish(&state, &sov).await;
+        let s = sov.keypair().unwrap();
+        let st = e_statement(state.hub_id, &a, &b, &s, &kb, &Utc::now().to_rfc3339(), "x");
+        let i = e_b_post(&state, &sov, &st).await.unwrap().0.entry_index;
+        assert_eq!(e_b_withdraw(&state, &sov, &a, &b, i + 7).await.unwrap_err().status, StatusCode::FORBIDDEN);
+        let w = e_b_withdraw(&state, &sov, &a, &b, i).await.expect("withdrawn").0;
+        assert!(w.entry_index > i);
+        let err = e_b_post(&state, &sov, &st).await.unwrap_err();
+        assert!(err.message.contains("withdrawn"), "the withdrawn envelope replayed: {}", err.message);
+        let fresh = e_statement(state.hub_id, &a, &b, &s, &kb, &(Utc::now() + chrono::Duration::seconds(2)).to_rfc3339(), "x");
+        let again = e_b_post(&state, &sov, &fresh).await.expect("a fresh ceremony").0;
+        assert!(!again.replayed && again.entry_index > w.entry_index);
+    }
+
+    /// O: the check under the build lock answers a pair that became live meanwhile as a replay, and re-verifies
+    /// (a withdrawal that landed meanwhile is seen).
+    #[tokio::test]
+    async fn slice_e_b_commit_check_sees_what_landed_after_the_first_verify() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (_ka, a) = d_b1_publish(&state, &sov).await;
+        let (kb, b) = d_b1_publish(&state, &sov).await;
+        let key = channel_auth::sovereign_key(&state).unwrap();
+        let st = e_statement(state.hub_id, &a, &b, &sov.keypair().unwrap(), &kb, &Utc::now().to_rfc3339(), "x");
+        let check = attestation_commit_check(st.clone(), state.hub_id, key.clone());
+        check(&e_project(&state).await).expect("nothing landed yet");
+        let i = e_attest(&state, &st).await;
+        let err = check(&e_project(&state).await).unwrap_err();
+        assert_eq!((err.status, err.message.clone()), (StatusCode::CONFLICT, format!("attestation_exists:{i}")));
+        e_withdraw(&state, &sov, &a, &b, i).await.unwrap();
+        let err = check(&e_project(&state).await).unwrap_err();
+        assert_eq!(err.status, StatusCode::FORBIDDEN, "after the withdrawal the same statement is a replay: {}",
+            err.message);
+    }
+
+    /// The whole off-daemon ceremony, as the PRD describes it: the successor countersigns with `lct-attest-sign`
+    /// on its own identity, the operator signs last with the Sovereign's identity FILE, and the envelope lands.
+    #[tokio::test]
+    async fn slice_e_b_off_daemon_signer_produces_what_the_route_accepts() {
+        let (tmp, state, sov) = fresh_state().await;
+        let (_ka, a) = d_b1_publish(&state, &sov).await;
+        let (kb, b) = d_b1_publish(&state, &sov).await;
+        let succ_path = tmp.path().join("successor.json");
+        IdentityFile::from_parts(sov.lct.clone(), kb).save(&succ_path).unwrap();
+        let sov_path = tmp.path().join("sovereign.json");
+        let issued_at = (Utc::now() - chrono::Duration::minutes(15)).to_rfc3339();
+        let reason = "instance rebuilt, key lost with the disk";
+        let new_sig = crate::lct_attest_signature(&succ_path, state.hub_id, a.as_str(), b.as_str(), &issued_at,
+            reason, None).unwrap();
+        let att_sig = crate::lct_attest_signature(&sov_path, state.hub_id, a.as_str(), b.as_str(), &issued_at,
+            reason, None).unwrap();
+        let st = hub_lib::lct_attest::AttestationStatement { old: a, new: b, issued_at, reason: reason.into(),
+            attester_signature_hex: att_sig, new_signature_hex: new_sig };
+        assert!(!e_b_post(&state, &sov, &st).await.expect("the ceremony lands").0.replayed);
+        assert!(crate::lct_attest_signature(&sov_path, state.hub_id, st.old.as_str(), st.new.as_str(),
+            &st.issued_at, "two\nlines", None).is_err(), "the signer refuses a reason the route would refuse");
+    }
+
+    /// Custody census (CBP #938, the PRD's E-7): the SERVING code never builds attestation or withdrawal bytes,
+    /// so it cannot mint an attester signature for itself; only the off-daemon `lct-attest-sign` does. And the
+    /// attested event is constructed by the attest route alone, which stamps the REST channel. A new signing
+    /// site fails this test and must argue its case in review.
+    /// `src` with every top-level `#[cfg(test)] mod … { … }` block removed. A top-level module ends at its
+    /// column-0 `}` (rustfmt); counting braces would be fooled by braces inside string literals.
+    fn e_b_serving_only(src: &str) -> String {
+        let (mut out, mut lines) = (String::new(), src.lines().peekable());
+        while let Some(line) = lines.next() {
+            if line == "#[cfg(test)]" && lines.peek().is_some_and(|n| n.starts_with("mod ") && n.ends_with('{')) {
+                for body in lines.by_ref() {
+                    if body == "}" { break; }
+                }
+                continue;
+            }
+            out.push_str(line);
+            out.push('\n');
+        }
+        out
+    }
+
+    #[test]
+    fn slice_e_b_census_no_serving_path_signs_attestations() {
+        let serving = e_b_serving_only(include_str!("rest.rs"));
+        for kept in ["async fn attest_predecessor(", "async fn attest_withdraw(", "async fn rotate_lct("] {
+            assert!(serving.contains(kept), "the strip must keep serving code: {kept}");
+        }
+        assert!(!serving.contains("fn slice_e_b_census_no_serving_path_signs_attestations"), "tests stripped");
+        for needle in ["attestation_bytes(", "withdrawal_bytes("] {
+            assert!(!serving.contains(needle), "serving rest.rs builds `{needle}`: the daemon must never sign it");
+        }
+        // A construction assigns `attested_by:`; a match pattern (`attested_by, ..`) does not. The two serving
+        // constructions are the two routes, and both stamp the REST channel.
+        assert_eq!(serving.matches("attested_by:").count(), 2, "only the attest and withdraw routes build these");
+        assert_eq!(serving.matches("attested_by: ATTEST_CHANNEL.into()").count(), 2, "both stamp the channel");
+        let main_src = include_str!("main.rs");
+        assert_eq!(main_src.matches("attestation_bytes(hub_id").count(), 1, "only lct_attest_signature");
+        assert_eq!(main_src.matches("withdrawal_bytes(hub_id").count(), 1, "only lct_attest_signature");
+        assert!(!main_src.contains("attested_by:"), "the CLI signs bytes; it never builds the event");
+        for other in [include_str!("admin.rs"), include_str!("mcp.rs"), include_str!("rate_limit.rs"),
+            include_str!("rest/channel_auth.rs"), include_str!("rest/mailbox.rs"), include_str!("rest/routing.rs"),
+            include_str!("rest/unlock.rs")] {
+            assert!(!other.contains("attestation_bytes(") && !other.contains("withdrawal_bytes("));
+            assert!(!other.contains("attested_by:"), "no other serving module builds the attested event");
+        }
     }
 
     // ---- LCT identity convergence Slice D-b1: verified rotation (PRD D4 tests) ----

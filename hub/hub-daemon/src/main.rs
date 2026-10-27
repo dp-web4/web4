@@ -220,6 +220,38 @@ enum Command {
         payload: String,
     },
 
+    /// LCT identity convergence Slice E: sign an attest-predecessor statement (or, with
+    /// `--withdraw-index`, its withdrawal) OFF-DAEMON and print the signature hex.
+    ///
+    /// The successor runs it with ITS identity (the countersignature, `new_signature_hex`) first; the
+    /// operator runs it last with the Sovereign identity (`attester_signature_hex`), then wraps the payload
+    /// with `envelope-sign` and POSTs it to `/lcts/attest-predecessor` (or `/lcts/attest-withdraw`). The
+    /// serving daemon never signs these bytes (the PRD's custody boundary, pinned by `slice_e_b_census_*`).
+    /// `reason` is PUBLIC: it is witnessed on the ledger.
+    LctAttestSign {
+        /// Path to the signer's IdentityFile (the successor's, or the Sovereign's).
+        #[arg(long)]
+        identity: PathBuf,
+        /// The hub the statement is for (the attest route refuses another hub's bytes).
+        #[arg(long)]
+        hub_id: Uuid,
+        /// The predecessor's canonical `lct:web4:…`.
+        #[arg(long)]
+        old: String,
+        /// The successor's canonical `lct:web4:…`.
+        #[arg(long)]
+        new: String,
+        /// RFC 3339 UTC, signed verbatim. Both parties must sign the SAME value.
+        #[arg(long)]
+        issued_at: String,
+        /// One line, no control characters, at most 280 bytes. Public.
+        #[arg(long)]
+        reason: String,
+        /// Sign the withdrawal of the live attestation at this ledger index instead.
+        #[arg(long)]
+        withdraw_index: Option<u64>,
+    },
+
     /// PAIRED-CHANNELS Sprint E/F: encrypt a pair-message body at the
     /// endpoint side. Uses the LCT identity file + peer's LCT pubkey
     /// + pair_id to derive the ECDH session key, then ChaCha20-Poly1305
@@ -653,6 +685,9 @@ async fn main() -> Result<()> {
         Some(Command::RotateOperatorToken { hub_dir }) => run_rotate_operator_token(hub_dir).await,
         Some(Command::EnvelopeSign { identity, nonce, payload }) => {
             run_envelope_sign(identity, nonce, payload).await
+        }
+        Some(Command::LctAttestSign { identity, hub_id, old, new, issued_at, reason, withdraw_index }) => {
+            run_lct_attest_sign(identity, hub_id, old, new, issued_at, reason, withdraw_index)
         }
         Some(Command::PairEncrypt {
             identity, peer_pubkey, pair_id, plaintext,
@@ -2350,6 +2385,33 @@ async fn run_gen_lct(output: PathBuf, entity_type: EntityType) -> Result<()> {
     Ok(())
 }
 
+/// Slice E: the off-daemon signer for attestation and withdrawal bytes. Refuses a `reason` the route would
+/// refuse, so the parties never sign bytes that cannot land.
+fn run_lct_attest_sign(identity_path: PathBuf, hub_id: Uuid, old: String, new: String, issued_at: String,
+    reason: String, withdraw_index: Option<u64>) -> Result<()> {
+    println!("{}", lct_attest_signature(&identity_path, hub_id, &old, &new, &issued_at, &reason, withdraw_index)?);
+    Ok(())
+}
+
+/// The signature `lct-attest-sign` prints (hex), as a function the tests drive.
+pub(crate) fn lct_attest_signature(identity_path: &std::path::Path, hub_id: Uuid, old: &str, new: &str,
+    issued_at: &str, reason: &str, withdraw_index: Option<u64>) -> Result<String> {
+    use hub_lib::ids::CanonicalLctId;
+    use hub_lib::lct_attest::{attestation_bytes, check_reason, withdrawal_bytes};
+    check_reason(reason).map_err(|e| anyhow::anyhow!(e))?;
+    let old = CanonicalLctId::parse(old).map_err(|e| anyhow::anyhow!("--old: {e:?}"))?;
+    let new = CanonicalLctId::parse(new).map_err(|e| anyhow::anyhow!("--new: {e:?}"))?;
+    chrono::DateTime::parse_from_rfc3339(issued_at).context("--issued-at is not RFC 3339")?;
+    let identity = IdentityFile::load_auto(identity_path)
+        .with_context(|| format!("loading identity from {}", identity_path.display()))?;
+    let kp = identity.keypair().context("reconstructing keypair")?;
+    let bytes = match withdraw_index {
+        Some(i) => withdrawal_bytes(hub_id, &old, &new, i, issued_at, reason),
+        None => attestation_bytes(hub_id, &old, &new, issued_at, reason),
+    };
+    Ok(hex::encode(kp.sign(&bytes).bytes))
+}
+
 async fn run_envelope_sign(identity_path: PathBuf, nonce: String, payload_json: String) -> Result<()> {
     use chrono::Utc;
     use hub_lib::envelope::{build_envelope, Challenge};
@@ -3185,6 +3247,9 @@ mod tests {
             "/v1/hubs/:hub_id/council/sign",
             "/v1/hubs/:hub_id/credential",
             "/v1/hubs/:hub_id/events",
+            // LCT identity convergence Slice E-b: driven end-to-end by the `slice_e_b_*` tests.
+            "/v1/hubs/:hub_id/lcts/attest-predecessor",
+            "/v1/hubs/:hub_id/lcts/attest-withdraw",
             "/v1/hubs/:hub_id/lcts/publish",
             // LCT identity convergence Slice D-b1: driven end-to-end by the `slice_d_b1_*` tests.
             "/v1/hubs/:hub_id/lcts/rotate",
