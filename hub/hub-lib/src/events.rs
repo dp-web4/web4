@@ -607,6 +607,20 @@ pub enum HubEvent {
         pinned_by: Uuid,
     },
 
+    /// LCT identity convergence Slice D-b2 (D5): `member` refuses (`refused: true`) or re-admits
+    /// (`refused: false`) its UUID pin as a channel credential. Requested by the member itself over a channel
+    /// its VOUCHED `hub-channel` key opened, so it cannot lock itself out at that moment, and reversible only
+    /// the same way. While refused, the pin never authenticates the channel: `caller_auth` cannot be
+    /// `member_key_pin` for this member, which is what makes its binding key cold. Losing the vouched key
+    /// afterwards is an accepted lockout (recovery is a new canonical, linked by D4 if the binding key is held).
+    /// `caller_auth` is the authenticating key as the request presented it, so the record carries its own
+    /// evidence basis.
+    ChannelPinRefused {
+        member: Uuid,
+        refused: bool,
+        caller_auth: CallerAuthEvidence,
+    },
+
     /// An operator renamed a member. Its own event class rather than a
     /// `MemberProfileUpdated` field on purpose: `name` is the member's roster
     /// identity (shown on the public transparency page, used in every
@@ -1039,6 +1053,7 @@ impl HubEvent {
     /// set-equality. Add a variant without adding it here and that test fails;
     /// the list cannot silently drift behind the enum.
     pub const ALL_EVENT_KINDS: &'static [&'static str] = &[
+        "channel_pin_refused",
         "charter_amended",
         "council_member_added",
         "council_member_removed",
@@ -1118,6 +1133,7 @@ impl HubEvent {
             Self::TopicCreated { .. } => "topic_created",
             Self::PostAdded { .. } => "post_added",
             Self::MemberKeyPinned { .. } => "member_key_pinned",
+            Self::ChannelPinRefused { .. } => "channel_pin_refused",
             Self::MemberRenamed { .. } => "member_renamed",
             Self::DeviceEnrolled { .. } => "device_enrolled",
             Self::DeviceRevoked { .. } => "device_revoked",

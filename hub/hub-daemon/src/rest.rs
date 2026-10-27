@@ -2663,7 +2663,7 @@ pub async fn operator_auth_gate(
 const ERROR_CODES: &[&str] = &["ledger_tail_moved", "no_route", "router_mailbox_full", "child_share_full",
     "recipient_mailbox_full", "not_the_router", "stale_epoch", "issued_at_outside_window",
     "bad_child_signature", "act_id_conflict", "opkey_superseded", "caller_auth_stale",
-    "lct_status_terminal"];
+    "lct_status_terminal", "pin_refusal_needs_vouched_key", "pin_refused", "pin_refusal_unchanged"];
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
@@ -3920,7 +3920,7 @@ struct ChannelInner {
 /// arms (the classification guard test walks this list; adding a dispatch arm
 /// without registering it here fails the test, so a new tool cannot silently
 /// skip freshness classification). (#474)
-const CHANNEL_TOOLS: [&str; 23] = [
+const CHANNEL_TOOLS: [&str; 24] = [
     "constellation_challenge",
     "find_members",
     "find_skill",
@@ -3931,6 +3931,7 @@ const CHANNEL_TOOLS: [&str; 23] = [
     "notifications_enable_receipts",
     "notifications_fetch",
     "notifications_ack",
+    "pin_refusal",
     "presence",
     "present_constellation",
     "query_hub",
@@ -4043,11 +4044,14 @@ async fn channel_request(
     // LCT identity convergence Slice C: a member whose canonical LCT vouches a `hub-channel` key is
     // tried with THAT key first, then with its pin (C2). The document is read from the projection at
     // request time, so a rotation takes effect on the first request after it is projected.
-    let (vouched, auth_note) = if pinned.is_some() {
+    // Slice D-b2: a member that refused its pin is read from the same projection.
+    let (vouched, auth_note, pin_refused) = if pinned.is_some() {
         let state = { let l = s.ledger.lock().await; s.projected(&l) };
-        channel_auth::vouched_channel_key(&state, req.caller_lct_id, channel_auth::sovereign_key(&s).as_ref())
+        let (v, note) = channel_auth::vouched_channel_key(&state, req.caller_lct_id,
+            channel_auth::sovereign_key(&s).as_ref());
+        (v, note, state.pin_refused.contains(&req.caller_lct_id))
     } else {
-        (None, None)
+        (None, None, false)
     };
 
     // Open = authenticate (AEAD proves key possession) + decrypt, in one step. The key that opened is
@@ -4059,6 +4063,11 @@ async fn channel_request(
     let (caller_pubkey, plaintext, mut caller_auth) = if let Some((v, k, p)) = vouched_open {
         let auth = channel_auth::caller_auth_lct(v, &k);
         (k, p, auth)
+    } else if pin_refused {
+        // Never the external branch either: this caller IS a member, and its pin is not a credential.
+        return Err(ApiError::unauthorized(format!(
+            "pin_refused: member {} refused its pin as a channel credential (Slice D-b2); open the channel \
+             with the hub-channel key its LCT vouches", req.caller_lct_id)));
     } else if let Some(pin) = &pinned {
         let p = opened(pin).ok_or_else(|| ApiError::unauthorized(
             "channel authentication/decryption failed".to_string()))?;
@@ -4888,6 +4897,39 @@ async fn dispatch_channel(
                 notify_citizen(s, from, caller_lct_id, "notify:intro_accepted", &format!("intro/{intro_id}"), notice.as_bytes()).await;
             }
             Ok(out)
+        }
+        "pin_refusal" => {
+            // Slice D-b2 (D5): the member refuses (or re-admits) its own UUID pin as a channel credential.
+            // Only over a channel its VOUCHED key opened: a refusal sent over the pin could lock out a member
+            // with no working vouched key, and a reversal over the pin would let the very credential being
+            // retired undo its own retirement.
+            let refused = inner.args.get("refused").and_then(|v| v.as_bool())
+                .ok_or_else(|| ApiError::bad_request("pin_refusal requires 'refused' (true or false)"))?;
+            let (ca, _) = channel_auth::caller_auth_evidence(caller_auth);
+            if ca.method != "lct_vouched_operational_key" {
+                return Err(ApiError { status: StatusCode::FORBIDDEN, message: format!(
+                    "pin_refusal_needs_vouched_key: this request was authenticated by '{}'; pin refusal is \
+                     requested (and reversed) only over a channel your LCT's vouched hub-channel key opened",
+                    ca.method) });
+            }
+            if state.pin_refused.contains(&caller_lct_id) == refused {
+                return Ok(serde_json::json!({ "member": caller_lct_id, "refused": refused, "changed": false }));
+            }
+            let event = HubEvent::ChannelPinRefused { member: caller_lct_id, refused, caller_auth: ca.clone() };
+            let (sovereign, sovereign_lct_id) = (channel_auth::sovereign_key(s), s.sovereign_lct_id);
+            // Under the lock that builds the entry: the vouched key must still be the member's, and the flag
+            // must still be the other way (two concurrent requests witness one change, not two).
+            let check = move |st: &HubState| {
+                channel_auth::caller_auth_still_valid(st, caller_lct_id, &ca, sovereign.as_ref(), sovereign_lct_id)?;
+                if st.pin_refused.contains(&caller_lct_id) == refused {
+                    return Err(ApiError { status: StatusCode::CONFLICT, message: format!(
+                        "pin_refusal_unchanged: the pin is already {} for {caller_lct_id}; nothing was witnessed",
+                        if refused { "refused" } else { "accepted" }) });
+                }
+                Ok(())
+            };
+            let (index, _) = commit_pair_event_checked(s, event, Some(check)).await?;
+            Ok(serde_json::json!({ "member": caller_lct_id, "refused": refused, "changed": true, "index": index }))
         }
         // ---- DRAFT: referenced acts + the hub→citizen notification poll floor ----
         "notifications_enable_receipts" => {
@@ -12849,6 +12891,109 @@ norms:
         assert_eq!(after.member_count(), fresh.member_count());
         assert_eq!(after.last_index, fresh.last_index);
         assert!(fresh.members.contains_key(&zed));
+    }
+
+    // ---- LCT identity convergence Slice D-b2: per-member pin refusal (PRD D5 tests) ----
+
+    /// Seal `tool` with fresh nonce + issued_at as `member` with `key`; return the opened JSON reply, or the error.
+    async fn d_b2_call(state: &RestState, member: Uuid, key: &KeyPair, tool: &str, args: serde_json::Value)
+        -> Result<(serde_json::Value, serde_json::Value), ApiError> {
+        let hub_pub = state.signer.public_key().unwrap();
+        let pid = Uuid::new_v4();
+        let sealed = seal_req(key, &hub_pub, pid, tool, args);
+        let r = channel_request(State(state.clone()), Path(state.hub_id), Json(ChannelRequest {
+            caller_lct_id: member, pair_id: pid, sealed, caller_pubkey_hex: None })).await?;
+        Ok((open_resp(key, &hub_pub, pid, &r.sealed), r.caller_auth.clone()))
+    }
+
+    async fn d_b2_len(state: &RestState) -> usize { state.ledger.lock().await.entries().len() }
+
+    /// D5: refusal needs the vouched-key channel; after it the pin no longer authenticates; it is idempotent;
+    /// and it is reversed the same way, after which the pin works again.
+    #[tokio::test]
+    async fn slice_d_b2_pin_refusal_needs_the_vouched_key_and_retires_the_pin() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let ck = KeyPair::generate();
+        let (m, pin, _) = slice_c_member(&state, Some(&ck)).await;
+        let refuse = serde_json::json!({"refused": true});
+
+        // Over the pin: refused, nothing witnessed (a member cannot retire the credential it is using).
+        let before = d_b2_len(&state).await;
+        let err = d_b2_call(&state, m, &pin, "pin_refusal", refuse.clone()).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+        assert!(err.message.starts_with("pin_refusal_needs_vouched_key:"), "{}", err.message);
+        assert_eq!(d_b2_len(&state).await, before, "nothing witnessed");
+
+        // Over the vouched key: witnessed once, with the authenticating key as its evidence.
+        let (out, _) = d_b2_call(&state, m, &ck, "pin_refusal", refuse.clone()).await.expect("refused");
+        assert_eq!(out["changed"], true);
+        assert_eq!(d_b2_len(&state).await, before + 1);
+        let last = state.ledger.lock().await.entries().last().unwrap().event.clone();
+        match last {
+            HubEvent::ChannelPinRefused { member, refused, caller_auth } => {
+                assert_eq!((member, refused), (m, true));
+                assert_eq!(caller_auth.method, "lct_vouched_operational_key");
+                assert_eq!(caller_auth.key, ck.verifying_key().to_hex());
+            }
+            other => panic!("expected channel_pin_refused, got {}", other.kind()),
+        }
+
+        // The pin no longer opens the channel, on a read or a write; the vouched key still does.
+        let err = d_b2_call(&state, m, &pin, "query_hub", serde_json::json!({})).await.unwrap_err();
+        assert_eq!(err.status, StatusCode::UNAUTHORIZED);
+        assert!(err.message.starts_with("pin_refused:"), "{}", err.message);
+        let (_, auth) = d_b2_call(&state, m, &ck, "query_hub", serde_json::json!({})).await.expect("vouched");
+        assert_eq!(auth["method"], "lct_vouched_operational_key");
+
+        // Idempotent: a second refusal witnesses nothing.
+        let (out, _) = d_b2_call(&state, m, &ck, "pin_refusal", refuse).await.unwrap();
+        assert_eq!(out["changed"], false);
+        assert_eq!(d_b2_len(&state).await, before + 1);
+
+        // Reversal: the same way, and the pin authenticates again.
+        let (out, _) = d_b2_call(&state, m, &ck, "pin_refusal", serde_json::json!({"refused": false})).await.unwrap();
+        assert_eq!(out["changed"], true);
+        let (_, auth) = d_b2_call(&state, m, &pin, "query_hub", serde_json::json!({})).await.expect("pin back");
+        assert_eq!(auth["method"], "member_key_pin");
+    }
+
+    /// D5: a member with no vouched key cannot refuse its pin (it would lock itself out), and the projection
+    /// drops a refusal when the member leaves, so a re-admission under the same id starts from the default.
+    #[tokio::test]
+    async fn slice_d_b2_no_vouched_key_no_refusal_and_leaving_clears_it() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let (legacy, legacy_pin, _) = slice_c_member(&state, None).await;
+        let err = d_b2_call(&state, legacy, &legacy_pin, "pin_refusal", serde_json::json!({"refused": true}))
+            .await.unwrap_err();
+        assert!(err.message.starts_with("pin_refusal_needs_vouched_key:"), "{}", err.message);
+
+        let ck = KeyPair::generate();
+        let (m, _, _) = slice_c_member(&state, Some(&ck)).await;
+        d_b2_call(&state, m, &ck, "pin_refusal", serde_json::json!({"refused": true})).await.unwrap();
+        let st = { let l = state.ledger.lock().await; HubState::project(&*l) };
+        assert!(st.pin_refused.contains(&m));
+        witness_event(&state, HubEvent::MemberRemoved { member_lct_id: m, removed_by: state.sovereign_lct_id,
+            reason: None }).await.unwrap();
+        let st = { let l = state.ledger.lock().await; HubState::project(&*l) };
+        assert!(!st.pin_refused.contains(&m), "leaving clears the refusal");
+    }
+
+    /// D5 + CBP #933: a pin-authenticated act in flight when the refusal lands is refused at the append
+    /// (`caller_auth_stale`), the same way a re-keyed pin is.
+    #[tokio::test]
+    async fn slice_d_b2_a_pin_refused_mid_flight_no_longer_authenticates_an_act() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let ck = KeyPair::generate();
+        let (m, pin, _) = slice_c_member(&state, Some(&ck)).await;
+        let pin_auth = channel_auth::caller_auth_pin(m, &pin.verifying_key());
+        let (ca, _) = channel_auth::caller_auth_evidence(Some(&pin_auth));
+        let sov = channel_auth::sovereign_key(&state);
+        let valid = |st: &HubState| channel_auth::caller_auth_still_valid(st, m, &ca, sov.as_ref(), state.sovereign_lct_id);
+        { let l = state.ledger.lock().await; valid(&state.projected(&l)).expect("the pin is good before"); }
+        d_b2_call(&state, m, &ck, "pin_refusal", serde_json::json!({"refused": true})).await.unwrap();
+        let err = { let l = state.ledger.lock().await; valid(&state.projected(&l)).unwrap_err() };
+        assert_eq!(err.status, StatusCode::CONFLICT);
+        assert!(err.message.starts_with("caller_auth_stale:") && err.message.contains("refused its pin"), "{}", err.message);
     }
 
     // ---- §5.1 R7 carrier: obligations + deadline→reputation ----

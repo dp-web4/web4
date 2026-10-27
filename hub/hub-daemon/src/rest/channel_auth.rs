@@ -107,7 +107,7 @@ const NONE: &str = "none";
 
 /// The `caller_auth` value as evidence leaves. Every leaf is present: a method's inapplicable fields are
 /// `"none"`, and an absent `caller_auth` (an act not carried by a channel request) is all `"unknown"`.
-fn caller_auth_evidence(v: Option<&serde_json::Value>) -> (hub_lib::events::CallerAuthEvidence, bool) {
+pub(super) fn caller_auth_evidence(v: Option<&serde_json::Value>) -> (hub_lib::events::CallerAuthEvidence, bool) {
     use hub_lib::events::CallerAuthEvidence as C;
     let Some(v) = v else {
         return (C { method: UNKNOWN.into(), canonical: UNKNOWN.into(), purpose: UNKNOWN.into(),
@@ -217,6 +217,9 @@ pub(super) fn caller_auth_still_valid(state: &HubState, actor: Uuid, ca: &hub_li
         // The pin as the ledger holds it at this position: a member's, else a council holder's. The
         // founding Sovereign's key is not a ledger pin (it is the identity file), so it is the only actor
         // allowed to have none. A pin REMOVED mid-flight (MemberRemoved) is as stale as a changed one.
+        // Slice D-b2: a pin the member refused after this request authenticated with it no longer counts.
+        "member_key_pin" if state.pin_refused.contains(&actor) =>
+            stale(format!("member {actor} refused its pin as a channel credential")),
         "member_key_pin" => match state.member_pubkeys.get(&actor).or_else(|| state.council_pubkeys.get(&actor)) {
             Some(pin) if pin.eq_ignore_ascii_case(&ca.key) => Ok(()),
             Some(_) => stale(format!("member {actor}'s pinned key changed from {}", ca.key)),
