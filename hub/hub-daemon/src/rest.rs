@@ -12980,7 +12980,7 @@ norms:
         assert_eq!(e["hub_observations"]["superseded_key_used"],
             serde_json::json!({"by": "unknown", "rotated_at": "unknown"}), "D-b1: keeps its shape");
         assert_eq!(e["hub_observations"]["attested_successor"],
-            serde_json::json!({"by": "unknown", "attested_at": "unknown", "via": "unknown"}), "E-c: keeps its shape");
+            serde_json::json!({"by": "unknown", "attested_index": "unknown", "via": "unknown", "count": "unknown"}), "E-c: keeps its shape");
         assert_eq!(e["hub_observations"]["successor_kind_conflict"], "unknown");
 
         let act = web4_core::act::Act::addressed(state.sovereign_lct_id,
@@ -13205,7 +13205,7 @@ norms:
     }
 
     /// Slice E-c (E6): an act by a canonical whose loss the Sovereign ATTESTED carries
-    /// `attested_successor {by, attested_at, via}` (the thief shape: a lost key acting again); an act by the
+    /// `attested_successor {by, attested_index, via, count}` (the thief shape: a lost key acting again); an act by the
     /// successor carries `attested_predecessor {old, ...}` (it claims continuity, under the label). The verified
     /// fields are untouched. A later verified rotation of the old key raises `successor_kind_conflict`.
     #[tokio::test]
@@ -13217,8 +13217,8 @@ norms:
         let (n, _nb, b) = slice_c_member(&state, Some(&nk)).await;
         let (peer, _, _) = slice_c_member(&state, None).await;
         let e = slice_d_evidence(&state, slice_d_act(&state, m, &ck, peer).await).await;
-        assert_eq!(e["hub_observations"]["attested_successor"], serde_json::json!({"by": "none", "attested_at": "none", "via": "none"}));
-        assert_eq!(e["hub_observations"]["attested_predecessor"], serde_json::json!({"old": "none", "attested_at": "none", "via": "none"}));
+        assert_eq!(e["hub_observations"]["attested_successor"], serde_json::json!({"by": "none", "attested_index": "none", "via": "none", "count": "0"}));
+        assert_eq!(e["hub_observations"]["attested_predecessor"], serde_json::json!({"old": "none", "attested_index": "none", "via": "none"}));
         assert_eq!(e["hub_observations"]["successor_kind_conflict"], "false");
 
         // The route verifies (slice_e_b_*); the fold and the evidence read the witnessed event.
@@ -13229,12 +13229,12 @@ norms:
         let e = slice_d_evidence(&state, slice_d_act(&state, m, &ck, peer).await).await;
         slice_d_all_leaves_strings(&e, "identity_evidence");
         assert_eq!(e["hub_observations"]["attested_successor"],
-            serde_json::json!({"by": b, "attested_at": ia.to_string(), "via": "rest_sovereign_envelope"}),
+            serde_json::json!({"by": b, "attested_index": ia.to_string(), "via": "rest_sovereign_envelope", "count": "1"}),
             "the lost key acting again is flagged");
         assert_eq!(e["hub_observations"]["superseded_key_used"]["by"], "none", "never read as a verified rotation");
         let e = slice_d_evidence(&state, slice_d_act(&state, n, &nk, peer).await).await;
         assert_eq!(e["hub_observations"]["attested_predecessor"],
-            serde_json::json!({"old": a, "attested_at": ia.to_string(), "via": "rest_sovereign_envelope"}),
+            serde_json::json!({"old": a, "attested_index": ia.to_string(), "via": "rest_sovereign_envelope"}),
             "the successor's acts carry its claimed continuity");
 
         // E-8: the old key now signs a verified rotation too.
@@ -13250,6 +13250,22 @@ norms:
         assert_eq!(e["hub_observations"]["successor_kind_conflict"], "true");
         assert_eq!(e["hub_observations"]["superseded_key_used"]["by"], x.as_str(), "the key fact still reads");
         assert_eq!(e["hub_observations"]["attested_successor"]["by"], b.as_str(), "the claim still reads");
+
+        // A second attested successor for the same old (a fork, E4): `by` names the conflict, and `count` says the
+        // index and channel describe one of N (the maintainer's note on #943).
+        let c = { let kp = KeyPair::generate();
+            let (mut doc, _) = web4_core::lct::Lct::new(web4_core::lct::EntityType::Human, None);
+            doc.public_key = kp.verifying_key(); doc.sign_binding(&kp);
+            let id = web4_core::lct::derive_lct_id(&doc.public_key);
+            slice_c_land(&state, Uuid::new_v4(), &id, &doc).await; id };
+        witness_event(&state, HubEvent::LctPredecessorAttested { old: a.clone(), new: c, issued_at: Utc::now().to_rfc3339(),
+            reason: "x".into(), attester_signature_hex: String::new(), new_signature_hex: String::new(),
+            attester_pubkey_hex: String::new(), attested_by: "rest_sovereign_envelope".into(), submitted_by: Uuid::nil() })
+            .await.unwrap();
+        let e = slice_d_evidence(&state, slice_d_act(&state, m, &ck, peer).await).await;
+        assert_eq!(e["hub_observations"]["attested_successor"]["by"], "attested_successor_conflict");
+        assert_eq!(e["hub_observations"]["attested_successor"]["count"], "2");
+        assert_eq!(e["hub_observations"]["attested_successor"]["attested_index"], ia.to_string(), "the first of the two");
     }
 
     /// Slice E-c, wire compatibility: an act witnessed BEFORE E-c has no `attested_*` keys. It parses (as `None`)

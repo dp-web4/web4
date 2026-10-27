@@ -190,17 +190,21 @@ pub struct AttestedSuccessorObs {
     /// The live attested successor canonical; `"attested_successor_conflict"` when there are two or more;
     /// `"none"`; or `"unknown"` when the canonical is.
     pub by: String,
-    /// The ledger index of the (first) `LctPredecessorAttested`, or `"none"` / `"unknown"` with `by`.
-    pub attested_at: String,
+    /// A LEDGER INDEX, not a time: the (first) `LctPredecessorAttested` entry, or `"none"` / `"unknown"` with `by`.
+    pub attested_index: String,
     /// The channel it arrived through (`attested_by` on the entry), or `"none"` / `"unknown"`.
     pub via: String,
+    /// How many live attested successors there are (`"0"`, `"1"`, or more for a conflict, where `attested_index`
+    /// and `via` describe only the FIRST; the MRH projection lists all), or `"unknown"`.
+    pub count: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AttestedPredecessorObs {
     /// The live attested predecessor canonical (E-9 refuses joins, so at most one); `"none"`; or `"unknown"`.
     pub old: String,
-    pub attested_at: String,
+    /// A LEDGER INDEX, not a time.
+    pub attested_index: String,
     pub via: String,
 }
 

@@ -186,23 +186,27 @@ pub(super) fn identity_evidence(state: &HubState, actor: Uuid, caller_auth: Opti
         None => {
             unknown.extend(["hub_observations.attested_successor", "hub_observations.attested_predecessor",
                 "hub_observations.successor_kind_conflict"].map(String::from));
-            (AttestedSuccessorObs { by: UNKNOWN.into(), attested_at: UNKNOWN.into(), via: UNKNOWN.into() },
-             AttestedPredecessorObs { old: UNKNOWN.into(), attested_at: UNKNOWN.into(), via: UNKNOWN.into() },
+            (AttestedSuccessorObs { by: UNKNOWN.into(), attested_index: UNKNOWN.into(), via: UNKNOWN.into(),
+                count: UNKNOWN.into() },
+             AttestedPredecessorObs { old: UNKNOWN.into(), attested_index: UNKNOWN.into(), via: UNKNOWN.into() },
              UNKNOWN.to_string())
         }
         Some(l) => {
             let lineage = hub_lib::lct_rotation::lineage(state, &l.canonical);
+            let count = (lineage.attested_successor.is_some() as usize + lineage.attested_successor_conflict.len())
+                .to_string();
             let succ = match (&lineage.attested_successor, lineage.attested_successor_conflict.first()) {
-                (Some(r), _) => AttestedSuccessorObs { by: r.canonical.to_string(), attested_at: r.index.to_string(),
-                    via: r.attested_by.clone() },
+                (Some(r), _) => AttestedSuccessorObs { by: r.canonical.to_string(), attested_index: r.index.to_string(),
+                    via: r.attested_by.clone(), count: count.clone() },
                 (None, Some(first)) => AttestedSuccessorObs { by: "attested_successor_conflict".into(),
-                    attested_at: first.index.to_string(), via: first.attested_by.clone() },
-                (None, None) => AttestedSuccessorObs { by: NONE.into(), attested_at: NONE.into(), via: NONE.into() },
+                    attested_index: first.index.to_string(), via: first.attested_by.clone(), count: count.clone() },
+                (None, None) => AttestedSuccessorObs { by: NONE.into(), attested_index: NONE.into(), via: NONE.into(),
+                    count },
             };
             let pred = match lineage.attested_predecessors.first() {
-                Some(r) => AttestedPredecessorObs { old: r.canonical.to_string(), attested_at: r.index.to_string(),
+                Some(r) => AttestedPredecessorObs { old: r.canonical.to_string(), attested_index: r.index.to_string(),
                     via: r.attested_by.clone() },
-                None => AttestedPredecessorObs { old: NONE.into(), attested_at: NONE.into(), via: NONE.into() },
+                None => AttestedPredecessorObs { old: NONE.into(), attested_index: NONE.into(), via: NONE.into() },
             };
             (succ, pred, lineage.successor_kind_conflict.to_string())
         }
