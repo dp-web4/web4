@@ -9998,6 +9998,22 @@ fn withdrawal_commit_check(st: hub_lib::lct_attest::WithdrawalStatement, hub: Uu
         status: StatusCode::FORBIDDEN, message: format!("lct_attest_withdraw refused: {e}") })
 }
 
+/// A live pair is answered `replayed` only for ITS OWN statement (the maintainer's note on #942): both signatures
+/// equal the live entry's. A different statement for a live pair (another reason, another `issued_at`, or bytes
+/// that would not verify) is a 409 `attestation_exists`, never "accepted": a second ceremony is not folded silently,
+/// and an operator is never told unverifiable bytes were taken.
+async fn live_attestation_answer(s: &RestState, index: u64, st: &hub_lib::lct_attest::AttestationStatement)
+    -> Result<(), ApiError> {
+    let ledger = s.ledger.lock().await;
+    let same = ledger.entries().iter().find(|e| e.index == index).is_some_and(|e| matches!(&e.event,
+        HubEvent::LctPredecessorAttested { attester_signature_hex, new_signature_hex, .. }
+            if *attester_signature_hex == st.attester_signature_hex && *new_signature_hex == st.new_signature_hex));
+    if same { Ok(()) } else {
+        Err(ApiError { status: StatusCode::CONFLICT, message: format!("attestation_exists: {} ⇢ {} is already \
+            live as entry {index}, attested by a different statement; withdraw it first to re-attest", st.old, st.new) })
+    }
+}
+
 /// Hub law on an attestation act, the `rotate_lct` shape.
 async fn attest_law_gate(s: &RestState, envelope: &SignedEnvelope, event: &HubEvent, what: &str)
     -> Result<(), ApiError> {
@@ -10048,6 +10064,7 @@ async fn attest_predecessor(
     let accepted = |entry_index: u64, replayed: bool| Json(LctAttestAccepted {
         old: st.old.to_string(), new: st.new.to_string(), entry_index, replayed });
     if let Some(index) = projected.attestation_index(&st.old, &st.new) {
+        live_attestation_answer(&s, index, &st).await?;
         return Ok(accepted(index, true));
     }
     st.verify(&projected, s.hub_id, &sovereign, Utc::now()).map_err(|e| ApiError {
@@ -10063,7 +10080,7 @@ async fn attest_predecessor(
     match commit_pair_event_checked(&s, event, Some(attestation_commit_check(st.clone(), s.hub_id, sovereign))).await {
         Ok((entry_index, _)) => Ok(accepted(entry_index, false)),
         Err(e) => match e.message.strip_prefix("attestation_exists:").and_then(|i| i.parse().ok()) {
-            Some(index) => Ok(accepted(index, true)),
+            Some(index) => { live_attestation_answer(&s, index, &st).await?; Ok(accepted(index, true)) }
             None => Err(e),
         },
     }
@@ -11487,6 +11504,16 @@ norms:
         let again = e_b_post(&state, &sov, &st).await.expect("a live replay is answered").0;
         assert!(again.replayed);
         assert_eq!(again.entry_index, ok.entry_index);
+        // A DIFFERENT statement for the live pair (another reason; and one with garbage signatures) is a 409, not
+        // "accepted" (the maintainer's note on #942).
+        let other = e_statement(state.hub_id, &a, &b, &sov.keypair().unwrap(), &kb, &Utc::now().to_rfc3339(), "y");
+        let mut garbage = st.clone();
+        garbage.attester_signature_hex = "00".repeat(64);
+        for (bad, why) in [(&other, "a second ceremony"), (&garbage, "bytes that would not verify")] {
+            let err = e_b_post(&state, &sov, bad).await.unwrap_err();
+            assert_eq!(err.status, StatusCode::CONFLICT, "{why}: {}", err.message);
+            assert!(err.message.starts_with("attestation_exists"), "{why}: {}", err.message);
+        }
         assert_eq!(state.ledger.lock().await.entries().len(), len, "nothing new witnessed");
     }
 
@@ -11629,14 +11656,28 @@ norms:
         assert_eq!(serving.matches("attested_by:").count(), 2, "only the attest and withdraw routes build these");
         assert_eq!(serving.matches("attested_by: ATTEST_CHANNEL.into()").count(), 2, "both stamp the channel");
         let main_src = include_str!("main.rs");
-        assert_eq!(main_src.matches("attestation_bytes(hub_id").count(), 1, "only lct_attest_signature");
-        assert_eq!(main_src.matches("withdrawal_bytes(hub_id").count(), 1, "only lct_attest_signature");
+        assert_eq!(main_src.matches("attestation_bytes(").count(), 1, "only lct_attest_signature");
+        assert_eq!(main_src.matches("withdrawal_bytes(").count(), 1, "only lct_attest_signature");
         assert!(!main_src.contains("attested_by:"), "the CLI signs bytes; it never builds the event");
-        for other in [include_str!("admin.rs"), include_str!("mcp.rs"), include_str!("rate_limit.rs"),
-            include_str!("rest/channel_auth.rs"), include_str!("rest/mailbox.rs"), include_str!("rest/routing.rs"),
-            include_str!("rest/unlock.rs")] {
-            assert!(!other.contains("attestation_bytes(") && !other.contains("withdrawal_bytes("));
-            assert!(!other.contains("attested_by:"), "no other serving module builds the attested event");
+        // Every OTHER .rs under hub-daemon/src, found at run time (the maintainer's note on #942: a hand list lets a
+        // new module sit outside the census without failing it).
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let (mut stack, mut others) = (vec![src.clone()], Vec::new());
+        while let Some(dir) = stack.pop() {
+            for e in std::fs::read_dir(&dir).unwrap().flatten() {
+                let p = e.path();
+                if p.is_dir() { stack.push(p); }
+                else if p.extension().is_some_and(|x| x == "rs") && p != src.join("rest.rs") && p != src.join("main.rs") {
+                    others.push(p);
+                }
+            }
+        }
+        assert!(others.iter().any(|p| p.ends_with("rest/channel_auth.rs")) && others.len() >= 7,
+            "the walk found the daemon's modules: {others:?}");
+        for p in &others {
+            let text = e_b_serving_only(&std::fs::read_to_string(p).unwrap());
+            assert!(!text.contains("attestation_bytes(") && !text.contains("withdrawal_bytes("), "{p:?} builds bytes");
+            assert!(!text.contains("attested_by:"), "{p:?} builds the attested event");
         }
     }
 
