@@ -10995,7 +10995,8 @@ norms:
         let (db, kb, b) = d_b1_publish_doc(&state, &sov).await;
         let now = Utc::now().to_rfc3339();
 
-        d_b1_set_status(&state, &sov, &da, &a, web4_core::lct::LctStatus::Slashed).await;
+        // Dormant, not Void/Slashed, for the reversible steps: a terminal status cannot be lifted (#935).
+        d_b1_set_status(&state, &sov, &da, &a, web4_core::lct::LctStatus::Dormant).await;
         let before = state.ledger.lock().await.entries().len();
         let err = d_b1_rotate(&state, &sov, &a, &b, &ka, &kb, &now).await.unwrap_err();
         assert_eq!(err.status, StatusCode::FORBIDDEN);
@@ -11003,7 +11004,7 @@ norms:
         assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing witnessed");
         d_b1_set_status(&state, &sov, &da, &a, web4_core::lct::LctStatus::Active).await;
 
-        d_b1_set_status(&state, &sov, &db, &b, web4_core::lct::LctStatus::Void).await;
+        d_b1_set_status(&state, &sov, &db, &b, web4_core::lct::LctStatus::Dormant).await;
         assert!(d_b1_rotate(&state, &sov, &a, &b, &ka, &kb, &now).await.unwrap_err().message.contains("(new) is not active"));
         d_b1_set_status(&state, &sov, &db, &b, web4_core::lct::LctStatus::Active).await;
 
