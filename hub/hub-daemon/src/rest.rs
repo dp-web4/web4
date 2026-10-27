@@ -2659,7 +2659,7 @@ pub async fn operator_auth_gate(
 /// Structured refusal codes (member-of routing, PRD H3/H5). An error whose message begins
 /// `<code>: ` also carries `"code"` in its body, so a router can tell "re-sign" (`stale_epoch`,
 /// `issued_at_outside_window`) from "refused" without parsing prose.
-const ERROR_CODES: &[&str] = &["no_route", "router_mailbox_full", "child_share_full",
+const ERROR_CODES: &[&str] = &["ledger_tail_moved", "no_route", "router_mailbox_full", "child_share_full",
     "recipient_mailbox_full", "not_the_router", "stale_epoch", "issued_at_outside_window",
     "bad_child_signature", "act_id_conflict", "opkey_superseded", "caller_auth_stale"];
 
@@ -9880,6 +9880,28 @@ fn opkey_rollback_check(lct_id: String, doc: web4_core::lct::Lct) -> impl Fn(&Hu
     }
 }
 
+/// Build → sign → append attempts before a moving tail is reported as 409 (web4 #929).
+const COMMIT_TAIL_ATTEMPTS: usize = 3;
+
+/// Test-only seam: land N unrelated entries between signing and appending, on this test's thread only
+/// (each `#[tokio::test]` runs on its own thread), to force the tail race deterministically.
+#[cfg(test)]
+pub(crate) mod tail_race {
+    use super::*;
+    thread_local!(static INJECT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) });
+    pub(crate) fn inject(n: usize) { INJECT.with(|c| c.set(n)); }
+    pub(crate) async fn land_between(s: &RestState) {
+        if INJECT.with(|c| { let n = c.get(); if n > 0 { c.set(n - 1); } n > 0 }) {
+            let (mut doc, kp) = web4_core::lct::Lct::new(web4_core::lct::EntityType::Human, None);
+            doc.sign_binding(&kp);
+            let id = web4_core::lct::derive_lct_id(&doc.public_key);
+            witness_event(s, HubEvent::LctPublished { lct_id: id, document: doc, published_by: Uuid::new_v4(),
+                provenance: hub_lib::events::LctProvenance::SelfIssued, published_at: Utc::now() })
+                .await.expect("inject an entry");
+        }
+    }
+}
+
 /// [`commit_pair_event`] with a precondition re-checked against the projection taken UNDER the same
 /// ledger lock that builds the entry. Anything witnessed after the build makes `append_signed` refuse
 /// the stale tail, so the check and the append see the same ledger. Slice C, C7: the rollback guard's
@@ -9891,35 +9913,51 @@ async fn commit_pair_event_checked<F: Fn(&HubState) -> Result<(), ApiError>>(s: 
     let event_kind_str = event.kind().to_string();
     let event_value = serde_json::to_value(&event)
         .map_err(|e| ApiError::internal(anyhow::anyhow!("serializing event: {}", e)))?;
-    let (unsigned, intent) = {
-        let ledger = s.ledger.lock().await;
-        // Only a checked caller pays for the projection under the lock (#928 review (a)).
-        if let Some(check) = &check {
-            check(&s.projected(&ledger))?;
-        }
-        let unsigned = ledger.build_entry(s.sovereign_lct_id, event.clone(), Utc::now())
-            .map_err(ApiError::internal)?;
-        let intent = SignIntent {
-            request_id: Uuid::new_v4(),
-            hub_id: s.hub_id,
-            hub_name: s.hub_name.clone(),
-            actor_lct_id: s.sovereign_lct_id,
-            ledger_index: unsigned.entry.index,
-            event_kind: event_kind_str,
-            event: event_value,
+    // web4 #929: the entry is built under the lock, signed WITHOUT it (the signer may be slow), then
+    // appended under it again. If another entry landed in between, the tail moved: rebuild (re-running
+    // `check` against the new ledger), re-sign and retry, bounded like `land_act`. A tail that keeps
+    // moving is a 409 `ledger_tail_moved` the caller can retry, never a 500.
+    let mut appended = None;
+    for _ in 0..COMMIT_TAIL_ATTEMPTS {
+        let (unsigned, intent) = {
+            let ledger = s.ledger.lock().await;
+            // Only a checked caller pays for the projection under the lock (#928 review (a)).
+            if let Some(check) = &check {
+                check(&s.projected(&ledger))?;
+            }
+            let unsigned = ledger.build_entry(s.sovereign_lct_id, event.clone(), Utc::now())
+                .map_err(ApiError::internal)?;
+            let intent = SignIntent {
+                request_id: Uuid::new_v4(),
+                hub_id: s.hub_id,
+                hub_name: s.hub_name.clone(),
+                actor_lct_id: s.sovereign_lct_id,
+                ledger_index: unsigned.entry.index,
+                event_kind: event_kind_str.clone(),
+                event: event_value.clone(),
+            };
+            (unsigned, intent)
         };
-        (unsigned, intent)
-    };
-    let signing_bytes = unsigned.signing_bytes.clone();
-    let signature = s.signer
-        .sign(s.sovereign_lct_id, &signing_bytes, &intent)
-        .await
-        .map_err(|e| ApiError::internal(anyhow::anyhow!("Sovereign signer denied/failed: {}", e)))?;
-    let (index, hash) = {
+        let signing_bytes = unsigned.signing_bytes.clone();
+        let signature = s.signer
+            .sign(s.sovereign_lct_id, &signing_bytes, &intent)
+            .await
+            .map_err(|e| ApiError::internal(anyhow::anyhow!("Sovereign signer denied/failed: {}", e)))?;
+        #[cfg(test)]
+        tail_race::land_between(s).await;
         let mut ledger = s.ledger.lock().await;
+        if ledger.entries().len() as u64 != unsigned.entry.index {
+            continue; // the tail moved after the build: rebuild, re-check, re-sign
+        }
         let entry = ledger.append_signed(unsigned, signature).await
             .map_err(ApiError::internal)?;
-        (entry.index, entry.entry_hash.clone())
+        appended = Some((entry.index, entry.entry_hash.clone()));
+        break;
+    }
+    let Some((index, hash)) = appended else {
+        return Err(ApiError { status: StatusCode::CONFLICT, message: format!(
+            "ledger_tail_moved: the ledger advanced under this write {COMMIT_TAIL_ATTEMPTS} times; \
+             nothing was appended, retry") });
     };
     // F0.1 (R7a): a successful signed append proves signing capability is live
     // — fold any still-unwitnessed degraded window in now, without waiting for
@@ -12118,6 +12156,39 @@ norms:
         assert_eq!(err.status, StatusCode::CONFLICT);
         assert!(err.message.starts_with("opkey_superseded:"), "{}", err.message);
         assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing appended");
+    }
+
+    fn tail_race_event() -> HubEvent {
+        let (mut doc, kp) = web4_core::lct::Lct::new(web4_core::lct::EntityType::Human, None);
+        doc.sign_binding(&kp);
+        HubEvent::LctPublished { lct_id: web4_core::lct::derive_lct_id(&doc.public_key), document: doc,
+            published_by: Uuid::new_v4(), provenance: hub_lib::events::LctProvenance::SelfIssued,
+            published_at: Utc::now() }
+    }
+
+    /// web4 #929: an entry landing between sign and append no longer fails the write with a 500. The
+    /// commit rebuilds, re-signs and appends after the intruder.
+    #[tokio::test]
+    async fn a_commit_that_loses_the_tail_race_retries_and_lands() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let before = state.ledger.lock().await.entries().len();
+        tail_race::inject(1);
+        let (index, _) = commit_pair_event(&state, tail_race_event()).await.expect("retried and landed");
+        assert_eq!(state.ledger.lock().await.entries().len(), before + 2, "the intruder, then ours");
+        assert_eq!(index as usize, before + 1, "ours landed after the intruder");
+    }
+
+    /// web4 #929: a tail that moves on every attempt is a retryable 409 `ledger_tail_moved`, with nothing
+    /// of ours appended. It is never a 500.
+    #[tokio::test]
+    async fn a_tail_that_keeps_moving_is_a_retryable_409() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let before = state.ledger.lock().await.entries().len();
+        tail_race::inject(COMMIT_TAIL_ATTEMPTS);
+        let e = commit_pair_event(&state, tail_race_event()).await.unwrap_err();
+        assert_eq!(e.status, StatusCode::CONFLICT);
+        assert!(e.message.starts_with("ledger_tail_moved:"), "{}", e.message);
+        assert_eq!(state.ledger.lock().await.entries().len(), before + COMMIT_TAIL_ATTEMPTS, "only the intruders");
     }
 
     /// C6: a hub-originated notice to a member with a vouched key is sealed to that key and names it; a
