@@ -126,7 +126,8 @@ pub(super) fn caller_auth_evidence(v: Option<&serde_json::Value>) -> (hub_lib::e
 /// present; an unresolvable fact is `"unknown"` and listed in `unknown`.
 pub(super) fn identity_evidence(state: &HubState, actor: Uuid, caller_auth: Option<&serde_json::Value>,
     sovereign: Option<&PublicKey>) -> hub_lib::events::IdentityEvidence {
-    use hub_lib::events::{HubObservations, IdentityEvidence, LastWitnessedAct, SuccessorClaim, SupersededKeyUsed};
+    use hub_lib::events::{AttestedPredecessorObs, AttestedSuccessorObs, HubObservations, IdentityEvidence,
+        LastWitnessedAct, SuccessorClaim, SupersededKeyUsed};
     use hub_lib::lct_resolve::{resolve, Reference, Resolution};
     let mut unknown = Vec::new();
     let (caller_auth, ca_unknown) = caller_auth_evidence(caller_auth);
@@ -180,8 +181,36 @@ pub(super) fn identity_evidence(state: &HubState, actor: Uuid, caller_auth: Opti
             (used, claims)
         }
     };
+    // Slice E-c: attested (lost-key) lineage for the actor's canonical. Labelled apart from the verified fields.
+    let (attested_successor, attested_predecessor, successor_kind_conflict) = match link.as_ref() {
+        None => {
+            unknown.extend(["hub_observations.attested_successor", "hub_observations.attested_predecessor",
+                "hub_observations.successor_kind_conflict"].map(String::from));
+            (AttestedSuccessorObs { by: UNKNOWN.into(), attested_at: UNKNOWN.into(), via: UNKNOWN.into() },
+             AttestedPredecessorObs { old: UNKNOWN.into(), attested_at: UNKNOWN.into(), via: UNKNOWN.into() },
+             UNKNOWN.to_string())
+        }
+        Some(l) => {
+            let lineage = hub_lib::lct_rotation::lineage(state, &l.canonical);
+            let succ = match (&lineage.attested_successor, lineage.attested_successor_conflict.first()) {
+                (Some(r), _) => AttestedSuccessorObs { by: r.canonical.to_string(), attested_at: r.index.to_string(),
+                    via: r.attested_by.clone() },
+                (None, Some(first)) => AttestedSuccessorObs { by: "attested_successor_conflict".into(),
+                    attested_at: first.index.to_string(), via: first.attested_by.clone() },
+                (None, None) => AttestedSuccessorObs { by: NONE.into(), attested_at: NONE.into(), via: NONE.into() },
+            };
+            let pred = match lineage.attested_predecessors.first() {
+                Some(r) => AttestedPredecessorObs { old: r.canonical.to_string(), attested_at: r.index.to_string(),
+                    via: r.attested_by.clone() },
+                None => AttestedPredecessorObs { old: NONE.into(), attested_at: NONE.into(), via: NONE.into() },
+            };
+            (succ, pred, lineage.successor_kind_conflict.to_string())
+        }
+    };
     IdentityEvidence { caller_auth, canonical, registry_version, claimed_status, against_interest,
-        hub_observations: HubObservations { last_witnessed_act, superseded_key_used, successor_conflict }, unknown }
+        hub_observations: HubObservations { last_witnessed_act, superseded_key_used, successor_conflict,
+            attested_successor: Some(attested_successor), attested_predecessor: Some(attested_predecessor),
+            successor_kind_conflict: Some(successor_kind_conflict) }, unknown }
 }
 
 /// THE constructor for a new `ReferencedAct` (Slice D-a): it always assembles the identity evidence, so

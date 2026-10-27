@@ -13,6 +13,9 @@
 //!   other end, and backed by no ledger event. Measured for D-c: a document's `witnessing` entries are plain
 //!   `MrhEdge`s of this kind, so they are `self_declared`, not witnessed (CBP's §4 on #930).
 //!
+//! Slice E-c: attested (lost-key) lineage is `attested_successor` / `attested_predecessor` /
+//! `attested_successor_conflict`, never `successor` / `predecessor`: a Sovereign claim is not a key fact.
+//!
 //! Role occupancy is `occupant` / `previous_occupant`, never `rotated_from`: a seat changing hands is not a
 //! key rotation (`successor` / `predecessor`, D-b1).
 //!
@@ -103,6 +106,27 @@ pub fn project(state: &HubState, hub_id: Uuid, canonical: &CanonicalLctId,
     }
     for p in &lineage.predecessors {
         edges.push(ledger("bound", "predecessor", p.canonical.to_string(), p.index));
+    }
+    // Slice E-c: attested (lost-key) lineage, LABELLED: `attested_*` edge types, never `successor` /
+    // `predecessor`, so a Sovereign claim never reads as a verified rotation. `status` carries the channel the
+    // attestation arrived through.
+    let attested = |edge_type: &str, r: &crate::lct_attest::AttestedRef| {
+        let mut e = ledger("bound", edge_type, r.canonical.to_string(), r.index);
+        e.status = Some(format!("attested_via:{}", r.attested_by));
+        e
+    };
+    if let Some(r) = &lineage.attested_successor {
+        edges.push(attested("attested_successor", r));
+    }
+    for r in &lineage.attested_successor_conflict {
+        edges.push(attested("attested_successor_conflict", r));
+    }
+    for r in &lineage.attested_predecessors {
+        edges.push(attested("attested_predecessor", r));
+    }
+    if lineage.successor_kind_conflict {
+        notes.push("successor_kind_conflict: this canonical has a live verified successor AND a live attested \
+            one; neither is THE successor (law weighs both, FR5)".into());
     }
 
     // Member-of (H2): this canonical's parent, and the members that report this canonical as theirs.

@@ -11629,7 +11629,9 @@ norms:
     fn e_b_serving_only(src: &str) -> String {
         let (mut out, mut lines) = (String::new(), src.lines().peekable());
         while let Some(line) = lines.next() {
-            if line == "#[cfg(test)]" && lines.peek().is_some_and(|n| n.starts_with("mod ") && n.ends_with('{')) {
+            let is_mod = |n: &&str| n.ends_with('{') && ["mod ", "pub mod ", "pub(crate) mod ", "pub(super) mod "]
+                .iter().any(|v| n.starts_with(v));
+            if line == "#[cfg(test)]" && lines.peek().is_some_and(is_mod) {
                 for body in lines.by_ref() {
                     if body == "}" { break; }
                 }
@@ -11648,6 +11650,8 @@ norms:
             assert!(serving.contains(kept), "the strip must keep serving code: {kept}");
         }
         assert!(!serving.contains("fn slice_e_b_census_no_serving_path_signs_attestations"), "tests stripped");
+        assert!(!serving.contains("fn slice_e_c_acts_carry_attested_lineage_evidence"),
+            "a `pub(crate) mod` test module is stripped too");
         for needle in ["attestation_bytes(", "withdrawal_bytes("] {
             assert!(!serving.contains(needle), "serving rest.rs builds `{needle}`: the daemon must never sign it");
         }
@@ -11679,6 +11683,38 @@ norms:
             assert!(!text.contains("attestation_bytes(") && !text.contains("withdrawal_bytes("), "{p:?} builds bytes");
             assert!(!text.contains("attested_by:"), "{p:?} builds the attested event");
         }
+    }
+
+    /// Slice E-c (MRH): attested lineage is projected as LABELLED ledger edges (`attested_successor` /
+    /// `attested_predecessor`, status `attested_via:<channel>`), never `successor` / `predecessor`; an anonymous
+    /// reader sees none of it; a kind conflict is a note.
+    #[tokio::test]
+    async fn slice_e_c_mrh_projects_attested_edges_under_their_label() {
+        let (_tmp, state, sov) = fresh_state().await;
+        let (ko, old) = d_b1_publish(&state, &sov).await;
+        let (kb, b) = d_b1_publish(&state, &sov).await;
+        let (kx, x) = d_b1_publish(&state, &sov).await;
+        let i = e_attest(&state, &e_statement(state.hub_id, &old, &b, &sov.keypair().unwrap(), &kb,
+            &Utc::now().to_rfc3339(), "key lost")).await;
+        let st = e_project(&state).await;
+        let key = channel_auth::sovereign_key(&state);
+        let view = |c: &hub_lib::ids::CanonicalLctId, r| hub_lib::lct_mrh::project(&st, state.hub_id, c, key.as_ref(), r)
+            .expect("published");
+        let po = view(&old, hub_lib::lct_mrh::Reader::Sovereign);
+        let e = po.edges.iter().find(|e| e.edge_type == "attested_successor").expect("labelled edge");
+        assert_eq!((e.target.as_str(), e.source, e.index, e.status.as_deref()),
+            (b.as_str(), "ledger", Some(i), Some("attested_via:operator_cli")));
+        assert!(!po.edges.iter().any(|e| e.edge_type == "successor"), "never a verified successor");
+        assert!(view(&b, hub_lib::lct_mrh::Reader::Sovereign).edges.iter()
+            .any(|e| e.edge_type == "attested_predecessor" && e.target == old.as_str()));
+        assert!(!view(&old, hub_lib::lct_mrh::Reader::Anonymous).edges.iter().any(|e| e.source == "ledger"),
+            "anonymous readers get self_declared only (D7)");
+
+        d_b1_rotate(&state, &sov, &old, &x, &ko, &kx, &Utc::now().to_rfc3339()).await.expect("key fact witnessed");
+        let st = e_project(&state).await;
+        let po = hub_lib::lct_mrh::project(&st, state.hub_id, &old, key.as_ref(), hub_lib::lct_mrh::Reader::Sovereign).unwrap();
+        assert!(po.notes.iter().any(|n| n.starts_with("successor_kind_conflict")), "{:?}", po.notes);
+        assert!(po.edges.iter().any(|e| e.edge_type == "successor") && po.edges.iter().any(|e| e.edge_type == "attested_successor"));
     }
 
     // ---- LCT identity convergence Slice D-b1: verified rotation (PRD D4 tests) ----
@@ -12939,9 +12975,13 @@ norms:
             assert_eq!(e[f], "unknown", "{f}");
         }
         assert_eq!(e["unknown"], serde_json::json!(["canonical", "registry_version", "claimed_status",
-            "against_interest", "hub_observations.superseded_key_used"]));
+            "against_interest", "hub_observations.superseded_key_used", "hub_observations.attested_successor",
+            "hub_observations.attested_predecessor", "hub_observations.successor_kind_conflict"]));
         assert_eq!(e["hub_observations"]["superseded_key_used"],
             serde_json::json!({"by": "unknown", "rotated_at": "unknown"}), "D-b1: keeps its shape");
+        assert_eq!(e["hub_observations"]["attested_successor"],
+            serde_json::json!({"by": "unknown", "attested_at": "unknown", "via": "unknown"}), "E-c: keeps its shape");
+        assert_eq!(e["hub_observations"]["successor_kind_conflict"], "unknown");
 
         let act = web4_core::act::Act::addressed(state.sovereign_lct_id,
             web4_core::act::ActAddress::Citizen { lct_id: m }, "notify:x",
@@ -13162,6 +13202,65 @@ norms:
         assert_eq!(e["hub_observations"]["superseded_key_used"]["by"], "successor_conflict");
         assert_eq!(e["hub_observations"]["successor_conflict"], serde_json::json!([
             {"canonical": b, "index": ib.to_string()}, {"canonical": c, "index": ic.to_string()}]));
+    }
+
+    /// Slice E-c (E6): an act by a canonical whose loss the Sovereign ATTESTED carries
+    /// `attested_successor {by, attested_at, via}` (the thief shape: a lost key acting again); an act by the
+    /// successor carries `attested_predecessor {old, ...}` (it claims continuity, under the label). The verified
+    /// fields are untouched. A later verified rotation of the old key raises `successor_kind_conflict`.
+    #[tokio::test]
+    async fn slice_e_c_acts_carry_attested_lineage_evidence() {
+        let (_tmp, state) = fresh_rest_state_sqlite().await;
+        let ck = KeyPair::generate();
+        let (m, _binding, a) = slice_c_member(&state, Some(&ck)).await;
+        let nk = KeyPair::generate();
+        let (n, _nb, b) = slice_c_member(&state, Some(&nk)).await;
+        let (peer, _, _) = slice_c_member(&state, None).await;
+        let e = slice_d_evidence(&state, slice_d_act(&state, m, &ck, peer).await).await;
+        assert_eq!(e["hub_observations"]["attested_successor"], serde_json::json!({"by": "none", "attested_at": "none", "via": "none"}));
+        assert_eq!(e["hub_observations"]["attested_predecessor"], serde_json::json!({"old": "none", "attested_at": "none", "via": "none"}));
+        assert_eq!(e["hub_observations"]["successor_kind_conflict"], "false");
+
+        // The route verifies (slice_e_b_*); the fold and the evidence read the witnessed event.
+        let ia = witness_event(&state, HubEvent::LctPredecessorAttested { old: a.clone(), new: b.clone(),
+            issued_at: Utc::now().to_rfc3339(), reason: "key lost".into(), attester_signature_hex: String::new(),
+            new_signature_hex: String::new(), attester_pubkey_hex: String::new(),
+            attested_by: "rest_sovereign_envelope".into(), submitted_by: Uuid::nil() }).await.unwrap();
+        let e = slice_d_evidence(&state, slice_d_act(&state, m, &ck, peer).await).await;
+        slice_d_all_leaves_strings(&e, "identity_evidence");
+        assert_eq!(e["hub_observations"]["attested_successor"],
+            serde_json::json!({"by": b, "attested_at": ia.to_string(), "via": "rest_sovereign_envelope"}),
+            "the lost key acting again is flagged");
+        assert_eq!(e["hub_observations"]["superseded_key_used"]["by"], "none", "never read as a verified rotation");
+        let e = slice_d_evidence(&state, slice_d_act(&state, n, &nk, peer).await).await;
+        assert_eq!(e["hub_observations"]["attested_predecessor"],
+            serde_json::json!({"old": a, "attested_at": ia.to_string(), "via": "rest_sovereign_envelope"}),
+            "the successor's acts carry its claimed continuity");
+
+        // E-8: the old key now signs a verified rotation too.
+        let x = { let kp = KeyPair::generate();
+            let (mut doc, _) = web4_core::lct::Lct::new(web4_core::lct::EntityType::Human, None);
+            doc.public_key = kp.verifying_key(); doc.sign_binding(&kp);
+            let id = web4_core::lct::derive_lct_id(&doc.public_key);
+            slice_c_land(&state, Uuid::new_v4(), &id, &doc).await; id };
+        witness_event(&state, HubEvent::LctRotated { old: a.clone(), new: x.clone(), issued_at: Utc::now().to_rfc3339(),
+            old_signature_hex: String::new(), new_signature_hex: String::new(), submitted_by: Uuid::nil() })
+            .await.unwrap();
+        let e = slice_d_evidence(&state, slice_d_act(&state, m, &ck, peer).await).await;
+        assert_eq!(e["hub_observations"]["successor_kind_conflict"], "true");
+        assert_eq!(e["hub_observations"]["superseded_key_used"]["by"], x.as_str(), "the key fact still reads");
+        assert_eq!(e["hub_observations"]["attested_successor"]["by"], b.as_str(), "the claim still reads");
+    }
+
+    /// Slice E-c, wire compatibility: an act witnessed BEFORE E-c has no `attested_*` keys. It parses (as `None`)
+    /// and re-serializes to the SAME bytes, so the entry's hash and signature still verify on replay. A new act
+    /// always carries all three.
+    #[test]
+    fn slice_e_c_pre_e_identity_evidence_keeps_its_bytes() {
+        let pre_e = r#"{"caller_auth":{"method":"member_key_pin","canonical":"unknown","purpose":"unknown","key":"k","version":"unknown","member":"m"},"canonical":"lct:web4:x","registry_version":"1","claimed_status":"active","against_interest":"false","hub_observations":{"last_witnessed_act":{"index":"none","at":"none"},"superseded_key_used":{"by":"none","rotated_at":"none"},"successor_conflict":[]},"unknown":[]}"#;
+        let parsed: hub_lib::events::IdentityEvidence = serde_json::from_str(pre_e).expect("a pre-E entry parses");
+        assert!(parsed.hub_observations.attested_successor.is_none());
+        assert_eq!(serde_json::to_string(&parsed).unwrap(), pre_e, "byte-identical round trip");
     }
 
     // ---- LCT identity convergence Slice C: signer convergence (PRD parity tests) ----
