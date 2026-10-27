@@ -1617,6 +1617,10 @@ impl HubState {
                 // does not would have been unreachable as presence anyway, so it is not registered
                 // (measured on HUB 2026-10-03: 58 of 58 live entries canonical).
                 let Ok(key) = crate::ids::CanonicalLctId::parse(lct_id) else { return; };
+                // A terminal status is terminal (CBP #934): a document that would move a Void or Slashed
+                // LCT back to Active or Dormant is never registered, whatever order the ledger landed in.
+                // The publish route refuses it first; this holds on replay and against a race.
+                if self.lct_status_regression(&key, document).is_some() { return; }
                 let version = self.registry.get(&key).map_or(1, |e| e.version + 1);
                 self.fold_opkeys(&key, document);
                 self.registry.insert(key, RegistryEntry {
@@ -1804,6 +1808,19 @@ impl HubState {
     /// Slice D-b1: the index of the `LctRotated` that witnessed `old → new`, if that pair was folded.
     pub fn rotation_index(&self, old: &crate::ids::CanonicalLctId, new: &crate::ids::CanonicalLctId) -> Option<u64> {
         self.lct_successors.get(old)?.iter().find(|(n, _)| n == new).map(|(_, i)| *i)
+    }
+
+    /// The first refusal reason for publishing `doc` over `id`'s current document on status grounds:
+    /// `(current, incoming)` when the current status is terminal (`Void`, `Slashed`) and the incoming one
+    /// is not. A leaked binding key could otherwise republish a revoked LCT as `Active` and act or rotate
+    /// with it again, so revocation would last only until the next publish. Terminal → terminal
+    /// (Void ↔ Slashed) and every move out of `Active` / `Dormant` stay allowed.
+    pub fn lct_status_regression(&self, id: &crate::ids::CanonicalLctId, doc: &web4_core::lct::Lct)
+        -> Option<(web4_core::lct::LctStatus, web4_core::lct::LctStatus)> {
+        use web4_core::lct::LctStatus::{Slashed, Void};
+        let current = &self.registry.get(id)?.document.status;
+        let terminal = |s: &web4_core::lct::LctStatus| matches!(s, Void | Slashed);
+        (terminal(current) && !terminal(&doc.status)).then(|| (current.clone(), doc.status.clone()))
     }
 
     /// C7, the publish-route check: the first validly vouched `(purpose, pubkey_hex)` in `doc` that

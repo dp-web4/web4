@@ -2662,7 +2662,8 @@ pub async fn operator_auth_gate(
 /// `issued_at_outside_window`) from "refused" without parsing prose.
 const ERROR_CODES: &[&str] = &["ledger_tail_moved", "no_route", "router_mailbox_full", "child_share_full",
     "recipient_mailbox_full", "not_the_router", "stale_epoch", "issued_at_outside_window",
-    "bad_child_signature", "act_id_conflict", "opkey_superseded", "caller_auth_stale"];
+    "bad_child_signature", "act_id_conflict", "opkey_superseded", "caller_auth_stale",
+    "lct_status_terminal"];
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
@@ -9965,6 +9966,13 @@ async fn commit_pair_event(s: &RestState, event: HubEvent) -> Result<(u64, Strin
 fn opkey_rollback_check(lct_id: String, doc: web4_core::lct::Lct) -> impl Fn(&HubState) -> Result<(), ApiError> {
     move |st: &HubState| {
         let Ok(canonical) = hub_lib::ids::CanonicalLctId::parse(&lct_id) else { return Ok(()) };
+        // A terminal status is terminal (CBP #934), checked here because this is the publish route's one
+        // check under the build lock: a revocation cannot be undone by republishing the document.
+        if let Some((current, incoming)) = st.lct_status_regression(&canonical, &doc) {
+            return Err(ApiError { status: StatusCode::CONFLICT, message: format!(
+                "lct_status_terminal: {lct_id} is {current:?}, which is terminal; a document saying {incoming:?} \
+                 cannot replace it (mint a new LCT instead)") });
+        }
         match st.opkey_rollback(&canonical, &doc) {
             Some((purpose, key)) => Err(ApiError {
                 status: StatusCode::CONFLICT,
@@ -11027,6 +11035,44 @@ norms:
         let err = d_b1_rotate(&state, &sov, &b, &a, &kb, &ka, &now).await.unwrap_err();
         assert_eq!(err.status, StatusCode::FORBIDDEN);
         assert!(err.message.contains("already been rotated away"), "{}", err.message);
+    }
+
+    /// A terminal status is terminal (CBP #934). Through the route: Void → Active is refused 409
+    /// `lct_status_terminal` with nothing witnessed; Void → Slashed (terminal to terminal) and Dormant →
+    /// Active stay allowed. On replay: a document that would revive a Void LCT, witnessed past the route,
+    /// is never registered.
+    #[tokio::test]
+    async fn a_void_or_slashed_lct_cannot_be_republished_active() {
+        use web4_core::lct::LctStatus;
+        let (_tmp, state, sov) = fresh_state().await;
+        let (doc, _kp, lct_id) = publishable_lct(EntityType::Human);
+        let publish = |status: LctStatus| {
+            let mut d = doc.clone();
+            d.status = status;
+            let env = publish_envelope(&state, &sov, payload_for(&d, &lct_id, sov.lct.id, "self_issued"));
+            publish_lct(State(state.clone()), Path(state.hub_id), Json(env))
+        };
+        publish(LctStatus::Dormant).await.expect("first publish");
+        publish(LctStatus::Active).await.expect("dormant → active is not a revocation");
+        publish(LctStatus::Void).await.expect("revoked");
+        let before = state.ledger.lock().await.entries().len();
+        for back in [LctStatus::Active, LctStatus::Dormant] {
+            let err = publish(back).await.unwrap_err();
+            assert_eq!(err.status, StatusCode::CONFLICT);
+            assert!(err.message.starts_with("lct_status_terminal:"), "{}", err.message);
+        }
+        assert_eq!(state.ledger.lock().await.entries().len(), before, "nothing witnessed");
+        publish(LctStatus::Slashed).await.expect("terminal → terminal");
+
+        // Past the route (a replay of an old ledger, or any path without the check): never registered.
+        let mut revived = doc.clone();
+        revived.status = LctStatus::Active;
+        witness_event(&state, HubEvent::LctPublished { lct_id: lct_id.clone(), document: revived,
+            published_by: sov.lct.id, provenance: LctProvenance::SelfIssued, published_at: Utc::now() })
+            .await.unwrap();
+        let st = { let l = state.ledger.lock().await; HubState::project(&*l) };
+        assert_eq!(st.registry.get(lct_id.as_str()).unwrap().document.status, LctStatus::Slashed,
+            "the projection keeps the terminal status");
     }
 
     #[tokio::test]
