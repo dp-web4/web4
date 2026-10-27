@@ -1180,6 +1180,11 @@ fn event_summary(event: &HubEvent) -> String {
         HubEvent::MemberKeyPinned { member_lct_id, .. } => {
             format!("Channel key pinned for {}", short(member_lct_id))
         }
+        HubEvent::ChannelPinRefused { member, refused, .. } => if *refused {
+            format!("🔒 {} refused its pin: only its vouched channel key opens the channel now", short(member))
+        } else {
+            format!("{} re-admitted its pin as a channel credential", short(member))
+        },
         HubEvent::MemberRenamed { member_lct_id, name, previous_name, reason, .. } => format!(
             "Member {} renamed {} → \"{}\"{}",
             short(member_lct_id),

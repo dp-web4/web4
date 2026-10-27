@@ -264,6 +264,12 @@ pub struct RoleOccupancyChange {
     #[serde(skip)]
     pub member_key_pins: BTreeMap<Uuid, Vec<crate::lct_resolve::KeyPin>>,
 
+    /// Slice D-b2 (D5): members that refused their UUID pin as a channel credential
+    /// (`ChannelPinRefused`). For these, only a vouched `hub-channel` key opens the channel. Cleared when the
+    /// member leaves, so a later re-admission under the same id starts from the default.
+    #[serde(skip)]
+    pub pin_refused: std::collections::BTreeSet<Uuid>,
+
     /// Router LCT -> its router interface member and certificate `issued_at` (PRD_MEMBER_OF_ROUTING
     /// H1). The member_of* maps below are the same story. None is serialized: machine topology,
     /// readable through the members-only `member_of` tool and the operator plane.
@@ -1117,6 +1123,7 @@ impl HubState {
                 // resolver on the next serve restart (they'd still verify).
                 self.member_pubkeys.remove(member_lct_id);
                 self.member_ceilings.remove(member_lct_id);
+                self.pin_refused.remove(member_lct_id);
             }
             HubEvent::MemberJoinRequested {
                 request_id, member_lct_id, member_pubkey_hex, name, message,
@@ -1203,6 +1210,15 @@ impl HubState {
                 }
                 // If member doesn't exist, silently ignore — event predates
                 // their MemberAdded. (Real impl would error or queue.)
+            }
+            HubEvent::ChannelPinRefused { member, refused, .. } => {
+                // The channel tool witnessed it only over the member's vouched key. A refusal for a
+                // non-member is ignored, as the pin arm below ignores one.
+                if *refused && self.members.contains_key(member) {
+                    self.pin_refused.insert(*member);
+                } else if !*refused {
+                    self.pin_refused.remove(member);
+                }
             }
             HubEvent::MemberKeyPinned { member_lct_id, member_pubkey_hex, .. } => {
                 // Pin (or rotate — last write wins) the member's channel key.
