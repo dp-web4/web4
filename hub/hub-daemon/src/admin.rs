@@ -1374,6 +1374,19 @@ fn event_summary(event: &HubEvent) -> String {
             html_escape(new),
             short(submitted_by),
         ),
+        HubEvent::LctPredecessorAttested { old, new, attested_by, .. } => format!(
+            "🪢 LCT predecessor ATTESTED (Sovereign claim, not verified): <code>{}</code> ⇢ <code>{}</code> \
+             <span class=\"muted\">via {}</span>",
+            html_escape(old),
+            html_escape(new),
+            html_escape(attested_by),
+        ),
+        HubEvent::LctPredecessorAttestationWithdrawn { old, new, attestation_index, .. } => format!(
+            "↩️ LCT predecessor attestation withdrawn: <code>{}</code> ⇢ <code>{}</code> (entry {})",
+            html_escape(old),
+            html_escape(new),
+            attestation_index,
+        ),
         HubEvent::MemberJoinRequested { member_lct_id, name, .. } => format!(
             "🚪 join requested by {} {} <span class=\"muted\">[escalated → review]</span>",
             short(member_lct_id),

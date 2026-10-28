@@ -458,6 +458,21 @@ pub struct RoleOccupancyChange {
     /// The reverse of `lct_successors`: new → its verified predecessors.
     #[serde(skip)]
     pub lct_predecessors: BTreeMap<crate::ids::CanonicalLctId, Vec<(crate::ids::CanonicalLctId, u64)>>,
+    /// Slice E: LIVE attested edges (`LctPredecessorAttested` not withdrawn), old → every distinct attested
+    /// successor with its index and `attested_by`, in ledger order. More than one is
+    /// `attested_successor_conflict`. Kept apart from `lct_successors` so a claim never reads as verified.
+    #[serde(skip)]
+    pub lct_attested_successors: BTreeMap<crate::ids::CanonicalLctId, Vec<(crate::ids::CanonicalLctId, u64, String)>>,
+    /// The reverse of `lct_attested_successors`.
+    #[serde(skip)]
+    pub lct_attested_predecessors: BTreeMap<crate::ids::CanonicalLctId, Vec<(crate::ids::CanonicalLctId, u64, String)>>,
+    /// Slice E5: withdrawn attestations, in ledger order.
+    #[serde(skip)]
+    pub lct_attestations_withdrawn: Vec<crate::lct_attest::WithdrawnAttestation>,
+    /// Slice E: each folded attestation's signed `issued_at`, by its ledger index. A withdrawal records it, so a
+    /// later statement for the pair must be issued after both (no replay of a withdrawn envelope; CBP #940).
+    #[serde(skip)]
+    pub lct_attestation_issued_at: BTreeMap<u64, String>,
 
     /// Last seen index from the ledger (for cache invalidation in future).
     pub last_index: u64,
@@ -1671,6 +1686,39 @@ impl HubState {
                     self.lct_predecessors.entry(new).or_default().push((old, index));
                 }
             }
+            HubEvent::LctPredecessorAttested { old, new, attested_by, issued_at, .. } => {
+                // The route verified before witnessing. E4: the same pair is folded into the first LIVE entry;
+                // after a withdrawal, a fresh attestation of the pair is a new edge (CBP).
+                let (Ok(old), Ok(new)) = (crate::ids::CanonicalLctId::parse(old),
+                    crate::ids::CanonicalLctId::parse(new)) else { return; };
+                if self.attestation_index(&old, &new).is_none() {
+                    self.lct_attested_successors.entry(old.clone()).or_default()
+                        .push((new.clone(), index, attested_by.clone()));
+                    self.lct_attested_predecessors.entry(new).or_default().push((old, index, attested_by.clone()));
+                    self.lct_attestation_issued_at.insert(index, issued_at.clone());
+                }
+            }
+            HubEvent::LctPredecessorAttestationWithdrawn { old, new, attestation_index, issued_at, .. } => {
+                let (Ok(old), Ok(new)) = (crate::ids::CanonicalLctId::parse(old),
+                    crate::ids::CanonicalLctId::parse(new)) else { return; };
+                // Only the live entry it names; a stale or repeated withdrawal changes nothing.
+                if self.attestation_index(&old, &new) == Some(*attestation_index) {
+                    let drop = |m: &mut BTreeMap<crate::ids::CanonicalLctId, Vec<(crate::ids::CanonicalLctId, u64, String)>>,
+                                k: &crate::ids::CanonicalLctId| {
+                        if let Some(v) = m.get_mut(k) {
+                            v.retain(|(_, i, _)| i != attestation_index);
+                            if v.is_empty() { m.remove(k); }
+                        }
+                    };
+                    drop(&mut self.lct_attested_successors, &old);
+                    drop(&mut self.lct_attested_predecessors, &new);
+                    let attested_issued_at = self.lct_attestation_issued_at.get(attestation_index).cloned()
+                        .unwrap_or_default();
+                    self.lct_attestations_withdrawn.push(crate::lct_attest::WithdrawnAttestation { old, new,
+                        index: *attestation_index, withdrawn_at: index, attested_issued_at,
+                        withdrawal_issued_at: issued_at.clone() });
+                }
+            }
             HubEvent::CouncilMemberAdded { member_lct_id, member_pubkey_hex, member_name, .. } => {
                 self.council_holders.insert(*member_lct_id);
                 self.council_pubkeys.insert(*member_lct_id, member_pubkey_hex.clone());
@@ -1835,6 +1883,24 @@ impl HubState {
         if !superseded.is_empty() {
             self.superseded_opkeys.entry(id.clone()).or_default().extend(superseded);
         }
+    }
+
+    /// Slice E: the index of the LIVE `LctPredecessorAttested` for `old ⇢ new`, if there is one.
+    pub fn attestation_index(&self, old: &crate::ids::CanonicalLctId, new: &crate::ids::CanonicalLctId) -> Option<u64> {
+        self.lct_attested_successors.get(old)?.iter().find(|(n, _, _)| n == new).map(|(_, i, _)| *i)
+    }
+
+    /// Slice E's ONE "live" predicate (Legion): `c` has a live successor of either kind. A verified D4 edge is
+    /// always live; an attested one is live until withdrawn. Used by E3 and by the D-b1 cycle guard (E3a).
+    pub fn lct_has_live_successor(&self, c: &crate::ids::CanonicalLctId) -> bool {
+        self.lct_successors.get(c).is_some_and(|v| !v.is_empty())
+            || self.lct_attested_successors.get(c).is_some_and(|v| !v.is_empty())
+    }
+
+    /// The same predicate for predecessors (E3's join rule, E-9).
+    pub fn lct_has_live_predecessor(&self, c: &crate::ids::CanonicalLctId) -> bool {
+        self.lct_predecessors.get(c).is_some_and(|v| !v.is_empty())
+            || self.lct_attested_predecessors.get(c).is_some_and(|v| !v.is_empty())
     }
 
     /// Slice D-b1: the index of the `LctRotated` that witnessed `old → new`, if that pair was folded.
