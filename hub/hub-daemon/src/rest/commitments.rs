@@ -859,6 +859,22 @@ mod tests {
         assert_eq!(kinds(l.entries(), "reputation_recorded"), 1);
     }
 
+    /// NOVA on #947: pin it end to end. An operator-relayed take-over followed by a miss records
+    /// `owner_acknowledged: false` and writes no Conduct debit.
+    #[tokio::test]
+    async fn a_relayed_take_over_then_a_miss_debits_nobody() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let now = Utc::now();
+        let id = open_due(&s, alex, sam, role, now).await;
+        move_commitment(&s, &id, MoveBody { by: sam.to_string(), move_kind: MoveKind::Handoff,
+            to: Some(member(sam)), note_ref: None }).await.unwrap();
+        let r = sweep_once(&s, now + chrono::Duration::minutes(15)).await.unwrap();
+        assert_eq!((r.commitments_missed, r.deltas), (1, 0), "{r:?}");
+        let res = current(&s, &id).await.resolved.unwrap();
+        assert_eq!((res.outcome, res.owner_acknowledged), (Outcome::Missed, false));
+        assert_eq!(kinds(s.ledger.lock().await.entries(), "reputation_recorded"), 0);
+    }
+
     #[tokio::test]
     async fn the_sweep_resolves_a_past_due_r7_obligation_once() {
         let (_tmp, s, alex, _sam, _lee, _role) = chapter().await;
