@@ -168,6 +168,44 @@ pub struct HubObservations {
     /// Slice D-b1: every distinct verified successor when there are two or more (a fork). Empty
     /// otherwise. The hub picks no winner; law decides.
     pub successor_conflict: Vec<SuccessorClaim>,
+    /// Slice E-c: whether the actor's canonical has a live ATTESTED successor (the Sovereign attested that
+    /// its key was lost and `by` continues it). An act by such a canonical is the shape of a thief using the
+    /// lost key; evidence only (FR5). `None` (absent on the wire) on acts witnessed before E-c, so their
+    /// bytes are unchanged; every act witnessed since carries it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attested_successor: Option<AttestedSuccessorObs>,
+    /// Slice E-c (CBP #938): whether the actor's canonical CLAIMS continuity, i.e. has a live attested
+    /// predecessor, so a consumer weighing it sees the claim under its label. `None` before E-c.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attested_predecessor: Option<AttestedPredecessorObs>,
+    /// Slice E-8: `"true"` when the actor's canonical has live successors of BOTH kinds (a verified rotation
+    /// and an attestation); then neither `superseded_key_used.by` nor `attested_successor.by` is THE successor.
+    /// `"false"`, or `"unknown"` with the canonical. `None` before E-c.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub successor_kind_conflict: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AttestedSuccessorObs {
+    /// The live attested successor canonical; `"attested_successor_conflict"` when there are two or more;
+    /// `"none"`; or `"unknown"` when the canonical is.
+    pub by: String,
+    /// A LEDGER INDEX, not a time: the (first) `LctPredecessorAttested` entry, or `"none"` / `"unknown"` with `by`.
+    pub attested_index: String,
+    /// The channel it arrived through (`attested_by` on the entry), or `"none"` / `"unknown"`.
+    pub via: String,
+    /// How many live attested successors there are (`"0"`, `"1"`, or more for a conflict, where `attested_index`
+    /// and `via` describe only the FIRST; the MRH projection lists all), or `"unknown"`.
+    pub count: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AttestedPredecessorObs {
+    /// The live attested predecessor canonical (E-9 refuses joins, so at most one); `"none"`; or `"unknown"`.
+    pub old: String,
+    /// A LEDGER INDEX, not a time.
+    pub attested_index: String,
+    pub via: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
