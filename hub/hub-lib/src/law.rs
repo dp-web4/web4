@@ -672,6 +672,20 @@ pub struct ReputationEmitPolicy {
     pub mode: EmitMode,
 }
 
+/// Commitments (hub/docs/PRD_COMMITMENTS.md §4.1). The sweep records `missed` only past
+/// `due_at + grace`, so a satisfy in flight at the deadline is not overtaken by a sweep tick.
+/// Absent ⇒ [`DEFAULT_COMMITMENT_GRACE_MINUTES`].
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct CommitmentsPolicy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grace_minutes: Option<u32>,
+}
+
+/// Three sweep intervals: one interval plus clock skew is the floor, with room to spare.
+pub const DEFAULT_COMMITMENT_GRACE_MINUTES: u32 = 15;
+/// One 5-minute sweep interval plus clock skew.
+pub const MIN_COMMITMENT_GRACE_MINUTES: u32 = 10;
+
 /// A `subject` token that references `constellation:<emitter>` — the v2 attestation
 /// pattern, inert in v1 (see [`ReputationEmitRule`]). Discriminated by the
 /// `constellation:` prefix; note `role:constellation:member` (a v1 `role_lct`
@@ -704,6 +718,8 @@ pub struct HubPolicy {
     pub atp_issuance: Option<AtpIssuancePolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reputation_emit: Option<ReputationEmitPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commitments: Option<CommitmentsPolicy>,
 }
 
 impl PolicyExtension for HubPolicy {
@@ -846,6 +862,15 @@ impl PolicyExtension for HubPolicy {
             }
         }
 
+        // Rule 12 (PRD_COMMITMENTS §4.1): the missed grace covers at least one sweep interval
+        // plus clock skew, or a satisfy racing the deadline could lose to a tick.
+        if let Some(g) = self.commitments.as_ref().and_then(|c| c.grace_minutes) {
+            if g < MIN_COMMITMENT_GRACE_MINUTES {
+                return Err(anyhow!(
+                    "commitments.grace_minutes must be >= {MIN_COMMITMENT_GRACE_MINUTES} (got {g})"));
+            }
+        }
+
         Ok(())
     }
 
@@ -921,6 +946,9 @@ pub trait HubLawExt {
     /// or unstated, nothing applies to tensors.
     fn reputation_emit_mode(&self) -> EmitMode;
 
+    /// PRD_COMMITMENTS §4.1: minutes past `due_at` before the sweep records `missed`.
+    fn commitment_grace_minutes(&self) -> u32;
+
     /// Norms that test `r6.request.action` for equality against a value the gate
     /// can never produce.
     ///
@@ -984,6 +1012,11 @@ impl HubLawExt for Law {
 
     fn reputation_emit_mode(&self) -> EmitMode {
         self.ext.reputation_emit.as_ref().map(|re| re.mode).unwrap_or_default()
+    }
+
+    fn commitment_grace_minutes(&self) -> u32 {
+        self.ext.commitments.as_ref().and_then(|c| c.grace_minutes)
+            .unwrap_or(DEFAULT_COMMITMENT_GRACE_MINUTES)
     }
 
     fn reputation_emit_decision(&self, emitter: &str, delta_role_lct: &str) -> ReputationEmitOutcome {
@@ -2036,6 +2069,18 @@ admission:
         let y1 = law.to_yaml().unwrap();
         let y2 = Law::from_yaml(&y1).unwrap().to_yaml().unwrap();
         assert_eq!(y1, y2, "law serialization must be a fixed point (hash-stable)");
+    }
+
+    /// PRD_COMMITMENTS §4.1: the missed grace defaults, reads from law, and refuses a value
+    /// shorter than one sweep interval plus skew.
+    #[test]
+    fn commitment_grace_defaults_reads_and_has_a_floor() {
+        let none = Law::parse_and_validate("version: \"1.0.0\"\n").unwrap();
+        assert_eq!(none.commitment_grace_minutes(), DEFAULT_COMMITMENT_GRACE_MINUTES);
+        let set = Law::parse_and_validate("version: \"1.0.0\"\ncommitments:\n  grace_minutes: 30\n").unwrap();
+        assert_eq!(set.commitment_grace_minutes(), 30);
+        let err = Law::parse_and_validate("version: \"1.0.0\"\ncommitments:\n  grace_minutes: 5\n").unwrap_err();
+        assert!(err.to_string().contains("grace_minutes must be >= 10"), "{err}");
     }
 
     // ── reputation_emit (thread repemit-1) ──────────────────────────────────

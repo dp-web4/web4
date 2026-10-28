@@ -466,6 +466,144 @@ async fn erase_contact(s: &RestState, party_id: &str) -> Result<serde_json::Valu
     Ok(serde_json::json!({ "erased": true, "open_commitments_still_naming": still_named }))
 }
 
+/// How often the sweep runs. Silence boundaries are accurate to ±1 interval (PRD §4).
+pub(crate) const SWEEP_INTERVAL: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// Who the ledger says resolved a `missed`: the hub's own sweep, not a party.
+pub(crate) const SWEEP_ACTOR: &str = "hub:sweep";
+
+/// What one sweep wrote.
+#[derive(Debug, Default, PartialEq, Eq, Serialize)]
+pub(crate) struct SweepReport {
+    pub escalated: u32,
+    pub commitments_missed: u32,
+    pub obligations_missed: u32,
+    pub deltas: u32,
+}
+
+/// Start the in-daemon sweep (K2). It runs only while the hub is unlocked: a locked hub cannot
+/// sign, and when it unlocks the next tick catches up from witnessed timestamps.
+pub(crate) fn spawn_sweep(s: RestState) {
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(SWEEP_INTERVAL);
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            tick.tick().await;
+            if s.is_locked() {
+                continue;
+            }
+            match sweep_once(&s, Utc::now()).await {
+                Ok(r) if r != SweepReport::default() => tracing::info!(?r, "commitments sweep"),
+                Ok(_) => {}
+                Err(e) => tracing::warn!("commitments sweep failed (retries next tick): {}", e.message),
+            }
+        }
+    });
+}
+
+/// The record a missed deadline leaves on the subject: the same temporal delta the R7 satisfy
+/// path computes, classed Conduct, applied only under `EmitMode::Apply` (§5.1).
+async fn missed_delta(
+    s: &RestState, ob: &hub_lib::state::Obligation, request_id: &str, action_id: u64, action_kind: &str,
+    now: DateTime<Utc>,
+) -> Result<(), ApiError> {
+    let deadline = web4_core::time::Deadline::new(ob.due_at).with_criticality(ob.criticality);
+    let outcome = deadline.evaluate(&web4_core::time::Timing::started(ob.opened_at),
+        web4_core::time::WitnessAvailability::Available, true, now);
+    let impact = deadline.reputation_impact(&outcome);
+    let delta = temporal_delta(ob, request_id, "missed", &impact, action_id, action_kind, now);
+    let applied = {
+        use hub_lib::law::{EmitMode, HubLawExt};
+        let mode = s.law.read().await.as_ref().map(|l| l.reputation_emit_mode()).unwrap_or_default();
+        mode == EmitMode::Apply && delta.class == web4_core::r6::DeltaClass::Conduct
+    };
+    witness_event(s, HubEvent::ReputationRecorded { delta, applied }).await.map(|_| ())
+}
+
+/// One sweep at `now`, under [`COMMITMENT_LOCK`]. For each open commitment, in order:
+/// - **missed:** past `due_at + grace`, resolve it `missed` (one resolution, re-checked under the
+///   lock). A Conduct delta follows only if the owner's own acknowledgement is on the ledger (§5.1).
+/// - **silence:** otherwise, write every escalation step the queue has reached since
+///   `queue_since`, summing windows only within this tick (catch-up after a lock).
+///
+/// Then every open R7 obligation past `due_at + grace` is resolved `missed` with its delta.
+/// The resolution is witnessed before its delta: a failed delta leaves a missing debit, which the
+/// ledger shows, never a second one.
+pub(crate) async fn sweep_once(s: &RestState, now: DateTime<Utc>) -> Result<SweepReport, ApiError> {
+    let grace = {
+        use hub_lib::law::HubLawExt;
+        let minutes = s.law.read().await.as_ref().map(|l| l.commitment_grace_minutes())
+            .unwrap_or(hub_lib::law::DEFAULT_COMMITMENT_GRACE_MINUTES);
+        chrono::Duration::minutes(i64::from(minutes))
+    };
+    let _serial = COMMITMENT_LOCK.lock().await;
+    let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    let mut report = SweepReport::default();
+
+    for c in state.commitments.values().filter(|c| c.is_open()) {
+        if c.due_at.map_or(false, |due| now >= due + grace) {
+            let owner_acknowledged = c.owner_acknowledged();
+            let index = checked_witness(s, HubEvent::CommitmentResolved {
+                commitment_id: c.commitment_id.clone(),
+                outcome: Outcome::Missed,
+                by: SWEEP_ACTOR.to_string(),
+                resolved_at: now,
+                owner_acknowledged,
+            }).await?;
+            report.commitments_missed += 1;
+            // W: a named owner who never acknowledged is not debited for the operator's claim.
+            if owner_acknowledged && c.owner.kind == PartyKind::Member {
+                let ob = hub_lib::state::Obligation {
+                    subject_lct: c.owner.party_id.clone(),
+                    role_lct: c.leads_role.clone(),
+                    due_at: c.due_at.expect("checked above"),
+                    criticality: web4_core::time::Criticality::default(),
+                    opened_at: c.opened_at,
+                };
+                missed_delta(s, &ob, &c.commitment_id, index, "commitment_missed", now).await?;
+                report.deltas += 1;
+            }
+            continue;
+        }
+        // Silence: walk the ladder from where the queue stands.
+        let mut pos = c.queue;
+        let mut window_start = c.queue_since;
+        while let (Some(hours), Some(next)) = (c.ladder.get(pos as usize).copied(), pos.next()) {
+            let window_end = window_start + chrono::Duration::hours(i64::from(hours));
+            if now < window_end {
+                break;
+            }
+            checked_witness(s, HubEvent::CommitmentEscalated {
+                commitment_id: c.commitment_id.clone(),
+                step: next.as_step().expect("next() is never Owner"),
+                cause: commitments::EscalationCause::Silence,
+                silent_since: Some(window_start),
+                window_hours: Some(hours),
+                swept_at: now,
+            }).await?;
+            report.escalated += 1;
+            pos = next;
+            window_start = window_end;
+        }
+    }
+
+    for (request_id, ob) in &state.obligations {
+        if now < ob.due_at + grace {
+            continue;
+        }
+        let index = witness_event(s, HubEvent::ObligationResolved {
+            request_id: request_id.clone(),
+            outcome: "missed".to_string(),
+            resolved_by: None,
+            resolved_at: now,
+        }).await?;
+        report.obligations_missed += 1;
+        missed_delta(s, ob, request_id, index, "obligation_missed", now).await?;
+        report.deltas += 1;
+    }
+    Ok(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -637,6 +775,104 @@ mod tests {
         };
         assert!(!html.contains("<script>x</script>") && html.contains("&lt;script&gt;"), "title not escaped");
         assert!(html.contains("Robin") && html.contains("not yet acknowledged"), "{html}");
+    }
+
+    fn kinds(s_entries: &[hub_lib::ledger::LedgerEntry], kind: &str) -> usize {
+        s_entries.iter().filter(|e| e.event.kind() == kind).count()
+    }
+
+    #[tokio::test]
+    async fn silence_escalates_one_window_at_a_time_and_catches_up_within_a_tick() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let t0 = current(&s, &id).await.queue_since;
+        let h = chrono::Duration::hours;
+        // Inside the owner's 48h window: nothing.
+        assert_eq!(sweep_once(&s, t0 + h(47)).await.unwrap(), SweepReport::default());
+        // A hub locked for 73h unlocks: one tick writes both steps, in order.
+        let r = sweep_once(&s, t0 + h(73)).await.unwrap();
+        assert_eq!(r.escalated, 2, "{r:?}");
+        let c = current(&s, &id).await;
+        assert_eq!(c.queue, commitments::QueuePos::Leads);
+        let steps: Vec<_> = c.escalations.iter().map(|e| (e.step, e.cause)).collect();
+        assert_eq!(steps, vec![
+            (commitments::EscalationStep::Backup, commitments::EscalationCause::Silence),
+            (commitments::EscalationStep::Leads, commitments::EscalationCause::Silence)]);
+        // The second entry's silence started where the first window ended.
+        {
+            let l = s.ledger.lock().await;
+            let esc: Vec<_> = l.entries().iter().filter_map(|e| match &e.event {
+                HubEvent::CommitmentEscalated { silent_since, window_hours, .. } => Some((*silent_since, *window_hours)),
+                _ => None }).collect();
+            assert_eq!(esc, vec![(Some(t0), Some(48)), (Some(t0 + h(48)), Some(24))]);
+        }
+        // Idempotent: the same tick again writes nothing, and leads is the end of the ladder.
+        assert_eq!(sweep_once(&s, t0 + h(73)).await.unwrap(), SweepReport::default());
+        assert_eq!(sweep_once(&s, t0 + h(500)).await.unwrap(), SweepReport::default());
+    }
+
+    #[tokio::test]
+    async fn movement_restarts_the_clock_from_the_mover() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let t0 = current(&s, &id).await.queue_since;
+        sweep_once(&s, t0 + chrono::Duration::hours(49)).await.unwrap();
+        move_commitment(&s, &id, MoveBody { by: sam.to_string(), move_kind: MoveKind::Update,
+            to: None, note_ref: None }).await.unwrap();
+        let c = current(&s, &id).await;
+        // The backup moved: the queue stays theirs, measured from their movement (24h window).
+        assert_eq!(c.queue, commitments::QueuePos::Backup);
+        let since = c.queue_since;
+        assert_eq!(sweep_once(&s, since + chrono::Duration::hours(23)).await.unwrap().escalated, 0);
+        assert_eq!(sweep_once(&s, since + chrono::Duration::hours(24)).await.unwrap().escalated, 1);
+    }
+
+    async fn open_due(s: &RestState, owner: Uuid, backup: Uuid, role: Uuid, due: DateTime<Utc>) -> String {
+        let v = open_commitment(s, OpenBody { title: "Confirm credits".into(), owner: member(owner),
+            backup: member(backup), leads_role: role.to_string(), ladder: vec![480], due_at: Some(due) })
+            .await.unwrap();
+        v["commitment_id"].as_str().unwrap().to_string()
+    }
+
+    #[tokio::test]
+    async fn a_miss_waits_out_the_grace_and_debits_only_an_owner_who_acknowledged() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let now = Utc::now();
+        let named = open_due(&s, alex, sam, role, now).await;
+        let acked = open_due(&s, sam, alex, role, now).await;
+        witness_for_test(&s, HubEvent::CommitmentAcknowledged {
+            commitment_id: acked.clone(), party_id: sam.to_string(), via: AckVia::Link }).await;
+        // Inside the 15-minute default grace: nothing is missed.
+        assert_eq!(sweep_once(&s, now + chrono::Duration::minutes(14)).await.unwrap().commitments_missed, 0);
+        let r = sweep_once(&s, now + chrono::Duration::minutes(15)).await.unwrap();
+        assert_eq!((r.commitments_missed, r.deltas), (2, 1), "{r:?}");
+        let (named_c, acked_c) = (current(&s, &named).await, current(&s, &acked).await);
+        let (rn, ra) = (named_c.resolved.unwrap(), acked_c.resolved.unwrap());
+        assert_eq!((rn.outcome, rn.owner_acknowledged, rn.by.as_str()), (Outcome::Missed, false, SWEEP_ACTOR));
+        assert_eq!((ra.outcome, ra.owner_acknowledged), (Outcome::Missed, true));
+        let l = s.ledger.lock().await;
+        let delta = l.entries().iter().find_map(|e| match &e.event {
+            HubEvent::ReputationRecorded { delta, applied } => Some((delta.subject_lct.clone(), *applied)),
+            _ => None }).expect("one delta");
+        // Only the owner who acknowledged, and recorded-only: no law means classify_only.
+        assert_eq!(delta, (sam.to_string(), false));
+        assert_eq!(kinds(l.entries(), "reputation_recorded"), 1);
+    }
+
+    #[tokio::test]
+    async fn the_sweep_resolves_a_past_due_r7_obligation_once() {
+        let (_tmp, s, alex, _sam, _lee, _role) = chapter().await;
+        let now = Utc::now();
+        witness_for_test(&s, HubEvent::ObligationOpened {
+            request_id: "req-9".into(), subject_lct: alex.to_string(), role_lct: "citizen".into(),
+            due_at: now - chrono::Duration::hours(1), criticality: web4_core::time::Criticality::Firm,
+            opened_at: now - chrono::Duration::hours(2) }).await;
+        let r = sweep_once(&s, now).await.unwrap();
+        assert_eq!((r.obligations_missed, r.deltas), (1, 1));
+        assert_eq!(sweep_once(&s, now).await.unwrap(), SweepReport::default(), "resolved once");
+        let state = { let l = s.ledger.lock().await; projection(&s, &l) };
+        assert!(!state.obligations.contains_key("req-9"));
+        assert_eq!(state.obligations_resolved["req-9"].0, "missed");
     }
 
     /// Every write holds COMMITMENT_LOCK across its checks and its witness. While another holder

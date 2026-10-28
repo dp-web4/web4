@@ -5134,53 +5134,63 @@ async fn dispatch_channel(
                         r7_out.insert("obligation_opened".into(), serde_json::json!(request_id));
                     }
                     R7Op::Satisfy { request_id } => {
-                        // Unknown obligation → deny+warn (fail-closed).
-                        let ob = state.obligations.get(&request_id).cloned().ok_or_else(|| {
-                            tracing::warn!("r7 satisfies unknown obligation {request_id} — rejected (fail-closed)");
-                            ApiError::bad_request(format!("unknown obligation {request_id}"))
-                        })?;
-                        let now = Utc::now();
-                        // The hub computes met/late from witnessed timestamps — the
-                        // caller can't claim an outcome. completed_at is set, so the
-                        // outcome is only ever Met or Late (never Missed/Suspended).
-                        let deadline = web4_core::time::Deadline::new(ob.due_at)
-                            .with_criticality(ob.criticality);
-                        let timing = web4_core::time::Timing::started(ob.opened_at).complete(now);
-                        let outcome = deadline.evaluate(
-                            &timing,
-                            web4_core::time::WitnessAvailability::Available,
-                            true,
-                            now,
-                        );
-                        let impact = deadline.reputation_impact(&outcome);
-                        let outcome_str = match &outcome {
-                            web4_core::time::DeadlineOutcome::Late { .. } => "late",
-                            _ => "met",
-                        };
-                        let delta = temporal_delta(&ob, &request_id, outcome_str, &impact, index, &notice_kind, now);
-                        // F0.1 (R7a): the obligation sweep obeys the same staged
-                        // mode as every other emitter — hub-adjudicated Conduct
-                        // applies only when the law's mode says apply.
-                        let applied = {
-                            use hub_lib::law::{EmitMode, HubLawExt};
-                            let law_guard = s.law.read().await;
-                            let mode = law_guard.as_ref()
-                                .map(|law| law.reputation_emit_mode())
-                                .unwrap_or_default();
-                            mode == EmitMode::Apply
-                                && delta.class == web4_core::r6::DeltaClass::Conduct
-                        };
-                        witness_event(s, HubEvent::ReputationRecorded { delta, applied }).await?;
-                        witness_event(s, HubEvent::ObligationResolved {
-                            request_id: request_id.clone(),
-                            outcome: outcome_str.to_string(),
-                            resolved_by: Some(caller_lct_id),
-                            resolved_at: now,
-                        }).await?;
-                        r7_out.insert("obligation_resolved".into(), serde_json::json!(request_id));
-                        r7_out.insert("outcome".into(), serde_json::json!(outcome_str));
-                        r7_out.insert("t3_temperament".into(), serde_json::json!(impact.temperament));
-                        r7_out.insert("v3_veracity".into(), serde_json::json!(impact.veracity));
+                        // §4.1 (PRD_COMMITMENTS, Legion's finding): one resolution per obligation.
+                        // The sweep resolves under COMMITMENT_LOCK, so satisfy re-checks under it too,
+                        // against the ledger as it is now, not the projection this call started with.
+                        // The act above is witnessed either way: a satisfy that lost is movement, and
+                        // is answered with what won.
+                        let _resolution = commitments::COMMITMENT_LOCK.lock().await;
+                        let fresh = { let l = s.ledger.lock().await; s.projected(&l) };
+                        if let Some(ob) = fresh.obligations.get(&request_id).cloned() {
+                            let now = Utc::now();
+                            // The hub computes met/late from witnessed timestamps — the
+                            // caller can't claim an outcome. completed_at is set, so the
+                            // outcome is only ever Met or Late (never Missed/Suspended).
+                            let deadline = web4_core::time::Deadline::new(ob.due_at)
+                                .with_criticality(ob.criticality);
+                            let timing = web4_core::time::Timing::started(ob.opened_at).complete(now);
+                            let outcome = deadline.evaluate(
+                                &timing,
+                                web4_core::time::WitnessAvailability::Available,
+                                true,
+                                now,
+                            );
+                            let impact = deadline.reputation_impact(&outcome);
+                            let outcome_str = match &outcome {
+                                web4_core::time::DeadlineOutcome::Late { .. } => "late",
+                                _ => "met",
+                            };
+                            let delta = temporal_delta(&ob, &request_id, outcome_str, &impact, index, &notice_kind, now);
+                            // F0.1 (R7a): the obligation sweep obeys the same staged
+                            // mode as every other emitter — hub-adjudicated Conduct
+                            // applies only when the law's mode says apply.
+                            let applied = {
+                                use hub_lib::law::{EmitMode, HubLawExt};
+                                let law_guard = s.law.read().await;
+                                let mode = law_guard.as_ref()
+                                    .map(|law| law.reputation_emit_mode())
+                                    .unwrap_or_default();
+                                mode == EmitMode::Apply
+                                    && delta.class == web4_core::r6::DeltaClass::Conduct
+                            };
+                            witness_event(s, HubEvent::ReputationRecorded { delta, applied }).await?;
+                            witness_event(s, HubEvent::ObligationResolved {
+                                request_id: request_id.clone(),
+                                outcome: outcome_str.to_string(),
+                                resolved_by: Some(caller_lct_id),
+                                resolved_at: now,
+                            }).await?;
+                            r7_out.insert("obligation_resolved".into(), serde_json::json!(request_id));
+                            r7_out.insert("outcome".into(), serde_json::json!(outcome_str));
+                            r7_out.insert("t3_temperament".into(), serde_json::json!(impact.temperament));
+                            r7_out.insert("v3_veracity".into(), serde_json::json!(impact.veracity));
+                        } else {
+                            let (outcome, at) = fresh.obligations_resolved.get(&request_id).cloned()
+                                .ok_or_else(|| ApiError::internal(anyhow::anyhow!(
+                                    "obligation {request_id} vanished without a resolution")))?;
+                            r7_out.insert("obligation_already_resolved".into(),
+                                serde_json::json!(format!("already resolved: {outcome} at {}", at.to_rfc3339())));
+                        }
                     }
                 }
             }
@@ -14368,6 +14378,42 @@ admission:
             "classify-only mode holds the delta out of the tensors");
         assert_eq!(proj2.reputation_ingest.held_classify_only, 1,
             "the delta was witnessed and counted, not lost");
+    }
+
+    /// PRD_COMMITMENTS §4.1 (Legion's finding at `531630d5`): a satisfy that passed its
+    /// pre-witness check can still lose to the sweep. It re-checks under the resolution lock: the
+    /// act stands as movement, it is answered with what won, and no second resolution or delta
+    /// is written. Deterministic: the "sweep" holds the lock while the satisfy is in flight.
+    #[tokio::test]
+    async fn r7_satisfy_that_loses_to_the_sweep_is_told_what_won() {
+        let (_tmp, state) = fresh_open_admission_state().await;
+        let hub_pub = state.signer.public_key().unwrap();
+        let (m, lct) = pin_member(&state, &hub_pub).await;
+        let due = (Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
+        ref_act(&state, &m, lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": lct}, "kind":"handoff", "pointer_uri":"pr/502",
+            "r7": {"request_id":"req-3","role_lct":"citizen",
+                   "deadline":{"due_at": due, "criticality":"firm"}},
+        })).await.expect("open ok");
+        let held = commitments::COMMITMENT_LOCK.lock().await;
+        let satisfy = ref_act(&state, &m, lct, &hub_pub, serde_json::json!({
+            "to": {"to":"peer","lct_id": lct}, "kind":"review_done", "pointer_uri":"pr/502",
+            "r7": {"satisfies":"req-3"},
+        }));
+        let sweep = async {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            witness_event(&state, HubEvent::ObligationResolved { request_id: "req-3".into(),
+                outcome: "missed".into(), resolved_by: None, resolved_at: Utc::now() }).await.unwrap();
+            drop(held);
+        };
+        let (out, ()) = tokio::join!(satisfy, sweep);
+        let out = out.expect("the act itself is accepted");
+        assert!(out["obligation_already_resolved"].as_str().unwrap().starts_with("already resolved: missed at"),
+            "{out}");
+        assert!(out.get("outcome").is_none(), "the loser claims no outcome: {out}");
+        let proj = { let l = state.ledger.lock().await; HubState::project(&l) };
+        assert_eq!(proj.reputation_ingest.held_classify_only, 0, "no delta for the loser");
+        assert_eq!(proj.obligations_resolved["req-3"].0, "missed");
     }
 
     #[tokio::test]
