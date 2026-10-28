@@ -67,10 +67,10 @@ All of these are witnessed `HubEvent` variants. Every field added later is `Opti
 | event | fields | written by |
 |---|---|---|
 | `CommitmentOpened` | `commitment_id`, `title`, `owner: PartyRef`, `backup: PartyRef`, `leads_role: String`, `ladder: Vec<u32>` (silence windows, hours), `due_at: Option<DateTime>`, `recorded_by`, `basis` | the operator, or a member opening their own |
-| `CommitmentAcknowledged` | `commitment_id`, `party_id`, `via` (`"member_act"` or `"link"`) | the party |
-| `CommitmentMoved` | `commitment_id`, `by: party_id`, `kind` (`"update"`, `"stuck"`, `"handoff"`), `to: Option<PartyRef>` (required when, and only when, `kind == "handoff"`), `note_ref: Option` | owner, backup, a lead, or the operator |
+| `CommitmentAcknowledged` | `commitment_id`, `party_id`, `via` (`"member_act"`, `"link"`, or `"operator"`: K1's relay, which never counts as the owner's own acknowledgement) | the party, or the operator relaying |
+| `CommitmentMoved` | `commitment_id`, `by: party_id`, `move_kind` (`"update"`, `"stuck"`, `"handoff"`; not `kind`, which is `HubEvent`'s serde tag), `to: Option<PartyRef>` (required when, and only when, `move_kind == "handoff"`), `note_ref: Option` | owner, backup, a lead, or the operator |
 | `CommitmentEscalated` | `commitment_id`, `step` (`"backup"`, `"leads"`), `cause` (`"silence"`, `"stuck"`), `silent_since: Option`, `window_hours: Option` (both set iff `cause == "silence"`), `swept_at` | the sweep, or the `stuck` append |
-| `CommitmentResolved` | `commitment_id`, `outcome` (`"done"`, `"withdrawn"`, `"missed"`), `by`, `resolved_at` | a party, the operator, or the sweep (`missed` only) |
+| `CommitmentResolved` | `commitment_id`, `outcome` (`"done"`, `"withdrawn"`, `"missed"`), `by`, `resolved_at`, `owner_acknowledged` (§5.1) | a party, the operator, or the sweep (`missed` only) |
 
 - **`title`** is short and operator-written ("Venue AV"). It is the one free-text field on the ledger, and the admin form says so.
 - **`basis`** is `"named_by_other"` or `"self"` (C2): the owner was named by someone else (the operator, a lead, or the backup in a handoff), or took it on themselves. `CommitmentAcknowledged` turns a named commitment into an acknowledged one *for that party*. The projection keeps the set of acknowledged party ids.

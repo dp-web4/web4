@@ -82,7 +82,8 @@ fn layout(s: &RestState, title: &str, body: &str) -> Html<String> {
       <a href="/admin/members">Members</a>
       <a href="/admin/hubs">Hubs</a>
       <a href="/admin/joins">Joins ⚙</a>
-      <a href="/admin/manage">Manage ⚙</a>"#
+      <a href="/admin/manage">Manage ⚙</a>
+      <a href="/admin/commitments">Commitments ⚙</a>"#
     } else {
         ""
     };
@@ -1361,6 +1362,33 @@ fn event_summary(event: &HubEvent) -> String {
             html_escape(request_id),
             html_escape(outcome),
         ),
+        HubEvent::CommitmentOpened { commitment_id, title, owner, backup, due_at, basis, .. } => format!(
+            "📌 commitment <code>{}</code> “{}” opened: owner {}, backup {} \
+             <span class=\"muted\">({:?}{})</span>",
+            html_escape(commitment_id),
+            html_escape(title),
+            party_label(owner),
+            party_label(backup),
+            basis,
+            due_at.map(|d| format!(", due {}", d.format("%Y-%m-%d %H:%M UTC"))).unwrap_or_default(),
+        ),
+        HubEvent::CommitmentAcknowledged { commitment_id, party_id, via } => format!(
+            "🤝 commitment <code>{}</code> acknowledged by <code>{}</code> <span class=\"muted\">(via {:?})</span>",
+            html_escape(commitment_id), html_escape(party_id), via,
+        ),
+        HubEvent::CommitmentMoved { commitment_id, by, move_kind, to, .. } => format!(
+            "↪ commitment <code>{}</code> {:?} by <code>{}</code>{}",
+            html_escape(commitment_id), move_kind, html_escape(by),
+            to.as_ref().map(|t| format!(" → {}", party_label(t))).unwrap_or_default(),
+        ),
+        HubEvent::CommitmentEscalated { commitment_id, step, cause, .. } => format!(
+            "⏫ commitment <code>{}</code> moved to {:?} <span class=\"muted\">(cause {:?}; a queue move, not a verdict)</span>",
+            html_escape(commitment_id), step, cause,
+        ),
+        HubEvent::CommitmentResolved { commitment_id, outcome, by, owner_acknowledged, .. } => format!(
+            "🏁 commitment <code>{}</code> {} by <code>{}</code> <span class=\"muted\">(owner acknowledged: {})</span>",
+            html_escape(commitment_id), hub_lib::commitments::outcome_str(*outcome), html_escape(by), owner_acknowledged,
+        ),
         HubEvent::LctPublished { lct_id, document, published_by, provenance, .. } => format!(
             "🪪 LCT published: {:?} <code>{}</code> by {} <span class=\"muted\">({:?})</span>",
             document.entity_type,
@@ -1415,6 +1443,12 @@ fn event_summary(event: &HubEvent) -> String {
             short(member_lct_id), short(reset_by),
         ),
     }
+}
+
+/// A party as the ledger names it: the opaque id and its kind. Contact names live in the
+/// operator's contact book, which a ledger render never reads (C3).
+fn party_label(p: &hub_lib::commitments::PartyRef) -> String {
+    format!("<code>{}</code> <span class=\"muted\">({:?})</span>", html_escape(&p.party_id), p.kind)
 }
 
 fn short(id: &uuid::Uuid) -> String {
@@ -2237,6 +2271,124 @@ mod tests {
     }
 }
 
+/// Commitments K1 (PRD_COMMITMENTS §7): who owes what, ordered by whose move it is. The forms
+/// write through `/admin/api/commitments` and `/admin/api/contacts`. Names come from the roster
+/// and the contact book; the ledger holds only ids (C3).
+pub(crate) async fn commitments_page(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
+    use hub_lib::commitments::{ContactBook, QueuePos};
+    let projected = { let l = s.ledger.lock().await; s.projected(&l) };
+    let book = ContactBook::load(&ContactBook::path(&s.paths.root))?;
+    let name_of = |p: &hub_lib::commitments::PartyRef| {
+        let v = crate::rest::commitments::party_view(&projected, &book, p);
+        match (v["name"].as_str(), v["erased"].as_bool()) {
+            (Some(n), _) => html_escape(n),
+            (None, Some(true)) => "<span class=\"muted\">(erased contact)</span>".to_string(),
+            (None, _) => format!("<code>{}</code>", html_escape(&p.party_id)),
+        }
+    };
+
+    let mut body = String::from(OPERATOR_BANNER);
+    body.push_str("<h2>Commitments</h2><p class=\"muted\">Who owes what, and whose move it is. \
+        Silence moves a commitment along owner → backup → leads; it never records a verdict. \
+        Naming someone is not their acknowledgement.</p>");
+    let open = crate::rest::commitments::open_by_queue(&projected);
+    if open.is_empty() {
+        body.push_str("<p class=\"muted\">No open commitments.</p>");
+    } else {
+        body.push_str("<table><thead><tr><th>Waiting on</th><th>Since</th><th>Commitment</th><th>Owner</th>\
+                       <th>Backup</th><th>Due</th><th>Actions</th></tr></thead><tbody>");
+        for c in open {
+            let waiting = match c.queue {
+                QueuePos::Owner => "owner",
+                QueuePos::Backup => "<span class=\"pill pill-warn\">backup</span>",
+                QueuePos::Leads => "<span class=\"pill pill-warn\">leads</span>",
+            };
+            let ack = if c.owner_acknowledged() { "" } else { " <span class=\"muted\">(not yet acknowledged)</span>" };
+            body.push_str(&format!(
+                "<tr><td>{waiting}</td><td>{since}</td><td>{title}</td><td>{owner}{ack}</td><td>{backup}</td><td>{due}</td>\
+                 <td><button onclick=\"cmMove('{id}','update')\">Update</button>\
+                 <button onclick=\"cmMove('{id}','stuck')\">Stuck</button>\
+                 <button onclick=\"cmHandoff('{id}')\">Hand off</button>\
+                 <button onclick=\"cmAck('{id}')\">Acknowledged</button>\
+                 <button onclick=\"cmResolve('{id}','done')\">Done</button>\
+                 <button class=\"danger\" onclick=\"cmResolve('{id}','withdrawn')\">Withdraw</button></td></tr>",
+                since = c.queue_since.format("%Y-%m-%d %H:%M UTC"),
+                title = html_escape(&c.title),
+                owner = name_of(&c.owner),
+                backup = name_of(&c.backup),
+                due = c.due_at.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default(),
+                id = js_attr_escape(&c.commitment_id),
+            ));
+        }
+        body.push_str("</tbody></table>");
+    }
+
+    // Party choices: members by roster name, contacts by book name. The value carries the kind.
+    let mut parties = String::new();
+    for m in projected.members.values() {
+        parties.push_str(&format!("<option value=\"member:{id}\">{} (member)</option>",
+            html_escape(m.name.as_deref().unwrap_or("(unnamed)")), id = m.lct_id));
+    }
+    for (id, c) in &book.contacts {
+        parties.push_str(&format!("<option value=\"contact:{}\">{} (contact)</option>",
+            html_escape(id), html_escape(&c.name)));
+    }
+    let mut roles = String::new();
+    for r in projected.roles.values().filter(|r| !r.retired) {
+        roles.push_str(&format!("<option value=\"{}\">{}</option>", r.role_lct_id, html_escape(&format!("{:?}", r.role))));
+    }
+    body.push_str(&format!(
+        "<h2 style=\"margin-top:1.5rem\">Open a commitment</h2>\
+         <div style=\"display:grid;grid-template-columns:max-content 1fr;gap:0.4rem 0.6rem;max-width:760px;align-items:center;\">\
+         <label>What</label><input id=\"cm-title\" maxlength=\"80\" placeholder=\"Venue AV\" style=\"padding:0.3rem;\">\
+         <label>Owner</label><select id=\"cm-owner\">{parties}</select>\
+         <label>Backup</label><select id=\"cm-backup\">{parties}</select>\
+         <label>Leads role</label><select id=\"cm-leads\">{roles}</select>\
+         <label>Quiet hours before moving on</label><input id=\"cm-ladder\" value=\"48,24,24\" style=\"padding:0.3rem;\">\
+         <label>Due (optional)</label><input id=\"cm-due\" type=\"date\" style=\"padding:0.3rem;\">\
+         <span></span><span><button onclick=\"cmOpen()\">Open</button></span></div>\
+         <h2 style=\"margin-top:1.5rem\">Contacts</h2>\
+         <p class=\"muted\">People with no hub key yet. Kept off the ledger, in a file only this operator reads; erase removes them.</p>"));
+    if !book.contacts.is_empty() {
+        body.push_str("<table><thead><tr><th>Name</th><th>Address</th><th></th></tr></thead><tbody>");
+        for (id, c) in &book.contacts {
+            body.push_str(&format!(
+                "<tr><td>{}</td><td>{}</td><td><button class=\"danger\" onclick=\"cmErase('{}')\">Erase</button></td></tr>",
+                html_escape(&c.name), html_escape(&c.address), js_attr_escape(id)));
+        }
+        body.push_str("</tbody></table>");
+    }
+    body.push_str(
+        "<div style=\"display:flex;gap:0.5rem;margin-top:0.5rem\">\
+         <input id=\"ct-name\" placeholder=\"Name\" style=\"padding:0.3rem;\">\
+         <input id=\"ct-addr\" placeholder=\"email\" style=\"padding:0.3rem;\">\
+         <button onclick=\"ctAdd()\">Add contact</button></div>");
+    body.push_str(&format!("<script>const CM_OPERATOR='{}';</script>", s.sovereign_lct_id));
+    body.push_str(OPERATOR_JS);
+    body.push_str(COMMITMENTS_JS);
+    Ok(layout(&s, "Commitments", &body))
+}
+
+const COMMITMENTS_JS: &str = r#"<script>
+function cmParty(v){ const i=v.indexOf(':'); return {kind:v.slice(0,i), party_id:v.slice(i+1)}; }
+function cmBy(){ const b=prompt('Who moved it? Their id (blank = you, the operator):'); if(b===null) return null; return b.trim()||CM_OPERATOR; }
+function cmOpen(){
+  const title=document.getElementById('cm-title').value.trim();
+  const ladder=document.getElementById('cm-ladder').value.split(',').map(x=>parseInt(x.trim(),10));
+  const due=document.getElementById('cm-due').value;
+  if(!title){ alert('Say what the commitment is.'); return; }
+  hubAct('/admin/api/commitments',{title:title, owner:cmParty(document.getElementById('cm-owner').value),
+    backup:cmParty(document.getElementById('cm-backup').value), leads_role:document.getElementById('cm-leads').value,
+    ladder:ladder, due_at: due ? due+'T23:59:00Z' : null});
+}
+function cmMove(id,kind){ const by=cmBy(); if(by) hubAct('/admin/api/commitments/'+id+'/move',{by:by,move_kind:kind}); }
+function cmHandoff(id){ const by=cmBy(); if(!by) return; const to=prompt('Hand to (member:<id> or contact:<id>):'); if(to) hubAct('/admin/api/commitments/'+id+'/move',{by:by,move_kind:'handoff',to:cmParty(to.trim())}); }
+function cmAck(id){ const p=prompt('Whose acknowledgement are you relaying? Their id:'); if(p) hubAct('/admin/api/commitments/'+id+'/acknowledge',{party_id:p.trim()}); }
+function cmResolve(id,outcome){ const by=cmBy(); if(by && confirm('Record this commitment as '+outcome+'? It cannot be reopened.')) hubAct('/admin/api/commitments/'+id+'/resolve',{outcome:outcome,by:by}); }
+function ctAdd(){ const n=document.getElementById('ct-name').value.trim(), a=document.getElementById('ct-addr').value.trim(); if(n&&a) hubAct('/admin/api/contacts',{name:n,address:a}); }
+function cmErase(id){ if(confirm('Erase this contact? Their name and address are deleted; commitments keep only an id.')) hubAct('/admin/api/contacts/'+id+'/erase'); }
+</script>"#;
+
 /// Operator-plane GUI pages (member roster, admit/deny + member management).
 /// Mounted ONLY on the loopback operator listener, alongside the read-only
 /// dashboard router.
@@ -2247,6 +2399,7 @@ pub fn operator_router(state: RestState) -> Router {
         .route("/admin/hubs", get(hubs))
         .route("/admin/joins", get(joins_page))
         .route("/admin/manage", get(manage_page))
+        .route("/admin/commitments", get(commitments_page))
         // Moved off the public plane (review 2026-07-23): these render act
         // payloads / relationship data — roster, skills, profile values (all
         // tiers), pair metadata. Public transparency = law + roles + council;

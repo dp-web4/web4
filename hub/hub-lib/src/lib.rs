@@ -26,6 +26,7 @@ pub mod hub;
 pub mod atomic_file;
 pub mod build_info;
 pub mod charter;
+pub mod commitments;
 pub mod constellation;
 pub mod council_mirror;
 pub mod degraded;

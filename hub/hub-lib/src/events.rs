@@ -998,6 +998,70 @@ pub enum HubEvent {
         resolved_at: DateTime<Utc>,
     },
 
+    /// Commitments K1 (`hub/docs/PRD_COMMITMENTS.md` §3.2): a commitment with an owner, a backup
+    /// and a leads role. `basis` is derived by the hub (C2), never taken from a request body.
+    /// Owner and backup are opaque party ids; a contact's details stay in the operator's contact
+    /// book, off the ledger (C3).
+    CommitmentOpened {
+        commitment_id: String,
+        title: String,
+        owner: crate::commitments::PartyRef,
+        backup: crate::commitments::PartyRef,
+        leads_role: String,
+        /// Silence windows in hours, one per queue position (owner, backup, leads).
+        ladder: Vec<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        due_at: Option<DateTime<Utc>>,
+        recorded_by: Uuid,
+        basis: crate::commitments::Basis,
+    },
+
+    /// Commitments K1: a party of the commitment acknowledged it. `via` says how the word
+    /// arrived; `operator` is a relay and never stands for the owner's own acknowledgement.
+    CommitmentAcknowledged {
+        commitment_id: String,
+        party_id: String,
+        via: crate::commitments::AckVia,
+    },
+
+    /// Commitments K1: movement. `move_kind` is the PRD's `kind` (that name is this enum's serde
+    /// tag). `to` is set exactly when `move_kind` is `handoff`, and is the only field the
+    /// projection reads a new owner from.
+    CommitmentMoved {
+        commitment_id: String,
+        by: String,
+        move_kind: crate::commitments::MoveKind,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        to: Option<crate::commitments::PartyRef>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note_ref: Option<String>,
+    },
+
+    /// Commitments: the queue moved forward. A queue move, never a verdict (C1). Written by the
+    /// `stuck` route in K1 and by the sweep in K2. `silent_since` and `window_hours` are set
+    /// exactly when `cause` is `silence`.
+    CommitmentEscalated {
+        commitment_id: String,
+        step: crate::commitments::EscalationStep,
+        cause: crate::commitments::EscalationCause,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        silent_since: Option<DateTime<Utc>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        window_hours: Option<u32>,
+        swept_at: DateTime<Utc>,
+    },
+
+    /// Commitments: the one resolution a commitment gets. `owner_acknowledged` is captured at
+    /// resolution so a reader, and K2's delta gate, need no replay to know whether the owner's own
+    /// word was ever on the ledger (§5.1).
+    CommitmentResolved {
+        commitment_id: String,
+        outcome: crate::commitments::Outcome,
+        by: String,
+        resolved_at: DateTime<Utc>,
+        owner_acknowledged: bool,
+    },
+
     /// A society published one of its LCTs upward so the hub registry can serve
     /// its presence. Publication is itself a witnessed act (the ledger entry IS
     /// the witness — canon genesis step 7); the registry is a projection over
@@ -1129,6 +1193,11 @@ impl HubEvent {
         "council_member_added",
         "council_member_removed",
         "council_mirrored",
+        "commitment_acknowledged",
+        "commitment_escalated",
+        "commitment_moved",
+        "commitment_opened",
+        "commitment_resolved",
         "council_threshold_changed",
         "degraded_reconciled",
         "device_enrolled",
@@ -1229,6 +1298,11 @@ impl HubEvent {
             Self::ReputationRecorded { .. } => "reputation_recorded",
             Self::ObligationOpened { .. } => "obligation_opened",
             Self::ObligationResolved { .. } => "obligation_resolved",
+            Self::CommitmentOpened { .. } => "commitment_opened",
+            Self::CommitmentAcknowledged { .. } => "commitment_acknowledged",
+            Self::CommitmentMoved { .. } => "commitment_moved",
+            Self::CommitmentEscalated { .. } => "commitment_escalated",
+            Self::CommitmentResolved { .. } => "commitment_resolved",
             Self::LctPublished { .. } => "lct_published",
             Self::LctRotated { .. } => "lct_rotated",
             Self::LctPredecessorAttested { .. } => "lct_predecessor_attested",

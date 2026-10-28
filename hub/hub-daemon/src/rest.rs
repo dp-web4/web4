@@ -27,6 +27,7 @@
 //! - Authority/need-to-know on reads is V2-8.
 
 mod channel_auth;
+pub(crate) mod commitments;
 mod mailbox;
 mod routing;
 mod unlock;
@@ -7734,6 +7735,12 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/members/:lct_id/remove", post(admin_remove_member))
         .route("/admin/api/members/:lct_id/admission-reset", post(admin_admission_reset))
         .route("/admin/api/members/:lct_id/mailbox-receipts", post(admin_enable_mailbox_receipts))
+        .route("/admin/api/commitments", get(commitments::admin_commitments_list).post(commitments::admin_commitment_open))
+        .route("/admin/api/commitments/:commitment_id/move", post(commitments::admin_commitment_move))
+        .route("/admin/api/commitments/:commitment_id/acknowledge", post(commitments::admin_commitment_acknowledge))
+        .route("/admin/api/commitments/:commitment_id/resolve", post(commitments::admin_commitment_resolve))
+        .route("/admin/api/contacts", get(commitments::admin_contacts_list).post(commitments::admin_contact_add))
+        .route("/admin/api/contacts/:party_id/erase", post(commitments::admin_contact_erase))
         .with_state(state)
 }
 
