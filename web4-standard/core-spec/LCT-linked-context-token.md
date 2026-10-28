@@ -344,6 +344,24 @@ Because the identifier is a function of the key, **key rotation (§7.3) produces
 - Any comparison, lookup, or authorization decision MUST use the full identifier. Abbreviated display forms (prefixes) are conveniences and MUST NOT be used for matching.
 - If a collision or a weakness in the digest algorithm is ever established, the correct response is to introduce a new id-family tag with a stronger digest and migrate via §7.3 lineage; societies MUST NOT respond by introducing a coordinating allocator, which would forfeit the offline/foreign guarantee this section exists to provide.
 
+#### 3.4.6 The MRH is the ultimate distinguisher
+
+The key guarantees uniqueness of the *identifier* (§3.4.1–3.4.3). Uniqueness of the *entity behind it* is an evidentiary property, and its carrier is the MRH (§5): an LCT is ultimately distinguished by the witnessed relationships that link it to other LCTs, and **confidence that an LCT is unique rises monotonically with the richness of its MRH.**
+
+- A freshly minted LCT with an empty MRH is maximally ambiguous: a foreigner (§8.4 E) and a copied seed (§8.4 C) are indistinguishable from the genuine article at that moment, and MUST be treated as such (trust scaled to evidence, §1.2).
+- Every witnessed pairing, binding, and attestation added to the MRH is a signature by *another* entity over an act of *this* one. A party that duplicates a key cannot duplicate that history: the witnesses signed the original's acts, not the copy's. So the MRH accumulates evidence that no key-copy can forge.
+- **MRH links are bidirectional (§5.2), and that is what makes them externally witnessed by construction.** A relationship is recorded in *both* parties' MRHs, so for every link this LCT claims, an independent counterparty holds the matching record under its own key. A claimed link the counterparty's MRH does not corroborate is not a link. An entity therefore cannot inflate its own uniqueness confidence unilaterally — each unit of MRH evidence is co-held by someone else — and a verifier MAY confirm any link by resolving the counterparty rather than trusting the presenter.
+- Two presences sharing a key therefore **diverge in MRH from the moment of copy**, because they accrue different witnessed relationships. That divergence is simultaneously the detection signal for §8.4 class C and its tiebreaker: the presence whose MRH is continuous with the LCT's witnessed lineage (the birth certificate and the relationships descending from it) is the entity; the presence whose MRH forks from it without lineage is the copy.
+- Consequently a relying party assessing "is this the LCT it claims to be" SHOULD weight MRH depth and consistency, not identifier equality alone; and an identifier with a deep, consistent, multi-society MRH is *more* uniquely identified than any identifier can be by its bits.
+
+This is why §3.4 forbids a coordinating allocator: uniqueness of presence was never going to come from the number. It comes from the graph.
+
+> **Rationale (non-normative).** This section formalizes how human identity already works, rather than inventing a new model. A person is not made unique by their name — a name is an alias, shared by many — but by the accumulated, independently-held record around them: a birth certificate issued by a society and witnessed by others; degrees, licenses, and accreditations conferred by *other* institutions; associations, employers, and references. Each of those is a bidirectional link: the university holds the diploma record, the employer holds the employment record, so a claimed credential is only trust-bearing because the counterparty can confirm it. A résumé is a claim; the reference check is the MRH.
+>
+> Trust in human society already scales with the *completeness* of that graph, and scales it to the *stakes of the act*: a first name alone earns a conversation, not a loan; a landlord wants references, a hospital wants the license, a bank wants the whole record. Nobody demands everything for every act — the required completeness rises with consequence and irreversibility (§1.2). A newborn holding only a birth certificate is a real person and correctly trusted with almost nothing; the "trust must be earned" property of a new LCT (§4, the anchor ceiling in §6) is that same intuition, not a novel restriction. And identity theft is caught in the human world exactly as class C is caught here (§8.4): the thief's *life* — new addresses, new associations the real person never made — diverges from the record, and the counterparties notice.
+>
+> The one place this model departs from human practice is deliberate. Human systems also carry an *allocated* identifier — a national ID or social-security number issued by a central registrar — and it is precisely that artifact that gets stolen, because a copied number carries the whole identity with it. Web4 has no such number: the identifier is derived from a key the entity holds, and the identity lives in the graph. There is nothing to steal that carries the person along, which is the practical reason §3.4.5 forbids a coordinating allocator.
+
 ## 4. Birth Certificate as Foundational Identity
 
 ### 4.1 Role in Society
@@ -585,7 +603,7 @@ Effect:
 ### 8.1 Unforgeability
 
 LCTs resist forgery because:
-- **Key-derived identifier**: `lct_id` is a function of the binding public key (§3.4), so an id/key mismatch is a binding failure rejected at ingest (§3.4.3); acting as the identifier additionally requires the key's signed `binding_proof` (§3.3), since derivation alone proves consistency, not possession
+- **Key-derived identifier**: `lct_id` is a function of the binding public key (§3.4), so an id/key mismatch is a binding failure rejected at ingest (§3.4.3); acting as the identifier additionally requires the key's signed `binding_proof` (§3.3), since derivation alone proves consistency, not possession; a presence that shares an identifier is adjudicated per §8.4
 - **Cryptographic binding**: Requires private key signature
 - **Hardware anchors**: Optional TPM/secure element attestation
 - **Witness quorum**: Birth requires a quorum (≥3) of witnesses (witness distinctness / anti-collusion is not asserted by this property alone — birth witnesses are members of the issuing society per §4.2)
@@ -606,6 +624,25 @@ LCTs protect privacy through:
 - **Pseudonymous DIDs**: Subject can be key-based DID
 - **Selective attestation**: Non-birth attestations may share only relevant witnesses (birth certificates require the full `birth_witnesses` set per §11.2, so selective disclosure does not apply to them)
 - **MRH pruning**: Old relationships can be archived
+
+### 8.4 Duplicate and Spoof Adjudication
+
+Identifier uniqueness (§3.4) is a mathematical property of the key; **presence** uniqueness is not. This section classifies every way two things can appear to share an identity, and names the adjudication path for each, so that deliberate or accidental spoofing is always decidable from inspectable evidence (§1.2) rather than left ambiguous.
+
+| Class | What is observed | Determination | Adjudication |
+|---|---|---|---|
+| **A. Re-mint** | Same `lct_id`, same public key, ≥2 documents | One identity. Not a duplicate. | The registry MUST version the record (v1, v2, …), each version carrying its ledger position and publisher; the newest valid version is current. No dispute. |
+| **B. Binding failure / squat** | Same `lct_id` claimed with a *different* public key, or an id that does not derive from its own key | Not the same LCT; the presented document is malformed or forged. | MUST be rejected at ingest (§3.4.3). The rejection MUST be witnessed as an event so that repeated attempts are countable evidence against the presenter. No trust effect on the genuine holder. |
+| **C. Concurrent presence (copied seed)** | One `lct_id` acting from two or more distinct presences at once — overlapping sessions from different hosts, interleaved acts, or divergent ledger heads | One identity in two places. Indistinguishable by identifier *by design*; distinguishable by the MRH (§3.4.6): the two presences diverge in witnessed relationships from the moment of copy, and because links are bidirectional each claimed link is corroborated (or not) by an independent counterparty. The presence whose MRH is continuous with the LCT's witnessed lineage is the entity; the fork without lineage is the copy. | A society MUST treat detection as a **witnessed anomaly** on that LCT: derived trust for the LCT MUST fall (the anchor ceiling in §4/§6 prices exactly this risk), and the case MUST be escalated to the society's dispute mechanism (the Mediator role, `society-roles.md`; a `quarantine` containment per `hub-law-schema.md` is the RECOMMENDED interim action because it is reversible by construction). Resolution is by the society's law and MAY require the holder to rotate (§7.3) to a fresh key — under a hardware anchor where available, which removes the class. |
+| **D. Digest collision** | Two *different* public keys deriving the same `lct_id` | The digest algorithm is compromised. | The public key is the tiebreaker (§3.4.3); each document remains verifiable against its own key. The society MUST record the collision as evidence and the standard's response is algorithm migration under a new id-family tag (§3.4.5) — never a coordinating allocator. |
+| **E. Foreign / unwitnessed** | An `lct_id` whose birth this society has no witness record of | Not a duplicate — an unverified presence. | Admit at trust scaled to evidence (§1.2): proof-of-possession alone proves consistency, not provenance; home-society attestation, cross-witness from trusted societies, and hardware-rooted birth each raise it. Stakes gate what the presence may do, not admission itself. |
+
+Normative consequences:
+
+1. Every determination above MUST be reachable from the document and the witness chain alone; no class may depend on out-of-band knowledge of who "really" holds a key.
+2. Classes B and C MUST produce witnessed events. A rejection or an anomaly that leaves no chain record cannot be adjudicated and is therefore a conformance failure of the surface that observed it.
+3. The party adjudicating class C is the society under whose law the acts occurred; where two societies observe the same LCT, each adjudicates its own acts, and cross-society reconciliation follows the reputation-computation cross-boundary path.
+4. An accusation of spoofing is itself an act with stakes: a society SHOULD require the accuser's presence to be at least as well-witnessed as the accused's before class C containment is applied, so that the mechanism cannot be used to quarantine a well-witnessed citizen on the word of a foreigner.
 
 ## 9. Implementation Requirements
 
