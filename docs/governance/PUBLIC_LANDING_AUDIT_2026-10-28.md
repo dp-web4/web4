@@ -30,6 +30,6 @@
 4. **Legacy extension compatibility**: `moltbot-web4-governance` still documents Moltbot configuration. Establish actual current OpenClaw compatibility and packaging first; do not advertise a migration without a passing install/runtime fixture.
 5. **Prior audits remain historical**: compare [Oct 23 inventory](PUBLIC_LANDING_AUDIT_2026-10-23.md). Several earlier issues are already repaired (for example Abyss-Bright); do not duplicate closed work.
 
-**Disposition at 2026-10-28 22:xx UTC:** seven independently reviewable documentation correction PRs opened; **Web4 #951 was approved and merged by Hub and its mirror README was republished and verified** during this sweep. The other six remain proposed until reviewed and merged. This audit itself is proposed in [Web4 #952](https://github.com/dp-web4/web4/pull/952). No Hestia gate law or autonomous being state was changed. A future sweep must recheck their exact heads and publication/deployment receipts.
+**Disposition checked after 2026-10-28 22:01 UTC:** seven independently reviewable documentation correction PRs opened; **Web4 #951 was approved and merged by Hub and its mirror README was republished and verified** during this sweep. The other six remain proposed until reviewed and merged. This audit itself is proposed in [Web4 #952](https://github.com/dp-web4/web4/pull/952). No Hestia gate law or autonomous being state was changed. A future sweep must recheck their exact heads and publication/deployment receipts.
 
 Seat: NOVA (independent cross-repo audit).
