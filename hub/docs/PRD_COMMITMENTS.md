@@ -69,13 +69,13 @@ All of these are witnessed `HubEvent` variants. Every field added later is `Opti
 | `CommitmentOpened` | `commitment_id`, `title`, `owner: PartyRef`, `backup: PartyRef`, `leads_role: String`, `ladder: Vec<u32>` (silence windows, hours), `due_at: Option<DateTime>`, `recorded_by`, `basis` | the operator, or a member opening their own |
 | `CommitmentAcknowledged` | `commitment_id`, `party_id`, `via` (`"member_act"` or `"link"`) | the party |
 | `CommitmentMoved` | `commitment_id`, `by: party_id`, `kind` (`"update"`, `"stuck"`, `"handoff"`), `to: Option<PartyRef>` (required when, and only when, `kind == "handoff"`), `note_ref: Option` | owner, backup, a lead, or the operator |
-| `CommitmentEscalated` | `commitment_id`, `step` (`"backup"`, `"leads"`), `silent_since`, `window_hours`, `swept_at` | the sweep |
+| `CommitmentEscalated` | `commitment_id`, `step` (`"backup"`, `"leads"`), `cause` (`"silence"`, `"stuck"`), `silent_since: Option`, `window_hours: Option` (both set iff `cause == "silence"`), `swept_at` | the sweep, or the `stuck` append |
 | `CommitmentResolved` | `commitment_id`, `outcome` (`"done"`, `"withdrawn"`, `"missed"`), `by`, `resolved_at` | a party, the operator, or the sweep (`missed` only) |
 
 - **`title`** is short and operator-written ("Venue AV"). It is the one free-text field on the ledger, and the admin form says so.
-- **`basis`** is `"operator_recorded"` or `"self"` (C2). `CommitmentAcknowledged` turns an operator-recorded commitment into an acknowledged one *for that party*. The projection keeps the set of acknowledged party ids.
+- **`basis`** is `"named_by_other"` or `"self"` (C2): the owner was named by someone else (the operator, a lead, or the backup in a handoff), or took it on themselves. `CommitmentAcknowledged` turns a named commitment into an acknowledged one *for that party*. The projection keeps the set of acknowledged party ids.
 - **A handoff** moves ownership to the party in `to`, the only field the projection reads the new owner from. The route refuses a handoff with no `to`, and refuses `to` on any other kind. A handoff counts as movement.
-  By C2, the new owner has acknowledged nothing. The commitment's `basis` for the new owner becomes `operator_recorded`, unless the handoff is the new owner's own act (`by == to`, a take-over), in which case it is `self`. The new owner's party id is not in the acknowledged set until they write `CommitmentAcknowledged`. The previous owner's acknowledgement stays on the ledger, but it does not carry over.
+  By C2, the new owner has acknowledged nothing. The commitment's `basis` for the new owner becomes `named_by_other`, unless the handoff is the new owner's own act (`by == to`, a take-over), in which case it is `self`. The new owner's party id is not in the acknowledged set until they write `CommitmentAcknowledged`. The previous owner's acknowledgement stays on the ledger, but it does not carry over.
 
 ### 3.3 The projection
 
@@ -86,7 +86,10 @@ Each open commitment carries:
 - `queue`: `owner`, then `backup`, then `leads`;
 - the escalation steps already taken.
 
-`queue` changes only by a witnessed `CommitmentEscalated` (silence) or a `CommitmentMoved` (any movement resets the queue to `owner` and restarts the ladder).
+`queue` changes only by a witnessed entry (Legion's review at `531630d5`):
+- **`update` or `handoff`:** the queue goes to **whoever moved**, or to the new owner on a handoff, and the ladder restarts from that position. It does not reset to the owner. Otherwise an owner who never acknowledged could cycle owner → backup → (the backup updates) → owner indefinitely and never be reached.
+- **`stuck`:** this is the owner saying "I need help", so it does not restart the silence clock. The same append also writes `CommitmentEscalated { cause: "stuck" }` to the next position (owner → backup, backup → leads), and K3 nudges it. A person moved the queue, not the clock, so C1 holds.
+- **Silence:** `CommitmentEscalated { cause: "silence" }` (§4).
 
 ## 4. The sweep
 
@@ -94,9 +97,9 @@ Each open commitment carries:
 
 **What it does, per open commitment:**
 1. Compute `silent_for = now - last_movement_at`.
-2. Find the ladder step that `silent_for` has reached. With the default ladder `[48, 24]`: after 48 h of silence the queue moves to the backup, and after 24 h more it moves to the leads.
-3. If that step is not yet recorded, witness `CommitmentEscalated`.
-4. If `due_at` has passed with no `done`, witness `CommitmentResolved { outcome: "missed" }` (§5.3).
+2. Find the ladder steps that `silent_for` has reached. With the default ladder `[48, 24]`: after 48 h of silence the queue moves to the backup, and after 24 h more it moves to the leads.
+3. Witness `CommitmentEscalated` for **every** reached step not yet recorded, in ladder order, all with the same `swept_at`. After a long lock this writes backup then leads, so the backup is never skipped. The carrier's per-party cap (§6) keeps it from bursting.
+4. If `due_at + grace` has passed with no `done`, resolve as `missed` under the single-resolution rule (§4.1).
 
 **Idempotent by key:** `(commitment_id, step, last_movement_at)`. Re-running the sweep, or two sweeps racing, cannot double-escalate. The check and the append happen under the ledger lock, the same pattern `authorize_event` uses.
 
@@ -105,7 +108,26 @@ Each open commitment carries:
 - At unlock, the sweep catches up and records `swept_at` alongside `silent_since`. A reader can see the escalation came late, and why.
 - The ledger shows the locked span as a gap. It is not backfilled with entries dated as if the hub had been running.
 
-**The same task closes the R7 gap.** It also sweeps plain R7 `Obligation`s past `due_at`. It resolves them as `missed` through the existing `DeadlineOutcome::Missed`, and the existing staged-emit gate decides whether the debit applies. The stale doc comment on `ObligationOpened` becomes true.
+**The same task closes the R7 gap.** It also sweeps plain R7 `Obligation`s past `due_at + grace`. It resolves them as `missed` through the existing `DeadlineOutcome::Missed`, and the existing staged-emit gate decides whether the debit applies. The stale doc comment on `ObligationOpened` becomes true.
+
+### 4.1 One resolution per obligation (Legion's finding, before K2)
+
+Today the R7 `satisfy` path reads the obligation from a projection built **before** its channel act is witnessed. It then writes `ReputationRecorded` and `ObligationResolved` as separate appends. Add a sweep, and this interleaving becomes possible:
+1. The satisfy handler sees the obligation open.
+2. The sweep writes `missed` plus its delta.
+3. The handler writes `late` plus its delta.
+
+That leaves two resolutions and two debits. Separately, a satisfy one tick after the sweep would fail as `unknown obligation`. Either way, whether a subject's outcome is Late or Missed would depend on sweep cadence, not on witnessed timestamps.
+
+K2 therefore specifies the following, for both R7 obligations and `CommitmentResolved`:
+- **A grace window.** The sweep resolves `missed` only when `now > due_at + grace`. `grace` is a law value, at least one sweep interval plus the clock-skew allowance.
+- **One resolution, enforced at the append.** Every writer (the sweep, R7 satisfy, a party's `done`) re-checks "unresolved" under the ledger lock immediately before appending the resolution and its delta. The resolution and the delta are one critical section, not two `witness_event` calls with a gap between them. The loser's resolution is refused.
+- **What the loser gets.** A satisfy or a `done` that loses to the sweep is not an error. It is recorded as movement (a non-resolving completion with its witnessed timestamp). The caller is answered `already resolved: missed at T`. The operator page shows "done after missed". The outcome is never re-resolved.
+- **Locked across the deadline.** At unlock the sweep decides from timestamps. A satisfy or `done` witnessed before `due_at + grace` wins, even if the sweep reaches the obligation first.
+- **K2 tests:**
+  - the interleaving above;
+  - a satisfy at `due_at + grace - ε` against a sweep at `due_at + grace + ε`;
+  - a mutant that drops the under-lock re-check, which must fail.
 
 ## 5. Accountability: what a commitment may weigh on
 
@@ -138,8 +160,8 @@ verdict: PASS (design)
 ```
 surface: missed-outcome sweep   act: record a missed commitment, and possibly a Conduct delta
 S: med/irreversible (a ledger entry against a named party) [construct: CommitmentResolved missed]
-R: n/a   W: pass [construct: owner_acknowledged gates any delta; operator_recorded never yields one]
-O: pass [construct: due_at + no `done` checked under the lock]   A: pass [construct: the outcome entry carries owner_acknowledged + due_at]
+R: n/a   W: pass [construct: owner_acknowledged gates any delta; named_by_other never yields one]
+O: pass [construct: due_at + grace + unresolved re-checked under the ledger lock, resolution + delta in one critical section (§4.1)]   A: pass [construct: the outcome entry carries owner_acknowledged + due_at]
 V: present [construct: EmitMode classify_only (chapter default) keeps every delta recorded-only; law amendment is the only path to apply]
 verdict: PASS (design)
 ```
@@ -158,6 +180,8 @@ verdict: PASS for movement; acknowledgement via link is recorded as via="link" s
 The carrier is a separate process. It reads `CommitmentEscalated` (and `CommitmentOpened`, for "you've been named") from the admin ledger read, resolves each party through the contact book, and sends the nudge.
 
 The message follows Legion's shape: *"Venue AV is yours. Quiet for 48h. Your backup is Sam. [done] [stuck] [hand to Sam]"*, with movement links (slice 4).
+
+**C2 in the wording.** When the owner never acknowledged (`basis` is `named_by_other` and the owner is absent from the acknowledged set), "quiet" would be a claim about that person's conduct. Nudges to the backup or leads then say *"not yet acknowledged by Alex"* instead. The fact is the same, and it puts no "late" against a name.
 
 **Delivery is recorded.** After a send, the carrier writes a `NudgeDelivered { commitment_id, step, party_id, channel, ok }` act through the operator plane. An escalation with no delivery entry is visible as undelivered, on the operator's page and in the census.
 
@@ -193,4 +217,4 @@ After 11-07, the hackathon's six commitments are the first data to enter K1. The
 
 1. **dp: ignition custody for a hosted chapter hub.** The sweep runs only while the hub is unlocked. A volunteer-run hub that restarts and waits for a passphrase stops escalating with no sign to anyone. Either a hosted chapter hub may hold its own ignition (a custody tier), or the carrier must alert the operator when the hub has been locked for more than N hours. Recommendation: build the locked-hub alert in K3 either way. It is cheap, and it makes the failure loud.
 2. **Contact-book retention.** When a contact leaves the chapter, erasing their address is easy (C3). Should their `party_id` also be marked inactive on the ledger, so old commitments read as "a former member"? Recommendation: yes, as a witnessed act, with no personal data in it.
-3. **Who may open a commitment for someone else.** K1 allows the operator and the chapter's leads role. Should any member be able to name another member as owner (as `operator_recorded`, unacknowledged)? Recommendation: leads only for the pilot, and loosen by law later.
+3. **Who may open a commitment for someone else.** K1 allows the operator and the chapter's leads role. Should any member be able to name another member as owner (as `named_by_other`, unacknowledged)? Recommendation: leads only for the pilot, and loosen by law later.
