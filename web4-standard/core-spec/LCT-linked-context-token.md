@@ -285,11 +285,56 @@ def create_lct_binding(entity_type, private_key, hardware_anchor=None):
     #    (matches §2.3 canonical structure where binding_proof is a FIELD of binding)
     binding["binding_proof"] = cose_sign1(private_key, binding_cbor)
 
-    # 4. Generate LCT ID from binding proof hash
-    lct_id = "lct:web4:" + multibase32_encode(sha256(binding["binding_proof"]))
+    # 4. Generate LCT ID from the binding PUBLIC KEY (canonical — see §3.4).
+    #    NOT from binding_proof: a signature covers created_at, so hashing it
+    #    would give the same key a different id on every mint and break the
+    #    "you hold the id iff you hold the key" property that §3.4 depends on.
+    lct_id = "lct:web4:mb32:b" + base32_lower_nopad(sha256(raw_public_key_bytes))
 
     return lct_id, binding
 ```
+
+The identifier derivation in step 4 is normative and is specified exactly in §3.4; the reference implementation is `web4-core::derive_lct_id`, and the registry ingest re-derives it from the document's public key and rejects a mismatch (§3.4.3).
+
+### 3.4 Identifier Derivation and Global Uniqueness
+
+An LCT identifier MUST be globally unique without any coordinating registry, because an LCT MAY be minted offline, air-gapped, or in a society the verifier has no relationship with (a "foreigner"). Uniqueness is therefore guaranteed **by construction from the binding key**, never by allocation.
+
+#### 3.4.1 Canonical derivation (normative)
+
+```
+lct_id = "lct:web4:mb32:b" + base32_lower_nopad( sha256( raw_public_key_bytes ) )
+```
+
+- `raw_public_key_bytes` is the entity's binding public key in its raw fixed-width encoding (32 bytes for Ed25519).
+- `sha256` is SHA-256 (FIPS 180-4); the digest MUST be used at full width (32 bytes → 52 base32 characters). Implementations MUST NOT truncate the digest.
+- `mb32` names the multibase encoding (RFC 4648 base32, lowercase, no padding; the `b` is the multibase prefix). The hash algorithm is fixed by this section for the `mb32` id family; a future digest algorithm MUST be introduced under a **new id-family tag** (e.g. `lct:web4:<newtag>:…`) so that migration is expressible without ambiguity (§3.4.5).
+- The derivation is a pure function of the public key: re-deriving from the same key MUST yield the same `lct_id` (idempotent mint), and an implementation MUST NOT store `lct_id` separately from the key it is derived from in a way that can drift.
+
+Reference implementation: `web4-core::derive_lct_id`; conformance test vector in `web4-core/src/lct.rs` (`derive_lct_id` tests).
+
+#### 3.4.2 The uniqueness guarantee and its one condition
+
+Two independently minted LCTs share an identifier only if their binding keys are identical or SHA-256 collides on two distinct public keys. With correctly generated keys the first is ≈2⁻¹²⁸ per pair and the second has no known feasible attack; this is the same guarantee relied on by content-addressed systems at global scale (git object ids, cryptographic-currency addresses) with no registrar.
+
+The guarantee is **conditional on key-generation entropy**. The only realistic path to two unrelated mints sharing an id is duplicated randomness — a cloned machine image, a seeded or broken RNG, or a copied seed file. Therefore:
+
+- A minter MUST derive its key from a cryptographically secure random source of at least 256 bits of entropy.
+- A minter SHOULD refuse to mint from a seed that is degenerate (e.g. all-zero) or already present on the host under another identity.
+- A birth certificate (§4) SHOULD record the anchor class of the key's origin (software RNG vs. hardware RNG under a TPM/secure element), so a relying party can weight the entropy condition as evidence rather than assume it (§1.2).
+
+#### 3.4.3 Binding is enforced at ingest
+
+An identifier that does not equal the canonical derivation of the document's own public key is a **binding failure** and MUST be rejected by any registry, hub, or verifier on ingest (the check is performed from the document alone, without consulting any external state). Consequently an identifier cannot be claimed, squatted, or "assigned" by a party that does not hold the corresponding private key. An identifier presented with a different public key than the one it derives from is by definition not the same LCT; the pair (`lct_id`, `public_key`) is the identity, and the public key is the tiebreaker whenever ids are compared.
+
+#### 3.4.4 Continuity across rotation
+
+Because the identifier is a function of the key, **key rotation (§7.3) produces a new `lct_id`**. Continuity of the entity across rotation is carried by `lineage` (parent → successor) and the persistent `subject` DID, not by identifier equality. A verifier that needs "same entity" semantics across a rotation MUST follow lineage and MUST NOT expect the identifier to be preserved.
+
+#### 3.4.5 Display, matching, and migration
+
+- Any comparison, lookup, or authorization decision MUST use the full identifier. Abbreviated display forms (prefixes) are conveniences and MUST NOT be used for matching.
+- If a collision or a weakness in the digest algorithm is ever established, the correct response is to introduce a new id-family tag with a stronger digest and migrate via §7.3 lineage; societies MUST NOT respond by introducing a coordinating allocator, which would forfeit the offline/foreign guarantee this section exists to provide.
 
 ## 4. Birth Certificate as Foundational Identity
 
@@ -532,6 +577,7 @@ Effect:
 ### 8.1 Unforgeability
 
 LCTs resist forgery because:
+- **Key-derived identifier**: `lct_id` is a function of the binding public key (§3.4), so an identifier cannot be claimed without the key; a mismatch is a binding failure rejected at ingest (§3.4.3)
 - **Cryptographic binding**: Requires private key signature
 - **Hardware anchors**: Optional TPM/secure element attestation
 - **Witness quorum**: Birth requires a quorum (≥3) of witnesses (witness distinctness / anti-collusion is not asserted by this property alone — birth witnesses are members of the issuing society per §4.2)
