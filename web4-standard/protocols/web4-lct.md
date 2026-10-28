@@ -53,7 +53,7 @@ The canonical LCT object MUST be represented as follows:
 
 ### 2.1 Identity Fields
 
-- **lct_id** (REQUIRED): Globally unique identifier in the format `lct:web4:<multibase-encoded-hash>`
+- **lct_id** (REQUIRED): Globally unique identifier in the format `lct:web4:mb32:<multibase-base32>`, derived from the binding public key (`lct:web4:mb32:b` + lowercase unpadded base32 of SHA-256 over the raw public key bytes; normative: [LCT-linked-context-token.md §3.4](../core-spec/LCT-linked-context-token.md)). A registry re-derives it at ingest and rejects a mismatch.
 - **subject** (REQUIRED): The DID of the entity this LCT represents, format `did:web4:<method-specific-id>`
 
 ### 2.2 Binding Fields
@@ -144,7 +144,10 @@ To create a binding between an entity and an LCT:
    }
 3. Serialize binding using deterministic CBOR
 4. Sign with entity's private key: binding_proof = Sign(sk, CBOR(binding))
-5. Generate LCT ID: lct_id = "lct:web4:" + MB32(SHA256(binding_proof))
+5. Generate LCT ID from the binding PUBLIC KEY, not from binding_proof:
+   lct_id = "lct:web4:mb32:b" + base32_lower_nopad(SHA256(raw_public_key_bytes))
+   (normative: LCT-linked-context-token.md §3.4. binding_proof covers created_at, so hashing it
+   would give the same key a new id on every mint.)
 6. Construct complete LCT object
 7. Submit to witness for attestation
 ```
