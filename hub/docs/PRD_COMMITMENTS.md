@@ -68,13 +68,14 @@ All of these are witnessed `HubEvent` variants. Every field added later is `Opti
 |---|---|---|
 | `CommitmentOpened` | `commitment_id`, `title`, `owner: PartyRef`, `backup: PartyRef`, `leads_role: String`, `ladder: Vec<u32>` (silence windows, hours), `due_at: Option<DateTime>`, `recorded_by`, `basis` | the operator, or a member opening their own |
 | `CommitmentAcknowledged` | `commitment_id`, `party_id`, `via` (`"member_act"` or `"link"`) | the party |
-| `CommitmentMoved` | `commitment_id`, `by: party_id`, `kind` (`"update"`, `"stuck"`, `"handoff"`), `note_ref: Option` | owner, backup, a lead, or the operator |
+| `CommitmentMoved` | `commitment_id`, `by: party_id`, `kind` (`"update"`, `"stuck"`, `"handoff"`), `to: Option<PartyRef>` (required when, and only when, `kind == "handoff"`), `note_ref: Option` | owner, backup, a lead, or the operator |
 | `CommitmentEscalated` | `commitment_id`, `step` (`"backup"`, `"leads"`), `silent_since`, `window_hours`, `swept_at` | the sweep |
 | `CommitmentResolved` | `commitment_id`, `outcome` (`"done"`, `"withdrawn"`, `"missed"`), `by`, `resolved_at` | a party, the operator, or the sweep (`missed` only) |
 
 - **`title`** is short and operator-written ("Venue AV"). It is the one free-text field on the ledger, and the admin form says so.
 - **`basis`** is `"operator_recorded"` or `"self"` (C2). `CommitmentAcknowledged` turns an operator-recorded commitment into an acknowledged one *for that party*. The projection keeps the set of acknowledged party ids.
-- **A handoff** moves ownership and names the new owner. It also counts as movement.
+- **A handoff** moves ownership to the party in `to`, the only field the projection reads the new owner from. The route refuses a handoff with no `to`, and refuses `to` on any other kind. A handoff counts as movement.
+  By C2, the new owner has acknowledged nothing. The commitment's `basis` for the new owner becomes `operator_recorded`, unless the handoff is the new owner's own act (`by == to`, a take-over), in which case it is `self`. The new owner's party id is not in the acknowledged set until they write `CommitmentAcknowledged`. The previous owner's acknowledgement stays on the ledger, but it does not carry over.
 
 ### 3.3 The projection
 
