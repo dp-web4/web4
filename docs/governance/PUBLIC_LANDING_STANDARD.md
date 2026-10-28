@@ -27,4 +27,4 @@ Inspect root README, START_HERE, STATUS, landing docs, links, badges, examples, 
 
 **P0:** misleading first-screen fact; **P1:** stale or unverified operational instruction/status; **P2:** navigation or clarity. New documentation changes go through reviewable PRs, not silent default-branch commits.
 
-See [dated audit](PUBLIC_LANDING_AUDIT_2026-10-23.md), [Web4 status](../../STATUS.md), and [SAGE generalization rule](https://github.com/dp-web4/SAGE/blob/main/sage/docs/RESEARCH_GENERALIZATION_RULE.md).
+See [October 23 audit](PUBLIC_LANDING_AUDIT_2026-10-23.md), [October 28 cross-ecosystem sweep](PUBLIC_LANDING_AUDIT_2026-10-28.md), [Web4 status](../../STATUS.md), and [SAGE generalization rule](https://github.com/dp-web4/SAGE/blob/main/sage/docs/RESEARCH_GENERALIZATION_RULE.md).
