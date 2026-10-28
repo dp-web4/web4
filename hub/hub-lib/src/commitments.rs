@@ -343,10 +343,17 @@ pub fn fold(commitments: &mut BTreeMap<String, Commitment>, event: &HubEvent, ts
         HubEvent::CommitmentAcknowledged { commitment_id, party_id, via } => {
             let Some(c) = open_mut(commitments, commitment_id) else { return };
             c.acknowledged.insert(party_id.clone(), *via);
-            c.queue = c.position_of(party_id);
-            c.queue_since = ts;
+            // The owner saying "mine" takes the queue back. Anyone else saying "seen" restarts the
+            // clock only when the queue is waiting on them; a backup's ack while the owner holds
+            // it records the ack and moves nothing (Legion, #947).
+            if party_id == &c.owner.party_id {
+                c.queue = QueuePos::Owner;
+                c.queue_since = ts;
+            } else if c.party_at(c.queue).map_or(false, |p| &p.party_id == party_id) {
+                c.queue_since = ts;
+            }
         }
-        HubEvent::CommitmentMoved { commitment_id, by, move_kind, to, .. } => {
+        HubEvent::CommitmentMoved { commitment_id, by, via, move_kind, to, .. } => {
             let Some(c) = open_mut(commitments, commitment_id) else { return };
             match (move_kind, to) {
                 (MoveKind::Update, _) => c.queue = c.position_of(by),
@@ -355,12 +362,21 @@ pub fn fold(commitments: &mut BTreeMap<String, Commitment>, event: &HubEvent, ts
                 (MoveKind::Stuck, _) => c.queue = c.queue.next().unwrap_or(QueuePos::Leads),
                 (MoveKind::Handoff, Some(to)) => {
                     let previous = std::mem::replace(&mut c.owner, to.clone());
+                    // Neither side's acknowledgement carries over: the new owner's was given as
+                    // something else, and the old owner's was given as owner.
+                    c.acknowledged.remove(&to.party_id);
+                    c.acknowledged.remove(&previous.party_id);
                     // Handing to the backup swaps the two, so the commitment keeps a backup.
                     if c.backup.party_id == to.party_id {
                         c.backup = previous;
                     }
-                    c.basis = if by == &to.party_id { Basis::TakenBySelf } else { Basis::NamedByOther };
-                    c.acknowledged.remove(&to.party_id);
+                    // A take-over is the new owner's own act only if the ledger has it from them,
+                    // not from the operator relaying it.
+                    c.basis = if by == &to.party_id && *via != AckVia::Operator {
+                        Basis::TakenBySelf
+                    } else {
+                        Basis::NamedByOther
+                    };
                     c.queue = QueuePos::Owner;
                 }
                 (MoveKind::Handoff, None) => return,
@@ -453,7 +469,11 @@ mod tests {
     }
 
     fn moved(by: &str, move_kind: MoveKind, to: Option<PartyRef>) -> HubEvent {
-        HubEvent::CommitmentMoved { commitment_id: "c".into(), by: by.into(), move_kind, to, note_ref: None }
+        moved_via(by, AckVia::MemberAct, move_kind, to)
+    }
+
+    fn moved_via(by: &str, via: AckVia, move_kind: MoveKind, to: Option<PartyRef>) -> HubEvent {
+        HubEvent::CommitmentMoved { commitment_id: "c".into(), by: by.into(), via, move_kind, to, note_ref: None }
     }
 
     fn at(h: i64) -> DateTime<Utc> {
@@ -508,10 +528,53 @@ mod tests {
         assert_eq!((c.owner.party_id.as_str(), c.backup.party_id.as_str()), ("sam", "alex"));
         assert_eq!((c.basis, c.queue), (Basis::NamedByOther, QueuePos::Owner));
         assert!(!c.owner_acknowledged());
-        // A take-over is the new owner's own act.
+        // A take-over is the new owner's own act...
         apply(&mut m, moved("alex", MoveKind::Handoff, Some(member("alex"))), 3);
         assert_eq!(m["c"].basis, Basis::TakenBySelf);
         assert!(m["c"].owner_acknowledged());
+    }
+
+    /// Legion + NOVA on #947: `by` is only as good as `via`. An operator relaying "Sam took it
+    /// over" is the operator's word, so it must not make Sam's acknowledgement appear.
+    #[test]
+    fn an_operator_relayed_take_over_is_not_the_new_owners_word() {
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, moved_via("sam", AckVia::Operator, MoveKind::Handoff, Some(member("sam"))), 1);
+        let c = &m["c"];
+        assert_eq!((c.owner.party_id.as_str(), c.basis), ("sam", Basis::NamedByOther));
+        assert!(!c.owner_acknowledged());
+    }
+
+    #[test]
+    fn a_swap_drops_the_old_owners_acknowledgement() {
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link }, 1);
+        apply(&mut m, moved("alex", MoveKind::Handoff, Some(member("sam"))), 2);
+        assert_eq!(m["c"].backup.party_id, "alex");
+        assert!(!m["c"].acknowledged.contains_key("alex"), "alex acknowledged as owner, not as backup");
+    }
+
+    #[test]
+    fn a_backups_ack_does_not_take_the_queue_from_the_owner() {
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "sam".into(), via: AckVia::Link }, 5);
+        assert_eq!((m["c"].queue, m["c"].queue_since), (QueuePos::Owner, at(0)), "seen is not taken");
+        // Once the queue waits on the backup, their ack restarts its clock.
+        apply(&mut m, HubEvent::CommitmentEscalated {
+            commitment_id: "c".into(), step: EscalationStep::Backup, cause: EscalationCause::Silence,
+            silent_since: Some(at(0)), window_hours: Some(48), swept_at: at(48) }, 48);
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "sam".into(), via: AckVia::Link }, 50);
+        assert_eq!((m["c"].queue, m["c"].queue_since), (QueuePos::Backup, at(50)));
+        // The owner's own "mine" takes it back.
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link }, 51);
+        assert_eq!((m["c"].queue, m["c"].queue_since), (QueuePos::Owner, at(51)));
     }
 
     #[test]

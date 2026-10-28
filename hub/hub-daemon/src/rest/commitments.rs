@@ -65,10 +65,21 @@ fn check_leads_role(state: &HubState, role: &str) -> Result<Uuid, ApiError> {
 }
 
 /// Who may be recorded as moving or resolving: the owner, the backup, whoever holds the leads
-/// role or a seat within it, or the operator.
-fn check_actor(s: &RestState, state: &HubState, c: &Commitment, by: &str) -> Result<(), ApiError> {
-    if by == c.owner.party_id || by == c.backup.party_id || by == s.sovereign_lct_id.to_string() {
+/// role or a seat within it, or, where `operator_may` says so, the operator in its own name.
+/// An `update` or `stuck` is someone's movement on the job, so the operator relays it in that
+/// person's name. Recorded under the operator's own id it would read as a lead's and send the
+/// queue to leads (Legion, #947).
+fn check_actor(s: &RestState, state: &HubState, c: &Commitment, by: &str, operator_may: bool) -> Result<(), ApiError> {
+    if by == c.owner.party_id || by == c.backup.party_id {
         return Ok(());
+    }
+    if by == s.sovereign_lct_id.to_string() {
+        return if operator_may {
+            Ok(())
+        } else {
+            Err(ApiError::bad_request(
+                "record an update or a stuck in the name of whoever moved: the owner, the backup, or a lead".to_string()))
+        };
     }
     let lead = Uuid::parse_str(&c.leads_role).ok().map_or(false, |role| {
         Uuid::parse_str(by).map_or(false, |who| {
@@ -201,7 +212,7 @@ async fn move_commitment(s: &RestState, id: &str, body: MoveBody) -> Result<serd
     let _serial = COMMITMENT_LOCK.lock().await;
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
     let c = projected_commitment(&state, id)?;
-    check_actor(s, &state, &c, &body.by)?;
+    check_actor(s, &state, &c, &body.by, body.move_kind == MoveKind::Handoff)?;
     if let Some(to) = &body.to {
         check_party(&state, &load_book(s)?, to, "to")?;
     }
@@ -209,6 +220,8 @@ async fn move_commitment(s: &RestState, id: &str, body: MoveBody) -> Result<serd
     let entry_index = checked_witness(s, HubEvent::CommitmentMoved {
         commitment_id: id.to_string(),
         by: body.by,
+        // Every K1 move is the operator relaying it. K4/K5 write link and member_act.
+        via: AckVia::Operator,
         move_kind,
         to: body.to,
         note_ref: body.note_ref,
@@ -304,7 +317,7 @@ async fn resolve_commitment(s: &RestState, id: &str, body: ResolveBody) -> Resul
     let _serial = COMMITMENT_LOCK.lock().await;
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
     let c = projected_commitment(&state, id)?;
-    check_actor(s, &state, &c, &body.by)?;
+    check_actor(s, &state, &c, &body.by, true)?;
     let entry_index = checked_witness(s, HubEvent::CommitmentResolved {
         commitment_id: id.to_string(),
         outcome: body.outcome,
@@ -548,6 +561,35 @@ mod tests {
             .await.is_err());
         assert!(acknowledge_commitment(&s, &id, AckBody { party_id: stranger.to_string() }).await.is_err());
         assert_eq!(s.ledger.lock().await.len(), before, "a refusal reached the ledger");
+    }
+
+    /// Legion + NOVA on #947: the operator-plane call `{by: sam, handoff, to: sam}` must not make
+    /// Sam's acknowledgement appear. Sam never acted; the operator relayed it.
+    #[tokio::test]
+    async fn an_operator_relayed_self_handoff_does_not_acknowledge_for_the_new_owner() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        move_commitment(&s, &id, MoveBody { by: sam.to_string(), move_kind: MoveKind::Handoff,
+            to: Some(member(sam)), note_ref: None }).await.unwrap();
+        let c = current(&s, &id).await;
+        assert_eq!((c.owner.party_id.clone(), c.basis), (sam.to_string(), commitments::Basis::NamedByOther));
+        assert!(!c.owner_acknowledged());
+    }
+
+    #[tokio::test]
+    async fn the_operator_relays_an_update_in_the_movers_name_not_its_own() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let before = s.ledger.lock().await.len();
+        for kind in [MoveKind::Update, MoveKind::Stuck] {
+            let e = move_commitment(&s, &id, MoveBody { by: s.sovereign_lct_id.to_string(), move_kind: kind,
+                to: None, note_ref: None }).await.unwrap_err();
+            assert_eq!(e.status, StatusCode::BAD_REQUEST);
+        }
+        assert_eq!(s.ledger.lock().await.len(), before);
+        // The operator may still resolve, and hand off, in its own name.
+        resolve_commitment(&s, &id, ResolveBody { outcome: Outcome::Withdrawn, by: s.sovereign_lct_id.to_string() })
+            .await.unwrap();
     }
 
     #[tokio::test]

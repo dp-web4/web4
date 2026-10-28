@@ -1376,10 +1376,10 @@ fn event_summary(event: &HubEvent) -> String {
             "🤝 commitment <code>{}</code> acknowledged by <code>{}</code> <span class=\"muted\">(via {:?})</span>",
             html_escape(commitment_id), html_escape(party_id), via,
         ),
-        HubEvent::CommitmentMoved { commitment_id, by, move_kind, to, .. } => format!(
-            "↪ commitment <code>{}</code> {:?} by <code>{}</code>{}",
+        HubEvent::CommitmentMoved { commitment_id, by, via, move_kind, to, .. } => format!(
+            "↪ commitment <code>{}</code> {:?} by <code>{}</code>{} <span class=\"muted\">(via {:?})</span>",
             html_escape(commitment_id), move_kind, html_escape(by),
-            to.as_ref().map(|t| format!(" → {}", party_label(t))).unwrap_or_default(),
+            to.as_ref().map(|t| format!(" → {}", party_label(t))).unwrap_or_default(), via,
         ),
         HubEvent::CommitmentEscalated { commitment_id, step, cause, .. } => format!(
             "⏫ commitment <code>{}</code> moved to {:?} <span class=\"muted\">(cause {:?}; a queue move, not a verdict)</span>",

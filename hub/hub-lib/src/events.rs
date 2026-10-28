@@ -1026,10 +1026,13 @@ pub enum HubEvent {
 
     /// Commitments K1: movement. `move_kind` is the PRD's `kind` (that name is this enum's serde
     /// tag). `to` is set exactly when `move_kind` is `handoff`, and is the only field the
-    /// projection reads a new owner from.
+    /// projection reads a new owner from. `via` says how the movement reached the ledger, as on
+    /// `CommitmentAcknowledged`: `by` is only as good as `via`, so a take-over (`by == to`) is the
+    /// new owner's own act only when `via` is not `operator` (Legion and NOVA, #947).
     CommitmentMoved {
         commitment_id: String,
         by: String,
+        via: crate::commitments::AckVia,
         move_kind: crate::commitments::MoveKind,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         to: Option<crate::commitments::PartyRef>,

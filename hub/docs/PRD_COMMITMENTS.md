@@ -68,14 +68,14 @@ All of these are witnessed `HubEvent` variants. Every field added later is `Opti
 |---|---|---|
 | `CommitmentOpened` | `commitment_id`, `title`, `owner: PartyRef`, `backup: PartyRef`, `leads_role: String`, `ladder: Vec<u32>` (silence windows, hours), `due_at: Option<DateTime>`, `recorded_by`, `basis` | the operator, or a member opening their own |
 | `CommitmentAcknowledged` | `commitment_id`, `party_id`, `via` (`"member_act"`, `"link"`, or `"operator"`: K1's relay, which never counts as the owner's own acknowledgement) | the party, or the operator relaying |
-| `CommitmentMoved` | `commitment_id`, `by: party_id`, `move_kind` (`"update"`, `"stuck"`, `"handoff"`; not `kind`, which is `HubEvent`'s serde tag), `to: Option<PartyRef>` (required when, and only when, `move_kind == "handoff"`), `note_ref: Option` | owner, backup, a lead, or the operator |
+| `CommitmentMoved` | `commitment_id`, `by: party_id`, `via` (as on `CommitmentAcknowledged`), `move_kind` (`"update"`, `"stuck"`, `"handoff"`; not `kind`, which is `HubEvent`'s serde tag), `to: Option<PartyRef>` (required when, and only when, `move_kind == "handoff"`), `note_ref: Option` | owner, backup, a lead, or the operator |
 | `CommitmentEscalated` | `commitment_id`, `step` (`"backup"`, `"leads"`), `cause` (`"silence"`, `"stuck"`), `silent_since: Option`, `window_hours: Option` (both set iff `cause == "silence"`), `swept_at` | the sweep, or the `stuck` append |
 | `CommitmentResolved` | `commitment_id`, `outcome` (`"done"`, `"withdrawn"`, `"missed"`), `by`, `resolved_at`, `owner_acknowledged` (§5.1) | a party, the operator, or the sweep (`missed` only) |
 
 - **`title`** is short and operator-written ("Venue AV"). It is the one free-text field on the ledger, and the admin form says so.
 - **`basis`** is `"named_by_other"` or `"self"` (C2): the owner was named by someone else (the operator, a lead, or the backup in a handoff), or took it on themselves. `CommitmentAcknowledged` turns a named commitment into an acknowledged one *for that party*. The projection keeps the set of acknowledged party ids.
 - **A handoff** moves ownership to the party in `to`, the only field the projection reads the new owner from. The route refuses a handoff with no `to`, and refuses `to` on any other kind. A handoff counts as movement.
-  By C2, the new owner has acknowledged nothing. The commitment's `basis` for the new owner becomes `named_by_other`, unless the handoff is the new owner's own act (`by == to`, a take-over), in which case it is `self`. The new owner's party id is not in the acknowledged set until they write `CommitmentAcknowledged`. The previous owner's acknowledgement stays on the ledger, but it does not carry over.
+  By C2, the new owner has acknowledged nothing. The commitment's `basis` for the new owner becomes `named_by_other`, unless the handoff is the new owner's own act (`by == to`, a take-over), in which case it is `self`. A take-over relayed by the operator (`via: operator`) is the operator's word, so it stays `named_by_other` (Legion and NOVA, #947). The new owner's party id is not in the acknowledged set until they write `CommitmentAcknowledged`. The previous owner's acknowledgement stays on the ledger, but it does not carry over.
 
 ### 3.3 The projection
 
@@ -87,6 +87,7 @@ Each open commitment carries:
 - the escalation steps already taken.
 
 `queue` changes only by a witnessed entry (Legion's review at `531630d5`):
+- **Acknowledgement:** the owner's acknowledgement takes the queue to the owner. Anyone else's restarts the clock only when the queue is waiting on them; otherwise it records the acknowledgement and moves nothing (Legion, #947).
 - **`update` or `handoff`:** the queue goes to **whoever moved**, or to the new owner on a handoff, and the ladder restarts from that position. It does not reset to the owner. Otherwise an owner who never acknowledged could cycle owner → backup → (the backup updates) → owner indefinitely and never be reached.
 - **`stuck`:** this is the owner saying "I need help", so the queue moves **forward**, not back. The same append also writes `CommitmentEscalated { cause: "stuck" }` to the next position (owner → backup, backup → leads), and K3 nudges it. Both entries carry one timestamp, which becomes `queue_since`. The next silence window (the new position's) is measured from it, so `stuck` buys the backup that position's full window, not the owner's. A person moved the queue, not the clock, so C1 holds.
 - **Silence:** `CommitmentEscalated { cause: "silence" }` (§4).
