@@ -82,13 +82,13 @@ All of these are witnessed `HubEvent` variants. Every field added later is `Opti
 Each open commitment carries:
 - its parties;
 - `basis` and the acknowledged set;
-- `last_movement_at`: the latest of opened, acknowledged and moved;
+- `queue_since`: the timestamp of the latest entry that **set the queue**: `CommitmentOpened`, `CommitmentAcknowledged`, any `CommitmentMoved` (every kind, `stuck` included) or `CommitmentEscalated`. This is the **one** clock. The sweep measures silence from it, and K1 projects nothing else for the purpose;
 - `queue`: `owner`, then `backup`, then `leads`;
 - the escalation steps already taken.
 
 `queue` changes only by a witnessed entry (Legion's review at `531630d5`):
 - **`update` or `handoff`:** the queue goes to **whoever moved**, or to the new owner on a handoff, and the ladder restarts from that position. It does not reset to the owner. Otherwise an owner who never acknowledged could cycle owner → backup → (the backup updates) → owner indefinitely and never be reached.
-- **`stuck`:** this is the owner saying "I need help", so it does not restart the silence clock. The same append also writes `CommitmentEscalated { cause: "stuck" }` to the next position (owner → backup, backup → leads), and K3 nudges it. A person moved the queue, not the clock, so C1 holds.
+- **`stuck`:** this is the owner saying "I need help", so the queue moves **forward**, not back. The same append also writes `CommitmentEscalated { cause: "stuck" }` to the next position (owner → backup, backup → leads), and K3 nudges it. Both entries carry one timestamp, which becomes `queue_since`. The next silence window (the new position's) is measured from it, so `stuck` buys the backup that position's full window, not the owner's. A person moved the queue, not the clock, so C1 holds.
 - **Silence:** `CommitmentEscalated { cause: "silence" }` (§4).
 
 ## 4. The sweep
@@ -96,12 +96,12 @@ Each open commitment carries:
 **Where it runs:** inside the daemon, as one interval task (every 5 minutes), started at unlock and stopped at lock. A locked hub cannot sign, and the sweep's output is witnessed entries. The alternative is an external timer calling an admin route. It would add a second thing for the volunteer operator to install, and it fails C5.
 
 **What it does, per open commitment:**
-1. Compute `silent_for = now - last_movement_at`.
-2. Find the ladder steps that `silent_for` has reached. With the default ladder `[48, 24]`: after 48 h of silence the queue moves to the backup, and after 24 h more it moves to the leads.
+1. Compute `silent_for = now - queue_since`.
+2. Find the ladder steps that `silent_for` has reached from the current queue position. `ladder[i]` is the window at position `i`, and the windows add up from `queue_since`. With the default ladder `[48, 24]` and the queue at the owner: after 48 h of silence the queue moves to the backup, and after 24 h more it moves to the leads. A silence escalation also sets `queue_since`, so on the next tick the remaining window is measured from that escalation. A catch-up that writes two steps at once stamps both with one `swept_at`, and `queue_since` becomes the last of them.
 3. Witness `CommitmentEscalated` for **every** reached step not yet recorded, in ladder order, all with the same `swept_at`. After a long lock this writes backup then leads, so the backup is never skipped. The carrier's per-party cap (§6) keeps it from bursting.
 4. If `due_at + grace` has passed with no `done`, resolve as `missed` under the single-resolution rule (§4.1).
 
-**Idempotent by key:** `(commitment_id, step, last_movement_at)`. Re-running the sweep, or two sweeps racing, cannot double-escalate. The check and the append happen under the ledger lock, the same pattern `authorize_event` uses.
+**Idempotent by key:** `(commitment_id, step, queue_since)`. The `queue_since` is the one the step was computed from. Re-running the sweep, or two sweeps racing, cannot double-escalate. The check and the append happen under the ledger lock, the same pattern `authorize_event` uses.
 
 **A locked hub, honestly:**
 - While the hub is locked, nothing escalates.
