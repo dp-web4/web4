@@ -1,7 +1,7 @@
 # 4-hub — Web4 Community Hub (standalone mirror)
 
 A single-binary Rust daemon (~6 MB) that turns a community into a sovereign
-Web4 society: 7 roles, a signed machine-readable founding law, an append-only
+Web4 society: 8 base-mandatory roles, a signed machine-readable founding law, an append-only
 witnessed ledger, sealed member<->hub channels, and a multi-surface API
 (MCP `/tools/*`, REST `/v1`, admin web GUI).
 
