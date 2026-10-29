@@ -203,6 +203,7 @@ The message follows Legion's shape: *"Venue AV is yours. Quiet for 48h. Your bac
   - sends every row with `held: null` through `curl`'s SMTP client (no mail library in the hub's tree);
   - reports each attempt, sent or failed, with `POST .../nudges/delivered`.
 - **A refused report** (4xx) is logged and never retried. The send happened, and a lead unseated in between is refused for a real send.
+- **A report that never reached the hub** (a transport error or 5xx) is kept in the state file and the pass stops. The next pass re-reports it before sending anything new. An unrecorded send is invisible to the cap, so carrying on could repeat it every pass.
 - **`--dry-run`** prints what it would send and sends nothing.
 - **Config** is a JSON file the hub never reads:
 
@@ -219,7 +220,7 @@ The message follows Legion's shape: *"Venue AV is yours. Quiet for 48h. Your bac
 ```
 
   The mail server login lives in `netrc_file` (mode 0600), which is passed to curl as `--netrc-file`, so it never appears on a command line.
-- **The locked-hub alert (§9.1).** When the hub has answered 503 (locked), or not at all, for `locked_alert_hours`, the carrier emails the operator, and only the operator, once a day until it answers again. Then the clock resets.
+- **The locked-hub alert (§9.1).** When the hub has answered 503 (locked), or not at all, for `locked_alert_hours`, the carrier emails the operator, and only the operator, once a day until it answers again. Then the clock resets. A hub that answers 404 (a build from before K3a) is named as such, not as "not answering".
 
 **What the carrier sends through:**
 - **Interim:** the operator's own SMTP settings, held by the carrier and never by the hub (C4).
