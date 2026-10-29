@@ -184,7 +184,18 @@ The message follows Legion's shape: *"Venue AV is yours. Quiet for 48h. Your bac
 
 **C2 in the wording.** When the owner never acknowledged (`basis` is `named_by_other` and the owner is absent from the acknowledged set), "quiet" would be a claim about that person's conduct. Nudges to the backup or leads then say *"not yet acknowledged by Alex"* instead. The fact is the same, and it puts no "late" against a name.
 
-**Delivery is recorded.** After a send, the carrier writes a `NudgeDelivered { commitment_id, step, party_id, channel, ok }` act through the operator plane. An escalation with no delivery entry is visible as undelivered, on the operator's page and in the census.
+**Delivery is recorded.** After a send, the carrier writes a `NudgeDelivered { commitment_id, about_index, party_id, channel, ok }` act through the operator plane. `about_index` is the ledger index of the entry the nudge was about (the `CommitmentOpened` or a `CommitmentEscalated`). It replaces the draft's `step`, because an opening has no step and a leads step reaches several people. `channel` names the means (`email`), never an address (C3). An escalation with no delivery entry is visible as undelivered, on the operator's page and in the census.
+
+**As built (K3).** The hub works out what is owed. The carrier only sends and reports.
+- `GET /admin/api/commitments/nudges` lists every nudge owed now, with its wording and the address to send to. Each row carries `held: null` (send it), `no_address`, or `capped`.
+  - What is owed: only the commitment's latest entry (the opening, or the last escalation) is nudged, so nobody hears about a step the queue has already passed.
+  - An escalation stops being owed once the queue leaves its step: an owner who took it back has answered it.
+  - The opening nudges a named owner ("you're named as the owner") and the backup. A self-taken job doesn't tell its owner they were named.
+- `POST /admin/api/commitments/nudges/delivered` records one attempt.
+  - The party must be the commitment's owner, backup or a lead.
+  - A second successful send for the same entry and party is a 409.
+- **Member addresses.** A member had no delivery address anywhere. The contact book now also holds one per member LCT id: `POST /admin/api/contacts/members/:lct_id`, erasable at `/erase`. Off the ledger (C3).
+- **The cap** is 3 attempts per party per rolling day, failures included. It is counted from `NudgeDelivered` on the ledger, so a carrier restart cannot reset it. One listing never offers a party more than its remaining budget.
 
 **What the carrier sends through:**
 - **Interim:** the operator's own SMTP settings, held by the carrier and never by the hub (C4).

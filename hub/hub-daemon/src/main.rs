@@ -2976,6 +2976,10 @@ mod tests {
             ("GET", "/admin/api/contacts"),
             ("POST", "/admin/api/contacts"),
             ("POST", "/admin/api/contacts/p/erase"),
+            ("GET", "/admin/api/commitments/nudges"),
+            ("POST", "/admin/api/commitments/nudges/delivered"),
+            ("POST", "/admin/api/contacts/members/m"),
+            ("POST", "/admin/api/contacts/members/m/erase"),
         ];
 
         #[tokio::test]

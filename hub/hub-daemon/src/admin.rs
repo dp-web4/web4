@@ -1389,6 +1389,11 @@ fn event_summary(event: &HubEvent) -> String {
             "🏁 commitment <code>{}</code> {} by <code>{}</code> <span class=\"muted\">(owner acknowledged: {})</span>",
             html_escape(commitment_id), hub_lib::commitments::outcome_str(*outcome), html_escape(by), owner_acknowledged,
         ),
+        HubEvent::NudgeDelivered { commitment_id, about_index, party_id, channel, ok } => format!(
+            "✉ nudge about entry #{} of commitment <code>{}</code> to <code>{}</code> via {}: {}",
+            about_index, html_escape(commitment_id), html_escape(party_id), html_escape(channel),
+            if *ok { "sent" } else { "<b>failed</b>" },
+        ),
         HubEvent::LctPublished { lct_id, document, published_by, provenance, .. } => format!(
             "🪪 LCT published: {:?} <code>{}</code> by {} <span class=\"muted\">({:?})</span>",
             document.entity_type,
