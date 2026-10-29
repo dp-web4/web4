@@ -1690,7 +1690,11 @@ mod tests {
         let claim = read_link(&key, &t, now).unwrap();
         assert_eq!((claim.commitment_id.as_str(), claim.party_id.as_str()), ("c1", "p1"));
         assert_eq!(claim.digest.len(), commitments::LINK_DIGEST_LEN);
-        assert!(!claim.digest.contains("c1"), "the digest is not the token");
+        // The digest is the token's SHA-256, cut to 128 bits: neither the token nor a piece of it.
+        // (It once asserted the digest held no "c1"; a random 32-hex string does ~11% of the time.)
+        use sha2::Digest;
+        assert_eq!(claim.digest, hex::encode(sha2::Sha256::digest(t.as_bytes()))[..commitments::LINK_DIGEST_LEN]);
+        assert!(!t.contains(&claim.digest), "the digest is not the token");
 
         assert_eq!(read_link(&key, &t, now + chrono::Duration::days(1)), Err(LinkError::Expired));
         assert_eq!(read_link(&[8u8; 32], &t, now), Err(LinkError::Invalid), "another hub's key");
