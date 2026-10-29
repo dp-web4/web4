@@ -249,6 +249,7 @@ Hestia's unanswered-send budget caps the *sender*. The carrier honours an equiva
   - A link acknowledges once (`link_acks` in the projection), and has exactly one spelling: a MAC that isn't lowercase hex is refused, so a re-cased link can't carry a second digest. A link that has acknowledged never offers it again, even after a handoff cleared it. The new owner gets a fresh link from K4b (Legion, #957).
   - An operator relay never replaces a party's own acknowledgement (`link` or `member_act`) with the operator's (Legion, #957).
   - A key file that others can read is refused, for minting and for reading. A dry run of `hub-nudge` prints `<link withheld>` in place of the link, because its output lands in the journal.
+  - **Runbook: a key file others can read stops all nudges.** The listing fails closed with a 500 whose message reads "the link key is readable by others (mode …); chmod 600 it". It does not fall back to nudges without links. No nudge goes out until the operator runs `chmod 600 <hub root>/commitment-links.key` (Legion, #957 re-read).
   - Open (Legion, #957): a possession-only acknowledgement is effectively permanent. The owner should get a cheap "that wasn't me" undo. A reverse proxy's access log also records `/c/<token>`, so operators should keep those logs short or strip the path.
   - A take-over through the party's own link is their act, so `basis` becomes `self`. A handoff by the owner leaves the new owner `named_by_other`.
 - **Not in K4: the new owner after a handoff is never told.** K3 nudges only the opening and the escalations. This matters now that a handoff is one click. K4b closes it.
@@ -268,7 +269,7 @@ Hestia's unanswered-send budget caps the *sender*. The carrier honours an equiva
 | **K3** | The nudge carrier (separate process; operator SMTP), `NudgeDelivered`, and a per-party rate cap. | K2 |
 | **K4** | Movement links: a token-scoped page per (commitment, party), with done, stuck, hand off and acknowledge. No login. | K3 |
 | **K4b** | Nudge the new owner of a handoff ("X handed you Y"), so a one-click handoff never lands on someone who wasn't told. | K4 |
-| **K5** | Join from a link: a browser key (WebCrypto Ed25519) plus an invite token, and binding a contact to its new member LCT. Then the member view (B5: mine, late, I'm backing up). This is the pilot's substitute for #868. | K4 |
+| **K5** | Join from a link: a browser key (WebCrypto Ed25519) plus an invite token, and binding a contact to its new member LCT. Then the member view (B5: mine, late, I'm backing up). This is the pilot's substitute for #868. In three PRs: K5a (`/client` key migration plus CSP), K5b (invite and binding), K5c (`/me`); see §7.1. | K4 |
 
 Each slice carries its own tests and mutants, plus the two standing guards: the `BODY_EXEMPT` list and the HUB-LAW action table, for every new route and kind.
 
@@ -284,20 +285,32 @@ K5 adds four things.
 1. **An invite.** The operator mints a link for one contact. It has the K4 token shape, under its own MAC label (`web4-hub invite v1`), so it can never be read as a movement link, or the reverse. Opening it shows "Join <chapter>". The page generates a key in that browser, signs a join envelope, and sends it with the invite's digest in a new optional `invite_digest` field of `JoinPayload`.
    - Law still decides admission. The invite is **evidence**, not a bypass: the operator named this person.
    - The chapter law shipped for the pilot allows an invited join, and queues an uninvited one.
-   - An invite admits once. A second join with the same invite is refused.
-2. **The binding.** On admission, a witnessed `ContactBound { party_id, member_lct_id, invite_digest }` links the contact to the new member LCT.
+   - An invite admits once. A second join with the same invite is refused. The check runs under the ledger append, so two joins racing on one invite cannot both pass.
+   - The join carries the **token**. The hub verifies its MAC and expiry, then records only the digest, as K4 does with `link_digest`. Law never accepts a bare `invite_digest`, because then a digest seen anywhere would be the secret.
+   - An invite lives **7 days**, not K4's 30. Admission is a stronger act than an acknowledgement.
+   - The operator can withdraw an unused invite: a witnessed `InviteRevoked { invite_digest }`, checked under the same lock. Without it, a stateless token could only be killed by rotating the key, which kills every invite.
+   - Every admission by invite puts a row in the operator's due list ("<name> joined from your invite"). Whoever opens the link first becomes the member, so a forwarded email admits the wrong person, and this notice is how the operator finds out.
+2. **The binding.** On admission, a witnessed `ContactBound { party_id, member_lct_id, invite_digest }` links the contact to the new member LCT. It carries the operator's witness: the operator minted the invite, so the binding is their act as well as the member's.
    - The projection follows it: a commitment that names the contact now reads its role for the member. K4 and K4b role checks, nudge targets and acknowledgements all resolve through the binding. The history is not rewritten (§3.1).
    - The contact's address moves to the member's address entry, off the ledger (C3).
 3. **Where the key lives.** It lives in IndexedDB as a **non-extractable** `CryptoKey`. The page can use the key to sign, but no script, including the page's own, can read the private half.
-   - This deliberately differs from `/client`, which keeps an extractable JWK in `localStorage`, where any script on the origin can read it. That is a finding against `/client` too, raised here and not fixed in K5.
-   - If the browser is lost, so is the key. Recovery is a fresh invite: a new LCT, which the operator links to the old one with Slice E's `attest-predecessor`. The member's history then follows the lineage, and the old key is never needed.
+   - This deliberately differs from `/client`, which keeps an extractable JWK in `localStorage`, where any script on the origin can read it. K5a fixes `/client` first (below).
+   - Non-extractable stops theft, not misuse: a script injected into the page can still sign with the key in place. So every page that holds a key (`/client`, `/c/`, the join page, `/me`) is served with a strict Content-Security-Policy, and loses its inline `onclick` handlers. Today no hub page sends a CSP.
+   - The page calls `navigator.storage.persist()`. It also shows "open this in your browser" when it detects an in-app webview: a key made inside a mail app's webview stays there, and a later `/me` in the real browser finds nothing.
+   - If the browser is lost, so is the key. Safari also evicts script-written storage after 7 days without interaction, which is exactly a volunteer nudged monthly. Recovery is a fresh invite: a new LCT, which the operator links to the old one with Slice E's `attest-predecessor`. The member's history then follows the lineage, and the old key is never needed. **Expect this path to run routinely, not rarely**, so it must be one click for the operator.
    - A browser key is priced at web4-core's default anchor level, a software key, and claims nothing more.
 4. **The member view (B5).** `GET /me` shows mine, late, and what I'm backing up. It is authenticated by the browser key signing a `/v1/auth/challenge` nonce. The hub answers with a short-lived (12 h), HttpOnly, SameSite=Strict session cookie scoped to reading this member's own view. Every write still goes through a signed envelope (the K5 page's acts become `via: member_act`).
+   - A click from an email is a cross-site navigation, so a SameSite=Strict cookie is not sent with it. The first load re-runs the challenge silently with the key already in the browser, and the member never sees a sign-in.
 
-**Questions before code (answers by ~10-30 18:00Z; on silence, the defaults above):**
-- (a) **Is an operator's invite enough evidence for the pilot law to admit on?** Or should an invited join still queue for one click by the operator? Default: admit, because the operator already chose this person by inviting them.
-- (b) **Browsers without WebCrypto Ed25519.** Default: refuse with "ask your organiser", and no JS fallback. A bundled Ed25519 library would put an extractable key in page memory, which is the thing (3) avoids.
-- (c) **Should `/client` move to the non-extractable key too, in the same slice?** Default: a separate PR after K5. Changing it orphans every browser identity already stored there, and that needs its own migration note.
+**Order of work:**
+- **K5a: `/client` and CSP.** On first load, `/client` imports its stored JWK once as a non-extractable `CryptoKey` into IndexedDB, then deletes the `localStorage` entry. The key and the LCT stay the same, so no identity is orphaned. The same PR adds the strict CSP to the key-holding pages.
+- **K5b: invite, join, `ContactBound`, `InviteRevoked`, the admission notice.**
+- **K5c: `/me`.**
+
+**Questions asked, and answered (Legion, #959, 10-29 20:17Z):**
+- (a) **Does an invite admit on its own?** Yes, because an invite is no more trust than the K4 link the contact already holds. It holds only with the five conditions in (1): atomic once, MAC verified, 7-day life, revocation, and the operator told.
+- (b) **Are browsers without WebCrypto Ed25519 refused?** Yes, with "ask your organiser" and no JS fallback library: a bundled library would put an extractable key in page memory. The keys that actually get lost are lost to webviews and eviction, covered in (3).
+- (c) **Does fixing `/client` wait for its own PR after K5?** No. The migration keeps the same key and LCT, so it is small, and K5 puts more keys on the same origin. It lands first, as K5a, together with the CSP.
 
 ## 8. The 11-07 hackathon
 
