@@ -431,6 +431,10 @@ pub struct RoleOccupancyChange {
     /// so serialization-safe. The timeout sweep (P2) reads this to debit misses.
     pub obligations: BTreeMap<String, Obligation>,
 
+    /// Commitments K1: every commitment by id, open or resolved (a resolved one stays, so a late
+    /// writer is told what resolved it). Folded by [`crate::commitments::fold`].
+    pub commitments: BTreeMap<String, crate::commitments::Commitment>,
+
     /// The LCT registry: published presence, keyed by canonical (pubkey-derived)
     /// `lct_id`. Folded from `LctPublished`, which ingest has already verified —
     /// an entry here means binding + id-derivation checked out at the door, so
@@ -1605,6 +1609,13 @@ impl HubState {
             }
             HubEvent::ObligationResolved { request_id, .. } => {
                 self.obligations.remove(request_id);
+            }
+            HubEvent::CommitmentOpened { .. }
+            | HubEvent::CommitmentAcknowledged { .. }
+            | HubEvent::CommitmentMoved { .. }
+            | HubEvent::CommitmentEscalated { .. }
+            | HubEvent::CommitmentResolved { .. } => {
+                crate::commitments::fold(&mut self.commitments, event, ts, index);
             }
             // Member-of routing (PRD_MEMBER_OF_ROUTING). Ids arrive as strings, already validated
             // at intake; one that is not canonical is not routable and is not projected (same

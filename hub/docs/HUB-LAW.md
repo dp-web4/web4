@@ -80,6 +80,7 @@ lockstep with `HubEvent::kind()` by a test that reads the function's own source.
 | devices | `device_enrolled`, `device_revoked` |
 | routing (member-of) | `router_registered`, `router_retired`, `member_of_reported`, `member_of_withdrawn` (PRD_MEMBER_OF_ROUTING: which member is a machine's router, and which LCTs are witnessed member-of it) |
 | obligations + trust | `obligation_opened`, `obligation_resolved`, `reputation_recorded` |
+| commitments | `commitment_opened`, `commitment_acknowledged`, `commitment_moved`, `commitment_escalated`, `commitment_resolved` (PRD_COMMITMENTS: owner, backup, leads; silence moves the queue and never records a verdict) |
 | degraded-window audit | `degraded_reconciled` (F0.1: the witnessed summary of infrastructure-failure windows — recorded by the hub at ignition, never member conduct) |
 | vault unlock (audit) | `vault_unlock_requested`, `vault_unlock_attested`, `vault_unlock_resolved` |
 | records | `event_recorded`, `lct_published`, `lct_rotated`, `lct_predecessor_attested`, `lct_predecessor_attestation_withdrawn`, `referenced_act` |

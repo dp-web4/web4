@@ -2963,6 +2963,16 @@ mod tests {
             ("GET", "/admin/api/ledger"),
             ("GET", "/admin/api/joins"),
             ("GET", "/admin/api/reviews"),
+            // Commitments K1: who owes what, and the contact book (names + addresses, C3).
+            ("GET", "/admin/commitments"),
+            ("GET", "/admin/api/commitments"),
+            ("POST", "/admin/api/commitments"),
+            ("POST", "/admin/api/commitments/c/move"),
+            ("POST", "/admin/api/commitments/c/acknowledge"),
+            ("POST", "/admin/api/commitments/c/resolve"),
+            ("GET", "/admin/api/contacts"),
+            ("POST", "/admin/api/contacts"),
+            ("POST", "/admin/api/contacts/p/erase"),
         ];
 
         #[tokio::test]
