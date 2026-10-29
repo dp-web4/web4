@@ -272,6 +272,33 @@ Hestia's unanswered-send budget caps the *sender*. The carrier honours an equiva
 
 Each slice carries its own tests and mutants, plus the two standing guards: the `BODY_EXEMPT` list and the HUB-LAW action table, for every new route and kind.
 
+### 7.1 K5, proposed: join from a link, then the member view
+
+K4 lets a contact answer with no key. K5 turns that contact into a member who holds their own key, without asking a volunteer to install anything (C5). Most of the parts already exist:
+- **The join route.** `POST /v1/hubs/:id/members/join` takes an envelope signed by the applicant's own key. Hub law then admits it, queues it for the operator, or refuses it.
+- **The browser half.** `/client` generates an Ed25519 key with WebCrypto, signs a challenge envelope and joins.
+- **The lineage act.** Slice E's `attest-predecessor` links a new LCT to an old one.
+
+K5 adds four things.
+
+1. **An invite.** The operator mints a link for one contact. It has the K4 token shape, under its own MAC label (`web4-hub invite v1`), so it can never be read as a movement link, or the reverse. Opening it shows "Join <chapter>". The page generates a key in that browser, signs a join envelope, and sends it with the invite's digest in a new optional `invite_digest` field of `JoinPayload`.
+   - Law still decides admission. The invite is **evidence**, not a bypass: the operator named this person.
+   - The chapter law shipped for the pilot allows an invited join, and queues an uninvited one.
+   - An invite admits once. A second join with the same invite is refused.
+2. **The binding.** On admission, a witnessed `ContactBound { party_id, member_lct_id, invite_digest }` links the contact to the new member LCT.
+   - The projection follows it: a commitment that names the contact now reads its role for the member. K4 and K4b role checks, nudge targets and acknowledgements all resolve through the binding. The history is not rewritten (§3.1).
+   - The contact's address moves to the member's address entry, off the ledger (C3).
+3. **Where the key lives.** It lives in IndexedDB as a **non-extractable** `CryptoKey`. The page can use the key to sign, but no script, including the page's own, can read the private half.
+   - This deliberately differs from `/client`, which keeps an extractable JWK in `localStorage`, where any script on the origin can read it. That is a finding against `/client` too, raised here and not fixed in K5.
+   - If the browser is lost, so is the key. Recovery is a fresh invite: a new LCT, which the operator links to the old one with Slice E's `attest-predecessor`. The member's history then follows the lineage, and the old key is never needed.
+   - A browser key is priced at web4-core's default anchor level, a software key, and claims nothing more.
+4. **The member view (B5).** `GET /me` shows mine, late, and what I'm backing up. It is authenticated by the browser key signing a `/v1/auth/challenge` nonce. The hub answers with a short-lived (12 h), HttpOnly, SameSite=Strict session cookie scoped to reading this member's own view. Every write still goes through a signed envelope (the K5 page's acts become `via: member_act`).
+
+**Questions before code (answers by ~10-30 18:00Z; on silence, the defaults above):**
+- (a) **Is an operator's invite enough evidence for the pilot law to admit on?** Or should an invited join still queue for one click by the operator? Default: admit, because the operator already chose this person by inviting them.
+- (b) **Browsers without WebCrypto Ed25519.** Default: refuse with "ask your organiser", and no JS fallback. A bundled Ed25519 library would put an extractable key in page memory, which is the thing (3) avoids.
+- (c) **Should `/client` move to the non-extractable key too, in the same slice?** Default: a separate PR after K5. Changing it orphans every browser identity already stored there, and that needs its own migration note.
+
 ## 8. The 11-07 hackathon
 
 The hub stays out of the loop for 11-07. K1 and K2 could land before then, but without K3 nobody is nudged. A record that nobody is told about does not meet outcome 4.
