@@ -377,14 +377,98 @@ pub fn check(commitments: &BTreeMap<String, Commitment>, event: &HubEvent) -> Re
 
 /// A link digest is present exactly when the word came through a link, and is the shape the hub
 /// writes: 32 lowercase hex characters (K4).
+fn is_digest(d: &str) -> bool {
+    d.len() == LINK_DIGEST_LEN && d.chars().all(|ch| ch.is_ascii_digit() || ('a'..='f').contains(&ch))
+}
+
 fn check_link_digest(via: AckVia, digest: Option<&str>) -> Result<(), Refusal> {
     match (via, digest) {
-        (AckVia::Link, Some(d)) if d.len() == LINK_DIGEST_LEN
-            && d.chars().all(|ch| ch.is_ascii_digit() || ('a'..='f').contains(&ch)) => Ok(()),
+        (AckVia::Link, Some(d)) if is_digest(d) => Ok(()),
         (AckVia::Link, _) => Err(Refusal::Invalid(format!(
             "a link entry carries its link's digest: {LINK_DIGEST_LEN} lowercase hex characters"))),
         (_, Some(_)) => Err(Refusal::Invalid("only a link entry carries a link digest".into())),
         (_, None) => Ok(()),
+    }
+}
+
+/// K5b: what the ledger says about invites. An invite is a stateless token until it is used or
+/// withdrawn, and these are the only two ways it stops admitting before it expires.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Invites {
+    /// Invite digest → the contact it bound.
+    pub used: BTreeMap<String, String>,
+    pub revoked: BTreeSet<String>,
+    /// Contact `party_id` → the member LCT it became.
+    pub bound: BTreeMap<String, Uuid>,
+}
+
+impl Invites {
+    /// The checks a K5b event must pass. As with [`check`], the caller runs this and the witness
+    /// under one lock, so two joins racing on one invite cannot both bind.
+    pub fn check(&self, event: &HubEvent) -> Result<(), Refusal> {
+        let refuse = |m: &str| Err(Refusal::Invalid(m.to_string()));
+        match event {
+            HubEvent::ContactBound { party_id, member_lct_id, invite_digest, .. } => {
+                if !is_digest(invite_digest) {
+                    return refuse("an invite digest is 32 lowercase hex characters");
+                }
+                if self.used.contains_key(invite_digest) {
+                    return refuse("this invite has already been used");
+                }
+                if self.revoked.contains(invite_digest) {
+                    return refuse("this invite was withdrawn");
+                }
+                if self.bound.contains_key(party_id) {
+                    return refuse("this contact is already a member");
+                }
+                if self.bound.values().any(|m| m == member_lct_id) {
+                    return refuse("this member is already bound to a contact");
+                }
+                Ok(())
+            }
+            HubEvent::InviteRevoked { invite_digest, .. } => {
+                if !is_digest(invite_digest) {
+                    return refuse("an invite digest is 32 lowercase hex characters");
+                }
+                if self.used.contains_key(invite_digest) {
+                    return refuse("this invite has already been used, so there is nothing to withdraw");
+                }
+                if self.revoked.contains(invite_digest) {
+                    return refuse("this invite was already withdrawn");
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Fold one K5b event. An event the check would have refused changes nothing, so a binding
+    /// that slipped past it cannot move a contact a second time on replay.
+    pub fn fold(&mut self, event: &HubEvent) {
+        if self.check(event).is_err() {
+            return;
+        }
+        match event {
+            HubEvent::ContactBound { party_id, member_lct_id, invite_digest, .. } => {
+                self.used.insert(invite_digest.clone(), party_id.clone());
+                self.bound.insert(party_id.clone(), *member_lct_id);
+            }
+            HubEvent::InviteRevoked { invite_digest, .. } => {
+                self.revoked.insert(invite_digest.clone());
+            }
+            _ => {}
+        }
+    }
+
+    /// Why an invite with this digest no longer admits, if it doesn't.
+    pub fn spent(&self, digest: &str) -> Option<&'static str> {
+        if self.used.contains_key(digest) {
+            Some("this invite has already been used")
+        } else if self.revoked.contains(digest) {
+            Some("this invite was withdrawn")
+        } else {
+            None
+        }
     }
 }
 
@@ -1177,5 +1261,39 @@ mod tests {
         assert_eq!(targets(&m), vec![("alex".into(), NudgeAbout::Escalated)]);
         // A report about an entry that is none of these is still refused.
         assert!(matches!(check(&m, &delivered(51, "sam", "email", true)), Err(Refusal::Invalid(_))));
+    }
+
+    #[test]
+    fn an_invite_binds_once_a_contact_once_and_a_withdrawn_one_never() {
+        let (op, m1, m2) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let d = |c: char| c.to_string().repeat(LINK_DIGEST_LEN);
+        let bound = |party: &str, member: Uuid, digest: String| HubEvent::ContactBound {
+            party_id: party.into(), member_lct_id: member, invite_digest: digest, bound_by: op };
+        let revoked = |digest: String| HubEvent::InviteRevoked { invite_digest: digest, revoked_by: op };
+        let mut inv = Invites::default();
+        let refused = |inv: &Invites, e: &HubEvent| inv.check(e).unwrap_err().to_string();
+
+        assert!(refused(&inv, &bound("p", m1, "A".repeat(LINK_DIGEST_LEN))).contains("lowercase hex"));
+        assert!(refused(&inv, &revoked(d('a')[..8].to_string())).contains("lowercase hex"));
+        inv.fold(&bound("p", m1, d('a')));
+        assert_eq!(inv.bound.get("p"), Some(&m1));
+        assert_eq!(inv.spent(&d('a')), Some("this invite has already been used"));
+        assert!(refused(&inv, &bound("q", m2, d('a'))).contains("already been used"));
+        assert!(refused(&inv, &bound("p", m2, d('b'))).contains("contact is already a member"));
+        assert!(refused(&inv, &bound("q", m1, d('b'))).contains("member is already bound"));
+        assert!(refused(&inv, &revoked(d('a'))).contains("nothing to withdraw"));
+
+        inv.fold(&revoked(d('c')));
+        assert_eq!(inv.spent(&d('c')), Some("this invite was withdrawn"));
+        assert!(refused(&inv, &bound("q", m2, d('c'))).contains("withdrawn"));
+        assert!(refused(&inv, &revoked(d('c'))).contains("already withdrawn"));
+
+        // A refused event changes nothing on replay.
+        let before = inv.clone();
+        inv.fold(&bound("q", m2, d('a')));
+        inv.fold(&bound("p", m2, d('d')));
+        assert_eq!(inv, before);
+        inv.fold(&bound("q", m2, d('d')));
+        assert_eq!(inv.bound.len(), 2);
     }
 }

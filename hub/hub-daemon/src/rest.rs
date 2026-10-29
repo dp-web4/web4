@@ -2046,10 +2046,15 @@ pub fn router(state: RestState) -> Router {
         .route("/c/:token", get(commitments::link_page))
         .route("/c/:token/:act", post(commitments::link_act))
         .route("/c.css", get(commitments::link_page_css))
+        // Commitments K5b: the page an invite opens. Reading it writes nothing; the join is the
+        // browser's own signed POST to /members/join, carrying the invite as evidence for law.
+        .route("/j/:token", get(commitments::invite_page))
+        .route("/join.js", get(commitments::join_js))
         .route("/discuss", get(discuss_html))
         // The client's script and style are files of their own so its page can forbid inline ones.
         .route("/client", get(client_html))
         .route("/client.js", get(client_js))
+        .route("/keystore.js", get(keystore_js))
         .route("/client.css", get(client_css))
         // the unlock slot (stub-console / passphrase): local-only + rate-limited.
         // Promotes a locked hub → unlocked in place (swaps in the real signer).
@@ -6069,6 +6074,10 @@ struct JoinPayload {
     anchor_level: Option<u8>,
     #[serde(default)]
     trust_ceiling: Option<f64>,
+    /// Commitments K5b: an operator's invite, as minted. The hub verifies its MAC and records only
+    /// its digest; law sees `r6.resource.invite == "verified"`. Evidence, never a bypass.
+    #[serde(default)]
+    invite: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -7759,6 +7768,9 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/commitments/:commitment_id/resolve", post(commitments::admin_commitment_resolve))
         .route("/admin/api/contacts", get(commitments::admin_contacts_list).post(commitments::admin_contact_add))
         .route("/admin/api/contacts/:party_id/erase", post(commitments::admin_contact_erase))
+        .route("/admin/api/contacts/:party_id/invite", post(commitments::admin_invite_mint))
+        .route("/admin/api/invites", get(commitments::admin_invites_list))
+        .route("/admin/api/invites/:invite_digest/revoke", post(commitments::admin_invite_revoke))
         .route("/admin/api/commitments/nudges", get(commitments::admin_nudges_due))
         .route("/admin/api/commitments/nudges/delivered", post(commitments::admin_nudge_delivered))
         .route("/admin/api/contacts/members/:lct_id", post(commitments::admin_member_address_set))
@@ -7922,12 +7934,38 @@ async fn submit_join(
     adhoc.insert(applicant_lct.clone());
     let _redeemed = verify_envelope(&envelope, &s.nonces, &adhoc, Utc::now())?;
 
+    // 2a. Commitments K5b: an invite is evidence that the operator chose this person, verified by
+    // its MAC and date before anything is decided. From here to the binding the commitments lock
+    // is held, so two joins racing on one invite cannot both find it open (Legion, #959).
+    let invite = payload.invite.as_deref().map(|t| commitments::verify_invite(&s, t)).transpose()?;
+    let _invite_serial = match &invite {
+        Some(_) => Some(commitments::COMMITMENT_LOCK.lock().await),
+        None => None,
+    };
+    if let Some(claim) = &invite {
+        let state = { let l = s.ledger.lock().await; s.projected(&l) };
+        if commitments::invite_standing(&s, &state, claim, payload.member_lct_id)?
+            == commitments::InviteStanding::AlreadyThisMember
+        {
+            return Ok((StatusCode::OK, Json(serde_json::json!({
+                "member_lct_id": payload.member_lct_id,
+                "status": "already_member",
+                "welcome": format!("already a member of {}", s.hub_name),
+            }))).into_response());
+        }
+    }
+
     // 2b. Idempotency: collapse repeat applications from the same LCT before the
     // law gate. Already a member → 200 already_member; an existing pending request
     // → 202 with that request_id (don't queue a duplicate). Only a genuinely-new
     // applicant proceeds to evaluation.
     match admission_state(&s, payload.member_lct_id).await {
         AdmissionState::Member => {
+            // A member opening an invite (or an invited join the operator admitted from the
+            // queue, opened again) binds the contact now.
+            if let Some(claim) = &invite {
+                commitments::bind_contact(&s, claim, payload.member_lct_id).await?;
+            }
             return Ok((
                 StatusCode::OK,
                 Json(serde_json::json!({
@@ -8008,7 +8046,10 @@ async fn submit_join(
                 role: "applicant".to_string(),
                 action: "member_join_request".to_string(),
                 payload: event_value_yaml,
-                resource: Default::default(),
+                resource: invite.iter().map(|_| {
+                    let (k, v) = commitments::INVITE_RESOURCE;
+                    (k.to_string(), serde_yaml::Value::String(v.to_string()))
+                }).collect(),
             }).decision,
         };
         drop(law_guard);
@@ -8037,6 +8078,9 @@ async fn submit_join(
                 &s, payload.member_lct_id, &payload.member_pubkey_hex, payload.name.clone(),
                 &anchor,
             ).await?;
+            if let Some(claim) = &invite {
+                commitments::bind_contact(&s, claim, payload.member_lct_id).await?;
+            }
             Ok(Json(JoinAccepted {
                 member_lct_id: payload.member_lct_id,
                 entry_index,
@@ -8321,6 +8365,11 @@ async fn client_js() -> axum::response::Response {
     ([(axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8")], CLIENT_JS).into_response()
 }
 
+async fn keystore_js() -> axum::response::Response {
+    use axum::response::IntoResponse;
+    ([(axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8")], KEYSTORE_JS).into_response()
+}
+
 async fn client_css() -> axum::response::Response {
     use axum::response::IntoResponse;
     ([(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")], CLIENT_CSS).into_response()
@@ -8360,6 +8409,7 @@ const CLIENT_HTML: &str = r##"<!doctype html><meta charset="utf-8">
  <div class="st" id="tstatus"></div>
 </div>
 <div id="topics"><p class="m">loading…</p></div>
+<script src="/keystore.js"></script>
 <script src="/client.js"></script>
 "##;
 
@@ -8382,8 +8432,9 @@ button:hover{background:#8883}code{word-break:break-all}
 .st{font-size:.85em;margin-top:.4rem;white-space:pre-wrap}
 "##;
 
-const CLIENT_JS: &str = r##"'use strict';
-const $=s=>document.querySelector(s);
+/// The browser key store, shared by every page that holds a member's key (`/client`, the K5b join
+/// page): one identity per browser, whichever page made it.
+const KEYSTORE_JS: &str = r##"'use strict';
 const enc=new TextEncoder();
 const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -8400,9 +8451,7 @@ function canon(v){
   return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
 }
 
-let HUBID=null, HUBNAME='Hub', ID=null, ADMITTED=false;
-
-// The identity lives in IndexedDB as a non-extractable CryptoKey: this page can sign with
+// The identity lives in IndexedDB as a non-extractable CryptoKey: a page can sign with
 // it, but no script, this one included, can read the private half back out.
 const DB='hestia_hub', STORE='identity', SLOT='me', LEGACY='hestia_hub_id';
 function idb(){
@@ -8436,18 +8485,43 @@ async function loadID(){
   await idbPut(moved); localStorage.removeItem(LEGACY); persist();
   return moved;
 }
-async function genID(){
+// A fresh identity, stored before it is returned. Throws NO_ED25519 where the browser
+// cannot make the key: there is no fallback library, which would hold the key in page memory.
+async function newID(){
   let kp;
   try{ kp=await crypto.subtle.generateKey({name:'Ed25519'},false,['sign','verify']); }
-  catch(e){ $('#idbody').innerHTML='<span class="err">This browser lacks WebCrypto Ed25519. Use current Edge, Chrome, Firefox, or Safari.</span>'; return; }
-  try{
-    const pub=await crypto.subtle.exportKey('raw',kp.publicKey);
-    const id={lct_id:crypto.randomUUID(),pubHex:hex(pub),priv:kp.privateKey};
-    await idbPut(id); persist();
-    ID=id; renderID();
-  }catch(e){ $('#idbody').innerHTML='<span class="err">This browser would not store the key: '+esc(e.message)+'</span>'; }
+  catch(e){ throw new Error('NO_ED25519'); }
+  const pub=await crypto.subtle.exportKey('raw',kp.publicKey);
+  const id={lct_id:crypto.randomUUID(),pubHex:hex(pub),priv:kp.privateKey};
+  await idbPut(id); persist();
+  return id;
 }
-async function forget(){ await idbDel(); localStorage.removeItem(LEGACY); ID=null; ADMITTED=false; renderID(); }
+async function forgetID(){ await idbDel(); localStorage.removeItem(LEGACY); }
+
+async function signEnvelope(id,payload){
+  const r=await fetch('/v1/auth/challenge',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({for_lct_id:id.lct_id})});
+  if(!r.ok)throw new Error('challenge '+r.status);
+  const n=(await r.json()).nonce;
+  const msg=new Uint8Array([...enc.encode(n),...enc.encode(canon(payload))]);
+  const sig=await crypto.subtle.sign('Ed25519',id.priv,msg);
+  return {signer_lct_id:id.lct_id,challenge_nonce:n,payload,signature:hex(sig)};
+}
+"##;
+
+const CLIENT_JS: &str = r##"'use strict';
+const $=s=>document.querySelector(s);
+let HUBID=null, HUBNAME='Hub', ID=null, ADMITTED=false;
+
+async function genID(){
+  try{ ID=await newID(); renderID(); }
+  catch(e){ $('#idbody').innerHTML='<span class="err">'+(e.message==='NO_ED25519'
+    ?'This browser lacks WebCrypto Ed25519. Use current Edge, Chrome, Firefox, or Safari.'
+    :'This browser would not store the key: '+esc(e.message))+'</span>'; }
+}
+async function forget(){ await forgetID(); ID=null; ADMITTED=false; renderID(); }
+const envelope=payload=>signEnvelope(ID,payload);
+
 function renderID(){
   if(!ID){ $('#idbody').innerHTML='<button data-act="gen">Generate identity</button>';
     $('#joincard').classList.add('hidden'); return; }
@@ -8457,18 +8531,6 @@ function renderID(){
   $('#joincard').classList.remove('hidden');
 }
 
-async function nonce(){
-  const r=await fetch('/v1/auth/challenge',{method:'POST',headers:{'content-type':'application/json'},
-    body:JSON.stringify({for_lct_id:ID.lct_id})});
-  if(!r.ok)throw new Error('challenge '+r.status);
-  return (await r.json()).nonce;
-}
-async function envelope(payload){
-  const n=await nonce();
-  const msg=new Uint8Array([...enc.encode(n),...enc.encode(canon(payload))]);
-  const sig=await crypto.subtle.sign('Ed25519',ID.priv,msg);
-  return {signer_lct_id:ID.lct_id,challenge_nonce:n,payload,signature:hex(sig)};
-}
 function show(sel,cls,msg){ const e=$(sel); e.className='st '+cls; e.textContent=msg; }
 
 async function doJoin(){

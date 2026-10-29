@@ -305,7 +305,23 @@ K5 adds four things.
 **Order of work:**
 - **K5a: `/client` and CSP.** On first load, `/client` imports its stored JWK once as a non-extractable `CryptoKey` into IndexedDB, then deletes the `localStorage` entry. The key and the LCT stay the same, so no identity is orphaned. The same PR adds the strict CSP to the key-holding pages.
 - **K5b: invite, join, `ContactBound`, `InviteRevoked`, the admission notice.**
+- **K5b2: commitments follow the binding.** A commitment that names the contact reads its role for the member: role checks, nudge targets and acknowledgements. Split from K5b so each PR stays reviewable.
 - **K5c: `/me`.**
+
+**K5b as built.**
+- **The invite** is `<party_id>.<nonce>.<expires>.<MAC>` under `web4-hub invite v1`, with the K4 key file. A movement link has the same number of fields, so only the label tells them apart, and a test holds that each is unreadable as the other. The nonce makes every invite distinct: one minted in the same second as a withdrawn one is not the dead one.
+- **Operator plane:**
+  - `POST /admin/api/contacts/:party_id/invite` returns the link, its digest and its expiry. It needs `HUB_PUBLIC_BASE_URL` and a contact in the book who is not already a member.
+  - `POST /admin/api/invites/:digest/revoke` withdraws an unused invite.
+  - `GET /admin/api/invites` is the admission notice: who joined from which invite, newest first, plus what was withdrawn.
+- **The page.** `GET /j/:token` says "Join <hub>". It sends `KEY_PAGE_CSP`, `no-store` and `no-referrer`, and writes nothing. Its script `/join.js` shares `/keystore.js` with `/client`, so a browser that already holds an identity joins with it. It shows the webview hint, and it sends **no name**, because `MemberAdded` is on the ledger (C3).
+- **The join route.** `POST /members/join` takes an optional `invite`. The route verifies its MAC and date. Then, holding `COMMITMENT_LOCK` until the binding is witnessed, it checks:
+  - the invite is neither used nor withdrawn;
+  - its contact is not yet bound;
+  - its contact is still in the book, because an erased contact's invite dies with the details.
+
+  Law then sees `r6.resource.invite == "verified"` (HUB-LAW.md, "An operator's invite is evidence"). If law admits, `ContactBound { party_id, member_lct_id, invite_digest, bound_by }` follows `MemberAdded`, and the contact's address is copied to the member's entry, so nudges keep reaching the same person. If law queues the join, nothing is bound: once the operator admits the member, opening the invite again binds it. Opening it again from the same browser after binding writes nothing.
+- **Open:** the admission notice is a listing the operator reads, not a message the carrier sends. Pushing it to the operator needs an operator address, which the hub doesn't hold yet.
 
 **Questions asked, and answered (Legion, #959, 10-29 20:17Z):**
 - (a) **Does an invite admit on its own?** Yes, because an invite is no more trust than the K4 link the contact already holds. It holds only with the five conditions in (1): atomic once, MAC verified, 7-day life, revocation, and the operator told.

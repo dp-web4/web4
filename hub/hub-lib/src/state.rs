@@ -438,6 +438,10 @@ pub struct RoleOccupancyChange {
     /// writer is told what resolved it). Folded by [`crate::commitments::fold`].
     pub commitments: BTreeMap<String, crate::commitments::Commitment>,
 
+    /// Commitments K5b: which invites have been used or withdrawn, and which contact became which
+    /// member. Folded by [`crate::commitments::Invites::fold`].
+    pub invites: crate::commitments::Invites,
+
     /// The LCT registry: published presence, keyed by canonical (pubkey-derived)
     /// `lct_id`. Folded from `LctPublished`, which ingest has already verified —
     /// an entry here means binding + id-derivation checked out at the door, so
@@ -1624,6 +1628,7 @@ impl HubState {
             | HubEvent::NudgeDelivered { .. } => {
                 crate::commitments::fold(&mut self.commitments, event, ts, index);
             }
+            HubEvent::ContactBound { .. } | HubEvent::InviteRevoked { .. } => self.invites.fold(event),
             // Member-of routing (PRD_MEMBER_OF_ROUTING). Ids arrive as strings, already validated
             // at intake; one that is not canonical is not routable and is not projected (same
             // stance as the LctPublished arm below).

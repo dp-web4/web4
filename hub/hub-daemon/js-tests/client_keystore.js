@@ -1,5 +1,5 @@
 // /client's key store, run in node: real WebCrypto, a minimal in-memory IndexedDB.
-// Usage: node client_keystore.js <a file holding CLIENT_JS>. Run by the daemon test
+// Usage: node client_keystore.js <a file holding KEYSTORE_JS then CLIENT_JS>. Run by the daemon test
 // the_client_moves_an_old_key_once_and_keeps_every_key_non_extractable.
 'use strict';
 const fs = require('fs'), vm = require('vm');
