@@ -11,6 +11,12 @@ description = "Web4 Community Hub — single-binary daemon (society + MCP server
 name = "hub"
 path = "src/main.rs"
 
+# The commitments carrier (K3b): a separate process that reads the hub's due nudges, sends them
+# through the operator's mail server and reports each attempt. The hub itself never sends mail.
+[[bin]]
+name = "hub-nudge"
+path = "src/bin/hub-nudge.rs"
+
 [dependencies]
 zeroize = "1"
 hub-lib = { package = "web4-hub-lib", path = "../hub-lib", version = "=0.1.0-alpha.0" }
