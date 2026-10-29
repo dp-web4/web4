@@ -6,14 +6,16 @@
 //! - `POST /admin/api/commitments` opens one; `/:id/move`, `/:id/acknowledge` and `/:id/resolve`
 //!   record what the operator was told; `GET /admin/api/commitments` lists them by queue.
 //! - `/admin/api/contacts` is the contact book (C3): names and addresses held off the ledger,
-//!   erasable.
+//!   erasable. `/admin/api/contacts/members/:lct_id` holds a member's address there too (K3).
+//! - K3: `GET /admin/api/commitments/nudges` is what the off-hub carrier should send, and
+//!   `POST /admin/api/commitments/nudges/delivered` is its report of each attempt (C4).
 //!
 //! Every route is operator-plane only (loopback). Every write runs its checks and its witness
 //! under [`COMMITMENT_LOCK`], so two writers cannot both pass a check only one of them may: the
 //! loser of a resolution race is answered with what won (§4.1). K2's sweep takes the same lock.
 use super::*;
 use hub_lib::commitments::{
-    self, AckVia, Commitment, Contact, ContactBook, MoveKind, Outcome, PartyKind, PartyRef, Refusal,
+    self, AckVia, Commitment, Contact, ContactBook, MemberAddress, MoveKind, Outcome, PartyKind, PartyRef, Refusal,
 };
 
 /// Serialises every commitment write and every contact-book write.
@@ -81,20 +83,24 @@ fn check_actor(s: &RestState, state: &HubState, c: &Commitment, by: &str, operat
                 "record an update or a stuck in the name of whoever moved: the owner, the backup, or a lead".to_string()))
         };
     }
-    let lead = Uuid::parse_str(&c.leads_role).ok().map_or(false, |role| {
-        Uuid::parse_str(by).map_or(false, |who| {
-            state.roles.values().any(|r| {
-                !r.retired && r.occupant == Some(who)
-                    && (r.role_lct_id == role || r.parent_role_lct_id == Some(role))
-            })
-        })
-    });
-    if lead {
+    if leads_of(state, c).iter().any(|l| l == by) {
         Ok(())
     } else {
         Err(ApiError::bad_request(format!(
             "{by} is not the owner, the backup, a lead, or the operator of {}", c.commitment_id)))
     }
+}
+
+/// The members who hold the leads role, or a seat within it.
+pub(crate) fn leads_of(state: &HubState, c: &Commitment) -> Vec<String> {
+    let Ok(role) = Uuid::parse_str(&c.leads_role) else { return Vec::new() };
+    let mut leads: Vec<String> = state.roles.values()
+        .filter(|r| !r.retired && (r.role_lct_id == role || r.parent_role_lct_id == Some(role)))
+        .filter_map(|r| r.occupant.map(|o| o.to_string()))
+        .collect();
+    leads.sort();
+    leads.dedup();
+    leads
 }
 
 /// Run the projection checks, then witness, both under [`COMMITMENT_LOCK`] (the caller holds it).
@@ -385,14 +391,7 @@ fn check_contact(body: &ContactBody) -> Result<(String, String), ApiError> {
         return Err(ApiError::bad_request(format!(
             "name is required, at most {MAX_CONTACT_NAME_LEN} characters, no control characters")));
     }
-    let address = body.address.trim();
-    let shaped = address.len() <= MAX_ADDRESS_LEN
-        && !address.chars().any(|c| c.is_whitespace() || c.is_control())
-        && address.split_once('@').map_or(false, |(l, d)| !l.is_empty() && d.contains('.'));
-    if !shaped {
-        return Err(ApiError::bad_request("address must be an email address".to_string()));
-    }
-    Ok((name.to_string(), address.to_string()))
+    Ok((name.to_string(), check_address(&body.address)?))
 }
 
 /// `POST /admin/api/contacts` — add a person with no key yet. Off the ledger (C3).
@@ -464,6 +463,191 @@ async fn erase_contact(s: &RestState, party_id: &str) -> Result<serde_json::Valu
         .filter(|c| c.is_open() && (c.owner.party_id == party_id || c.backup.party_id == party_id))
         .map(|c| c.commitment_id.as_str()).collect();
     Ok(serde_json::json!({ "erased": true, "open_commitments_still_naming": still_named }))
+}
+
+#[derive(Deserialize)]
+pub(super) struct MemberAddressBody {
+    address: String,
+}
+
+fn check_address(address: &str) -> Result<String, ApiError> {
+    let address = address.trim();
+    let shaped = address.len() <= MAX_ADDRESS_LEN
+        && !address.chars().any(|c| c.is_whitespace() || c.is_control())
+        && address.split_once('@').map_or(false, |(l, d)| !l.is_empty() && d.contains('.'));
+    if shaped {
+        Ok(address.to_string())
+    } else {
+        Err(ApiError::bad_request("address must be an email address".to_string()))
+    }
+}
+
+/// `POST /admin/api/contacts/members/:lct_id` — where to reach a member (K3). Members are named on
+/// the ledger by LCT id and had no delivery address anywhere; this holds one off the ledger (C3).
+///
+/// surface: admin_member_address_set   act: hold a member's address for delivery
+/// S: low/reversible [construct: an erasable file entry; nothing is witnessed]
+/// R: pass [construct: require_loopback]   W: pass [construct: operator plane only]
+/// O: pass [construct: COMMITMENT_LOCK around read-modify-write; the member must be on the roster]
+/// A: n/a [construct: deliberately unwitnessed — PII stays off the ledger]
+/// V: n/a (erasable)
+/// verdict: PASS
+pub(super) async fn admin_member_address_set(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(lct_id): Path<String>,
+    Json(body): Json<MemberAddressBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    set_member_address(&s, &lct_id, body).await.map(Json)
+}
+
+async fn set_member_address(s: &RestState, lct_id: &str, body: MemberAddressBody) -> Result<serde_json::Value, ApiError> {
+    let address = check_address(&body.address)?;
+    let _serial = COMMITMENT_LOCK.lock().await;
+    let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    let member = Uuid::parse_str(lct_id).ok().filter(|u| state.members.contains_key(u))
+        .ok_or_else(|| ApiError::not_found(format!("no member {lct_id}")))?;
+    let mut book = load_book(s)?;
+    book.members.insert(member.to_string(), MemberAddress { address, added_at: Utc::now() });
+    book.save(&book_path(s)).map_err(ApiError::internal)?;
+    Ok(serde_json::json!({ "set": true, "member": member }))
+}
+
+/// `POST /admin/api/contacts/members/:lct_id/erase` — forget where to reach a member.
+///
+/// surface: admin_member_address_erase   act: erase a member's delivery address
+/// S: low/irreversible [construct: the address is gone; the member and the ledger are untouched]
+/// R: pass [construct: require_loopback]   W: pass [construct: operator plane only]
+/// O: pass [construct: COMMITMENT_LOCK around read-modify-write]
+/// A: n/a [construct: deliberately unwitnessed — PII stays off the ledger]
+/// V: n/a [construct: erasure on request is the point]
+/// verdict: PASS
+pub(super) async fn admin_member_address_erase(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Path(lct_id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let _serial = COMMITMENT_LOCK.lock().await;
+    let mut book = load_book(&s)?;
+    if book.members.remove(&lct_id).is_none() {
+        return Err(ApiError::not_found(format!("no address held for member {lct_id}")));
+    }
+    book.save(&book_path(&s)).map_err(ApiError::internal)?;
+    Ok(Json(serde_json::json!({ "erased": true })))
+}
+
+/// Every nudge owed now, sendable or held. The carrier sends the rows with `held: null`; the
+/// others are for the operator's eyes: `no_address` (nobody can reach this party yet) or `capped`
+/// (this party has had [`commitments::NUDGE_CAP_PER_DAY`] attempts in the last day).
+pub(crate) fn due_nudges(state: &HubState, book: &ContactBook, now: DateTime<Utc>) -> Vec<serde_json::Value> {
+    let since = now - chrono::Duration::hours(24);
+    let mut budget: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    let mut rows = Vec::new();
+    let name = |p: &PartyRef| party_view(state, book, p)["name"].as_str()
+        .map(str::to_string).unwrap_or_else(|| "someone".to_string());
+    for c in open_by_queue(state) {
+        for t in c.nudge_targets(&leads_of(state, c)) {
+            if c.delivered(t.about_index, &t.party.party_id) {
+                continue;
+            }
+            let address = book.address_of(&t.party);
+            let left = budget.entry(t.party.party_id.clone()).or_insert_with(|| {
+                commitments::NUDGE_CAP_PER_DAY
+                    .saturating_sub(commitments::nudge_attempts_since(&state.commitments, &t.party.party_id, since))
+            });
+            let held = if address.is_none() {
+                Some("no_address")
+            } else if *left == 0 {
+                Some("capped")
+            } else {
+                *left -= 1;
+                None
+            };
+            let (subject, body) = c.nudge_message(&t, &name);
+            rows.push(serde_json::json!({
+                "commitment_id": c.commitment_id,
+                "about_index": t.about_index,
+                "about": t.about,
+                "party": party_view(state, book, &t.party),
+                "address": address,
+                "held": held,
+                "subject": subject,
+                "body": body,
+            }));
+        }
+    }
+    rows
+}
+
+/// `GET /admin/api/commitments/nudges` — what the carrier should send now (K3). The hub decides
+/// what is owed, the cap and the wording; the carrier only delivers and reports.
+pub(super) async fn admin_nudges_due(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    let book = load_book(&s)?;
+    let rows = due_nudges(&state, &book, Utc::now());
+    Ok(Json(serde_json::json!({ "cap_per_day": commitments::NUDGE_CAP_PER_DAY, "nudges": rows })))
+}
+
+#[derive(Deserialize)]
+pub(super) struct DeliveredBody {
+    commitment_id: String,
+    about_index: u64,
+    party_id: String,
+    channel: String,
+    ok: bool,
+}
+
+/// `POST /admin/api/commitments/nudges/delivered` — the carrier's report of one attempt.
+///
+/// surface: admin_nudge_delivered   act: record that a nudge was sent, or failed
+/// S: low/reversible [construct: a delivery record; it moves no queue and records no outcome]
+/// R: pass [construct: require_loopback on the operator listener]   W: pass [construct: operator plane; the carrier runs as the operator]
+/// O: pass [construct: COMMITMENT_LOCK; entry, party and channel checked before witness_event]
+/// A: pass [construct: NudgeDelivered carries the entry it was about and the outcome]
+/// V: n/a (reversible)
+/// verdict: PASS
+pub(super) async fn admin_nudge_delivered(
+    State(s): State<RestState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    Json(body): Json<DeliveredBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    record_delivery(&s, body).await.map(Json)
+}
+
+async fn record_delivery(s: &RestState, body: DeliveredBody) -> Result<serde_json::Value, ApiError> {
+    let _serial = COMMITMENT_LOCK.lock().await;
+    let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    let c = state.commitments.get(&body.commitment_id)
+        .ok_or_else(|| refused(Refusal::Unknown(body.commitment_id.clone())))?;
+    // The party must be one this commitment could have nudged. Not "is owed now": the queue may
+    // have moved between the send and this report, and the send still happened.
+    let party_of_it = body.party_id == c.owner.party_id || body.party_id == c.backup.party_id
+        || leads_of(&state, c).iter().any(|l| l == &body.party_id);
+    if !party_of_it {
+        return Err(ApiError::bad_request(format!(
+            "{} is not the owner, the backup or a lead of {}", body.party_id, body.commitment_id)));
+    }
+    if body.ok && c.delivered(body.about_index, &body.party_id) {
+        return Err(ApiError {
+            status: StatusCode::CONFLICT,
+            message: format!("already delivered: entry {} to {}", body.about_index, body.party_id),
+        });
+    }
+    let index = checked_witness(s, HubEvent::NudgeDelivered {
+        commitment_id: body.commitment_id,
+        about_index: body.about_index,
+        party_id: body.party_id,
+        channel: body.channel,
+        ok: body.ok,
+    }).await?;
+    Ok(serde_json::json!({ "recorded": true, "index": index }))
 }
 
 /// How often the sweep runs. Silence boundaries are accurate to ±1 interval (PRD §4).
@@ -911,5 +1095,129 @@ mod tests {
         drop(held);
         task.await.unwrap().unwrap();
         assert_eq!(s.ledger.lock().await.len(), before + 1);
+    }
+
+    async fn nudges(s: &RestState) -> Vec<serde_json::Value> {
+        let state = { let l = s.ledger.lock().await; s.projected(&l) };
+        due_nudges(&state, &load_book(s).unwrap(), Utc::now())
+    }
+
+    fn row<'a>(rows: &'a [serde_json::Value], party: Uuid) -> &'a serde_json::Value {
+        rows.iter().find(|r| r["party"]["party_id"] == party.to_string()).expect("a row for the party")
+    }
+
+    async fn address(s: &RestState, who: Uuid, addr: &str) {
+        set_member_address(s, &who.to_string(), MemberAddressBody { address: addr.into() }).await.unwrap();
+    }
+
+    fn report(id: &str, about_index: u64, party: Uuid, ok: bool) -> DeliveredBody {
+        DeliveredBody { commitment_id: id.into(), about_index, party_id: party.to_string(), channel: "email".into(), ok }
+    }
+
+    #[tokio::test]
+    async fn the_carrier_is_told_what_is_owed_and_its_report_closes_it() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let opened = current(&s, &id).await.opened_index;
+
+        // Members have no address until the operator gives one: owed, but held.
+        let rows = nudges(&s).await;
+        assert_eq!(rows.len(), 2);
+        assert!(rows.iter().all(|r| r["held"] == "no_address" && r["address"].is_null()), "{rows:?}");
+
+        address(&s, alex, "alex@example.org").await;
+        address(&s, sam, "sam@example.org").await;
+        let rows = nudges(&s).await;
+        let a = row(&rows, alex);
+        assert!(a["held"].is_null() && a["address"] == "alex@example.org", "{a}");
+        assert_eq!(a["subject"], "Venue AV: you're named as the owner");
+        assert_eq!(row(&rows, sam)["body"], "Alex owns Venue AV. You're the backup: if it goes quiet, it comes to you.");
+
+        // C3: the ledger never sees an address, before or after the carrier reports.
+        record_delivery(&s, report(&id, opened, alex, true)).await.unwrap();
+        let dup = record_delivery(&s, report(&id, opened, alex, true)).await.unwrap_err();
+        assert_eq!(dup.status, StatusCode::CONFLICT, "one successful send per party per entry");
+        {
+            let l = s.ledger.lock().await;
+            let all = serde_json::to_string(l.entries()).unwrap();
+            assert!(!all.contains("@example.org"), "an address reached the ledger");
+        }
+        let rows = nudges(&s).await;
+        assert_eq!(rows.len(), 1, "alex's is delivered: {rows:?}");
+        assert_eq!(rows[0]["party"]["party_id"], sam.to_string());
+
+        // Silence moves it to the backup: the opening is superseded, and the wording is C2's.
+        let t0 = current(&s, &id).await.queue_since;
+        sweep_once(&s, t0 + chrono::Duration::hours(49)).await.unwrap();
+        let esc = current(&s, &id).await.escalations[0].index;
+        let rows = nudges(&s).await;
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        assert_eq!((rows[0]["about_index"].as_u64(), rows[0]["party"]["party_id"].as_str()),
+            (Some(esc), Some(sam.to_string().as_str())));
+        assert_eq!(rows[0]["body"], "Venue AV. Not yet acknowledged by Alex. You're the backup, so it's with you now.");
+    }
+
+    #[tokio::test]
+    async fn the_cap_holds_a_party_after_three_attempts_and_failures_count() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        address(&s, alex, "alex@example.org").await;
+        address(&s, sam, "sam@example.org").await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let opened = current(&s, &id).await.opened_index;
+        for _ in 0..commitments::NUDGE_CAP_PER_DAY {
+            record_delivery(&s, report(&id, opened, sam, false)).await.unwrap();
+        }
+        let rows = nudges(&s).await;
+        assert_eq!(row(&rows, sam)["held"], "capped", "a bad address must not be retried without end");
+        assert!(row(&rows, alex)["held"].is_null(), "the cap is per party");
+
+        // One listing never offers a party more than its remaining budget across commitments.
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        address(&s, alex, "alex@example.org").await;
+        address(&s, sam, "sam@example.org").await;
+        for _ in 0..4 {
+            open(&s, member(alex), member(sam), role).await.unwrap();
+        }
+        let rows = nudges(&s).await;
+        let sendable = rows.iter().filter(|r| r["party"]["party_id"] == sam.to_string() && r["held"].is_null()).count();
+        assert_eq!(sendable, commitments::NUDGE_CAP_PER_DAY);
+    }
+
+    #[tokio::test]
+    async fn the_leads_hear_when_it_reaches_them_and_an_erased_address_holds_it() {
+        let (_tmp, s, alex, sam, lee, role) = chapter().await;
+        address(&s, lee, "lee@example.org").await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let t0 = current(&s, &id).await.queue_since;
+        sweep_once(&s, t0 + chrono::Duration::hours(73)).await.unwrap();
+        let rows = nudges(&s).await;
+        assert_eq!(rows.len(), 1, "only the latest step is owed: {rows:?}");
+        let r = row(&rows, lee);
+        assert!(r["held"].is_null(), "{r}");
+        assert_eq!(r["body"], "Venue AV. Not yet acknowledged by Sam. It has reached the leads.");
+
+        admin_member_address_erase(State(s.clone()), ConnectInfo("127.0.0.1:1".parse().unwrap()),
+            Path(lee.to_string())).await.unwrap();
+        assert_eq!(row(&nudges(&s).await, lee)["held"], "no_address");
+    }
+
+    #[tokio::test]
+    async fn a_delivery_report_names_a_party_of_the_commitment_and_a_means() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let opened = current(&s, &id).await.opened_index;
+        let before = s.ledger.lock().await.len();
+        assert_eq!(record_delivery(&s, report(&id, opened, Uuid::new_v4(), true)).await.unwrap_err().status,
+            StatusCode::BAD_REQUEST);
+        let mut addr = report(&id, opened, sam, true);
+        addr.channel = "sam@example.org".into();
+        assert_eq!(record_delivery(&s, addr).await.unwrap_err().status, StatusCode::BAD_REQUEST);
+        assert_eq!(record_delivery(&s, report(&id, opened + 1000, sam, true)).await.unwrap_err().status,
+            StatusCode::BAD_REQUEST);
+        assert_eq!(record_delivery(&s, report("nope", opened, sam, true)).await.unwrap_err().status,
+            StatusCode::NOT_FOUND);
+        assert_eq!(s.ledger.lock().await.len(), before, "a refused report witnesses nothing");
+        assert_eq!(set_member_address(&s, &Uuid::new_v4().to_string(),
+            MemberAddressBody { address: "x@example.org".into() }).await.unwrap_err().status, StatusCode::NOT_FOUND);
     }
 }

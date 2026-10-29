@@ -1065,6 +1065,18 @@ pub enum HubEvent {
         owner_acknowledged: bool,
     },
 
+    /// Commitments, K3: the off-hub carrier's report of one nudge attempt (C4). `about_index` is
+    /// the ledger index of the entry the nudge was about: the `CommitmentOpened` ("you've been
+    /// named") or a `CommitmentEscalated`. `ok: false` is a failed send, recorded so it is never
+    /// silent. No address reaches the ledger (C3): `channel` names the means ("email"), not where.
+    NudgeDelivered {
+        commitment_id: String,
+        about_index: u64,
+        party_id: String,
+        channel: String,
+        ok: bool,
+    },
+
     /// A society published one of its LCTs upward so the hub registry can serve
     /// its presence. Publication is itself a witnessed act (the ledger entry IS
     /// the witness — canon genesis step 7); the registry is a projection over
@@ -1230,6 +1242,7 @@ impl HubEvent {
         "router_registered",
         "router_retired",
         "member_skill_declared",
+        "nudge_delivered",
         "obligation_opened",
         "obligation_resolved",
         "pair_message_posted",
@@ -1306,6 +1319,7 @@ impl HubEvent {
             Self::CommitmentMoved { .. } => "commitment_moved",
             Self::CommitmentEscalated { .. } => "commitment_escalated",
             Self::CommitmentResolved { .. } => "commitment_resolved",
+            Self::NudgeDelivered { .. } => "nudge_delivered",
             Self::LctPublished { .. } => "lct_published",
             Self::LctRotated { .. } => "lct_rotated",
             Self::LctPredecessorAttested { .. } => "lct_predecessor_attested",

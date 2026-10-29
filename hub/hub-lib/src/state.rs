@@ -1620,7 +1620,8 @@ impl HubState {
             | HubEvent::CommitmentAcknowledged { .. }
             | HubEvent::CommitmentMoved { .. }
             | HubEvent::CommitmentEscalated { .. }
-            | HubEvent::CommitmentResolved { .. } => {
+            | HubEvent::CommitmentResolved { .. }
+            | HubEvent::NudgeDelivered { .. } => {
                 crate::commitments::fold(&mut self.commitments, event, ts, index);
             }
             // Member-of routing (PRD_MEMBER_OF_ROUTING). Ids arrive as strings, already validated

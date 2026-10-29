@@ -7751,6 +7751,10 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/commitments/:commitment_id/resolve", post(commitments::admin_commitment_resolve))
         .route("/admin/api/contacts", get(commitments::admin_contacts_list).post(commitments::admin_contact_add))
         .route("/admin/api/contacts/:party_id/erase", post(commitments::admin_contact_erase))
+        .route("/admin/api/commitments/nudges", get(commitments::admin_nudges_due))
+        .route("/admin/api/commitments/nudges/delivered", post(commitments::admin_nudge_delivered))
+        .route("/admin/api/contacts/members/:lct_id", post(commitments::admin_member_address_set))
+        .route("/admin/api/contacts/members/:lct_id/erase", post(commitments::admin_member_address_erase))
         .with_state(state)
 }
 

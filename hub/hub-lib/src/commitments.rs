@@ -131,12 +131,29 @@ pub const MAX_LADDER_STEPS: usize = 3;
 pub const MAX_WINDOW_HOURS: u32 = 24 * 30;
 /// `title` is the one free-text field on the ledger; it names the job ("Venue AV"), nothing more.
 pub const MAX_TITLE_LEN: usize = 80;
+pub const MAX_CHANNEL_LEN: usize = 32;
+/// Nudge attempts any one party gets in a rolling day, across every commitment (PRD §6). Counted
+/// from the ledger, so a carrier restart cannot reset it.
+pub const NUDGE_CAP_PER_DAY: usize = 3;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Escalation {
     pub step: EscalationStep,
     pub cause: EscalationCause,
+    /// The window that ran out, for a silence escalation. The nudge says how long.
+    pub window_hours: Option<u32>,
     pub index: u64,
+}
+
+/// One nudge attempt the carrier reported (K3). Kept on resolved commitments too: a send that
+/// raced a resolution still happened.
+#[derive(Clone, Debug, Serialize)]
+pub struct Delivery {
+    pub about_index: u64,
+    pub party_id: String,
+    pub channel: String,
+    pub ok: bool,
+    pub at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -172,6 +189,7 @@ pub struct Commitment {
     pub queue_since: DateTime<Utc>,
     pub escalations: Vec<Escalation>,
     pub resolved: Option<Resolution>,
+    pub deliveries: Vec<Delivery>,
 }
 
 impl Commitment {
@@ -213,7 +231,8 @@ fn commitment_id(event: &HubEvent) -> Option<&str> {
         | HubEvent::CommitmentAcknowledged { commitment_id, .. }
         | HubEvent::CommitmentMoved { commitment_id, .. }
         | HubEvent::CommitmentEscalated { commitment_id, .. }
-        | HubEvent::CommitmentResolved { commitment_id, .. } => Some(commitment_id),
+        | HubEvent::CommitmentResolved { commitment_id, .. }
+        | HubEvent::NudgeDelivered { commitment_id, .. } => Some(commitment_id),
         _ => None,
     }
 }
@@ -277,6 +296,20 @@ pub fn check(commitments: &BTreeMap<String, Commitment>, event: &HubEvent) -> Re
         return Ok(());
     }
     let c = commitments.get(id).ok_or_else(|| Refusal::Unknown(id.to_string()))?;
+    // A delivery report is checked before the resolved arm: a nudge sent just before a
+    // resolution was still sent, and the record says so.
+    if let HubEvent::NudgeDelivered { about_index, channel, .. } = event {
+        if *about_index != c.opened_index && !c.escalations.iter().any(|e| e.index == *about_index) {
+            return Err(Refusal::Invalid(format!(
+                "entry {about_index} is neither the opening nor an escalation of {id}")));
+        }
+        if channel.is_empty() || channel.len() > MAX_CHANNEL_LEN
+            || !channel.chars().all(|ch| ch.is_ascii_lowercase() || ch == '-') {
+            return Err(Refusal::Invalid(format!(
+                "channel names the means (\"email\"): 1 to {MAX_CHANNEL_LEN} of a-z and -, never an address")));
+        }
+        return Ok(());
+    }
     if let Some(r) = &c.resolved {
         return Err(Refusal::AlreadyResolved { commitment_id: id.to_string(), outcome: r.outcome, at: r.at });
     }
@@ -338,6 +371,7 @@ pub fn fold(commitments: &mut BTreeMap<String, Commitment>, event: &HubEvent, ts
                 queue_since: ts,
                 escalations: Vec::new(),
                 resolved: None,
+                deliveries: Vec::new(),
             });
         }
         HubEvent::CommitmentAcknowledged { commitment_id, party_id, via } => {
@@ -383,11 +417,17 @@ pub fn fold(commitments: &mut BTreeMap<String, Commitment>, event: &HubEvent, ts
             }
             c.queue_since = ts;
         }
-        HubEvent::CommitmentEscalated { commitment_id, step, cause, .. } => {
+        HubEvent::CommitmentEscalated { commitment_id, step, cause, window_hours, .. } => {
             let Some(c) = open_mut(commitments, commitment_id) else { return };
             c.queue = QueuePos::of_step(*step);
             c.queue_since = ts;
-            c.escalations.push(Escalation { step: *step, cause: *cause, index });
+            c.escalations.push(Escalation { step: *step, cause: *cause, window_hours: *window_hours, index });
+        }
+        HubEvent::NudgeDelivered { commitment_id, about_index, party_id, channel, ok } => {
+            let Some(c) = commitments.get_mut(commitment_id) else { return };
+            c.deliveries.push(Delivery {
+                about_index: *about_index, party_id: party_id.clone(), channel: channel.clone(), ok: *ok, at: ts,
+            });
         }
         HubEvent::CommitmentResolved { commitment_id, outcome, by, resolved_at, owner_acknowledged } => {
             let Some(c) = open_mut(commitments, commitment_id) else { return };
@@ -407,6 +447,129 @@ fn open_mut<'a>(commitments: &'a mut BTreeMap<String, Commitment>, id: &str) -> 
     commitments.get_mut(id).filter(|c| c.is_open())
 }
 
+/// What a nudge is about, for its wording.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NudgeAbout {
+    /// "You've been named": the opening, to an owner someone else named.
+    NamedOwner,
+    /// The opening, to the backup.
+    NamedBackup,
+    /// The queue reached this party's position.
+    Escalated,
+}
+
+/// One party who should hear about one ledger entry (K3).
+#[derive(Clone, Debug, Serialize)]
+pub struct NudgeTarget {
+    pub about_index: u64,
+    pub party: PartyRef,
+    pub about: NudgeAbout,
+}
+
+impl Commitment {
+    /// Who should hear about this commitment now. Only the latest entry that moved it counts (the
+    /// opening, or the last escalation), so a nudge the queue has already moved past is never
+    /// sent late. An escalation is owed only while the queue still stands at its step: an owner
+    /// who took it back has answered it. `leads` are the members holding the leads role, which
+    /// only the caller's roster knows.
+    pub fn nudge_targets(&self, leads: &[String]) -> Vec<NudgeTarget> {
+        if !self.is_open() {
+            return Vec::new();
+        }
+        let Some(e) = self.escalations.last() else {
+            let mut t = Vec::new();
+            if self.basis == Basis::NamedByOther {
+                t.push(NudgeTarget { about_index: self.opened_index, party: self.owner.clone(), about: NudgeAbout::NamedOwner });
+            }
+            t.push(NudgeTarget { about_index: self.opened_index, party: self.backup.clone(), about: NudgeAbout::NamedBackup });
+            return t;
+        };
+        if self.queue != QueuePos::of_step(e.step) {
+            return Vec::new();
+        }
+        let parties = match e.step {
+            EscalationStep::Backup => vec![self.backup.clone()],
+            EscalationStep::Leads => leads.iter()
+                .map(|id| PartyRef { party_id: id.clone(), kind: PartyKind::Member }).collect(),
+        };
+        parties.into_iter()
+            .map(|party| NudgeTarget { about_index: e.index, party, about: NudgeAbout::Escalated })
+            .collect()
+    }
+
+    /// Whether a send to this party about this entry has already succeeded.
+    pub fn delivered(&self, about_index: u64, party_id: &str) -> bool {
+        self.deliveries.iter().any(|d| d.ok && d.about_index == about_index && d.party_id == party_id)
+    }
+
+    /// Whether this party's own word is on the ledger: for the owner, [`Self::owner_acknowledged`];
+    /// for anyone else, an acknowledgement that did not come through the operator.
+    fn own_word(&self, party_id: &str) -> bool {
+        if party_id == self.owner.party_id {
+            self.owner_acknowledged()
+        } else {
+            matches!(self.acknowledged.get(party_id), Some(AckVia::MemberAct | AckVia::Link))
+        }
+    }
+
+    /// The nudge's subject and body. Facts only, and C2 in the wording: silence from someone
+    /// whose own acknowledgement is not on the ledger reads "not yet acknowledged by", never
+    /// "quiet", so no "late" lands against a name that never said yes (PRD §6). `name` turns a
+    /// party into what the reader calls them.
+    pub fn nudge_message(&self, target: &NudgeTarget, name: &dyn Fn(&PartyRef) -> String) -> (String, String) {
+        let title = &self.title;
+        match target.about {
+            NudgeAbout::NamedOwner => (
+                format!("{title}: you're named as the owner"),
+                format!("{title} has been put in your name. Your backup is {}.", name(&self.backup)),
+            ),
+            NudgeAbout::NamedBackup => (
+                format!("{title}: you're the backup"),
+                format!("{} owns {title}. You're the backup: if it goes quiet, it comes to you.", name(&self.owner)),
+            ),
+            NudgeAbout::Escalated => {
+                let Some(e) = self.escalations.iter().find(|e| e.index == target.about_index) else {
+                    return (format!("{title}: it's with you now"), format!("{title} has reached you."));
+                };
+                // Who the queue moved on from: the position before this step.
+                let before = match e.step {
+                    EscalationStep::Backup => &self.owner,
+                    EscalationStep::Leads => &self.backup,
+                };
+                let why = match (e.cause, self.own_word(&before.party_id)) {
+                    (EscalationCause::Stuck, _) => format!("{} asked for help.", name(before)),
+                    (EscalationCause::Silence, true) => match e.window_hours {
+                        Some(h) => format!("Quiet from {} for {h}h.", name(before)),
+                        None => format!("Quiet from {}.", name(before)),
+                    },
+                    (EscalationCause::Silence, false) => format!("Not yet acknowledged by {}.", name(before)),
+                };
+                let whose = match e.step {
+                    EscalationStep::Backup => "You're the backup, so it's with you now.",
+                    EscalationStep::Leads => "It has reached the leads.",
+                };
+                (format!("{title}: it's with you now"), format!("{title}. {why} {whose}"))
+            }
+        }
+    }
+}
+
+/// How many nudge attempts, sent or failed, this party has had since `since`, across every
+/// commitment. A failed send counts: a carrier retrying a bad address must not spam a good one.
+pub fn nudge_attempts_since(commitments: &BTreeMap<String, Commitment>, party_id: &str, since: DateTime<Utc>) -> usize {
+    commitments.values().flat_map(|c| &c.deliveries)
+        .filter(|d| d.party_id == party_id && d.at >= since).count()
+}
+
+/// A member's delivery address. A member is named on the ledger by LCT id; where to reach them is
+/// held here, off the ledger, beside the contacts (C3).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemberAddress {
+    pub address: String,
+    pub added_at: DateTime<Utc>,
+}
+
 /// One entry in the operator's contact book.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Contact {
@@ -422,6 +585,19 @@ pub struct Contact {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContactBook {
     pub contacts: BTreeMap<String, Contact>,
+    /// Member LCT id → where to deliver (K3). Members have no address anywhere else.
+    #[serde(default)]
+    pub members: BTreeMap<String, MemberAddress>,
+}
+
+impl ContactBook {
+    /// Where to deliver to a party, if the operator has said.
+    pub fn address_of(&self, p: &PartyRef) -> Option<&str> {
+        match p.kind {
+            PartyKind::Contact => self.contacts.get(&p.party_id).map(|c| c.address.as_str()),
+            PartyKind::Member => self.members.get(&p.party_id).map(|m| m.address.as_str()),
+        }
+    }
 }
 
 impl ContactBook {
@@ -658,5 +834,130 @@ mod tests {
         }
         std::fs::write(&p, b"not json").unwrap();
         assert!(ContactBook::load(&p).is_err(), "a misread book must not read as empty");
+    }
+
+    fn silence(step: EscalationStep, hours: u32) -> HubEvent {
+        HubEvent::CommitmentEscalated {
+            commitment_id: "c".into(), step, cause: EscalationCause::Silence,
+            silent_since: Some(at(0)), window_hours: Some(hours), swept_at: at(48),
+        }
+    }
+
+    fn delivered(about_index: u64, party: &str, channel: &str, ok: bool) -> HubEvent {
+        HubEvent::NudgeDelivered {
+            commitment_id: "c".into(), about_index, party_id: party.into(), channel: channel.into(), ok,
+        }
+    }
+
+    fn name(p: &PartyRef) -> String {
+        match p.party_id.as_str() {
+            "alex" => "Alex".into(),
+            "sam" => "Sam".into(),
+            other => other.into(),
+        }
+    }
+
+    #[test]
+    fn the_opening_nudges_a_named_owner_and_the_backup_and_only_the_latest_entry_counts() {
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        let t = m["c"].nudge_targets(&[]);
+        assert_eq!(t.iter().map(|t| (t.party.party_id.as_str(), t.about)).collect::<Vec<_>>(),
+            vec![("alex", NudgeAbout::NamedOwner), ("sam", NudgeAbout::NamedBackup)]);
+        assert!(t.iter().all(|t| t.about_index == 0));
+
+        apply(&mut m, silence(EscalationStep::Backup, 48), 48);
+        let t = m["c"].nudge_targets(&[]);
+        assert_eq!(t.len(), 1, "the opening is superseded: nobody hears about it late");
+        assert_eq!((t[0].party.party_id.as_str(), t[0].about_index, t[0].about), ("sam", 48, NudgeAbout::Escalated));
+
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link }, 49);
+        assert!(m["c"].nudge_targets(&[]).is_empty(), "the owner took it back; the escalation is answered");
+    }
+
+    #[test]
+    fn a_self_taken_job_does_not_tell_its_owner_they_were_named() {
+        let mut m = BTreeMap::new();
+        let mut ev = opened("c");
+        if let HubEvent::CommitmentOpened { basis, .. } = &mut ev {
+            *basis = Basis::TakenBySelf;
+        }
+        apply(&mut m, ev, 0);
+        let t = m["c"].nudge_targets(&[]);
+        assert_eq!(t.iter().map(|t| t.party.party_id.as_str()).collect::<Vec<_>>(), vec!["sam"]);
+    }
+
+    #[test]
+    fn the_leads_step_nudges_every_lead() {
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, silence(EscalationStep::Backup, 48), 48);
+        apply(&mut m, silence(EscalationStep::Leads, 24), 72);
+        let t = m["c"].nudge_targets(&["lee".into(), "kim".into()]);
+        assert_eq!(t.iter().map(|t| (t.party.party_id.as_str(), t.about_index)).collect::<Vec<_>>(),
+            vec![("lee", 72), ("kim", 72)]);
+    }
+
+    #[test]
+    fn the_wording_never_says_quiet_about_someone_who_never_said_yes() {
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, silence(EscalationStep::Backup, 48), 48);
+        let t = m["c"].nudge_targets(&[]).remove(0);
+        let (_, body) = m["c"].nudge_message(&t, &name);
+        assert!(body.contains("Not yet acknowledged by Alex"), "{body}");
+        assert!(!body.contains("Quiet"), "C2: named is not acknowledged: {body}");
+
+        // The operator relaying Alex's yes is still not Alex's own word.
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Operator }, 1);
+        apply(&mut m, silence(EscalationStep::Backup, 48), 49);
+        let t = m["c"].nudge_targets(&[]).remove(0);
+        assert!(m["c"].nudge_message(&t, &name).1.contains("Not yet acknowledged by Alex"));
+
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link }, 1);
+        apply(&mut m, silence(EscalationStep::Backup, 48), 49);
+        let t = m["c"].nudge_targets(&[]).remove(0);
+        let (subject, body) = m["c"].nudge_message(&t, &name);
+        assert_eq!(subject, "Venue AV: it's with you now");
+        assert_eq!(body, "Venue AV. Quiet from Alex for 48h. You're the backup, so it's with you now.");
+    }
+
+    #[test]
+    fn a_delivery_names_a_real_entry_and_a_means_never_an_address() {
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        assert!(matches!(check(&m, &delivered(7, "sam", "email", true)), Err(Refusal::Invalid(_))),
+            "entry 7 is not this commitment's");
+        assert!(matches!(check(&m, &delivered(0, "sam", "sam@example.org", true)), Err(Refusal::Invalid(_))),
+            "C3: an address is not a channel");
+        apply(&mut m, delivered(0, "sam", "email", false), 1);
+        assert!(!m["c"].delivered(0, "sam"), "a failed send is recorded, not counted as delivered");
+        apply(&mut m, delivered(0, "sam", "email", true), 2);
+        assert!(m["c"].delivered(0, "sam"));
+        assert_eq!(nudge_attempts_since(&m, "sam", at(0)), 2, "failed attempts count toward the cap");
+        assert_eq!(nudge_attempts_since(&m, "sam", at(2)), 1);
+
+        apply(&mut m, HubEvent::CommitmentResolved {
+            commitment_id: "c".into(), outcome: Outcome::Done, by: "alex".into(), resolved_at: at(3),
+            owner_acknowledged: false }, 3);
+        apply(&mut m, delivered(0, "alex", "email", true), 4);
+        assert_eq!(m["c"].deliveries.len(), 3, "a send that raced the resolution is still on the record");
+        assert!(m["c"].nudge_targets(&[]).is_empty(), "nothing is owed on a resolved commitment");
+    }
+
+    #[test]
+    fn a_contact_book_from_before_k3_still_loads() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = ContactBook::path(dir.path());
+        std::fs::write(&p, br#"{"contacts":{}}"#).unwrap();
+        let book = ContactBook::load(&p).expect("a K1 book has no members map");
+        assert!(book.members.is_empty());
     }
 }
