@@ -1723,6 +1723,9 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
     let mut operator_state = rest_state.clone();
     operator_state.operator_plane = true; // this clone serves the write pages → show their nav links
     let operator_gate = rest_state.clone();
+    // Commitments K2: the in-daemon sweep (silence escalations, missed deadlines). It runs only
+    // while unlocked, and catches up from witnessed timestamps after an unlock.
+    crate::rest::commitments::spawn_sweep(rest_state.clone());
     // P0 (public-release): per-IP rate limiting. In-memory; production public hubs
     // should still use an edge/reverse-proxy layer for global limits.
     let rate_limiter = crate::rate_limit::RateLimiter::from_env();

@@ -428,8 +428,11 @@ pub struct RoleOccupancyChange {
 
     /// §5.1 R7 carrier: open accountability obligations, keyed by `request_id`.
     /// An `ObligationOpened` inserts; `ObligationResolved` removes. String-keyed,
-    /// so serialization-safe. The timeout sweep (P2) reads this to debit misses.
+    /// so serialization-safe. The K2 sweep (`rest/commitments.rs`) resolves misses from it.
     pub obligations: BTreeMap<String, Obligation>,
+    /// §4.1: how each resolved obligation ended (`outcome`, `resolved_at`), so a satisfy that loses
+    /// the race to the sweep is answered with what won instead of "unknown obligation".
+    pub obligations_resolved: BTreeMap<String, (String, DateTime<Utc>)>,
 
     /// Commitments K1: every commitment by id, open or resolved (a resolved one stays, so a late
     /// writer is told what resolved it). Folded by [`crate::commitments::fold`].
@@ -1607,8 +1610,11 @@ impl HubState {
                     opened_at: *opened_at,
                 });
             }
-            HubEvent::ObligationResolved { request_id, .. } => {
-                self.obligations.remove(request_id);
+            HubEvent::ObligationResolved { request_id, outcome, resolved_at, .. } => {
+                // First resolution wins, as on the commitments side.
+                if self.obligations.remove(request_id).is_some() {
+                    self.obligations_resolved.insert(request_id.clone(), (outcome.clone(), *resolved_at));
+                }
             }
             HubEvent::CommitmentOpened { .. }
             | HubEvent::CommitmentAcknowledged { .. }
