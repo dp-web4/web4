@@ -2045,8 +2045,12 @@ pub fn router(state: RestState) -> Router {
         // (an HMAC over commitment, party and expiry); reading the page writes nothing.
         .route("/c/:token", get(commitments::link_page))
         .route("/c/:token/:act", post(commitments::link_act))
+        .route("/c.css", get(commitments::link_page_css))
         .route("/discuss", get(discuss_html))
+        // The client's script and style are files of their own so its page can forbid inline ones.
         .route("/client", get(client_html))
+        .route("/client.js", get(client_js))
+        .route("/client.css", get(client_css))
         // the unlock slot (stub-console / passphrase): local-only + rate-limited.
         // Promotes a locked hub → unlocked in place (swaps in the real signer).
         .route("/v1/hubs/:hub_id/unlock", post(unlock))
@@ -8284,6 +8288,13 @@ async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
     ([(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")], body).into_response()
 }
 
+/// Pages that hold a member's key, or a link that acts for a party, run no script but their
+/// own file: no inline script or handler, no inline style, nothing from another origin. The
+/// key is non-extractable, which stops a stray script stealing it; this stops one running here
+/// to sign with it in place.
+pub(crate) const KEY_PAGE_CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self'; \
+    connect-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+
 /// GET /client — an interactive, same-origin hub client. Generates an Ed25519
 /// identity in the browser (WebCrypto), requests to join, and — once the
 /// Sovereign admits it — opens topics and posts. Every write is a SignedEnvelope
@@ -8291,23 +8302,74 @@ async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
 /// CORS) and no external assets, so it works unchanged behind a Tailscale funnel.
 /// No SPA, no build step. The signing preimage matches `canonical_signing_bytes`
 /// exactly: `challenge_nonce ++ serialize_canonical(payload)`.
+/// The key is a non-extractable `CryptoKey` in IndexedDB; a JWK left in `localStorage` by an
+/// older page is moved there once, the same key under the same LCT, and then deleted.
 async fn client_html() -> axum::response::Response {
     use axum::response::IntoResponse;
     (
-        [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        [
+            (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (axum::http::header::CONTENT_SECURITY_POLICY, KEY_PAGE_CSP),
+        ],
         CLIENT_HTML,
     )
         .into_response()
 }
 
+async fn client_js() -> axum::response::Response {
+    use axum::response::IntoResponse;
+    ([(axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8")], CLIENT_JS).into_response()
+}
+
+async fn client_css() -> axum::response::Response {
+    use axum::response::IntoResponse;
+    ([(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")], CLIENT_CSS).into_response()
+}
+
 const CLIENT_HTML: &str = r##"<!doctype html><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Hub Client</title>
-<style>
-:root{color-scheme:light dark}
+<link rel="stylesheet" href="/client.css">
+<h1 id="hubname">Hub Client</h1>
+<p class="m" id="hubinfo">connecting…</p>
+
+<div class="card" id="idcard">
+ <b>Your identity</b>
+ <p class="m">A Web4 identity is an Ed25519 keypair generated here, in your browser. The secret half
+ never leaves this device, and not even this page can read it back; the hub pins only your public
+ half when you join.</p>
+ <div id="idbody"></div>
+</div>
+
+<div class="card hidden" id="joincard">
+ <b>Join this hub</b>
+ <p class="m">Sends a signed join request. Under this hub's law, closed admission means your request is
+ <i>queued for the Sovereign's review</i> — you are admitted only when they approve.</p>
+ <input id="jname" placeholder="display name (optional)">
+ <input id="jmsg" placeholder="note to the Sovereign (optional)">
+ <button data-act="join">Request to join</button>
+ <div class="st" id="jstatus"></div>
+</div>
+
+<h2>Discussion</h2>
+<p class="m">Every topic and post is an entry in this hub's hash-chained ledger, admitted under its
+<a id="lawlink" href="#">published law</a>. Nothing here is asserted — it is recorded, and you can verify it.</p>
+<div class="card">
+ <input id="ntitle" placeholder="new topic title">
+ <button data-act="topic">Open topic</button>
+ <div class="st" id="tstatus"></div>
+</div>
+<div id="topics"><p class="m">loading…</p></div>
+<script src="/client.js"></script>
+"##;
+
+const CLIENT_CSS: &str = r##":root{color-scheme:light dark}
 body{font:16px/1.55 system-ui,sans-serif;max-width:44rem;margin:1.5rem auto;padding:0 1rem}
 h1{margin:.2rem 0}h2{margin-top:1.6rem;border-top:1px solid #8883;padding-top:1rem}
+#topics h3{margin:1.2rem 0 .2rem}
 .m{color:#7a7a7a;font-size:.85em}
+.mt{margin-top:.5rem}
+.hidden{display:none}
 .card{border:1px solid #8884;border-radius:8px;padding:.8rem 1rem;margin:1rem 0}
 .p{border-left:3px solid #8886;padding:.1rem 0 .1rem .7rem;margin:.7rem 0}
 pre{white-space:pre-wrap;margin:.15rem 0;font:inherit}
@@ -8318,42 +8380,13 @@ button{font:inherit;padding:.4rem .9rem;border:1px solid #8888;border-radius:6px
 button:hover{background:#8883}code{word-break:break-all}
 .ok{color:#2a8a3e}.warn{color:#b26a00}.err{color:#c0392b}
 .st{font-size:.85em;margin-top:.4rem;white-space:pre-wrap}
-</style>
-<h1 id="hubname">Hub Client</h1>
-<p class="m" id="hubinfo">connecting…</p>
+"##;
 
-<div class="card" id="idcard">
- <b>Your identity</b>
- <p class="m">A Web4 identity is an Ed25519 keypair generated here, in your browser. The secret half
- never leaves this device; the hub pins only your public half when you join.</p>
- <div id="idbody"></div>
-</div>
-
-<div class="card" id="joincard" style="display:none">
- <b>Join this hub</b>
- <p class="m">Sends a signed join request. Under this hub's law, closed admission means your request is
- <i>queued for the Sovereign's review</i> — you are admitted only when they approve.</p>
- <input id="jname" placeholder="display name (optional)">
- <input id="jmsg" placeholder="note to the Sovereign (optional)">
- <button onclick="doJoin()">Request to join</button>
- <div class="st" id="jstatus"></div>
-</div>
-
-<h2>Discussion</h2>
-<p class="m">Every topic and post is an entry in this hub's hash-chained ledger, admitted under its
-<a id="lawlink" href="#">published law</a>. Nothing here is asserted — it is recorded, and you can verify it.</p>
-<div class="card">
- <input id="ntitle" placeholder="new topic title">
- <button onclick="doTopic()">Open topic</button>
- <div class="st" id="tstatus"></div>
-</div>
-<div id="topics"><p class="m">loading…</p></div>
-
-<script>
+const CLIENT_JS: &str = r##"'use strict';
 const $=s=>document.querySelector(s);
 const enc=new TextEncoder();
 const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
-function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 // Canonical JSON — matches the hub's serialize_canonical: recursive, object keys
 // sorted, compact, standard JSON string escaping.
@@ -8369,30 +8402,59 @@ function canon(v){
 
 let HUBID=null, HUBNAME='Hub', ID=null, ADMITTED=false;
 
+// The identity lives in IndexedDB as a non-extractable CryptoKey: this page can sign with
+// it, but no script, this one included, can read the private half back out.
+const DB='hestia_hub', STORE='identity', SLOT='me', LEGACY='hestia_hub_id';
+function idb(){
+  return new Promise((ok,no)=>{
+    const r=indexedDB.open(DB,1);
+    r.onupgradeneeded=()=>r.result.createObjectStore(STORE);
+    r.onsuccess=()=>ok(r.result); r.onerror=()=>no(r.error);
+  });
+}
+async function idbDo(mode,f){
+  const db=await idb();
+  return new Promise((ok,no)=>{
+    const tx=db.transaction(STORE,mode), r=f(tx.objectStore(STORE));
+    tx.oncomplete=()=>{ db.close(); ok(r.result); };
+    tx.onerror=tx.onabort=()=>{ db.close(); no(tx.error); };
+  });
+}
+const idbGet=()=>idbDo('readonly',s=>s.get(SLOT));
+const idbPut=v=>idbDo('readwrite',s=>s.put(v,SLOT));
+const idbDel=()=>idbDo('readwrite',s=>s.delete(SLOT));
+function persist(){ if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{}); }
+
 async function loadID(){
-  const raw=localStorage.getItem('hestia_hub_id'); if(!raw)return null;
+  const id=await idbGet(); if(id)return id;
+  // One move from the old store, an extractable JWK in localStorage. Same key, same LCT;
+  // the JWK goes only once the non-extractable copy is stored.
+  const raw=localStorage.getItem(LEGACY); if(!raw)return null;
   const o=JSON.parse(raw);
-  const priv=await crypto.subtle.importKey('jwk',o.privJwk,{name:'Ed25519'},true,['sign']);
-  return {lct_id:o.lct_id,pubHex:o.pubHex,priv};
+  const priv=await crypto.subtle.importKey('jwk',o.privJwk,{name:'Ed25519'},false,['sign']);
+  const moved={lct_id:o.lct_id,pubHex:o.pubHex,priv};
+  await idbPut(moved); localStorage.removeItem(LEGACY); persist();
+  return moved;
 }
 async function genID(){
+  let kp;
+  try{ kp=await crypto.subtle.generateKey({name:'Ed25519'},false,['sign','verify']); }
+  catch(e){ $('#idbody').innerHTML='<span class="err">This browser lacks WebCrypto Ed25519. Use current Edge, Chrome, Firefox, or Safari.</span>'; return; }
   try{
-    const kp=await crypto.subtle.generateKey({name:'Ed25519'},true,['sign','verify']);
     const pub=await crypto.subtle.exportKey('raw',kp.publicKey);
-    const privJwk=await crypto.subtle.exportKey('jwk',kp.privateKey);
-    const lct_id=crypto.randomUUID(), pubHex=hex(pub);
-    localStorage.setItem('hestia_hub_id',JSON.stringify({lct_id,pubHex,privJwk}));
-    ID={lct_id,pubHex,priv:kp.privateKey}; renderID();
-  }catch(e){ $('#idbody').innerHTML='<span class="err">This browser lacks WebCrypto Ed25519. Use current Edge, Chrome, or Firefox.</span>'; }
+    const id={lct_id:crypto.randomUUID(),pubHex:hex(pub),priv:kp.privateKey};
+    await idbPut(id); persist();
+    ID=id; renderID();
+  }catch(e){ $('#idbody').innerHTML='<span class="err">This browser would not store the key: '+esc(e.message)+'</span>'; }
 }
-function forget(){ localStorage.removeItem('hestia_hub_id'); ID=null; ADMITTED=false; renderID(); }
+async function forget(){ await idbDel(); localStorage.removeItem(LEGACY); ID=null; ADMITTED=false; renderID(); }
 function renderID(){
-  if(!ID){ $('#idbody').innerHTML='<button onclick="genID()">Generate identity</button>';
-    $('#joincard').style.display='none'; return; }
+  if(!ID){ $('#idbody').innerHTML='<button data-act="gen">Generate identity</button>';
+    $('#joincard').classList.add('hidden'); return; }
   $('#idbody').innerHTML='<p class="m">LCT id</p><code>'+esc(ID.lct_id)+'</code>'+
-   '<p class="m" style="margin-top:.5rem">public key</p><code>'+esc(ID.pubHex)+'</code>'+
-   '<div style="margin-top:.5rem"><button onclick="forget()">Forget / regenerate</button></div>';
-  $('#joincard').style.display='';
+   '<p class="m mt">public key</p><code>'+esc(ID.pubHex)+'</code>'+
+   '<div class="mt"><button data-act="forget">Forget / regenerate</button></div>';
+  $('#joincard').classList.remove('hidden');
 }
 
 async function nonce(){
@@ -8453,23 +8515,30 @@ async function loadTopics(){
     if(!topics||!topics.length){ box.innerHTML='<p class="m"><em>No topics yet. Open the first one.</em></p>'; return; }
     let html='';
     for(const t of topics){
-      const tid=t.topic_id||t.id;
+      const tid=String(t.topic_id||t.id);
       let posts=[];
       try{ const d=await (await fetch('/v1/hubs/'+HUBID+'/topics/'+tid)).json();
         posts=d.posts||(d.topic&&d.topic.posts)||[]; }catch(e){}
-      html+='<h3 style="margin:1.2rem 0 .2rem">'+esc(t.title)+'</h3>';
+      html+='<h3>'+esc(t.title)+'</h3>';
       html+='<p class="m">by '+esc((t.created_by||'').toString().slice(0,8))+'…</p>';
       for(const p of posts){
         html+='<div class="p"><pre>'+esc(p.body)+'</pre><p class="m">'+
-          esc((p.posted_by||'').toString().slice(0,8))+'… · ledger #'+(p.entry_index??'?')+'</p></div>';
+          esc((p.posted_by||'').toString().slice(0,8))+'… · ledger #'+esc(p.entry_index??'?')+'</p></div>';
       }
       const iid='r_'+tid.replace(/[^a-z0-9]/gi,''), sid='s_'+tid.replace(/[^a-z0-9]/gi,'');
-      html+='<input id="'+iid+'" placeholder="reply…"><button onclick="doReply(\''+tid+'\',\''+iid+'\',\''+sid+'\')">Reply</button>'+
-        '<div class="st" id="'+sid+'"></div>';
+      html+='<input id="'+iid+'" placeholder="reply…"><button data-act="reply" data-tid="'+esc(tid)+
+        '" data-iid="'+iid+'" data-sid="'+sid+'">Reply</button><div class="st" id="'+sid+'"></div>';
     }
     box.innerHTML=html;
   }catch(e){ $('#topics').innerHTML='<p class="err">could not load topics: '+esc(e.message)+'</p>'; }
 }
+
+// One listener for every button: the page's policy allows no inline handlers.
+document.addEventListener('click',ev=>{
+  const b=ev.target.closest&&ev.target.closest('button[data-act]'); if(!b)return;
+  const d=b.dataset;
+  ({gen:genID,forget,join:doJoin,topic:doTopic,reply:()=>doReply(d.tid,d.iid,d.sid)}[d.act]||(()=>{}))();
+});
 
 (async function init(){
   try{
@@ -8479,10 +8548,11 @@ async function loadTopics(){
     $('#hubinfo').innerHTML='hub '+esc(HUBID)+' · '+(w.locked?'<span class="warn">locked</span>':'<span class="ok">live</span>')+
       ' · '+(w.law_present?'governed by law':'<span class="warn">no law</span>');
     $('#lawlink').href='/v1/hubs/'+HUBID+'/law';
-    ID=await loadID(); renderID(); loadTopics();
-  }catch(e){ $('#hubinfo').innerHTML='<span class="err">could not reach hub: '+esc(e.message)+'</span>'; }
+  }catch(e){ $('#hubinfo').innerHTML='<span class="err">could not reach hub: '+esc(e.message)+'</span>'; return; }
+  try{ ID=await loadID(); }catch(e){ $('#idbody').innerHTML='<span class="err">could not open this browser\'s key store: '+esc(e.message)+'</span>'; }
+  if(ID||!$('#idbody').textContent)renderID();
+  loadTopics();
 })();
-</script>
 "##;
 
 fn build_r6_request(
