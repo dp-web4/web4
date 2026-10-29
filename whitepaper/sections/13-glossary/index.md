@@ -10,7 +10,7 @@ Compact definitions for every term this paper relies on. The standard's [GLOSSAR
 
 **LCT — Linked Context Token.** Web4's presence primitive: a non-transferable, cryptographically anchored record permanently bound to one entity, accumulating witnessed history over its lifecycle (genesis → active → rotation → void/slashed). Every LCT *contains* six required components — identity, binding, MRH, policy, T3, V3 — so each presence carries its own horizon and tensors. The foundation every other mechanism builds on.
 
-**LCT capability levels.** The six-grade ladder of presence maturity: STUB, MINIMAL, BASIC, STANDARD, FULL, HARDWARE. Levels 0–4 accrete with the record; level 5 (hardware anchor) requires re-issuance, since the anchor must sit inside the binding proof the identifier hashes.
+**LCT capability levels.** The six-grade ladder of presence maturity: STUB, MINIMAL, BASIC, STANDARD, FULL, HARDWARE. Levels 0–4 accrete with the record; level 5 (hardware anchor) requires re-issuance, since the anchor must sit inside the signed binding from creation.
 
 **Device constellation.** A Root LCT plus its Device LCTs, each bound to one hardware anchor and cross-witnessing the others. Trust is capped by anchor composition (single software key 0.40 → three-plus diverse hardware 0.98); recovery follows a quorum of the constellation. Identity as coherence across witnesses.
 
