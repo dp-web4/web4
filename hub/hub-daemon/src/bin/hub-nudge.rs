@@ -97,8 +97,26 @@ enum HubAnswer {
     Nudges(Vec<Nudge>),
     /// 503: the vault is locked and the sweep is not running.
     Locked,
-    /// No answer at all.
+    /// 404: the hub answers but has no nudges route, i.e. it runs a build from before K3a.
+    NoRoute,
+    /// No answer, or an answer that is not a listing.
     Down(String),
+}
+
+/// One send attempt as the hub records it. Kept in [`CarrierState`] when its report could not be
+/// delivered, so the hub's ledger, which the per-party cap is counted from, still learns of it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+struct Attempt {
+    commitment_id: String,
+    about_index: u64,
+    party_id: String,
+    ok: bool,
+}
+
+impl Attempt {
+    fn of(n: &Nudge, ok: bool) -> Self {
+        Self { commitment_id: n.commitment_id.clone(), about_index: n.about_index, party_id: n.party.party_id.clone(), ok }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -112,7 +130,7 @@ enum Report {
 #[async_trait::async_trait]
 trait Hub {
     async fn nudges(&self) -> HubAnswer;
-    async fn report(&self, n: &Nudge, ok: bool) -> Result<Report>;
+    async fn report(&self, a: &Attempt) -> Result<Report>;
 }
 
 #[async_trait::async_trait]
@@ -136,6 +154,9 @@ impl Hub for HttpHub {
         if resp.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE {
             return HubAnswer::Locked;
         }
+        if resp.status() == reqwest::StatusCode::NOT_FOUND {
+            return HubAnswer::NoRoute;
+        }
         if !resp.status().is_success() {
             return HubAnswer::Down(format!("{url} answered {}", resp.status()));
         }
@@ -149,14 +170,14 @@ impl Hub for HttpHub {
         }
     }
 
-    async fn report(&self, n: &Nudge, ok: bool) -> Result<Report> {
+    async fn report(&self, a: &Attempt) -> Result<Report> {
         let url = format!("{}/admin/api/commitments/nudges/delivered", self.base.trim_end_matches('/'));
         let resp = self.http.post(&url).json(&serde_json::json!({
-            "commitment_id": n.commitment_id,
-            "about_index": n.about_index,
-            "party_id": n.party.party_id,
+            "commitment_id": a.commitment_id,
+            "about_index": a.about_index,
+            "party_id": a.party_id,
             "channel": "email",
-            "ok": ok,
+            "ok": a.ok,
         })).send().await.with_context(|| format!("POST {url}"))?;
         let status = resp.status();
         if status.is_success() {
@@ -248,6 +269,10 @@ struct CarrierState {
     unreachable_since: Option<DateTime<Utc>>,
     #[serde(default)]
     last_alert_at: Option<DateTime<Utc>>,
+    /// Attempts whose report did not reach the hub. Re-reported before anything new is sent: an
+    /// unrecorded send is invisible to the cap, so sending on past one could repeat it each pass.
+    #[serde(default)]
+    unreported: Vec<Attempt>,
 }
 
 impl CarrierState {
@@ -273,7 +298,26 @@ struct PassReport {
     failed: u32,
     held: u32,
     report_refused: u32,
+    /// Attempts left in the state file because their report could not be delivered.
+    unreported: u32,
     alerted: bool,
+}
+
+/// Report one attempt. `Ok(true)` when the hub has answered (recorded or refused); `Ok(false)`
+/// when the report did not get through and must be kept.
+async fn deliver_report(hub: &dyn Hub, a: &Attempt, r: &mut PassReport) -> bool {
+    match hub.report(a).await {
+        Ok(Report::Recorded) => true,
+        Ok(Report::Refused(m)) => {
+            tracing::warn!("hub refused the report for {} entry {}: {m}", a.commitment_id, a.about_index);
+            r.report_refused += 1;
+            true
+        }
+        Err(e) => {
+            tracing::warn!("report for {} entry {} did not reach the hub: {e:#}", a.commitment_id, a.about_index);
+            false
+        }
+    }
 }
 
 /// One pass. `state` is updated in place; the caller saves it.
@@ -286,6 +330,17 @@ async fn pass(
         HubAnswer::Nudges(rows) => {
             state.unreachable_since = None;
             state.last_alert_at = None;
+            // Old reports first. If any still cannot get through, send nothing new.
+            let pending = std::mem::take(&mut state.unreported);
+            for a in pending {
+                if dry_run || !deliver_report(hub, &a, &mut r).await {
+                    state.unreported.push(a);
+                }
+            }
+            if !state.unreported.is_empty() {
+                r.unreported = state.unreported.len() as u32;
+                return Ok(r);
+            }
             for n in rows {
                 let (None, Some(address)) = (&n.held, &n.address) else {
                     r.held += 1;
@@ -303,17 +358,19 @@ async fn pass(
                         false
                     }
                 };
-                match hub.report(&n, ok).await? {
-                    Report::Recorded => {}
-                    Report::Refused(m) => {
-                        tracing::warn!("hub refused the report for {} entry {}: {m}", n.commitment_id, n.about_index);
-                        r.report_refused += 1;
-                    }
+                let a = Attempt::of(&n, ok);
+                if !deliver_report(hub, &a, &mut r).await {
+                    // Stop here: the next pass re-reports this before it sends anything else.
+                    state.unreported.push(a);
+                    r.unreported = 1;
+                    return Ok(r);
                 }
             }
             return Ok(r);
         }
         HubAnswer::Locked => "is locked: it answers 503, so silence is not escalating and nobody is being nudged".to_string(),
+        HubAnswer::NoRoute => "answers, but has no commitments nudge route (it may be running a build from before \
+            K3a), so nobody is being nudged".to_string(),
         HubAnswer::Down(e) => format!("is not answering ({e}), so nobody is being nudged"),
     };
     let since = *state.unreachable_since.get_or_insert(now);
@@ -375,11 +432,13 @@ mod tests {
         answer: Mutex<Option<HubAnswer>>,
         reports: Mutex<Vec<(String, bool)>>,
         refuse: bool,
+        broken: std::sync::atomic::AtomicBool,
     }
 
     impl FakeHub {
         fn new(answer: HubAnswer) -> Self {
-            Self { answer: Mutex::new(Some(answer)), reports: Mutex::new(Vec::new()), refuse: false }
+            Self { answer: Mutex::new(Some(answer)), reports: Mutex::new(Vec::new()), refuse: false,
+                broken: std::sync::atomic::AtomicBool::new(false) }
         }
     }
 
@@ -388,8 +447,11 @@ mod tests {
         async fn nudges(&self) -> HubAnswer {
             self.answer.lock().unwrap().take().unwrap_or(HubAnswer::Nudges(Vec::new()))
         }
-        async fn report(&self, n: &Nudge, ok: bool) -> Result<Report> {
-            self.reports.lock().unwrap().push((n.party.party_id.clone(), ok));
+        async fn report(&self, a: &Attempt) -> Result<Report> {
+            if self.broken.load(std::sync::atomic::Ordering::SeqCst) {
+                bail!("POST answered 502 Bad Gateway");
+            }
+            self.reports.lock().unwrap().push((a.party_id.clone(), a.ok));
             Ok(if self.refuse { Report::Refused("400".into()) } else { Report::Recorded })
         }
     }
@@ -438,7 +500,7 @@ mod tests {
         let mail = FakeMail { fail_to: Some("kim@example.org".into()), ..Default::default() };
         let mut state = CarrierState::default();
         let r = run(&hub, &mail, &mut state, 0).await;
-        assert_eq!(r, PassReport { sent: 1, failed: 1, held: 2, report_refused: 0, alerted: false });
+        assert_eq!(r, PassReport { sent: 1, failed: 1, held: 2, report_refused: 0, unreported: 0, alerted: false });
         assert_eq!(*mail.sent.lock().unwrap(), vec![("sam@example.org".to_string(), "Venue AV: you're the backup".to_string())]);
         assert_eq!(*hub.reports.lock().unwrap(), vec![("sam".to_string(), true), ("kim".to_string(), false)],
             "a failed send is reported too, never silent");
@@ -472,6 +534,60 @@ mod tests {
         run(&FakeHub::new(HubAnswer::Nudges(Vec::new())), &mail, &mut state, 31).await;
         assert_eq!(state, CarrierState::default());
         assert!(!run(&FakeHub::new(HubAnswer::Locked), &mail, &mut state, 32).await.alerted);
+    }
+
+    /// Maintainer note 1 on #955: a send whose report is lost is invisible to the cap. The
+    /// carrier keeps it, stops, and sends nothing new until the hub has it.
+    #[tokio::test]
+    async fn a_report_that_cannot_reach_the_hub_is_kept_and_nothing_more_is_sent_until_it_does() {
+        let mail = FakeMail::default();
+        let mut state = CarrierState::default();
+        let hub = FakeHub::new(HubAnswer::Nudges(vec![
+            nudge("sam", Some("sam@example.org"), None),
+            nudge("kim", Some("kim@example.org"), None),
+        ]));
+        hub.broken.store(true, std::sync::atomic::Ordering::SeqCst);
+        let r = run(&hub, &mail, &mut state, 0).await;
+        assert_eq!((r.sent, r.unreported), (1, 1), "stopped after the first unrecorded send: {r:?}");
+        assert_eq!(state.unreported.len(), 1);
+
+        // Still broken: the hub lists sam again (it never heard), and nothing is re-sent.
+        let hub = FakeHub::new(HubAnswer::Nudges(vec![nudge("sam", Some("sam@example.org"), None)]));
+        hub.broken.store(true, std::sync::atomic::Ordering::SeqCst);
+        let r = run(&hub, &mail, &mut state, 1).await;
+        assert_eq!((r.sent, r.unreported), (0, 1));
+        assert_eq!(mail.sent.lock().unwrap().len(), 1, "no repeat send while the report path is down");
+
+        // Mended: the old report goes first, then new work.
+        let hub = FakeHub::new(HubAnswer::Nudges(vec![nudge("kim", Some("kim@example.org"), None)]));
+        let r = run(&hub, &mail, &mut state, 2).await;
+        assert_eq!((r.sent, r.unreported), (1, 0));
+        assert!(state.unreported.is_empty());
+        assert_eq!(*hub.reports.lock().unwrap(), vec![("sam".to_string(), true), ("kim".to_string(), true)]);
+    }
+
+    /// Maintainer note 2 on #955: a hub from before K3a answers 404, and "not answering" would
+    /// send the operator after the wrong fault.
+    #[tokio::test]
+    async fn a_hub_without_the_route_is_named_as_such_to_the_operator() {
+        #[derive(Default)]
+        struct Bodies(Mutex<Vec<String>>);
+        #[async_trait::async_trait]
+        impl Mailer for Bodies {
+            async fn send(&self, _to: &str, _subject: &str, body: &str) -> Result<()> {
+                self.0.lock().unwrap().push(body.into());
+                Ok(())
+            }
+        }
+        let mail = Bodies::default();
+        let mut state = CarrierState::default();
+        for h in [0, 6] {
+            pass(&FakeHub::new(HubAnswer::NoRoute), &mail, "op@example.org", chrono::Duration::hours(6),
+                &mut state, at(h), false).await.unwrap();
+        }
+        let bodies = mail.0.lock().unwrap();
+        assert_eq!(bodies.len(), 1);
+        assert!(bodies[0].contains("before K3a") && !bodies[0].contains("not answering"), "{}", bodies[0]);
     }
 
     #[tokio::test]
@@ -538,7 +654,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().join("state.json");
         assert_eq!(CarrierState::load(&p).unwrap(), CarrierState::default());
-        let s = CarrierState { unreachable_since: Some(at(1)), last_alert_at: None };
+        let s = CarrierState { unreachable_since: Some(at(1)), last_alert_at: None, unreported: vec![Attempt {
+            commitment_id: "c".into(), about_index: 7, party_id: "sam".into(), ok: true }] };
         s.save(&p).unwrap();
         assert_eq!(CarrierState::load(&p).unwrap(), s);
         std::fs::write(&p, b"nope").unwrap();
