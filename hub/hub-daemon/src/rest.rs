@@ -2041,6 +2041,10 @@ pub fn router(state: RestState) -> Router {
         // should be too.
         .route("/v1/hubs/:hub_id/topics", get(list_topics))
         .route("/v1/hubs/:hub_id/topics/:topic_id", get(read_topic))
+        // Commitments K4: the page a nudge links to, and its answers. The link is the credential
+        // (an HMAC over commitment, party and expiry); reading the page writes nothing.
+        .route("/c/:token", get(commitments::link_page))
+        .route("/c/:token/:act", post(commitments::link_act))
         .route("/discuss", get(discuss_html))
         .route("/client", get(client_html))
         // the unlock slot (stub-console / passphrase): local-only + rate-limited.

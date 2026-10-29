@@ -1372,7 +1372,7 @@ fn event_summary(event: &HubEvent) -> String {
             basis,
             due_at.map(|d| format!(", due {}", d.format("%Y-%m-%d %H:%M UTC"))).unwrap_or_default(),
         ),
-        HubEvent::CommitmentAcknowledged { commitment_id, party_id, via } => format!(
+        HubEvent::CommitmentAcknowledged { commitment_id, party_id, via, .. } => format!(
             "🤝 commitment <code>{}</code> acknowledged by <code>{}</code> <span class=\"muted\">(via {:?})</span>",
             html_escape(commitment_id), html_escape(party_id), via,
         ),

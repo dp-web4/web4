@@ -228,6 +228,28 @@ The message follows Legion's shape: *"Venue AV is yours. Quiet for 48h. Your bac
 
 Hestia's unanswered-send budget caps the *sender*. The carrier honours an equivalent cap per party per day, so a misconfigured ladder cannot spam a volunteer.
 
+**Movement links as built (K4).** Each nudge row carries a link for its own party, which is also the last line of the body. The carrier needs no change.
+- **The link** is `<HUB_PUBLIC_BASE_URL>/c/<token>`. The token is `<commitment_id>.<party_id>.<expiry>.<MAC>`.
+  - The MAC is HMAC-SHA256, truncated to 128 bits. Its key is 32 random bytes in `commitment-links.key` in the hub's directory (mode 0600), created by the first listing that mints a link.
+  - Deleting the key voids every link sent so far.
+  - Links expire after 30 days.
+  - With no `HUB_PUBLIC_BASE_URL`, nudges go out without a link, and the listing says `links: "off"`. The operator plane's own address would reach nobody.
+- **`GET /c/<token>`** (public plane) shows the job, the party's place on it, and the answers open to them. Reading it writes nothing, so a mail scanner that fetches the link moves nothing.
+- **`POST /c/<token>/<act>`** records one answer. The act is the path, so the form has no body.
+
+  | party | answers |
+  |---|---|
+  | owner | acknowledge, update, done, stuck, hand off (to the backup) |
+  | backup | acknowledge, update, done, take over |
+  | lead | update, done, take over |
+
+  - The party's role is worked out again under the commitment lock at the moment of the answer, not taken from the page.
+  - A party a handoff dropped is refused with 403. A job that is closed, or an answer no longer offered, gets 409.
+- **On the ledger**, every entry from a link carries `via: link` and `link_digest`: the first 128 bits of SHA-256 of the token, never the token itself. `CommitmentResolved` gained the same optional `link_digest`, so a `done` from a link is marked as one.
+  - A link acknowledges once (`link_acks` in the projection).
+  - A take-over through the party's own link is their act, so `basis` becomes `self`. A handoff by the owner leaves the new owner `named_by_other`.
+- **Not in K4: the new owner after a handoff is never told.** K3 nudges only the opening and the escalations. This matters now that a handoff is one click. It is the next slice (K4b): nudge the new owner of a handoff, with the C2 wording ("X handed you Y").
+
 ## 7. Slices
 
 | slice | content | depends on |
@@ -236,6 +258,7 @@ Hestia's unanswered-send budget caps the *sender*. The carrier honours an equiva
 | **K2** | The sweep (escalation + missed), including the R7 `Obligation` missed sweep. The emit-mode and `owner_acknowledged` gates. | K1 |
 | **K3** | The nudge carrier (separate process; operator SMTP), `NudgeDelivered`, and a per-party rate cap. | K2 |
 | **K4** | Movement links: a token-scoped page per (commitment, party), with done, stuck, hand off and acknowledge. No login. | K3 |
+| **K4b** | Nudge the new owner of a handoff ("X handed you Y"), so a one-click handoff never lands on someone who wasn't told. | K4 |
 | **K5** | Join from a link: a browser key (WebCrypto Ed25519) plus an invite token, and binding a contact to its new member LCT. Then the member view (B5: mine, late, I'm backing up). This is the pilot's substitute for #868. | K4 |
 
 Each slice carries its own tests and mutants, plus the two standing guards: the `BODY_EXEMPT` list and the HUB-LAW action table, for every new route and kind.

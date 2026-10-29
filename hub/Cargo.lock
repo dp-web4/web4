@@ -3218,6 +3218,8 @@ dependencies = [
  "clap",
  "ctrlc",
  "hex",
+ "hmac 0.12.1",
+ "rand 0.8.6",
  "reqwest",
  "rpassword",
  "rusqlite",
