@@ -251,7 +251,13 @@ Hestia's unanswered-send budget caps the *sender*. The carrier honours an equiva
   - A key file that others can read is refused, for minting and for reading. A dry run of `hub-nudge` prints `<link withheld>` in place of the link, because its output lands in the journal.
   - Open (Legion, #957): a possession-only acknowledgement is effectively permanent. The owner should get a cheap "that wasn't me" undo. A reverse proxy's access log also records `/c/<token>`, so operators should keep those logs short or strip the path.
   - A take-over through the party's own link is their act, so `basis` becomes `self`. A handoff by the owner leaves the new owner `named_by_other`.
-- **Not in K4: the new owner after a handoff is never told.** K3 nudges only the opening and the escalations. This matters now that a handoff is one click. It is the next slice (K4b): nudge the new owner of a handoff, with the C2 wording ("X handed you Y").
+- **Not in K4: the new owner after a handoff is never told.** K3 nudges only the opening and the escalations. This matters now that a handoff is one click. K4b closes it.
+
+**Handoff nudges as built (K4b).** A handoff later than every escalation is the commitment's latest entry, so it is what gets nudged. Each person it changed is told, unless the change was their own act through their own link. An operator relay is never anyone's own act.
+- **The new owner,** when someone else named them (`named_by_other`): "{title}: it's yours now" / "{title} has been handed to you. It was X's. Your backup is Y."
+- **The new backup,** when a handoff to the backup swapped the two: "{title}: you're now the backup".
+- **The owner it was taken from,** when it went to someone other than the backup (a lead took it over, or the operator handed it on): "{title}: it's off your list". They are no longer a party, so the delivery report accepts them for that handoff's entry only.
+- An escalation after the handoff is the latest entry again. Delivery reports may now name a handoff's index as well as the opening or an escalation.
 
 ## 7. Slices
 

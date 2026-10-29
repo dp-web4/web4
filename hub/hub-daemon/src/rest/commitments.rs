@@ -676,11 +676,14 @@ async fn record_delivery(s: &RestState, body: DeliveredBody) -> Result<serde_jso
         .ok_or_else(|| refused(Refusal::Unknown(body.commitment_id.clone())))?;
     // The party must be one this commitment could have nudged. Not "is owed now": the queue may
     // have moved between the send and this report, and the send still happened.
+    // An owner a handoff took off the job is told so (K4b), and the report of that send names them.
     let party_of_it = body.party_id == c.owner.party_id || body.party_id == c.backup.party_id
-        || leads_of(&state, c).iter().any(|l| l == &body.party_id);
+        || leads_of(&state, c).iter().any(|l| l == &body.party_id)
+        || c.handoffs.iter().any(|h| h.index == body.about_index && h.previous_owner.party_id == body.party_id);
     if !party_of_it {
         return Err(ApiError::bad_request(format!(
-            "{} is not the owner, the backup or a lead of {}", body.party_id, body.commitment_id)));
+            "{} is not the owner, the backup or a lead of {}, nor an owner a handoff took it from",
+            body.party_id, body.commitment_id)));
     }
     if body.ok && c.delivered(body.about_index, &body.party_id) {
         return Err(ApiError {
@@ -1928,5 +1931,29 @@ mod tests {
         assert!(rows["nudges"][0]["link"].as_str().unwrap().starts_with("https://hub.example.org/c/"));
         assert!(read_link_key(&s.paths.root).unwrap().is_some());
         assert_eq!(list_nudges(&s, None).await.unwrap()["links"], "off: set HUB_PUBLIC_BASE_URL");
+    }
+
+    /// K4b end to end: a lead takes the job over by link, the owner it was taken from is told,
+    /// and the carrier's report of that send is accepted for that entry only.
+    #[tokio::test]
+    async fn an_owner_a_take_over_drops_is_told_and_the_report_names_them() {
+        let (_tmp, s, alex, sam, lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let opened = current(&s, &id).await.opened_index;
+        address(&s, alex, "alex@example.org").await;
+        let lee_link = link_for(&s, &id, lee).await;
+        assert_eq!(call(&s, "POST", &format!("/c/{lee_link}/take")).await.0, StatusCode::OK);
+        let handed = current(&s, &id).await.handoffs[0].index;
+
+        let rows = nudges(&s).await;
+        assert_eq!(rows.len(), 1, "only Alex is owed: {rows:?}");
+        let a = row(&rows, alex);
+        assert_eq!((a["about"].as_str(), a["about_index"].as_u64()), (Some("handed_away"), Some(handed)));
+        assert_eq!(a["body"], "Venue AV is now Lee's, so it's off your list.");
+
+        let refused = record_delivery(&s, report(&id, opened, alex, true)).await.unwrap_err();
+        assert_eq!(refused.status, StatusCode::BAD_REQUEST, "Alex is no longer a party to the opening");
+        record_delivery(&s, report(&id, handed, alex, true)).await.unwrap();
+        assert!(nudges(&s).await.is_empty());
     }
 }

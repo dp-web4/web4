@@ -158,6 +158,17 @@ pub struct Delivery {
     pub at: DateTime<Utc>,
 }
 
+/// One handoff, as the nudges need it (K4b): who held it before, and whether the backup changed.
+#[derive(Clone, Debug, Serialize)]
+pub struct Handoff {
+    pub index: u64,
+    pub previous_owner: PartyRef,
+    pub by: String,
+    pub via: AckVia,
+    /// A handoff to the backup swaps the two, so the previous owner becomes the backup.
+    pub backup_changed: bool,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Resolution {
     pub outcome: Outcome,
@@ -194,6 +205,7 @@ pub struct Commitment {
     pub deliveries: Vec<Delivery>,
     /// Digests of the links that have acknowledged (K4): each link acknowledges once.
     pub link_acks: BTreeSet<String>,
+    pub handoffs: Vec<Handoff>,
 }
 
 impl Commitment {
@@ -303,9 +315,10 @@ pub fn check(commitments: &BTreeMap<String, Commitment>, event: &HubEvent) -> Re
     // A delivery report is checked before the resolved arm: a nudge sent just before a
     // resolution was still sent, and the record says so.
     if let HubEvent::NudgeDelivered { about_index, channel, .. } = event {
-        if *about_index != c.opened_index && !c.escalations.iter().any(|e| e.index == *about_index) {
+        if *about_index != c.opened_index && !c.escalations.iter().any(|e| e.index == *about_index)
+            && !c.handoffs.iter().any(|h| h.index == *about_index) {
             return Err(Refusal::Invalid(format!(
-                "entry {about_index} is neither the opening nor an escalation of {id}")));
+                "entry {about_index} is not the opening, an escalation or a handoff of {id}")));
         }
         if channel.is_empty() || channel.len() > MAX_CHANNEL_LEN
             || !channel.chars().all(|ch| ch.is_ascii_lowercase() || ch == '-') {
@@ -402,6 +415,7 @@ pub fn fold(commitments: &mut BTreeMap<String, Commitment>, event: &HubEvent, ts
                 resolved: None,
                 deliveries: Vec::new(),
                 link_acks: BTreeSet::new(),
+                handoffs: Vec::new(),
             });
         }
         HubEvent::CommitmentAcknowledged { commitment_id, party_id, via, link_digest } => {
@@ -440,7 +454,11 @@ pub fn fold(commitments: &mut BTreeMap<String, Commitment>, event: &HubEvent, ts
                     c.acknowledged.remove(&to.party_id);
                     c.acknowledged.remove(&previous.party_id);
                     // Handing to the backup swaps the two, so the commitment keeps a backup.
-                    if c.backup.party_id == to.party_id {
+                    let backup_changed = c.backup.party_id == to.party_id;
+                    c.handoffs.push(Handoff {
+                        index, previous_owner: previous.clone(), by: by.clone(), via: *via, backup_changed,
+                    });
+                    if backup_changed {
                         c.backup = previous;
                     }
                     // A take-over is the new owner's own act only if the ledger has it from them,
@@ -496,6 +514,13 @@ pub enum NudgeAbout {
     NamedBackup,
     /// The queue reached this party's position.
     Escalated,
+    /// A handoff made this party the owner, and it was not their own act (K4b).
+    HandedOwner,
+    /// A handoff made this party the backup, and it was not their own act (K4b).
+    HandedBackup,
+    /// A handoff to someone other than the backup took this owner off the job, and it was not
+    /// their own act (K4b). Otherwise they might keep working on something no longer theirs.
+    HandedAway,
 }
 
 /// One party who should hear about one ledger entry (K3).
@@ -515,6 +540,23 @@ impl Commitment {
     pub fn nudge_targets(&self, leads: &[String]) -> Vec<NudgeTarget> {
         if !self.is_open() {
             return Vec::new();
+        }
+        // A handoff later than every escalation is the latest entry: tell whoever it named,
+        // unless naming themselves was their own act.
+        if let Some(h) = self.handoffs.last().filter(|h| self.escalations.last().map_or(true, |e| e.index < h.index)) {
+            let mut t = Vec::new();
+            if self.basis == Basis::NamedByOther {
+                t.push(NudgeTarget { about_index: h.index, party: self.owner.clone(), about: NudgeAbout::HandedOwner });
+            }
+            let own_act = h.by == self.backup.party_id && h.via != AckVia::Operator;
+            if h.backup_changed && !own_act {
+                t.push(NudgeTarget { about_index: h.index, party: self.backup.clone(), about: NudgeAbout::HandedBackup });
+            }
+            let dropped_by_another = h.by != h.previous_owner.party_id || h.via == AckVia::Operator;
+            if !h.backup_changed && dropped_by_another {
+                t.push(NudgeTarget { about_index: h.index, party: h.previous_owner.clone(), about: NudgeAbout::HandedAway });
+            }
+            return t;
         }
         let Some(e) = self.escalations.last() else {
             let mut t = Vec::new();
@@ -566,6 +608,22 @@ impl Commitment {
             NudgeAbout::NamedBackup => (
                 format!("{title}: you're the backup"),
                 format!("{} owns {title}. You're the backup: if it goes quiet, it comes to you.", name(&self.owner)),
+            ),
+            NudgeAbout::HandedOwner => {
+                let before = self.handoffs.iter().find(|h| h.index == target.about_index)
+                    .map(|h| format!(" It was {}'s.", name(&h.previous_owner))).unwrap_or_default();
+                (
+                    format!("{title}: it's yours now"),
+                    format!("{title} has been handed to you.{before} Your backup is {}.", name(&self.backup)),
+                )
+            }
+            NudgeAbout::HandedBackup => (
+                format!("{title}: you're now the backup"),
+                format!("{} owns {title} now. You're the backup: if it goes quiet, it comes to you.", name(&self.owner)),
+            ),
+            NudgeAbout::HandedAway => (
+                format!("{title}: it's off your list"),
+                format!("{title} is now {}'s, so it's off your list.", name(&self.owner)),
             ),
             NudgeAbout::Escalated => {
                 let Some(e) = self.escalations.iter().find(|e| e.index == target.about_index) else {
@@ -1055,5 +1113,69 @@ mod tests {
         std::fs::write(&p, br#"{"contacts":{}}"#).unwrap();
         let book = ContactBook::load(&p).expect("a K1 book has no members map");
         assert!(book.members.is_empty());
+    }
+
+    fn targets(m: &BTreeMap<String, Commitment>) -> Vec<(String, NudgeAbout)> {
+        m["c"].nudge_targets(&["lee".to_string()]).into_iter().map(|t| (t.party.party_id, t.about)).collect()
+    }
+
+    /// K4b: a handoff is the latest entry, and whoever it named is told, unless it was their own act.
+    #[test]
+    fn a_handoff_tells_whoever_it_named_unless_they_did_it() {
+        // The operator relays Alex handing to Sam: both hear, Sam as owner and Alex as backup.
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, moved_via("alex", AckVia::Operator, MoveKind::Handoff, Some(member("sam"))), 5);
+        assert_eq!(targets(&m), vec![("sam".into(), NudgeAbout::HandedOwner), ("alex".into(), NudgeAbout::HandedBackup)]);
+        let t = m["c"].nudge_targets(&[]);
+        assert_eq!(t[0].about_index, 5);
+        assert_eq!(m["c"].nudge_message(&t[0], &name),
+            ("Venue AV: it's yours now".into(), "Venue AV has been handed to you. It was Alex's. Your backup is Alex.".into()));
+        assert_eq!(m["c"].nudge_message(&t[1], &name).1,
+            "Sam owns Venue AV now. You're the backup: if it goes quiet, it comes to you.");
+
+        // Alex hands to Sam through Alex's own link: Sam hears, Alex (who did it) does not.
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, moved_via("alex", AckVia::Link, MoveKind::Handoff, Some(member("sam"))), 5);
+        assert_eq!(targets(&m), vec![("sam".into(), NudgeAbout::HandedOwner)]);
+
+        // Sam takes it over through Sam's own link: Alex is told; Sam's own act needs no telling.
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, moved_via("sam", AckVia::Link, MoveKind::Handoff, Some(member("sam"))), 5);
+        assert_eq!(targets(&m), vec![("alex".into(), NudgeAbout::HandedBackup)]);
+
+        // A lead takes it over: the lead's own act needs no telling, but Alex is off the job and
+        // is told so. Sam stays the backup and owes nothing new.
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, moved_via("lee", AckVia::Link, MoveKind::Handoff, Some(member("lee"))), 5);
+        assert_eq!(targets(&m), vec![("alex".into(), NudgeAbout::HandedAway)]);
+        let t = m["c"].nudge_targets(&[]).remove(0);
+        assert_eq!(m["c"].nudge_message(&t, &name).1, "Venue AV is now lee's, so it's off your list.");
+
+        // Alex hands it to a third person through Alex's own link: the new owner hears, Alex does not.
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, moved_via("alex", AckVia::Link, MoveKind::Handoff, Some(member("lee"))), 5);
+        assert_eq!(targets(&m), vec![("lee".into(), NudgeAbout::HandedOwner)]);
+    }
+
+    #[test]
+    fn a_handoff_nudge_is_delivered_once_and_a_later_escalation_supersedes_it() {
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, silence(EscalationStep::Backup, 48), 48);
+        apply(&mut m, moved_via("alex", AckVia::Operator, MoveKind::Handoff, Some(member("sam"))), 50);
+        let h = m["c"].handoffs[0].index;
+        assert!(targets(&m).iter().all(|(_, a)| *a != NudgeAbout::Escalated), "the handoff is the latest entry");
+        apply(&mut m, delivered(h, "sam", "email", true), 51);
+        assert!(m["c"].delivered(h, "sam"));
+        // An escalation after the handoff is the latest entry again.
+        apply(&mut m, silence(EscalationStep::Backup, 48), 99);
+        assert_eq!(targets(&m), vec![("alex".into(), NudgeAbout::Escalated)]);
+        // A report about an entry that is none of these is still refused.
+        assert!(matches!(check(&m, &delivered(51, "sam", "email", true)), Err(Refusal::Invalid(_))));
     }
 }
