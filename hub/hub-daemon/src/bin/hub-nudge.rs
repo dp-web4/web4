@@ -75,6 +75,16 @@ fn default_alert_hours() -> u32 {
     6
 }
 
+/// What a dry run prints for one row. The link is the recipient's whole credential, and a dry
+/// run's output lands in the journal, so it never carries one (Legion, #957).
+fn dry_run_line(address: &str, n: &Nudge) -> String {
+    let body = match &n.link {
+        Some(link) => n.body.replace(link.as_str(), "<link withheld>"),
+        None => n.body.clone(),
+    };
+    format!("would send to {address}: {} | {body}", n.subject)
+}
+
 /// One row of `GET /admin/api/commitments/nudges`.
 #[derive(Clone, Debug, Deserialize)]
 struct Nudge {
@@ -85,6 +95,9 @@ struct Nudge {
     held: Option<String>,
     subject: String,
     body: String,
+    /// The movement link in `body` (K4), if the hub minted one. A dry run withholds it.
+    #[serde(default)]
+    link: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -347,7 +360,7 @@ async fn pass(
                     continue;
                 };
                 if dry_run {
-                    println!("would send to {address}: {} | {}", n.subject, n.body);
+                    println!("{}", dry_run_line(address, &n));
                     continue;
                 }
                 let ok = match mail.send(address, &n.subject, &n.body).await {
@@ -477,7 +490,7 @@ mod tests {
         Nudge {
             commitment_id: "c".into(), about_index: 7, party: Party { party_id: party.into() },
             address: address.map(Into::into), held: held.map(Into::into),
-            subject: "Venue AV: you're the backup".into(), body: "Alex owns Venue AV.".into(),
+            subject: "Venue AV: you're the backup".into(), body: "Alex owns Venue AV.".into(), link: None,
         }
     }
 
@@ -588,6 +601,15 @@ mod tests {
         let bodies = mail.0.lock().unwrap();
         assert_eq!(bodies.len(), 1);
         assert!(bodies[0].contains("before K3a") && !bodies[0].contains("not answering"), "{}", bodies[0]);
+    }
+
+    #[test]
+    fn a_dry_run_line_withholds_the_link() {
+        let mut n = nudge("sam", Some("sam@example.org"), None);
+        n.body = "Alex owns Venue AV.\n\nSay where it stands: https://hub.example.org/c/c.p.1.abcd".into();
+        n.link = Some("https://hub.example.org/c/c.p.1.abcd".into());
+        let line = dry_run_line("sam@example.org", &n);
+        assert!(!line.contains("/c/") && line.contains("<link withheld>"), "{line}");
     }
 
     #[tokio::test]

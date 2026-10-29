@@ -246,7 +246,10 @@ Hestia's unanswered-send budget caps the *sender*. The carrier honours an equiva
   - The party's role is worked out again under the commitment lock at the moment of the answer, not taken from the page.
   - A party a handoff dropped is refused with 403. A job that is closed, or an answer no longer offered, gets 409.
 - **On the ledger**, every entry from a link carries `via: link` and `link_digest`: the first 128 bits of SHA-256 of the token, never the token itself. `CommitmentResolved` gained the same optional `link_digest`, so a `done` from a link is marked as one.
-  - A link acknowledges once (`link_acks` in the projection).
+  - A link acknowledges once (`link_acks` in the projection), and has exactly one spelling: a MAC that isn't lowercase hex is refused, so a re-cased link can't carry a second digest. A link that has acknowledged never offers it again, even after a handoff cleared it. The new owner gets a fresh link from K4b (Legion, #957).
+  - An operator relay never replaces a party's own acknowledgement (`link` or `member_act`) with the operator's (Legion, #957).
+  - A key file that others can read is refused, for minting and for reading. A dry run of `hub-nudge` prints `<link withheld>` in place of the link, because its output lands in the journal.
+  - Open (Legion, #957): a possession-only acknowledgement is effectively permanent. The owner should get a cheap "that wasn't me" undo. A reverse proxy's access log also records `/c/<token>`, so operators should keep those logs short or strip the path.
   - A take-over through the party's own link is their act, so `basis` becomes `self`. A handoff by the owner leaves the new owner `named_by_other`.
 - **Not in K4: the new owner after a handoff is never told.** K3 nudges only the opening and the escalations. This matters now that a handoff is one click. It is the next slice (K4b): nudge the new owner of a handoff, with the C2 wording ("X handed you Y").
 

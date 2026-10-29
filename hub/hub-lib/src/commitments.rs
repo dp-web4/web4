@@ -406,7 +406,13 @@ pub fn fold(commitments: &mut BTreeMap<String, Commitment>, event: &HubEvent, ts
         }
         HubEvent::CommitmentAcknowledged { commitment_id, party_id, via, link_digest } => {
             let Some(c) = open_mut(commitments, commitment_id) else { return };
-            c.acknowledged.insert(party_id.clone(), *via);
+            // An operator relay never replaces the party's own word with the operator's: that would
+            // turn `owner_acknowledged` false behind the party's back (Legion, #957). The relay still
+            // moves the queue below, as any acknowledgement does.
+            let own = matches!(c.acknowledged.get(party_id), Some(AckVia::MemberAct | AckVia::Link));
+            if !(own && *via == AckVia::Operator) {
+                c.acknowledged.insert(party_id.clone(), *via);
+            }
             if let Some(d) = link_digest {
                 c.link_acks.insert(d.clone());
             }
@@ -865,6 +871,25 @@ mod tests {
         assert!(matches!(check(&m, &done(Some("xyz"))), Err(Refusal::Invalid(_))));
         assert_eq!(check(&m, &done(Some(d))), Ok(()));
         assert_eq!(check(&m, &done(None)), Ok(()));
+    }
+
+    /// Legion, #957 finding 3: an operator relay must not replace the owner's own word.
+    #[test]
+    fn an_operator_relay_never_downgrades_a_partys_own_acknowledgement() {
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link, link_digest: dg() }, 1);
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Operator, link_digest: None }, 2);
+        assert!(m["c"].owner_acknowledged(), "the relay erased Alex's own word");
+        assert_eq!(m["c"].acknowledged["alex"], AckVia::Link);
+        // The other way round, the party's own word does replace the relay.
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "sam".into(), via: AckVia::Operator, link_digest: None }, 3);
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "sam".into(), via: AckVia::Link, link_digest: dg() }, 4);
+        assert_eq!(m["c"].acknowledged["sam"], AckVia::Link);
     }
 
     #[test]

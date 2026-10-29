@@ -617,22 +617,29 @@ pub(super) async fn admin_nudges_due(
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_loopback(&peer)?;
+    list_nudges(&s, link_base()).await.map(Json)
+}
+
+/// The listing behind [`admin_nudges_due`], with the public base passed in rather than read from
+/// the environment.
+async fn list_nudges(s: &RestState, base: Option<String>) -> Result<serde_json::Value, ApiError> {
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
-    let book = load_book(&s)?;
-    let base = link_base();
+    let book = load_book(s)?;
+    // The key is made by the first listing that has a link to carry, not by any listing.
+    let owed = !due_nudges(&state, &book, Utc::now(), None).is_empty();
     let key = match &base {
-        Some(_) => {
+        Some(_) if owed => {
             let _serial = COMMITMENT_LOCK.lock().await;
             Some(link_key_or_create(&s.paths.root).map_err(ApiError::internal)?)
         }
-        None => None,
+        _ => None,
     };
     let minter = base.as_deref().zip(key.as_ref()).map(|(base, key)| LinkMinter { base, key });
     let rows = due_nudges(&state, &book, Utc::now(), minter.as_ref());
     // Without a public base URL a nudge still goes out, with no link in it; say so where the
     // operator looks.
-    Ok(Json(serde_json::json!({ "cap_per_day": commitments::NUDGE_CAP_PER_DAY,
-        "links": if minter.is_some() { "on" } else { "off: set HUB_PUBLIC_BASE_URL" }, "nudges": rows })))
+    Ok(serde_json::json!({ "cap_per_day": commitments::NUDGE_CAP_PER_DAY,
+        "links": if base.is_some() { "on" } else { "off: set HUB_PUBLIC_BASE_URL" }, "nudges": rows }))
 }
 
 #[derive(Deserialize)]
@@ -714,8 +721,19 @@ fn link_key_path(root: &std::path::Path) -> std::path::PathBuf {
 pub(crate) fn read_link_key(root: &std::path::Path) -> anyhow::Result<Option<[u8; 32]>> {
     let path = link_key_path(root);
     match std::fs::read(&path) {
-        Ok(bytes) => <[u8; 32]>::try_from(bytes.as_slice()).map(Some)
-            .map_err(|_| anyhow::anyhow!("the link key is not 32 bytes")),
+        Ok(bytes) => {
+            // Anyone who can read the key can mint any party's link: refuse, never warn and go on.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = std::fs::metadata(&path)?.permissions().mode();
+                if mode & 0o077 != 0 {
+                    anyhow::bail!("the link key is readable by others (mode {:o}); chmod 600 it", mode & 0o777);
+                }
+            }
+            <[u8; 32]>::try_from(bytes.as_slice()).map(Some)
+                .map_err(|_| anyhow::anyhow!("the link key is not 32 bytes"))
+        }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(e.into()),
     }
@@ -769,6 +787,11 @@ pub(crate) enum LinkError {
 pub(crate) fn read_link(key: &[u8; 32], token: &str, now: DateTime<Utc>) -> Result<LinkClaim, LinkError> {
     use hmac::Mac;
     let (payload, tag) = token.rsplit_once('.').ok_or(LinkError::Invalid)?;
+    // One link, one spelling: `hex::decode` also takes uppercase, and a re-cased MAC would verify
+    // with a different digest, so "acknowledges once" would hold per spelling (Legion, #957).
+    if !tag.chars().all(|ch| ch.is_ascii_digit() || ('a'..='f').contains(&ch)) {
+        return Err(LinkError::Invalid);
+    }
     let tag = hex::decode(tag).map_err(|_| LinkError::Invalid)?;
     // `verify_truncated_left` accepts any prefix length, a 1-byte one included: pin the length.
     if tag.len() != LINK_MAC_LEN {
@@ -854,10 +877,14 @@ impl LinkAct {
 
 /// What this party may say now. The owner hands to the backup or asks for help; the backup or a
 /// lead can take the job over. Acknowledging is offered until the party's own word is recorded.
-fn acts_for(c: &Commitment, role: LinkRole, party_id: &str) -> Vec<LinkAct> {
-    let own_word = matches!(c.acknowledged.get(party_id), Some(AckVia::MemberAct | AckVia::Link));
+///
+/// A link that has already acknowledged never offers it again, even after a handoff cleared the
+/// acknowledgement: the ledger would refuse it (Legion, #957). The new owner of a handoff is sent
+/// a fresh link (K4b), and that one can acknowledge.
+fn acts_for(c: &Commitment, role: LinkRole, claim: &LinkClaim) -> Vec<LinkAct> {
+    let own_word = matches!(c.acknowledged.get(&claim.party_id), Some(AckVia::MemberAct | AckVia::Link));
     let mut acts = Vec::new();
-    if role != LinkRole::Lead && !own_word {
+    if role != LinkRole::Lead && !own_word && !c.link_acks.contains(&claim.digest) {
         acts.push(LinkAct::Ack);
     }
     acts.extend([LinkAct::Update, LinkAct::Done]);
@@ -890,7 +917,7 @@ async fn act_by_link(s: &RestState, claim: &LinkClaim, act: LinkAct) -> Result<s
         status: StatusCode::FORBIDDEN,
         message: "you're no longer named on this job".to_string(),
     })?;
-    if !acts_for(&c, role, &claim.party_id).contains(&act) {
+    if !acts_for(&c, role, claim).contains(&act) {
         return Err(ApiError { status: StatusCode::CONFLICT, message: "that answer isn't open to you now".to_string() });
     }
     let by = claim.party_id.clone();
@@ -1020,7 +1047,7 @@ pub(super) async fn link_page(
     if let Some(due) = c.due_at {
         html.push_str(&format!("<p class=\"muted\">Due {}.</p>", due.format("%Y-%m-%d %H:%M UTC")));
     }
-    for act in acts_for(c, role, &claim.party_id) {
+    for act in acts_for(c, role, &claim) {
         // Relative to /c/<token>, so the form posts back to this hub whatever origin served it.
         html.push_str(&format!("<form method=\"post\" action=\"{}/{}\"><button>{}</button></form>",
             esc(&token), act.path(), esc(&act_label(act, role, &backup))));
@@ -1677,6 +1704,9 @@ mod tests {
         // A one-byte prefix of the right MAC: `verify_truncated_left` alone would accept it.
         assert_eq!(read_link(&key, &format!("{payload}.{}", &tag[..2]), now), Err(LinkError::Invalid));
         assert_eq!(read_link(&key, "nonsense", now), Err(LinkError::Invalid));
+        // The same MAC in capitals decodes to the same bytes, and would carry another digest.
+        assert_eq!(read_link(&key, &format!("{payload}.{}", tag.to_uppercase()), now), Err(LinkError::Invalid),
+            "one link, one spelling (Legion, #957)");
     }
 
     async fn call(s: &RestState, method: &str, path: &str) -> (StatusCode, String) {
@@ -1838,5 +1868,61 @@ mod tests {
         let sam_link = row(&rows, sam)["link"].as_str().unwrap().rsplit('/').next().unwrap().to_string();
         assert_eq!(read_link(&key, &sam_link, Utc::now()).unwrap().party_id, sam.to_string());
         assert!(nudges(&s).await.iter().all(|r| r["link"].is_null()), "no base, no link");
+    }
+
+    /// Legion, #957 finding 2: Sam acknowledges as backup through his link, then the operator hands
+    /// the job to Sam. The handoff clears Sam's acknowledgement, but his link has used its one
+    /// acknowledgement, so the page must not offer one that the ledger will refuse.
+    #[tokio::test]
+    async fn a_link_that_has_acknowledged_does_not_offer_it_again_after_a_handoff() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let sam_link = link_for(&s, &id, sam).await;
+        assert_eq!(call(&s, "POST", &format!("/c/{sam_link}/acknowledge")).await.0, StatusCode::OK);
+        move_commitment(&s, &id, MoveBody { by: alex.to_string(), move_kind: MoveKind::Handoff,
+            to: Some(member(sam)), note_ref: None }).await.unwrap();
+        assert!(!current(&s, &id).await.acknowledged.contains_key(&sam.to_string()), "the handoff cleared it");
+
+        let (_, page) = call(&s, "GET", &format!("/c/{sam_link}")).await;
+        assert!(page.contains("You're the owner.") && !page.contains("/acknowledge\""), "{page}");
+        let before = s.ledger.lock().await.len();
+        assert_eq!(call(&s, "POST", &format!("/c/{sam_link}/acknowledge")).await.0, StatusCode::CONFLICT);
+        assert_eq!(s.ledger.lock().await.len(), before);
+        // A fresh link (K4b sends one to a new owner) can still give Sam's word. Minted in the
+        // same second with the same expiry it would be the same link, so give it another.
+        let key = read_link_key(&s.paths.root).unwrap().unwrap();
+        let fresh = mint_link(&key, &id, &sam.to_string(), Utc::now() + chrono::Duration::days(LINK_TTL_DAYS - 1));
+        assert_eq!(call(&s, "POST", &format!("/c/{fresh}/acknowledge")).await.0, StatusCode::OK);
+        assert!(current(&s, &id).await.owner_acknowledged());
+    }
+
+    /// Legion, #957 nit: a key anyone can read lets anyone mint any party's link. Refuse it.
+    #[tokio::test]
+    async fn a_link_key_others_can_read_is_refused() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let token = link_for(&s, &id, alex).await;
+        assert_eq!(call(&s, "GET", &format!("/c/{token}")).await.0, StatusCode::OK);
+        std::fs::set_permissions(link_key_path(&s.paths.root), std::fs::Permissions::from_mode(0o644)).unwrap();
+        let (status, page) = call(&s, "GET", &format!("/c/{token}")).await;
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(!page.contains("chmod") && !page.contains(&s.paths.root.display().to_string()), "{page}");
+        assert!(list_nudges(&s, Some("https://hub.example.org".into())).await.is_err(), "nor is one minted with it");
+    }
+
+    /// Legion, #957 nit: the key is made by the first listing that carries a link, not by any.
+    #[tokio::test]
+    async fn the_link_key_is_made_only_when_a_link_is_owed() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let base = Some("https://hub.example.org".to_string());
+        let empty = list_nudges(&s, base.clone()).await.unwrap();
+        assert_eq!((empty["links"].as_str(), empty["nudges"].as_array().unwrap().len()), (Some("on"), 0));
+        assert!(read_link_key(&s.paths.root).unwrap().is_none(), "no row, no key");
+        open(&s, member(alex), member(sam), role).await.unwrap();
+        let rows = list_nudges(&s, base).await.unwrap();
+        assert!(rows["nudges"][0]["link"].as_str().unwrap().starts_with("https://hub.example.org/c/"));
+        assert!(read_link_key(&s.paths.root).unwrap().is_some());
+        assert_eq!(list_nudges(&s, None).await.unwrap()["links"], "off: set HUB_PUBLIC_BASE_URL");
     }
 }
