@@ -197,6 +197,30 @@ The message follows Legion's shape: *"Venue AV is yours. Quiet for 48h. Your bac
 - **Member addresses.** A member had no delivery address anywhere. The contact book now also holds one per member LCT id: `POST /admin/api/contacts/members/:lct_id`, erasable at `/erase`. Off the ledger (C3).
 - **The cap** is 3 attempts per party per rolling day, failures included. It is counted from `NudgeDelivered` on the ledger, so a carrier restart cannot reset it. One listing never offers a party more than its remaining budget.
 
+**The carrier as built (K3b): `hub-nudge`.** A second binary in `hub-daemon`, run on the hub's host beside it, as a systemd timer, from cron, or with `--every SECS`.
+- **Each pass:**
+  - reads `GET /admin/api/commitments/nudges`;
+  - sends every row with `held: null` through `curl`'s SMTP client (no mail library in the hub's tree);
+  - reports each attempt, sent or failed, with `POST .../nudges/delivered`.
+- **A refused report** (4xx) is logged and never retried. The send happened, and a lead unseated in between is refused for a real send.
+- **`--dry-run`** prints what it would send and sends nothing.
+- **Config** is a JSON file the hub never reads:
+
+```json
+{
+  "hub_admin_url": "http://127.0.0.1:8772",
+  "smtp_url": "smtps://smtp.example.org:465",
+  "from": "chapter-hub@example.org",
+  "operator_address": "operator@example.org",
+  "netrc_file": "<config-dir>/netrc",
+  "locked_alert_hours": 6,
+  "state_file": "<state-dir>/hub-nudge.json"
+}
+```
+
+  The mail server login lives in `netrc_file` (mode 0600), which is passed to curl as `--netrc-file`, so it never appears on a command line.
+- **The locked-hub alert (§9.1).** When the hub has answered 503 (locked), or not at all, for `locked_alert_hours`, the carrier emails the operator, and only the operator, once a day until it answers again. Then the clock resets.
+
 **What the carrier sends through:**
 - **Interim:** the operator's own SMTP settings, held by the carrier and never by the hub (C4).
 - **Later:** Hestia's channel send, once its delivery slice ships. The operator binds the recipients, which matches the model.
