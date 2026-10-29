@@ -222,15 +222,25 @@ async fn move_commitment(s: &RestState, id: &str, body: MoveBody) -> Result<serd
     if let Some(to) = &body.to {
         check_party(&state, &load_book(s)?, to, "to")?;
     }
+    // The operator relaying what someone said. K4's links write `link`, K5 `member_act`.
+    witness_move(s, &c, body, AckVia::Operator, None).await
+}
+
+/// Witness a move and, for a `stuck`, its escalation. The caller holds [`COMMITMENT_LOCK`], has
+/// projected `c` under it, and has checked who `body.by` is.
+async fn witness_move(
+    s: &RestState, c: &Commitment, body: MoveBody, via: AckVia, link_digest: Option<String>,
+) -> Result<serde_json::Value, ApiError> {
+    let id = c.commitment_id.as_str();
     let move_kind = body.move_kind;
     let entry_index = checked_witness(s, HubEvent::CommitmentMoved {
         commitment_id: id.to_string(),
         by: body.by,
-        // Every K1 move is the operator relaying it. K4/K5 write link and member_act.
-        via: AckVia::Operator,
+        via,
         move_kind,
         to: body.to,
         note_ref: body.note_ref,
+        link_digest,
     }).await?;
     let mut out = serde_json::json!({ "moved": true, "entry_index": entry_index });
     // "I need help" moves the queue forward; the escalation names the position it moved to, so
@@ -285,6 +295,7 @@ async fn acknowledge_commitment(s: &RestState, id: &str, body: AckBody) -> Resul
         commitment_id: id.to_string(),
         party_id: body.party_id,
         via: AckVia::Operator,
+        link_digest: None,
     }).await?;
     Ok(serde_json::json!({ "acknowledged": true, "via": "operator", "entry_index": entry_index }))
 }
@@ -324,12 +335,20 @@ async fn resolve_commitment(s: &RestState, id: &str, body: ResolveBody) -> Resul
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
     let c = projected_commitment(&state, id)?;
     check_actor(s, &state, &c, &body.by, true)?;
+    witness_resolution(s, &c, body, None).await
+}
+
+/// Witness a `done` or `withdrawn`. The caller holds [`COMMITMENT_LOCK`] and has checked `by`.
+async fn witness_resolution(
+    s: &RestState, c: &Commitment, body: ResolveBody, link_digest: Option<String>,
+) -> Result<serde_json::Value, ApiError> {
     let entry_index = checked_witness(s, HubEvent::CommitmentResolved {
-        commitment_id: id.to_string(),
+        commitment_id: c.commitment_id.clone(),
         outcome: body.outcome,
         by: body.by,
         resolved_at: Utc::now(),
         owner_acknowledged: c.owner_acknowledged(),
+        link_digest,
     }).await?;
     Ok(serde_json::json!({ "resolved": true, "outcome": commitments::outcome_str(body.outcome),
         "entry_index": entry_index }))
@@ -541,7 +560,11 @@ pub(super) async fn admin_member_address_erase(
 /// Every nudge owed now, sendable or held. The carrier sends the rows with `held: null`; the
 /// others are for the operator's eyes: `no_address` (nobody can reach this party yet) or `capped`
 /// (this party has had [`commitments::NUDGE_CAP_PER_DAY`] attempts in the last day).
-pub(crate) fn due_nudges(state: &HubState, book: &ContactBook, now: DateTime<Utc>) -> Vec<serde_json::Value> {
+///
+/// With `links` (K4), each row carries a movement link for its party, also appended to the body.
+pub(crate) fn due_nudges(
+    state: &HubState, book: &ContactBook, now: DateTime<Utc>, links: Option<&LinkMinter>,
+) -> Vec<serde_json::Value> {
     let since = now - chrono::Duration::hours(24);
     let mut budget: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
     let mut rows = Vec::new();
@@ -565,7 +588,12 @@ pub(crate) fn due_nudges(state: &HubState, book: &ContactBook, now: DateTime<Utc
                 *left -= 1;
                 None
             };
-            let (subject, body) = c.nudge_message(&t, &name);
+            let (subject, mut body) = c.nudge_message(&t, &name);
+            let link = links.map(|m| format!("{}/c/{}", m.base, mint_link(m.key, &c.commitment_id, &t.party.party_id,
+                now + chrono::Duration::days(LINK_TTL_DAYS))));
+            if let Some(link) = &link {
+                body.push_str(&format!("\n\nSay where it stands (done, stuck, or hand it on): {link}"));
+            }
             rows.push(serde_json::json!({
                 "commitment_id": c.commitment_id,
                 "about_index": t.about_index,
@@ -575,6 +603,7 @@ pub(crate) fn due_nudges(state: &HubState, book: &ContactBook, now: DateTime<Utc
                 "held": held,
                 "subject": subject,
                 "body": body,
+                "link": link,
             }));
         }
     }
@@ -588,10 +617,29 @@ pub(super) async fn admin_nudges_due(
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_loopback(&peer)?;
+    list_nudges(&s, link_base()).await.map(Json)
+}
+
+/// The listing behind [`admin_nudges_due`], with the public base passed in rather than read from
+/// the environment.
+async fn list_nudges(s: &RestState, base: Option<String>) -> Result<serde_json::Value, ApiError> {
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
-    let book = load_book(&s)?;
-    let rows = due_nudges(&state, &book, Utc::now());
-    Ok(Json(serde_json::json!({ "cap_per_day": commitments::NUDGE_CAP_PER_DAY, "nudges": rows })))
+    let book = load_book(s)?;
+    // The key is made by the first listing that has a link to carry, not by any listing.
+    let owed = !due_nudges(&state, &book, Utc::now(), None).is_empty();
+    let key = match &base {
+        Some(_) if owed => {
+            let _serial = COMMITMENT_LOCK.lock().await;
+            Some(link_key_or_create(&s.paths.root).map_err(ApiError::internal)?)
+        }
+        _ => None,
+    };
+    let minter = base.as_deref().zip(key.as_ref()).map(|(base, key)| LinkMinter { base, key });
+    let rows = due_nudges(&state, &book, Utc::now(), minter.as_ref());
+    // Without a public base URL a nudge still goes out, with no link in it; say so where the
+    // operator looks.
+    Ok(serde_json::json!({ "cap_per_day": commitments::NUDGE_CAP_PER_DAY,
+        "links": if base.is_some() { "on" } else { "off: set HUB_PUBLIC_BASE_URL" }, "nudges": rows }))
 }
 
 #[derive(Deserialize)]
@@ -648,6 +696,415 @@ async fn record_delivery(s: &RestState, body: DeliveredBody) -> Result<serde_jso
         ok: body.ok,
     }).await?;
     Ok(serde_json::json!({ "recorded": true, "index": index }))
+}
+
+// ---------------------------------------------------------------------------------------------
+// K4: movement links (PRD §5, the movement-link block). Each nudge carries a link minted for one
+// (commitment, party). Opening it shows the job and what this party can say; each answer is a
+// POST, so a mail scanner that fetches the link moves nothing. The link is the whole credential:
+// possession of it, recorded on the entry as `via: link` plus the token's digest.
+// ---------------------------------------------------------------------------------------------
+
+/// How long a link works. Long enough to outlast a commitment's ladder; a resolved commitment
+/// refuses every answer anyway.
+pub(crate) const LINK_TTL_DAYS: i64 = 30;
+/// Domain separation: this key MACs nothing else, but the label says what a MAC is for.
+const LINK_MAC_LABEL: &[u8] = b"web4-hub commitment link v1\n";
+const LINK_MAC_LEN: usize = 16;
+
+fn link_key_path(root: &std::path::Path) -> std::path::PathBuf {
+    root.join("commitment-links.key")
+}
+
+/// The hub's link key, if one exists. Reading never creates it: a hub that has minted no link
+/// has none to honour. Deleting the file voids every link sent so far.
+pub(crate) fn read_link_key(root: &std::path::Path) -> anyhow::Result<Option<[u8; 32]>> {
+    let path = link_key_path(root);
+    match std::fs::read(&path) {
+        Ok(bytes) => {
+            // Anyone who can read the key can mint any party's link: refuse, never warn and go on.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = std::fs::metadata(&path)?.permissions().mode();
+                if mode & 0o077 != 0 {
+                    anyhow::bail!("the link key is readable by others (mode {:o}); chmod 600 it", mode & 0o777);
+                }
+            }
+            <[u8; 32]>::try_from(bytes.as_slice()).map(Some)
+                .map_err(|_| anyhow::anyhow!("the link key is not 32 bytes"))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// The link key, created on first use. The caller holds [`COMMITMENT_LOCK`], so two first uses
+/// cannot each write a key and void the other's links.
+fn link_key_or_create(root: &std::path::Path) -> anyhow::Result<[u8; 32]> {
+    if let Some(key) = read_link_key(root)? {
+        return Ok(key);
+    }
+    let mut key = [0u8; 32];
+    rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut key);
+    hub_lib::atomic_file::write_atomic_mode(&link_key_path(root), key.to_vec(), 0o600)?;
+    Ok(key)
+}
+
+fn link_mac(key: &[u8; 32], payload: &str) -> hmac::Hmac<sha2::Sha256> {
+    use hmac::Mac;
+    let mut mac = <hmac::Hmac<sha2::Sha256> as Mac>::new_from_slice(key).expect("HMAC takes any key length");
+    mac.update(LINK_MAC_LABEL);
+    mac.update(payload.as_bytes());
+    mac
+}
+
+/// `<commitment_id>.<party_id>.<expires, unix seconds>.<MAC, hex>`. The ids are UUIDs the hub
+/// made, so `.` never occurs inside one.
+pub(crate) fn mint_link(key: &[u8; 32], commitment_id: &str, party_id: &str, expires: DateTime<Utc>) -> String {
+    use hmac::Mac;
+    let payload = format!("{commitment_id}.{party_id}.{}", expires.timestamp());
+    let tag = link_mac(key, &payload).finalize().into_bytes();
+    format!("{payload}.{}", hex::encode(&tag[..LINK_MAC_LEN]))
+}
+
+/// What a verified link says, and the digest the ledger records in place of the token.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct LinkClaim {
+    pub commitment_id: String,
+    pub party_id: String,
+    pub digest: String,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum LinkError {
+    /// Not a link this hub made. Indistinguishable on purpose: no oracle for a forger.
+    Invalid,
+    /// A link this hub made, past its date.
+    Expired,
+}
+
+pub(crate) fn read_link(key: &[u8; 32], token: &str, now: DateTime<Utc>) -> Result<LinkClaim, LinkError> {
+    use hmac::Mac;
+    let (payload, tag) = token.rsplit_once('.').ok_or(LinkError::Invalid)?;
+    // One link, one spelling: `hex::decode` also takes uppercase, and a re-cased MAC would verify
+    // with a different digest, so "acknowledges once" would hold per spelling (Legion, #957).
+    if !tag.chars().all(|ch| ch.is_ascii_digit() || ('a'..='f').contains(&ch)) {
+        return Err(LinkError::Invalid);
+    }
+    let tag = hex::decode(tag).map_err(|_| LinkError::Invalid)?;
+    // `verify_truncated_left` accepts any prefix length, a 1-byte one included: pin the length.
+    if tag.len() != LINK_MAC_LEN {
+        return Err(LinkError::Invalid);
+    }
+    link_mac(key, payload).verify_truncated_left(&tag).map_err(|_| LinkError::Invalid)?;
+    let mut parts = payload.split('.');
+    let (Some(commitment_id), Some(party_id), Some(expires), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next()) else { return Err(LinkError::Invalid) };
+    let expires = expires.parse::<i64>().ok().and_then(|t| DateTime::from_timestamp(t, 0)).ok_or(LinkError::Invalid)?;
+    if now >= expires {
+        return Err(LinkError::Expired);
+    }
+    use sha2::Digest;
+    let digest = hex::encode(sha2::Sha256::digest(token.as_bytes()))[..commitments::LINK_DIGEST_LEN].to_string();
+    Ok(LinkClaim { commitment_id: commitment_id.to_string(), party_id: party_id.to_string(), digest })
+}
+
+/// Where links point: `HUB_PUBLIC_BASE_URL`, the origin people reach the hub at. Unset, nudges
+/// go out without a link: the operator plane's own address would reach nobody.
+pub(crate) fn link_base() -> Option<String> {
+    std::env::var("HUB_PUBLIC_BASE_URL").ok()
+        .map(|b| b.trim().trim_end_matches('/').to_string())
+        .filter(|b| !b.is_empty())
+}
+
+/// What a nudge listing needs to put a link in each row.
+pub(crate) struct LinkMinter<'a> {
+    pub base: &'a str,
+    pub key: &'a [u8; 32],
+}
+
+/// Who a link's party is on the commitment now. A handoff can take someone off it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LinkRole {
+    Owner,
+    Backup,
+    Lead,
+}
+
+fn role_of(state: &HubState, c: &Commitment, party_id: &str) -> Option<LinkRole> {
+    if party_id == c.owner.party_id {
+        Some(LinkRole::Owner)
+    } else if party_id == c.backup.party_id {
+        Some(LinkRole::Backup)
+    } else if leads_of(state, c).iter().any(|l| l == party_id) {
+        Some(LinkRole::Lead)
+    } else {
+        None
+    }
+}
+
+/// The answers a link offers. Each is its own POST path, so a form needs no body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LinkAct {
+    Ack,
+    Update,
+    Done,
+    Stuck,
+    Handoff,
+    Take,
+}
+
+impl LinkAct {
+    const ALL: [LinkAct; 6] =
+        [LinkAct::Ack, LinkAct::Update, LinkAct::Done, LinkAct::Stuck, LinkAct::Handoff, LinkAct::Take];
+
+    fn path(self) -> &'static str {
+        match self {
+            LinkAct::Ack => "acknowledge",
+            LinkAct::Update => "update",
+            LinkAct::Done => "done",
+            LinkAct::Stuck => "stuck",
+            LinkAct::Handoff => "handoff",
+            LinkAct::Take => "take",
+        }
+    }
+
+    fn parse(s: &str) -> Option<LinkAct> {
+        LinkAct::ALL.into_iter().find(|a| a.path() == s)
+    }
+}
+
+/// What this party may say now. The owner hands to the backup or asks for help; the backup or a
+/// lead can take the job over. Acknowledging is offered until the party's own word is recorded.
+///
+/// A link that has already acknowledged never offers it again, even after a handoff cleared the
+/// acknowledgement: the ledger would refuse it (Legion, #957). The new owner of a handoff is sent
+/// a fresh link (K4b), and that one can acknowledge.
+fn acts_for(c: &Commitment, role: LinkRole, claim: &LinkClaim) -> Vec<LinkAct> {
+    let own_word = matches!(c.acknowledged.get(&claim.party_id), Some(AckVia::MemberAct | AckVia::Link));
+    let mut acts = Vec::new();
+    if role != LinkRole::Lead && !own_word && !c.link_acks.contains(&claim.digest) {
+        acts.push(LinkAct::Ack);
+    }
+    acts.extend([LinkAct::Update, LinkAct::Done]);
+    match role {
+        LinkRole::Owner => acts.extend([LinkAct::Stuck, LinkAct::Handoff]),
+        LinkRole::Backup | LinkRole::Lead => acts.push(LinkAct::Take),
+    }
+    acts
+}
+
+fn act_label(act: LinkAct, role: LinkRole, backup: &str) -> String {
+    match (act, role) {
+        (LinkAct::Ack, LinkRole::Owner) => "Yes, it's mine".to_string(),
+        (LinkAct::Ack, _) => "Yes, I'll back this up".to_string(),
+        (LinkAct::Update, _) => "Still on it".to_string(),
+        (LinkAct::Done, _) => "It's done".to_string(),
+        (LinkAct::Stuck, _) => "I'm stuck and need help".to_string(),
+        (LinkAct::Handoff, _) => format!("Hand it to {backup}"),
+        (LinkAct::Take, _) => "I'll take it over".to_string(),
+    }
+}
+
+/// Record one answer from a link, under [`COMMITMENT_LOCK`]. The role and the offered answers are
+/// worked out again here, not trusted from the page: the queue may have moved since it loaded.
+async fn act_by_link(s: &RestState, claim: &LinkClaim, act: LinkAct) -> Result<serde_json::Value, ApiError> {
+    let _serial = COMMITMENT_LOCK.lock().await;
+    let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    let c = projected_commitment(&state, &claim.commitment_id)?;
+    let role = role_of(&state, &c, &claim.party_id).ok_or_else(|| ApiError {
+        status: StatusCode::FORBIDDEN,
+        message: "you're no longer named on this job".to_string(),
+    })?;
+    if !acts_for(&c, role, claim).contains(&act) {
+        return Err(ApiError { status: StatusCode::CONFLICT, message: "that answer isn't open to you now".to_string() });
+    }
+    let by = claim.party_id.clone();
+    let digest = Some(claim.digest.clone());
+    let moved = |move_kind, to| MoveBody { by: by.clone(), move_kind, to, note_ref: None };
+    match act {
+        LinkAct::Ack => {
+            let entry_index = checked_witness(s, HubEvent::CommitmentAcknowledged {
+                commitment_id: c.commitment_id.clone(),
+                party_id: by,
+                via: AckVia::Link,
+                link_digest: digest,
+            }).await?;
+            Ok(serde_json::json!({ "acknowledged": true, "entry_index": entry_index }))
+        }
+        LinkAct::Update => witness_move(s, &c, moved(MoveKind::Update, None), AckVia::Link, digest).await,
+        LinkAct::Stuck => witness_move(s, &c, moved(MoveKind::Stuck, None), AckVia::Link, digest).await,
+        LinkAct::Handoff => {
+            let to = Some(c.backup.clone());
+            witness_move(s, &c, moved(MoveKind::Handoff, to), AckVia::Link, digest).await
+        }
+        LinkAct::Take => {
+            let me = if role == LinkRole::Backup {
+                c.backup.clone()
+            } else {
+                PartyRef { party_id: by.clone(), kind: PartyKind::Member }
+            };
+            witness_move(s, &c, moved(MoveKind::Handoff, Some(me)), AckVia::Link, digest).await
+        }
+        LinkAct::Done => witness_resolution(s, &c, ResolveBody { outcome: Outcome::Done, by }, digest).await,
+    }
+}
+
+fn link_page_response(status: StatusCode, title: &str, body_html: &str) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let page = format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\">\
+         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
+         <meta name=\"robots\" content=\"noindex\"><title>{}</title>\
+         <style>body{{font:17px/1.5 system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem}}\
+         form{{margin:.5rem 0}}button{{font:inherit;width:100%;padding:.8rem;border-radius:.5rem;\
+         border:1px solid #888;background:#f4f4f4;cursor:pointer}}.muted{{color:#666}}</style>\
+         </head><body>{}</body></html>",
+        esc(title), body_html);
+    (
+        status,
+        [
+            // The token is in the URL: keep it out of caches and out of any Referer.
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+            (axum::http::header::REFERRER_POLICY, "no-referrer"),
+        ],
+        axum::response::Html(page),
+    ).into_response()
+}
+
+fn link_error_page(e: LinkError) -> axum::response::Response {
+    match e {
+        LinkError::Invalid => link_page_response(StatusCode::NOT_FOUND, "Link not found",
+            "<h1>This link doesn't work</h1><p>Check that the whole link was copied from the email.</p>"),
+        LinkError::Expired => link_page_response(StatusCode::GONE, "Link expired",
+            "<h1>This link has expired</h1><p>Ask your organiser to send a new one.</p>"),
+    }
+}
+
+/// The key and the claim, or the page to answer with instead.
+fn verified_link(s: &RestState, token: &str) -> Result<LinkClaim, axum::response::Response> {
+    let key = match read_link_key(&s.paths.root) {
+        Ok(Some(key)) => key,
+        Ok(None) => return Err(link_error_page(LinkError::Invalid)),
+        Err(e) => {
+            tracing::warn!("commitment link key unreadable: {e:#}");
+            return Err(link_page_response(StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong",
+                "<h1>Something went wrong</h1><p>Please try again later.</p>"));
+        }
+    };
+    read_link(&key, token, Utc::now()).map_err(link_error_page)
+}
+
+/// `GET /c/:token` — the page a nudge links to: the job, where it stands, and the answers open
+/// to this party. Reading it changes nothing.
+///
+/// surface: commitment_link_page   act: none (a read of one commitment by one of its parties)
+/// S: low/reversible [construct: no write; names shown are the ones the nudge already carried]
+/// R: pass [construct: read_link, an HMAC over (commitment, party, expiry)]   W: n/a (read)
+/// O: n/a   A: n/a (read)   V: n/a
+/// verdict: PASS
+pub(super) async fn link_page(
+    State(s): State<RestState>,
+    Path(token): Path<String>,
+) -> axum::response::Response {
+    let claim = match verified_link(&s, &token) {
+        Ok(claim) => claim,
+        Err(page) => return page,
+    };
+    let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    let book = match load_book(&s) {
+        Ok(book) => book,
+        Err(e) => {
+            tracing::warn!("contact book unreadable for a link page: {}", e.message);
+            ContactBook::default()
+        }
+    };
+    let Some(c) = state.commitments.get(&claim.commitment_id) else {
+        return link_error_page(LinkError::Invalid);
+    };
+    let name = |p: &PartyRef| party_view(&state, &book, p)["name"].as_str()
+        .map(str::to_string).unwrap_or_else(|| "someone".to_string());
+    let title = c.title.clone();
+    let mut html = format!("<h1>{}</h1>", esc(&title));
+    if let Some(r) = &c.resolved {
+        html.push_str(&format!("<p>This is closed: {} on {}.</p>",
+            commitments::outcome_str(r.outcome), r.at.format("%Y-%m-%d")));
+        return link_page_response(StatusCode::OK, &title, &html);
+    }
+    let Some(role) = role_of(&state, c, &claim.party_id) else {
+        html.push_str("<p>You're no longer named on this job, so there is nothing to answer here.</p>");
+        return link_page_response(StatusCode::OK, &title, &html);
+    };
+    let owner = name(&c.owner);
+    let backup = name(&c.backup);
+    html.push_str(&match role {
+        LinkRole::Owner => format!("<p>You're the owner. Your backup is {}.</p>", esc(&backup)),
+        LinkRole::Backup => format!("<p>{} owns this. You're the backup.</p>", esc(&owner)),
+        LinkRole::Lead => format!("<p>{} owns this, and {} is the backup. You're one of the leads.</p>",
+            esc(&owner), esc(&backup)),
+    });
+    if let Some(due) = c.due_at {
+        html.push_str(&format!("<p class=\"muted\">Due {}.</p>", due.format("%Y-%m-%d %H:%M UTC")));
+    }
+    for act in acts_for(c, role, &claim) {
+        // Relative to /c/<token>, so the form posts back to this hub whatever origin served it.
+        html.push_str(&format!("<form method=\"post\" action=\"{}/{}\"><button>{}</button></form>",
+            esc(&token), act.path(), esc(&act_label(act, role, &backup))));
+    }
+    html.push_str("<p class=\"muted\">Your answer goes on the chapter's record, marked as sent from this link.</p>");
+    link_page_response(StatusCode::OK, &title, &html)
+}
+
+/// `POST /c/:token/:act` — one answer from a link: acknowledge, update, done, stuck, handoff,
+/// or take. No body: the act is the path.
+///
+/// surface: commitment_link_act   act: record movement, an acknowledgement or done, as a named party
+/// S: low/reversible for movement; med for acknowledge and done [construct: acknowledge decides
+///    whether a later miss can carry a delta (§5.1); done ends the commitment]
+/// R: weak (possession of the link) [construct: read_link, HMAC over commitment + party + expiry]
+/// W: escalate-for-ack [construct: the link binds one commitment and one party, expires, and acknowledges once (link_acks)]
+/// O: pass [construct: read_link, then act_by_link re-derives role and offered answers under COMMITMENT_LOCK before checked_witness]
+/// A: pass [construct: every entry carries via=link and the token's digest]
+/// V: n/a [construct: a mistaken done or handoff is corrected by the operator; nothing here is irreversible beyond done]
+/// verdict: PASS for movement; a link acknowledgement is recorded as via=link so a reader weighs it as possession-only
+pub(super) async fn link_act(
+    State(s): State<RestState>,
+    Path((token, act)): Path<(String, String)>,
+) -> axum::response::Response {
+    let claim = match verified_link(&s, &token) {
+        Ok(claim) => claim,
+        Err(page) => return page,
+    };
+    let Some(act) = LinkAct::parse(&act) else {
+        return link_page_response(StatusCode::NOT_FOUND, "Not found", "<h1>That isn't an answer this page offers</h1>");
+    };
+    let back = format!("<p><a href=\"../{}\">Back to the job</a></p>", esc(&token));
+    match act_by_link(&s, &claim, act).await {
+        Ok(_) => {
+            let said = match act {
+                LinkAct::Ack => "Thanks. It's recorded that you've seen this and said yes.",
+                LinkAct::Update => "Thanks. It's recorded that you're still on it.",
+                LinkAct::Done => "Thanks. It's recorded as done.",
+                LinkAct::Stuck => "Recorded. Your backup has been asked to help.",
+                LinkAct::Handoff => "Recorded. It's with your backup now.",
+                LinkAct::Take => "Recorded. It's yours now.",
+            };
+            link_page_response(StatusCode::OK, "Recorded", &format!("<h1>{said}</h1>{back}"))
+        }
+        Err(e) => {
+            let status = if e.status.is_server_error() { StatusCode::SERVICE_UNAVAILABLE } else { e.status };
+            if e.status.is_server_error() {
+                tracing::warn!("commitment link answer not recorded: {}", e.message);
+            }
+            let why = if e.status.is_server_error() {
+                "The hub couldn't record it just now. Please try again later.".to_string()
+            } else {
+                e.message
+            };
+            link_page_response(status, "Not recorded", &format!("<h1>Not recorded</h1><p>{}</p>{back}", esc(&why)))
+        }
+    }
 }
 
 /// How often the sweep runs. Silence boundaries are accurate to ±1 interval (PRD §4).
@@ -733,6 +1190,7 @@ pub(crate) async fn sweep_once(s: &RestState, now: DateTime<Utc>) -> Result<Swee
                 by: SWEEP_ACTOR.to_string(),
                 resolved_at: now,
                 owner_acknowledged,
+                link_digest: None,
             }).await?;
             report.commitments_missed += 1;
             // W: a named owner who never acknowledged is not debited for the operator's claim.
@@ -1025,7 +1483,8 @@ mod tests {
         let named = open_due(&s, alex, sam, role, now).await;
         let acked = open_due(&s, sam, alex, role, now).await;
         witness_for_test(&s, HubEvent::CommitmentAcknowledged {
-            commitment_id: acked.clone(), party_id: sam.to_string(), via: AckVia::Link }).await;
+            commitment_id: acked.clone(), party_id: sam.to_string(), via: AckVia::Link,
+            link_digest: Some("0".repeat(32)) }).await;
         // Inside the 15-minute default grace: nothing is missed.
         assert_eq!(sweep_once(&s, now + chrono::Duration::minutes(14)).await.unwrap().commitments_missed, 0);
         let r = sweep_once(&s, now + chrono::Duration::minutes(15)).await.unwrap();
@@ -1099,7 +1558,7 @@ mod tests {
 
     async fn nudges(s: &RestState) -> Vec<serde_json::Value> {
         let state = { let l = s.ledger.lock().await; s.projected(&l) };
-        due_nudges(&state, &load_book(s).unwrap(), Utc::now())
+        due_nudges(&state, &load_book(s).unwrap(), Utc::now(), None)
     }
 
     fn row<'a>(rows: &'a [serde_json::Value], party: Uuid) -> &'a serde_json::Value {
@@ -1219,5 +1678,255 @@ mod tests {
         assert_eq!(s.ledger.lock().await.len(), before, "a refused report witnesses nothing");
         assert_eq!(set_member_address(&s, &Uuid::new_v4().to_string(),
             MemberAddressBody { address: "x@example.org".into() }).await.unwrap_err().status, StatusCode::NOT_FOUND);
+    }
+
+    // ---- K4: movement links ----
+
+    #[test]
+    fn a_link_reads_back_only_as_minted_and_only_until_it_expires() {
+        let key = [7u8; 32];
+        let now = Utc::now();
+        let t = mint_link(&key, "c1", "p1", now + chrono::Duration::days(1));
+        let claim = read_link(&key, &t, now).unwrap();
+        assert_eq!((claim.commitment_id.as_str(), claim.party_id.as_str()), ("c1", "p1"));
+        assert_eq!(claim.digest.len(), commitments::LINK_DIGEST_LEN);
+        // The digest is the token's SHA-256, cut to 128 bits: neither the token nor a piece of it.
+        // (It once asserted the digest held no "c1"; a random 32-hex string does ~11% of the time.)
+        use sha2::Digest;
+        assert_eq!(claim.digest, hex::encode(sha2::Sha256::digest(t.as_bytes()))[..commitments::LINK_DIGEST_LEN]);
+        assert!(!t.contains(&claim.digest), "the digest is not the token");
+
+        assert_eq!(read_link(&key, &t, now + chrono::Duration::days(1)), Err(LinkError::Expired));
+        assert_eq!(read_link(&[8u8; 32], &t, now), Err(LinkError::Invalid), "another hub's key");
+        // Someone else's party id under this link's MAC.
+        assert_eq!(read_link(&key, &t.replacen(".p1.", ".p2.", 1), now), Err(LinkError::Invalid));
+        // A later expiry under this link's MAC.
+        let (payload, tag) = t.rsplit_once('.').unwrap();
+        let (head, exp) = payload.rsplit_once('.').unwrap();
+        let stretched = format!("{head}.{}.{tag}", exp.parse::<i64>().unwrap() + 86_400);
+        assert_eq!(read_link(&key, &stretched, now), Err(LinkError::Invalid));
+        // A one-byte prefix of the right MAC: `verify_truncated_left` alone would accept it.
+        assert_eq!(read_link(&key, &format!("{payload}.{}", &tag[..2]), now), Err(LinkError::Invalid));
+        assert_eq!(read_link(&key, "nonsense", now), Err(LinkError::Invalid));
+        // The same MAC in capitals decodes to the same bytes, and would carry another digest.
+        assert_eq!(read_link(&key, &format!("{payload}.{}", tag.to_uppercase()), now), Err(LinkError::Invalid),
+            "one link, one spelling (Legion, #957)");
+    }
+
+    async fn call(s: &RestState, method: &str, path: &str) -> (StatusCode, String) {
+        use tower::ServiceExt;
+        let req = axum::http::Request::builder().method(method).uri(path)
+            .body(axum::body::Body::empty()).unwrap();
+        let resp = crate::rest::router(s.clone()).oneshot(req).await.unwrap();
+        let status = resp.status();
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        (status, String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    async fn link_for(s: &RestState, id: &str, party: Uuid) -> String {
+        let key = {
+            let _serial = COMMITMENT_LOCK.lock().await;
+            link_key_or_create(&s.paths.root).unwrap()
+        };
+        mint_link(&key, id, &party.to_string(), Utc::now() + chrono::Duration::days(LINK_TTL_DAYS))
+    }
+
+    fn last(entries: &[hub_lib::ledger::LedgerEntry]) -> &HubEvent {
+        &entries.last().unwrap().event
+    }
+
+    #[tokio::test]
+    async fn opening_a_link_writes_nothing_and_offers_the_partys_answers() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let token = link_for(&s, &id, alex).await;
+        let before = s.ledger.lock().await.len();
+        let (status, page) = call(&s, "GET", &format!("/c/{token}")).await;
+        assert_eq!(status, StatusCode::OK, "{page}");
+        assert_eq!(s.ledger.lock().await.len(), before, "a mail scanner fetching the link moved something");
+        assert!(page.contains("You're the owner. Your backup is Sam."), "{page}");
+        for act in ["acknowledge", "update", "done", "stuck", "handoff"] {
+            assert!(page.contains(&format!("action=\"{token}/{act}\"")), "{act} missing: {page}");
+        }
+        assert!(!page.contains("/take\""), "the owner takes nothing over: {page}");
+        assert!(page.contains("Hand it to Sam"));
+
+        // A link this hub did not make, and a hub that has made none, both read as not found.
+        let (status, _) = call(&s, "GET", &format!("/c/{}", mint_link(&[1u8; 32], &id, &alex.to_string(),
+            Utc::now() + chrono::Duration::days(1)))).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        let (_tmp2, bare) = fresh_rest_state(None).await;
+        assert_eq!(call(&bare, "GET", &format!("/c/{token}")).await.0, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn a_link_acknowledges_once_and_the_entry_carries_via_link_and_the_digest() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let token = link_for(&s, &id, alex).await;
+        let digest = read_link(&read_link_key(&s.paths.root).unwrap().unwrap(), &token, Utc::now()).unwrap().digest;
+
+        let (status, page) = call(&s, "POST", &format!("/c/{token}/acknowledge")).await;
+        assert_eq!(status, StatusCode::OK, "{page}");
+        {
+            let l = s.ledger.lock().await;
+            assert!(matches!(last(l.entries()), HubEvent::CommitmentAcknowledged { via: AckVia::Link,
+                link_digest: Some(d), party_id, .. } if *d == digest && *party_id == alex.to_string()));
+            let all = serde_json::to_string(l.entries()).unwrap();
+            assert!(!all.contains(&token), "the token reached the ledger");
+        }
+        assert!(current(&s, &id).await.owner_acknowledged(), "a link ack is the owner's word, by possession");
+
+        let before = s.ledger.lock().await.len();
+        let (status, _) = call(&s, "POST", &format!("/c/{token}/acknowledge")).await;
+        assert_eq!(status, StatusCode::CONFLICT, "acknowledge is offered once");
+        assert_eq!(s.ledger.lock().await.len(), before);
+        assert!(!call(&s, "GET", &format!("/c/{token}")).await.1.contains("/acknowledge\""));
+    }
+
+    #[tokio::test]
+    async fn the_owner_hands_to_the_backup_and_each_link_follows_the_new_roles() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let (alex_link, sam_link) = (link_for(&s, &id, alex).await, link_for(&s, &id, sam).await);
+
+        assert_eq!(call(&s, "POST", &format!("/c/{alex_link}/handoff")).await.0, StatusCode::OK);
+        let c = current(&s, &id).await;
+        assert_eq!((c.owner.party_id.clone(), c.backup.party_id.clone()), (sam.to_string(), alex.to_string()));
+        assert_eq!(c.basis, commitments::Basis::NamedByOther, "Alex's handoff is not Sam's word");
+
+        // Alex's own link now speaks as the backup: no second handoff, no stuck.
+        let before = s.ledger.lock().await.len();
+        assert_eq!(call(&s, "POST", &format!("/c/{alex_link}/handoff")).await.0, StatusCode::CONFLICT);
+        assert_eq!(call(&s, "POST", &format!("/c/{alex_link}/stuck")).await.0, StatusCode::CONFLICT);
+        assert_eq!(s.ledger.lock().await.len(), before, "a refused answer reached the ledger");
+        assert!(call(&s, "GET", &format!("/c/{alex_link}")).await.1.contains("Sam owns this. You're the backup."));
+
+        // Sam's link, minted when Sam was the backup, now offers the owner's answers.
+        let (_, page) = call(&s, "GET", &format!("/c/{sam_link}")).await;
+        assert!(page.contains("You're the owner.") && page.contains("/stuck\""), "{page}");
+    }
+
+    #[tokio::test]
+    async fn a_lead_takes_over_by_link_and_the_dropped_owner_can_no_longer_answer() {
+        let (_tmp, s, alex, sam, lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let (alex_link, lee_link) = (link_for(&s, &id, alex).await, link_for(&s, &id, lee).await);
+        assert!(call(&s, "GET", &format!("/c/{lee_link}")).await.1.contains("You're one of the leads."));
+
+        assert_eq!(call(&s, "POST", &format!("/c/{lee_link}/take")).await.0, StatusCode::OK);
+        let c = current(&s, &id).await;
+        assert_eq!((c.owner.party_id.clone(), c.basis), (lee.to_string(), commitments::Basis::TakenBySelf),
+            "a take-over through Lee's own link is Lee's act");
+        {
+            let l = s.ledger.lock().await;
+            assert!(matches!(last(l.entries()), HubEvent::CommitmentMoved { via: AckVia::Link,
+                link_digest: Some(_), move_kind: MoveKind::Handoff, .. }));
+        }
+
+        let before = s.ledger.lock().await.len();
+        assert_eq!(call(&s, "POST", &format!("/c/{alex_link}/update")).await.0, StatusCode::FORBIDDEN);
+        assert_eq!(s.ledger.lock().await.len(), before);
+        assert!(call(&s, "GET", &format!("/c/{alex_link}")).await.1.contains("no longer named"));
+    }
+
+    #[tokio::test]
+    async fn stuck_and_done_by_link_and_a_closed_job_takes_no_answers() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let (alex_link, sam_link) = (link_for(&s, &id, alex).await, link_for(&s, &id, sam).await);
+
+        assert_eq!(call(&s, "POST", &format!("/c/{alex_link}/stuck")).await.0, StatusCode::OK);
+        let c = current(&s, &id).await;
+        assert_eq!((c.queue, c.escalations.len()), (commitments::QueuePos::Backup, 1), "stuck escalates as in K1");
+
+        assert_eq!(call(&s, "POST", &format!("/c/{sam_link}/done")).await.0, StatusCode::OK);
+        {
+            let l = s.ledger.lock().await;
+            assert!(matches!(last(l.entries()), HubEvent::CommitmentResolved { outcome: Outcome::Done,
+                link_digest: Some(_), by, .. } if *by == sam.to_string()));
+        }
+        let before = s.ledger.lock().await.len();
+        assert_eq!(call(&s, "POST", &format!("/c/{alex_link}/update")).await.0, StatusCode::CONFLICT);
+        assert_eq!(call(&s, "POST", &format!("/c/{alex_link}/bogus")).await.0, StatusCode::NOT_FOUND);
+        assert_eq!(s.ledger.lock().await.len(), before);
+        assert!(call(&s, "GET", &format!("/c/{alex_link}")).await.1.contains("This is closed: done"));
+    }
+
+    #[tokio::test]
+    async fn a_nudge_carries_a_link_for_its_own_party() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        address(&s, alex, "alex@example.org").await;
+        let key = { let _serial = COMMITMENT_LOCK.lock().await; link_key_or_create(&s.paths.root).unwrap() };
+        let minter = LinkMinter { base: "https://hub.example.org", key: &key };
+        let state = { let l = s.ledger.lock().await; s.projected(&l) };
+        let rows = due_nudges(&state, &load_book(&s).unwrap(), Utc::now(), Some(&minter));
+        let a = row(&rows, alex);
+        let link = a["link"].as_str().unwrap();
+        let token = link.strip_prefix("https://hub.example.org/c/").expect("the public base");
+        let claim = read_link(&key, token, Utc::now()).unwrap();
+        assert_eq!((claim.commitment_id, claim.party_id), (id.clone(), alex.to_string()));
+        assert!(a["body"].as_str().unwrap().ends_with(link), "{a}");
+        // The backup's row carries the backup's link, not the owner's.
+        let sam_link = row(&rows, sam)["link"].as_str().unwrap().rsplit('/').next().unwrap().to_string();
+        assert_eq!(read_link(&key, &sam_link, Utc::now()).unwrap().party_id, sam.to_string());
+        assert!(nudges(&s).await.iter().all(|r| r["link"].is_null()), "no base, no link");
+    }
+
+    /// Legion, #957 finding 2: Sam acknowledges as backup through his link, then the operator hands
+    /// the job to Sam. The handoff clears Sam's acknowledgement, but his link has used its one
+    /// acknowledgement, so the page must not offer one that the ledger will refuse.
+    #[tokio::test]
+    async fn a_link_that_has_acknowledged_does_not_offer_it_again_after_a_handoff() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let sam_link = link_for(&s, &id, sam).await;
+        assert_eq!(call(&s, "POST", &format!("/c/{sam_link}/acknowledge")).await.0, StatusCode::OK);
+        move_commitment(&s, &id, MoveBody { by: alex.to_string(), move_kind: MoveKind::Handoff,
+            to: Some(member(sam)), note_ref: None }).await.unwrap();
+        assert!(!current(&s, &id).await.acknowledged.contains_key(&sam.to_string()), "the handoff cleared it");
+
+        let (_, page) = call(&s, "GET", &format!("/c/{sam_link}")).await;
+        assert!(page.contains("You're the owner.") && !page.contains("/acknowledge\""), "{page}");
+        let before = s.ledger.lock().await.len();
+        assert_eq!(call(&s, "POST", &format!("/c/{sam_link}/acknowledge")).await.0, StatusCode::CONFLICT);
+        assert_eq!(s.ledger.lock().await.len(), before);
+        // A fresh link (K4b sends one to a new owner) can still give Sam's word. Minted in the
+        // same second with the same expiry it would be the same link, so give it another.
+        let key = read_link_key(&s.paths.root).unwrap().unwrap();
+        let fresh = mint_link(&key, &id, &sam.to_string(), Utc::now() + chrono::Duration::days(LINK_TTL_DAYS - 1));
+        assert_eq!(call(&s, "POST", &format!("/c/{fresh}/acknowledge")).await.0, StatusCode::OK);
+        assert!(current(&s, &id).await.owner_acknowledged());
+    }
+
+    /// Legion, #957 nit: a key anyone can read lets anyone mint any party's link. Refuse it.
+    #[tokio::test]
+    async fn a_link_key_others_can_read_is_refused() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let token = link_for(&s, &id, alex).await;
+        assert_eq!(call(&s, "GET", &format!("/c/{token}")).await.0, StatusCode::OK);
+        std::fs::set_permissions(link_key_path(&s.paths.root), std::fs::Permissions::from_mode(0o644)).unwrap();
+        let (status, page) = call(&s, "GET", &format!("/c/{token}")).await;
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(!page.contains("chmod") && !page.contains(&s.paths.root.display().to_string()), "{page}");
+        assert!(list_nudges(&s, Some("https://hub.example.org".into())).await.is_err(), "nor is one minted with it");
+    }
+
+    /// Legion, #957 nit: the key is made by the first listing that carries a link, not by any.
+    #[tokio::test]
+    async fn the_link_key_is_made_only_when_a_link_is_owed() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let base = Some("https://hub.example.org".to_string());
+        let empty = list_nudges(&s, base.clone()).await.unwrap();
+        assert_eq!((empty["links"].as_str(), empty["nudges"].as_array().unwrap().len()), (Some("on"), 0));
+        assert!(read_link_key(&s.paths.root).unwrap().is_none(), "no row, no key");
+        open(&s, member(alex), member(sam), role).await.unwrap();
+        let rows = list_nudges(&s, base).await.unwrap();
+        assert!(rows["nudges"][0]["link"].as_str().unwrap().starts_with("https://hub.example.org/c/"));
+        assert!(read_link_key(&s.paths.root).unwrap().is_some());
+        assert_eq!(list_nudges(&s, None).await.unwrap()["links"], "off: set HUB_PUBLIC_BASE_URL");
     }
 }

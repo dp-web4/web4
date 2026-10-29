@@ -12,7 +12,7 @@
 //! K1 has no clock. `queue_since` is projected here so the K2 sweep has one field to measure
 //! silence from, and nothing in this slice reads it.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -135,6 +135,8 @@ pub const MAX_CHANNEL_LEN: usize = 32;
 /// Nudge attempts any one party gets in a rolling day, across every commitment (PRD §6). Counted
 /// from the ledger, so a carrier restart cannot reset it.
 pub const NUDGE_CAP_PER_DAY: usize = 3;
+/// The length of a movement link's digest on the ledger: 128 bits of SHA-256, in hex (K4).
+pub const LINK_DIGEST_LEN: usize = 32;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Escalation {
@@ -190,6 +192,8 @@ pub struct Commitment {
     pub escalations: Vec<Escalation>,
     pub resolved: Option<Resolution>,
     pub deliveries: Vec<Delivery>,
+    /// Digests of the links that have acknowledged (K4): each link acknowledges once.
+    pub link_acks: BTreeSet<String>,
 }
 
 impl Commitment {
@@ -314,10 +318,22 @@ pub fn check(commitments: &BTreeMap<String, Commitment>, event: &HubEvent) -> Re
         return Err(Refusal::AlreadyResolved { commitment_id: id.to_string(), outcome: r.outcome, at: r.at });
     }
     match event {
-        HubEvent::CommitmentAcknowledged { party_id, .. } => {
+        HubEvent::CommitmentAcknowledged { via, link_digest, .. } | HubEvent::CommitmentMoved { via, link_digest, .. } => {
+            check_link_digest(*via, link_digest.as_deref())?;
+        }
+        HubEvent::CommitmentResolved { link_digest: Some(d), .. } => check_link_digest(AckVia::Link, Some(d))?,
+        _ => {}
+    }
+    match event {
+        HubEvent::CommitmentAcknowledged { party_id, link_digest, .. } => {
             if party_id != &c.owner.party_id && party_id != &c.backup.party_id {
                 return Err(Refusal::Invalid(format!(
                     "{party_id} is neither the owner nor the backup of {id}; only they acknowledge")));
+            }
+            // An acknowledgement is the one consequential bit a link carries, so a link gives it
+            // once (PRD §5, the movement-link block).
+            if link_digest.as_ref().map_or(false, |d| c.link_acks.contains(d)) {
+                return Err(Refusal::Invalid("this link has already been used to acknowledge".into()));
             }
         }
         HubEvent::CommitmentMoved { move_kind, to, .. } => match (move_kind, to) {
@@ -346,6 +362,19 @@ pub fn check(commitments: &BTreeMap<String, Commitment>, event: &HubEvent) -> Re
     Ok(())
 }
 
+/// A link digest is present exactly when the word came through a link, and is the shape the hub
+/// writes: 32 lowercase hex characters (K4).
+fn check_link_digest(via: AckVia, digest: Option<&str>) -> Result<(), Refusal> {
+    match (via, digest) {
+        (AckVia::Link, Some(d)) if d.len() == LINK_DIGEST_LEN
+            && d.chars().all(|ch| ch.is_ascii_digit() || ('a'..='f').contains(&ch)) => Ok(()),
+        (AckVia::Link, _) => Err(Refusal::Invalid(format!(
+            "a link entry carries its link's digest: {LINK_DIGEST_LEN} lowercase hex characters"))),
+        (_, Some(_)) => Err(Refusal::Invalid("only a link entry carries a link digest".into())),
+        (_, None) => Ok(()),
+    }
+}
+
 /// Fold one commitment event into the map. Called from `HubState::apply`. Events the routes would
 /// have refused (unknown id, already resolved, duplicate open) change nothing, so a write that
 /// slipped past a check cannot reset a clock or reopen a commitment on replay.
@@ -372,11 +401,21 @@ pub fn fold(commitments: &mut BTreeMap<String, Commitment>, event: &HubEvent, ts
                 escalations: Vec::new(),
                 resolved: None,
                 deliveries: Vec::new(),
+                link_acks: BTreeSet::new(),
             });
         }
-        HubEvent::CommitmentAcknowledged { commitment_id, party_id, via } => {
+        HubEvent::CommitmentAcknowledged { commitment_id, party_id, via, link_digest } => {
             let Some(c) = open_mut(commitments, commitment_id) else { return };
-            c.acknowledged.insert(party_id.clone(), *via);
+            // An operator relay never replaces the party's own word with the operator's: that would
+            // turn `owner_acknowledged` false behind the party's back (Legion, #957). The relay still
+            // moves the queue below, as any acknowledgement does.
+            let own = matches!(c.acknowledged.get(party_id), Some(AckVia::MemberAct | AckVia::Link));
+            if !(own && *via == AckVia::Operator) {
+                c.acknowledged.insert(party_id.clone(), *via);
+            }
+            if let Some(d) = link_digest {
+                c.link_acks.insert(d.clone());
+            }
             // The owner saying "mine" takes the queue back. Anyone else saying "seen" restarts the
             // clock only when the queue is waiting on them; a backup's ack while the owner holds
             // it records the ack and moves nothing (Legion, #947).
@@ -429,7 +468,7 @@ pub fn fold(commitments: &mut BTreeMap<String, Commitment>, event: &HubEvent, ts
                 about_index: *about_index, party_id: party_id.clone(), channel: channel.clone(), ok: *ok, at: ts,
             });
         }
-        HubEvent::CommitmentResolved { commitment_id, outcome, by, resolved_at, owner_acknowledged } => {
+        HubEvent::CommitmentResolved { commitment_id, outcome, by, resolved_at, owner_acknowledged, .. } => {
             let Some(c) = open_mut(commitments, commitment_id) else { return };
             c.resolved = Some(Resolution {
                 outcome: *outcome,
@@ -649,7 +688,14 @@ mod tests {
     }
 
     fn moved_via(by: &str, via: AckVia, move_kind: MoveKind, to: Option<PartyRef>) -> HubEvent {
-        HubEvent::CommitmentMoved { commitment_id: "c".into(), by: by.into(), via, move_kind, to, note_ref: None }
+        HubEvent::CommitmentMoved { commitment_id: "c".into(), by: by.into(), via, move_kind, to, note_ref: None,
+            link_digest: if via == AckVia::Link { dg() } else { None } }
+    }
+
+    /// A fresh link digest per call: each link acknowledgement in a test came through its own link.
+    fn dg() -> Option<String> {
+        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        Some(format!("{:032x}", N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)))
     }
 
     fn at(h: i64) -> DateTime<Utc> {
@@ -667,10 +713,10 @@ mod tests {
         apply(&mut m, opened("c"), 0);
         assert!(!m["c"].owner_acknowledged(), "C2: named_by_other starts unacknowledged");
         apply(&mut m, HubEvent::CommitmentAcknowledged {
-            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Operator }, 1);
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Operator, link_digest: None }, 1);
         assert!(!m["c"].owner_acknowledged(), "the operator's relay is not the owner's own word");
         apply(&mut m, HubEvent::CommitmentAcknowledged {
-            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link }, 2);
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link, link_digest: dg() }, 2);
         assert!(m["c"].owner_acknowledged());
         assert_eq!(m["c"].queue_since, at(2), "an acknowledgement sets the queue");
     }
@@ -697,7 +743,7 @@ mod tests {
         assert!(matches!(check(&m, &moved("alex", MoveKind::Handoff, None)), Err(Refusal::Invalid(_))));
         assert!(matches!(check(&m, &moved("alex", MoveKind::Update, Some(member("sam")))), Err(Refusal::Invalid(_))));
         apply(&mut m, HubEvent::CommitmentAcknowledged {
-            commitment_id: "c".into(), party_id: "sam".into(), via: AckVia::Link }, 1);
+            commitment_id: "c".into(), party_id: "sam".into(), via: AckVia::Link, link_digest: dg() }, 1);
         // Alex hands to the backup: the two swap, and Sam's acknowledgement as backup does not carry.
         apply(&mut m, moved("alex", MoveKind::Handoff, Some(member("sam"))), 2);
         let c = &m["c"];
@@ -727,7 +773,7 @@ mod tests {
         let mut m = BTreeMap::new();
         apply(&mut m, opened("c"), 0);
         apply(&mut m, HubEvent::CommitmentAcknowledged {
-            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link }, 1);
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link, link_digest: dg() }, 1);
         apply(&mut m, moved("alex", MoveKind::Handoff, Some(member("sam"))), 2);
         assert_eq!(m["c"].backup.party_id, "alex");
         assert!(!m["c"].acknowledged.contains_key("alex"), "alex acknowledged as owner, not as backup");
@@ -738,18 +784,18 @@ mod tests {
         let mut m = BTreeMap::new();
         apply(&mut m, opened("c"), 0);
         apply(&mut m, HubEvent::CommitmentAcknowledged {
-            commitment_id: "c".into(), party_id: "sam".into(), via: AckVia::Link }, 5);
+            commitment_id: "c".into(), party_id: "sam".into(), via: AckVia::Link, link_digest: dg() }, 5);
         assert_eq!((m["c"].queue, m["c"].queue_since), (QueuePos::Owner, at(0)), "seen is not taken");
         // Once the queue waits on the backup, their ack restarts its clock.
         apply(&mut m, HubEvent::CommitmentEscalated {
             commitment_id: "c".into(), step: EscalationStep::Backup, cause: EscalationCause::Silence,
             silent_since: Some(at(0)), window_hours: Some(48), swept_at: at(48) }, 48);
         apply(&mut m, HubEvent::CommitmentAcknowledged {
-            commitment_id: "c".into(), party_id: "sam".into(), via: AckVia::Link }, 50);
+            commitment_id: "c".into(), party_id: "sam".into(), via: AckVia::Link, link_digest: dg() }, 50);
         assert_eq!((m["c"].queue, m["c"].queue_since), (QueuePos::Backup, at(50)));
         // The owner's own "mine" takes it back.
         apply(&mut m, HubEvent::CommitmentAcknowledged {
-            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link }, 51);
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link, link_digest: dg() }, 51);
         assert_eq!((m["c"].queue, m["c"].queue_since), (QueuePos::Owner, at(51)));
     }
 
@@ -759,10 +805,10 @@ mod tests {
         apply(&mut m, opened("c"), 0);
         apply(&mut m, HubEvent::CommitmentResolved {
             commitment_id: "c".into(), outcome: Outcome::Missed, by: "hub".into(),
-            resolved_at: at(5), owner_acknowledged: false }, 5);
+            resolved_at: at(5), owner_acknowledged: false, link_digest: None }, 5);
         let late = HubEvent::CommitmentResolved {
             commitment_id: "c".into(), outcome: Outcome::Done, by: "alex".into(),
-            resolved_at: at(6), owner_acknowledged: false };
+            resolved_at: at(6), owner_acknowledged: false, link_digest: None };
         let e = check(&m, &late).unwrap_err();
         assert_eq!(e.to_string(), format!("already resolved: commitment c was missed at {}", at(5).to_rfc3339()));
         // The fold backstop: a resolution that got past the check still changes nothing.
@@ -796,13 +842,63 @@ mod tests {
         assert!(check(&m, &e).is_err(), "blank title");
     }
 
+    /// K4: an entry carries a link digest exactly when it came through a link, and a link
+    /// acknowledges once. A second link may still acknowledge (the queue may need it again).
+    #[test]
+    fn a_link_digest_marks_link_entries_only_and_acknowledges_once() {
+        let ack = |via, link_digest: Option<&str>| HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "alex".into(), via, link_digest: link_digest.map(str::to_string) };
+        let d = "0123456789abcdef0123456789abcdef";
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        for bad in [ack(AckVia::Link, None), ack(AckVia::Operator, Some(d)), ack(AckVia::MemberAct, Some(d)),
+                    ack(AckVia::Link, Some("0123")), ack(AckVia::Link, Some(&d.to_uppercase())),
+                    ack(AckVia::Link, Some(&format!("{}g", &d[1..])))] {
+            assert!(matches!(check(&m, &bad), Err(Refusal::Invalid(_))), "{bad:?}");
+        }
+        apply(&mut m, ack(AckVia::Link, Some(d)), 1);
+        assert!(m["c"].link_acks.contains(d));
+        assert!(matches!(check(&m, &ack(AckVia::Link, Some(d))), Err(Refusal::Invalid(_))), "used twice");
+        let other = "fedcba9876543210fedcba9876543210";
+        assert_eq!(check(&m, &ack(AckVia::Link, Some(other))), Ok(()));
+        // A link may move as often as it likes: only its acknowledgement is single-use.
+        let mv = HubEvent::CommitmentMoved { commitment_id: "c".into(), by: "alex".into(), via: AckVia::Link,
+            move_kind: MoveKind::Update, to: None, note_ref: None, link_digest: Some(d.into()) };
+        assert_eq!(check(&m, &mv), Ok(()));
+        let done = |link_digest: Option<&str>| HubEvent::CommitmentResolved { commitment_id: "c".into(),
+            outcome: Outcome::Done, by: "alex".into(), resolved_at: at(2), owner_acknowledged: true,
+            link_digest: link_digest.map(str::to_string) };
+        assert!(matches!(check(&m, &done(Some("xyz"))), Err(Refusal::Invalid(_))));
+        assert_eq!(check(&m, &done(Some(d))), Ok(()));
+        assert_eq!(check(&m, &done(None)), Ok(()));
+    }
+
+    /// Legion, #957 finding 3: an operator relay must not replace the owner's own word.
+    #[test]
+    fn an_operator_relay_never_downgrades_a_partys_own_acknowledgement() {
+        let mut m = BTreeMap::new();
+        apply(&mut m, opened("c"), 0);
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link, link_digest: dg() }, 1);
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Operator, link_digest: None }, 2);
+        assert!(m["c"].owner_acknowledged(), "the relay erased Alex's own word");
+        assert_eq!(m["c"].acknowledged["alex"], AckVia::Link);
+        // The other way round, the party's own word does replace the relay.
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "sam".into(), via: AckVia::Operator, link_digest: None }, 3);
+        apply(&mut m, HubEvent::CommitmentAcknowledged {
+            commitment_id: "c".into(), party_id: "sam".into(), via: AckVia::Link, link_digest: dg() }, 4);
+        assert_eq!(m["c"].acknowledged["sam"], AckVia::Link);
+    }
+
     #[test]
     fn only_the_owner_or_backup_acknowledges() {
         let mut m = BTreeMap::new();
         apply(&mut m, opened("c"), 0);
-        let e = HubEvent::CommitmentAcknowledged { commitment_id: "c".into(), party_id: "zed".into(), via: AckVia::Link };
+        let e = HubEvent::CommitmentAcknowledged { commitment_id: "c".into(), party_id: "zed".into(), via: AckVia::Link, link_digest: dg() };
         assert!(matches!(check(&m, &e), Err(Refusal::Invalid(_))));
-        let e = HubEvent::CommitmentAcknowledged { commitment_id: "nope".into(), party_id: "alex".into(), via: AckVia::Link };
+        let e = HubEvent::CommitmentAcknowledged { commitment_id: "nope".into(), party_id: "alex".into(), via: AckVia::Link, link_digest: dg() };
         assert_eq!(check(&m, &e), Err(Refusal::Unknown("nope".into())));
     }
 
@@ -872,7 +968,7 @@ mod tests {
         assert_eq!((t[0].party.party_id.as_str(), t[0].about_index, t[0].about), ("sam", 48, NudgeAbout::Escalated));
 
         apply(&mut m, HubEvent::CommitmentAcknowledged {
-            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link }, 49);
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link, link_digest: dg() }, 49);
         assert!(m["c"].nudge_targets(&[]).is_empty(), "the owner took it back; the escalation is answered");
     }
 
@@ -913,7 +1009,7 @@ mod tests {
         let mut m = BTreeMap::new();
         apply(&mut m, opened("c"), 0);
         apply(&mut m, HubEvent::CommitmentAcknowledged {
-            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Operator }, 1);
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Operator, link_digest: None }, 1);
         apply(&mut m, silence(EscalationStep::Backup, 48), 49);
         let t = m["c"].nudge_targets(&[]).remove(0);
         assert!(m["c"].nudge_message(&t, &name).1.contains("Not yet acknowledged by Alex"));
@@ -921,7 +1017,7 @@ mod tests {
         let mut m = BTreeMap::new();
         apply(&mut m, opened("c"), 0);
         apply(&mut m, HubEvent::CommitmentAcknowledged {
-            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link }, 1);
+            commitment_id: "c".into(), party_id: "alex".into(), via: AckVia::Link, link_digest: dg() }, 1);
         apply(&mut m, silence(EscalationStep::Backup, 48), 49);
         let t = m["c"].nudge_targets(&[]).remove(0);
         let (subject, body) = m["c"].nudge_message(&t, &name);
@@ -946,7 +1042,7 @@ mod tests {
 
         apply(&mut m, HubEvent::CommitmentResolved {
             commitment_id: "c".into(), outcome: Outcome::Done, by: "alex".into(), resolved_at: at(3),
-            owner_acknowledged: false }, 3);
+            owner_acknowledged: false, link_digest: None }, 3);
         apply(&mut m, delivered(0, "alex", "email", true), 4);
         assert_eq!(m["c"].deliveries.len(), 3, "a send that raced the resolution is still on the record");
         assert!(m["c"].nudge_targets(&[]).is_empty(), "nothing is owed on a resolved commitment");

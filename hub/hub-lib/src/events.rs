@@ -1022,6 +1022,10 @@ pub enum HubEvent {
         commitment_id: String,
         party_id: String,
         via: crate::commitments::AckVia,
+        /// K4: the digest of the movement link this came through, set exactly when `via` is
+        /// `link`. The token itself never reaches the ledger.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link_digest: Option<String>,
     },
 
     /// Commitments K1: movement. `move_kind` is the PRD's `kind` (that name is this enum's serde
@@ -1038,6 +1042,9 @@ pub enum HubEvent {
         to: Option<crate::commitments::PartyRef>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         note_ref: Option<String>,
+        /// K4: as on `CommitmentAcknowledged`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link_digest: Option<String>,
     },
 
     /// Commitments: the queue moved forward. A queue move, never a verdict (C1). Written by the
@@ -1063,6 +1070,10 @@ pub enum HubEvent {
         by: String,
         resolved_at: DateTime<Utc>,
         owner_acknowledged: bool,
+        /// K4: set when the resolution came through a movement link, as on `CommitmentMoved`.
+        /// `by` is then the party the link was minted for: possession of the link, nothing more.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link_digest: Option<String>,
     },
 
     /// Commitments, K3: the off-hub carrier's report of one nudge attempt (C4). `about_index` is
