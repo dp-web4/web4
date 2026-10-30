@@ -390,6 +390,18 @@ The interim agreed on the forum stands:
 
 After 11-07, the hackathon's six commitments are the first data to enter K1. The event is then the first reusable template (outcome 5).
 
+### 8.1 Operator runbook (after 11-07, once K1-K5c2 are deployed)
+
+Every call below goes to the operator plane (`http://127.0.0.1:8772`, loopback only). The daemon needs `HUB_PUBLIC_BASE_URL` set to the address volunteers reach the hub at, or links and invites are refused or omitted. The whole path is one test: `the_pilot_path_from_contact_to_own_word` (rest/commitments/invites.rs).
+
+1. **Add each volunteer as a contact.** `POST /admin/api/contacts` `{"name": "Robin", "address": "robin@example.org"}` returns `party.party_id`. The name and address stay in `contacts.json` beside the ledger (0600), never on it.
+2. **Open each commitment.** `POST /admin/api/commitments` `{"title", "owner": {"party_id", "kind": "contact"|"member"}, "backup": {…}, "leads_role": "<role entity id>", "ladder": [48, 24, 24], "due_at": "<RFC 3339>"?}`. The leads role must be a live role entity.
+3. **Run the carrier.** Create `hub-nudge --config nudge.json` with `hub_admin_url`, `smtp_url`, `from`, `operator_address`, `state_file`, and optionally `netrc_file` (0600). Run it from a systemd timer, or with `--every 300`, and try `--dry-run` first. Each nudge carries the volunteer's own link (`/c/…`): answering through it needs no account.
+4. **Invite whoever should hold a key.** `POST /admin/api/contacts/:party_id/invite` returns `{link, invite_digest, expires_at}`, good for 7 days. Mail the link yourself. Opening it shows "Join <hub>". The volunteer's browser makes a key, and the chapter's law decides; the pilot norm `INVITED-JOIN-ADMITS` admits (HUB-LAW.md). Their open jobs become theirs as a member, and their old link keeps working.
+5. **Read the admission notice.** `GET /admin/api/invites` shows who joined from which invite, newest first. An unexpected name here means a forwarded invite: remove that member, and mint the contact a new invite. `POST /admin/api/invites/:invite_digest/revoke` withdraws one that hasn't been used.
+6. **Volunteers use `/me`** in the browser they joined from. It shows what they own and what they back up, signs in silently, and records their answers as their own word (`via: member_act`). A volunteer on a new browser, or one whose key was cleared, needs a fresh invite. The operator then links the new member to the old one with Slice E's `attest-predecessor`.
+7. **Watch the queue.** `GET /admin/api/commitments` lists open jobs by queue position. A job left silent past its window moves to the backup, then to the leads; nothing resolves on its own (C1).
+
 ## 9. Open questions
 
 1. **dp: ignition custody for a hosted chapter hub.** The sweep runs only while the hub is unlocked. A volunteer-run hub that restarts and waits for a passphrase stops escalating with no sign to anyone. Either a hosted chapter hub may hold its own ignition (a custody tier), or the carrier must alert the operator when the hub has been locked for more than N hours. Recommendation: build the locked-hub alert in K3 either way. It is cheap, and it makes the failure loud.

@@ -680,6 +680,90 @@ admission:
         (status, headers, String::from_utf8_lossy(&bytes).into_owned())
     }
 
+    /// One request through the whole router, as a browser or the carrier would send it.
+    async fn send(s: &RestState, method: &str, path: &str, cookie: Option<&str>, json: Option<serde_json::Value>)
+        -> (StatusCode, axum::http::HeaderMap, serde_json::Value)
+    {
+        use tower::ServiceExt;
+        let mut req = axum::http::Request::builder().method(method).uri(path);
+        if let Some(c) = cookie {
+            req = req.header(axum::http::header::COOKIE, c);
+        }
+        let body = match json {
+            Some(j) => { req = req.header(axum::http::header::CONTENT_TYPE, "application/json"); axum::body::Body::from(j.to_string()) }
+            None => axum::body::Body::empty(),
+        };
+        let resp = crate::rest::router(s.clone()).oneshot(req.body(body).unwrap()).await.unwrap();
+        let (status, headers) = (resp.status(), resp.headers().clone());
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        (status, headers, serde_json::from_slice(&bytes).unwrap_or_default())
+    }
+
+    fn signed_by(s: &RestState, kp: &KeyPair, signer: Uuid, payload: serde_json::Value) -> serde_json::Value {
+        let challenge = s.nonces.issue(signer, Utc::now());
+        let mut env = hub_lib::envelope::SignedEnvelope {
+            challenge_nonce: challenge.nonce.clone(), payload, signature: String::new(), signer_lct_id: signer,
+        };
+        env.signature = kp.sign(&env.signing_bytes().unwrap()).to_hex();
+        serde_json::to_value(&env).unwrap()
+    }
+
+    /// The 11-07 hackathon path, end to end, as the operator runbook (PRD §7.1) walks it: a job
+    /// for a contact, the nudge with its link, the invite, the join, the volunteer's own view, and
+    /// their answer in their own word. Each step through the same route a person or the carrier uses.
+    #[tokio::test]
+    async fn the_pilot_path_from_contact_to_own_word() {
+        let base = "https://hub.example.org";
+        let (_tmp, s, robin) = hub(PILOT_LAW).await;
+        let sam = existing_member(&s, &KeyPair::generate()).await;
+        let role = leads_role(&s).await;
+        // 1. The operator opens a job for Robin, still only a contact, with Sam as backup.
+        let id = open_for(&s, PartyRef { party_id: robin.clone(), kind: PartyKind::Contact },
+            PartyRef { party_id: sam.to_string(), kind: PartyKind::Member }, role).await;
+
+        // 2. The carrier lists what is owed: Robin's nudge, to Robin's address, with a link.
+        let rows = list_nudges(&s, Some(base.into())).await.unwrap()["nudges"].as_array().unwrap().clone();
+        let to_robin = rows.iter().find(|r| r["party"]["party_id"] == robin.as_str()).expect("a nudge for Robin");
+        assert_eq!((to_robin["address"].as_str(), to_robin["held"].is_null()), (Some("robin@example.org"), true));
+        let link = to_robin["link"].as_str().unwrap().strip_prefix(&format!("{base}/c/")).unwrap().to_string();
+        let about = to_robin["about_index"].as_u64().unwrap();
+        record_delivery(&s, DeliveredBody { commitment_id: id.clone(), about_index: about, party_id: robin.clone(),
+            channel: "email".into(), ok: true }).await.unwrap();
+
+        // 3. The operator mints an invite; Robin opens it and joins with this browser's key.
+        let token = invite(&s, &robin).await;
+        let (robin_kp, robin_m) = (KeyPair::generate(), Uuid::new_v4());
+        assert_eq!(join(&s, &robin_kp, robin_m, Some(&token)).await.0, StatusCode::OK);
+
+        // 4. The job is Robin's as a member now, and the delivered nudge is not owed again.
+        let rows = list_nudges(&s, Some(base.into())).await.unwrap()["nudges"].as_array().unwrap().clone();
+        assert!(!rows.iter().any(|r| r["about_index"].as_u64() == Some(about)
+            && r["party"]["party_id"] == robin_m.to_string().as_str()), "nudged twice for one entry: {rows:?}");
+
+        // 5. Robin opens /me: the page signs in with the same key, then reads the job.
+        let (status, headers, _) = send(&s, "POST", "/me/session", None,
+            Some(signed_by(&s, &robin_kp, robin_m, serde_json::json!({ "action": "me_session" })))).await;
+        assert_eq!(status, StatusCode::OK);
+        let cookie = headers[axum::http::header::SET_COOKIE].to_str().unwrap().split(';').next().unwrap().to_string();
+        let (status, _, view) = send(&s, "GET", "/me/view", Some(&cookie), None).await;
+        assert_eq!(status, StatusCode::OK, "{view}");
+        assert_eq!((view["name"].as_str(), view["mine"][0]["title"].as_str()), (Some("Robin"), Some("Venue AV")));
+        assert!(view["mine"][0]["acts"].as_array().unwrap().iter().any(|a| a["act"] == "acknowledge"));
+
+        // 6. Robin says yes from /me: the member's own word, so the job counts as acknowledged.
+        let (status, _, out) = send(&s, "POST", "/me/act", None, Some(signed_by(&s, &robin_kp, robin_m,
+            serde_json::json!({ "action": "commitment_act", "commitment_id": id, "act": "acknowledge" })))).await;
+        assert_eq!(status, StatusCode::OK, "{out}");
+        assert!(matches!(last_event(&s).await, HubEvent::CommitmentAcknowledged { via: AckVia::MemberAct, party_id, .. }
+            if party_id == robin_m.to_string()));
+        { let l = s.ledger.lock().await; assert!(s.projected(&l).commitments[&id].owner_acknowledged()); }
+
+        // 7. The emailed link still opens, knows Robin as the owner, and no longer asks for a yes.
+        let (status, _, html) = page(&s, &format!("/c/{link}")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(html.contains("You're the owner") && !html.contains("/acknowledge\""), "{html}");
+    }
+
     #[tokio::test]
     async fn an_invite_is_evidence_for_law_not_a_way_around_it() {
         let (_tmp, s, robin) = hub(QUEUE_LAW).await;
