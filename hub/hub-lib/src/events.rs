@@ -44,6 +44,9 @@ pub enum IgnitionRelease {
     LawOff,
     /// The seal is weaker than the law's `ignition.min_tier`.
     BelowMinTier,
+    /// A person's unlock tried to re-seal and failed, so the earlier copy (which might hold an
+    /// older passphrase) was deleted rather than left for the next boot.
+    ResealFailed,
 }
 
 /// Visibility tier for a profile field. Determines who can read the field
