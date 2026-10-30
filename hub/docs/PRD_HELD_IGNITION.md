@@ -54,10 +54,9 @@ environment keeps working as it does today, and the hub records that it was used
 ### 3.1 The law setting
 
 ```yaml
-policy:
-  ignition:
-    held: true          # absent = true (dp: on by default)
-    min_tier: host-key  # tpm2 | host-key; see §5 Q1
+ignition:              # a top-level law key: HubPolicy is flattened into the law
+  held: true          # absent = true (dp: on by default)
+  min_tier: host-key  # unknown | host-key | tpm2 | host+tpm2; see §5 Q1
 ```
 
 Tiers rank `host+tpm2` ≥ `tpm2` > `host-key` > `unknown`. `host+tpm2` meets `min_tier: tpm2`: opening
