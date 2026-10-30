@@ -954,16 +954,23 @@ async fn act_by_link(s: &RestState, claim: &LinkClaim, act: LinkAct) -> Result<s
     }
 }
 
+const LINK_PAGE_CSS: &str = "body{font:17px/1.5 system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem}\
+    form{margin:.5rem 0}button{font:inherit;width:100%;padding:.8rem;border-radius:.5rem;\
+    border:1px solid #888;background:#f4f4f4;cursor:pointer}.muted{color:#666}";
+
+/// `GET /c.css`: the link pages' style, a file of its own so their policy can forbid inline style.
+pub(super) async fn link_page_css() -> axum::response::Response {
+    use axum::response::IntoResponse;
+    ([(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")], LINK_PAGE_CSS).into_response()
+}
+
 fn link_page_response(status: StatusCode, title: &str, body_html: &str) -> axum::response::Response {
     use axum::response::IntoResponse;
     let page = format!(
         "<!doctype html><html><head><meta charset=\"utf-8\">\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
          <meta name=\"robots\" content=\"noindex\"><title>{}</title>\
-         <style>body{{font:17px/1.5 system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem}}\
-         form{{margin:.5rem 0}}button{{font:inherit;width:100%;padding:.8rem;border-radius:.5rem;\
-         border:1px solid #888;background:#f4f4f4;cursor:pointer}}.muted{{color:#666}}</style>\
-         </head><body>{}</body></html>",
+         <link rel=\"stylesheet\" href=\"/c.css\"></head><body>{}</body></html>",
         esc(title), body_html);
     (
         status,
@@ -971,6 +978,8 @@ fn link_page_response(status: StatusCode, title: &str, body_html: &str) -> axum:
             // The token is in the URL: keep it out of caches and out of any Referer.
             (axum::http::header::CACHE_CONTROL, "no-store"),
             (axum::http::header::REFERRER_POLICY, "no-referrer"),
+            // The page acts for its party: nothing runs on it, and its forms post only here.
+            (axum::http::header::CONTENT_SECURITY_POLICY, super::KEY_PAGE_CSP),
         ],
         axum::response::Html(page),
     ).into_response()
@@ -1955,5 +1964,67 @@ mod tests {
         assert_eq!(refused.status, StatusCode::BAD_REQUEST, "Alex is no longer a party to the opening");
         record_delivery(&s, report(&id, handed, alex, true)).await.unwrap();
         assert!(nudges(&s).await.is_empty());
+    }
+
+    async fn page(s: &RestState, path: &str) -> (StatusCode, axum::http::HeaderMap, String) {
+        use tower::ServiceExt;
+        let req = axum::http::Request::builder().uri(path).body(axum::body::Body::empty()).unwrap();
+        let resp = crate::rest::router(s.clone()).oneshot(req).await.unwrap();
+        let (status, headers) = (resp.status(), resp.headers().clone());
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        (status, headers, String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    #[tokio::test]
+    async fn pages_that_hold_a_key_or_act_for_a_party_run_only_their_own_files() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let token = link_for(&s, &id, alex).await;
+        let csp = super::super::KEY_PAGE_CSP;
+        assert!(!csp.contains("unsafe") && csp.contains("script-src 'self'") && csp.contains("style-src 'self'"));
+        for (path, sheet) in [
+            ("/client".to_string(), "/client.css"),
+            (format!("/c/{token}"), "/c.css"),
+            ("/c/not-a-link".to_string(), "/c.css"),
+        ] {
+            let (_, headers, html) = page(&s, &path).await;
+            assert_eq!(headers.get("content-security-policy").and_then(|v| v.to_str().ok()), Some(csp), "{path}");
+            for inline in ["<style", "style=", "onclick", "<script>"] {
+                assert!(!html.contains(inline), "{path} carries inline {inline}: {html}");
+            }
+            assert!(html.contains(&format!("<link rel=\"stylesheet\" href=\"{sheet}\">")), "{path}: {html}");
+        }
+        assert!(page(&s, "/client").await.2.contains("<script src=\"/client.js\"></script>"));
+        // The script builds buttons too: those must not carry handlers or style either.
+        for inline in ["style=", "onclick", "localStorage.setItem", "exportKey('jwk'"] {
+            assert!(!super::super::CLIENT_JS.contains(inline), "client script carries {inline}");
+        }
+        for (path, kind) in [("/client.js", "text/javascript"), ("/client.css", "text/css"), ("/c.css", "text/css")] {
+            let (status, headers, body) = page(&s, path).await;
+            assert_eq!(status, StatusCode::OK, "{path}");
+            assert!(headers["content-type"].to_str().unwrap().starts_with(kind), "{path}");
+            assert!(!body.is_empty(), "{path}");
+        }
+    }
+
+    /// The client's key store, run in node against real WebCrypto and a small in-memory
+    /// IndexedDB (`js-tests/client_keystore.js`). Without node on PATH it says so and passes.
+    #[test]
+    fn the_client_moves_an_old_key_once_and_keeps_every_key_non_extractable() {
+        let dir = tempfile::tempdir().unwrap();
+        let js = dir.path().join("client.js");
+        std::fs::write(&js, super::super::CLIENT_JS).unwrap();
+        let harness = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("js-tests/client_keystore.js");
+        let out = match std::process::Command::new("node").arg(&harness).arg(&js).output() {
+            Ok(out) => out,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                eprintln!("SKIPPED: node is not on PATH, so the client key store went untested");
+                return;
+            }
+            Err(e) => panic!("running node: {e}"),
+        };
+        let said = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+        assert!(out.status.success(), "{said}");
+        assert_eq!(said.matches("\nok ").count() + usize::from(said.starts_with("ok ")), 5, "{said}");
     }
 }
