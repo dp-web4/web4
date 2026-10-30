@@ -16,15 +16,28 @@ const ME_SESSION_LABEL: &[u8] = b"web4-hub member session v1\n";
 pub(crate) const ME_COOKIE: &str = "hub_me";
 const ME_ACTION: &str = "me_session";
 
-fn mint_session(key: &[u8; 32], member: Uuid, expires: DateTime<Utc>) -> String {
-    let nonce = hex::encode(rand::random::<[u8; 8]>());
-    mint_token(ME_SESSION_LABEL, key, &[&member.to_string(), &nonce], expires)
+/// The key a session was signed in with, short: the first 64 bits of the SHA-256 of its hex. A
+/// session names it so that rotating the key ends every session the old key began (Legion, #964).
+fn key_print(pubkey_hex: &str) -> String {
+    use sha2::Digest;
+    hex::encode(sha2::Sha256::digest(pubkey_hex.as_bytes()))[..16].to_string()
 }
 
-/// The member a session cookie names, if this hub made it and it has not expired.
-fn read_session(key: &[u8; 32], token: &str, now: DateTime<Utc>) -> Option<Uuid> {
-    let (fields, _) = read_token(ME_SESSION_LABEL, key, token, 2, now).ok()?;
-    Uuid::parse_str(&fields[0]).ok()
+/// The print of the key the hub resolves for `member` now, if any.
+async fn current_print(s: &RestState, member: Uuid) -> Option<String> {
+    s.resolver.read().await.lookup(member).map(|lct| key_print(&lct.public_key.to_hex()))
+}
+
+fn mint_session(key: &[u8; 32], member: Uuid, print: &str, expires: DateTime<Utc>) -> String {
+    let nonce = hex::encode(rand::random::<[u8; 8]>());
+    mint_token(ME_SESSION_LABEL, key, &[&member.to_string(), print, &nonce], expires)
+}
+
+/// The member a session cookie names and the print of the key it was signed in with, if this hub
+/// made it and it has not expired.
+fn read_session(key: &[u8; 32], token: &str, now: DateTime<Utc>) -> Option<(Uuid, String)> {
+    let (fields, _) = read_token(ME_SESSION_LABEL, key, token, 3, now).ok()?;
+    Some((Uuid::parse_str(&fields[0]).ok()?, fields[1].clone()))
 }
 
 fn cookie_value<'a>(headers: &'a axum::http::HeaderMap, name: &str) -> Option<&'a str> {
@@ -82,12 +95,14 @@ async fn open_session(s: &RestState, envelope: &SignedEnvelope) -> Result<(Uuid,
     if !is_member {
         return Err(ApiError { status: StatusCode::FORBIDDEN, message: "only a member has a view here".into() });
     }
+    let print = current_print(s, member).await
+        .ok_or_else(|| ApiError::internal(anyhow::anyhow!("member {member} verified but no longer resolves")))?;
     let key = {
         let _serial = COMMITMENT_LOCK.lock().await;
         link_key_or_create(&s.paths.root).map_err(ApiError::internal)?
     };
     let expires = Utc::now() + chrono::Duration::hours(ME_SESSION_HOURS);
-    Ok((member, mint_session(&key, member, expires), expires))
+    Ok((member, mint_session(&key, member, &print, expires), expires))
 }
 
 /// The member a request's session names, if it is good and they are still a member.
@@ -95,8 +110,13 @@ async fn session_member(s: &RestState, headers: &axum::http::HeaderMap) -> Resul
     let unauthorized = || ApiError { status: StatusCode::UNAUTHORIZED, message: "sign in again".into() };
     let token = cookie_value(headers, ME_COOKIE).ok_or_else(unauthorized)?;
     let key = read_link_key(&s.paths.root).map_err(ApiError::internal)?.ok_or_else(unauthorized)?;
-    let member = read_session(&key, token, Utc::now()).ok_or_else(unauthorized)?;
-    // A member removed since the session began reads nothing more.
+    let (member, print) = read_session(&key, token, Utc::now()).ok_or_else(unauthorized)?;
+    // A member removed since the session began reads nothing more, and neither does a session
+    // begun with a key the member has since replaced. The cookie names the person; the print
+    // names the key (Legion, #964).
+    if current_print(s, member).await.as_deref() != Some(print.as_str()) {
+        return Err(unauthorized());
+    }
     let is_member = { let l = s.ledger.lock().await; s.projected(&l).members.contains_key(&member) };
     if is_member { Ok(member) } else { Err(unauthorized()) }
 }
@@ -321,6 +341,13 @@ mod tests {
         assert_eq!(v["mine"][0]["waiting_on_you"].as_bool(), Some(false), "Venue AV waits on Sam now");
         assert_eq!(v["backing_up"][0]["waiting_on_you"].as_bool(), Some(true), "Snacks waits on Alex now");
 
+        // A session begun with a key Alex has since replaced reads nothing; the new key signs in.
+        let new_kp = KeyPair::generate();
+        crate::rest::pin_member_key(&s, alex, &new_kp.verifying_key().to_hex()).await.unwrap();
+        assert_eq!(call(&s, "GET", "/me/view", Some(&cookie), None).await.0, StatusCode::UNAUTHORIZED);
+        let cookie = sign_in(&s, &new_kp, alex).await;
+        assert_eq!(call(&s, "GET", "/me/view", Some(&cookie), None).await.0, StatusCode::OK);
+
         // A removed member's session reads nothing more.
         witness_for_test(&s, HubEvent::MemberRemoved { member_lct_id: alex, removed_by: s.sovereign_lct_id,
             reason: None }).await;
@@ -355,11 +382,14 @@ mod tests {
     fn a_session_is_its_own_kind_of_token_and_lives_twelve_hours() {
         let key = [3u8; 32];
         let (alex, now) = (Uuid::new_v4(), Utc::now());
-        let t = mint_session(&key, alex, now + chrono::Duration::hours(12));
-        assert_eq!(read_session(&key, &t, now), Some(alex));
+        let t = mint_session(&key, alex, "0123456789abcdef", now + chrono::Duration::hours(12));
+        assert_eq!(read_session(&key, &t, now), Some((alex, "0123456789abcdef".to_string())));
         assert_eq!(read_session(&key, &t, now + chrono::Duration::hours(12)), None, "expired");
         assert_eq!(read_session(&[4u8; 32], &t, now), None, "another hub's key");
-        // A movement link and an invite with the same field count never read as a session.
+        // A movement link and an invite never read as a session, nor does a token with a
+        // session's field count under another label.
+        let three = mint_token(LINK_MAC_LABEL, &key, &[&alex.to_string(), "0123456789abcdef", "00"], now + chrono::Duration::hours(1));
+        assert_eq!(read_session(&key, &three, now), None);
         assert_eq!(read_session(&key, &mint_link(&key, &alex.to_string(), "x", now + chrono::Duration::hours(1)), now), None);
         assert_eq!(read_session(&key, &mint_invite(&key, &alex.to_string(), now + chrono::Duration::hours(1)), now), None);
         assert_eq!(ME_SESSION_HOURS, 12);

@@ -355,12 +355,13 @@ K5 adds four things.
 **K5c as built.**
 - **`GET /me`** is a page under `KEY_PAGE_CSP` that runs only `/keystore.js` and `/me.js`. It writes nothing.
 - **The script asks `GET /me/view` first.** On a 401 it signs a fresh `/v1/auth/challenge` nonce with the browser's key (`action: "me_session"`), posts the envelope to `POST /me/session`, and asks again. A click from an email therefore never shows a sign-in, even though a Strict cookie isn't sent on that click.
-- **The session is a MAC token under its own label,** `web4-hub member session v1`, with the K4 key file. It holds `<member>.<nonce>.<expires>.<MAC>` and is good for 12 hours.
+- **The session is a MAC token under its own label,** `web4-hub member session v1`, with the K4 key file. It holds `<member>.<key print>.<nonce>.<expires>.<MAC>` and is good for 12 hours. The key print is the first 64 bits of the SHA-256 of the signer's public key hex.
   - The cookie is `hub_me`: `Path=/me`, `HttpOnly`, `SameSite=Strict`, and `Secure` whenever `HUB_PUBLIC_BASE_URL` is https.
   - Only a current member gets one. The signature is checked against the live resolver, and the signer must be in the projection.
   - A member removed since the session began reads nothing more.
+  - So does a session begun with a key the member has since replaced: every read compares the print with the key the hub resolves for the member now (Legion, #964). The page's silent re-sign then signs in with the new key.
 - **The view** lists open jobs only: **mine** (I'm the owner) and **I'm backing up**. Each row carries the title, the due date, `late` (past due), `waiting_on_you` (the queue sits at my position) and the other party's name. The page builds rows from text nodes, never markup. The response is `no-store`.
-- **Open:** a session can't be revoked before it expires except by rotating the key file, which also kills every link. For a 12-hour read of one's own jobs, that is the trade.
+- **No session list (Legion, #964).** The browser key is the credential, not the session: a device that holds the key can sign a fresh session whenever it likes. Revoking a session therefore buys little. Removing the member, or replacing their key, ends their sessions. The one thing that isn't possible is signing a device out while it keeps its key; for a 12-hour read of one's own jobs, that is the trade.
 
 **Questions asked, and answered (Legion, #959, 10-29 20:17Z):**
 - (a) **Does an invite admit on its own?** Yes, because an invite is no more trust than the K4 link the contact already holds. It holds only with the five conditions in (1): atomic once, MAC verified, 7-day life, revocation, and the operator told.
