@@ -2059,6 +2059,7 @@ pub fn router(state: RestState) -> Router {
         .route("/me/act", post(commitments::me_act))
         .route("/me/view", get(commitments::me_view))
         .route("/discuss", get(discuss_html))
+        .route("/discuss.css", get(discuss_css))
         // The client's script and style are files of their own so its page can forbid inline ones.
         .route("/client", get(client_html))
         .route("/client.js", get(client_js))
@@ -8333,9 +8334,7 @@ async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
         "<!doctype html><meta charset=\"utf-8\">\
          <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
          <title>{} — governance</title>\
-         <style>body{{font:16px/1.6 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem}}\
-         .m{{color:#666;font-size:.85em}} .p{{border-left:3px solid #ddd;padding:.2rem 0 .2rem .8rem;margin:.9rem 0}}\
-         h2{{margin-top:2rem}} pre{{white-space:pre-wrap;margin:.2rem 0;font:inherit}}</style>\
+         <link rel=\"stylesheet\" href=\"/discuss.css\">\
          <h1>{}</h1>\
          <p class=\"m\">Governance discussion. Every topic and post below is an entry in this hub's \
          hash-chained ledger, witnessed by the Sovereign and admitted under the hub's \
@@ -8364,7 +8363,25 @@ async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
             ));
         }
     }
-    ([(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")], body).into_response()
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            // Not a key page, but on the key pages' origin: a script injected here could open their
+            // IndexedDB and sign with a member's key, so it runs under the same policy (Legion, #960).
+            (axum::http::header::CONTENT_SECURITY_POLICY, KEY_PAGE_CSP),
+        ],
+        body,
+    )
+        .into_response()
+}
+
+const DISCUSS_CSS: &str = "body{font:16px/1.6 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem}\
+    .m{color:#666;font-size:.85em} .p{border-left:3px solid #ddd;padding:.2rem 0 .2rem .8rem;margin:.9rem 0}\
+    h2{margin-top:2rem} pre{white-space:pre-wrap;margin:.2rem 0;font:inherit}";
+
+async fn discuss_css() -> axum::response::Response {
+    use axum::response::IntoResponse;
+    ([(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")], DISCUSS_CSS).into_response()
 }
 
 /// Pages that hold a member's key, or a link that acts for a party, run no script but their
@@ -8373,6 +8390,20 @@ async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
 /// to sign with it in place.
 pub(crate) const KEY_PAGE_CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self'; \
     connect-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+/// Every other page on the public listener shares the key pages' origin, and so their
+/// IndexedDB: a script injected into any of them could sign with a member's key in place
+/// (Legion, #960). Those pages run no script at all. Inline style stays allowed; it runs nothing.
+pub(crate) const PUBLIC_PAGE_CSP: &str = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; \
+    form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+/// The public listener's default: a response that set no policy of its own gets `PUBLIC_PAGE_CSP`.
+pub(crate) async fn public_csp(mut resp: axum::response::Response) -> axum::response::Response {
+    resp.headers_mut()
+        .entry(axum::http::header::CONTENT_SECURITY_POLICY)
+        .or_insert(axum::http::HeaderValue::from_static(PUBLIC_PAGE_CSP));
+    resp
+}
 
 /// GET /client — an interactive, same-origin hub client. Generates an Ed25519
 /// identity in the browser (WebCrypto), requests to join, and — once the

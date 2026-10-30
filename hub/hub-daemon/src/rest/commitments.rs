@@ -2046,6 +2046,8 @@ mod tests {
             ("/client".to_string(), "/client.css"),
             (format!("/c/{token}"), "/c.css"),
             ("/c/not-a-link".to_string(), "/c.css"),
+            // Holds no key, but shares the key pages' origin and IndexedDB.
+            ("/discuss".to_string(), "/discuss.css"),
         ] {
             let (_, headers, html) = page(&s, &path).await;
             assert_eq!(headers.get("content-security-policy").and_then(|v| v.to_str().ok()), Some(csp), "{path}");
@@ -2061,7 +2063,7 @@ mod tests {
                 assert!(!script.contains(inline), "a key page script carries {inline}");
             }
         }
-        for (path, kind) in [("/client.js", "text/javascript"), ("/keystore.js", "text/javascript"), ("/client.css", "text/css"), ("/c.css", "text/css")] {
+        for (path, kind) in [("/client.js", "text/javascript"), ("/keystore.js", "text/javascript"), ("/client.css", "text/css"), ("/c.css", "text/css"), ("/discuss.css", "text/css")] {
             let (status, headers, body) = page(&s, path).await;
             assert_eq!(status, StatusCode::OK, "{path}");
             assert!(headers["content-type"].to_str().unwrap().starts_with(kind), "{path}");
