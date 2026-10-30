@@ -681,6 +681,49 @@ pub struct CommitmentsPolicy {
     pub grace_minutes: Option<u32>,
 }
 
+/// How a held ignition secret is sealed, read from the sealed file and never from the flag
+/// that asked for it (hub/docs/PRD_HELD_IGNITION.md §3.2). Ranked weakest first, so `<` reads
+/// "weaker than": `host+tpm2` needs both keys to open, so it ranks with `tpm2` or above.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum IgnitionTier {
+    /// A seal id this hub has no measurement for. Ranks below every `min_tier`: never held.
+    #[serde(rename = "unknown")]
+    Unknown,
+    #[serde(rename = "host-key")]
+    HostKey,
+    #[serde(rename = "tpm2")]
+    Tpm2,
+    #[serde(rename = "host+tpm2")]
+    HostTpm2,
+}
+
+/// Held ignition (hub/docs/PRD_HELD_IGNITION.md §3.1): whether this hub may unlock itself after
+/// a restart from a sealed copy of its passphrase, and how strong that seal must be.
+/// Absent ⇒ held, at [`DEFAULT_IGNITION_MIN_TIER`] (dp, 2026-10-30: "a law setting, yes by default").
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct IgnitionPolicy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_tier: Option<IgnitionTier>,
+}
+
+/// The weakest seal a law that names none accepts. Pending dp's Q1 (PRD_HELD_IGNITION §5): the
+/// 08-18 custody order read strictly would make this `Tpm2`.
+pub const DEFAULT_IGNITION_MIN_TIER: IgnitionTier = IgnitionTier::HostKey;
+
+impl IgnitionPolicy {
+    /// Whether the law asks the hub to hold its ignition. `None` (no policy) is held.
+    pub fn held(p: Option<&Self>) -> bool {
+        p.and_then(|p| p.held).unwrap_or(true)
+    }
+
+    /// The weakest seal the law accepts.
+    pub fn min_tier(p: Option<&Self>) -> IgnitionTier {
+        p.and_then(|p| p.min_tier).unwrap_or(DEFAULT_IGNITION_MIN_TIER)
+    }
+}
+
 /// Three sweep intervals: one interval plus clock skew is the floor, with room to spare.
 pub const DEFAULT_COMMITMENT_GRACE_MINUTES: u32 = 15;
 /// One 5-minute sweep interval plus clock skew.
@@ -720,6 +763,8 @@ pub struct HubPolicy {
     pub reputation_emit: Option<ReputationEmitPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commitments: Option<CommitmentsPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ignition: Option<IgnitionPolicy>,
 }
 
 impl PolicyExtension for HubPolicy {
@@ -1060,6 +1105,21 @@ impl HubLawExt for Law {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Held ignition (PRD_HELD_IGNITION §3.1): absent is held at the default tier, a law that
+    /// names neither serializes as before, and the tiers rank by what it takes to open them.
+    #[test]
+    fn ignition_policy_defaults_to_held_and_tiers_rank_by_strength() {
+        assert!(IgnitionPolicy::held(None));
+        assert_eq!(IgnitionPolicy::min_tier(None), DEFAULT_IGNITION_MIN_TIER);
+        let off: IgnitionPolicy = serde_yaml::from_str("held: false\nmin_tier: host+tpm2\n").unwrap();
+        assert!(!IgnitionPolicy::held(Some(&off)));
+        assert_eq!(IgnitionPolicy::min_tier(Some(&off)), IgnitionTier::HostTpm2);
+        assert!(IgnitionTier::HostTpm2 >= IgnitionTier::Tpm2);
+        assert!(IgnitionTier::Tpm2 > IgnitionTier::HostKey && IgnitionTier::HostKey > IgnitionTier::Unknown);
+        assert_eq!(serde_json::to_value(HubPolicy::default()).unwrap(), serde_json::json!({}));
+        assert!(serde_yaml::from_str::<IgnitionPolicy>("min_tier: tpm3\n").is_err());
+    }
 
     #[test]
     fn constellation_roles_are_a_separate_namespace_from_society_roles() {

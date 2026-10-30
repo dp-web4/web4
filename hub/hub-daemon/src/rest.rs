@@ -936,6 +936,7 @@ impl RestState {
                 // F0.1 (R7a): the signer is live again — reconcile the degraded
                 // diagnostic log into the witnessed ledger.
                 reconcile_degraded_log(self, "ignition").await;
+                record_ignition(self, hub_lib::events::IgnitionVia::Human, None).await;
                 // Refresh the clear public-identity tier-0 file so a future locked-shell
                 // boot knows who this hub is (to serve well-known + accept `hub unlock`).
                 let pid = PublicIdentity {
@@ -1290,6 +1291,20 @@ impl Drop for ReconcileSlot {
 }
 fn scopeguard_release(s: &RestState) -> ReconcileSlot {
     ReconcileSlot(s.degraded_log.clone())
+}
+
+/// Witness how the hub was ignited (PRD_HELD_IGNITION §3.6). Best-effort, like the degraded
+/// reconcile: the hub is already ignited when this runs, so a failed record is logged, never
+/// fatal.
+pub(crate) async fn record_ignition(
+    s: &RestState,
+    via: hub_lib::events::IgnitionVia,
+    tier: Option<hub_lib::law::IgnitionTier>,
+) {
+    match witness_event_inner(s, HubEvent::HubIgnited { via, tier }).await {
+        Ok(idx) => tracing::info!("ignition ({via:?}) recorded at ledger entry {idx}"),
+        Err(e) => tracing::warn!("ignition ({via:?}) happened, but its record failed: {}", e.message),
+    }
 }
 
 /// F0.1 (R7a): fold the local degraded diagnostic log into the witnessed
@@ -2971,6 +2986,10 @@ struct WellKnownHubInfo {
     /// serve a signed starter law; a no-law public hub is dev-only. Exposed so
     /// clients/operators can detect the posture without guessing.
     law_present: bool,
+    /// Held ignition (PRD_HELD_IGNITION §3.5): `"none"` (no sealed passphrase), `"ok"` or
+    /// `"failed"`, with no reason text, because this document is public. A health check pages a
+    /// person on `"failed"`. Always `"none"` until the hub can seal one.
+    held_ignition: &'static str,
     /// Hubs this server hosts. Single-hub deployments return one entry;
     /// future multi-hub hosting returns multiple.
     hubs: Vec<WellKnownHubSummary>,
@@ -3003,6 +3022,7 @@ async fn well_known_hub_info(
             mcp: "/tools",
         },
         law_present: s.law.read().await.is_some(),
+        held_ignition: "none",
         hubs: vec![WellKnownHubSummary {
             id: s.hub_id,
             name: s.hub_name.clone(),
@@ -18328,6 +18348,24 @@ norms: []
             state.try_unlock(pass, now + 10).await,
             UnlockOutcome::NotLocked
         ));
+    }
+
+    /// A person's unlock is on the ledger, once (PRD_HELD_IGNITION §3.6): a wrong guess ignites
+    /// nothing, and an unlock of a hub already unlocked is not a second ignition.
+    #[tokio::test]
+    async fn a_persons_unlock_records_one_human_ignition() {
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = locked_state_sealed_with(pass).await;
+        let now = 1_700_000_000;
+        let ignitions = |entries: &[hub_lib::ledger::LedgerEntry]| -> Vec<HubEvent> {
+            entries.iter().filter(|e| matches!(e.event, HubEvent::HubIgnited { .. })).map(|e| e.event.clone()).collect()
+        };
+        assert!(matches!(state.try_unlock("nope", now).await, UnlockOutcome::WrongPassphrase));
+        assert!(matches!(state.try_unlock(pass, now + 5).await, UnlockOutcome::Unlocked { .. }));
+        assert!(matches!(state.try_unlock(pass, now + 10).await, UnlockOutcome::NotLocked));
+        let got = ignitions(state.ledger.lock().await.entries());
+        assert_eq!(got.len(), 1, "{got:?}");
+        assert!(matches!(got[0], HubEvent::HubIgnited { via: hub_lib::events::IgnitionVia::Human, tier: None }), "{got:?}");
     }
 
     /// Put this hub under `HUB_PROFILE=production` with no `HUB_ALLOW_NO_LAW`

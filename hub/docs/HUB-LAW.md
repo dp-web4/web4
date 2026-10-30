@@ -82,7 +82,7 @@ lockstep with `HubEvent::kind()` by a test that reads the function's own source.
 | obligations + trust | `obligation_opened`, `obligation_resolved`, `reputation_recorded` |
 | commitments | `commitment_opened`, `commitment_acknowledged`, `commitment_moved`, `commitment_escalated`, `commitment_resolved`, `nudge_delivered` (PRD_COMMITMENTS: owner, backup, leads; silence moves the queue and never records a verdict; the off-hub carrier reports each nudge it sends) |
 | degraded-window audit | `degraded_reconciled` (F0.1: the witnessed summary of infrastructure-failure windows — recorded by the hub at ignition, never member conduct) |
-| vault unlock (audit) | `vault_unlock_requested`, `vault_unlock_attested`, `vault_unlock_resolved` |
+| vault unlock (audit) | `vault_unlock_requested`, `vault_unlock_attested`, `vault_unlock_resolved`, `hub_ignited` (PRD_HELD_IGNITION: who presented the passphrase, held / human / env, and the seal a held one opened) |
 | records | `event_recorded`, `lct_published`, `lct_rotated`, `lct_predecessor_attested`, `lct_predecessor_attestation_withdrawn`, `referenced_act` |
 
 **Two action families that are not event kinds**, and both are load-bearing:

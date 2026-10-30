@@ -1605,6 +1605,16 @@ fn operator_plane_app(
         .layer(axum::middleware::from_fn_with_state(op_auth, crate::rest::operator_auth_gate))
 }
 
+/// A hub that boots with its store already open was ignited by the environment only when
+/// `HUB_PASSPHRASE` was set, and then the ledger says so (PRD_HELD_IGNITION §3.6). A plaintext or
+/// NULL-keyed store with no passphrase in the environment was not ignited, and records nothing;
+/// nor does a hub with no genesis yet.
+async fn record_boot_ignition(rest: &RestState, env_passphrase_set: bool) {
+    if env_passphrase_set && !rest.ledger.lock().await.entries().is_empty() {
+        crate::rest::record_ignition(rest, hub_lib::events::IgnitionVia::Env, None).await;
+    }
+}
+
 async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, admin_port: u16) -> Result<()> {
     let config = HubConfig::load(hub_lib::hub::HubPaths::new(&hub_dir).config())?;
     let port = port_override.unwrap_or(config.daemon.mcp_port);
@@ -1666,6 +1676,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             rest.resolver.clone(),
         )
         .await?;
+        record_boot_ignition(&rest, hub_lib::identity::env_passphrase().is_some()).await;
         (rest, mcp)
     } else {
         // ── LOCKED SHELL (encrypted store, no key) ──
@@ -3011,6 +3022,27 @@ mod tests {
                     "{path} must stay served on the public plane"
                 );
             }
+        }
+
+        fn ignitions(entries: &[hub_lib::ledger::LedgerEntry]) -> Vec<hub_lib::events::IgnitionVia> {
+            entries.iter().filter_map(|e| match &e.event {
+                hub_lib::events::HubEvent::HubIgnited { via, tier } => {
+                    assert_eq!(*tier, None, "only a held ignition carries a tier");
+                    Some(*via)
+                }
+                _ => None,
+            }).collect()
+        }
+
+        /// The environment's ignition is on the ledger; a boot with no passphrase in the
+        /// environment was not an ignition and records nothing (PRD_HELD_IGNITION §3.6).
+        #[tokio::test]
+        async fn a_boot_records_env_ignition_only_when_the_environment_held_the_passphrase() {
+            let (_tmp, rest) = fresh_rest_state(None).await;
+            record_boot_ignition(&rest, false).await;
+            assert!(ignitions(rest.ledger.lock().await.entries()).is_empty());
+            record_boot_ignition(&rest, true).await;
+            assert_eq!(ignitions(rest.ledger.lock().await.entries()), vec![hub_lib::events::IgnitionVia::Env]);
         }
 
         /// `/admin/council` on the backend production actually runs.
