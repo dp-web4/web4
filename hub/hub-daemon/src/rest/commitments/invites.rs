@@ -826,6 +826,29 @@ admission:
     }
 
     #[tokio::test]
+    async fn a_removed_backup_rejoining_on_the_owners_invite_is_refused_at_the_join() {
+        // The path through the join route (supervisor, #962): Sam backs up Robin's job, is removed
+        // while it is open, and joins again holding Robin's invite. Binding it would make Sam both
+        // owner and backup; the fold would drop it, so the join is refused and writes nothing.
+        let (_tmp, s, robin) = hub(PILOT_LAW).await;
+        let (sam_kp, role) = (KeyPair::generate(), leads_role(&s).await);
+        let sam = existing_member(&s, &sam_kp).await;
+        open_for(&s, PartyRef { party_id: robin.clone(), kind: PartyKind::Contact },
+            PartyRef { party_id: sam.to_string(), kind: PartyKind::Member }, role).await;
+        crate::rest::channel_e2e_tests::witness_for_test(&s, HubEvent::MemberRemoved {
+            member_lct_id: sam, removed_by: s.sovereign_lct_id, reason: None }).await;
+        let token = invite(&s, &robin).await;
+        let before = len(&s).await;
+        let (status, out) = join(&s, &sam_kp, sam, Some(&token)).await;
+        assert_eq!(status, StatusCode::CONFLICT, "{out}");
+        assert!(out["error"].as_str().unwrap().contains("owner and backup"), "{out}");
+        assert_eq!(len(&s).await, before, "no binding and no admission");
+        assert!(bindings(&s).await.is_empty());
+        // Robin, with Robin's own key, still can.
+        assert_eq!(join(&s, &KeyPair::generate(), Uuid::new_v4(), Some(&token)).await.0, StatusCode::OK);
+    }
+
+    #[tokio::test]
     async fn a_join_stopped_between_binding_and_admission_fails_closed() {
         let (_tmp, s, robin) = hub(PILOT_LAW).await;
         let token = invite(&s, &robin).await;
