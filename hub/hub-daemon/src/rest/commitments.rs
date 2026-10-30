@@ -20,6 +20,8 @@ use hub_lib::commitments::{
 
 mod invites;
 pub(crate) use invites::*;
+mod me;
+pub(crate) use me::*;
 
 /// Serialises every commitment write and every contact-book write.
 pub(crate) static COMMITMENT_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());

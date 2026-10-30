@@ -3256,6 +3256,9 @@ mod tests {
         /// not hidden, because a guard that quietly covers half its surface
         /// reads as covering all of it.
         const BODY_EXEMPT: &[&str] = &[
+            // Commitments K5c: a signed envelope; driven end-to-end by the `me` tests in
+            // rest/commitments/me.rs.
+            "/me/session",
             "/v1/auth/challenge",
             "/v1/hubs/:hub_id/channel",
             "/v1/hubs/:hub_id/constellation/enroll",
