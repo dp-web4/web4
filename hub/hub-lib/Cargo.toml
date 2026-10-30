@@ -17,6 +17,8 @@ name = "hub_lib"
 web4-core.workspace = true
 web4-policy.workspace = true
 zeroize = "1"
+# Held ignition reads the seal id from the head of a sealed file (src/ignition.rs).
+base64 = "0.22"
 web4-trust-core.workspace = true
 anyhow.workspace = true
 serde.workspace = true
@@ -42,6 +44,8 @@ aws-sdk-dynamodb = { version = "1", default-features = false, features = ["behav
 [features]
 default = []
 dynamodb = ["dep:aws-config", "dep:aws-sdk-dynamodb"]
+# A clear-text stand-in for systemd-creds, for the daemon's tests only. Never in a release build.
+test-sealer = []
 
 [build-dependencies]
 # Only for the RFC-3339 build instant in build.rs. Already a normal dependency
