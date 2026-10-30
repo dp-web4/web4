@@ -988,7 +988,12 @@ async fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<
     }
 
     let mut session = HubSession::open(&hub_dir).await?;
-    let entry = session.set_law(&yaml, version.clone(), diff_summary.clone()).await?;
+    let entry = session.set_law(&yaml, version.clone(), diff_summary.clone()).await?.clone();
+    // The same act removes a held passphrase the new law no longer accepts (PRD_HELD_IGNITION §3.4).
+    let released = hub_lib::ignition::release_under(law.ext.ignition.as_ref(), &hub_dir);
+    if let Some(reason) = released {
+        session.release_held_ignition(reason).await.context("releasing the held passphrase")?;
+    }
 
     println!("Law set.");
     println!("  Chapter dir:  {}", hub_dir.display());
@@ -999,6 +1004,9 @@ async fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<
     println!("  Entry hash:   {}", entry.entry_hash);
     if let Some(s) = diff_summary {
         println!("  Diff summary: {}", s);
+    }
+    if let Some(reason) = released {
+        println!("  Held passphrase: deleted ({reason:?}); the next boot is locked until a person unlocks.");
     }
     Ok(())
 }
@@ -2147,6 +2155,22 @@ async fn run_rotate_passphrase(hub_dir: PathBuf) -> Result<()> {
         .context("re-keying the state store")?;
     println!("  ✓ state store (hub.db) re-keyed");
 
+    // A held copy of the OLD passphrase would fail at the next boot (and cost an unlock attempt).
+    // It goes here, in every sovereign mode, once `rekey_store` has proved the old passphrase: a
+    // typo must not cost the operator their held copy (supervisor, #970). The rotation has already
+    // happened, so a failed delete is reported, not returned. The next person's unlock seals the
+    // new passphrase and records it.
+    let held = hub_lib::ignition::ignition_path(&hub_dir);
+    match std::fs::remove_file(&held) {
+        Ok(()) => println!("  ✓ held passphrase deleted (re-sealed at the next unlock if the law holds)"),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => eprintln!(
+            "  ⚠ could not delete the held passphrase at {} ({e}): delete it by hand, or the next boot \
+             spends its one attempt on the OLD passphrase and stays locked",
+            held.display()
+        ),
+    }
+
     // 3. Protected tier: it's keyed straight from the passphrase. Drop it; it re-seeds
     //    under the new passphrase on next ignition (regenerable).
     let protected = hub_dir.join("protected.hvlt");
@@ -3075,6 +3099,26 @@ mod tests {
             let refused = unlock_storage_line(&serde_json::json!({"held_ignition": "not held: the law says ignition.held: false"}));
             assert!(refused.contains("not stored") && refused.contains("held: false"), "{refused}");
             assert_eq!(unlock_storage_line(&serde_json::json!({})), "The passphrase was not stored.");
+        }
+
+        /// Offline `hub set-law` that turns holding off deletes the held copy and records why, in
+        /// the same command (PRD_HELD_IGNITION §3.4).
+        #[tokio::test]
+        async fn offline_set_law_releases_the_held_copy() {
+            let (tmp, rest) = fresh_rest_state(None).await;
+            let hub_dir = rest.paths.root.clone();
+            drop(rest);
+            let path = hub_lib::ignition::ignition_path(&hub_dir);
+            let sealer = hub_lib::ignition::ClearTestSealer::reading_as(hub_lib::law::IgnitionTier::HostKey);
+            hub_lib::ignition::Sealer::seal(&sealer, "x", &path).unwrap();
+            let law = tmp.path().join("law.yaml");
+            std::fs::write(&law, "version: \"1.0.0\"\nnorms: []\nignition:\n  held: false\n").unwrap();
+            run_set_law(hub_dir.clone(), law, None).await.unwrap();
+            assert!(!path.exists());
+            let store = hub_lib::store::open_hub_store_async(&hub_dir).await.unwrap();
+            let ledger = hub_lib::ledger::HubLedger::open(store).await.unwrap();
+            assert!(matches!(ledger.entries().last().map(|e| &e.event),
+                Some(hub_lib::events::HubEvent::IgnitionReleased { reason: hub_lib::events::IgnitionRelease::LawOff })));
         }
 
         /// `/admin/council` on the backend production actually runs.

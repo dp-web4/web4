@@ -15,7 +15,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use base64::Engine;
 use zeroize::Zeroizing;
 
-use crate::law::IgnitionTier;
+use crate::events::IgnitionRelease;
+use crate::law::{IgnitionPolicy, IgnitionTier};
 
 /// The sealed passphrase, in the hub directory.
 pub const IGNITION_FILE: &str = "ignition.cred";
@@ -55,6 +56,20 @@ pub fn tier_of_sealed(sealed: &[u8]) -> IgnitionTier {
         .iter()
         .find(|(id, _)| raw.get(..16) == Some(&id[..]))
         .map_or(IgnitionTier::Unknown, |(_, tier)| *tier)
+}
+
+/// Whether the law `policy` rejects the sealed copy held at `hub_dir`, and why. `None` when it
+/// accepts it, or when nothing is held. Every path that changes the law asks this, so a copy the
+/// law no longer accepts never waits for the next boot (PRD_HELD_IGNITION §3.4).
+pub fn release_under(policy: Option<&IgnitionPolicy>, hub_dir: &Path) -> Option<IgnitionRelease> {
+    let sealed = std::fs::read(ignition_path(hub_dir)).ok()?;
+    if !IgnitionPolicy::held(policy) {
+        Some(IgnitionRelease::LawOff)
+    } else if tier_of_sealed(&sealed) < IgnitionPolicy::min_tier(policy) {
+        Some(IgnitionRelease::BelowMinTier)
+    } else {
+        None
+    }
 }
 
 /// Seals and opens the held passphrase. Production uses [`SystemdUserSealer`].
@@ -162,6 +177,18 @@ impl Sealer for ClearTestSealer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_law_releases_a_copy_it_no_longer_accepts() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = |y: &str| serde_yaml::from_str::<IgnitionPolicy>(y).unwrap();
+        assert_eq!(release_under(Some(&p("held: false")), dir.path()), None, "nothing held, nothing to release");
+        std::fs::write(ignition_path(dir.path()), HUB_SEALED_HEAD).unwrap();
+        assert_eq!(release_under(None, dir.path()), None, "the default accepts host-key");
+        assert_eq!(release_under(Some(&p("held: false")), dir.path()), Some(IgnitionRelease::LawOff));
+        assert_eq!(release_under(Some(&p("min_tier: tpm2")), dir.path()), Some(IgnitionRelease::BelowMinTier));
+        assert_eq!(release_under(Some(&p("min_tier: host-key")), dir.path()), None);
+    }
 
     /// The first characters of the file HUB sealed on 2026-10-30 (a dummy value, not a passphrase).
     const HUB_SEALED_HEAD: &[u8] = b"VbntHThZTUOoMZ0uuzMqxiAAAAABAAAADAAAABAAAABnrmHdB+WDyarRNGcA";
