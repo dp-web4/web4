@@ -36,6 +36,16 @@ pub enum IgnitionVia {
     Env,
 }
 
+/// Why a held passphrase was deleted (`HubEvent::IgnitionReleased`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IgnitionRelease {
+    /// The law says `ignition.held: false`.
+    LawOff,
+    /// The seal is weaker than the law's `ignition.min_tier`.
+    BelowMinTier,
+}
+
 /// Visibility tier for a profile field. Determines who can read the field
 /// when a member directory or skill search is returned.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -917,6 +927,15 @@ pub enum HubEvent {
         tier: Option<crate::law::IgnitionTier>,
     },
 
+    /// The hub now holds a sealed copy of its passphrase, so it can unlock itself after a restart
+    /// (PRD_HELD_IGNITION §3.3). Written when a person's unlock seals it. `tier` is read from the
+    /// sealed file. Audit-only.
+    IgnitionHeld { tier: crate::law::IgnitionTier },
+
+    /// The hub no longer holds its passphrase: the sealed copy was deleted (PRD_HELD_IGNITION
+    /// §3.4, §3.5). Audit-only.
+    IgnitionReleased { reason: IgnitionRelease },
+
     /// A **referenced act** — a thin, witnessed governance record of an entity
     /// externalizing work: the one primitive behind fleet handoffs
     /// (`to = Peer`), hub→citizen notifications (`to = Citizen` — a notification
@@ -1254,6 +1273,8 @@ impl HubEvent {
         "event_recorded",
         "genesis",
         "hub_ignited",
+        "ignition_held",
+        "ignition_released",
         "intro_requested",
         "intro_responded",
         "law_amended",
@@ -1346,6 +1367,8 @@ impl HubEvent {
             Self::VaultUnlockAttested { .. } => "vault_unlock_attested",
             Self::VaultUnlockResolved { .. } => "vault_unlock_resolved",
             Self::HubIgnited { .. } => "hub_ignited",
+            Self::IgnitionHeld { .. } => "ignition_held",
+            Self::IgnitionReleased { .. } => "ignition_released",
             Self::ReferencedAct { .. } => "referenced_act",
             Self::ReputationRecorded { .. } => "reputation_recorded",
             Self::ObligationOpened { .. } => "obligation_opened",
