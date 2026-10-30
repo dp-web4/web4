@@ -24,6 +24,18 @@ use web4_core::act::Act;
 use web4_core::lct::Lct;
 use web4_core::role::SocietyRole;
 
+/// Who presented the passphrase that ignited the hub (`HubEvent::HubIgnited`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IgnitionVia {
+    /// The hub opened its own sealed copy at boot.
+    Held,
+    /// A person, through `hub unlock`.
+    Human,
+    /// `HUB_PASSPHRASE` in the daemon's environment: the 08-18 order's tolerated dev tier.
+    Env,
+}
+
 /// Visibility tier for a profile field. Determines who can read the field
 /// when a member directory or skill search is returned.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -894,6 +906,17 @@ pub enum HubEvent {
         resolved_at: DateTime<Utc>,
     },
 
+    /// The hub's signer went live, and how (hub/docs/PRD_HELD_IGNITION.md §3.6). A reader of the
+    /// ledger can tell a hub started by a person from one started by its host or by an
+    /// environment variable, and with what seal: the evidence a capability level is derived
+    /// from, never claimed. Audit-only.
+    HubIgnited {
+        via: IgnitionVia,
+        /// The seal a held ignition opened, read from the sealed file. `None` unless `via` is held.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tier: Option<crate::law::IgnitionTier>,
+    },
+
     /// A **referenced act** — a thin, witnessed governance record of an entity
     /// externalizing work: the one primitive behind fleet handoffs
     /// (`to = Peer`), hub→citizen notifications (`to = Citizen` — a notification
@@ -1230,6 +1253,7 @@ impl HubEvent {
         "device_revoked",
         "event_recorded",
         "genesis",
+        "hub_ignited",
         "intro_requested",
         "intro_responded",
         "law_amended",
@@ -1321,6 +1345,7 @@ impl HubEvent {
             Self::VaultUnlockRequested { .. } => "vault_unlock_requested",
             Self::VaultUnlockAttested { .. } => "vault_unlock_attested",
             Self::VaultUnlockResolved { .. } => "vault_unlock_resolved",
+            Self::HubIgnited { .. } => "hub_ignited",
             Self::ReferencedAct { .. } => "referenced_act",
             Self::ReputationRecorded { .. } => "reputation_recorded",
             Self::ObligationOpened { .. } => "obligation_opened",

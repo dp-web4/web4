@@ -1277,6 +1277,20 @@ fn event_summary(event: &HubEvent) -> String {
                 short(pair_id),
             )
         }
+        HubEvent::HubIgnited { via, tier } => format!(
+            "🔥 Hub ignited by {}{}",
+            match via {
+                hub_lib::events::IgnitionVia::Held => "its held passphrase",
+                hub_lib::events::IgnitionVia::Human => "a person",
+                hub_lib::events::IgnitionVia::Env => "HUB_PASSPHRASE (dev tier)",
+            },
+            tier.map(|t| format!(" <span class=\"muted\">[{}]</span>", match t {
+                hub_lib::law::IgnitionTier::Unknown => "unknown seal",
+                hub_lib::law::IgnitionTier::HostKey => "host-key",
+                hub_lib::law::IgnitionTier::Tpm2 => "tpm2",
+                hub_lib::law::IgnitionTier::HostTpm2 => "host+tpm2",
+            })).unwrap_or_default(),
+        ),
         HubEvent::VaultUnlockRequested { challenge_id, tier, required, .. } => {
             format!(
                 "🔒 Tier-2 unlock requested for \"{}\" (need {}) <span class=\"muted\">[{}]</span>",
