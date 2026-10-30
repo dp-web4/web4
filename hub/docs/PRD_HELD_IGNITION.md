@@ -131,7 +131,8 @@ the held copy, and why (`law_off`, or `below_min_tier` from the file's own seal 
 - **Offline `hub set-law`** asks the same check after witnessing the amendment, then deletes the
   copy and witnesses `IgnitionReleased` through `HubSession`. The delete comes first, so a law that
   says "don't hold" never leaves a copy for the next boot, even if the record then fails.
-- **`hub rotate-passphrase`** (offline, hub stopped) deletes `ignition.cred` before re-keying,
+- **`hub rotate-passphrase`** (offline, hub stopped) deletes `ignition.cred` once the current
+  passphrase has opened the identity (so a typo costs nothing) and before anything is re-keyed,
   because a copy sealed to the old passphrase would fail at the next boot and cost an attempt. It
   can't witness: it runs mid-rekey, with no signer. The next person's unlock re-seals the copy and
   records `IgnitionHeld`.
