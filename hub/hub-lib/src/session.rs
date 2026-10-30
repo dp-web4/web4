@@ -308,6 +308,22 @@ impl HubSession {
         }
     }
 
+    /// Delete the hub's held passphrase and witness why (PRD_HELD_IGNITION §3.4). The delete
+    /// comes first: a law that says "don't hold" must not leave a copy for the next boot, even if
+    /// the record then fails.
+    pub async fn release_held_ignition(&mut self, reason: crate::events::IgnitionRelease) -> Result<&LedgerEntry> {
+        let path = crate::ignition::ignition_path(&self.paths.root);
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(anyhow::Error::from(e).context(format!("deleting {}", path.display()))),
+        }
+        let unsigned = self.ledger.build_entry(self.sovereign_lct_id, HubEvent::IgnitionReleased { reason }, Utc::now())?;
+        let sig = self.sovereign_keypair.sign(&unsigned.signing_bytes);
+        self.ledger.append_signed(unsigned, web4_core::crypto::SignatureBytes::from_bytes(sig.bytes)).await?;
+        Ok(self.ledger.entries().last().expect("just appended"))
+    }
+
     pub async fn get_law(&self) -> Result<Option<String>> {
         self.ledger.store().read_law().await
     }
