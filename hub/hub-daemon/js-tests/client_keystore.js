@@ -64,13 +64,16 @@ function makeIdb(failPut) {
   return idbApi;
 }
 
-function makeEnv(failPut, { idb, persisted = true, persistGrant = true } = {}) {
+function makeEnv(failPut, { idb, persisted = true, persistGrant = true, noEd25519 = false } = {}) {
   const ls = new Map();
   const el = () => ({ innerHTML: '', textContent: '', className: '', value: '', href: '',
     classList: { add() {}, remove() {} } });
   const els = {};
   const ctx = {
-    crypto: globalThis.crypto, TextEncoder, Uint8Array, JSON, Promise, String, Object, Array, Error, setTimeout,
+    crypto: noEd25519 ? { ...globalThis.crypto, randomUUID: () => globalThis.crypto.randomUUID(), subtle: {
+      importKey: () => Promise.reject(Object.assign(new Error('Ed25519 unsupported'), { name: 'NotSupportedError' })),
+      generateKey: () => Promise.reject(Object.assign(new Error('Ed25519 unsupported'), { name: 'NotSupportedError' })),
+    } } : globalThis.crypto, TextEncoder, Uint8Array, JSON, Promise, String, Object, Array, Error, setTimeout,
     console,
     indexedDB: idb || makeIdb(failPut),
     localStorage: { getItem: k => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)), removeItem: k => ls.delete(k) },
@@ -142,6 +145,11 @@ const run = (ctx, code) => vm.runInContext(code, ctx);
     assert.strictEqual(c.ls.get('hestia_hub_id'), bad, 'the unreadable key is kept');
     assert.strictEqual(await run(c.ctx, 'idbGet()'), undefined, 'and nothing half-moved');
   }
+  // A browser without Ed25519 is told so, and its old key is kept for one that has it.
+  const ne = makeEnv(false, { noEd25519: true });
+  ne.ls.set('hestia_hub_id', JSON.stringify(old));
+  await assert.rejects(run(ne.ctx, 'loadID()'), { message: 'NO_ED25519' });
+  assert.ok(ne.ls.has('hestia_hub_id'));
   console.log('ok 6 a corrupt old key is named and kept');
 
   // 7. Two tabs that both found no key: the second never replaces the first one's key.

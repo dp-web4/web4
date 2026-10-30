@@ -346,6 +346,7 @@ K5 adds four things.
   - a K4 link mailed to the contact before the join;
   - an operator relaying in the contact's name;
   - a carrier that listed a nudge before the join and reports it after.
+- **Closed jobs are rewritten too.** History then reads by one id, so a job closed before the binding that named the contact as owner and the member's own key as backup reads afterwards as one person in both places (supervisor, #962). Only open jobs are checked for that (`bind_conflict`), because a closed job no longer queues anyone.
 - **The operator still sees who.** A member who joined from an invite sent no name, so the operator's views show the contact's name from the book. Erasing the contact erases the name (C3).
 - **One person is never owner and backup.** A member never binds an invite their own join didn't carry (K5b, Legion #961). The projection doesn't fold a binding that would merge an open job's owner and backup (`bind_conflict`). The hub checks the same thing before it writes one and refuses with 409 (Legion, #962), so a join is never told it bound a contact that the projection then ignores.
 - **A joiner can't take a contact's id.** Commitments read a contact and a member by the same string, so the join route refuses, with 409, a member id that is a contact's party id in the book or a bound party id (Legion, #962). The hub mints contact ids, so a real joiner never collides.

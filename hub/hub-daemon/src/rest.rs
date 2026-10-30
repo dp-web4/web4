@@ -8539,7 +8539,10 @@ async function loadID(){
   try{
     o=JSON.parse(raw);
     priv=await crypto.subtle.importKey('jwk',o.privJwk,{name:'Ed25519'},false,['sign']);
-  }catch(e){ throw new Error('LEGACY_UNREADABLE'); }
+  }catch(e){
+    // A browser that can't do Ed25519 at all is told that, not that its key is unreadable.
+    throw new Error(e&&e.name==='NotSupportedError'?'NO_ED25519':'LEGACY_UNREADABLE');
+  }
   const moved={lct_id:o.lct_id,pubHex:o.pubHex,priv};
   const kept=await idbAdd(moved);
   // Another tab stored a key first: that one is in use, and the old JWK stays as it was.
