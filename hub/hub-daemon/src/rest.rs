@@ -2049,14 +2049,17 @@ pub fn router(state: RestState) -> Router {
         // Commitments K5b: the page an invite opens. Reading it writes nothing; the join is the
         // browser's own signed POST to /members/join, carrying the invite as evidence for law.
         .route("/j/:token", get(commitments::invite_page))
+        .route("/j/unsupported", post(commitments::count_unsupported))
         .route("/join.js", get(commitments::join_js))
         // Commitments K5c: a member's own view. The browser key signs a challenge for a 12-hour,
         // HttpOnly, SameSite=Strict session that reads only that member's jobs.
         .route("/me", get(commitments::me_page))
         .route("/me.js", get(commitments::me_js))
         .route("/me/session", post(commitments::me_session))
+        .route("/me/act", post(commitments::me_act))
         .route("/me/view", get(commitments::me_view))
         .route("/discuss", get(discuss_html))
+        .route("/discuss.css", get(discuss_css))
         // The client's script and style are files of their own so its page can forbid inline ones.
         .route("/client", get(client_html))
         .route("/client.js", get(client_js))
@@ -8331,9 +8334,7 @@ async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
         "<!doctype html><meta charset=\"utf-8\">\
          <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
          <title>{} — governance</title>\
-         <style>body{{font:16px/1.6 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem}}\
-         .m{{color:#666;font-size:.85em}} .p{{border-left:3px solid #ddd;padding:.2rem 0 .2rem .8rem;margin:.9rem 0}}\
-         h2{{margin-top:2rem}} pre{{white-space:pre-wrap;margin:.2rem 0;font:inherit}}</style>\
+         <link rel=\"stylesheet\" href=\"/discuss.css\">\
          <h1>{}</h1>\
          <p class=\"m\">Governance discussion. Every topic and post below is an entry in this hub's \
          hash-chained ledger, witnessed by the Sovereign and admitted under the hub's \
@@ -8362,7 +8363,25 @@ async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
             ));
         }
     }
-    ([(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")], body).into_response()
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            // Not a key page, but on the key pages' origin: a script injected here could open their
+            // IndexedDB and sign with a member's key, so it runs under the same policy (Legion, #960).
+            (axum::http::header::CONTENT_SECURITY_POLICY, KEY_PAGE_CSP),
+        ],
+        body,
+    )
+        .into_response()
+}
+
+const DISCUSS_CSS: &str = "body{font:16px/1.6 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem}\
+    .m{color:#666;font-size:.85em} .p{border-left:3px solid #ddd;padding:.2rem 0 .2rem .8rem;margin:.9rem 0}\
+    h2{margin-top:2rem} pre{white-space:pre-wrap;margin:.2rem 0;font:inherit}";
+
+async fn discuss_css() -> axum::response::Response {
+    use axum::response::IntoResponse;
+    ([(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")], DISCUSS_CSS).into_response()
 }
 
 /// Pages that hold a member's key, or a link that acts for a party, run no script but their
@@ -8371,6 +8390,20 @@ async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
 /// to sign with it in place.
 pub(crate) const KEY_PAGE_CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self'; \
     connect-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+/// Every other page on the public listener shares the key pages' origin, and so their
+/// IndexedDB: a script injected into any of them could sign with a member's key in place
+/// (Legion, #960). Those pages run no script at all. Inline style stays allowed; it runs nothing.
+pub(crate) const PUBLIC_PAGE_CSP: &str = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; \
+    form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+/// The public listener's default: a response that set no policy of its own gets `PUBLIC_PAGE_CSP`.
+pub(crate) async fn public_csp(mut resp: axum::response::Response) -> axum::response::Response {
+    resp.headers_mut()
+        .entry(axum::http::header::CONTENT_SECURITY_POLICY)
+        .or_insert(axum::http::HeaderValue::from_static(PUBLIC_PAGE_CSP));
+    resp
+}
 
 /// GET /client — an interactive, same-origin hub client. Generates an Ed25519
 /// identity in the browser (WebCrypto), requests to join, and — once the
@@ -8526,6 +8559,10 @@ async function ensurePersisted(){
   if(!st||!st.persisted)return null;
   try{ return (await st.persisted())||(st.persist?await st.persist():false); }catch(e){ return false; }
 }
+// What a volunteer can do when this browser can't hold a key, before routing them to the organiser
+// (cbp-pm, #959). The page also tells the hub, which counts refusals by browser family only.
+const NO_KEY_SUPPORT='This browser can\'t keep your key safely. Open this link in a current Chrome, Safari or Firefox (on a phone or laptop updated in the last two years). Still stuck? Ask your organiser.';
+function countUnsupported(){ fetch('/j/unsupported',{method:'POST'}).catch(()=>{}); }
 const NOT_PERSISTED='This browser hasn\'t agreed to keep your key for good. If you don\'t come back for a few weeks, it may be cleared; if that happens, ask your organiser for a new invite.';
 
 async function loadID(){
@@ -8538,7 +8575,10 @@ async function loadID(){
   try{
     o=JSON.parse(raw);
     priv=await crypto.subtle.importKey('jwk',o.privJwk,{name:'Ed25519'},false,['sign']);
-  }catch(e){ throw new Error('LEGACY_UNREADABLE'); }
+  }catch(e){
+    // A browser that can't do Ed25519 at all is told that, not that its key is unreadable.
+    throw new Error(e&&e.name==='NotSupportedError'?'NO_ED25519':'LEGACY_UNREADABLE');
+  }
   const moved={lct_id:o.lct_id,pubHex:o.pubHex,priv};
   const kept=await idbAdd(moved);
   // Another tab stored a key first: that one is in use, and the old JWK stays as it was.

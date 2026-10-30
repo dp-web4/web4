@@ -928,10 +928,11 @@ impl LinkAct {
 /// A link that has already acknowledged never offers it again, even after a handoff cleared the
 /// acknowledgement: the ledger would refuse it (Legion, #957). The new owner of a handoff is sent
 /// a fresh link (K4b), and that one can acknowledge.
-fn acts_for(c: &Commitment, role: LinkRole, claim: &LinkClaim) -> Vec<LinkAct> {
-    let own_word = matches!(c.acknowledged.get(&claim.party_id), Some(AckVia::MemberAct | AckVia::Link));
+/// `digest` is the link's, when the answer comes through one; a member's signed answer has none.
+fn acts_for(c: &Commitment, role: LinkRole, party_id: &str, digest: Option<&str>) -> Vec<LinkAct> {
+    let own_word = matches!(c.acknowledged.get(party_id), Some(AckVia::MemberAct | AckVia::Link));
     let mut acts = Vec::new();
-    if role != LinkRole::Lead && !own_word && !c.link_acks.contains(&claim.digest) {
+    if role != LinkRole::Lead && !own_word && !digest.is_some_and(|d| c.link_acks.contains(d)) {
         acts.push(LinkAct::Ack);
     }
     acts.extend([LinkAct::Update, LinkAct::Done]);
@@ -957,35 +958,48 @@ fn act_label(act: LinkAct, role: LinkRole, backup: &str) -> String {
 /// Record one answer from a link, under [`COMMITMENT_LOCK`]. The role and the offered answers are
 /// worked out again here, not trusted from the page: the queue may have moved since it loaded.
 async fn act_by_link(s: &RestState, claim: &LinkClaim, act: LinkAct) -> Result<serde_json::Value, ApiError> {
+    act_as(s, &claim.commitment_id, &claim.party_id, act, AckVia::Link, Some(claim.digest.clone())).await
+}
+
+/// One answer from a party named on the job, through a link (`via: link`, with its digest) or a
+/// member's own signed envelope (`via: member_act`, K5c2). The same roles and the same answers
+/// either way, worked out here under the lock.
+pub(crate) async fn act_as(
+    s: &RestState, commitment_id: &str, party_id: &str, act: LinkAct, via: AckVia, digest: Option<String>,
+) -> Result<serde_json::Value, ApiError> {
     let _serial = COMMITMENT_LOCK.lock().await;
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
-    let claim = &claim_now(&state, claim);
-    let c = projected_commitment(&state, &claim.commitment_id)?;
-    let role = role_of(&state, &c, &claim.party_id).ok_or_else(|| ApiError {
+    // A member's own word needs a member, checked under the lock so a removal can't land between
+    // the check and the entry (Legion, #965).
+    if via == AckVia::MemberAct && !Uuid::parse_str(party_id).is_ok_and(|m| state.members.contains_key(&m)) {
+        return Err(ApiError { status: StatusCode::FORBIDDEN, message: "only a member answers here".into() });
+    }
+    let party_id = state.invites.canonical_id(party_id);
+    let c = projected_commitment(&state, commitment_id)?;
+    let role = role_of(&state, &c, &party_id).ok_or_else(|| ApiError {
         status: StatusCode::FORBIDDEN,
         message: "you're no longer named on this job".to_string(),
     })?;
-    if !acts_for(&c, role, claim).contains(&act) {
+    if !acts_for(&c, role, &party_id, digest.as_deref()).contains(&act) {
         return Err(ApiError { status: StatusCode::CONFLICT, message: "that answer isn't open to you now".to_string() });
     }
-    let by = claim.party_id.clone();
-    let digest = Some(claim.digest.clone());
+    let by = party_id.clone();
     let moved = |move_kind, to| MoveBody { by: by.clone(), move_kind, to, note_ref: None };
     match act {
         LinkAct::Ack => {
             let entry_index = checked_witness(s, HubEvent::CommitmentAcknowledged {
                 commitment_id: c.commitment_id.clone(),
                 party_id: by,
-                via: AckVia::Link,
+                via,
                 link_digest: digest,
             }).await?;
             Ok(serde_json::json!({ "acknowledged": true, "entry_index": entry_index }))
         }
-        LinkAct::Update => witness_move(s, &c, moved(MoveKind::Update, None), AckVia::Link, digest).await,
-        LinkAct::Stuck => witness_move(s, &c, moved(MoveKind::Stuck, None), AckVia::Link, digest).await,
+        LinkAct::Update => witness_move(s, &c, moved(MoveKind::Update, None), via, digest).await,
+        LinkAct::Stuck => witness_move(s, &c, moved(MoveKind::Stuck, None), via, digest).await,
         LinkAct::Handoff => {
             let to = Some(c.backup.clone());
-            witness_move(s, &c, moved(MoveKind::Handoff, to), AckVia::Link, digest).await
+            witness_move(s, &c, moved(MoveKind::Handoff, to), via, digest).await
         }
         LinkAct::Take => {
             let me = if role == LinkRole::Backup {
@@ -993,7 +1007,7 @@ async fn act_by_link(s: &RestState, claim: &LinkClaim, act: LinkAct) -> Result<s
             } else {
                 PartyRef { party_id: by.clone(), kind: PartyKind::Member }
             };
-            witness_move(s, &c, moved(MoveKind::Handoff, Some(me)), AckVia::Link, digest).await
+            witness_move(s, &c, moved(MoveKind::Handoff, Some(me)), via, digest).await
         }
         LinkAct::Done => witness_resolution(s, &c, ResolveBody { outcome: Outcome::Done, by }, digest).await,
     }
@@ -1105,7 +1119,7 @@ pub(super) async fn link_page(
     if let Some(due) = c.due_at {
         html.push_str(&format!("<p class=\"muted\">Due {}.</p>", due.format("%Y-%m-%d %H:%M UTC")));
     }
-    for act in acts_for(c, role, &claim) {
+    for act in acts_for(c, role, &claim.party_id, Some(&claim.digest)) {
         // Relative to /c/<token>, so the form posts back to this hub whatever origin served it.
         html.push_str(&format!("<form method=\"post\" action=\"{}/{}\"><button>{}</button></form>",
             esc(&token), act.path(), esc(&act_label(act, role, &backup))));
@@ -2032,6 +2046,8 @@ mod tests {
             ("/client".to_string(), "/client.css"),
             (format!("/c/{token}"), "/c.css"),
             ("/c/not-a-link".to_string(), "/c.css"),
+            // Holds no key, but shares the key pages' origin and IndexedDB.
+            ("/discuss".to_string(), "/discuss.css"),
         ] {
             let (_, headers, html) = page(&s, &path).await;
             assert_eq!(headers.get("content-security-policy").and_then(|v| v.to_str().ok()), Some(csp), "{path}");
@@ -2047,7 +2063,7 @@ mod tests {
                 assert!(!script.contains(inline), "a key page script carries {inline}");
             }
         }
-        for (path, kind) in [("/client.js", "text/javascript"), ("/keystore.js", "text/javascript"), ("/client.css", "text/css"), ("/c.css", "text/css")] {
+        for (path, kind) in [("/client.js", "text/javascript"), ("/keystore.js", "text/javascript"), ("/client.css", "text/css"), ("/c.css", "text/css"), ("/discuss.css", "text/css")] {
             let (status, headers, body) = page(&s, path).await;
             assert_eq!(status, StatusCode::OK, "{path}");
             assert!(headers["content-type"].to_str().unwrap().starts_with(kind), "{path}");

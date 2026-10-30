@@ -1529,6 +1529,8 @@ fn public_plane_router(mcp_state: McpState, rest_state: RestState, admin_state: 
     mcp_read_router(mcp_state)
         .merge(rest_router(rest_state))
         .merge(admin::router(admin_state))
+        // One origin for every page here, so one floor: no page runs a script it didn't name.
+        .layer(axum::middleware::map_response(crate::rest::public_csp))
 }
 
 /// The **operator plane's** route set (127.0.0.1-only listener, never proxied).
@@ -3013,6 +3015,36 @@ mod tests {
             }
         }
 
+        /// Every page on the public plane shares the key pages' origin, and so their
+        /// IndexedDB (Legion, #960). Each runs its own script file or none, and a page
+        /// that sets no policy of its own gets the plane's.
+        #[tokio::test]
+        async fn every_public_page_forbids_a_script_it_did_not_name() {
+            let (_tmp, public, _op) = planes().await;
+            for path in [
+                "/", "/record", "/admin/roles", "/admin/law", "/admin/council", "/admin/channels",
+                "/tools", "/tools/query_hub", "/discuss", "/client", "/me", "/no-such-page",
+            ] {
+                let resp = public.clone().oneshot(Request::builder().uri(path).body(Body::empty()).unwrap()).await.unwrap();
+                let csp = resp
+                    .headers()
+                    .get(axum::http::header::CONTENT_SECURITY_POLICY)
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or_else(|| panic!("{path} sends no CSP"))
+                    .to_string();
+                assert!(csp.starts_with("default-src 'none';"), "{path}: {csp}");
+                let scripts: Vec<&str> = csp.split(';').map(str::trim).filter(|d| d.starts_with("script-src")).collect();
+                assert!(scripts.iter().all(|d| *d == "script-src 'self'"), "{path}: {csp}");
+                let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+                let body = String::from_utf8_lossy(&body);
+                if scripts.is_empty() {
+                    assert!(!body.contains("<script"), "{path} carries a script its policy blocks");
+                } else {
+                    assert!(!body.contains("<script>"), "{path} carries an inline script");
+                }
+            }
+        }
+
         /// `/admin/council` on the backend production actually runs.
         ///
         /// The transparency enumeration above asserts this page is served, and it
@@ -3256,8 +3288,9 @@ mod tests {
         /// not hidden, because a guard that quietly covers half its surface
         /// reads as covering all of it.
         const BODY_EXEMPT: &[&str] = &[
-            // Commitments K5c: a signed envelope; driven end-to-end by the `me` tests in
+            // Commitments K5c/K5c2: signed envelopes; driven end-to-end by the `me` tests in
             // rest/commitments/me.rs.
+            "/me/act",
             "/me/session",
             "/v1/auth/challenge",
             "/v1/hubs/:hub_id/channel",

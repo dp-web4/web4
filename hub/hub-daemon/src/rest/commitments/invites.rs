@@ -281,7 +281,42 @@ async fn list(s: &RestState) -> Result<serde_json::Value, ApiError> {
             _ => {}
         }
     }
-    Ok(serde_json::json!({ "joined": joined, "revoked": revoked }))
+    Ok(serde_json::json!({ "joined": joined, "revoked": revoked, "unsupported_browsers": unsupported_counts() }))
+}
+
+/// Browser families the refusal count is kept by. Nothing finer is kept: no version, no address,
+/// no time (cbp-pm, #959).
+const BROWSER_FAMILIES: [&str; 6] = ["chrome", "edge", "firefox", "safari", "webview", "other"];
+static UNSUPPORTED: [std::sync::atomic::AtomicU64; 6] = [const { std::sync::atomic::AtomicU64::new(0) }; 6];
+
+fn browser_family(user_agent: &str) -> usize {
+    let has = |s: &str| user_agent.contains(s);
+    if has("FBAN") || has("FBAV") || has("Instagram") || has("; wv)") || has("GSA/") { 4 }
+    else if has("Edg/") { 1 }
+    else if has("Firefox/") || has("FxiOS/") { 2 }
+    else if has("Chrome/") || has("CriOS/") { 0 }
+    else if has("Safari/") { 3 }
+    else { 5 }
+}
+
+fn unsupported_counts() -> serde_json::Value {
+    BROWSER_FAMILIES.iter().zip(&UNSUPPORTED)
+        .map(|(f, n)| (f.to_string(), serde_json::json!(n.load(std::sync::atomic::Ordering::Relaxed))))
+        .collect::<serde_json::Map<_, _>>().into()
+}
+
+/// `POST /j/unsupported` — a page found this browser can't hold a key. Takes no body: the family
+/// comes from the User-Agent header and is all that is kept, in memory, until the hub restarts.
+/// The operator reads the tally in `GET /admin/api/invites`, so the first chapter run gives the
+/// real refusal rate.
+///
+/// surface: count_unsupported   act: none (an in-memory tally; nothing is written or sent)
+/// S: low/reversible   R: n/a [anyone may report; a false report moves one number]   W: n/a   O: n/a   A: n/a   V: n/a
+/// verdict: PASS
+pub(in crate::rest) async fn count_unsupported(headers: axum::http::HeaderMap) -> StatusCode {
+    let ua = headers.get(axum::http::header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or("");
+    UNSUPPORTED[browser_family(ua)].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    StatusCode::NO_CONTENT
 }
 
 /// `GET /j/:token` — the page an invite opens: "Join <hub>". Reading it writes nothing; the
@@ -385,7 +420,8 @@ async function join(){
     else if(r.status===202){ b.hidden=true; say('muted','Your organiser will confirm you. Once they have, open this link again.'); }
     else { say('err',out.error||('Something went wrong ('+r.status+').')); b.disabled=false; }
   }catch(e){
-    say('err',e.message==='NO_ED25519'?'This browser cannot hold a signing key. Ask your organiser.'
+    if(e.message==='NO_ED25519')countUnsupported();
+    say('err',e.message==='NO_ED25519'?NO_KEY_SUPPORT
       :e.message==='LEGACY_UNREADABLE'?'This browser holds an older key that can\'t be read. Ask your organiser.'
       :'Something went wrong: '+e.message);
     b.disabled=false;
@@ -680,6 +716,90 @@ admission:
         (status, headers, String::from_utf8_lossy(&bytes).into_owned())
     }
 
+    /// One request through the whole router, as a browser or the carrier would send it.
+    async fn send(s: &RestState, method: &str, path: &str, cookie: Option<&str>, json: Option<serde_json::Value>)
+        -> (StatusCode, axum::http::HeaderMap, serde_json::Value)
+    {
+        use tower::ServiceExt;
+        let mut req = axum::http::Request::builder().method(method).uri(path);
+        if let Some(c) = cookie {
+            req = req.header(axum::http::header::COOKIE, c);
+        }
+        let body = match json {
+            Some(j) => { req = req.header(axum::http::header::CONTENT_TYPE, "application/json"); axum::body::Body::from(j.to_string()) }
+            None => axum::body::Body::empty(),
+        };
+        let resp = crate::rest::router(s.clone()).oneshot(req.body(body).unwrap()).await.unwrap();
+        let (status, headers) = (resp.status(), resp.headers().clone());
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        (status, headers, serde_json::from_slice(&bytes).unwrap_or_default())
+    }
+
+    fn signed_by(s: &RestState, kp: &KeyPair, signer: Uuid, payload: serde_json::Value) -> serde_json::Value {
+        let challenge = s.nonces.issue(signer, Utc::now());
+        let mut env = hub_lib::envelope::SignedEnvelope {
+            challenge_nonce: challenge.nonce.clone(), payload, signature: String::new(), signer_lct_id: signer,
+        };
+        env.signature = kp.sign(&env.signing_bytes().unwrap()).to_hex();
+        serde_json::to_value(&env).unwrap()
+    }
+
+    /// The 11-07 hackathon path, end to end, as the operator runbook (PRD §7.1) walks it: a job
+    /// for a contact, the nudge with its link, the invite, the join, the volunteer's own view, and
+    /// their answer in their own word. Each step through the same route a person or the carrier uses.
+    #[tokio::test]
+    async fn the_pilot_path_from_contact_to_own_word() {
+        let base = "https://hub.example.org";
+        let (_tmp, s, robin) = hub(PILOT_LAW).await;
+        let sam = existing_member(&s, &KeyPair::generate()).await;
+        let role = leads_role(&s).await;
+        // 1. The operator opens a job for Robin, still only a contact, with Sam as backup.
+        let id = open_for(&s, PartyRef { party_id: robin.clone(), kind: PartyKind::Contact },
+            PartyRef { party_id: sam.to_string(), kind: PartyKind::Member }, role).await;
+
+        // 2. The carrier lists what is owed: Robin's nudge, to Robin's address, with a link.
+        let rows = list_nudges(&s, Some(base.into())).await.unwrap()["nudges"].as_array().unwrap().clone();
+        let to_robin = rows.iter().find(|r| r["party"]["party_id"] == robin.as_str()).expect("a nudge for Robin");
+        assert_eq!((to_robin["address"].as_str(), to_robin["held"].is_null()), (Some("robin@example.org"), true));
+        let link = to_robin["link"].as_str().unwrap().strip_prefix(&format!("{base}/c/")).unwrap().to_string();
+        let about = to_robin["about_index"].as_u64().unwrap();
+        record_delivery(&s, DeliveredBody { commitment_id: id.clone(), about_index: about, party_id: robin.clone(),
+            channel: "email".into(), ok: true }).await.unwrap();
+
+        // 3. The operator mints an invite; Robin opens it and joins with this browser's key.
+        let token = invite(&s, &robin).await;
+        let (robin_kp, robin_m) = (KeyPair::generate(), Uuid::new_v4());
+        assert_eq!(join(&s, &robin_kp, robin_m, Some(&token)).await.0, StatusCode::OK);
+
+        // 4. The job is Robin's as a member now, and the delivered nudge is not owed again.
+        let rows = list_nudges(&s, Some(base.into())).await.unwrap()["nudges"].as_array().unwrap().clone();
+        assert!(!rows.iter().any(|r| r["about_index"].as_u64() == Some(about)
+            && r["party"]["party_id"] == robin_m.to_string().as_str()), "nudged twice for one entry: {rows:?}");
+
+        // 5. Robin opens /me: the page signs in with the same key, then reads the job.
+        let (status, headers, _) = send(&s, "POST", "/me/session", None,
+            Some(signed_by(&s, &robin_kp, robin_m, serde_json::json!({ "action": "me_session" })))).await;
+        assert_eq!(status, StatusCode::OK);
+        let cookie = headers[axum::http::header::SET_COOKIE].to_str().unwrap().split(';').next().unwrap().to_string();
+        let (status, _, view) = send(&s, "GET", "/me/view", Some(&cookie), None).await;
+        assert_eq!(status, StatusCode::OK, "{view}");
+        assert_eq!((view["name"].as_str(), view["mine"][0]["title"].as_str()), (Some("Robin"), Some("Venue AV")));
+        assert!(view["mine"][0]["acts"].as_array().unwrap().iter().any(|a| a["act"] == "acknowledge"));
+
+        // 6. Robin says yes from /me: the member's own word, so the job counts as acknowledged.
+        let (status, _, out) = send(&s, "POST", "/me/act", None, Some(signed_by(&s, &robin_kp, robin_m,
+            serde_json::json!({ "action": "commitment_act", "commitment_id": id, "act": "acknowledge" })))).await;
+        assert_eq!(status, StatusCode::OK, "{out}");
+        assert!(matches!(last_event(&s).await, HubEvent::CommitmentAcknowledged { via: AckVia::MemberAct, party_id, .. }
+            if party_id == robin_m.to_string()));
+        { let l = s.ledger.lock().await; assert!(s.projected(&l).commitments[&id].owner_acknowledged()); }
+
+        // 7. The emailed link still opens, knows Robin as the owner, and no longer asks for a yes.
+        let (status, _, html) = page(&s, &format!("/c/{link}")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(html.contains("You're the owner") && !html.contains("/acknowledge\""), "{html}");
+    }
+
     #[tokio::test]
     async fn an_invite_is_evidence_for_law_not_a_way_around_it() {
         let (_tmp, s, robin) = hub(QUEUE_LAW).await;
@@ -847,6 +967,35 @@ admission:
         assert!(bindings(&s).await.is_empty());
         // Robin, with Robin's own key, still can.
         assert_eq!(join(&s, &KeyPair::generate(), Uuid::new_v4(), Some(&token)).await.0, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn a_browser_that_cannot_hold_a_key_is_told_what_to_do_and_counted_by_family_only() {
+        let ua = |s: &str| BROWSER_FAMILIES[browser_family(s)];
+        assert_eq!(ua("Mozilla/5.0 (iPhone; CPU iPhone OS 16_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"), "safari");
+        assert_eq!(ua("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"), "chrome");
+        assert_eq!(ua("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"), "edge");
+        assert_eq!(ua("Mozilla/5.0 (X11; Linux x86_64; rv:115.0) Gecko/20100101 Firefox/115.0"), "firefox");
+        assert_eq!(ua("Mozilla/5.0 (Linux; Android 13; Pixel 7; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/118.0 Mobile Safari/537.36"), "webview");
+        assert_eq!(ua(""), "other");
+
+        let (_tmp, s, _robin) = hub(PILOT_LAW).await;
+        let before = list(&s).await.unwrap()["unsupported_browsers"]["firefox"].as_u64().unwrap();
+        let entries = len(&s).await;
+        use tower::ServiceExt;
+        let req = axum::http::Request::builder().method("POST").uri("/j/unsupported")
+            .header(axum::http::header::USER_AGENT, "Mozilla/5.0 (X11; Linux x86_64; rv:115.0) Gecko/20100101 Firefox/115.0")
+            .body(axum::body::Body::empty()).unwrap();
+        assert_eq!(crate::rest::router(s.clone()).oneshot(req).await.unwrap().status(), StatusCode::NO_CONTENT);
+        let after = list(&s).await.unwrap()["unsupported_browsers"]["firefox"].as_u64().unwrap();
+        assert!(after > before, "counted");
+        assert_eq!(len(&s).await, entries, "nothing reaches the ledger");
+
+        // Both volunteer pages say what to do, from one text, and report the refusal.
+        for js in [JOIN_JS, super::super::ME_JS] {
+            assert!(js.contains("e.message==='NO_ED25519'?NO_KEY_SUPPORT") && js.contains("countUnsupported()"), "{js}");
+        }
+        assert!(crate::rest::KEYSTORE_JS.contains("Open this link in a current Chrome, Safari or Firefox"));
     }
 
     #[tokio::test]
