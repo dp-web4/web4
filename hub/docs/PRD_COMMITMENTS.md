@@ -363,6 +363,17 @@ K5 adds four things.
 - **The view** lists open jobs only: **mine** (I'm the owner) and **I'm backing up**. Each row carries the title, the due date, `late` (past due), `waiting_on_you` (the queue sits at my position) and the other party's name. The page builds rows from text nodes, never markup. The response is `no-store`.
 - **No session list (Legion, #964).** The browser key is the credential, not the session: a device that holds the key can sign a fresh session whenever it likes. Revoking a session therefore buys little. Removing the member, or replacing their key, ends their sessions. The one thing that isn't possible is signing a device out while it keeps its key; for a 12-hour read of one's own jobs, that is the trade.
 
+**K5c2 as built.**
+- **Each row in `/me/view` carries the answers a link would offer,** labelled the same way ("Yes, it's mine", "Hand it to Sam"…). There is one function behind both, `acts_for`.
+- **An answer is `POST /me/act`:** a signed envelope `{action: "commitment_act", commitment_id, act}` from the browser's key. The session cookie reads; it never writes.
+- **The hub checks before it writes.** It verifies the envelope against the live resolver and requires the signer to be a member now. Then, under the lock, the shared `act_as` re-derives the role and the open answers, the same path a link takes. The entry is recorded `via: member_act` with no link digest: the member's own word, the strongest evidence an answer carries (§5.1).
+- **Refusals write nothing:**
+  - not named on the job: 403;
+  - a key signing for another member: 401;
+  - the wrong action, or an unknown answer: 400;
+  - an answer not open now, such as a second acknowledgement: 409;
+  - a resolvable non-member who sits in the leads role: 403.
+
 **Questions asked, and answered (Legion, #959, 10-29 20:17Z):**
 - (a) **Does an invite admit on its own?** Yes, because an invite is no more trust than the K4 link the contact already holds. It holds only with the five conditions in (1): atomic once, MAC verified, 7-day life, revocation, and the operator told.
 - (b) **Are browsers without WebCrypto Ed25519 refused?** Yes, with "ask your organiser" and no JS fallback library: a bundled library would put an extractable key in page memory. The keys that actually get lost are lost to webviews and eviction, covered in (3).

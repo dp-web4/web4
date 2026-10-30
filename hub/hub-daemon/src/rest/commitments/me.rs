@@ -15,6 +15,7 @@ pub(crate) const ME_SESSION_HOURS: i64 = 12;
 const ME_SESSION_LABEL: &[u8] = b"web4-hub member session v1\n";
 pub(crate) const ME_COOKIE: &str = "hub_me";
 const ME_ACTION: &str = "me_session";
+const ACT_ACTION: &str = "commitment_act";
 
 /// The key a session was signed in with, short: the first 64 bits of the SHA-256 of its hex. A
 /// session names it so that rotating the key ends every session the old key began (Legion, #964).
@@ -143,6 +144,11 @@ async fn view_for(s: &RestState, member: Uuid, now: DateTime<Utc>) -> Result<ser
     let me = member.to_string();
     let name = |p: &PartyRef| party_view(&state, &book, p)["name"].clone();
     let row = |c: &Commitment| {
+        let role = if c.owner.party_id == me { LinkRole::Owner } else { LinkRole::Backup };
+        let backup_name = name(&c.backup).as_str().unwrap_or("your backup").to_string();
+        let acts: Vec<_> = acts_for(c, role, &me, None).into_iter()
+            .map(|a| serde_json::json!({ "act": a.path(), "label": act_label(a, role, &backup_name) }))
+            .collect();
         let waiting = match c.queue {
             commitments::QueuePos::Owner => c.owner.party_id == me,
             commitments::QueuePos::Backup => c.backup.party_id == me,
@@ -157,6 +163,7 @@ async fn view_for(s: &RestState, member: Uuid, now: DateTime<Utc>) -> Result<ser
             "queue": c.queue,
             "owner": name(&c.owner),
             "backup": name(&c.backup),
+            "acts": acts,
         })
     };
     let open = || open_by_queue(&state).into_iter();
@@ -169,6 +176,43 @@ async fn view_for(s: &RestState, member: Uuid, now: DateTime<Utc>) -> Result<ser
         "mine": mine,
         "backing_up": backing_up,
     }))
+}
+
+/// `POST /me/act` — a member answers on a job, signed with their own key (K5c2). The session
+/// cookie reads; it never writes. Recorded `via: member_act`: the member's own word, the strongest
+/// evidence an answer carries (PRD §5.1).
+///
+/// surface: me_act   act: record a member's own answer on a commitment (ack, update, done, stuck, handoff, take)
+/// S: med/reversible [construct: the same acts a link offers; done is final, the rest move a queue the next answer moves again]
+/// R: pass [construct: verify_envelope against the live resolver]
+/// W: pass [construct: the member's pinned key signs a single-use challenge over the commitment and the act; role re-derived in act_as]
+/// O: pass [construct: verify_envelope, member check, act_as role + offered-answers check under COMMITMENT_LOCK before checked_witness]
+/// A: pass [construct: every entry carries via=member_act and the member's id as by/party]
+/// V: n/a [construct: a mistaken done is corrected by the operator, as for a link]
+/// verdict: PASS
+pub(in crate::rest) async fn me_act(
+    State(s): State<RestState>,
+    Json(envelope): Json<SignedEnvelope>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    {
+        let resolver = s.resolver.read().await;
+        verify_envelope(&envelope, &s.nonces, &*resolver, Utc::now())?;
+    }
+    let p = &envelope.payload;
+    if p.get("action").and_then(|a| a.as_str()) != Some(ACT_ACTION) {
+        return Err(ApiError::bad_request(format!("an answer is signed with action='{ACT_ACTION}'")));
+    }
+    let field = |k: &str| p.get(k).and_then(|v| v.as_str())
+        .ok_or_else(|| ApiError::bad_request(format!("{k} is required")));
+    let commitment_id = field("commitment_id")?;
+    let act = LinkAct::parse(field("act")?)
+        .ok_or_else(|| ApiError::bad_request("act is one of acknowledge, update, done, stuck, handoff, take"))?;
+    let member = envelope.signer_lct_id;
+    let is_member = { let l = s.ledger.lock().await; s.projected(&l).members.contains_key(&member) };
+    if !is_member {
+        return Err(ApiError { status: StatusCode::FORBIDDEN, message: "only a member answers here".into() });
+    }
+    act_as(&s, commitment_id, &member.to_string(), act, AckVia::MemberAct, None).await.map(Json)
 }
 
 /// `GET /me` — the page. It holds the browser key, so it runs only its own files.
@@ -203,14 +247,32 @@ function section(title,rows,role){
   if(!rows.length){ box.appendChild(el('p','Nothing here.','muted')); return box; }
   for(const c of rows){
     const p=el('p'); p.appendChild(el('b',c.title));
+    const acts=el('div');
+    for(const a of (c.acts||[])){
+      const b=el('button',a.label); b.dataset.cid=c.commitment_id; b.dataset.act=a.act; acts.appendChild(b);
+    }
     const who=role==='owner'?(c.backup?'Backup: '+c.backup:''):(c.owner?'Owner: '+c.owner:'');
     if(who)p.appendChild(el('span',' · '+who,'muted'));
     if(c.due_at)p.appendChild(el('span',' · due '+c.due_at.slice(0,10),c.late?'err':'muted'));
     if(c.waiting_on_you)p.appendChild(el('span',' · waiting on you','err'));
-    box.appendChild(p);
+    box.appendChild(p); box.appendChild(acts);
   }
   return box;
 }
+// An answer is signed with this browser's key; the session cookie only reads.
+async function answer(cid,act){
+  const id=await loadID(); if(!id)throw new Error('this browser holds no key for this hub');
+  const env=await signEnvelope(id,{action:'commitment_act',commitment_id:cid,act});
+  const r=await fetch('/me/act',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(env)});
+  const o=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(o.error||('not recorded ('+r.status+')'));
+}
+document.addEventListener('click',async ev=>{
+  const b=ev.target.closest&&ev.target.closest('button[data-act]'); if(!b)return;
+  b.disabled=true;
+  try{ await answer(b.dataset.cid,b.dataset.act); say('ok','Recorded.'); await main(); }
+  catch(e){ say('err','Not recorded: '+e.message); b.disabled=false; }
+});
 // The page is opened from an email, a cross-site click that carries no Strict cookie: ask for the
 // view, and on a 401 sign a fresh challenge with the key this browser already holds.
 async function main(){
@@ -224,7 +286,7 @@ async function main(){
     }
     if(!r.ok){ const o=await r.json().catch(()=>({})); throw new Error(o.error||('could not load ('+r.status+')')); }
     const v=await r.json();
-    say('muted',v.name?('Signed in as '+v.name+'.'):'Signed in.');
+    if($('#status').className!=='ok')say('muted',v.name?('Signed in as '+v.name+'.'):'Signed in.');
     const out=$('#view'); out.textContent='';
     out.appendChild(section('Mine',v.mine,'owner'));
     out.appendChild(section('I\'m backing up',v.backing_up,'backup'));
@@ -376,6 +438,93 @@ mod tests {
         let env = signed(&s, &alex_kp, alex, serde_json::json!({ "action": "me_session" }));
         assert_eq!(call(&s, "POST", "/me/session", None, Some(post(env.clone()))).await.0, StatusCode::OK);
         assert_ne!(call(&s, "POST", "/me/session", None, Some(post(env))).await.0, StatusCode::OK);
+    }
+
+    async fn leads(s: &RestState) -> Uuid {
+        let role = Uuid::new_v4();
+        witness_for_test(s, HubEvent::RoleCreated {
+            role_lct_id: role, role: web4_core::role::SocietyRole::Custom("leads".into()),
+            role_kind: hub_lib::events::RoleKind::Capacity, charter: None, parent_role_lct_id: None,
+            initial_occupant: None, created_by: s.sovereign_lct_id,
+        }).await;
+        role
+    }
+
+    async fn answer(s: &RestState, kp: &KeyPair, signer: Uuid, cid: &str, act: &str) -> (StatusCode, String) {
+        let env = signed(s, kp, signer, serde_json::json!({ "action": "commitment_act", "commitment_id": cid, "act": act }));
+        let (status, _, body) = call(s, "POST", "/me/act", None, Some(serde_json::to_string(&env).unwrap())).await;
+        (status, body)
+    }
+
+    async fn last(s: &RestState) -> HubEvent {
+        s.ledger.lock().await.entries().last().unwrap().event.clone()
+    }
+
+    #[tokio::test]
+    async fn a_member_answers_with_their_own_key_and_it_is_their_own_word() {
+        let (_tmp, s) = fresh_rest_state(None).await;
+        let (alex, alex_kp) = member(&s, "Alex").await;
+        let (sam, sam_kp) = member(&s, "Sam").await;
+        let (lee, lee_kp) = member(&s, "Lee").await;
+        let role = leads(&s).await;
+        let m = |id: Uuid| PartyRef { party_id: id.to_string(), kind: PartyKind::Member };
+        let v = open_commitment(&s, OpenBody { title: "Venue AV".into(), owner: m(alex), backup: m(sam),
+            leads_role: role.to_string(), ladder: vec![48, 24], due_at: None }).await.unwrap();
+        let cid = v["commitment_id"].as_str().unwrap().to_string();
+
+        // The view offers what a link would, labelled for this member.
+        let cookie = sign_in(&s, &alex_kp, alex).await;
+        let view = |c: String| { let s = s.clone(); async move {
+            serde_json::from_str::<serde_json::Value>(&call(&s, "GET", "/me/view", Some(&c), None).await.2).unwrap() } };
+        let acts = |v: &serde_json::Value| v["mine"][0]["acts"].as_array().unwrap().iter()
+            .map(|a| a["act"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+        let before = view(cookie.clone()).await;
+        assert_eq!(acts(&before), ["acknowledge", "update", "done", "stuck", "handoff"]);
+        assert_eq!(before["mine"][0]["acts"][4]["label"], "Hand it to Sam");
+
+        let (status, body) = answer(&s, &alex_kp, alex, &cid, "acknowledge").await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert!(matches!(last(&s).await, HubEvent::CommitmentAcknowledged { via: AckVia::MemberAct, link_digest: None,
+            party_id, .. } if party_id == alex.to_string()));
+        { let l = s.ledger.lock().await; assert!(s.projected(&l).commitments[&cid].owner_acknowledged()); }
+        assert!(!acts(&view(cookie.clone()).await).contains(&"acknowledge".to_string()), "said once");
+        assert_eq!(answer(&s, &alex_kp, alex, &cid, "acknowledge").await.0, StatusCode::CONFLICT);
+
+        // Stuck moves it to Sam; Sam takes it over, by Sam's own key.
+        assert_eq!(answer(&s, &alex_kp, alex, &cid, "stuck").await.0, StatusCode::OK);
+        let (status, body) = answer(&s, &sam_kp, sam, &cid, "take").await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert!(matches!(last(&s).await, HubEvent::CommitmentMoved { via: AckVia::MemberAct, move_kind: MoveKind::Handoff,
+            by, .. } if by == sam.to_string()));
+        { let l = s.ledger.lock().await; assert_eq!(s.projected(&l).commitments[&cid].owner.party_id, sam.to_string()); }
+
+        // Refused: someone not on the job, a key signing for another member, the wrong action,
+        // and an answer that is not one.
+        let ledger_len = s.ledger.lock().await.len();
+        assert_eq!(answer(&s, &lee_kp, lee, &cid, "done").await.0, StatusCode::FORBIDDEN);
+        assert_eq!(answer(&s, &lee_kp, sam, &cid, "done").await.0, StatusCode::UNAUTHORIZED);
+        assert_eq!(answer(&s, &sam_kp, sam, &cid, "explode").await.0, StatusCode::BAD_REQUEST);
+        let env = signed(&s, &sam_kp, sam, serde_json::json!({ "action": "me_session", "commitment_id": cid, "act": "done" }));
+        assert_eq!(call(&s, "POST", "/me/act", None, Some(serde_json::to_string(&env).unwrap())).await.0,
+            StatusCode::BAD_REQUEST);
+        assert_eq!(s.ledger.lock().await.len(), ledger_len, "no refusal reaches the ledger");
+
+        // A key the hub resolves, held by someone who sits in the leads role but is not a member,
+        // does not answer as a member.
+        let (stranger, stranger_kp) = (Uuid::new_v4(), KeyPair::generate());
+        s.resolver.write().await.insert(
+            hub_lib::hub::hestia_sovereign_lct(stranger, &stranger_kp.verifying_key().to_hex()).unwrap());
+        let their_leads = Uuid::new_v4();
+        witness_for_test(&s, HubEvent::RoleCreated {
+            role_lct_id: their_leads, role: web4_core::role::SocietyRole::Custom("leads".into()),
+            role_kind: hub_lib::events::RoleKind::Capacity, charter: None, parent_role_lct_id: None,
+            initial_occupant: Some(stranger), created_by: s.sovereign_lct_id,
+        }).await;
+        let v = open_commitment(&s, OpenBody { title: "Chairs".into(), owner: m(alex), backup: m(lee),
+            leads_role: their_leads.to_string(), ladder: vec![48], due_at: None }).await.unwrap();
+        let (status, body) = answer(&s, &stranger_kp, stranger, v["commitment_id"].as_str().unwrap(), "take").await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+        assert!(body.contains("only a member"), "{body}");
     }
 
     #[test]
