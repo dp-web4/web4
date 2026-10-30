@@ -1411,14 +1411,29 @@ impl RestState {
             IgnitionVia::Human => {
                 self.ignition.set_boot(0);
                 let Some(sealer) = self.ignition.sealer.clone() else { return };
-                if let Err(e) = sealer.seal(passphrase, &path) {
+                // Whatever this unlock ends up holding, an earlier copy must not outlive it
+                // unrecorded: if it ends up holding nothing, the earlier hold is released on the
+                // ledger too (pub, #969).
+                let held_before = path.exists();
+                let (secret, out) = (zeroize::Zeroizing::new(passphrase.to_string()), path.clone());
+                let sealed = tokio::task::spawn_blocking(move || sealer.seal(&secret, &out))
+                    .await
+                    .unwrap_or_else(|e| Err(anyhow::anyhow!("the sealing task failed: {e}")));
+                if let Err(e) = sealed {
                     tracing::warn!("held ignition: could not seal the passphrase (this hub stays boot-locked): {e:#}");
-                    self.ignition.set_note("not held: no sealing backend on this host".into());
+                    if held_before {
+                        self.release_held(&path, IgnitionRelease::ResealFailed).await;
+                    }
+                    self.ignition.set_note(format!("not held: sealing failed: {e:#}"));
                     return;
                 }
                 let sealed_at = hub_lib::ignition::tier_of_sealed(&std::fs::read(&path).unwrap_or_default());
                 if sealed_at < min_tier {
-                    let _ = std::fs::remove_file(&path);
+                    if held_before {
+                        self.release_held(&path, IgnitionRelease::BelowMinTier).await;
+                    } else {
+                        let _ = std::fs::remove_file(&path);
+                    }
                     tracing::warn!("held ignition: this host seals at {sealed_at:?}, below the law's min_tier {min_tier:?}; not held");
                     self.ignition.set_note(format!(
                         "not held: this host seals at {sealed_at:?}, and the law requires {min_tier:?}"
@@ -1459,7 +1474,11 @@ impl RestState {
             return;
         }
         let tier = hub_lib::ignition::tier_of_sealed(&std::fs::read(&path).unwrap_or_default());
-        let passphrase = match sealer.open(&path) {
+        let opened = path.clone();
+        let passphrase = match tokio::task::spawn_blocking(move || sealer.open(&opened))
+            .await
+            .unwrap_or_else(|e| Err(anyhow::anyhow!("the opening task failed: {e}")))
+        {
             Ok(p) => p,
             Err(e) => {
                 tracing::error!("held ignition FAILED, hub stays locked: the sealed passphrase did not open: {e:#}");
@@ -18646,6 +18665,47 @@ norms: []
         assert_eq!(state.ignition.boot_state(), "failed");
         // No attempt was stamped, so a person may try at once (the gate's 2 s interval would refuse it).
         assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+    }
+
+    struct FailingSealer;
+    impl hub_lib::ignition::Sealer for FailingSealer {
+        fn seal(&self, _: &str, _: &std::path::Path) -> anyhow::Result<()> {
+            anyhow::bail!("disk full")
+        }
+        fn open(&self, _: &std::path::Path) -> anyhow::Result<zeroize::Zeroizing<String>> {
+            anyhow::bail!("unreachable in this test")
+        }
+    }
+
+    /// pub, #969: when a person's unlock ends up holding nothing, an earlier copy is deleted AND
+    /// released on the ledger, so the disk and the ledger agree. That covers a re-seal that fails
+    /// (the note gives the real error) and a re-seal below the law's floor.
+    #[tokio::test]
+    async fn a_persons_unlock_that_holds_nothing_releases_the_earlier_copy() {
+        use hub_lib::events::IgnitionRelease;
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        for (law, failing, reason, note) in [
+            (None, true, IgnitionRelease::ResealFailed, "not held: sealing failed: disk full"),
+            (Some("min_tier: tpm2"), false, IgnitionRelease::BelowMinTier, "not held: this host seals at HostKey"),
+        ] {
+            let (_tmp, mut state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+            let path = hub_lib::ignition::ignition_path(&state.paths.root);
+            state.ignition.sealer.as_ref().unwrap().seal("an older passphrase", &path).unwrap();
+            if let Some(rule) = law {
+                put_law_in_store(&state, &format!("{VALID_LAW}ignition:\n  {rule}\n")).await;
+            }
+            if failing {
+                state.ignition = Arc::new(HeldIgnition::with_sealer(Arc::new(FailingSealer)));
+            }
+            assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+            assert!(!path.exists(), "{reason:?}: the earlier copy must not survive for the next boot");
+            let got = ignition_events(state.ledger.lock().await.entries());
+            assert!(got.iter().any(|e| matches!(e, HubEvent::IgnitionReleased { reason: r } if *r == reason)), "{got:?}");
+            assert!(!got.iter().any(|e| matches!(e, HubEvent::IgnitionHeld { .. })), "{got:?}");
+            let n = state.ignition.take_note().unwrap_or_default();
+            assert!(n.starts_with(note), "{n}");
+        }
     }
 
     /// PRD_HELD_IGNITION §3.1, §3.5: the law decides. `held: false` deletes a copy the law no
