@@ -5,6 +5,30 @@ Entries are added chronologically, never modified or deleted.
 
 ---
 
+## 2026-10-29 - Correction: the LCT identifier is derived from the binding public key (follows #945)
+
+**Content change, two sections.** `LCT-linked-context-token.md` §3.3 step 4 used to derive `lct_id` from
+`sha256(binding_proof)`, and §6 of this paper repeated it: *"the LCT's identifier is derived from the proof
+itself: `lct:web4:` + multibase32(sha256(binding_proof)) … the identifier *is* a hash of the anchoring act."*
+#945 (`9a73f759`, 2026-10-28) corrected the spec to match every implementation and HUB's fail-closed
+ingest. The derivation is `lct:web4:mb32:b` + base32_lower_nopad(sha256(raw public key)), normative in a
+new §3.4, with `web4-core::derive_lct_id` as the reference. A reader implementing from the paper would have
+computed identifiers the registry rejects.
+
+- `06-lct`: rewrote the identifier paragraph to state the key derivation, why it needs no registry (offline
+  and foreign mints, uniqueness conditional on key entropy, §3.4.2), the ingest re-derivation as a
+  *consistency* check and not proof of possession (§3.4.3, the half Nova's HOLD on #945 added), and that
+  rotation yields a new identifier with continuity carried by lineage (§3.4.4). The "self-certifying" label
+  is dropped. Under the corrected spec, the derivation alone certifies nothing about who holds the key.
+- `06-lct` capability ladder and `13-glossary` "LCT capability levels": the level 4→5 re-issuance reason was
+  "the anchor must be inside the binding proof the identifier hashes". The identifier no longer hashes the
+  proof, so that reason is now false. It now gives the spec's own reason (`lct-capability-levels.md` §6.2,
+  "requires hardware binding from creation"): the anchor must sit inside the signed binding from creation.
+- Not changed: the lifecycle paragraph ("issuing a successor LCT under the same subject DID, with explicit
+  lineage") already agrees with §3.4.4.
+
+---
+
 ## 2026-07-30 - Correction: the 07-28 package-matrix audit queried the wrong package name, and the paper inherited the error
 
 **Content change. This entry supersedes the "Claim 2 — the package matrix" section of the 2026-07-28 entry
