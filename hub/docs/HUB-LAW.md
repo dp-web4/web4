@@ -80,7 +80,7 @@ lockstep with `HubEvent::kind()` by a test that reads the function's own source.
 | devices | `device_enrolled`, `device_revoked` |
 | routing (member-of) | `router_registered`, `router_retired`, `member_of_reported`, `member_of_withdrawn` (PRD_MEMBER_OF_ROUTING: which member is a machine's router, and which LCTs are witnessed member-of it) |
 | obligations + trust | `obligation_opened`, `obligation_resolved`, `reputation_recorded` |
-| commitments | `commitment_opened`, `commitment_acknowledged`, `commitment_moved`, `commitment_escalated`, `commitment_resolved`, `nudge_delivered` (PRD_COMMITMENTS: owner, backup, leads; silence moves the queue and never records a verdict; the off-hub carrier reports each nudge it sends) |
+| commitments | `commitment_opened`, `commitment_acknowledged`, `commitment_moved`, `commitment_escalated`, `commitment_resolved`, `nudge_delivered`, `contact_bound`, `invite_revoked` (PRD_COMMITMENTS: owner, backup, leads; silence moves the queue and never records a verdict; the off-hub carrier reports each nudge it sends; a contact joins from the operator's invite, which binds once and can be withdrawn unused) |
 | degraded-window audit | `degraded_reconciled` (F0.1: the witnessed summary of infrastructure-failure windows — recorded by the hub at ignition, never member conduct) |
 | vault unlock (audit) | `vault_unlock_requested`, `vault_unlock_attested`, `vault_unlock_resolved` |
 | records | `event_recorded`, `lct_published`, `lct_rotated`, `lct_predecessor_attested`, `lct_predecessor_attestation_withdrawn`, `referenced_act` |
@@ -228,6 +228,24 @@ Joining is admission-by-law. A join request (the encrypted
 The `admission` section of the law (`open`, `requires_sponsor`, `sponsor_role`,
 `min_trust_score`) is the natural place to express this, but any norm matching
 `r6.request.action == "member_join_request"` participates.
+
+**An operator's invite is evidence, not a bypass (commitments K5b).** A join that carries a
+verified invite (its MAC and date checked, not yet used or withdrawn, its contact still in the
+book) is evaluated with `r6.resource.invite == "verified"`. No other join, and no other action, ever
+carries that resource, so a norm on it can only ever speak about invited joins. What it is worth
+is the law's to say. The pilot law lets it outrank the queue:
+
+```yaml
+  - id: INVITED-JOIN-ADMITS
+    selector: r6.resource.invite
+    operator: "=="
+    value: verified
+    decision: allow
+    priority: 200   # above the escalate norm that queues every other join
+```
+
+Without such a norm, an invited join queues like any other. The operator admits it, and the
+invite binds the contact when it is next opened.
 
 ### Sponsorship is evidence, not a claim (F0.2 / R7b)
 

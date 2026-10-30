@@ -1394,6 +1394,13 @@ fn event_summary(event: &HubEvent) -> String {
             about_index, html_escape(commitment_id), html_escape(party_id), html_escape(channel),
             if *ok { "sent" } else { "<b>failed</b>" },
         ),
+        HubEvent::ContactBound { party_id, member_lct_id, invite_digest, .. } => format!(
+            "🔗 contact <code>{}</code> joined from invite <code>{}</code> as member {}",
+            html_escape(party_id), html_escape(invite_digest), short(member_lct_id),
+        ),
+        HubEvent::InviteRevoked { invite_digest, .. } => format!(
+            "✂ invite <code>{}</code> withdrawn", html_escape(invite_digest),
+        ),
         HubEvent::LctPublished { lct_id, document, published_by, provenance, .. } => format!(
             "🪪 LCT published: {:?} <code>{}</code> by {} <span class=\"muted\">({:?})</span>",
             document.entity_type,
@@ -2264,6 +2271,8 @@ mod tests {
             // mutant survives it (measured 2026-07-30). One ASCII byte first
             // shifts every `é` odd, so byte 12 is the tail of the 6th.
             member_pubkey_hex: "aéééééééééé".to_string(),
+            invite_party_id: None,
+            invite_digest: None,
             name: Some("Applicant".into()),
             message: None,
             requested_at: chrono::Utc::now(),

@@ -438,6 +438,10 @@ pub struct RoleOccupancyChange {
     /// writer is told what resolved it). Folded by [`crate::commitments::fold`].
     pub commitments: BTreeMap<String, crate::commitments::Commitment>,
 
+    /// Commitments K5b: which invites have been used or withdrawn, and which contact became which
+    /// member. Folded by [`crate::commitments::Invites::fold`].
+    pub invites: crate::commitments::Invites,
+
     /// The LCT registry: published presence, keyed by canonical (pubkey-derived)
     /// `lct_id`. Folded from `LctPublished`, which ingest has already verified —
     /// an entry here means binding + id-derivation checked out at the door, so
@@ -720,6 +724,11 @@ pub struct JoinRequest {
     pub reason: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolved_at: Option<DateTime<Utc>>,
+    /// The invite the join carried (commitments K5b), bound when the operator admits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invite_party_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invite_digest: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1163,6 +1172,7 @@ impl HubState {
             HubEvent::MemberJoinRequested {
                 request_id, member_lct_id, member_pubkey_hex, name, message,
                 sponsor_note, requested_at, anchor_level, asserted_trust_ceiling,
+                invite_party_id, invite_digest,
             } => {
                 self.pending_joins.insert(*request_id, JoinRequest {
                     request_id: *request_id,
@@ -1178,6 +1188,8 @@ impl HubState {
                     resolved_by: None,
                     reason: None,
                     resolved_at: None,
+                    invite_party_id: invite_party_id.clone(),
+                    invite_digest: invite_digest.clone(),
                 });
             }
             HubEvent::MemberJoinResolved {
@@ -1624,6 +1636,7 @@ impl HubState {
             | HubEvent::NudgeDelivered { .. } => {
                 crate::commitments::fold(&mut self.commitments, event, ts, index);
             }
+            HubEvent::ContactBound { .. } | HubEvent::InviteRevoked { .. } => self.invites.fold(event),
             // Member-of routing (PRD_MEMBER_OF_ROUTING). Ids arrive as strings, already validated
             // at intake; one that is not canonical is not routable and is not projected (same
             // stance as the LctPublished arm below).

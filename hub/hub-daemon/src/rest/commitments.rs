@@ -18,6 +18,9 @@ use hub_lib::commitments::{
     self, AckVia, Commitment, Contact, ContactBook, MemberAddress, MoveKind, Outcome, PartyKind, PartyRef, Refusal,
 };
 
+mod invites;
+pub(crate) use invites::*;
+
 /// Serialises every commitment write and every contact-book write.
 pub(crate) static COMMITMENT_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
@@ -754,21 +757,61 @@ fn link_key_or_create(root: &std::path::Path) -> anyhow::Result<[u8; 32]> {
     Ok(key)
 }
 
-fn link_mac(key: &[u8; 32], payload: &str) -> hmac::Hmac<sha2::Sha256> {
+fn token_mac(label: &[u8], key: &[u8; 32], payload: &str) -> hmac::Hmac<sha2::Sha256> {
     use hmac::Mac;
     let mut mac = <hmac::Hmac<sha2::Sha256> as Mac>::new_from_slice(key).expect("HMAC takes any key length");
-    mac.update(LINK_MAC_LABEL);
+    mac.update(label);
     mac.update(payload.as_bytes());
     mac
 }
 
-/// `<commitment_id>.<party_id>.<expires, unix seconds>.<MAC, hex>`. The ids are UUIDs the hub
-/// made, so `.` never occurs inside one.
-pub(crate) fn mint_link(key: &[u8; 32], commitment_id: &str, party_id: &str, expires: DateTime<Utc>) -> String {
+/// `<fields, dot-joined>.<expires, unix seconds>.<MAC, hex>`, the MAC under `label`. Every field
+/// is an id the hub made (a UUID), so `.` never occurs inside one.
+pub(crate) fn mint_token(label: &[u8], key: &[u8; 32], fields: &[&str], expires: DateTime<Utc>) -> String {
     use hmac::Mac;
-    let payload = format!("{commitment_id}.{party_id}.{}", expires.timestamp());
-    let tag = link_mac(key, &payload).finalize().into_bytes();
+    let payload = format!("{}.{}", fields.join("."), expires.timestamp());
+    let tag = token_mac(label, key, &payload).finalize().into_bytes();
     format!("{payload}.{}", hex::encode(&tag[..LINK_MAC_LEN]))
+}
+
+/// Verify a token minted under `label` with exactly `n` fields. Returns the fields and the digest
+/// the ledger records in place of the token: the first 128 bits of its SHA-256.
+pub(crate) fn read_token(label: &[u8], key: &[u8; 32], token: &str, n: usize, now: DateTime<Utc>)
+    -> Result<(Vec<String>, String), LinkError>
+{
+    use hmac::Mac;
+    let (payload, tag) = token.rsplit_once('.').ok_or(LinkError::Invalid)?;
+    // One token, one spelling: `hex::decode` also takes uppercase, and a re-cased MAC would verify
+    // with a different digest, so "once" would hold per spelling (Legion, #957).
+    if !tag.chars().all(|ch| ch.is_ascii_digit() || ('a'..='f').contains(&ch)) {
+        return Err(LinkError::Invalid);
+    }
+    let tag = hex::decode(tag).map_err(|_| LinkError::Invalid)?;
+    // `verify_truncated_left` accepts any prefix length, a 1-byte one included: pin the length.
+    if tag.len() != LINK_MAC_LEN {
+        return Err(LinkError::Invalid);
+    }
+    token_mac(label, key, payload).verify_truncated_left(&tag).map_err(|_| LinkError::Invalid)?;
+    let mut parts: Vec<&str> = payload.split('.').collect();
+    if parts.len() != n + 1 {
+        return Err(LinkError::Invalid);
+    }
+    let expires = parts.pop().and_then(|t| t.parse::<i64>().ok()).and_then(|t| DateTime::from_timestamp(t, 0))
+        .ok_or(LinkError::Invalid)?;
+    if now >= expires {
+        return Err(LinkError::Expired);
+    }
+    Ok((parts.into_iter().map(str::to_string).collect(), token_digest(token)))
+}
+
+/// What the ledger records in place of a token: the first 128 bits of its SHA-256, in hex.
+pub(crate) fn token_digest(token: &str) -> String {
+    use sha2::Digest;
+    hex::encode(sha2::Sha256::digest(token.as_bytes()))[..commitments::LINK_DIGEST_LEN].to_string()
+}
+
+pub(crate) fn mint_link(key: &[u8; 32], commitment_id: &str, party_id: &str, expires: DateTime<Utc>) -> String {
+    mint_token(LINK_MAC_LABEL, key, &[commitment_id, party_id], expires)
 }
 
 /// What a verified link says, and the digest the ledger records in place of the token.
@@ -781,36 +824,17 @@ pub(crate) struct LinkClaim {
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum LinkError {
-    /// Not a link this hub made. Indistinguishable on purpose: no oracle for a forger.
+    /// Not a token this hub made. Indistinguishable on purpose: no oracle for a forger.
     Invalid,
-    /// A link this hub made, past its date.
+    /// A token this hub made, past its date.
     Expired,
 }
 
 pub(crate) fn read_link(key: &[u8; 32], token: &str, now: DateTime<Utc>) -> Result<LinkClaim, LinkError> {
-    use hmac::Mac;
-    let (payload, tag) = token.rsplit_once('.').ok_or(LinkError::Invalid)?;
-    // One link, one spelling: `hex::decode` also takes uppercase, and a re-cased MAC would verify
-    // with a different digest, so "acknowledges once" would hold per spelling (Legion, #957).
-    if !tag.chars().all(|ch| ch.is_ascii_digit() || ('a'..='f').contains(&ch)) {
-        return Err(LinkError::Invalid);
-    }
-    let tag = hex::decode(tag).map_err(|_| LinkError::Invalid)?;
-    // `verify_truncated_left` accepts any prefix length, a 1-byte one included: pin the length.
-    if tag.len() != LINK_MAC_LEN {
-        return Err(LinkError::Invalid);
-    }
-    link_mac(key, payload).verify_truncated_left(&tag).map_err(|_| LinkError::Invalid)?;
-    let mut parts = payload.split('.');
-    let (Some(commitment_id), Some(party_id), Some(expires), None) =
-        (parts.next(), parts.next(), parts.next(), parts.next()) else { return Err(LinkError::Invalid) };
-    let expires = expires.parse::<i64>().ok().and_then(|t| DateTime::from_timestamp(t, 0)).ok_or(LinkError::Invalid)?;
-    if now >= expires {
-        return Err(LinkError::Expired);
-    }
-    use sha2::Digest;
-    let digest = hex::encode(sha2::Sha256::digest(token.as_bytes()))[..commitments::LINK_DIGEST_LEN].to_string();
-    Ok(LinkClaim { commitment_id: commitment_id.to_string(), party_id: party_id.to_string(), digest })
+    let (mut fields, digest) = read_token(LINK_MAC_LABEL, key, token, 2, now)?;
+    let party_id = fields.pop().expect("two fields");
+    let commitment_id = fields.pop().expect("two fields");
+    Ok(LinkClaim { commitment_id, party_id, digest })
 }
 
 /// Where links point: `HUB_PUBLIC_BASE_URL`, the origin people reach the hub at. Unset, nudges
@@ -956,7 +980,7 @@ async fn act_by_link(s: &RestState, claim: &LinkClaim, act: LinkAct) -> Result<s
 
 const LINK_PAGE_CSS: &str = "body{font:17px/1.5 system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem}\
     form{margin:.5rem 0}button{font:inherit;width:100%;padding:.8rem;border-radius:.5rem;\
-    border:1px solid #888;background:#f4f4f4;cursor:pointer}.muted{color:#666}";
+    border:1px solid #888;background:#f4f4f4;cursor:pointer}.muted{color:#666}.ok{color:#2a8a3e}.err{color:#c0392b}";
 
 /// `GET /c.css`: the link pages' style, a file of its own so their policy can forbid inline style.
 pub(super) async fn link_page_css() -> axum::response::Response {
@@ -1996,10 +2020,12 @@ mod tests {
         }
         assert!(page(&s, "/client").await.2.contains("<script src=\"/client.js\"></script>"));
         // The script builds buttons too: those must not carry handlers or style either.
-        for inline in ["style=", "onclick", "localStorage.setItem", "exportKey('jwk'"] {
-            assert!(!super::super::CLIENT_JS.contains(inline), "client script carries {inline}");
+        for script in [super::super::KEYSTORE_JS, super::super::CLIENT_JS] {
+            for inline in ["style=", "onclick", "localStorage.setItem", "exportKey('jwk'"] {
+                assert!(!script.contains(inline), "a key page script carries {inline}");
+            }
         }
-        for (path, kind) in [("/client.js", "text/javascript"), ("/client.css", "text/css"), ("/c.css", "text/css")] {
+        for (path, kind) in [("/client.js", "text/javascript"), ("/keystore.js", "text/javascript"), ("/client.css", "text/css"), ("/c.css", "text/css")] {
             let (status, headers, body) = page(&s, path).await;
             assert_eq!(status, StatusCode::OK, "{path}");
             assert!(headers["content-type"].to_str().unwrap().starts_with(kind), "{path}");
@@ -2013,7 +2039,7 @@ mod tests {
     fn the_client_moves_an_old_key_once_and_keeps_every_key_non_extractable() {
         let dir = tempfile::tempdir().unwrap();
         let js = dir.path().join("client.js");
-        std::fs::write(&js, super::super::CLIENT_JS).unwrap();
+        std::fs::write(&js, format!("{}\n{}", super::super::KEYSTORE_JS, super::super::CLIENT_JS)).unwrap();
         let harness = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("js-tests/client_keystore.js");
         let out = match std::process::Command::new("node").arg(&harness).arg(&js).output() {
             Ok(out) => out,
