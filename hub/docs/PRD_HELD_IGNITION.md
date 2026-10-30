@@ -113,26 +113,30 @@ moment the hub can seal the passphrase is when a person presents it:
 
 This makes dp's default true without a new ritual: the first unlock after this ships is the last one
 a person has to do. An operator who doesn't want it sets `held: false` first.
-`hub ignition hold` (operator plane, prompts for the passphrase and checks it against the vault before
-sealing) is the explicit path for an operator who wants to re-seal without a restart, for example
-after a failed held unlock.
+Every person's unlock re-seals, so a person's unlock *is* the re-seal path, for example after a
+failed held unlock. There is no separate `hold` command (dropped in I3: it would be a second
+passphrase-taking route doing what `hub unlock` already does).
 
 ### 3.4 When the secret is removed: by the law, in the same act
 
-- **An amendment that turns `held` off removes `ignition.cred` in the same handler,** after the
-  `LawAmended` append and before the response. If the delete fails, the response says so with a 500.
+One check decides every path: `ignition::release_under(policy, hub_dir)` says whether the law rejects
+the held copy, and why (`law_off`, or `below_min_tier` from the file's own seal id).
+
+- **An amendment the daemon witnesses** (`witness_law_amendment`, which every in-daemon law change
+  goes through) asks that check right after the `LawAmended` append, and deletes a rejected copy with
+  `IgnitionReleased { reason }`. If the delete fails, it logs an error and the amendment still stands.
   The ledger then says "off" while the disk still holds the secret, which is exactly the state §3.5
-  repairs on the next boot.
-- **An amendment that raises `min_tier` above the held credential's tier** deletes it in the same
-  handler, the same way, and witnesses `IgnitionReleased { reason: below_min_tier }`. Otherwise the
-  next boot would use a credential the law no longer accepts (§3.5 also catches that, after the fact).
-- `hub ignition release` (operator plane) removes the credential without a law change, and witnesses
-  `IgnitionReleased`. With `held: true` still in force, the next person's unlock re-seals it. That is
-  the point: release is for "re-key this", and the law is for "stop holding".
-- **`hub rotate-passphrase`** (offline, hub stopped) deletes `ignition.cred`, because a credential
-  sealed to the old passphrase would fail at the next boot. The next unlock re-seals it.
-- **Offline `hub set-law`** can turn `held` off while the hub is stopped. It also deletes the
-  credential, and §3.5 is the backstop if it didn't.
+  repairs on the next boot. (No in-daemon route edits `ignition` today; offline `set-law` does. The
+  check sits in the shared path so a future route can't skip it.)
+- **Offline `hub set-law`** asks the same check after witnessing the amendment, then deletes the
+  copy and witnesses `IgnitionReleased` through `HubSession`. The delete comes first, so a law that
+  says "don't hold" never leaves a copy for the next boot, even if the record then fails.
+- **`hub rotate-passphrase`** (offline, hub stopped) deletes `ignition.cred` before re-keying,
+  because a copy sealed to the old passphrase would fail at the next boot and cost an attempt. It
+  can't witness: it runs mid-rekey, with no signer. The next person's unlock re-seals the copy and
+  records `IgnitionHeld`.
+- **No `release` command.** With `held: true` still in force, the next unlock would re-seal what it
+  removed. "Stop holding" is the law's job, and re-keying is a person's unlock.
 
 ### 3.5 Boot
 
@@ -197,7 +201,7 @@ pub's checklist on the public hub). This design only makes the state readable.
 |---|---|---|
 | **I1** | `IgnitionPolicy` in the law; the `HubIgnited` event (`human` and `env` only); `held_ignition` in well-known (always `"none"`). No sealing yet. | An old law parses and hashes the same; `/unlock` witnesses `human`; an env boot witnesses `env`; a plaintext boot witnesses nothing. |
 | **I2** | The sealing backend behind a trait (`systemd-creds --user`, and a test double); seal at a person's unlock; boot unlock from `ignition.cred`; one attempt; failed → locked; law-off at boot → delete. | Double: seal → restart → held unlock → `/tools` 200; a corrupt cred → up and locked, `unlock_gate` charged exactly 1; law off + cred present → deleted after unlock; `min_tier: tpm2` on a host-key backend → nothing written; a `host+tpm2` header meets `min_tier: tpm2`; an unknown id → nothing held; a cred below `min_tier` at boot → used once, deleted, `below_min_tier` witnessed; the unlock response names the tier. |
-| **I3** | A law amendment that turns `held` off, or raises `min_tier` above the held tier, deletes the cred; `hub ignition hold/release`; `rotate-passphrase` and offline `set-law` delete it. | Each removal path leaves no `ignition.cred`; release + `held: true` → the next unlock re-seals. |
+| **I3** | Every law change asks `release_under`: a daemon amendment and offline `set-law` delete a copy the new law rejects (`held: false`, or a seal below a raised `min_tier`) and witness `IgnitionReleased`; `rotate-passphrase` deletes it before re-keying. No `hold`/`release` commands (§3.3, §3.4). | The check itself (none held, default, off, below, at the floor); a daemon amendment raising `min_tier` releases and one at the floor doesn't; offline `set-law` with `held: false` deletes and records `law_off`. `rotate-passphrase` is interactive (TTY) and untested. |
 | **Acceptance** | pub, on `web4-hub-demo`, with its other self-unlock mechanism switched off so a 200 can come only from held ignition: restart → held unlock → `/tools` 200, and the seal id read from the file. | pub expects `ef4ac136` (`host+tpm2`); HUB's seat covers `host-key` (`55b9ed1d`). A system unit with `User=` (HUB's shape) stays unmeasured until HUB runs it, and the PR says so. |
 
 ## 5. Open questions
@@ -229,6 +233,6 @@ R: pass [construct: the cred opens only on this host for this user; reachability
 W: pass [construct: sealing needs a person's successful unlock, and the law (signed, ledgered) decides held]
 O: pass [construct: boot decrypt -> try_unlock, the same preflight as a person; a failure leaves the hub locked]
 A: pass [construct: HubIgnited{via,tier} witnessed at each ignition; IgnitionHeld/Released at each change]
-V: present [construct: law held:false and `hub ignition release`; min_tier:tpm2 for a strict society; a min_tier raise deletes the cred]
+V: present [construct: law held:false; min_tier:tpm2 for a strict society; release_under on every law change deletes a rejected copy]
 verdict: PASS, conditional on Q1 (dp)
 ```

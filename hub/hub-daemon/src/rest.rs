@@ -1740,7 +1740,17 @@ async fn witness_law_amendment(
     let prev = ledger.store().read_law().await.ok().flatten();
     ledger.store_mut().write_law(yaml).await.map_err(ApiError::internal)?;
     match ledger.append_signed(unsigned, signature).await {
-        Ok(entry) => Ok(entry.index),
+        Ok(entry) => {
+            let index = entry.index;
+            drop(ledger);
+            // The same act removes a held passphrase the new law no longer accepts
+            // (PRD_HELD_IGNITION §3.4), so it never waits for the next boot.
+            let policy = hub_lib::law::Law::parse_and_validate(yaml).ok().and_then(|l| l.ext.ignition);
+            if let Some(reason) = hub_lib::ignition::release_under(policy.as_ref(), &s.paths.root) {
+                s.release_held(&hub_lib::ignition::ignition_path(&s.paths.root), reason).await;
+            }
+            Ok(index)
+        }
         Err(append_err) => {
             match &prev {
                 Some(prev_yaml) => match ledger.store_mut().write_law(prev_yaml).await {
@@ -18731,6 +18741,28 @@ norms: []
         assert!(matches!(state.try_unlock(pass, 1_700_000_010).await, UnlockOutcome::Unlocked { .. }));
         assert!(!path.exists());
         assert_eq!(state.ignition.boot_state(), "none");
+    }
+
+    /// PRD_HELD_IGNITION §3.4: an amendment the daemon witnesses removes, in the same act, a held
+    /// copy the new law no longer accepts; one that still accepts it leaves it alone.
+    #[tokio::test]
+    async fn a_law_amendment_releases_a_held_copy_the_new_law_rejects() {
+        use hub_lib::events::IgnitionRelease;
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        let host_key = hub_lib::ignition::ClearTestSealer::reading_as(hub_lib::law::IgnitionTier::HostKey);
+        hub_lib::ignition::Sealer::seal(&host_key, "x", &path).unwrap();
+        for (rule, gone, reason) in [
+            ("min_tier: host-key", false, None),
+            ("min_tier: tpm2", true, Some(IgnitionRelease::BelowMinTier)),
+        ] {
+            let yaml = format!("{VALID_LAW}ignition:\n  {rule}\n");
+            witness_law_amendment(&state, &yaml, "1.0.0".into(), None).await.unwrap();
+            assert_eq!(!path.exists(), gone, "{rule}");
+            let got: Vec<_> = state.ledger.lock().await.entries().iter().filter_map(|e| match e.event {
+                HubEvent::IgnitionReleased { reason } => Some(reason), _ => None }).collect();
+            assert_eq!(got, reason.into_iter().collect::<Vec<_>>(), "{rule}");
+        }
     }
 
     /// PRD_HELD_IGNITION §3.1, §3.5: the law decides. `held: false` deletes a copy the law no
