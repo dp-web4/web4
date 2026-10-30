@@ -131,10 +131,11 @@ the held copy, and why (`law_off`, or `below_min_tier` from the file's own seal 
 - **Offline `hub set-law`** asks the same check after witnessing the amendment, then deletes the
   copy and witnesses `IgnitionReleased` through `HubSession`. The delete comes first, so a law that
   says "don't hold" never leaves a copy for the next boot, even if the record then fails.
-- **`hub rotate-passphrase`** (offline, hub stopped) deletes `ignition.cred` once the current
-  passphrase has opened the identity (so a typo costs nothing) and before anything is re-keyed,
-  because a copy sealed to the old passphrase would fail at the next boot and cost an attempt. It
-  can't witness: it runs mid-rekey, with no signer. The next person's unlock re-seals the copy and
+- **`hub rotate-passphrase`** (offline, hub stopped) deletes `ignition.cred` right after the
+  state store is re-keyed, in every sovereign mode (Local and Hestia), because a copy sealed to the
+  old passphrase would fail at the next boot and cost an attempt. The store re-key proves the
+  current passphrase first, so a typo aborts and costs nothing. The rotation has happened by then, so
+  a failed delete is reported loudly, not returned. It can't witness: it runs offline, with no signer. The next person's unlock re-seals the copy and
   records `IgnitionHeld`.
 - **No `release` command.** With `held: true` still in force, the next unlock would re-seal what it
   removed. "Stop holding" is the law's job, and re-keying is a person's unlock.
@@ -202,7 +203,7 @@ pub's checklist on the public hub). This design only makes the state readable.
 |---|---|---|
 | **I1** | `IgnitionPolicy` in the law; the `HubIgnited` event (`human` and `env` only); `held_ignition` in well-known (always `"none"`). No sealing yet. | An old law parses and hashes the same; `/unlock` witnesses `human`; an env boot witnesses `env`; a plaintext boot witnesses nothing. |
 | **I2** | The sealing backend behind a trait (`systemd-creds --user`, and a test double); seal at a person's unlock; boot unlock from `ignition.cred`; one attempt; failed → locked; law-off at boot → delete. | Double: seal → restart → held unlock → `/tools` 200; a corrupt cred → up and locked, `unlock_gate` charged exactly 1; law off + cred present → deleted after unlock; `min_tier: tpm2` on a host-key backend → nothing written; a `host+tpm2` header meets `min_tier: tpm2`; an unknown id → nothing held; a cred below `min_tier` at boot → used once, deleted, `below_min_tier` witnessed; the unlock response names the tier. |
-| **I3** | Every law change asks `release_under`: a daemon amendment and offline `set-law` delete a copy the new law rejects (`held: false`, or a seal below a raised `min_tier`) and witness `IgnitionReleased`; `rotate-passphrase` deletes it before re-keying. No `hold`/`release` commands (§3.3, §3.4). | The check itself (none held, default, off, below, at the floor); a daemon amendment raising `min_tier` releases and one at the floor doesn't; offline `set-law` with `held: false` deletes and records `law_off`. `rotate-passphrase` is interactive (TTY) and untested. |
+| **I3** | Every law change asks `release_under`: a daemon amendment and offline `set-law` delete a copy the new law rejects (`held: false`, or a seal below a raised `min_tier`) and witness `IgnitionReleased`; `rotate-passphrase` deletes it once the store re-key has proved the old passphrase (both sovereign modes). No `hold`/`release` commands (§3.3, §3.4). | The check itself (none held, default, off, below, at the floor); a daemon amendment raising `min_tier` releases and one at the floor doesn't; offline `set-law` with `held: false` deletes and records `law_off`. `rotate-passphrase` is interactive (TTY) and untested. |
 | **Acceptance** | pub, on `web4-hub-demo`, with its other self-unlock mechanism switched off so a 200 can come only from held ignition: restart → held unlock → `/tools` 200, and the seal id read from the file. | pub expects `ef4ac136` (`host+tpm2`); HUB's seat covers `host-key` (`55b9ed1d`). A system unit with `User=` (HUB's shape) stays unmeasured until HUB runs it, and the PR says so. |
 
 ## 5. Open questions

@@ -2143,16 +2143,6 @@ async fn run_rotate_passphrase(hub_dir: PathBuf) -> Result<()> {
     if let SovereignMode::Local { lct_path } = config.sovereign.mode()? {
         let id = IdentityFile::load_encrypted(&lct_path, &old)
             .context("current passphrase did not open the identity — aborting (nothing changed)")?;
-        // A held copy of the OLD passphrase would fail at the next boot (and cost an unlock
-        // attempt), so it goes before anything is re-keyed, but only once the old passphrase has
-        // proved itself: a typo must not cost the operator their held copy (supervisor, #970).
-        // The next person's unlock seals the new one and records it.
-        let held = hub_lib::ignition::ignition_path(&hub_dir);
-        match std::fs::remove_file(&held) {
-            Ok(()) => println!("  ✓ held passphrase deleted (re-sealed at the next unlock if the law holds)"),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(anyhow::Error::from(e).context(format!("deleting {}", held.display()))),
-        }
         id.save_encrypted(&lct_path, &new)
             .with_context(|| format!("re-sealing identity at {}", lct_path.display()))?;
         println!("  ✓ Sovereign identity re-keyed");
@@ -2164,6 +2154,22 @@ async fn run_rotate_passphrase(hub_dir: PathBuf) -> Result<()> {
     hub_lib::store::rekey_store(&hub_dir, old_key, new_key)
         .context("re-keying the state store")?;
     println!("  ✓ state store (hub.db) re-keyed");
+
+    // A held copy of the OLD passphrase would fail at the next boot (and cost an unlock attempt).
+    // It goes here, in every sovereign mode, once `rekey_store` has proved the old passphrase: a
+    // typo must not cost the operator their held copy (supervisor, #970). The rotation has already
+    // happened, so a failed delete is reported, not returned. The next person's unlock seals the
+    // new passphrase and records it.
+    let held = hub_lib::ignition::ignition_path(&hub_dir);
+    match std::fs::remove_file(&held) {
+        Ok(()) => println!("  ✓ held passphrase deleted (re-sealed at the next unlock if the law holds)"),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => eprintln!(
+            "  ⚠ could not delete the held passphrase at {} ({e}): delete it by hand, or the next boot \
+             spends its one attempt on the OLD passphrase and stays locked",
+            held.display()
+        ),
+    }
 
     // 3. Protected tier: it's keyed straight from the passphrase. Drop it; it re-seeds
     //    under the new passphrase on next ignition (regenerable).
