@@ -7942,6 +7942,12 @@ async fn submit_join(
     let mut adhoc = MapResolver::new();
     adhoc.insert(applicant_lct.clone());
     let _redeemed = verify_envelope(&envelope, &s.nonces, &adhoc, Utc::now())?;
+    {
+        let state = { let l = s.ledger.lock().await; s.projected(&l) };
+        if commitments::names_a_contact(&s, &state, payload.member_lct_id)? {
+            return Err(ApiError::conflict("that id is already in use here. Start again to make a new key"));
+        }
+    }
 
     // 2a. Commitments K5b: an invite is evidence that the operator chose this person, verified by
     // its MAC and date before anything is decided. From here to the binding the commitments lock
@@ -8500,8 +8506,12 @@ async function loadID(){
   // One move from the old store, an extractable JWK in localStorage. Same key, same LCT;
   // the JWK goes only once the non-extractable copy is stored.
   const raw=localStorage.getItem(LEGACY); if(!raw)return null;
-  const o=JSON.parse(raw);
-  const priv=await crypto.subtle.importKey('jwk',o.privJwk,{name:'Ed25519'},false,['sign']);
+  // An old key that can't be read is left where it is: it may be the person's only copy.
+  let o,priv;
+  try{
+    o=JSON.parse(raw);
+    priv=await crypto.subtle.importKey('jwk',o.privJwk,{name:'Ed25519'},false,['sign']);
+  }catch(e){ throw new Error('LEGACY_UNREADABLE'); }
   const moved={lct_id:o.lct_id,pubHex:o.pubHex,priv};
   await idbPut(moved); localStorage.removeItem(LEGACY); persist();
   return moved;
@@ -8632,7 +8642,9 @@ document.addEventListener('click',ev=>{
       ' · '+(w.law_present?'governed by law':'<span class="warn">no law</span>');
     $('#lawlink').href='/v1/hubs/'+HUBID+'/law';
   }catch(e){ $('#hubinfo').innerHTML='<span class="err">could not reach hub: '+esc(e.message)+'</span>'; return; }
-  try{ ID=await loadID(); }catch(e){ $('#idbody').innerHTML='<span class="err">could not open this browser\'s key store: '+esc(e.message)+'</span>'; }
+  try{ ID=await loadID(); }catch(e){ $('#idbody').innerHTML='<span class="err">'+(e.message==='LEGACY_UNREADABLE'
+    ?'this browser holds an older key that can\'t be read; it has been left as it was. Ask your organiser.'
+    :'could not open this browser\'s key store: '+esc(e.message))+'</span>'; }
   if(ID||!$('#idbody').textContent)renderID();
   loadTopics();
 })();

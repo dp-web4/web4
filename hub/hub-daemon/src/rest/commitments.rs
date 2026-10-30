@@ -75,6 +75,8 @@ fn check_leads_role(state: &HubState, role: &str) -> Result<Uuid, ApiError> {
 /// person's name. Recorded under the operator's own id it would read as a lead's and send the
 /// queue to leads (Legion, #947).
 fn check_actor(s: &RestState, state: &HubState, c: &Commitment, by: &str, operator_may: bool) -> Result<(), ApiError> {
+    let by = state.invites.canonical_id(by);
+    let by = by.as_str();
     if by == c.owner.party_id || by == c.backup.party_id {
         return Ok(());
     }
@@ -107,11 +109,16 @@ pub(crate) fn leads_of(state: &HubState, c: &Commitment) -> Vec<String> {
 }
 
 /// Run the projection checks, then witness, both under [`COMMITMENT_LOCK`] (the caller holds it).
+/// A party a contact's id still names is written as the member they became (K5b2), so the ledger
+/// says who acted as the projection reads it.
 async fn checked_witness(s: &RestState, event: HubEvent) -> Result<u64, ApiError> {
-    {
+    let event = {
         let ledger = s.ledger.lock().await;
-        commitments::check(&s.projected(&ledger).commitments, &event).map_err(refused)?;
-    }
+        let state = s.projected(&ledger);
+        let event = state.invites.canonical_event(&event);
+        commitments::check(&state.commitments, &event).map_err(refused)?;
+        event
+    };
     witness_event(s, event).await
 }
 
@@ -358,12 +365,15 @@ async fn witness_resolution(
 }
 
 /// A party for the operator's eyes: the contact book's name, or the member's roster name. An
-/// erased contact reads as erased; the ledger keeps only its id.
+/// erased contact reads as erased; the ledger keeps only its id. A member who joined from an
+/// invite sent no name (C3), so they go by their contact's name while the book holds it.
 pub(crate) fn party_view(state: &HubState, book: &ContactBook, p: &PartyRef) -> serde_json::Value {
+    let contact_name = |id: &str| book.contacts.get(id).map(|c| c.name.clone());
     let name = match p.kind {
-        PartyKind::Contact => book.contacts.get(&p.party_id).map(|c| c.name.clone()),
+        PartyKind::Contact => contact_name(&p.party_id),
         PartyKind::Member => Uuid::parse_str(&p.party_id).ok()
-            .and_then(|u| state.members.get(&u)).and_then(|m| m.name.clone()),
+            .and_then(|u| state.members.get(&u)).and_then(|m| m.name.clone())
+            .or_else(|| state.invites.contact_of(&p.party_id).and_then(contact_name)),
     };
     serde_json::json!({ "party_id": p.party_id, "kind": p.kind,
         "name": name, "erased": p.kind == PartyKind::Contact && !book.contacts.contains_key(&p.party_id) })
@@ -675,6 +685,8 @@ pub(super) async fn admin_nudge_delivered(
 async fn record_delivery(s: &RestState, body: DeliveredBody) -> Result<serde_json::Value, ApiError> {
     let _serial = COMMITMENT_LOCK.lock().await;
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    // A carrier that listed the nudge before the contact joined reports the contact's id (K5b2).
+    let body = DeliveredBody { party_id: state.invites.canonical_id(&body.party_id), ..body };
     let c = state.commitments.get(&body.commitment_id)
         .ok_or_else(|| refused(Refusal::Unknown(body.commitment_id.clone())))?;
     // The party must be one this commitment could have nudged. Not "is owed now": the queue may
@@ -815,11 +827,17 @@ pub(crate) fn mint_link(key: &[u8; 32], commitment_id: &str, party_id: &str, exp
 }
 
 /// What a verified link says, and the digest the ledger records in place of the token.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct LinkClaim {
     pub commitment_id: String,
     pub party_id: String,
     pub digest: String,
+}
+
+/// The claim with its party read as who they are now (K5b2): a link mailed to a contact keeps
+/// working after the contact joins, as the member they became.
+fn claim_now(state: &HubState, claim: &LinkClaim) -> LinkClaim {
+    LinkClaim { party_id: state.invites.canonical_id(&claim.party_id), ..claim.clone() }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -939,6 +957,7 @@ fn act_label(act: LinkAct, role: LinkRole, backup: &str) -> String {
 async fn act_by_link(s: &RestState, claim: &LinkClaim, act: LinkAct) -> Result<serde_json::Value, ApiError> {
     let _serial = COMMITMENT_LOCK.lock().await;
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    let claim = &claim_now(&state, claim);
     let c = projected_commitment(&state, &claim.commitment_id)?;
     let role = role_of(&state, &c, &claim.party_id).ok_or_else(|| ApiError {
         status: StatusCode::FORBIDDEN,
@@ -1049,6 +1068,7 @@ pub(super) async fn link_page(
         Err(page) => return page,
     };
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    let claim = claim_now(&state, &claim);
     let book = match load_book(&s) {
         Ok(book) => book,
         Err(e) => {
@@ -2051,6 +2071,6 @@ mod tests {
         };
         let said = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
         assert!(out.status.success(), "{said}");
-        assert_eq!(said.matches("\nok ").count() + usize::from(said.starts_with("ok ")), 5, "{said}");
+        assert_eq!(said.matches("\nok ").count() + usize::from(said.starts_with("ok ")), 6, "{said}");
     }
 }

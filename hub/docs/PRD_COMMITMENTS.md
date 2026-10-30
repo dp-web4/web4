@@ -325,9 +325,24 @@ K5 adds four things.
     - If the join stops in between, the invite is spent on a key that only its holder can finish with. That key's page still shows the button and its retry completes the admission. Any other key gets 410.
     - A contact book that can't be written doesn't undo the join: the binding is on the ledger and the log names the missing address.
   - **If law queues the join,** `MemberJoinRequested` carries the invite (`invite_party_id`, `invite_digest`), and the operator's admission binds it under the same lock. If the invite stopped being good while the join waited (withdrawn, or its contact erased or bound by someone else), the admission stands and binds nothing.
+    - **Expiry is checked when the join is made, not at admission.** A join made with a good invite keeps it while it waits. The operator's approval is the gate, and withdrawing the invite is how the operator stops it.
+    - **One waiting join per invite (Legion, #961).** A forwarded copy can't queue behind the real invitee, because whoever the operator admitted first would take the contact. It gets 409 and writes nothing, and so does an auto-admitting join while that join waits. Denying the wrong request frees the invite.
+    - **Under the lock, the admission re-reads the request.** It must still be waiting, and its key must not have become a member meanwhile. Otherwise the approval is refused with 409 and writes nothing: a key admitted another way would take the invite by the member path that the join route refuses.
   - **A member who opens an invite** their own join didn't carry is refused with 409, and nothing is written. A forwarded invite must not hand a contact's jobs and address to whichever member opened it. The rare genuine case, a contact who is already a member under another key, goes through the operator.
   - Opening an invite again from the browser it bound writes nothing.
 - **Open:** the admission notice is a listing the operator reads, not a message the carrier sends. Pushing it to the operator needs an operator address, which the hub doesn't hold yet.
+
+**K5b2 as built.**
+- **One id per person.** When `ContactBound` folds, every commitment that names the contact is rewritten to name the member: owner and backup, acknowledgements, deliveries, handoffs, the resolution. `Invites::canonical_event` reads every later commitment event the same way, and the hub writes events through it, so the ledger names the member and a replay agrees with the live hub.
+- **Nothing the contact already holds stops working.** These all act for the member:
+  - a K4 link mailed to the contact before the join;
+  - an operator relaying in the contact's name;
+  - a carrier that listed a nudge before the join and reports it after.
+- **The operator still sees who.** A member who joined from an invite sent no name, so the operator's views show the contact's name from the book. Erasing the contact erases the name (C3).
+- **One person is never owner and backup.** A member never binds an invite their own join didn't carry (K5b, Legion #961). The projection doesn't fold a binding that would merge an open job's owner and backup (`bind_conflict`). The hub checks the same thing before it writes one and refuses with 409 (Legion, #962), so a join is never told it bound a contact that the projection then ignores.
+- **A joiner can't take a contact's id.** Commitments read a contact and a member by the same string, so the join route refuses, with 409, a member id that is a contact's party id in the book or a bound party id (Legion, #962). The hub mints contact ids, so a real joiner never collides.
+- **Open: a binding has no undo.** A wrong binding now moves the contact's jobs, acknowledgements, deliveries and old links, not just an address. An invite bound to a key that law then refuses stays bound to a non-member, and the contact's jobs then name that key. It fails closed: no one else can use the invite, and the key can't act as a member. An operator unbind (or re-mint) is the remedy, built when a chapter needs it.
+- **Replay and handoff nudges (supervisor, #958).** Replaying a ledger derives the K4b handoff nudges for every open commitment whose latest entry is a handoff. A hub that first runs K4b over a ledger that already has handoffs nudges those parties once, about a move that may be old. The live hub predates K1, so it has none; a hub upgraded mid-pilot should expect this.
 
 **Questions asked, and answered (Legion, #959, 10-29 20:17Z):**
 - (a) **Does an invite admit on its own?** Yes, because an invite is no more trust than the K4 link the contact already holds. It holds only with the five conditions in (1): atomic once, MAC verified, 7-day life, revocation, and the operator told.
