@@ -1634,9 +1634,20 @@ impl HubState {
             | HubEvent::CommitmentEscalated { .. }
             | HubEvent::CommitmentResolved { .. }
             | HubEvent::NudgeDelivered { .. } => {
-                crate::commitments::fold(&mut self.commitments, event, ts, index);
+                // A contact who joined is folded as the member they became (K5b2).
+                let event = self.invites.canonical_event(event);
+                crate::commitments::fold(&mut self.commitments, &event, ts, index);
             }
-            HubEvent::ContactBound { .. } | HubEvent::InviteRevoked { .. } => self.invites.fold(event),
+            HubEvent::ContactBound { party_id, member_lct_id, .. } => {
+                let member = member_lct_id.to_string();
+                if self.invites.check(event).is_ok()
+                    && crate::commitments::bind_conflict(&self.commitments, party_id, &member).is_none()
+                {
+                    self.invites.fold(event);
+                    crate::commitments::rebind(&mut self.commitments, party_id, &member);
+                }
+            }
+            HubEvent::InviteRevoked { .. } => self.invites.fold(event),
             // Member-of routing (PRD_MEMBER_OF_ROUTING). Ids arrive as strings, already validated
             // at intake; one that is not canonical is not routable and is not projected (same
             // stance as the LctPublished arm below).

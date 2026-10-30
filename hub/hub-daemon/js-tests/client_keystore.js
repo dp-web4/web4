@@ -108,4 +108,16 @@ const run = (ctx, code) => vm.runInContext(code, ctx);
   // 5. esc escapes quotes, so a topic id cannot break out of a data attribute.
   assert.strictEqual(run(g.ctx, 'esc(`a"b\'c<d>`)'), 'a&quot;b&#39;c&lt;d&gt;');
   console.log('ok 5 esc covers quotes');
+
+  // 6. A corrupt old key is named as such and left in place, every time it is loaded.
+  for (const bad of ['{not json', JSON.stringify({ lct_id: 'lct-1', pubHex, privJwk: { kty: 'OKP' } })]) {
+    const c = makeEnv(false);
+    c.ls.set('hestia_hub_id', bad);
+    for (let i = 0; i < 2; i++) {
+      await assert.rejects(run(c.ctx, 'loadID()'), { message: 'LEGACY_UNREADABLE' });
+    }
+    assert.strictEqual(c.ls.get('hestia_hub_id'), bad, 'the unreadable key is kept');
+    assert.strictEqual(await run(c.ctx, 'idbGet()'), undefined, 'and nothing half-moved');
+  }
+  console.log('ok 6 a corrupt old key is named and kept');
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

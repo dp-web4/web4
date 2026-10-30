@@ -329,6 +329,16 @@ K5 adds four things.
   - Opening an invite again from the browser it bound writes nothing.
 - **Open:** the admission notice is a listing the operator reads, not a message the carrier sends. Pushing it to the operator needs an operator address, which the hub doesn't hold yet.
 
+**K5b2 as built.**
+- **One id per person.** When `ContactBound` folds, every commitment that names the contact is rewritten to name the member: owner and backup, acknowledgements, deliveries, handoffs, the resolution. `Invites::canonical_event` reads every later commitment event the same way, and the hub writes events through it, so the ledger names the member and a replay agrees with the live hub.
+- **Nothing the contact already holds stops working.** These all act for the member:
+  - a K4 link mailed to the contact before the join;
+  - an operator relaying in the contact's name;
+  - a carrier that listed a nudge before the join and reports it after.
+- **The operator still sees who.** A member who joined from an invite sent no name, so the operator's views show the contact's name from the book. Erasing the contact erases the name (C3).
+- **One person is never owner and backup.** A member never binds an invite their own join didn't carry (K5b, Legion #961), so the hub never writes a binding that merges an open job's owner and backup. If such a binding reaches the ledger by another path, the projection doesn't fold it (`bind_conflict`).
+- **Replay and handoff nudges (supervisor, #958).** Replaying a ledger derives the K4b handoff nudges for every open commitment whose latest entry is a handoff. A hub that first runs K4b over a ledger that already has handoffs nudges those parties once, about a move that may be old. The live hub predates K1, so it has none; a hub upgraded mid-pilot should expect this.
+
 **Questions asked, and answered (Legion, #959, 10-29 20:17Z):**
 - (a) **Does an invite admit on its own?** Yes, because an invite is no more trust than the K4 link the contact already holds. It holds only with the five conditions in (1): atomic once, MAC verified, 7-day life, revocation, and the operator told.
 - (b) **Are browsers without WebCrypto Ed25519 refused?** Yes, with "ask your organiser" and no JS fallback library: a bundled library would put an extractable key in page memory. The keys that actually get lost are lost to webviews and eviction, covered in (3).

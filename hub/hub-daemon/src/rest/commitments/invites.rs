@@ -352,6 +352,7 @@ async function join(){
     else { say('err',out.error||('Something went wrong ('+r.status+').')); b.disabled=false; }
   }catch(e){
     say('err',e.message==='NO_ED25519'?'This browser cannot hold a signing key. Ask your organiser.'
+      :e.message==='LEGACY_UNREADABLE'?'This browser holds an older key that can\'t be read. Ask your organiser.'
       :'Something went wrong: '+e.message);
     b.disabled=false;
   }
@@ -555,6 +556,94 @@ admission:
         assert!(bindings(&s).await.is_empty());
         // The good one still works afterwards.
         assert_eq!(join(&s, &KeyPair::generate(), Uuid::new_v4(), Some(&token)).await.0, StatusCode::OK);
+    }
+
+    async fn leads_role(s: &RestState) -> Uuid {
+        let role = Uuid::new_v4();
+        crate::rest::channel_e2e_tests::witness_for_test(s, HubEvent::RoleCreated {
+            role_lct_id: role,
+            role: web4_core::role::SocietyRole::Custom("leads".into()),
+            role_kind: hub_lib::events::RoleKind::Capacity,
+            charter: None,
+            parent_role_lct_id: None,
+            initial_occupant: None,
+            created_by: s.sovereign_lct_id,
+        }).await;
+        role
+    }
+
+    async fn open_for(s: &RestState, owner: PartyRef, backup: PartyRef, role: Uuid) -> String {
+        let v = open_commitment(s, OpenBody { title: "Venue AV".into(), owner, backup,
+            leads_role: role.to_string(), ladder: vec![48, 24], due_at: None }).await.unwrap();
+        v["commitment_id"].as_str().unwrap().to_string()
+    }
+
+    async fn last_event(s: &RestState) -> HubEvent {
+        s.ledger.lock().await.entries().last().unwrap().event.clone()
+    }
+
+    #[tokio::test]
+    async fn a_contacts_commitments_follow_them_into_membership() {
+        let (_tmp, s, robin) = hub(PILOT_LAW).await;
+        let (sam_kp, role) = (KeyPair::generate(), leads_role(&s).await);
+        let sam = existing_member(&s, &sam_kp).await;
+        let contact = PartyRef { party_id: robin.clone(), kind: PartyKind::Contact };
+        let as_member = |id: Uuid| PartyRef { party_id: id.to_string(), kind: PartyKind::Member };
+        let id = open_for(&s, contact.clone(), as_member(sam), role).await;
+        // Mailed to Robin as a contact, before Robin joins.
+        let link = {
+            let _serial = COMMITMENT_LOCK.lock().await;
+            let key = link_key_or_create(&s.paths.root).unwrap();
+            mint_link(&key, &id, &robin, Utc::now() + chrono::Duration::days(LINK_TTL_DAYS))
+        };
+        let token = invite(&s, &robin).await;
+        let lct = Uuid::new_v4();
+        assert_eq!(join(&s, &KeyPair::generate(), lct, Some(&token)).await.0, StatusCode::OK);
+        let m = lct.to_string();
+
+        let state = { let l = s.ledger.lock().await; s.projected(&l) };
+        let book = load_book(&s).unwrap();
+        let c = &state.commitments[&id];
+        assert_eq!(c.owner, as_member(lct), "the job is the member's now");
+        assert_eq!(party_view(&state, &book, &c.owner)["name"], "Robin", "and the operator still sees who");
+        assert_eq!(book.address_of(&c.owner), Some("robin@example.org"), "nudges still reach Robin");
+
+        // The contact's link still answers for Robin, and the ledger names the member.
+        let (status, _, html) = page(&s, &format!("/c/{link}")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(html.contains("You're the owner. Your backup is"), "{html}");
+        let (status, _, out) = page_post(&s, &format!("/c/{link}/acknowledge")).await;
+        assert_eq!(status, StatusCode::OK, "{out}");
+        assert!(matches!(last_event(&s).await, HubEvent::CommitmentAcknowledged { party_id, via: AckVia::Link, .. }
+            if party_id == m));
+
+        // The operator relaying in the contact's name, and a carrier that listed before the join.
+        move_commitment(&s, &id, MoveBody { by: robin.clone(), move_kind: MoveKind::Update, to: None,
+            note_ref: None }).await.unwrap();
+        assert!(matches!(last_event(&s).await, HubEvent::CommitmentMoved { by, .. } if by == m));
+        record_delivery(&s, DeliveredBody { commitment_id: id.clone(), about_index: c.opened_index, party_id: robin.clone(),
+            channel: "email".into(), ok: true }).await.unwrap();
+        assert!(matches!(last_event(&s).await, HubEvent::NudgeDelivered { party_id, .. } if party_id == m));
+
+        // A job opened for the contact now is the member's, and Robin can't back Robin up.
+        let later = open_for(&s, contact.clone(), as_member(sam), role).await;
+        assert_eq!(current_owner(&s, &later).await, as_member(lct));
+        assert!(open_commitment(&s, OpenBody { title: "x".into(), owner: contact, backup: as_member(lct),
+            leads_role: role.to_string(), ladder: vec![48], due_at: None }).await.is_err());
+    }
+
+    async fn current_owner(s: &RestState, id: &str) -> PartyRef {
+        let l = s.ledger.lock().await;
+        s.projected(&l).commitments[id].owner.clone()
+    }
+
+    async fn page_post(s: &RestState, path: &str) -> (StatusCode, axum::http::HeaderMap, String) {
+        use tower::ServiceExt;
+        let req = axum::http::Request::builder().method("POST").uri(path).body(axum::body::Body::empty()).unwrap();
+        let resp = crate::rest::router(s.clone()).oneshot(req).await.unwrap();
+        let (status, headers) = (resp.status(), resp.headers().clone());
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        (status, headers, String::from_utf8_lossy(&bytes).into_owned())
     }
 
     #[tokio::test]
