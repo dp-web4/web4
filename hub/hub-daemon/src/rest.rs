@@ -1293,6 +1293,20 @@ fn scopeguard_release(s: &RestState) -> ReconcileSlot {
     ReconcileSlot(s.degraded_log.clone())
 }
 
+/// Witness how the hub was ignited (PRD_HELD_IGNITION §3.6). Best-effort, like the degraded
+/// reconcile: the hub is already ignited when this runs, so a failed record is logged, never
+/// fatal.
+pub(crate) async fn record_ignition(
+    s: &RestState,
+    via: hub_lib::events::IgnitionVia,
+    tier: Option<hub_lib::law::IgnitionTier>,
+) {
+    match witness_event_inner(s, HubEvent::HubIgnited { via, tier }).await {
+        Ok(idx) => tracing::info!("ignition ({via:?}) recorded at ledger entry {idx}"),
+        Err(e) => tracing::warn!("ignition ({via:?}) happened, but its record failed: {}", e.message),
+    }
+}
+
 /// F0.1 (R7a): fold the local degraded diagnostic log into the witnessed
 /// ledger. The local log is the fallback witness for a window in which the
 /// signer — the normal witness — was the unreachable thing; this binds its
@@ -1310,20 +1324,6 @@ fn scopeguard_release(s: &RestState) -> ReconcileSlot {
 /// witness re-reports on the next attempt (auditable duplication with a
 /// matching digest) rather than losing entries. Never blocks or fails its
 /// caller.
-/// Witness how the hub was ignited (PRD_HELD_IGNITION §3.6). Best-effort, like the degraded
-/// reconcile: the hub is already ignited when this runs, so a failed record is logged, never
-/// fatal.
-pub(crate) async fn record_ignition(
-    s: &RestState,
-    via: hub_lib::events::IgnitionVia,
-    tier: Option<hub_lib::law::IgnitionTier>,
-) {
-    match witness_event_inner(s, HubEvent::HubIgnited { via, tier }).await {
-        Ok(idx) => tracing::info!("ignition ({via:?}) recorded at ledger entry {idx}"),
-        Err(e) => tracing::warn!("ignition ({via:?}) happened, but its record failed: {}", e.message),
-    }
-}
-
 async fn reconcile_degraded_log(s: &RestState, occasion: &str) {
     // Cheap guard: an atomic load, so the witness path pays nothing when
     // nothing is degraded (the overwhelmingly common case).

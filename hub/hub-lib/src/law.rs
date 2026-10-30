@@ -1106,6 +1106,21 @@ impl HubLawExt for Law {
 mod tests {
     use super::*;
 
+    /// Held ignition (PRD_HELD_IGNITION §3.1): absent is held at the default tier, a law that
+    /// names neither serializes as before, and the tiers rank by what it takes to open them.
+    #[test]
+    fn ignition_policy_defaults_to_held_and_tiers_rank_by_strength() {
+        assert!(IgnitionPolicy::held(None));
+        assert_eq!(IgnitionPolicy::min_tier(None), DEFAULT_IGNITION_MIN_TIER);
+        let off: IgnitionPolicy = serde_yaml::from_str("held: false\nmin_tier: host+tpm2\n").unwrap();
+        assert!(!IgnitionPolicy::held(Some(&off)));
+        assert_eq!(IgnitionPolicy::min_tier(Some(&off)), IgnitionTier::HostTpm2);
+        assert!(IgnitionTier::HostTpm2 >= IgnitionTier::Tpm2);
+        assert!(IgnitionTier::Tpm2 > IgnitionTier::HostKey && IgnitionTier::HostKey > IgnitionTier::Unknown);
+        assert_eq!(serde_json::to_value(HubPolicy::default()).unwrap(), serde_json::json!({}));
+        assert!(serde_yaml::from_str::<IgnitionPolicy>("min_tier: tpm3\n").is_err());
+    }
+
     #[test]
     fn constellation_roles_are_a_separate_namespace_from_society_roles() {
         // The two vocabularies must not overlap: a society role is never a valid
@@ -2722,22 +2737,6 @@ mod sponsor_consent_tests {
 
 #[cfg(test)]
 mod sponsor_reachability_tests {
-
-    /// Held ignition (PRD_HELD_IGNITION §3.1): absent is held at the default tier, a law that
-    /// names neither serializes as before, and the tiers rank by what it takes to open them.
-    #[test]
-    fn ignition_policy_defaults_to_held_and_tiers_rank_by_strength() {
-        assert!(IgnitionPolicy::held(None));
-        assert_eq!(IgnitionPolicy::min_tier(None), DEFAULT_IGNITION_MIN_TIER);
-        let off: IgnitionPolicy = serde_yaml::from_str("held: false\nmin_tier: host+tpm2\n").unwrap();
-        assert!(!IgnitionPolicy::held(Some(&off)));
-        assert_eq!(IgnitionPolicy::min_tier(Some(&off)), IgnitionTier::HostTpm2);
-        assert!(IgnitionTier::HostTpm2 >= IgnitionTier::Tpm2);
-        assert!(IgnitionTier::Tpm2 > IgnitionTier::HostKey && IgnitionTier::HostKey > IgnitionTier::Unknown);
-        assert_eq!(serde_json::to_value(HubPolicy::default()).unwrap(), serde_json::json!({}));
-        assert!(serde_yaml::from_str::<IgnitionPolicy>("min_tier: tpm3\n").is_err());
-    }
-
     use super::*;
 
     /// The norm the Fleet hub actually publishes (measured 2026-08-21 by
