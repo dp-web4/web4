@@ -296,6 +296,7 @@ K5 adds four things.
 3. **Where the key lives.** It lives in IndexedDB as a **non-extractable** `CryptoKey`. The page can use the key to sign, but no script, including the page's own, can read the private half.
    - This deliberately differs from `/client`, which keeps an extractable JWK in `localStorage`, where any script on the origin can read it. K5a fixes `/client` first (below).
    - Non-extractable stops theft, not misuse: a script injected into the page can still sign with the key in place. So every page that holds a key (`/client`, `/c/`, the join page, `/me`) is served with a strict Content-Security-Policy, and loses its inline `onclick` handlers. Today no hub page sends a CSP.
+     - **The protection is origin-wide, not page-wide (Legion, #960).** IndexedDB belongs to the origin, so a script injected into ANY page on it can open the store and sign, even though it can't extract the key. `/discuss` and the admin-listener pages (`/`, `/record`, `/admin/*`) still send no CSP, and the admin pages carry inline `<script>`. Until those pages are strict too, or keys move to an origin of their own, the CSP on the key pages narrows the risk without closing it. Tracked as a follow-up; it is not a regression.
    - The page calls `navigator.storage.persist()`. It also shows "open this in your browser" when it detects an in-app webview: a key made inside a mail app's webview stays there, and a later `/me` in the real browser finds nothing.
    - If the browser is lost, so is the key. Safari also evicts script-written storage after 7 days without interaction, which is exactly a volunteer nudged monthly. Recovery is a fresh invite: a new LCT, which the operator links to the old one with Slice E's `attest-predecessor`. The member's history then follows the lineage, and the old key is never needed. **Expect this path to run routinely, not rarely**, so it must be one click for the operator.
    - A browser key is priced at web4-core's default anchor level, a software key, and claims nothing more.
@@ -305,6 +306,10 @@ K5 adds four things.
 **Order of work:**
 - **K5a: `/client` and CSP.** On first load, `/client` imports its stored JWK once as a non-extractable `CryptoKey` into IndexedDB, then deletes the `localStorage` entry. The key and the LCT stay the same, so no identity is orphaned. The same PR adds the strict CSP to the key-holding pages.
 - **K5b: invite, join, `ContactBound`, `InviteRevoked`, the admission notice.**
+- **K5a2: Legion's #960 follow-ups.**
+  - A key is stored with `add`, never `put`. A second tab that also found no key gets the stored key back instead of replacing one that may already be admitted. A migration that loses that race leaves the old JWK alone.
+  - Both key writes ask for `{durability:'strict'}`, so the write is on disk before the old JWK is deleted.
+  - `navigator.storage.persisted()` is checked on every load and persistence is requested again. When the browser refuses, `/client` and the join page say so.
 - **K5b2: commitments follow the binding.** A commitment that names the contact reads its role for the member: role checks, nudge targets and acknowledgements. Split from K5b so each PR stays reviewable.
 - **K5c: `/me`.**
 

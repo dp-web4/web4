@@ -8,7 +8,8 @@ const assert = require('assert');
 
 function makeIdb(failPut) {
   const dbs = {};
-  return {
+  const opts = [];
+  const idbApi = {
     open(name) {
       const req = {};
       setTimeout(() => {
@@ -17,17 +18,26 @@ function makeIdb(failPut) {
         const db = {
           createObjectStore(n) { stores[n] = new Map(); },
           close() {},
-          transaction(n, mode) {
+          transaction(n, mode, o) {
             const tx = {};
+            if (mode === 'readwrite') opts.push(o || {});
+            let failed = failPut;
             const store = {
-              get(k) { const r = { result: stores[n].get(k) }; return r; },
-              put(v, k) { if (failPut) { setTimeout(() => tx.onabort && tx.onabort()); return {}; }
-                          stores[n].set(k, v); return { result: k }; },
+              // hideNextGet: the read a tab made just before another tab stored a key.
+              get(k) { if (idbApi.hideNextGet) { idbApi.hideNextGet = false; return { result: undefined }; }
+                       return { result: stores[n].get(k) }; },
+              add(v, k) {
+                if (!failPut && stores[n].has(k)) {
+                  failed = true; tx.error = Object.assign(new Error('key exists'), { name: 'ConstraintError' });
+                }
+                if (failed) { setTimeout(() => tx.onabort && tx.onabort()); return {}; }
+                stores[n].set(k, v); return { result: k };
+              },
               delete(k) { stores[n].delete(k); return { result: undefined }; },
             };
             tx.objectStore = () => store;
             tx.error = new Error('quota');
-            setTimeout(() => { if (!failPut || mode === 'readonly') tx.oncomplete && tx.oncomplete(); });
+            setTimeout(() => { if (!failed || mode === 'readonly') tx.oncomplete && tx.oncomplete(); });
             return tx;
           },
         };
@@ -38,10 +48,13 @@ function makeIdb(failPut) {
       return req;
     },
     dbs,
+    opts,
+    hideNextGet: false,
   };
+  return idbApi;
 }
 
-function makeEnv(failPut) {
+function makeEnv(failPut, { idb, persisted = true, persistGrant = true } = {}) {
   const ls = new Map();
   const el = () => ({ innerHTML: '', textContent: '', className: '', value: '', href: '',
     classList: { add() {}, remove() {} } });
@@ -49,9 +62,9 @@ function makeEnv(failPut) {
   const ctx = {
     crypto: globalThis.crypto, TextEncoder, Uint8Array, JSON, Promise, String, Object, Array, Error, setTimeout,
     console,
-    indexedDB: makeIdb(failPut),
+    indexedDB: idb || makeIdb(failPut),
     localStorage: { getItem: k => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)), removeItem: k => ls.delete(k) },
-    navigator: { storage: { persist: () => Promise.resolve(true) } },
+    navigator: { storage: { persisted: () => Promise.resolve(persisted), persist: () => Promise.resolve(persistGrant) } },
     document: { querySelector: s => (els[s] || (els[s] = el())), addEventListener() {} },
     fetch: () => Promise.reject(new Error('offline')),
   };
@@ -120,4 +133,33 @@ const run = (ctx, code) => vm.runInContext(code, ctx);
     assert.strictEqual(await run(c.ctx, 'idbGet()'), undefined, 'and nothing half-moved');
   }
   console.log('ok 6 a corrupt old key is named and kept');
+
+  // 7. Two tabs that both found no key: the second never replaces the first one's key.
+  const shared = makeIdb(false);
+  const tabA = makeEnv(false, { idb: shared }), tabB = makeEnv(false, { idb: shared });
+  const b = await run(tabB.ctx, 'newID()');
+  const a = await run(tabA.ctx, 'newID()');
+  assert.strictEqual(a.lct_id, b.lct_id, 'the later tab gets the stored key back');
+  assert.strictEqual((await run(tabA.ctx, 'loadID()')).lct_id, b.lct_id);
+  // A migration that loses the same race keeps the old JWK where it was.
+  tabA.ls.set('hestia_hub_id', JSON.stringify(old));
+  await run(tabA.ctx, 'idbDel()');
+  await run(tabB.ctx, 'newID()');
+  const c2 = makeEnv(false, { idb: shared }); c2.ls.set('hestia_hub_id', JSON.stringify(old));
+  shared.hideNextGet = true;
+  const kept = await run(c2.ctx, 'loadID()');
+  assert.strictEqual(shared.hideNextGet, false, 'the migration really read an empty store');
+  assert.notStrictEqual(kept.lct_id, 'lct-1'); assert.ok(c2.ls.has('hestia_hub_id'), 'the JWK is not deleted for a key it did not store');
+  console.log('ok 7 a second tab never replaces a stored key');
+
+  // 8. Every key write asks for strict durability.
+  assert.ok(shared.opts.filter(o => o.durability !== undefined).length >= 3, JSON.stringify(shared.opts));
+  assert.ok(shared.opts.filter(o => o.durability !== undefined).every(o => o.durability === 'strict'));
+  console.log('ok 8 key writes are strict-durable');
+
+  // 9. Persistence is asked for on each load and reported when refused.
+  assert.strictEqual(await run(makeEnv(false).ctx, 'ensurePersisted()'), true);
+  assert.strictEqual(await run(makeEnv(false, { persisted: false, persistGrant: true }).ctx, 'ensurePersisted()'), true);
+  assert.strictEqual(await run(makeEnv(false, { persisted: false, persistGrant: false }).ctx, 'ensurePersisted()'), false);
+  console.log('ok 9 persistence is checked and its refusal is visible');
 })().catch(e => { console.error('FAIL', e); process.exit(1); });
