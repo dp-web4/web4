@@ -2071,6 +2071,6 @@ mod tests {
         };
         let said = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
         assert!(out.status.success(), "{said}");
-        assert_eq!(said.matches("\nok ").count() + usize::from(said.starts_with("ok ")), 6, "{said}");
+        assert_eq!(said.matches("\nok ").count() + usize::from(said.starts_with("ok ")), 9, "{said}");
     }
 }

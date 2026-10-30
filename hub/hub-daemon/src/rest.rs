@@ -8415,6 +8415,7 @@ const CLIENT_HTML: &str = r##"<!doctype html><meta charset="utf-8">
  never leaves this device, and not even this page can read it back; the hub pins only your public
  half when you join.</p>
  <div id="idbody"></div>
+ <p id="persistnote" class="m warn hidden"></p>
 </div>
 
 <div class="card hidden" id="joincard">
@@ -8488,18 +8489,38 @@ function idb(){
     r.onsuccess=()=>ok(r.result); r.onerror=()=>no(r.error);
   });
 }
-async function idbDo(mode,f){
+async function idbDo(mode,f,opts){
   const db=await idb();
   return new Promise((ok,no)=>{
-    const tx=db.transaction(STORE,mode), r=f(tx.objectStore(STORE));
+    const tx=db.transaction(STORE,mode,opts), r=f(tx.objectStore(STORE));
     tx.oncomplete=()=>{ db.close(); ok(r.result); };
-    tx.onerror=tx.onabort=()=>{ db.close(); no(tx.error); };
+    // A failed request reaches onerror before the abort sets tx.error (Legion, #963).
+    tx.onerror=ev=>{ db.close(); no(ev.target.error||tx.error); };
+    tx.onabort=()=>{ db.close(); no(tx.error); };
   });
 }
 const idbGet=()=>idbDo('readonly',s=>s.get(SLOT));
-const idbPut=v=>idbDo('readwrite',s=>s.put(v,SLOT));
 const idbDel=()=>idbDo('readwrite',s=>s.delete(SLOT));
+// A key is stored with add, never put: a second tab that also found no key must not replace one
+// this browser has since made and perhaps had admitted (Legion, #960). The loser gets the stored
+// key back. Strict durability: the write is on disk before anything is deleted on its account.
+async function idbAdd(v){
+  try{ await idbDo('readwrite',s=>s.add(v,SLOT),{durability:'strict'}); return v; }
+  catch(e){
+    if(e&&e.name==='ConstraintError'){ const had=await idbGet(); if(had)return had; }
+    throw e;
+  }
+}
 function persist(){ if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{}); }
+// Whether this browser has agreed to keep the key store when it runs short of space or the
+// site goes unvisited. Asked on every load, since a browser that refused once may agree later.
+// null: the browser can't say.
+async function ensurePersisted(){
+  const st=navigator.storage;
+  if(!st||!st.persisted)return null;
+  try{ return (await st.persisted())||(st.persist?await st.persist():false); }catch(e){ return false; }
+}
+const NOT_PERSISTED='This browser hasn\'t agreed to keep your key for good. If you don\'t come back for a few weeks, it may be cleared; if that happens, ask your organiser for a new invite.';
 
 async function loadID(){
   const id=await idbGet(); if(id)return id;
@@ -8513,7 +8534,10 @@ async function loadID(){
     priv=await crypto.subtle.importKey('jwk',o.privJwk,{name:'Ed25519'},false,['sign']);
   }catch(e){ throw new Error('LEGACY_UNREADABLE'); }
   const moved={lct_id:o.lct_id,pubHex:o.pubHex,priv};
-  await idbPut(moved); localStorage.removeItem(LEGACY); persist();
+  const kept=await idbAdd(moved);
+  // Another tab stored a key first: that one is in use, and the old JWK stays as it was.
+  if(kept!==moved)return kept;
+  localStorage.removeItem(LEGACY); persist();
   return moved;
 }
 // A fresh identity, stored before it is returned. Throws NO_ED25519 where the browser
@@ -8524,8 +8548,8 @@ async function newID(){
   catch(e){ throw new Error('NO_ED25519'); }
   const pub=await crypto.subtle.exportKey('raw',kp.publicKey);
   const id={lct_id:crypto.randomUUID(),pubHex:hex(pub),priv:kp.privateKey};
-  await idbPut(id); persist();
-  return id;
+  const kept=await idbAdd(id); persist();
+  return kept;
 }
 async function forgetID(){ await idbDel(); localStorage.removeItem(LEGACY); }
 
@@ -8646,6 +8670,7 @@ document.addEventListener('click',ev=>{
     ?'this browser holds an older key that can\'t be read; it has been left as it was. Ask your organiser.'
     :'could not open this browser\'s key store: '+esc(e.message))+'</span>'; }
   if(ID||!$('#idbody').textContent)renderID();
+  if(ID&&await ensurePersisted()===false){ $('#persistnote').textContent=NOT_PERSISTED; $('#persistnote').classList.remove('hidden'); }
   loadTopics();
 })();
 "##;

@@ -380,7 +380,8 @@ async function join(){
     const r=await fetch('/v1/hubs/'+w.hub_lct_id+'/members/join',{method:'POST',
       headers:{'content-type':'application/json'},body:JSON.stringify(await signEnvelope(id,p))});
     const out=await r.json().catch(()=>({}));
-    if(r.status===200){ b.hidden=true; say('ok','You\'re in. Keep using this browser: your key lives here.'); }
+    if(r.status===200){ b.hidden=true;
+      say('ok','You\'re in. Keep using this browser: your key lives here.'+(await ensurePersisted()===false?' '+NOT_PERSISTED:'')); }
     else if(r.status===202){ b.hidden=true; say('muted','Your organiser will confirm you. Once they have, open this link again.'); }
     else { say('err',out.error||('Something went wrong ('+r.status+').')); b.disabled=false; }
   }catch(e){
