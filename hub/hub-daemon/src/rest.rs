@@ -158,6 +158,9 @@ pub struct RestState {
     /// consecutive failures + lockout), since anyone who can reach the unlock
     /// UI could still feed it attempts.
     pub unlock_gate: Arc<UnlockGate>,
+    /// Held ignition (PRD_HELD_IGNITION): the sealing backend and the last boot's outcome. No
+    /// sealer unless `run_serve` installs one, so a test hub never touches systemd.
+    pub ignition: Arc<HeldIgnition>,
     /// Tier-2 M-of-N unlock is decided by the built-in quorum verifier (`rest::unlock`), and is
     /// ON only when the operator sets `HUB_TIER2_UNLOCK=quorum`. Off → `/unlock/*` answer 501.
     /// (The external `HUB_UNLOCK_VERIFIER` subprocess is retired; see `unlock::tier2_enabled_from_env`.)
@@ -497,6 +500,7 @@ impl RestState {
             vp_requests: Arc::new(Mutex::new(std::collections::HashMap::new())),
             vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unlock_gate: Arc::new(UnlockGate::default_policy()),
+            ignition: Arc::new(HeldIgnition::default()),
             tier2_enabled: unlock::tier2_enabled_from_env(),
             plugins: Arc::new(hub_plugin::PluginRegistry::new()),
             production_profile: std::env::var("HUB_PROFILE").as_deref() == Ok("production"),
@@ -649,6 +653,7 @@ impl RestState {
             vp_requests: Arc::new(Mutex::new(std::collections::HashMap::new())),
             vci_nonces: Arc::new(Mutex::new(std::collections::HashSet::new())),
             unlock_gate: Arc::new(UnlockGate::default_policy()),
+            ignition: Arc::new(HeldIgnition::default()),
             tier2_enabled: unlock::tier2_enabled_from_env(),
             plugins: Arc::new(hub_plugin::PluginRegistry::new()),
             production_profile: std::env::var("HUB_PROFILE").as_deref() == Ok("production"),
@@ -797,6 +802,18 @@ impl RestState {
     /// with no restart. The passphrase is used here and dropped — never stored.
     /// `now` is unix-seconds (injected for deterministic rate-limit tests).
     pub async fn try_unlock(&self, passphrase: &str, now: i64) -> UnlockOutcome {
+        self.try_unlock_as(passphrase, now, hub_lib::events::IgnitionVia::Human, None).await
+    }
+
+    /// [`Self::try_unlock`], saying who presented the passphrase: a person, or the hub's own held
+    /// copy (with the tier read from its seal). Both take the same path and the same preflight.
+    pub(crate) async fn try_unlock_as(
+        &self,
+        passphrase: &str,
+        now: i64,
+        via: hub_lib::events::IgnitionVia,
+        tier: Option<hub_lib::law::IgnitionTier>,
+    ) -> UnlockOutcome {
         if !self.is_locked() {
             return UnlockOutcome::NotLocked;
         }
@@ -936,7 +953,8 @@ impl RestState {
                 // F0.1 (R7a): the signer is live again — reconcile the degraded
                 // diagnostic log into the witnessed ledger.
                 reconcile_degraded_log(self, "ignition").await;
-                record_ignition(self, hub_lib::events::IgnitionVia::Human, None).await;
+                record_ignition(self, via, tier).await;
+                self.settle_held_ignition(passphrase, via, tier).await;
                 // Refresh the clear public-identity tier-0 file so a future locked-shell
                 // boot knows who this hub is (to serve well-known + accept `hub unlock`).
                 let pid = PublicIdentity {
@@ -964,6 +982,47 @@ impl RestState {
 }
 
 /// Result of a vault-unlock attempt via the unlock slot.
+/// Held ignition's runtime half (PRD_HELD_IGNITION §3.3–§3.5).
+#[derive(Default)]
+pub struct HeldIgnition {
+    /// `None`: this hub can't seal (no backend installed), so a person's unlock holds nothing.
+    pub sealer: Option<Arc<dyn hub_lib::ignition::Sealer>>,
+    /// The well-known `held_ignition`: 0 none, 1 ok, 2 failed.
+    boot: std::sync::atomic::AtomicU8,
+    /// What the last person's unlock did about holding, for the unlock response.
+    note: std::sync::Mutex<Option<String>>,
+}
+
+impl HeldIgnition {
+    pub fn with_sealer(sealer: Arc<dyn hub_lib::ignition::Sealer>) -> Self {
+        Self { sealer: Some(sealer), ..Self::default() }
+    }
+
+    /// `"none"`, `"ok"` or `"failed"`: a state with no reason text, because well-known is public.
+    pub fn boot_state(&self) -> &'static str {
+        match self.boot.load(std::sync::atomic::Ordering::Relaxed) {
+            1 => "ok",
+            2 => "failed",
+            _ => "none",
+        }
+    }
+
+    fn set_boot(&self, v: u8) {
+        self.boot.store(v, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn take_note(&self) -> Option<String> {
+        self.note.lock().ok().and_then(|mut n| n.take())
+    }
+
+    fn set_note(&self, note: String) {
+        if let Ok(mut n) = self.note.lock() {
+            *n = Some(note);
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum UnlockOutcome {
     /// Promoted locked → unlocked; the real signer is now installed.
     Unlocked { sovereign_lct_id: Uuid },
@@ -982,6 +1041,20 @@ pub enum UnlockOutcome {
     /// This hub can't be unlocked by passphrase (e.g. Hestia-mode, or a
     /// config/identity problem) — not a bad guess.
     Unsupported(String),
+}
+
+impl UnlockOutcome {
+    /// For a log line: why an unlock didn't happen. Never the passphrase.
+    fn describe(&self) -> String {
+        match self {
+            Self::Unlocked { .. } => "unlocked".into(),
+            Self::NotLocked => "already unlocked".into(),
+            Self::WrongPassphrase => "the passphrase did not open the vault (rotated since it was sealed?)".into(),
+            Self::Refused(m) => format!("refused: {m}"),
+            Self::RateLimited { retry_after_secs } => format!("rate-limited for {retry_after_secs}s"),
+            Self::Unsupported(m) => format!("not applicable: {m}"),
+        }
+    }
 }
 
 /// `POST /v1/hubs/:hub_id/unlock` — the **stub-console unlock slot**.
@@ -1021,6 +1094,7 @@ async fn unlock(
                 status: "unlocked".into(),
                 sovereign_lct_id: Some(sovereign_lct_id),
                 retry_after_secs: None,
+                held_ignition: s.ignition.take_note(),
             }))
         }
         UnlockOutcome::NotLocked => Ok(Json(UnlockResponse {
@@ -1028,6 +1102,7 @@ async fn unlock(
             status: "already_unlocked".into(),
             sovereign_lct_id: Some(s.sovereign_lct_id),
             retry_after_secs: None,
+            held_ignition: None,
         })),
         UnlockOutcome::WrongPassphrase => Err(ApiError {
             status: StatusCode::UNAUTHORIZED,
@@ -1062,6 +1137,10 @@ struct UnlockResponse {
     status: String,
     sovereign_lct_id: Option<Uuid>,
     retry_after_secs: Option<i64>,
+    /// What this unlock did about holding the passphrase (PRD_HELD_IGNITION §3.3), so the operator
+    /// learns it at the moment it happens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    held_ignition: Option<String>,
 }
 
 // ─────────────────────── tier-2 M-of-N unlock (witnessed) ───────────────────
@@ -1291,6 +1370,118 @@ impl Drop for ReconcileSlot {
 }
 fn scopeguard_release(s: &RestState) -> ReconcileSlot {
     ReconcileSlot(s.degraded_log.clone())
+}
+
+impl RestState {
+    /// After an ignition, make what the hub holds match its law (PRD_HELD_IGNITION §3.3–§3.5).
+    /// Runs with the law just loaded, because a locked hub can't read it.
+    ///
+    /// - The law says not held: delete any sealed copy.
+    /// - A held boot opened a seal weaker than `min_tier`: delete it. It was used once, because
+    ///   the law was only readable after it opened.
+    /// - A person unlocked and the law says held: seal the passphrase in hand (re-sealing
+    ///   replaces a stale copy), then delete it again if this host seals below `min_tier`.
+    async fn settle_held_ignition(
+        &self,
+        passphrase: &str,
+        via: hub_lib::events::IgnitionVia,
+        tier: Option<hub_lib::law::IgnitionTier>,
+    ) {
+        use hub_lib::events::{IgnitionRelease, IgnitionVia};
+        use hub_lib::law::IgnitionPolicy;
+        let (held, min_tier) = {
+            let law = self.law.read().await;
+            let p = law.as_ref().and_then(|l| l.ext.ignition.as_ref());
+            (IgnitionPolicy::held(p), IgnitionPolicy::min_tier(p))
+        };
+        let path = hub_lib::ignition::ignition_path(&self.paths.root);
+        if !held {
+            if path.exists() {
+                self.release_held(&path, IgnitionRelease::LawOff).await;
+                self.ignition.set_note("not held: the law says ignition.held: false".into());
+            }
+            return;
+        }
+        match via {
+            IgnitionVia::Held => {
+                if tier.unwrap_or(hub_lib::law::IgnitionTier::Unknown) < min_tier {
+                    self.release_held(&path, IgnitionRelease::BelowMinTier).await;
+                }
+            }
+            IgnitionVia::Human => {
+                self.ignition.set_boot(0);
+                let Some(sealer) = self.ignition.sealer.clone() else { return };
+                if let Err(e) = sealer.seal(passphrase, &path) {
+                    tracing::warn!("held ignition: could not seal the passphrase (this hub stays boot-locked): {e:#}");
+                    self.ignition.set_note("not held: no sealing backend on this host".into());
+                    return;
+                }
+                let sealed_at = hub_lib::ignition::tier_of_sealed(&std::fs::read(&path).unwrap_or_default());
+                if sealed_at < min_tier {
+                    let _ = std::fs::remove_file(&path);
+                    tracing::warn!("held ignition: this host seals at {sealed_at:?}, below the law's min_tier {min_tier:?}; not held");
+                    self.ignition.set_note(format!(
+                        "not held: this host seals at {sealed_at:?}, and the law requires {min_tier:?}"
+                    ));
+                    return;
+                }
+                match witness_event_inner(self, HubEvent::IgnitionHeld { tier: sealed_at }).await {
+                    Ok(idx) => tracing::warn!("held ignition: passphrase sealed at {sealed_at:?} (ledger entry {idx}); this hub now unlocks itself after a restart"),
+                    Err(e) => tracing::warn!("held ignition: sealed at {sealed_at:?}, but its record failed: {}", e.message),
+                }
+                self.ignition.set_note(format!(
+                    "held at {sealed_at:?}: this hub now unlocks itself after a restart; set ignition.held: false in the law to stop"
+                ));
+            }
+            IgnitionVia::Env => {}
+        }
+    }
+
+    async fn release_held(&self, path: &std::path::Path, reason: hub_lib::events::IgnitionRelease) {
+        if let Err(e) = std::fs::remove_file(path) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                tracing::error!("held ignition: could not delete {} ({reason:?}): {e}", path.display());
+                return;
+            }
+        }
+        if let Err(e) = witness_event_inner(self, HubEvent::IgnitionReleased { reason }).await {
+            tracing::warn!("held ignition: released ({reason:?}), but its record failed: {}", e.message);
+        }
+    }
+
+    /// Boot with a sealed passphrase present (PRD_HELD_IGNITION §3.5): open it and unlock through
+    /// the same path a person uses, once. Any failure leaves the hub up and locked, with
+    /// `held_ignition: "failed"` for a health check to page on.
+    pub(crate) async fn held_boot(&self, now: i64) {
+        let path = hub_lib::ignition::ignition_path(&self.paths.root);
+        let Some(sealer) = self.ignition.sealer.clone() else { return };
+        if !path.exists() {
+            return;
+        }
+        let tier = hub_lib::ignition::tier_of_sealed(&std::fs::read(&path).unwrap_or_default());
+        let passphrase = match sealer.open(&path) {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::error!("held ignition FAILED, hub stays locked: the sealed passphrase did not open: {e:#}");
+                self.ignition.set_boot(2);
+                return;
+            }
+        };
+        match self.try_unlock_as(&passphrase, now, hub_lib::events::IgnitionVia::Held, Some(tier)).await {
+            UnlockOutcome::Unlocked { .. } => {
+                self.ignition.set_boot(1);
+                if let Err(e) = hydrate_law_defaults(self).await {
+                    tracing::warn!("law-default hydration skipped: {e}");
+                }
+                tracing::warn!("HUB IGNITED from its held passphrase ({tier:?})");
+            }
+            UnlockOutcome::NotLocked => {}
+            other => {
+                tracing::error!("held ignition FAILED, hub stays locked: {}", other.describe());
+                self.ignition.set_boot(2);
+            }
+        }
+    }
 }
 
 /// Witness how the hub was ignited (PRD_HELD_IGNITION §3.6). Best-effort, like the degraded
@@ -2988,7 +3179,7 @@ struct WellKnownHubInfo {
     law_present: bool,
     /// Held ignition (PRD_HELD_IGNITION §3.5): `"none"` (no sealed passphrase), `"ok"` or
     /// `"failed"`, with no reason text, because this document is public. A health check pages a
-    /// person on `"failed"`. Always `"none"` until the hub can seal one.
+    /// person on `"failed"`.
     held_ignition: &'static str,
     /// Hubs this server hosts. Single-hub deployments return one entry;
     /// future multi-hub hosting returns multiple.
@@ -3022,7 +3213,7 @@ async fn well_known_hub_info(
             mcp: "/tools",
         },
         law_present: s.law.read().await.is_some(),
-        held_ignition: "none",
+        held_ignition: s.ignition.boot_state(),
         hubs: vec![WellKnownHubSummary {
             id: s.hub_id,
             name: s.hub_name.clone(),
@@ -18366,6 +18557,133 @@ norms: []
         let got = ignitions(state.ledger.lock().await.entries());
         assert_eq!(got.len(), 1, "{got:?}");
         assert!(matches!(got[0], HubEvent::HubIgnited { via: hub_lib::events::IgnitionVia::Human, tier: None }), "{got:?}");
+    }
+
+    /// A locked test hub that seals with the clear-text stand-in, reading as `tier`.
+    async fn held_test_hub(pass: &str, tier: hub_lib::law::IgnitionTier) -> (tempfile::TempDir, RestState) {
+        let (tmp, mut state) = locked_state_sealed_with(pass).await;
+        state.ignition = Arc::new(HeldIgnition::with_sealer(Arc::new(
+            hub_lib::ignition::ClearTestSealer::reading_as(tier),
+        )));
+        (tmp, state)
+    }
+
+    /// A restart, as far as ignition can tell: the signer goes back to locked.
+    fn relock(state: &RestState) {
+        state.signer.swap(Arc::new(LockedSigner::new(state.sovereign_lct_id)));
+        assert!(state.is_locked());
+    }
+
+    fn ignition_events(entries: &[hub_lib::ledger::LedgerEntry]) -> Vec<HubEvent> {
+        entries.iter().filter(|e| matches!(e.event,
+            HubEvent::HubIgnited { .. } | HubEvent::IgnitionHeld { .. } | HubEvent::IgnitionReleased { .. }))
+            .map(|e| e.event.clone()).collect()
+    }
+
+    /// PRD_HELD_IGNITION §3.3 + §3.5, the acceptance cycle in miniature: a person's unlock seals
+    /// the passphrase (the law says nothing, so held), and the next boot unlocks itself from it.
+    #[tokio::test]
+    async fn a_persons_unlock_seals_the_passphrase_and_the_next_boot_unlocks_itself() {
+        use hub_lib::events::IgnitionVia;
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+        assert!(path.exists(), "a person's unlock seals the passphrase");
+        assert!(state.ignition.take_note().is_some_and(|n| n.starts_with("held at HostKey")));
+        assert_eq!(state.ignition.boot_state(), "none");
+
+        relock(&state);
+        state.held_boot(1_700_000_100).await;
+        assert!(!state.is_locked(), "the held passphrase unlocks the next boot");
+        assert_eq!(state.ignition.boot_state(), "ok");
+        assert!(path.exists());
+        let got = ignition_events(state.ledger.lock().await.entries());
+        assert!(matches!(got.as_slice(), [
+            HubEvent::HubIgnited { via: IgnitionVia::Human, tier: None },
+            HubEvent::IgnitionHeld { tier: IgnitionTier::HostKey },
+            HubEvent::HubIgnited { via: IgnitionVia::Held, tier: Some(IgnitionTier::HostKey) },
+        ]), "{got:?}");
+    }
+
+    /// PRD_HELD_IGNITION §3.5: a held copy that no longer opens the vault (the passphrase was
+    /// rotated) leaves the hub up and locked, says "failed", and costs exactly one attempt.
+    #[tokio::test]
+    async fn a_held_boot_that_fails_stays_locked_and_costs_one_attempt() {
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        let now = 1_700_000_000;
+        for (wrong_guesses, locked_out) in [(3, false), (4, true)] {
+            let (_tmp, state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+            let path = hub_lib::ignition::ignition_path(&state.paths.root);
+            state.ignition.sealer.as_ref().unwrap().seal("an old passphrase", &path).unwrap();
+            state.held_boot(now).await;
+            assert!(state.is_locked());
+            assert_eq!(state.ignition.boot_state(), "failed");
+            for i in 0..wrong_guesses {
+                assert!(matches!(state.try_unlock("nope", now + 10 * (i + 1)).await, UnlockOutcome::WrongPassphrase));
+            }
+            // The default gate locks out at 5 failures: the held attempt is one of them.
+            let person = state.try_unlock(pass, now + 100).await;
+            assert_eq!(matches!(person, UnlockOutcome::RateLimited { .. }), locked_out, "{wrong_guesses}: {person:?}");
+            if !locked_out {
+                assert_eq!(state.ignition.boot_state(), "none", "a person's unlock clears the alarm");
+                assert_eq!(&*state.ignition.sealer.as_ref().unwrap().open(&path).unwrap(), pass, "and re-seals");
+            }
+        }
+    }
+
+    /// A sealed file that won't open at all (corrupt, or sealed on another host) also leaves the
+    /// hub up, locked and "failed", and charges nothing: no passphrase reached the vault.
+    #[tokio::test]
+    async fn a_held_copy_that_wont_open_stays_locked_and_charges_nothing() {
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = held_test_hub(pass, hub_lib::law::IgnitionTier::HostKey).await;
+        std::fs::write(hub_lib::ignition::ignition_path(&state.paths.root), "not a seal").unwrap();
+        state.held_boot(1_700_000_000).await;
+        assert!(state.is_locked());
+        assert_eq!(state.ignition.boot_state(), "failed");
+        // No attempt was stamped, so a person may try at once (the gate's 2 s interval would refuse it).
+        assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+    }
+
+    /// PRD_HELD_IGNITION §3.1, §3.5: the law decides. `held: false` deletes a copy the law no
+    /// longer wants (and seals nothing new); a seal below `min_tier` is used once, then deleted;
+    /// a host that can only seal below `min_tier` holds nothing.
+    #[tokio::test]
+    async fn the_law_decides_what_the_hub_holds() {
+        use hub_lib::events::IgnitionRelease;
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        let now = 1_700_000_000;
+        let cases = [
+            ("held: false", IgnitionTier::HostTpm2, Some(IgnitionRelease::LawOff)),
+            ("min_tier: tpm2", IgnitionTier::HostKey, Some(IgnitionRelease::BelowMinTier)),
+            ("min_tier: tpm2", IgnitionTier::HostTpm2, None),
+            // Exactly at the floor is enough.
+            ("min_tier: host-key", IgnitionTier::HostKey, None),
+        ];
+        for (rule, tier, released) in cases {
+            let (_tmp, state) = held_test_hub(pass, tier).await;
+            let path = hub_lib::ignition::ignition_path(&state.paths.root);
+            // A copy sealed while the law still allowed it.
+            state.ignition.sealer.as_ref().unwrap().seal(pass, &path).unwrap();
+            put_law_in_store(&state, &format!("{VALID_LAW}ignition:\n  {rule}\n")).await;
+            state.held_boot(now).await;
+            assert!(!state.is_locked(), "{rule}: the held copy is used once");
+            assert_eq!(path.exists(), released.is_none(), "{rule} at {tier:?}");
+            let got = ignition_events(state.ledger.lock().await.entries());
+            let rel: Vec<_> = got.iter().filter_map(|e| match e { HubEvent::IgnitionReleased { reason } => Some(*reason), _ => None }).collect();
+            assert_eq!(rel, released.into_iter().collect::<Vec<_>>(), "{rule}: {got:?}");
+
+            // A person's unlock under the same law: nothing new is held unless the law allows it.
+            relock(&state);
+            assert!(matches!(state.try_unlock(pass, now + 10).await, UnlockOutcome::Unlocked { .. }));
+            assert_eq!(path.exists(), released.is_none(), "{rule}: a person's unlock at {tier:?}");
+            let note = state.ignition.take_note().unwrap_or_default();
+            assert_eq!(note.starts_with("not held"), released.is_some(), "{rule}: {note}");
+        }
     }
 
     /// Put this hub under `HUB_PROFILE=production` with no `HUB_ALLOW_NO_LAW`

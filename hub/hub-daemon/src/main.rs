@@ -1605,6 +1605,14 @@ fn operator_plane_app(
         .layer(axum::middleware::from_fn_with_state(op_auth, crate::rest::operator_auth_gate))
 }
 
+/// The sealing backend a serving hub uses (PRD_HELD_IGNITION §3.2). Tests build `RestState`
+/// without it, so they never reach systemd.
+fn held_ignition_backend() -> std::sync::Arc<crate::rest::HeldIgnition> {
+    std::sync::Arc::new(crate::rest::HeldIgnition::with_sealer(std::sync::Arc::new(
+        hub_lib::ignition::SystemdUserSealer,
+    )))
+}
+
 /// A hub that boots with its store already open was ignited by the environment only when
 /// `HUB_PASSPHRASE` was set, and then the ledger says so (PRD_HELD_IGNITION §3.6). A plaintext or
 /// NULL-keyed store with no passphrase in the environment was not ignited, and records nothing;
@@ -1695,7 +1703,8 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         let shared_ledger = std::sync::Arc::new(tokio::sync::Mutex::new(
             hub_lib::ledger::HubLedger::open(placeholder_store).await?,
         ));
-        let rest = RestState::open_locked_shell(hub_dir.clone(), shared_law.clone(), shared_ledger.clone()).await?;
+        let mut rest = RestState::open_locked_shell(hub_dir.clone(), shared_law.clone(), shared_ledger.clone()).await?;
+        rest.ignition = held_ignition_backend();
         let mcp = McpState::open_with_law_and_ledger(
             hub_dir.clone(),
             shared_law,
@@ -1708,6 +1717,9 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             rest.resolver.clone(),
         )
         .await?;
+        // One attempt from the held passphrase, if there is one; a failure leaves this shell up
+        // and locked for a person (PRD_HELD_IGNITION §3.5).
+        rest.held_boot(chrono::Utc::now().timestamp()).await;
         (rest, mcp)
     };
     // On a normal (unlocked) boot the signer is live, so hydrate any law-driven

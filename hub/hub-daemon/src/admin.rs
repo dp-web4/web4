@@ -1284,12 +1284,18 @@ fn event_summary(event: &HubEvent) -> String {
                 hub_lib::events::IgnitionVia::Human => "a person",
                 hub_lib::events::IgnitionVia::Env => "HUB_PASSPHRASE (dev tier)",
             },
-            tier.map(|t| format!(" <span class=\"muted\">[{}]</span>", match t {
-                hub_lib::law::IgnitionTier::Unknown => "unknown seal",
-                hub_lib::law::IgnitionTier::HostKey => "host-key",
-                hub_lib::law::IgnitionTier::Tpm2 => "tpm2",
-                hub_lib::law::IgnitionTier::HostTpm2 => "host+tpm2",
-            })).unwrap_or_default(),
+            tier.map(|t| format!(" <span class=\"muted\">[{}]</span>", ignition_tier_name(t))).unwrap_or_default(),
+        ),
+        HubEvent::IgnitionHeld { tier } => format!(
+            "🔐 Hub now holds its passphrase <span class=\"muted\">[{}]</span>",
+            ignition_tier_name(*tier)
+        ),
+        HubEvent::IgnitionReleased { reason } => format!(
+            "🔓 Hub stopped holding its passphrase ({})",
+            match reason {
+                hub_lib::events::IgnitionRelease::LawOff => "the law turned it off",
+                hub_lib::events::IgnitionRelease::BelowMinTier => "the seal is weaker than the law requires",
+            }
         ),
         HubEvent::VaultUnlockRequested { challenge_id, tier, required, .. } => {
             format!(
@@ -2038,6 +2044,15 @@ pub(crate) async fn manage_page(State(s): State<RestState>) -> Result<Html<Strin
     );
 
     Ok(layout(&s, "Manage members", &body))
+}
+
+fn ignition_tier_name(t: hub_lib::law::IgnitionTier) -> &'static str {
+    match t {
+        hub_lib::law::IgnitionTier::Unknown => "unknown seal",
+        hub_lib::law::IgnitionTier::HostKey => "host-key",
+        hub_lib::law::IgnitionTier::Tpm2 => "tpm2",
+        hub_lib::law::IgnitionTier::HostTpm2 => "host+tpm2",
+    }
 }
 
 #[cfg(test)]
