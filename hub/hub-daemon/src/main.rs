@@ -1605,6 +1605,14 @@ fn operator_plane_app(
         .layer(axum::middleware::from_fn_with_state(op_auth, crate::rest::operator_auth_gate))
 }
 
+/// The sealing backend a serving hub uses (PRD_HELD_IGNITION §3.2). Tests build `RestState`
+/// without it, so they never reach systemd.
+fn held_ignition_backend() -> std::sync::Arc<crate::rest::HeldIgnition> {
+    std::sync::Arc::new(crate::rest::HeldIgnition::with_sealer(std::sync::Arc::new(
+        hub_lib::ignition::SystemdUserSealer,
+    )))
+}
+
 /// A hub that boots with its store already open was ignited by the environment only when
 /// `HUB_PASSPHRASE` was set, and then the ledger says so (PRD_HELD_IGNITION §3.6). A plaintext or
 /// NULL-keyed store with no passphrase in the environment was not ignited, and records nothing;
@@ -1695,7 +1703,8 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         let shared_ledger = std::sync::Arc::new(tokio::sync::Mutex::new(
             hub_lib::ledger::HubLedger::open(placeholder_store).await?,
         ));
-        let rest = RestState::open_locked_shell(hub_dir.clone(), shared_law.clone(), shared_ledger.clone()).await?;
+        let mut rest = RestState::open_locked_shell(hub_dir.clone(), shared_law.clone(), shared_ledger.clone()).await?;
+        rest.ignition = held_ignition_backend();
         let mcp = McpState::open_with_law_and_ledger(
             hub_dir.clone(),
             shared_law,
@@ -1708,6 +1717,9 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             rest.resolver.clone(),
         )
         .await?;
+        // One attempt from the held passphrase, if there is one; a failure leaves this shell up
+        // and locked for a person (PRD_HELD_IGNITION §3.5).
+        rest.held_boot(chrono::Utc::now().timestamp()).await;
         (rest, mcp)
     };
     // On a normal (unlocked) boot the signer is live, so hydrate any law-driven
@@ -2330,6 +2342,16 @@ async fn run_attest_unlock(
     Ok(())
 }
 
+/// What the operator is told about the passphrase after an unlock. A held ignition stores it,
+/// sealed to this host, so "not stored" would be false (pub, #969).
+fn unlock_storage_line(body: &serde_json::Value) -> String {
+    match body.get("held_ignition").and_then(|v| v.as_str()) {
+        Some(note) if note.starts_with("held at") => format!("The passphrase is now HELD, sealed to this host — {note}"),
+        Some(note) => format!("The passphrase was not stored ({note})."),
+        None => "The passphrase was not stored.".to_string(),
+    }
+}
+
 async fn run_unlock(port: u16) -> Result<()> {
     let base = format!("http://127.0.0.1:{port}");
     let client = reqwest::Client::new();
@@ -2369,7 +2391,7 @@ async fn run_unlock(port: u16) -> Result<()> {
         if let Some(sov) = body.get("sovereign_lct_id").and_then(|v| v.as_str()) {
             println!("  Sovereign LCT: {sov}");
         }
-        println!("  The hub is now serving citizen-tier+ requests. The passphrase was not stored.");
+        println!("  The hub is now serving citizen-tier+ requests. {}", unlock_storage_line(&body));
         Ok(())
     } else {
         let msg = body.get("error").and_then(|v| v.as_str())
@@ -3043,6 +3065,16 @@ mod tests {
             assert!(ignitions(rest.ledger.lock().await.entries()).is_empty());
             record_boot_ignition(&rest, true).await;
             assert_eq!(ignitions(rest.ledger.lock().await.entries()), vec![hub_lib::events::IgnitionVia::Env]);
+        }
+
+        /// The CLI says what happened to the passphrase, and never "not stored" when it was held.
+        #[test]
+        fn the_unlock_cli_says_when_the_passphrase_is_held() {
+            let held = unlock_storage_line(&serde_json::json!({"held_ignition": "held at HostKey: this hub now unlocks itself"}));
+            assert!(held.contains("HELD") && !held.contains("not stored"), "{held}");
+            let refused = unlock_storage_line(&serde_json::json!({"held_ignition": "not held: the law says ignition.held: false"}));
+            assert!(refused.contains("not stored") && refused.contains("held: false"), "{refused}");
+            assert_eq!(unlock_storage_line(&serde_json::json!({})), "The passphrase was not stored.");
         }
 
         /// `/admin/council` on the backend production actually runs.

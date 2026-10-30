@@ -82,15 +82,28 @@ impl Sealer for SystemdUserSealer {
             .stderr(Stdio::piped())
             .spawn()
             .context("running systemd-creds (no sealing backend on this host?)")?;
-        child
-            .stdin
-            .take()
-            .ok_or_else(|| anyhow!("systemd-creds stdin unavailable"))?
-            .write_all(secret.as_bytes())?;
+        // Write, then always reap the child: a failed write must not leave it running or the
+        // temp file behind (supervisor, #968). The stdin handle drops at the end of the
+        // statement, so systemd-creds sees EOF before the wait.
+        let wrote = match child.stdin.take() {
+            Some(mut stdin) => stdin.write_all(secret.as_bytes()).map_err(anyhow::Error::from),
+            None => Err(anyhow!("systemd-creds stdin unavailable")),
+        };
         let done = child.wait_with_output()?;
+        if let Err(e) = wrote {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(e.context("passing the passphrase to systemd-creds"));
+        }
         if !done.status.success() {
             let _ = std::fs::remove_file(&tmp);
             bail!("systemd-creds encrypt failed: {}", String::from_utf8_lossy(&done.stderr).trim());
+        }
+        // Owner-only, like the vault beside it, whatever the umask (pub, #969).
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))
+                .context("restricting the sealed passphrase to its owner")?;
         }
         std::fs::rename(&tmp, out).context("placing the sealed passphrase")?;
         Ok(())
@@ -184,6 +197,8 @@ mod tests {
         eprintln!("this host seals at {tier:?}");
         assert_ne!(tier, IgnitionTier::Unknown, "an unmeasured seal id: add it to MEASURED_SEALS");
         assert_eq!(&*SystemdUserSealer.open(&path).unwrap(), "not a passphrase");
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600, "owner-only");
         let renamed = Command::new("systemd-creds")
             .args(["decrypt", "--user", "--name=something-else"])
             .arg(&path)
