@@ -320,7 +320,13 @@ K5 adds four things.
   - its contact is not yet bound;
   - its contact is still in the book, because an erased contact's invite dies with the details.
 
-  Law then sees `r6.resource.invite == "verified"` (HUB-LAW.md, "An operator's invite is evidence"). If law admits, `ContactBound { party_id, member_lct_id, invite_digest, bound_by }` follows `MemberAdded`, and the contact's address is copied to the member's entry, so nudges keep reaching the same person. If law queues the join, nothing is bound: once the operator admits the member, opening the invite again binds it. Opening it again from the same browser after binding writes nothing.
+  Law then sees `r6.resource.invite == "verified"` (HUB-LAW.md, "An operator's invite is evidence").
+  - **If law admits,** `ContactBound { party_id, member_lct_id, invite_digest, bound_by }` is written **before** `MemberAdded` (Legion, #961), and the contact's address is copied to the member's entry, so nudges keep reaching the same person.
+    - If the join stops in between, the invite is spent on a key that only its holder can finish with. That key's page still shows the button and its retry completes the admission. Any other key gets 410.
+    - A contact book that can't be written doesn't undo the join: the binding is on the ledger and the log names the missing address.
+  - **If law queues the join,** `MemberJoinRequested` carries the invite (`invite_party_id`, `invite_digest`), and the operator's admission binds it under the same lock. If the invite stopped being good while the join waited (withdrawn, or its contact erased or bound by someone else), the admission stands and binds nothing.
+  - **A member who opens an invite** their own join didn't carry is refused with 409, and nothing is written. A forwarded invite must not hand a contact's jobs and address to whichever member opened it. The rare genuine case, a contact who is already a member under another key, goes through the operator.
+  - Opening an invite again from the browser it bound writes nothing.
 - **Open:** the admission notice is a listing the operator reads, not a message the carrier sends. Pushing it to the operator needs an operator address, which the hub doesn't hold yet.
 
 **Questions asked, and answered (Legion, #959, 10-29 20:17Z):**

@@ -2271,6 +2271,8 @@ mod tests {
             // mutant survives it (measured 2026-07-30). One ASCII byte first
             // shifts every `é` odd, so byte 12 is the tail of the 6th.
             member_pubkey_hex: "aéééééééééé".to_string(),
+            invite_party_id: None,
+            invite_digest: None,
             name: Some("Applicant".into()),
             message: None,
             requested_at: chrono::Utc::now(),

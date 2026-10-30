@@ -54,6 +54,10 @@ pub(crate) enum InviteStanding {
     Open,
     /// It already bound its contact to this very member: opening it again is not an error.
     AlreadyThisMember,
+    /// It bound its contact to this key, but the key was never admitted: the binding is written
+    /// before the admission (Legion, #961), and something stopped in between. Only this key can
+    /// finish, so a forwarded copy cannot use the gap.
+    BoundToThisKey,
 }
 
 /// Is this invite still good for `member`? The caller holds `COMMITMENT_LOCK` from here until the
@@ -65,7 +69,11 @@ pub(crate) fn invite_standing(s: &RestState, state: &HubState, claim: &InviteCla
     if state.invites.used.get(&claim.digest) == Some(&claim.party_id)
         && state.invites.bound.get(&claim.party_id) == Some(&member)
     {
-        return Ok(InviteStanding::AlreadyThisMember);
+        return Ok(if state.members.contains_key(&member) {
+            InviteStanding::AlreadyThisMember
+        } else {
+            InviteStanding::BoundToThisKey
+        });
     }
     if let Some(why) = state.invites.spent(&claim.digest) {
         return Err(gone(why));
@@ -95,14 +103,44 @@ pub(crate) async fn bind_contact(s: &RestState, claim: &InviteClaim, member: Uui
         s.projected(&ledger).invites.check(&event).map_err(refused)?;
     }
     let index = witness_event(s, event).await?;
+    // The binding is on the ledger now, so a book that can't be written does not undo it or fail
+    // the join (Legion, #961). Until the address is copied, nudges to the member have nowhere to go,
+    // and the operator's log says why.
+    if let Err(e) = copy_address(s, &claim.party_id, member) {
+        tracing::warn!("contact {} is bound to member {member}, but the address was not copied: {}",
+            claim.party_id, e.message);
+    }
+    tracing::info!("contact {} joined from an invite as member {member} (entry {index})", claim.party_id);
+    Ok(index)
+}
+
+fn copy_address(s: &RestState, party_id: &str, member: Uuid) -> Result<(), ApiError> {
     let mut book = load_book(s)?;
-    if let Some(address) = book.contacts.get(&claim.party_id).map(|c| c.address.clone()) {
+    if let Some(address) = book.contacts.get(party_id).map(|c| c.address.clone()) {
         book.members.entry(member.to_string())
             .or_insert(MemberAddress { address, added_at: Utc::now() });
         book.save(&book_path(s)).map_err(ApiError::internal)?;
     }
-    tracing::info!("contact {} joined from an invite as member {member} (entry {index})", claim.party_id);
-    Ok(index)
+    Ok(())
+}
+
+/// The invite a queued join carried, bound now that the operator admits it (Legion, #961). The
+/// caller holds `COMMITMENT_LOCK` through the admission. An invite that stopped being good while
+/// the join waited (withdrawn, its contact erased or bound by another) binds nothing: the
+/// operator's admission stands on its own, and the log says why.
+pub(crate) async fn bind_queued(s: &RestState, jr: &hub_lib::state::JoinRequest) -> Result<Option<u64>, ApiError> {
+    let (Some(party_id), Some(digest)) = (&jr.invite_party_id, &jr.invite_digest) else { return Ok(None) };
+    let claim = InviteClaim { party_id: party_id.clone(), digest: digest.clone() };
+    let state = { let l = s.ledger.lock().await; s.projected(&l) };
+    match invite_standing(s, &state, &claim, jr.member_lct_id) {
+        Ok(InviteStanding::Open) => bind_contact(s, &claim, jr.member_lct_id).await.map(Some),
+        Ok(_) => Ok(None),
+        Err(e) if e.status.is_server_error() => Err(e),
+        Err(e) => {
+            tracing::warn!("admitting {} without binding contact {}: {}", jr.member_lct_id, claim.party_id, e.message);
+            Ok(None)
+        }
+    }
 }
 
 /// `POST /admin/api/contacts/:party_id/invite` — mint an invite for one contact.
@@ -248,7 +286,13 @@ pub(in crate::rest) async fn invite_page(
     };
     let hub = esc(&s.hub_name);
     let Some(contact) = book.contacts.get(&claim.party_id) else { return used_page() };
-    if state.invites.spent(&claim.digest).is_some() || state.invites.bound.contains_key(&claim.party_id) {
+    // An invite bound to a key that was never admitted still shows its button: only that key can
+    // finish, and the route refuses every other.
+    let unfinished = state.invites.bound.get(&claim.party_id)
+        .is_some_and(|m| !state.members.contains_key(m) && state.invites.used.get(&claim.digest) == Some(&claim.party_id));
+    if !unfinished
+        && (state.invites.spent(&claim.digest).is_some() || state.invites.bound.contains_key(&claim.party_id))
+    {
         return used_page();
     }
     let body = format!(
@@ -461,6 +505,9 @@ admission:
             _ => None,
         });
         assert_eq!(added, Some(None), "a person's name never reaches the ledger (C3)");
+        let kinds: Vec<&str> = s.ledger.lock().await.entries().iter().map(|e| e.event.kind())
+            .filter(|k| *k == "contact_bound" || *k == "member_added").collect();
+        assert_eq!(kinds, vec!["contact_bound", "member_added"], "the binding is written before the admission");
         let book = load_book(&s).unwrap();
         assert_eq!(book.members[&lct.to_string()].address, "robin@example.org", "nudges follow the person");
 
@@ -522,9 +569,87 @@ admission:
         // The operator admits from the queue; opening the invite again then binds.
         let request = out["request_id"].as_str().unwrap().parse().unwrap();
         crate::rest::approve_join(&s, request, s.sovereign_lct_id).await.unwrap();
+        assert_eq!(bindings(&s).await, vec![(robin.clone(), lct, token_digest(&token))],
+            "the operator's admission binds the invite the join carried");
+        let before = len(&s).await;
         let (status, out) = join(&s, &kp, lct, Some(&token)).await;
         assert_eq!((status, out["status"].as_str()), (StatusCode::OK, Some("already_member")));
-        assert_eq!(bindings(&s).await, vec![(robin, lct, token_digest(&token))]);
+        assert_eq!(len(&s).await, before);
+    }
+
+    #[tokio::test]
+    async fn an_invite_withdrawn_while_its_join_waits_binds_nothing_at_admission() {
+        let (_tmp, s, robin) = hub(QUEUE_LAW).await;
+        let token = invite(&s, &robin).await;
+        let (status, out) = join(&s, &KeyPair::generate(), Uuid::new_v4(), Some(&token)).await;
+        assert_eq!(status, StatusCode::ACCEPTED, "{out}");
+        revoke(&s, &token_digest(&token)).await.unwrap();
+        let request = out["request_id"].as_str().unwrap().parse().unwrap();
+        crate::rest::approve_join(&s, request, s.sovereign_lct_id).await.unwrap();
+        assert!(bindings(&s).await.is_empty(), "the operator admitted a person, not a withdrawn invite");
+    }
+
+    /// A member admitted from the queue with no invite, holding `kp`: someone already in the hub.
+    async fn existing_member(s: &RestState, kp: &KeyPair) -> Uuid {
+        let lct = Uuid::new_v4();
+        let (status, out) = join(s, kp, lct, None).await;
+        assert_eq!(status, StatusCode::ACCEPTED, "{out}");
+        let request = out["request_id"].as_str().unwrap().parse().unwrap();
+        crate::rest::approve_join(s, request, s.sovereign_lct_id).await.unwrap();
+        lct
+    }
+
+    #[tokio::test]
+    async fn a_member_opening_someone_elses_invite_binds_nothing() {
+        let (_tmp, s, robin) = hub(PILOT_LAW).await;
+        let sam_kp = KeyPair::generate();
+        let sam = existing_member(&s, &sam_kp).await;
+        let token = invite(&s, &robin).await;
+        let before = len(&s).await;
+        let (status, out) = join(&s, &sam_kp, sam, Some(&token)).await;
+        assert_eq!(status, StatusCode::CONFLICT, "{out}");
+        assert!(out["error"].as_str().unwrap().contains("isn't yours"), "{out}");
+        assert_eq!(len(&s).await, before, "nothing is written");
+        assert!(!load_book(&s).unwrap().members.contains_key(&sam.to_string()), "nor is Robin's address moved");
+        // Robin, with Robin's own key, still can.
+        assert_eq!(join(&s, &KeyPair::generate(), Uuid::new_v4(), Some(&token)).await.0, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn a_join_stopped_between_binding_and_admission_fails_closed() {
+        let (_tmp, s, robin) = hub(PILOT_LAW).await;
+        let token = invite(&s, &robin).await;
+        let (alice_kp, alice) = (KeyPair::generate(), Uuid::new_v4());
+        // Alice's join bound the invite and then stopped before admitting her.
+        {
+            let _serial = COMMITMENT_LOCK.lock().await;
+            bind_contact(&s, &verify_invite(&s, &token).unwrap(), alice).await.unwrap();
+        }
+        // Bob, holding a forwarded copy, is refused.
+        let (status, out) = join(&s, &KeyPair::generate(), Uuid::new_v4(), Some(&token)).await;
+        assert_eq!(status, StatusCode::GONE, "{out}");
+        // Alice's page still offers the button, and her retry finishes the admission.
+        assert_eq!(page(&s, &format!("/j/{token}")).await.0, StatusCode::OK);
+        let (status, out) = join(&s, &alice_kp, alice, Some(&token)).await;
+        assert_eq!(status, StatusCode::OK, "{out}");
+        assert!({ let l = s.ledger.lock().await; s.projected(&l) }.members.contains_key(&alice));
+        assert_eq!(bindings(&s).await.len(), 1, "bound once");
+        assert_eq!(page(&s, &format!("/j/{token}")).await.0, StatusCode::GONE);
+    }
+
+    #[tokio::test]
+    async fn a_contact_book_that_cannot_be_written_does_not_undo_a_join() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_tmp, s, robin) = hub(PILOT_LAW).await;
+        let token = invite(&s, &robin).await;
+        let root = s.paths.root.clone();
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let lct = Uuid::new_v4();
+        let (status, out) = join(&s, &KeyPair::generate(), lct, Some(&token)).await;
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(status, StatusCode::OK, "{out}");
+        assert_eq!(bindings(&s).await.len(), 1);
+        assert!(!load_book(&s).unwrap().members.contains_key(&lct.to_string()), "the save really failed");
     }
 
     #[tokio::test]

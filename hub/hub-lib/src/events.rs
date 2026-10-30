@@ -365,6 +365,13 @@ pub enum HubEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         sponsor_note: Option<String>,
         requested_at: DateTime<Utc>,
+        /// Commitments K5b: the verified invite this join carried, as the contact's opaque id and
+        /// the invite's digest. The operator's admission binds it (Legion, #961): a member who
+        /// opens an invite later binds nothing.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        invite_party_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        invite_digest: Option<String>,
     },
 
     /// An operator (Sovereign) resolved a pending join request — approved or

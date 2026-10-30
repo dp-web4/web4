@@ -724,6 +724,11 @@ pub struct JoinRequest {
     pub reason: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolved_at: Option<DateTime<Utc>>,
+    /// The invite the join carried (commitments K5b), bound when the operator admits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invite_party_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invite_digest: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1167,6 +1172,7 @@ impl HubState {
             HubEvent::MemberJoinRequested {
                 request_id, member_lct_id, member_pubkey_hex, name, message,
                 sponsor_note, requested_at, anchor_level, asserted_trust_ceiling,
+                invite_party_id, invite_digest,
             } => {
                 self.pending_joins.insert(*request_id, JoinRequest {
                     request_id: *request_id,
@@ -1182,6 +1188,8 @@ impl HubState {
                     resolved_by: None,
                     reason: None,
                     resolved_at: None,
+                    invite_party_id: invite_party_id.clone(),
+                    invite_digest: invite_digest.clone(),
                 });
             }
             HubEvent::MemberJoinResolved {

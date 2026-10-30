@@ -5990,6 +5990,8 @@ async fn request_citizenship(
                     anchor_level: asserted_level,
                     asserted_trust_ceiling: asserted_ceiling,
                     requested_at: Utc::now(),
+                    invite_party_id: None,
+                    invite_digest: None,
                 }).await?;
                 return Ok(serde_json::json!({
                     "admitted": false,
@@ -6308,6 +6310,13 @@ async fn approve_join(s: &RestState, request_id: Uuid, resolved_by: Uuid) -> Res
                 "anchor ceiling refused by hub law".to_string()),
         });
     }
+    // A queued invited join: bind its invite before admitting, under the lock that keeps an
+    // invite to one binding (commitments K5b).
+    let _invite_serial = match &jr.invite_digest {
+        Some(_) => Some(commitments::COMMITMENT_LOCK.lock().await),
+        None => None,
+    };
+    commitments::bind_queued(s, &jr).await?;
     let (index, hash) =
         admit_member(s, jr.member_lct_id, &jr.member_pubkey_hex, jr.name.clone(), &anchor).await?;
     witness_event(s, HubEvent::MemberJoinResolved {
@@ -7942,18 +7951,23 @@ async fn submit_join(
         Some(_) => Some(commitments::COMMITMENT_LOCK.lock().await),
         None => None,
     };
-    if let Some(claim) = &invite {
-        let state = { let l = s.ledger.lock().await; s.projected(&l) };
-        if commitments::invite_standing(&s, &state, claim, payload.member_lct_id)?
-            == commitments::InviteStanding::AlreadyThisMember
-        {
-            return Ok((StatusCode::OK, Json(serde_json::json!({
-                "member_lct_id": payload.member_lct_id,
-                "status": "already_member",
-                "welcome": format!("already a member of {}", s.hub_name),
-            }))).into_response());
+    let standing = match &invite {
+        Some(claim) => {
+            let state = { let l = s.ledger.lock().await; s.projected(&l) };
+            Some(commitments::invite_standing(&s, &state, claim, payload.member_lct_id)?)
         }
+        None => None,
+    };
+    if standing == Some(commitments::InviteStanding::AlreadyThisMember) {
+        return Ok((StatusCode::OK, Json(serde_json::json!({
+            "member_lct_id": payload.member_lct_id,
+            "status": "already_member",
+            "welcome": format!("already a member of {}", s.hub_name),
+        }))).into_response());
     }
+    // Still open, so not yet bound: the binding is written before the admission, and a queued
+    // join carries the invite to the operator's admission.
+    let open_invite = invite.as_ref().filter(|_| standing == Some(commitments::InviteStanding::Open));
 
     // 2b. Idempotency: collapse repeat applications from the same LCT before the
     // law gate. Already a member → 200 already_member; an existing pending request
@@ -7961,10 +7975,12 @@ async fn submit_join(
     // applicant proceeds to evaluation.
     match admission_state(&s, payload.member_lct_id).await {
         AdmissionState::Member => {
-            // A member opening an invite (or an invited join the operator admitted from the
-            // queue, opened again) binds the contact now.
-            if let Some(claim) = &invite {
-                commitments::bind_contact(&s, claim, payload.member_lct_id).await?;
+            // An invite this member's own join did not carry is someone else's: binding it here
+            // would hand that contact's jobs and address to whoever opened a forwarded email
+            // (Legion, #961). The rare real case goes through the operator.
+            if invite.is_some() {
+                return Err(ApiError::conflict(
+                    "you're already a member here, so this invite isn't yours to use. If it should be, ask your organiser"));
             }
             return Ok((
                 StatusCode::OK,
@@ -8074,13 +8090,16 @@ async fn submit_join(
             if decision == Decision::Warn {
                 tracing::warn!("member join flagged by hub law (auto-admitting)");
             }
+            // The binding first (Legion, #961): if the admission then fails, the invite is spent
+            // on this key, which only its holder can finish with, rather than open to the next
+            // holder of a forwarded copy.
+            if let Some(claim) = open_invite {
+                commitments::bind_contact(&s, claim, payload.member_lct_id).await?;
+            }
             let (entry_index, entry_hash) = admit_member(
                 &s, payload.member_lct_id, &payload.member_pubkey_hex, payload.name.clone(),
                 &anchor,
             ).await?;
-            if let Some(claim) = &invite {
-                commitments::bind_contact(&s, claim, payload.member_lct_id).await?;
-            }
             Ok(Json(JoinAccepted {
                 member_lct_id: payload.member_lct_id,
                 entry_index,
@@ -8102,6 +8121,8 @@ async fn submit_join(
                 anchor_level: payload.anchor_level,
                 asserted_trust_ceiling: payload.trust_ceiling,
                 requested_at: Utc::now(),
+                invite_party_id: open_invite.map(|c| c.party_id.clone()),
+                invite_digest: open_invite.map(|c| c.digest.clone()),
             }).await?;
             Ok((
                 StatusCode::ACCEPTED,
