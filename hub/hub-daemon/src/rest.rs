@@ -1395,6 +1395,11 @@ impl RestState {
             (IgnitionPolicy::held(p), IgnitionPolicy::min_tier(p))
         };
         let path = hub_lib::ignition::ignition_path(&self.paths.root);
+        // A person is in, so the hub is not dark: clear the alarm whatever the law says next
+        // (supervisor, #969: the held: false arm used to return before this).
+        if via == IgnitionVia::Human {
+            self.ignition.set_boot(0);
+        }
         if !held {
             if path.exists() {
                 self.release_held(&path, IgnitionRelease::LawOff).await;
@@ -1409,7 +1414,6 @@ impl RestState {
                 }
             }
             IgnitionVia::Human => {
-                self.ignition.set_boot(0);
                 let Some(sealer) = self.ignition.sealer.clone() else { return };
                 // Whatever this unlock ends up holding, an earlier copy must not outlive it
                 // unrecorded: if it ends up holding nothing, the earlier hold is released on the
@@ -1488,7 +1492,10 @@ impl RestState {
         };
         match self.try_unlock_as(&passphrase, now, hub_lib::events::IgnitionVia::Held, Some(tier)).await {
             UnlockOutcome::Unlocked { .. } => {
-                self.ignition.set_boot(1);
+                // "ok" only if the law kept the copy; a release during the unlock left "none".
+                if path.exists() {
+                    self.ignition.set_boot(1);
+                }
                 if let Err(e) = hydrate_law_defaults(self).await {
                     tracing::warn!("law-default hydration skipped: {e}");
                 }
@@ -3196,9 +3203,11 @@ struct WellKnownHubInfo {
     /// serve a signed starter law; a no-law public hub is dev-only. Exposed so
     /// clients/operators can detect the posture without guessing.
     law_present: bool,
-    /// Held ignition (PRD_HELD_IGNITION §3.5): `"none"` (no sealed passphrase), `"ok"` or
-    /// `"failed"`, with no reason text, because this document is public. A health check pages a
-    /// person on `"failed"`.
+    /// Held ignition (PRD_HELD_IGNITION §3.5), with no reason text because this document is
+    /// public: `"ok"` (this boot unlocked from a held copy, and it is still held), `"failed"` (a
+    /// held copy did not unlock this boot, and no person has unlocked since) or `"none"`
+    /// (neither: nothing held, or a person has unlocked). A health check pages a person on
+    /// `"failed"`.
     held_ignition: &'static str,
     /// Hubs this server hosts. Single-hub deployments return one entry;
     /// future multi-hub hosting returns multiple.
@@ -18708,6 +18717,22 @@ norms: []
         }
     }
 
+    /// Supervisor, #969: under `held: false`, a failed held boot followed by a person's unlock
+    /// deletes the copy AND clears the alarm, or a health check pages an unlocked hub forever.
+    #[tokio::test]
+    async fn a_persons_unlock_clears_the_alarm_even_when_the_law_says_not_held() {
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = held_test_hub(pass, hub_lib::law::IgnitionTier::HostKey).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        state.ignition.sealer.as_ref().unwrap().seal("an old passphrase", &path).unwrap();
+        put_law_in_store(&state, &format!("{VALID_LAW}ignition:\n  held: false\n")).await;
+        state.held_boot(1_700_000_000).await;
+        assert_eq!(state.ignition.boot_state(), "failed");
+        assert!(matches!(state.try_unlock(pass, 1_700_000_010).await, UnlockOutcome::Unlocked { .. }));
+        assert!(!path.exists());
+        assert_eq!(state.ignition.boot_state(), "none");
+    }
+
     /// PRD_HELD_IGNITION §3.1, §3.5: the law decides. `held: false` deletes a copy the law no
     /// longer wants (and seals nothing new); a seal below `min_tier` is used once, then deleted;
     /// a host that can only seal below `min_tier` holds nothing.
@@ -18736,6 +18761,8 @@ norms: []
             let got = ignition_events(state.ledger.lock().await.entries());
             let rel: Vec<_> = got.iter().filter_map(|e| match e { HubEvent::IgnitionReleased { reason } => Some(*reason), _ => None }).collect();
             assert_eq!(rel, released.into_iter().collect::<Vec<_>>(), "{rule}: {got:?}");
+            // "ok" only while a held copy is still held.
+            assert_eq!(state.ignition.boot_state(), if released.is_some() { "none" } else { "ok" }, "{rule}");
 
             // A person's unlock under the same law: nothing new is held unless the law allows it.
             relock(&state);
