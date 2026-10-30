@@ -2050,6 +2050,12 @@ pub fn router(state: RestState) -> Router {
         // browser's own signed POST to /members/join, carrying the invite as evidence for law.
         .route("/j/:token", get(commitments::invite_page))
         .route("/join.js", get(commitments::join_js))
+        // Commitments K5c: a member's own view. The browser key signs a challenge for a 12-hour,
+        // HttpOnly, SameSite=Strict session that reads only that member's jobs.
+        .route("/me", get(commitments::me_page))
+        .route("/me.js", get(commitments::me_js))
+        .route("/me/session", post(commitments::me_session))
+        .route("/me/view", get(commitments::me_view))
         .route("/discuss", get(discuss_html))
         // The client's script and style are files of their own so its page can forbid inline ones.
         .route("/client", get(client_html))

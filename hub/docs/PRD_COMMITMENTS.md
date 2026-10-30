@@ -313,7 +313,8 @@ K5 adds four things.
   - Both key writes ask for `{durability:'strict'}`, so the write is on disk before the old JWK is deleted.
   - `navigator.storage.persisted()` is checked on every load and persistence is requested again. When the browser refuses, `/client` and the join page say so. Unverified: Firefox may ask the person again on each `persist()` call while storage is not persisted.
 - **K5b2: commitments follow the binding.** A commitment that names the contact reads its role for the member: role checks, nudge targets and acknowledgements. Split from K5b so each PR stays reviewable.
-- **K5c: `/me`.**
+- **K5c: `/me`, the read view.**
+- **K5c2: answering from `/me`.** The page's answers go out as signed envelopes recorded `via: member_act`. Split from K5c so the session and the view are reviewed on their own.
 
 **K5b as built.**
 - **The invite** is `<party_id>.<nonce>.<expires>.<MAC>` under `web4-hub invite v1`, with the K4 key file. A movement link has the same number of fields, so only the label tells them apart, and a test holds that each is unreadable as the other. The nonce makes every invite distinct: one minted in the same second as a withdrawn one is not the dead one.
@@ -350,6 +351,17 @@ K5 adds four things.
 - **A joiner can't take a contact's id.** Commitments read a contact and a member by the same string, so the join route refuses, with 409, a member id that is a contact's party id in the book or a bound party id (Legion, #962). The hub mints contact ids, so a real joiner never collides.
 - **Open: a binding has no undo.** A wrong binding now moves the contact's jobs, acknowledgements, deliveries and old links, not just an address. An invite bound to a key that law then refuses stays bound to a non-member, and the contact's jobs then name that key. It fails closed: no one else can use the invite, and the key can't act as a member. An operator unbind (or re-mint) is the remedy, built when a chapter needs it.
 - **Replay and handoff nudges (supervisor, #958).** Replaying a ledger derives the K4b handoff nudges for every open commitment whose latest entry is a handoff. A hub that first runs K4b over a ledger that already has handoffs nudges those parties once, about a move that may be old. The live hub predates K1, so it has none; a hub upgraded mid-pilot should expect this.
+
+**K5c as built.**
+- **`GET /me`** is a page under `KEY_PAGE_CSP` that runs only `/keystore.js` and `/me.js`. It writes nothing.
+- **The script asks `GET /me/view` first.** On a 401 it signs a fresh `/v1/auth/challenge` nonce with the browser's key (`action: "me_session"`), posts the envelope to `POST /me/session`, and asks again. A click from an email therefore never shows a sign-in, even though a Strict cookie isn't sent on that click.
+- **The session is a MAC token under its own label,** `web4-hub member session v1`, with the K4 key file. It holds `<member>.<key print>.<nonce>.<expires>.<MAC>` and is good for 12 hours. The key print is the first 64 bits of the SHA-256 of the signer's public key hex.
+  - The cookie is `hub_me`: `Path=/me`, `HttpOnly`, `SameSite=Strict`, and `Secure` whenever `HUB_PUBLIC_BASE_URL` is https.
+  - Only a current member gets one. The signature is checked against the live resolver, and the signer must be in the projection.
+  - A member removed since the session began reads nothing more.
+  - So does a session begun with a key the member has since replaced: every read compares the print with the key the hub resolves for the member now (Legion, #964). The page's silent re-sign then signs in with the new key.
+- **The view** lists open jobs only: **mine** (I'm the owner) and **I'm backing up**. Each row carries the title, the due date, `late` (past due), `waiting_on_you` (the queue sits at my position) and the other party's name. The page builds rows from text nodes, never markup. The response is `no-store`.
+- **No session list (Legion, #964).** The browser key is the credential, not the session: a device that holds the key can sign a fresh session whenever it likes. Revoking a session therefore buys little. Removing the member, or replacing their key, ends their sessions. The one thing that isn't possible is signing a device out while it keeps its key; for a 12-hour read of one's own jobs, that is the trade.
 
 **Questions asked, and answered (Legion, #959, 10-29 20:17Z):**
 - (a) **Does an invite admit on its own?** Yes, because an invite is no more trust than the K4 link the contact already holds. It holds only with the five conditions in (1): atomic once, MAC verified, 7-day life, revocation, and the operator told.
