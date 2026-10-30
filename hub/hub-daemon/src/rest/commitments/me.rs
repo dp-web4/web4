@@ -288,7 +288,9 @@ async function main(){
     out.appendChild(section('I\'m backing up',v.backing_up,'backup'));
     if(await ensurePersisted()===false){ const n=$('#persist'); n.textContent=NOT_PERSISTED; n.hidden=false; }
   }catch(e){
-    say('err',e.message==='LEGACY_UNREADABLE'?'This browser holds an older key that can\'t be read. Ask your organiser.'
+    if(e.message==='NO_ED25519')countUnsupported();
+    say('err',e.message==='NO_ED25519'?NO_KEY_SUPPORT
+      :e.message==='LEGACY_UNREADABLE'?'This browser holds an older key that can\'t be read. Ask your organiser.'
       :'Something went wrong: '+e.message);
   }
 }

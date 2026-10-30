@@ -2049,6 +2049,7 @@ pub fn router(state: RestState) -> Router {
         // Commitments K5b: the page an invite opens. Reading it writes nothing; the join is the
         // browser's own signed POST to /members/join, carrying the invite as evidence for law.
         .route("/j/:token", get(commitments::invite_page))
+        .route("/j/unsupported", post(commitments::count_unsupported))
         .route("/join.js", get(commitments::join_js))
         // Commitments K5c: a member's own view. The browser key signs a challenge for a 12-hour,
         // HttpOnly, SameSite=Strict session that reads only that member's jobs.
@@ -8527,6 +8528,10 @@ async function ensurePersisted(){
   if(!st||!st.persisted)return null;
   try{ return (await st.persisted())||(st.persist?await st.persist():false); }catch(e){ return false; }
 }
+// What a volunteer can do when this browser can't hold a key, before routing them to the organiser
+// (cbp-pm, #959). The page also tells the hub, which counts refusals by browser family only.
+const NO_KEY_SUPPORT='This browser can\'t keep your key safely. Open this link in a current Chrome, Safari or Firefox (on a phone or laptop updated in the last two years). Still stuck? Ask your organiser.';
+function countUnsupported(){ fetch('/j/unsupported',{method:'POST'}).catch(()=>{}); }
 const NOT_PERSISTED='This browser hasn\'t agreed to keep your key for good. If you don\'t come back for a few weeks, it may be cleared; if that happens, ask your organiser for a new invite.';
 
 async function loadID(){

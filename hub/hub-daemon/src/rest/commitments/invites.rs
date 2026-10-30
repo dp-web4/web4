@@ -281,7 +281,42 @@ async fn list(s: &RestState) -> Result<serde_json::Value, ApiError> {
             _ => {}
         }
     }
-    Ok(serde_json::json!({ "joined": joined, "revoked": revoked }))
+    Ok(serde_json::json!({ "joined": joined, "revoked": revoked, "unsupported_browsers": unsupported_counts() }))
+}
+
+/// Browser families the refusal count is kept by. Nothing finer is kept: no version, no address,
+/// no time (cbp-pm, #959).
+const BROWSER_FAMILIES: [&str; 6] = ["chrome", "edge", "firefox", "safari", "webview", "other"];
+static UNSUPPORTED: [std::sync::atomic::AtomicU64; 6] = [const { std::sync::atomic::AtomicU64::new(0) }; 6];
+
+fn browser_family(user_agent: &str) -> usize {
+    let has = |s: &str| user_agent.contains(s);
+    if has("FBAN") || has("FBAV") || has("Instagram") || has("; wv)") || has("GSA/") { 4 }
+    else if has("Edg/") { 1 }
+    else if has("Firefox/") || has("FxiOS/") { 2 }
+    else if has("Chrome/") || has("CriOS/") { 0 }
+    else if has("Safari/") { 3 }
+    else { 5 }
+}
+
+fn unsupported_counts() -> serde_json::Value {
+    BROWSER_FAMILIES.iter().zip(&UNSUPPORTED)
+        .map(|(f, n)| (f.to_string(), serde_json::json!(n.load(std::sync::atomic::Ordering::Relaxed))))
+        .collect::<serde_json::Map<_, _>>().into()
+}
+
+/// `POST /j/unsupported` — a page found this browser can't hold a key. Takes no body: the family
+/// comes from the User-Agent header and is all that is kept, in memory, until the hub restarts.
+/// The operator reads the tally in `GET /admin/api/invites`, so the first chapter run gives the
+/// real refusal rate.
+///
+/// surface: count_unsupported   act: none (an in-memory tally; nothing is written or sent)
+/// S: low/reversible   R: n/a [anyone may report; a false report moves one number]   W: n/a   O: n/a   A: n/a   V: n/a
+/// verdict: PASS
+pub(in crate::rest) async fn count_unsupported(headers: axum::http::HeaderMap) -> StatusCode {
+    let ua = headers.get(axum::http::header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or("");
+    UNSUPPORTED[browser_family(ua)].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    StatusCode::NO_CONTENT
 }
 
 /// `GET /j/:token` — the page an invite opens: "Join <hub>". Reading it writes nothing; the
@@ -385,7 +420,8 @@ async function join(){
     else if(r.status===202){ b.hidden=true; say('muted','Your organiser will confirm you. Once they have, open this link again.'); }
     else { say('err',out.error||('Something went wrong ('+r.status+').')); b.disabled=false; }
   }catch(e){
-    say('err',e.message==='NO_ED25519'?'This browser cannot hold a signing key. Ask your organiser.'
+    if(e.message==='NO_ED25519')countUnsupported();
+    say('err',e.message==='NO_ED25519'?NO_KEY_SUPPORT
       :e.message==='LEGACY_UNREADABLE'?'This browser holds an older key that can\'t be read. Ask your organiser.'
       :'Something went wrong: '+e.message);
     b.disabled=false;
@@ -931,6 +967,35 @@ admission:
         assert!(bindings(&s).await.is_empty());
         // Robin, with Robin's own key, still can.
         assert_eq!(join(&s, &KeyPair::generate(), Uuid::new_v4(), Some(&token)).await.0, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn a_browser_that_cannot_hold_a_key_is_told_what_to_do_and_counted_by_family_only() {
+        let ua = |s: &str| BROWSER_FAMILIES[browser_family(s)];
+        assert_eq!(ua("Mozilla/5.0 (iPhone; CPU iPhone OS 16_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"), "safari");
+        assert_eq!(ua("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"), "chrome");
+        assert_eq!(ua("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"), "edge");
+        assert_eq!(ua("Mozilla/5.0 (X11; Linux x86_64; rv:115.0) Gecko/20100101 Firefox/115.0"), "firefox");
+        assert_eq!(ua("Mozilla/5.0 (Linux; Android 13; Pixel 7; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/118.0 Mobile Safari/537.36"), "webview");
+        assert_eq!(ua(""), "other");
+
+        let (_tmp, s, _robin) = hub(PILOT_LAW).await;
+        let before = list(&s).await.unwrap()["unsupported_browsers"]["firefox"].as_u64().unwrap();
+        let entries = len(&s).await;
+        use tower::ServiceExt;
+        let req = axum::http::Request::builder().method("POST").uri("/j/unsupported")
+            .header(axum::http::header::USER_AGENT, "Mozilla/5.0 (X11; Linux x86_64; rv:115.0) Gecko/20100101 Firefox/115.0")
+            .body(axum::body::Body::empty()).unwrap();
+        assert_eq!(crate::rest::router(s.clone()).oneshot(req).await.unwrap().status(), StatusCode::NO_CONTENT);
+        let after = list(&s).await.unwrap()["unsupported_browsers"]["firefox"].as_u64().unwrap();
+        assert!(after > before, "counted");
+        assert_eq!(len(&s).await, entries, "nothing reaches the ledger");
+
+        // Both volunteer pages say what to do, from one text, and report the refusal.
+        for js in [JOIN_JS, super::super::ME_JS] {
+            assert!(js.contains("e.message==='NO_ED25519'?NO_KEY_SUPPORT") && js.contains("countUnsupported()"), "{js}");
+        }
+        assert!(crate::rest::KEYSTORE_JS.contains("Open this link in a current Chrome, Safari or Firefox"));
     }
 
     #[tokio::test]
