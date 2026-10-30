@@ -969,6 +969,11 @@ pub(crate) async fn act_as(
 ) -> Result<serde_json::Value, ApiError> {
     let _serial = COMMITMENT_LOCK.lock().await;
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    // A member's own word needs a member, checked under the lock so a removal can't land between
+    // the check and the entry (Legion, #965).
+    if via == AckVia::MemberAct && !Uuid::parse_str(party_id).is_ok_and(|m| state.members.contains_key(&m)) {
+        return Err(ApiError { status: StatusCode::FORBIDDEN, message: "only a member answers here".into() });
+    }
     let party_id = state.invites.canonical_id(party_id);
     let c = projected_commitment(&state, commitment_id)?;
     let role = role_of(&state, &c, &party_id).ok_or_else(|| ApiError {

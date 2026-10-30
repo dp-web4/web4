@@ -367,7 +367,7 @@ K5 adds four things.
 **K5c2 as built.**
 - **Each row in `/me/view` carries the answers a link would offer,** labelled the same way ("Yes, it's mine", "Hand it to Sam"…). There is one function behind both, `acts_for`.
 - **An answer is `POST /me/act`:** a signed envelope `{action: "commitment_act", commitment_id, act}` from the browser's key. The session cookie reads; it never writes.
-- **The hub checks before it writes.** It verifies the envelope against the live resolver and requires the signer to be a member now. Then, under the lock, the shared `act_as` re-derives the role and the open answers, the same path a link takes. The entry is recorded `via: member_act` with no link digest: the member's own word, the strongest evidence an answer carries (§5.1).
+- **The hub checks before it writes.** It verifies the envelope against the live resolver. Then, under the lock, the shared `act_as` requires the signer to be a member now (so a removal can't land between the check and the entry; Legion, #965) and re-derives the role and the open answers, the same path a link takes. The entry is recorded `via: member_act` with no link digest: the member's own word, the strongest evidence an answer carries (§5.1).
 - **Refusals write nothing:**
   - not named on the job: 403;
   - a key signing for another member: 401;

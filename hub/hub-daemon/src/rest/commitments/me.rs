@@ -207,12 +207,8 @@ pub(in crate::rest) async fn me_act(
     let commitment_id = field("commitment_id")?;
     let act = LinkAct::parse(field("act")?)
         .ok_or_else(|| ApiError::bad_request("act is one of acknowledge, update, done, stuck, handoff, take"))?;
-    let member = envelope.signer_lct_id;
-    let is_member = { let l = s.ledger.lock().await; s.projected(&l).members.contains_key(&member) };
-    if !is_member {
-        return Err(ApiError { status: StatusCode::FORBIDDEN, message: "only a member answers here".into() });
-    }
-    act_as(&s, commitment_id, &member.to_string(), act, AckVia::MemberAct, None).await.map(Json)
+    // act_as checks that the signer is a member, under the commitments lock.
+    act_as(&s, commitment_id, &envelope.signer_lct_id.to_string(), act, AckVia::MemberAct, None).await.map(Json)
 }
 
 /// `GET /me` — the page. It holds the browser key, so it runs only its own files.
