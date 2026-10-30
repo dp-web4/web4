@@ -7942,6 +7942,12 @@ async fn submit_join(
     let mut adhoc = MapResolver::new();
     adhoc.insert(applicant_lct.clone());
     let _redeemed = verify_envelope(&envelope, &s.nonces, &adhoc, Utc::now())?;
+    {
+        let state = { let l = s.ledger.lock().await; s.projected(&l) };
+        if commitments::names_a_contact(&s, &state, payload.member_lct_id)? {
+            return Err(ApiError::conflict("that id is already in use here. Start again to make a new key"));
+        }
+    }
 
     // 2a. Commitments K5b: an invite is evidence that the operator chose this person, verified by
     // its MAC and date before anything is decided. From here to the binding the commitments lock

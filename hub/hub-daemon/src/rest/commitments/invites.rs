@@ -81,6 +81,14 @@ pub(crate) fn invite_standing(s: &RestState, state: &HubState, claim: &InviteCla
     if state.invites.bound.contains_key(&claim.party_id) {
         return Err(ApiError::conflict("this contact is already a member"));
     }
+    // A forwarded copy must not queue behind the real invitee: whoever the operator admitted first
+    // would take the contact (Legion, #961). The operator denies the wrong one to free it.
+    if state.pending_joins.values().any(|j| j.status == hub_lib::state::JoinStatus::Pending
+        && j.invite_digest.as_deref() == Some(claim.digest.as_str()) && j.member_lct_id != member)
+    {
+        return Err(ApiError::conflict(
+            "this invite is already waiting for your organiser with someone else's join. Ask your organiser"));
+    }
     // An erased contact's invite dies with the details it was for (C3).
     if !load_book(s)?.contacts.contains_key(&claim.party_id) {
         return Err(gone("this invite's contact is no longer in the hub's book"));
@@ -88,9 +96,17 @@ pub(crate) fn invite_standing(s: &RestState, state: &HubState, claim: &InviteCla
     Ok(InviteStanding::Open)
 }
 
+/// Does `lct` spell a contact's party id? Commitments read a contact and a member by the same
+/// string, so a joiner who picked a contact's id as their own would be taken for that contact
+/// (Legion, #962). Contact ids are minted by the hub, so a real joiner never collides.
+pub(crate) fn names_a_contact(s: &RestState, state: &HubState, lct: Uuid) -> Result<bool, ApiError> {
+    let id = lct.to_string();
+    Ok(state.invites.bound.contains_key(&id) || load_book(s)?.contacts.contains_key(&id))
+}
+
 /// Witness `ContactBound` and copy the contact's address to the member's entry, so nudges keep
 /// reaching the same person once they are named as the member. The caller holds `COMMITMENT_LOCK`
-/// and has just admitted `member` (or found them already a member).
+/// and admits `member` next (Legion, #961).
 pub(crate) async fn bind_contact(s: &RestState, claim: &InviteClaim, member: Uuid) -> Result<u64, ApiError> {
     let event = HubEvent::ContactBound {
         party_id: claim.party_id.clone(),
@@ -100,7 +116,14 @@ pub(crate) async fn bind_contact(s: &RestState, claim: &InviteClaim, member: Uui
     };
     {
         let ledger = s.ledger.lock().await;
-        s.projected(&ledger).invites.check(&event).map_err(refused)?;
+        let state = s.projected(&ledger);
+        state.invites.check(&event).map_err(refused)?;
+        // The fold drops a binding that would make one person both owner and backup of an open
+        // job, so the writer refuses it first: a 200 for a binding the projection ignores would be
+        // false (Legion, #962).
+        if let Some(why) = hub_lib::commitments::bind_conflict(&state.commitments, &claim.party_id, &member.to_string()) {
+            return Err(ApiError::conflict(why));
+        }
     }
     let index = witness_event(s, event).await?;
     // The binding is on the ledger now, so a book that can't be written does not undo it or fail
@@ -132,6 +155,16 @@ pub(crate) async fn bind_queued(s: &RestState, jr: &hub_lib::state::JoinRequest)
     let (Some(party_id), Some(digest)) = (&jr.invite_party_id, &jr.invite_digest) else { return Ok(None) };
     let claim = InviteClaim { party_id: party_id.clone(), digest: digest.clone() };
     let state = { let l = s.ledger.lock().await; s.projected(&l) };
+    // The request was read before the lock. Under it, the join must still be waiting and its key
+    // still not a member: a key admitted meanwhile would take the invite by the member path that
+    // submit_join refuses (Legion, #961).
+    if state.pending_joins.get(&jr.request_id).map(|j| &j.status) != Some(&hub_lib::state::JoinStatus::Pending) {
+        return Err(ApiError::conflict(format!("join request {} is no longer waiting", jr.request_id)));
+    }
+    if state.members.contains_key(&jr.member_lct_id) {
+        return Err(ApiError::conflict(
+            "this key became a member while its join waited, so the invite it carried isn't its to use. Deny the request"));
+    }
     match invite_standing(s, &state, &claim, jr.member_lct_id) {
         Ok(InviteStanding::Open) => bind_contact(s, &claim, jr.member_lct_id).await.map(Some),
         Ok(_) => Ok(None),
@@ -702,6 +735,94 @@ admission:
         assert!(!load_book(&s).unwrap().members.contains_key(&sam.to_string()), "nor is Robin's address moved");
         // Robin, with Robin's own key, still can.
         assert_eq!(join(&s, &KeyPair::generate(), Uuid::new_v4(), Some(&token)).await.0, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn a_forwarded_copy_cannot_queue_behind_the_invitee() {
+        let (_tmp, s, robin) = hub(QUEUE_LAW).await;
+        let token = invite(&s, &robin).await;
+        let (alice_kp, alice) = (KeyPair::generate(), Uuid::new_v4());
+        let (status, out) = join(&s, &alice_kp, alice, Some(&token)).await;
+        assert_eq!(status, StatusCode::ACCEPTED, "{out}");
+        let first: Uuid = out["request_id"].as_str().unwrap().parse().unwrap();
+        // Bob holds a forwarded copy: refused, and nothing queued.
+        let before = len(&s).await;
+        let (status, out) = join(&s, &KeyPair::generate(), Uuid::new_v4(), Some(&token)).await;
+        assert_eq!(status, StatusCode::CONFLICT, "{out}");
+        assert!(out["error"].as_str().unwrap().contains("already waiting"), "{out}");
+        assert_eq!(len(&s).await, before);
+        // Alice asking again is her own request, not a second one.
+        assert_eq!(join(&s, &alice_kp, alice, Some(&token)).await.1["request_id"], serde_json::json!(first));
+        // The operator denies the wrong one, and the invite is free again.
+        crate::rest::deny_join(&s, first, s.sovereign_lct_id, None).await.unwrap();
+        assert_eq!(join(&s, &KeyPair::generate(), Uuid::new_v4(), Some(&token)).await.0, StatusCode::ACCEPTED);
+    }
+
+    #[tokio::test]
+    async fn an_invited_join_rechecks_its_request_under_the_lock() {
+        let (_tmp, s, robin) = hub(QUEUE_LAW).await;
+        let token = invite(&s, &robin).await;
+        let (kp, lct) = (KeyPair::generate(), Uuid::new_v4());
+        let (status, out) = join(&s, &kp, lct, Some(&token)).await;
+        assert_eq!(status, StatusCode::ACCEPTED, "{out}");
+        let request: Uuid = out["request_id"].as_str().unwrap().parse().unwrap();
+        let read_early = { let l = s.ledger.lock().await; s.projected(&l) }.pending_joins[&request].clone();
+
+        // Resolved after approve_join read it: the binding is refused, not written.
+        crate::rest::deny_join(&s, request, s.sovereign_lct_id, None).await.unwrap();
+        let before = len(&s).await;
+        let refused = { let _serial = COMMITMENT_LOCK.lock().await; bind_queued(&s, &read_early).await.unwrap_err() };
+        assert_eq!(refused.status, StatusCode::CONFLICT, "{}", refused.message);
+        assert_eq!(len(&s).await, before);
+
+        // Queued again, then admitted another way while it waits: the member path that submit_join
+        // refuses is refused here too, and the operator's approval writes nothing.
+        let (kp, lct) = (KeyPair::generate(), Uuid::new_v4());
+        let (status, out) = join(&s, &kp, lct, Some(&token)).await;
+        assert_eq!(status, StatusCode::ACCEPTED, "{out}");
+        let request = out["request_id"].as_str().unwrap().parse().unwrap();
+        let anchor = { let g = s.law.read().await; hub_lib::law::resolve_anchor_verdict(g.as_ref(), None, None) };
+        crate::rest::admit_member(&s, lct, &kp.verifying_key().to_hex(), None, &anchor).await.unwrap();
+        let before = len(&s).await;
+        let refused = crate::rest::approve_join(&s, request, s.sovereign_lct_id).await.unwrap_err();
+        assert_eq!(refused.status, StatusCode::CONFLICT, "{}", refused.message);
+        assert_eq!(len(&s).await, before);
+        assert!(bindings(&s).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_joiner_cannot_take_a_contacts_id() {
+        let (_tmp, s, robin) = hub(PILOT_LAW).await;
+        let before = len(&s).await;
+        let (status, out) = join(&s, &KeyPair::generate(), robin.parse().unwrap(), None).await;
+        assert_eq!(status, StatusCode::CONFLICT, "{out}");
+        assert_eq!(len(&s).await, before);
+        // Once bound and erased from the book, the id is still the member's alias.
+        let token = invite(&s, &robin).await;
+        assert_eq!(join(&s, &KeyPair::generate(), Uuid::new_v4(), Some(&token)).await.0, StatusCode::OK);
+        erase_contact(&s, &robin).await.unwrap();
+        let before = len(&s).await;
+        let (status, out) = join(&s, &KeyPair::generate(), robin.parse().unwrap(), None).await;
+        assert_eq!(status, StatusCode::CONFLICT, "{out}");
+        assert_eq!(len(&s).await, before);
+    }
+
+    #[tokio::test]
+    async fn the_hub_refuses_a_binding_its_projection_would_drop() {
+        let (_tmp, s, robin) = hub(PILOT_LAW).await;
+        let (sam_kp, role) = (KeyPair::generate(), leads_role(&s).await);
+        let sam = existing_member(&s, &sam_kp).await;
+        open_for(&s, PartyRef { party_id: robin.clone(), kind: PartyKind::Contact },
+            PartyRef { party_id: sam.to_string(), kind: PartyKind::Member }, role).await;
+        let token = invite(&s, &robin).await;
+        let before = len(&s).await;
+        let refused = {
+            let _serial = COMMITMENT_LOCK.lock().await;
+            bind_contact(&s, &verify_invite(&s, &token).unwrap(), sam).await.unwrap_err()
+        };
+        assert_eq!(refused.status, StatusCode::CONFLICT, "{}", refused.message);
+        assert!(refused.message.contains("owner and backup"), "{}", refused.message);
+        assert_eq!(len(&s).await, before);
     }
 
     #[tokio::test]
