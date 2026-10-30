@@ -308,8 +308,10 @@ K5 adds four things.
 - **K5b: invite, join, `ContactBound`, `InviteRevoked`, the admission notice.**
 - **K5a2: Legion's #960 follow-ups.**
   - A key is stored with `add`, never `put`. A second tab that also found no key gets the stored key back instead of replacing one that may already be admitted. A migration that loses that race leaves the old JWK alone.
+    - The losing tab's error is read from the failed request: IndexedDB fires the request's error before the abort sets the transaction's (Legion, #963).
+    - **Known gap:** if a fresh key wins against a migration, the old JWK stays in `localStorage` and is never read again. That is an extractable key that may be admitted, the exposure K5a exists to remove. The race is rare. Recovering that person goes through the organiser.
   - Both key writes ask for `{durability:'strict'}`, so the write is on disk before the old JWK is deleted.
-  - `navigator.storage.persisted()` is checked on every load and persistence is requested again. When the browser refuses, `/client` and the join page say so.
+  - `navigator.storage.persisted()` is checked on every load and persistence is requested again. When the browser refuses, `/client` and the join page say so. Unverified: Firefox may ask the person again on each `persist()` call while storage is not persisted.
 - **K5b2: commitments follow the binding.** A commitment that names the contact reads its role for the member: role checks, nudge targets and acknowledgements. Split from K5b so each PR stays reviewable.
 - **K5c: `/me`.**
 

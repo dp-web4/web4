@@ -8494,7 +8494,9 @@ async function idbDo(mode,f,opts){
   return new Promise((ok,no)=>{
     const tx=db.transaction(STORE,mode,opts), r=f(tx.objectStore(STORE));
     tx.oncomplete=()=>{ db.close(); ok(r.result); };
-    tx.onerror=tx.onabort=()=>{ db.close(); no(tx.error); };
+    // A failed request reaches onerror before the abort sets tx.error (Legion, #963).
+    tx.onerror=ev=>{ db.close(); no(ev.target.error||tx.error); };
+    tx.onabort=()=>{ db.close(); no(tx.error); };
   });
 }
 const idbGet=()=>idbDo('readonly',s=>s.get(SLOT));

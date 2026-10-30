@@ -27,10 +27,20 @@ function makeIdb(failPut) {
               get(k) { if (idbApi.hideNextGet) { idbApi.hideNextGet = false; return { result: undefined }; }
                        return { result: stores[n].get(k) }; },
               add(v, k) {
-                if (!failPut && stores[n].has(k)) {
-                  failed = true; tx.error = Object.assign(new Error('key exists'), { name: 'ConstraintError' });
-                }
                 if (failed) { setTimeout(() => tx.onabort && tx.onabort()); return {}; }
+                if (stores[n].has(k)) {
+                  // The IndexedDB order (Legion, #963): the request's error event reaches
+                  // tx.onerror first, while tx.error is still null; only the abort sets it.
+                  failed = true;
+                  const req = { error: Object.assign(new Error('key exists'), { name: 'ConstraintError' }) };
+                  tx.error = null;
+                  setTimeout(() => {
+                    tx.onerror && tx.onerror({ target: req });
+                    tx.error = req.error;
+                    tx.onabort && tx.onabort();
+                  });
+                  return req;
+                }
                 stores[n].set(k, v); return { result: k };
               },
               delete(k) { stores[n].delete(k); return { result: undefined }; },
