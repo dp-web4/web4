@@ -103,7 +103,12 @@ git filter-repo --force --quiet \
   --path LICENSE \
   --path PATENTS.md \
   --path-rename hub/mirror/README.md:README.md \
-  --path-rename hub/mirror/AGENTS.md:AGENTS.md
+  --path-rename hub/mirror/AGENTS.md:AGENTS.md \
+  --path-rename hub/mirror/.github/:.github/
+# hub/mirror/.github/ (web4#904 Phase 3) holds 4-hub's OWN workflows: its CI and the `hub-v*` tag
+# release. They are inert in web4 (GitHub reads only a root .github/) and land at 4-hub's root.
+# Adding a rename leaves every older commit's rewrite unchanged (none touched that path), so the
+# publish stays a fast-forward.
 
 # REFUSE to destroy a commit that exists only on the mirror.
 #

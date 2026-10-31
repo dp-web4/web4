@@ -27,6 +27,16 @@ cd hub && cargo build --release
 The monorepo layout is preserved so `hub/`'s relative path dependency on
 `../web4-core` resolves in this standalone clone.
 
+## Releases
+
+Tagged releases are cut **here**, on 4-hub: pushing a tag `hub-vX.Y.Z` (the version every hub
+crate carries) builds the `hub` daemon for Linux x86_64, Linux aarch64 and macOS Apple Silicon and
+publishes the tarballs with SHA-256 sums and a Sigstore provenance attestation each
+(`gh attestation verify <asset> --repo dp-web4/4-hub`). A pre-release version such as
+`0.1.0-alpha.0` publishes as a GitHub pre-release, never as `latest`. CI runs `cargo test --locked`
+on every push. Both workflows are authored in web4 under `hub/mirror/.github/` and carried here by
+the publish, like the rest of this tree.
+
 ## Where development happens
 
 This repository is a **read-only mirror**, published from the

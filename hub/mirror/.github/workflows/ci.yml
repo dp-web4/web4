@@ -1,0 +1,34 @@
+name: ci
+
+# 4-hub's own CI (web4#904 Phase 3). Authored in dp-web4/web4 at hub/mirror/.github/workflows/ci.yml
+# and carried here by scripts/publish-4-hub.sh; edit it there, never in 4-hub.
+#
+# The same `cargo test --locked` web4's ci.yml runs for hub/, re-run on the mirror's own tree. Its
+# job is to prove the STANDALONE clone builds and passes: the kept path set in publish-4-hub.sh must
+# hold the hub's whole path-dependency closure, and a missing crate shows up here first.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: cargo test (hub, standalone mirror)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: hub
+
+      - name: Test
+        working-directory: hub
+        run: cargo test --locked
