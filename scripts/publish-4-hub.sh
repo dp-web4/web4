@@ -95,7 +95,17 @@ echo "[4-hub] filtering history to hub/ + its web4 path dependencies..."
 # --force because the pin fetch above leaves the clone looking non-pristine to
 # filter-repo's freshness check. Safe here and only here: $WORK is a mktemp clone
 # this script created and its EXIT trap deletes.
-git filter-repo --force --quiet \
+#
+# --preserve-commit-hashes (web4#904 Phase 3, measured 2026-10-30): without it filter-repo rewrites
+# every abbreviated sha a commit MESSAGE cites into its filtered sha — but only when the cited commit
+# is in THIS clone, and a --no-local clone carries whatever local branches the source checkout
+# happens to hold. The mirror was therefore a function of one machine's branch list, not of main:
+# web4 11b211b9 (#752) cites 5abbdfe2, a commit that exists only on a closed-PR branch. The checkout
+# that built 4-hub still had that branch and wrote "78820be5"; every other checkout (and CI) writes
+# "5abbdfe2", so 167 of 470 commits got different shas and no other machine could publish
+# append-only. Preserved, a cited sha stays the web4 sha it always was (resolvable in web4, the
+# source of record), and the rebuilt history depends on main alone.
+git filter-repo --force --quiet --preserve-commit-hashes \
   --path hub \
   --path web4-core \
   --path web4-policy \
@@ -103,7 +113,12 @@ git filter-repo --force --quiet \
   --path LICENSE \
   --path PATENTS.md \
   --path-rename hub/mirror/README.md:README.md \
-  --path-rename hub/mirror/AGENTS.md:AGENTS.md
+  --path-rename hub/mirror/AGENTS.md:AGENTS.md \
+  --path-rename hub/mirror/.github/:.github/
+# hub/mirror/.github/ (web4#904 Phase 3) holds 4-hub's OWN workflows: its CI and the `hub-v*` tag
+# release. They are inert in web4 (GitHub reads only a root .github/) and land at 4-hub's root.
+# Adding a rename leaves every older commit's rewrite unchanged (none touched that path), so the
+# publish stays a fast-forward.
 
 # REFUSE to destroy a commit that exists only on the mirror.
 #

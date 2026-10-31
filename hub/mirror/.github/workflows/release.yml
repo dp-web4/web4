@@ -1,0 +1,243 @@
+name: release
+
+# HUB RELEASE (web4#904 Phase 3; dp 2026-10-30: the products release separately).
+#
+# This file is authored in dp-web4/web4 at hub/mirror/.github/workflows/release.yml and carried to
+# 4-hub's .github/workflows/ by scripts/publish-4-hub.sh. It never runs in web4 (GitHub only reads
+# a repository's ROOT .github/), and it must never be edited in 4-hub: the mirror is derived, and a
+# direct edit there makes the next publish refuse.
+#
+# Pushing the tag `hub-vX.Y.Z[-pre]` to 4-hub builds the `hub` daemon (and its `hub-nudge`
+# carrier) from that tag and publishes ONE GitHub Release:
+#
+#   web4-hub-vX.Y.Z-<target>.tar.gz   x86_64 / aarch64 Linux, aarch64 macOS
+#   each with a `.sha256`, plus one SHA256SUMS, plus a keyless Sigstore provenance attestation
+#   for every asset:   gh attestation verify <asset> --repo dp-web4/4-hub
+#
+#   version ── build (matrix) ── release
+#
+#   version   the tag must be exactly hub-v$VERSION, where $VERSION is the version of EVERY hub
+#             crate (web4-hub-lib, web4-hub-plugin, web4-hub-daemon) and of the daemon's exact
+#             `=` pins on the other two. Refused before any build otherwise. A version with a
+#             pre-release part (0.1.0-alpha.0, 0.2.0-rc.1) publishes as a GitHub PRE-RELEASE that is
+#             never `latest`; a plain X.Y.Z publishes as the latest release (the hestia rule).
+#   build     `cargo build --release --locked` per target; `hub --version` must start with
+#             $VERSION and carry the tagged commit as a clean tree.
+#   release   re-verifies every checksum after the artifact round-trip, requires exactly the
+#             expected file set (missing AND extra both fail), attests, then creates the release
+#             as a DRAFT, attaches everything, and publishes only once the draft holds exactly
+#             that set.
+#
+# RELEASE INPUTS: the web4 crates the hub depends on are in this same tree (web4-core/,
+# web4-policy/, web4-trust-core/), so the tag alone fixes every source that produced the bytes.
+#
+# NOT BUILT: Windows (no fleet host runs it, and nothing has tested the hub there).
+
+on:
+  push:
+    tags:
+      - 'hub-v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hub-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: tag equals hub version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Tag, crate versions and exact pins agree
+        id: check
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cargo metadata --no-deps --format-version 1 --manifest-path hub/Cargo.toml > meta.json
+          python3 - "$TAG" meta.json <<'PY'
+          import json, os, sys
+          tag, meta = sys.argv[1], json.load(open(sys.argv[2]))
+          hub = {p["name"]: p for p in meta["packages"] if p["name"].startswith("web4-hub-")}
+          want = {"web4-hub-lib", "web4-hub-plugin", "web4-hub-daemon"}
+          if set(hub) != want:
+              sys.exit(f"::error::hub crates are {sorted(hub)}, expected {sorted(want)}")
+          versions = {p["version"] for p in hub.values()}
+          if len(versions) != 1:
+              sys.exit(f"::error::hub crates disagree on version: {sorted(versions)}")
+          (version,) = versions
+          for d in hub["web4-hub-daemon"]["dependencies"]:
+              if d["name"] in want and d["req"] != "=" + version:
+                  sys.exit(f"::error::web4-hub-daemon pins {d['name']} {d['req']}, crate version is {version}")
+          if tag != "hub-v" + version:
+              sys.exit(f"::error::tag {tag} does not match the hub version: expected hub-v{version}")
+          pre = "true" if "-" in version else "false"
+          print(f"hub {version}: tag matches; prerelease={pre}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"version={version}\nprerelease={pre}\n")
+          PY
+
+  build:
+    name: hub ${{ matrix.target }}
+    needs: version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+          - target: aarch64-apple-darwin
+            os: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        working-directory: hub
+        run: cargo build --release --locked -p web4-hub-daemon --target ${{ matrix.target }}
+
+      - name: --version names this version and this commit, clean
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          v="$(hub/target/${{ matrix.target }}/release/hub --version)"
+          echo "$v"
+          case "$v" in
+            "hub $VERSION (${SHA:0:7}"*" clean, built "*) ;;
+            *) echo "::error::--version '$v' is not 'hub $VERSION (${SHA:0:7}... clean, built ...)'"; exit 1 ;;
+          esac
+
+      - name: Stage
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          STAGE="web4-hub-v${VERSION}-${{ matrix.target }}"
+          mkdir -p "dist/${STAGE}"
+          cp "hub/target/${{ matrix.target }}/release/hub" "hub/target/${{ matrix.target }}/release/hub-nudge" "dist/${STAGE}/"
+          cp README.md LICENSE "dist/${STAGE}/"
+          cp hub/README.md "dist/${STAGE}/HUB-README.md"
+          (cd dist && tar -czf "${STAGE}.tar.gz" "${STAGE}")
+          (cd dist && { command -v sha256sum >/dev/null 2>&1 && sha256sum "${STAGE}.tar.gz" || shasum -a 256 "${STAGE}.tar.gz"; } > "${STAGE}.tar.gz.sha256")
+          ls -la dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asset-${{ matrix.target }}
+          path: |
+            dist/web4-hub-*.tar.gz
+            dist/web4-hub-*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: verify, attest, publish
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.version.outputs.version }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: asset-*
+          merge-multiple: true
+
+      - name: Verify checksums and require exactly the expected set
+        shell: bash
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          for s in *.sha256; do sha256sum -c "$s"; done
+          sha256sum web4-hub-*.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+          { echo "### hub $TAG"; echo '```'; cat SHA256SUMS; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          python3 - "$VERSION" <<'PY'
+          import os, sys
+          v = sys.argv[1]
+          targets = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "aarch64-apple-darwin"]
+          want = {f"web4-hub-v{v}-{t}.tar.gz" for t in targets}
+          want |= {n + ".sha256" for n in want} | {"SHA256SUMS"}
+          have = set(os.listdir("."))
+          if have != want:
+              sys.exit(f"::error::asset set differs. missing: {sorted(want - have)} extra: {sorted(have - want)}")
+          print(f"exactly the {len(want)} expected files")
+          PY
+
+      # Keyless Sigstore provenance through this workflow's GitHub OIDC identity (the hestia rule,
+      # dp 2026-10-14, web4#904 signing option b). No key to hold or lose.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/web4-hub-*.tar.gz
+            dist/SHA256SUMS
+
+      - name: Draft, attach, check, publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          U="https://github.com/$GH_REPO/releases/download/$TAG"
+          cat > notes.md <<EOF
+          Web4 Community Hub $VERSION: the \`hub\` daemon and its \`hub-nudge\` mail carrier.
+
+          | platform | asset |
+          |---|---|
+          | Linux x86_64 | \`web4-hub-v$VERSION-x86_64-unknown-linux-gnu.tar.gz\` |
+          | Linux aarch64 | \`web4-hub-v$VERSION-aarch64-unknown-linux-gnu.tar.gz\` |
+          | macOS Apple Silicon | \`web4-hub-v$VERSION-aarch64-apple-darwin.tar.gz\` |
+
+          Every asset has a \`.sha256\`; \`SHA256SUMS\` covers them all. Provenance:
+          \`\`\`sh
+          gh attestation verify web4-hub-v$VERSION-x86_64-unknown-linux-gnu.tar.gz --repo $GH_REPO
+          \`\`\`
+
+          Linux example:
+          \`\`\`sh
+          curl -L $U/web4-hub-v$VERSION-x86_64-unknown-linux-gnu.tar.gz | tar -xz
+          ./web4-hub-v$VERSION-x86_64-unknown-linux-gnu/hub --version
+          \`\`\`
+
+          Built from this repository at \`$TAG\` ($GITHUB_SHA). Source of record: dp-web4/web4 \`hub/\`.
+          File issues against dp-web4/web4.
+          EOF
+          flags=(--draft --verify-tag --title "hub $VERSION" --notes-file notes.md)
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease --latest=false); else flags+=(--latest); fi
+          gh release create "$TAG" "${flags[@]}" dist/*
+          attached="$(gh release view "$TAG" --json assets --jq '.assets[].name' | sort)"
+          expected="$(ls dist | sort)"
+          if [ "$attached" != "$expected" ]; then
+            echo "::error::the draft holds a different set than was built; it stays a draft"
+            diff <(echo "$expected") <(echo "$attached") || true
+            exit 1
+          fi
+          gh release edit "$TAG" --draft=false
+          echo "published $TAG (prerelease=$PRERELEASE)"
