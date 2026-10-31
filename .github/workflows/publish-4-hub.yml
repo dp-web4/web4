@@ -6,8 +6,12 @@ name: publish 4-hub
 #
 # The script is the whole mechanism and is run UNCHANGED in behaviour: it publishes only
 # refs/remotes/origin/main (hard-pinned), refuses when the mirror holds a commit the publish would
-# destroy, and pushes as a plain fast-forward. ALLOW_MIRROR_HISTORY_REWRITE is never set here: a
-# rewrite is a human decision, made by hand with the script's own output in front of them.
+# destroy, and pushes as a plain fast-forward. A push NEVER rewrites history. The only way this
+# workflow sets ALLOW_MIRROR_HISTORY_REWRITE is a person dispatching it by hand with
+# `allow_history_rewrite` ticked, after reading the refusal a previous run printed; the run log
+# records who. Expected exactly once: the switch to the deterministic build (--preserve-commit-hashes
+# in the script) moves 441 existing mirror shas, and every 4-hub clone must then
+# `git fetch && git reset --hard origin/main` once.
 #
 # AUTHENTICATION: an SSH deploy key with write access on dp-web4/4-hub, stored in this repository
 # as the secret FOUR_HUB_DEPLOY_KEY. The key reaches only 4-hub. Without the secret the job
@@ -29,6 +33,11 @@ on:
       - 'scripts/publish-4-hub.sh'
       - '.github/workflows/publish-4-hub.yml'
   workflow_dispatch:
+    inputs:
+      allow_history_rewrite:
+        description: 'Let THIS run rewrite 4-hub history if a fast-forward is refused (ALLOW_MIRROR_HISTORY_REWRITE=1). Only after reading the refusal; expected once.'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -83,10 +92,16 @@ jobs:
 
       - name: Publish (append-only, refuses on anything else)
         if: steps.key.outputs.present == 'true'
+        env:
+          # Empty on every push; "1" only from a hand dispatch with the box ticked.
+          ALLOW_MIRROR_HISTORY_REWRITE: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_history_rewrite && '1' || '' }}
         run: |
           set -euo pipefail
           export PATH="$HOME/.local/bin:$PATH"
-          scripts/publish-4-hub.sh
+          if [ -n "$ALLOW_MIRROR_HISTORY_REWRITE" ]; then
+            echo "::warning::history rewrite allowed for this run by $GITHUB_ACTOR (workflow_dispatch input)"
+          fi
+          bash scripts/publish-4-hub.sh
 
       - name: Forget the key
         if: always() && steps.key.outputs.present == 'true'
