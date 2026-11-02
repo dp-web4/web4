@@ -56,10 +56,13 @@ environment keeps working as it does today, and the hub records that it was used
 ```yaml
 ignition:              # a top-level law key: HubPolicy is flattened into the law
   held: true          # absent = true (dp: on by default)
-  min_tier: host-key  # unknown | host-key | tpm2 | host+tpm2; see §5 Q1
+  min_tier: host-key  # host-key | tpm2 | host+tpm2; see §5 Q1
 ```
 
-Tiers rank `host+tpm2` ≥ `tpm2` > `host-key` > `unknown`. `host+tpm2` meets `min_tier: tpm2`: opening
+Tiers rank `host+tpm2` ≥ `tpm2` > `host-key`. `unknown` is what the hub **observes** for a seal id it
+has no measurement for. It is never a floor: `min_tier: unknown` does not parse (the floor is its own
+type, `IgnitionFloor`), and an unknown seal meets no floor (`IgnitionTier::meets`), so it is never held
+whatever the law says. `host+tpm2` meets `min_tier: tpm2`: opening
 it needs both keys, and in `--user` mode it is the best seal systemd will make (tpm2-only is refused),
 so without this rank no user-scoped hub could ever meet a strict law. `HubIgnited.tier` and
 `IgnitionHeld.tier` name the tier **measured** from the file, never the requested one.
@@ -77,7 +80,7 @@ This is a new `HubPolicy.ignition: Option<IgnitionPolicy>`, with both fields `Op
   16 bytes), never from the flag. The map is taken from systemd's `creds-util.h`, and each entry is
   marked measured or not. Measured today: `55b9ed1d-…-2ac6` = `host-key` (user-scoped, HUB) and
   `ef4ac136-…-165d` = `host+tpm2` (user-scoped, pub). An id that isn't in the map is `unknown`, which
-  ranks below every `min_tier`, so nothing is held. A tier below `min_tier` is deleted at once and not
+  meets no `min_tier`, so nothing is held. A tier below `min_tier` is deleted at once and not
   used.
 - **What "tpm2" means here.** The measured TPM seal has pcr_mask 0: it is bound to this machine's TPM
   chip, not to a measured boot state. It means "opens only on this machine's TPM", not "opens only on

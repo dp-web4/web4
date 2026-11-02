@@ -686,7 +686,8 @@ pub struct CommitmentsPolicy {
 /// "weaker than": `host+tpm2` needs both keys to open, so it ranks with `tpm2` or above.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum IgnitionTier {
-    /// A seal id this hub has no measurement for. Ranks below every `min_tier`: never held.
+    /// A seal id this hub has no measurement for. It is an observation, never a floor: no
+    /// [`IgnitionFloor`] names it, and [`IgnitionTier::meets`] is false for it, so it is never held.
     #[serde(rename = "unknown")]
     Unknown,
     #[serde(rename = "host-key")]
@@ -697,6 +698,37 @@ pub enum IgnitionTier {
     HostTpm2,
 }
 
+impl IgnitionTier {
+    /// Whether a seal at this tier satisfies the law's floor. An unmeasured seal never does,
+    /// whatever the floor (codex, #967): the check does not rest on which floors the law can name.
+    pub fn meets(self, floor: IgnitionFloor) -> bool {
+        self != IgnitionTier::Unknown && self >= floor.tier()
+    }
+}
+
+/// The weakest seal a law can accept: the tiers a hub can actually measure. It has no `unknown`,
+/// so `min_tier: unknown` fails to parse rather than admitting an unmeasured seal (codex, #967).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum IgnitionFloor {
+    #[serde(rename = "host-key")]
+    HostKey,
+    #[serde(rename = "tpm2")]
+    Tpm2,
+    #[serde(rename = "host+tpm2")]
+    HostTpm2,
+}
+
+impl IgnitionFloor {
+    /// The tier this floor names.
+    pub fn tier(self) -> IgnitionTier {
+        match self {
+            IgnitionFloor::HostKey => IgnitionTier::HostKey,
+            IgnitionFloor::Tpm2 => IgnitionTier::Tpm2,
+            IgnitionFloor::HostTpm2 => IgnitionTier::HostTpm2,
+        }
+    }
+}
+
 /// Held ignition (hub/docs/PRD_HELD_IGNITION.md §3.1): whether this hub may unlock itself after
 /// a restart from a sealed copy of its passphrase, and how strong that seal must be.
 /// Absent ⇒ held, at [`DEFAULT_IGNITION_MIN_TIER`] (dp, 2026-10-30: "a law setting, yes by default").
@@ -705,12 +737,12 @@ pub struct IgnitionPolicy {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub held: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub min_tier: Option<IgnitionTier>,
+    pub min_tier: Option<IgnitionFloor>,
 }
 
 /// The weakest seal a law that names none accepts. Pending dp's Q1 (PRD_HELD_IGNITION §5): the
 /// 08-18 custody order read strictly would make this `Tpm2`.
-pub const DEFAULT_IGNITION_MIN_TIER: IgnitionTier = IgnitionTier::HostKey;
+pub const DEFAULT_IGNITION_MIN_TIER: IgnitionFloor = IgnitionFloor::HostKey;
 
 impl IgnitionPolicy {
     /// Whether the law asks the hub to hold its ignition. `None` (no policy) is held.
@@ -719,7 +751,7 @@ impl IgnitionPolicy {
     }
 
     /// The weakest seal the law accepts.
-    pub fn min_tier(p: Option<&Self>) -> IgnitionTier {
+    pub fn min_tier(p: Option<&Self>) -> IgnitionFloor {
         p.and_then(|p| p.min_tier).unwrap_or(DEFAULT_IGNITION_MIN_TIER)
     }
 }
@@ -1114,11 +1146,26 @@ mod tests {
         assert_eq!(IgnitionPolicy::min_tier(None), DEFAULT_IGNITION_MIN_TIER);
         let off: IgnitionPolicy = serde_yaml::from_str("held: false\nmin_tier: host+tpm2\n").unwrap();
         assert!(!IgnitionPolicy::held(Some(&off)));
-        assert_eq!(IgnitionPolicy::min_tier(Some(&off)), IgnitionTier::HostTpm2);
+        assert_eq!(IgnitionPolicy::min_tier(Some(&off)), IgnitionFloor::HostTpm2);
         assert!(IgnitionTier::HostTpm2 >= IgnitionTier::Tpm2);
         assert!(IgnitionTier::Tpm2 > IgnitionTier::HostKey && IgnitionTier::HostKey > IgnitionTier::Unknown);
         assert_eq!(serde_json::to_value(HubPolicy::default()).unwrap(), serde_json::json!({}));
         assert!(serde_yaml::from_str::<IgnitionPolicy>("min_tier: tpm3\n").is_err());
+    }
+
+    /// An unmeasured seal is an observation, not a floor (codex + cbp, #967/#969): the law can't
+    /// name `unknown` as its minimum, and no floor admits an unknown seal.
+    #[test]
+    fn an_unknown_seal_meets_no_floor_and_no_law_can_ask_for_one() {
+        assert!(serde_yaml::from_str::<IgnitionPolicy>("min_tier: unknown\n").is_err());
+        for floor in [IgnitionFloor::HostKey, IgnitionFloor::Tpm2, IgnitionFloor::HostTpm2] {
+            assert!(!IgnitionTier::Unknown.meets(floor), "{floor:?}");
+            assert!(floor.tier().meets(floor), "a seal at the floor meets it: {floor:?}");
+        }
+        assert!(IgnitionTier::HostTpm2.meets(IgnitionFloor::Tpm2));
+        assert!(!IgnitionTier::HostKey.meets(IgnitionFloor::Tpm2));
+        let at: IgnitionPolicy = serde_yaml::from_str("min_tier: host-key\n").unwrap();
+        assert_eq!(serde_yaml::to_string(&at).unwrap().trim(), "min_tier: host-key");
     }
 
     #[test]
