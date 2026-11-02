@@ -67,12 +67,21 @@ pub trait Sealer: Send + Sync {
 
 /// `systemd-creds --user`: no root needed, sealed with the host key and the TPM when systemd
 /// finds one.
-pub struct SystemdUserSealer;
+pub struct SystemdUserSealer {
+    /// `systemd-creds`, found on PATH. Tests point it at a stand-in to drive the failure arms.
+    program: PathBuf,
+}
+
+impl Default for SystemdUserSealer {
+    fn default() -> Self {
+        Self { program: PathBuf::from("systemd-creds") }
+    }
+}
 
 impl Sealer for SystemdUserSealer {
     fn seal(&self, secret: &str, out: &Path) -> Result<()> {
         let tmp = out.with_extension("cred.tmp");
-        let mut child = Command::new("systemd-creds")
+        let mut child = Command::new(&self.program)
             .args(["encrypt", "--user", "--with-key=auto"])
             .arg(format!("--name={SEAL_NAME}"))
             .arg("-")
@@ -98,19 +107,26 @@ impl Sealer for SystemdUserSealer {
             let _ = std::fs::remove_file(&tmp);
             bail!("systemd-creds encrypt failed: {}", String::from_utf8_lossy(&done.stderr).trim());
         }
-        // Owner-only, like the vault beside it, whatever the umask (pub, #969).
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))
-                .context("restricting the sealed passphrase to its owner")?;
+        // Owner-only, like the vault beside it, whatever the umask (pub, #969). Then place it.
+        // Either step failing removes the temp file too (codex, #968): no failure leaves one.
+        let placed = (|| -> Result<()> {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))
+                    .context("restricting the sealed passphrase to its owner")?;
+            }
+            std::fs::rename(&tmp, out).context("placing the sealed passphrase")?;
+            Ok(())
+        })();
+        if placed.is_err() {
+            let _ = std::fs::remove_file(&tmp);
         }
-        std::fs::rename(&tmp, out).context("placing the sealed passphrase")?;
-        Ok(())
+        placed
     }
 
     fn open(&self, path: &Path) -> Result<Zeroizing<String>> {
-        let done = Command::new("systemd-creds")
+        let done = Command::new(&self.program)
             .args(["decrypt", "--user"])
             .arg(format!("--name={SEAL_NAME}"))
             .arg(path)
@@ -188,6 +204,46 @@ mod tests {
         assert_eq!(tier_of_sealed(b""), IgnitionTier::Unknown);
     }
 
+    /// codex, #968: every way a seal can fail reaps systemd-creds and leaves neither a temp file
+    /// nor a copy, and a seal that succeeds leaves exactly one owner-only copy. A stand-in script
+    /// plays systemd-creds; it gets the same arguments (the temp path is the sixth).
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_seal_leaves_no_temp_file_and_a_good_one_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let fake = |name: &str, body: &str| -> SystemdUserSealer {
+            let p = dir.path().join(name);
+            std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
+            std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o700)).unwrap();
+            SystemdUserSealer { program: p }
+        };
+        let hub = tempfile::tempdir().unwrap();
+        let out = ignition_path(hub.path());
+        let tmp = out.with_extension("cred.tmp");
+        let big = "x".repeat(1 << 20);
+        let cases = [
+            ("refuses", fake("refuses", "cat >/dev/null; echo partial > \"$6\"; echo 'no key' >&2; exit 1"), "short"),
+            // Exits without reading: the write fails (a closed pipe), and the child is still reaped.
+            ("stops reading", fake("stops", "echo partial > \"$6\"; exit 0"), "big"),
+        ];
+        for (what, sealer, secret) in cases {
+            let err = sealer.seal(if secret == "big" { &big } else { "pw" }, &out).unwrap_err();
+            assert!(!tmp.exists(), "{what}: the temp file is gone ({err:#})");
+            assert!(!out.exists(), "{what}: nothing was placed");
+        }
+        let good = fake("good", "cat > \"$6\"");
+        // The place is taken by a directory: the rename fails after the temp file exists.
+        std::fs::create_dir(&out).unwrap();
+        assert!(good.seal("pw", &out).is_err());
+        assert!(!tmp.exists(), "a failed rename removes the temp file");
+        std::fs::remove_dir(&out).unwrap();
+        good.seal("pw", &out).unwrap();
+        assert_eq!(std::fs::read_to_string(&out).unwrap(), "pw");
+        assert_eq!(std::fs::metadata(&out).unwrap().permissions().mode() & 0o777, 0o600, "owner-only");
+        assert!(!tmp.exists());
+    }
+
     /// The real backend on the host running the test: seal a dummy, read its tier, open it, and
     /// check that the seal is bound to its name. Ignored by default because it needs systemd;
     /// run with `--ignored` on a host you want measured.
@@ -196,11 +252,11 @@ mod tests {
     fn the_systemd_user_sealer_round_trips_on_this_host() {
         let dir = tempfile::tempdir().unwrap();
         let path = ignition_path(dir.path());
-        SystemdUserSealer.seal("not a passphrase", &path).unwrap();
+        SystemdUserSealer::default().seal("not a passphrase", &path).unwrap();
         let tier = tier_of_sealed(&std::fs::read(&path).unwrap());
         eprintln!("this host seals at {tier:?}");
         assert_ne!(tier, IgnitionTier::Unknown, "an unmeasured seal id: add it to MEASURED_SEALS");
-        assert_eq!(&*SystemdUserSealer.open(&path).unwrap(), "not a passphrase");
+        assert_eq!(&*SystemdUserSealer::default().open(&path).unwrap(), "not a passphrase");
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600, "owner-only");
         let renamed = Command::new("systemd-creds")

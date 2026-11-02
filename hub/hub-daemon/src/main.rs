@@ -1609,7 +1609,7 @@ fn operator_plane_app(
 /// without it, so they never reach systemd.
 fn held_ignition_backend() -> std::sync::Arc<crate::rest::HeldIgnition> {
     std::sync::Arc::new(crate::rest::HeldIgnition::with_sealer(std::sync::Arc::new(
-        hub_lib::ignition::SystemdUserSealer,
+        hub_lib::ignition::SystemdUserSealer::default(),
     )))
 }
 

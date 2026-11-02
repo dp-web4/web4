@@ -1409,7 +1409,7 @@ impl RestState {
         }
         match via {
             IgnitionVia::Held => {
-                if tier.unwrap_or(hub_lib::law::IgnitionTier::Unknown) < min_tier {
+                if !tier.unwrap_or(hub_lib::law::IgnitionTier::Unknown).meets(min_tier) {
                     self.release_held(&path, IgnitionRelease::BelowMinTier).await;
                 }
             }
@@ -1432,7 +1432,7 @@ impl RestState {
                     return;
                 }
                 let sealed_at = hub_lib::ignition::tier_of_sealed(&std::fs::read(&path).unwrap_or_default());
-                if sealed_at < min_tier {
+                if !sealed_at.meets(min_tier) {
                     if held_before {
                         self.release_held(&path, IgnitionRelease::BelowMinTier).await;
                     } else {
@@ -11907,6 +11907,36 @@ norms:
         out
     }
 
+    /// Held-ignition custody census (codex, #968): the `test-sealer` feature is not a release
+    /// boundary, so what keeps the clear-text stand-in out of a serving hub is that no serving code
+    /// in this crate names it. The only backend `run_serve` installs is systemd's.
+    #[test]
+    fn held_ignition_census_no_serving_path_uses_the_clear_text_sealer() {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let (mut stack, mut files) = (vec![src.clone()], Vec::new());
+        while let Some(dir) = stack.pop() {
+            for e in std::fs::read_dir(&dir).unwrap().flatten() {
+                let p = e.path();
+                if p.is_dir() { stack.push(p); }
+                else if p.extension().is_some_and(|x| x == "rs") { files.push(p); }
+            }
+        }
+        assert!(files.contains(&src.join("rest.rs")) && files.contains(&src.join("main.rs")) && files.len() >= 9,
+            "the walk found the daemon's modules: {files:?}");
+        for p in &files {
+            let serving = e_b_serving_only(&std::fs::read_to_string(p).unwrap());
+            assert!(!serving.contains("ClearTestSealer"), "{p:?}: serving code names the clear-text sealer");
+        }
+        let main_serving = e_b_serving_only(include_str!("main.rs"));
+        assert!(main_serving.contains("fn held_ignition_backend("), "the strip keeps serving code");
+        assert_eq!(main_serving.matches("Sealer").count(), 1, "one backend, systemd's: {}",
+            main_serving.lines().filter(|l| l.contains("Sealer")).collect::<Vec<_>>().join("\n"));
+        assert!(main_serving.contains("hub_lib::ignition::SystemdUserSealer"));
+        let rest_serving = e_b_serving_only(include_str!("rest.rs"));
+        assert!(rest_serving.contains("async fn held_boot(") && !rest_serving.contains("fn held_ignition_census"),
+            "serving kept, tests stripped");
+    }
+
     #[test]
     fn slice_e_b_census_no_serving_path_signs_attestations() {
         let serving = e_b_serving_only(include_str!("rest.rs"));
@@ -18748,6 +18778,10 @@ norms: []
             ("min_tier: tpm2", IgnitionTier::HostTpm2, None),
             // Exactly at the floor is enough.
             ("min_tier: host-key", IgnitionTier::HostKey, None),
+            // An unmeasured seal id meets no floor, not even the lowest (codex, #969): a held boot
+            // uses it once and deletes it, and a person's unlock holds nothing.
+            ("min_tier: host-key", IgnitionTier::Unknown, Some(IgnitionRelease::BelowMinTier)),
+            ("held: true", IgnitionTier::Unknown, Some(IgnitionRelease::BelowMinTier)),
         ];
         for (rule, tier, released) in cases {
             let (_tmp, state) = held_test_hub(pass, tier).await;
