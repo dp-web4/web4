@@ -232,6 +232,12 @@ After any change:
 2. Run `./make-web.sh` - Verify navigation
 3. Spot-check combined markdown for coherence
 4. If PDF needed: `./make-pdf.sh`
+5. PDF geometry (added 2026-11-02): `pdftotext -bbox build/WEB4_Whitepaper.pdf` and list words with
+   `xMax` > 545 pt. The text block ends at 540 pt (`geometry:margin=1in` on 612 pt letter), so a
+   `width − 36` threshold (the Synchronism check) misses overruns that stay inside the margin. Glyph
+   checks do not catch this. **Baseline 2026-11-02: 8 words on 5 pages, all margin intrusions of 9–56 pt,
+   0 clipped** (page 6 code-block comments, pages 11/13/15 spec paths, page 22 reference URLs). A new
+   word past ~600 pt is clipped text, and that is a defect.
 
 ---
 
