@@ -58,18 +58,25 @@ pub fn tier_of_sealed(sealed: &[u8]) -> IgnitionTier {
         .map_or(IgnitionTier::Unknown, |(_, tier)| *tier)
 }
 
-/// Whether the law `policy` rejects the sealed copy held at `hub_dir`, and why. `None` when it
-/// accepts it, or when nothing is held. Every path that changes the law asks this, so a copy the
-/// law no longer accepts never waits for the next boot (PRD_HELD_IGNITION §3.4).
+/// Whether the law `policy` rejects the sealed copy held at `hub_dir`, and why. `None` only when
+/// nothing is there, or the law accepts a copy it could read and measure. Every path that changes
+/// the law asks this, so a copy the law no longer accepts never waits for the next boot
+/// (PRD_HELD_IGNITION §3.4). It fails closed (codex, #970): `held: false` rejects whatever is
+/// there without reading it, and a copy that can't be read is `unknown`, which meets no floor.
 pub fn release_under(policy: Option<&IgnitionPolicy>, hub_dir: &Path) -> Option<IgnitionRelease> {
-    let sealed = std::fs::read(ignition_path(hub_dir)).ok()?;
+    let path = ignition_path(hub_dir);
     if !IgnitionPolicy::held(policy) {
-        Some(IgnitionRelease::LawOff)
-    } else if tier_of_sealed(&sealed) < IgnitionPolicy::min_tier(policy) {
-        Some(IgnitionRelease::BelowMinTier)
-    } else {
-        None
+        return match std::fs::symlink_metadata(&path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            _ => Some(IgnitionRelease::LawOff),
+        };
     }
+    let tier = match std::fs::read(&path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(_) => IgnitionTier::Unknown,
+        Ok(sealed) => tier_of_sealed(&sealed),
+    };
+    (!tier.meets(IgnitionPolicy::min_tier(policy))).then_some(IgnitionRelease::BelowMinTier)
 }
 
 /// Seals and opens the held passphrase. Production uses [`SystemdUserSealer`].
@@ -208,6 +215,15 @@ mod tests {
         assert_eq!(release_under(Some(&p("held: false")), dir.path()), Some(IgnitionRelease::LawOff));
         assert_eq!(release_under(Some(&p("min_tier: tpm2")), dir.path()), Some(IgnitionRelease::BelowMinTier));
         assert_eq!(release_under(Some(&p("min_tier: host-key")), dir.path()), None);
+        // codex, #970: fail closed. An unmeasured copy meets no floor, not even the lowest.
+        std::fs::write(ignition_path(dir.path()), b"AAAAAAAAAAAAAAAAAAAAAAAAAAAA").unwrap();
+        assert_eq!(release_under(None, dir.path()), Some(IgnitionRelease::BelowMinTier));
+        assert_eq!(release_under(Some(&p("min_tier: host-key")), dir.path()), Some(IgnitionRelease::BelowMinTier));
+        // A copy that can't be read is unknown too; `held: false` removes it without a read.
+        std::fs::remove_file(ignition_path(dir.path())).unwrap();
+        std::fs::create_dir(ignition_path(dir.path())).unwrap();
+        assert_eq!(release_under(None, dir.path()), Some(IgnitionRelease::BelowMinTier));
+        assert_eq!(release_under(Some(&p("held: false")), dir.path()), Some(IgnitionRelease::LawOff));
     }
 
     /// The first characters of the file HUB sealed on 2026-10-30 (a dummy value, not a passphrase).

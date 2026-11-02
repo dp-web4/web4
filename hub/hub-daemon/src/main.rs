@@ -990,10 +990,13 @@ async fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<
     let mut session = HubSession::open(&hub_dir).await?;
     let entry = session.set_law(&yaml, version.clone(), diff_summary.clone()).await?.clone();
     // The same act removes a held passphrase the new law no longer accepts (PRD_HELD_IGNITION §3.4).
+    // The law is committed from here on, so a failed release can't fail it: it is reported on
+    // its own, after the law is, and the command exits non-zero (codex, #970).
     let released = hub_lib::ignition::release_under(law.ext.ignition.as_ref(), &hub_dir);
-    if let Some(reason) = released {
-        session.release_held_ignition(reason).await.context("releasing the held passphrase")?;
-    }
+    let release_failed = match released {
+        Some(reason) => session.release_held_ignition(reason).await.err().map(|e| (reason, e)),
+        None => None,
+    };
 
     println!("Law set.");
     println!("  Chapter dir:  {}", hub_dir.display());
@@ -1004,6 +1007,14 @@ async fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<
     println!("  Entry hash:   {}", entry.entry_hash);
     if let Some(s) = diff_summary {
         println!("  Diff summary: {}", s);
+    }
+    if let Some((reason, e)) = release_failed {
+        anyhow::bail!(
+            "the law above IS set (entry {}), but the held passphrase it rejects ({reason:?}) was not released: {e:#}. \
+             If {} still exists, delete it by hand: until then the next boot unlocks from it once.",
+            entry.index,
+            hub_lib::ignition::ignition_path(&hub_dir).display()
+        );
     }
     if let Some(reason) = released {
         println!("  Held passphrase: deleted ({reason:?}); the next boot is locked until a person unlocks.");
@@ -3113,12 +3124,25 @@ mod tests {
             hub_lib::ignition::Sealer::seal(&sealer, "x", &path).unwrap();
             let law = tmp.path().join("law.yaml");
             std::fs::write(&law, "version: \"1.0.0\"\nnorms: []\nignition:\n  held: false\n").unwrap();
-            run_set_law(hub_dir.clone(), law, None).await.unwrap();
+            run_set_law(hub_dir.clone(), law.clone(), None).await.unwrap();
             assert!(!path.exists());
-            let store = hub_lib::store::open_hub_store_async(&hub_dir).await.unwrap();
-            let ledger = hub_lib::ledger::HubLedger::open(store).await.unwrap();
-            assert!(matches!(ledger.entries().last().map(|e| &e.event),
+            let last_event = |hub_dir: std::path::PathBuf| async move {
+                let store = hub_lib::store::open_hub_store_async(&hub_dir).await.unwrap();
+                let ledger = hub_lib::ledger::HubLedger::open(store).await.unwrap();
+                ledger.entries().last().map(|e| e.event.clone())
+            };
+            assert!(matches!(last_event(hub_dir.clone()).await,
                 Some(hub_lib::events::HubEvent::IgnitionReleased { reason: hub_lib::events::IgnitionRelease::LawOff })));
+
+            // codex, #970: a copy that can't be deleted (here a non-empty directory in its place).
+            // The law is still set, nothing is released on the ledger, and the command says both.
+            std::fs::create_dir_all(path.join("pinned")).unwrap();
+            std::fs::write(&law, "version: \"1.0.1\"\nnorms: []\nignition:\n  held: false\n").unwrap();
+            let err = format!("{:#}", run_set_law(hub_dir.clone(), law, None).await.unwrap_err());
+            assert!(err.contains("the law above IS set") && err.contains("delete it by hand"), "{err}");
+            assert!(path.exists());
+            assert!(matches!(last_event(hub_dir.clone()).await,
+                Some(hub_lib::events::HubEvent::LawAmended { .. })), "the law, and no release");
         }
 
         /// `/admin/council` on the backend production actually runs.

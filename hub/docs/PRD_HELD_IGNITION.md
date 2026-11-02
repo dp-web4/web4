@@ -123,17 +123,25 @@ passphrase-taking route doing what `hub unlock` already does).
 ### 3.4 When the secret is removed: by the law, in the same act
 
 One check decides every path: `ignition::release_under(policy, hub_dir)` says whether the law rejects
-the held copy, and why (`law_off`, or `below_min_tier` from the file's own seal id).
+the held copy, and why (`law_off`, or `below_min_tier` from the file's own seal id). It fails closed:
+`held: false` rejects whatever is at the path without reading it, and a copy that can't be read is
+`unknown`, which meets no floor.
 
 - **An amendment the daemon witnesses** (`witness_law_amendment`, which every in-daemon law change
   goes through) asks that check right after the `LawAmended` append, and deletes a rejected copy with
-  `IgnitionReleased { reason }`. If the delete fails, it logs an error and the amendment still stands.
-  The ledger then says "off" while the disk still holds the secret, which is exactly the state §3.5
-  repairs on the next boot. (No in-daemon route edits `ignition` today; offline `set-law` does. The
+  `IgnitionReleased { reason }`. **A delete that fails is not a release:** nothing is witnessed,
+  well-known says `held_ignition: "stale"` (a health check pages on it), and the unlock note names the
+  file to delete by hand. The amendment still returns success, because the law IS committed and the
+  callers serve the new law only on success; an error would make the served law diverge from the
+  store. The next unlock or amendment retries the delete, and one that works clears `"stale"`.
+  While the copy survives, a restart unlocks from it once (the law is sealed, so boot can't refuse it),
+  and that unlock retries. (No in-daemon route edits `ignition` today; offline `set-law` does. The
   check sits in the shared path so a future route can't skip it.)
 - **Offline `hub set-law`** asks the same check after witnessing the amendment, then deletes the
   copy and witnesses `IgnitionReleased` through `HubSession`. The delete comes first, so a law that
-  says "don't hold" never leaves a copy for the next boot, even if the record then fails.
+  says "don't hold" never leaves a copy for the next boot, even if the record then fails. If the
+  delete fails, the command prints the law it set, then exits non-zero saying the law is set, the
+  copy was not released, and which file to delete.
 - **`hub rotate-passphrase`** (offline, hub stopped) deletes `ignition.cred` right after the
   state store is re-keyed, in every sovereign mode (Local and Hestia), because a copy sealed to the
   old passphrase would fail at the next boot and cost an attempt. The store re-key proves the
@@ -170,7 +178,8 @@ else boot locked, as today
 - **Check the effect, not the exit code.** `/tools` answers 200 only when unlocked; `/` answers 200
   even when locked. pub's acceptance test reads `/tools`.
 - **What a reader sees.** `/.well-known/web4-hub.json` gains `held_ignition: "none" | "ok" |
-  "failed"`, a state with no reason text. The reason goes only to the log, because the well-known
+  "failed" | "stale"`, a state with no reason text (`"stale"`: the law rejects a held copy that could
+  not be deleted, §3.4). The reason goes only to the log, because the well-known
   document is public.
 
 ### 3.6 The record: how the hub was ignited
@@ -196,8 +205,8 @@ Each new event kind needs a `BODY_EXEMPT` entry and a HUB-LAW.md row, both in th
 
 A held unlock can fail too: the passphrase was rotated, the host was rebuilt, or the TPM was
 cleared. A failed one leaves the hub dark in the same way a locked boot does. So
-`held_ignition: "failed"` (and `locked: true` with no held credential, while the law says held) is
-what a health check pages a person on. Wiring that check is the deployment's job (hub-watch on HUB,
+`held_ignition: "failed"` or `"stale"` (and `locked: true` with no held credential, while the law
+says held) is what a health check pages a person on. Wiring that check is the deployment's job (hub-watch on HUB,
 pub's checklist on the public hub). This design only makes the state readable.
 
 ## 4. Slices

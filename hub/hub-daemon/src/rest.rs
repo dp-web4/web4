@@ -987,7 +987,7 @@ impl RestState {
 pub struct HeldIgnition {
     /// `None`: this hub can't seal (no backend installed), so a person's unlock holds nothing.
     pub sealer: Option<Arc<dyn hub_lib::ignition::Sealer>>,
-    /// The well-known `held_ignition`: 0 none, 1 ok, 2 failed.
+    /// The well-known `held_ignition`: 0 none, 1 ok, 2 failed, 3 stale.
     boot: std::sync::atomic::AtomicU8,
     /// What the last person's unlock did about holding, for the unlock response.
     note: std::sync::Mutex<Option<String>>,
@@ -998,17 +998,29 @@ impl HeldIgnition {
         Self { sealer: Some(sealer), ..Self::default() }
     }
 
-    /// `"none"`, `"ok"` or `"failed"`: a state with no reason text, because well-known is public.
+    /// `"none"`, `"ok"`, `"failed"` or `"stale"`: a state with no reason text, because
+    /// well-known is public.
     pub fn boot_state(&self) -> &'static str {
         match self.boot.load(std::sync::atomic::Ordering::Relaxed) {
             1 => "ok",
             2 => "failed",
+            3 => "stale",
             _ => "none",
         }
     }
 
     fn set_boot(&self, v: u8) {
         self.boot.store(v, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// "ok" only from "none": a held boot whose unlock found a copy it could not delete
+    /// ("stale") must keep saying so.
+    fn clear_stale(&self) {
+        let _ = self.boot.compare_exchange(3, 0, std::sync::atomic::Ordering::Relaxed, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn mark_held_ok(&self) {
+        let _ = self.boot.compare_exchange(0, 1, std::sync::atomic::Ordering::Relaxed, std::sync::atomic::Ordering::Relaxed);
     }
 
     fn take_note(&self) -> Option<String> {
@@ -1401,8 +1413,7 @@ impl RestState {
             self.ignition.set_boot(0);
         }
         if !held {
-            if path.exists() {
-                self.release_held(&path, IgnitionRelease::LawOff).await;
+            if path.exists() && self.release_held(&path, IgnitionRelease::LawOff).await {
                 self.ignition.set_note("not held: the law says ignition.held: false".into());
             }
             return;
@@ -1425,18 +1436,22 @@ impl RestState {
                     .unwrap_or_else(|e| Err(anyhow::anyhow!("the sealing task failed: {e}")));
                 if let Err(e) = sealed {
                     tracing::warn!("held ignition: could not seal the passphrase (this hub stays boot-locked): {e:#}");
-                    if held_before {
-                        self.release_held(&path, IgnitionRelease::ResealFailed).await;
+                    if held_before && !self.release_held(&path, IgnitionRelease::ResealFailed).await {
+                        return; // "stale", and its note says what to do
                     }
                     self.ignition.set_note(format!("not held: sealing failed: {e:#}"));
                     return;
                 }
                 let sealed_at = hub_lib::ignition::tier_of_sealed(&std::fs::read(&path).unwrap_or_default());
                 if !sealed_at.meets(min_tier) {
-                    if held_before {
-                        self.release_held(&path, IgnitionRelease::BelowMinTier).await;
+                    // A first seal was never held, so its delete is not a release on the ledger.
+                    let gone = if held_before {
+                        self.release_held(&path, IgnitionRelease::BelowMinTier).await
                     } else {
-                        let _ = std::fs::remove_file(&path);
+                        self.delete_held(&path, IgnitionRelease::BelowMinTier)
+                    };
+                    if !gone {
+                        return;
                     }
                     tracing::warn!("held ignition: this host seals at {sealed_at:?}, below the law's min_tier {min_tier:?}; not held");
                     self.ignition.set_note(format!(
@@ -1456,15 +1471,38 @@ impl RestState {
         }
     }
 
-    async fn release_held(&self, path: &std::path::Path, reason: hub_lib::events::IgnitionRelease) {
-        if let Err(e) = std::fs::remove_file(path) {
-            if e.kind() != std::io::ErrorKind::NotFound {
-                tracing::error!("held ignition: could not delete {} ({reason:?}): {e}", path.display());
-                return;
-            }
+    /// Delete a held copy and witness why. Returns whether it is gone. A copy that can't be
+    /// deleted is NOT released: nothing is witnessed, well-known says `"stale"` until a later
+    /// unlock or law change deletes it (each retries), and the note says what to do (codex, #970).
+    /// While it survives, a restart unlocks from it once (the law is sealed, so boot can't refuse
+    /// it), and that unlock's settle tries the delete again.
+    async fn release_held(&self, path: &std::path::Path, reason: hub_lib::events::IgnitionRelease) -> bool {
+        if !self.delete_held(path, reason) {
+            return false;
         }
         if let Err(e) = witness_event_inner(self, HubEvent::IgnitionReleased { reason }).await {
             tracing::warn!("held ignition: released ({reason:?}), but its record failed: {}", e.message);
+        }
+        true
+    }
+
+    /// Delete a copy the law rejects; on failure say `"stale"` and how to fix it. No record.
+    fn delete_held(&self, path: &std::path::Path, reason: hub_lib::events::IgnitionRelease) -> bool {
+        match std::fs::remove_file(path) {
+            Ok(()) => {
+                self.ignition.clear_stale();
+                true
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => true,
+            Err(e) => {
+                tracing::error!("held ignition STALE: the law rejects the held passphrase ({reason:?}), but {} could not be deleted: {e}", path.display());
+                self.ignition.set_boot(3);
+                self.ignition.set_note(format!(
+                    "stale: the law rejects the held passphrase ({reason:?}), but it could not be deleted ({e}); delete {} by hand",
+                    path.display()
+                ));
+                false
+            }
         }
     }
 
@@ -1492,9 +1530,10 @@ impl RestState {
         };
         match self.try_unlock_as(&passphrase, now, hub_lib::events::IgnitionVia::Held, Some(tier)).await {
             UnlockOutcome::Unlocked { .. } => {
-                // "ok" only if the law kept the copy; a release during the unlock left "none".
+                // "ok" only if the law kept the copy; a release during the unlock left "none",
+                // and a release that failed left "stale".
                 if path.exists() {
-                    self.ignition.set_boot(1);
+                    self.ignition.mark_held_ok();
                 }
                 if let Err(e) = hydrate_law_defaults(self).await {
                     tracing::warn!("law-default hydration skipped: {e}");
@@ -1745,6 +1784,10 @@ async fn witness_law_amendment(
             drop(ledger);
             // The same act removes a held passphrase the new law no longer accepts
             // (PRD_HELD_IGNITION §3.4), so it never waits for the next boot.
+            // A copy that can't be deleted does not fail the amendment: the law is committed and
+            // the callers serve it only on Ok, so an Err here would make the served law diverge
+            // from the store. The failure has its own surface instead: well-known "stale", no
+            // IgnitionReleased, and a retry at the next unlock or amendment (codex, #970).
             let policy = hub_lib::law::Law::parse_and_validate(yaml).ok().and_then(|l| l.ext.ignition);
             if let Some(reason) = hub_lib::ignition::release_under(policy.as_ref(), &s.paths.root) {
                 s.release_held(&hub_lib::ignition::ignition_path(&s.paths.root), reason).await;
@@ -3215,9 +3258,10 @@ struct WellKnownHubInfo {
     law_present: bool,
     /// Held ignition (PRD_HELD_IGNITION §3.5), with no reason text because this document is
     /// public: `"ok"` (this boot unlocked from a held copy, and it is still held), `"failed"` (a
-    /// held copy did not unlock this boot, and no person has unlocked since) or `"none"`
-    /// (neither: nothing held, or a person has unlocked). A health check pages a person on
-    /// `"failed"`.
+    /// held copy did not unlock this boot, and no person has unlocked since), `"stale"` (the law
+    /// rejects the held copy, but it could not be deleted; a person deletes it by hand) or
+    /// `"none"` (none of these: nothing held, or a person has unlocked). A health check pages a
+    /// person on `"failed"` and on `"stale"`.
     held_ignition: &'static str,
     /// Hubs this server hosts. Single-hub deployments return one entry;
     /// future multi-hub hosting returns multiple.
@@ -18793,6 +18837,58 @@ norms: []
                 HubEvent::IgnitionReleased { reason } => Some(reason), _ => None }).collect();
             assert_eq!(got, reason.into_iter().collect::<Vec<_>>(), "{rule}");
         }
+    }
+
+    /// codex, #970: a copy the new law rejects but that can't be deleted (here a non-empty
+    /// directory in its place) does not fail the committed amendment, and is not released: nothing
+    /// is witnessed, well-known says "stale", and the note says what to do. The next amendment
+    /// retries, and a delete that works releases it and clears the alarm.
+    #[tokio::test]
+    async fn a_copy_the_law_rejects_but_cannot_delete_is_stale_not_released() {
+        use hub_lib::events::IgnitionRelease;
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        std::fs::create_dir_all(path.join("pinned")).unwrap();
+        let off = format!("{VALID_LAW}ignition:\n  held: false\n");
+        let released = |state: &RestState| {
+            let state = state.ledger.clone();
+            async move {
+                state.lock().await.entries().iter().filter_map(|e| match e.event {
+                    HubEvent::IgnitionReleased { reason } => Some(reason), _ => None }).collect::<Vec<_>>()
+            }
+        };
+        let idx = witness_law_amendment(&state, &off, "1.0.0".into(), None).await.expect("the amendment stands");
+        assert!(matches!(state.ledger.lock().await.entries().last().map(|e| &e.event), Some(HubEvent::LawAmended { .. })),
+            "entry {idx} is the law, and nothing after it");
+        assert!(path.exists());
+        assert!(released(&state).await.is_empty(), "nothing was released, so nothing is witnessed");
+        assert_eq!(state.ignition.boot_state(), "stale");
+        let note = state.ignition.take_note().unwrap_or_default();
+        assert!(note.starts_with("stale: the law rejects the held passphrase (LawOff)") && note.contains("by hand"), "{note}");
+
+        std::fs::remove_dir_all(&path).unwrap();
+        std::fs::write(&path, "an unreadable copy is still a copy").unwrap();
+        witness_law_amendment(&state, &off, "1.0.1".into(), None).await.unwrap();
+        assert!(!path.exists());
+        assert_eq!(released(&state).await, vec![IgnitionRelease::LawOff]);
+        assert_eq!(state.ignition.boot_state(), "none", "a release that worked clears the alarm");
+    }
+
+    /// codex, #970, at a person's unlock: a re-seal that fails while the earlier copy can't be
+    /// deleted says "stale" and how to fix it, not "sealing failed", and witnesses no release.
+    #[tokio::test]
+    async fn a_failed_reseal_over_an_undeletable_copy_is_stale() {
+        let pass = "correct horse battery staple";
+        let (_tmp, mut state) = held_test_hub(pass, hub_lib::law::IgnitionTier::HostKey).await;
+        state.ignition = Arc::new(HeldIgnition::with_sealer(Arc::new(FailingSealer)));
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        std::fs::create_dir_all(path.join("pinned")).unwrap();
+        assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+        assert_eq!(state.ignition.boot_state(), "stale");
+        let note = state.ignition.take_note().unwrap_or_default();
+        assert!(note.starts_with("stale: the law rejects the held passphrase (ResealFailed)"), "{note}");
+        let got = ignition_events(state.ledger.lock().await.entries());
+        assert!(!got.iter().any(|e| matches!(e, HubEvent::IgnitionReleased { .. })), "{got:?}");
     }
 
     /// PRD_HELD_IGNITION §3.1, §3.5: the law decides. `held: false` deletes a copy the law no
