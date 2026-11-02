@@ -24,7 +24,7 @@ const SEAL_NAME: &str = "hub-ignition";
 
 /// Seal ids measured on real hosts (systemd 259; the ids are constants in systemd's
 /// `src/shared/creds-util.h`). Only measured ids are here: any other id is
-/// [`IgnitionTier::Unknown`], which ranks below every `min_tier`, so it is never held.
+/// [`IgnitionTier::Unknown`], which meets no `min_tier` ([`IgnitionTier::meets`]), so it is never held.
 const MEASURED_SEALS: [([u8; 16], IgnitionTier); 2] = [
     // HUB, 2026-10-30: `--user`, no TPM driver. User-scoped, host key only.
     (
@@ -114,8 +114,12 @@ impl Sealer for SystemdUserSealer {
 }
 
 /// A test double that stands in for systemd. It is NOT a seal: it writes the secret in the clear
-/// behind a chosen seal id. Built only with the `test-sealer` feature, which only the daemon's
-/// dev-dependencies turn on.
+/// behind a chosen seal id. It is compiled in whenever the `test-sealer` feature is on. In this
+/// workspace only the daemon's dev-dependencies turn that on, and cargo's resolver keeps dev-only
+/// features out of `cargo build`, so the default release graph doesn't contain it. But anyone who
+/// enables the feature explicitly compiles this clear-text implementation into their build: the
+/// feature gate is not a release boundary (codex, #968). What keeps it out of a serving hub is that
+/// no serving code constructs it (the census test in the daemon, I2b).
 #[cfg(feature = "test-sealer")]
 pub struct ClearTestSealer {
     pub seal_id: [u8; 16],
