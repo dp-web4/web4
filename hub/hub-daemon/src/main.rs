@@ -997,6 +997,18 @@ async fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<
         Some(reason) => session.release_held_ignition(reason).await.err().map(|e| (reason, e)),
         None => None,
     };
+    // Nothing to release, but the ledger may still claim a copy that is gone (a lost release
+    // record, rotate-passphrase, a hand delete): record it as `absent`, once (codex + cbp, #970).
+    let reconciled = match released {
+        Some(_) => false,
+        None => match session.reconcile_absent_ignition().await {
+            Ok(entry) => entry.is_some(),
+            Err(e) => {
+                eprintln!("  ⚠ the ledger says a passphrase is held but none is on disk, and recording that failed ({e:#}); the next unlock records it");
+                false
+            }
+        },
+    };
 
     println!("Law set.");
     println!("  Chapter dir:  {}", hub_dir.display());
@@ -1018,6 +1030,9 @@ async fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<
     }
     if let Some(reason) = released {
         println!("  Held passphrase: deleted ({reason:?}); the next boot is locked until a person unlocks.");
+    }
+    if reconciled {
+        println!("  Held passphrase: none on disk; the ledger now records it as released (absent).");
     }
     Ok(())
 }
@@ -3117,6 +3132,8 @@ mod tests {
         #[tokio::test]
         async fn offline_set_law_releases_the_held_copy() {
             let (tmp, rest) = fresh_rest_state(None).await;
+            crate::rest::channel_e2e_tests::witness_for_test(&rest, hub_lib::events::HubEvent::IgnitionHeld {
+                tier: hub_lib::law::IgnitionTier::HostKey }).await;
             let hub_dir = rest.paths.root.clone();
             drop(rest);
             let path = hub_lib::ignition::ignition_path(&hub_dir);
@@ -3143,6 +3160,31 @@ mod tests {
             assert!(path.exists());
             assert!(matches!(last_event(hub_dir.clone()).await,
                 Some(hub_lib::events::HubEvent::LawAmended { .. })), "the law, and no release");
+        }
+
+        /// codex + cbp, #970, offline: the ledger says held and nothing is on disk (a crash cut
+        /// the release record, or rotate-passphrase deleted it). `set-law` records it as `absent`,
+        /// once; running it again records nothing more.
+        #[tokio::test]
+        async fn offline_set_law_records_an_absent_copy_once() {
+            use hub_lib::events::{HubEvent, IgnitionRelease};
+            let (tmp, rest) = fresh_rest_state(None).await;
+            crate::rest::channel_e2e_tests::witness_for_test(&rest, HubEvent::IgnitionHeld {
+                tier: hub_lib::law::IgnitionTier::HostKey }).await;
+            let hub_dir = rest.paths.root.clone();
+            drop(rest);
+            let law = tmp.path().join("law.yaml");
+            let absent = |hub_dir: std::path::PathBuf| async move {
+                let store = hub_lib::store::open_hub_store_async(&hub_dir).await.unwrap();
+                let ledger = hub_lib::ledger::HubLedger::open(store).await.unwrap();
+                ledger.entries().iter().filter(|e| matches!(e.event,
+                    HubEvent::IgnitionReleased { reason: IgnitionRelease::Absent })).count()
+            };
+            for v in ["1.0.0", "1.0.1"] {
+                std::fs::write(&law, format!("version: \"{v}\"\nnorms: []\n")).unwrap();
+                run_set_law(hub_dir.clone(), law.clone(), None).await.unwrap();
+                assert_eq!(absent(hub_dir.clone()).await, 1, "after {v}");
+            }
         }
 
         /// `/admin/council` on the backend production actually runs.

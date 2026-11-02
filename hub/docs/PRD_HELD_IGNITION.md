@@ -142,6 +142,18 @@ the held copy, and why (`law_off`, or `below_min_tier` from the file's own seal 
   says "don't hold" never leaves a copy for the next boot, even if the record then fails. If the
   delete fails, the command prints the law it set, then exits non-zero saying the law is set, the
   copy was not released, and which file to delete.
+- **The ledger is the durable record, and the hub reconciles it (codex + cbp, #970).** A release
+  is witnessed only while the ledger says held (its last `ignition_held` / `ignition_released` is a
+  hold), so it is never witnessed twice. The delete comes before the record, so a record that fails
+  or is cut by a crash leaves the ledger saying held with nothing on disk. The same state follows
+  `rotate-passphrase` (no signer) or a hand delete. Every person's unlock and every law change
+  (daemon or offline) checks for that state and witnesses `ignition_released { reason: absent }`:
+  the hub records that the copy is gone and doesn't invent why. The check and the append run under
+  the ledger's lock, and an append built on an older tail is refused, so concurrent reconcilers
+  record it once, and a release can't land after a newer `ignition_held`. The record never runs
+  ahead of the disk: "released" is never written while the copy remains. `"stale"` is the
+  opposite case and only a volatile health signal: it lives in memory, is re-derived at each unlock
+  (the delete is retried), and clears as soon as no file is there.
 - **`hub rotate-passphrase`** (offline, hub stopped) deletes `ignition.cred` right after the
   state store is re-keyed, in every sovereign mode (Local and Hestia), because a copy sealed to the
   old passphrase would fail at the next boot and cost an attempt. The store re-key proves the

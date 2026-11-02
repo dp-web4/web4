@@ -79,6 +79,22 @@ pub fn release_under(policy: Option<&IgnitionPolicy>, hub_dir: &Path) -> Option<
     (!tier.meets(IgnitionPolicy::min_tier(policy))).then_some(IgnitionRelease::BelowMinTier)
 }
 
+/// Whether the ledger says a copy is held: its last `IgnitionHeld` / `IgnitionReleased` is a hold.
+/// This is the durable half of held ignition's state: a release is witnessed only while this is
+/// true, so it is never witnessed twice, and a hold with no file on disk is a release the hub
+/// still owes the ledger ([`IgnitionRelease::Absent`]).
+pub fn ledger_holds<'a>(events: impl DoubleEndedIterator<Item = &'a crate::events::HubEvent>) -> bool {
+    use crate::events::HubEvent;
+    events
+        .rev()
+        .find_map(|e| match e {
+            HubEvent::IgnitionHeld { .. } => Some(true),
+            HubEvent::IgnitionReleased { .. } => Some(false),
+            _ => None,
+        })
+        .unwrap_or(false)
+}
+
 /// Seals and opens the held passphrase. Production uses [`SystemdUserSealer`].
 pub trait Sealer: Send + Sync {
     /// Seal `secret` into `out`, replacing it. The secret never reaches argv or the environment.

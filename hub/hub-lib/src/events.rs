@@ -47,6 +47,11 @@ pub enum IgnitionRelease {
     /// A person's unlock tried to re-seal and failed, so the earlier copy (which might hold an
     /// older passphrase) was deleted rather than left for the next boot.
     ResealFailed,
+    /// The ledger says a copy is held, but none is on disk, and the hub can't say why: its own
+    /// release record failed or was cut by a crash, `rotate-passphrase` deleted it offline, or a
+    /// person deleted it by hand. Witnessed when the hub next notices, so the ledger stops
+    /// claiming a copy that isn't there (codex + cbp, #970).
+    Absent,
 }
 
 /// Visibility tier for a profile field. Determines who can read the field

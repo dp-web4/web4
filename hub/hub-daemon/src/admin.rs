@@ -1296,6 +1296,7 @@ fn event_summary(event: &HubEvent) -> String {
                 hub_lib::events::IgnitionRelease::LawOff => "the law turned it off",
                 hub_lib::events::IgnitionRelease::BelowMinTier => "the seal is weaker than the law requires",
                 hub_lib::events::IgnitionRelease::ResealFailed => "re-sealing failed at a person's unlock",
+                hub_lib::events::IgnitionRelease::Absent => "the held copy was gone, cause unknown",
             }
         ),
         HubEvent::VaultUnlockRequested { challenge_id, tier, required, .. } => {

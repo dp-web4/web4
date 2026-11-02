@@ -310,18 +310,34 @@ impl HubSession {
 
     /// Delete the hub's held passphrase and witness why (PRD_HELD_IGNITION §3.4). The delete
     /// comes first: a law that says "don't hold" must not leave a copy for the next boot, even if
-    /// the record then fails.
-    pub async fn release_held_ignition(&mut self, reason: crate::events::IgnitionRelease) -> Result<&LedgerEntry> {
+    /// the record then fails (the next reconcile owes it, as `absent`). The release is witnessed
+    /// only while the ledger says held, so it is never witnessed twice. `None`: nothing to record.
+    pub async fn release_held_ignition(&mut self, reason: crate::events::IgnitionRelease) -> Result<Option<&LedgerEntry>> {
         let path = crate::ignition::ignition_path(&self.paths.root);
         match std::fs::remove_file(&path) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(anyhow::Error::from(e).context(format!("deleting {}", path.display()))),
         }
+        self.witness_ignition_release(reason).await
+    }
+
+    /// The ledger says held but nothing is on disk: witness `absent`, once. `None` otherwise.
+    pub async fn reconcile_absent_ignition(&mut self) -> Result<Option<&LedgerEntry>> {
+        if crate::ignition::ignition_path(&self.paths.root).exists() {
+            return Ok(None);
+        }
+        self.witness_ignition_release(crate::events::IgnitionRelease::Absent).await
+    }
+
+    async fn witness_ignition_release(&mut self, reason: crate::events::IgnitionRelease) -> Result<Option<&LedgerEntry>> {
+        if !crate::ignition::ledger_holds(self.ledger.entries().iter().map(|e| &e.event)) {
+            return Ok(None);
+        }
         let unsigned = self.ledger.build_entry(self.sovereign_lct_id, HubEvent::IgnitionReleased { reason }, Utc::now())?;
         let sig = self.sovereign_keypair.sign(&unsigned.signing_bytes);
         self.ledger.append_signed(unsigned, web4_core::crypto::SignatureBytes::from_bytes(sig.bytes)).await?;
-        Ok(self.ledger.entries().last().expect("just appended"))
+        Ok(self.ledger.entries().last())
     }
 
     pub async fn get_law(&self) -> Result<Option<String>> {

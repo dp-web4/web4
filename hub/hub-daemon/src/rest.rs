@@ -1412,6 +1412,9 @@ impl RestState {
         if via == IgnitionVia::Human {
             self.ignition.set_boot(0);
         }
+        // Before anything is sealed: a hold the ledger still claims with no file behind it is
+        // recorded now (a new seal's IgnitionHeld comes after, so the order stays true).
+        self.reconcile_absent().await;
         if !held {
             if path.exists() && self.release_held(&path, IgnitionRelease::LawOff).await {
                 self.ignition.set_note("not held: the law says ignition.held: false".into());
@@ -1480,10 +1483,50 @@ impl RestState {
         if !self.delete_held(path, reason) {
             return false;
         }
-        if let Err(e) = witness_event_inner(self, HubEvent::IgnitionReleased { reason }).await {
-            tracing::warn!("held ignition: released ({reason:?}), but its record failed: {}", e.message);
+        // The delete is done. If the record fails (or a crash cuts it), the ledger still says
+        // held with nothing on disk, and the next reconcile records it as `absent`.
+        if let Err(e) = self.witness_release(reason, false).await {
+            tracing::warn!("held ignition: released ({reason:?}), but its record failed (the next unlock or law change records it as absent): {}", e.message);
         }
         true
+    }
+
+    /// Witness `IgnitionReleased { reason }` only while the ledger says held, and (for `absent`)
+    /// only while nothing is on disk. Both checks run under the lock the append takes, and the
+    /// append refuses an entry built on an older tail, so two reconcilers can't both record it,
+    /// and a release can't land after a newer `IgnitionHeld` (codex, #970). `Ok(false)`: nothing
+    /// was owed.
+    async fn witness_release(&self, reason: hub_lib::events::IgnitionRelease, absent_only: bool) -> Result<bool, ApiError> {
+        let path = hub_lib::ignition::ignition_path(&self.paths.root);
+        let owed = |ledger: &hub_lib::ledger::HubLedger| {
+            hub_lib::ignition::ledger_holds(ledger.entries().iter().map(|e| &e.event)) && !(absent_only && path.exists())
+        };
+        if !owed(&*self.ledger.lock().await) {
+            return Ok(false);
+        }
+        let (unsigned, signature) = authorize_event(self, HubEvent::IgnitionReleased { reason }).await?;
+        let mut ledger = self.ledger.lock().await;
+        if !owed(&ledger) {
+            return Ok(false);
+        }
+        ledger.append_signed(unsigned, signature).await.map_err(ApiError::internal)?;
+        Ok(true)
+    }
+
+    /// The ledger says held, but no copy is on disk: record it (`absent`), and drop a "stale"
+    /// that no longer has a file behind it (a person deleted it by hand, as the note said).
+    /// Idempotent: once recorded, the ledger no longer says held. "stale" is a volatile health
+    /// signal; the ledger and the disk are the durable truth, and this re-derives one from them.
+    async fn reconcile_absent(&self) {
+        if hub_lib::ignition::ignition_path(&self.paths.root).exists() {
+            return;
+        }
+        self.ignition.clear_stale();
+        match self.witness_release(hub_lib::events::IgnitionRelease::Absent, true).await {
+            Ok(true) => tracing::warn!("held ignition: the ledger said a passphrase was held, but none is on disk; recorded as released (absent)"),
+            Ok(false) => {}
+            Err(e) => tracing::warn!("held ignition: none on disk while the ledger says held, and recording that failed (retried next time): {}", e.message),
+        }
     }
 
     /// Delete a copy the law rejects; on failure say `"stale"` and how to fix it. No record.
@@ -1493,7 +1536,10 @@ impl RestState {
                 self.ignition.clear_stale();
                 true
             }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => true,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                self.ignition.clear_stale();
+                true
+            }
             Err(e) => {
                 tracing::error!("held ignition STALE: the law rejects the held passphrase ({reason:?}), but {} could not be deleted: {e}", path.display());
                 self.ignition.set_boot(3);
@@ -1789,8 +1835,11 @@ async fn witness_law_amendment(
             // from the store. The failure has its own surface instead: well-known "stale", no
             // IgnitionReleased, and a retry at the next unlock or amendment (codex, #970).
             let policy = hub_lib::law::Law::parse_and_validate(yaml).ok().and_then(|l| l.ext.ignition);
-            if let Some(reason) = hub_lib::ignition::release_under(policy.as_ref(), &s.paths.root) {
-                s.release_held(&hub_lib::ignition::ignition_path(&s.paths.root), reason).await;
+            match hub_lib::ignition::release_under(policy.as_ref(), &s.paths.root) {
+                Some(reason) => {
+                    s.release_held(&hub_lib::ignition::ignition_path(&s.paths.root), reason).await;
+                }
+                None => s.reconcile_absent().await,
             }
             Ok(index)
         }
@@ -18784,6 +18833,9 @@ norms: []
         ] {
             let (_tmp, mut state) = held_test_hub(pass, IgnitionTier::HostKey).await;
             let path = hub_lib::ignition::ignition_path(&state.paths.root);
+            // Held the way production holds it: a person's unlock sealed it and recorded it.
+            assert!(matches!(state.try_unlock(pass, 1_699_999_900).await, UnlockOutcome::Unlocked { .. }));
+            relock(&state);
             state.ignition.sealer.as_ref().unwrap().seal("an older passphrase", &path).unwrap();
             if let Some(rule) = law {
                 put_law_in_store(&state, &format!("{VALID_LAW}ignition:\n  {rule}\n")).await;
@@ -18795,7 +18847,7 @@ norms: []
             assert!(!path.exists(), "{reason:?}: the earlier copy must not survive for the next boot");
             let got = ignition_events(state.ledger.lock().await.entries());
             assert!(got.iter().any(|e| matches!(e, HubEvent::IgnitionReleased { reason: r } if *r == reason)), "{got:?}");
-            assert!(!got.iter().any(|e| matches!(e, HubEvent::IgnitionHeld { .. })), "{got:?}");
+            assert!(matches!(got.last(), Some(HubEvent::IgnitionReleased { .. })), "nothing held after it: {got:?}");
             let n = state.ignition.take_note().unwrap_or_default();
             assert!(n.starts_with(note), "{n}");
         }
@@ -18826,6 +18878,7 @@ norms: []
         let path = hub_lib::ignition::ignition_path(&state.paths.root);
         let host_key = hub_lib::ignition::ClearTestSealer::reading_as(hub_lib::law::IgnitionTier::HostKey);
         hub_lib::ignition::Sealer::seal(&host_key, "x", &path).unwrap();
+        witness_event_inner(&state, HubEvent::IgnitionHeld { tier: hub_lib::law::IgnitionTier::HostKey }).await.unwrap();
         for (rule, gone, reason) in [
             ("min_tier: host-key", false, None),
             ("min_tier: tpm2", true, Some(IgnitionRelease::BelowMinTier)),
@@ -18868,10 +18921,109 @@ norms: []
 
         std::fs::remove_dir_all(&path).unwrap();
         std::fs::write(&path, "an unreadable copy is still a copy").unwrap();
+        witness_event_inner(&state, HubEvent::IgnitionHeld { tier: hub_lib::law::IgnitionTier::HostKey }).await.unwrap();
         witness_law_amendment(&state, &off, "1.0.1".into(), None).await.unwrap();
         assert!(!path.exists());
         assert_eq!(released(&state).await, vec![IgnitionRelease::LawOff]);
         assert_eq!(state.ignition.boot_state(), "none", "a release that worked clears the alarm");
+    }
+
+    fn releases(entries: &[hub_lib::ledger::LedgerEntry]) -> Vec<hub_lib::events::IgnitionRelease> {
+        entries.iter().filter_map(|e| match e.event { HubEvent::IgnitionReleased { reason } => Some(reason), _ => None }).collect()
+    }
+
+    /// codex + cbp, #970: a release whose record fails after the delete (injected here: the
+    /// signer is locked when it signs) leaves the ledger saying held with nothing on disk. The
+    /// next unlock records it, as `absent`, exactly once, before it seals the new copy.
+    #[tokio::test]
+    async fn a_release_whose_record_failed_is_recorded_as_absent_at_the_next_unlock() {
+        use hub_lib::events::{IgnitionRelease, IgnitionVia};
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+        relock(&state);
+        assert!(state.release_held(&path, IgnitionRelease::LawOff).await, "the delete happened");
+        assert!(!path.exists());
+        assert!(releases(state.ledger.lock().await.entries()).is_empty(), "its record failed");
+
+        assert!(matches!(state.try_unlock(pass, 1_700_000_100).await, UnlockOutcome::Unlocked { .. }));
+        let got = ignition_events(state.ledger.lock().await.entries());
+        assert!(matches!(got.as_slice(), [
+            HubEvent::HubIgnited { via: IgnitionVia::Human, .. },
+            HubEvent::IgnitionHeld { .. },
+            HubEvent::HubIgnited { via: IgnitionVia::Human, .. },
+            HubEvent::IgnitionReleased { reason: IgnitionRelease::Absent },
+            HubEvent::IgnitionHeld { .. },
+        ]), "{got:?}");
+        assert!(path.exists(), "and the law still says held, so the unlock re-sealed");
+    }
+
+    /// The crash cut (or rotate-passphrase, or a hand delete): the ledger says held and the file
+    /// is gone. Every amendment reconciles; only the first records anything. And a "stale" whose
+    /// file a person deleted by hand clears at the next amendment, recording nothing it can't know.
+    #[tokio::test]
+    async fn an_absent_copy_is_recorded_once_and_a_hand_delete_clears_stale() {
+        use hub_lib::events::IgnitionRelease;
+        let (_tmp, state) = fresh_rest_state(None).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        witness_event_inner(&state, HubEvent::IgnitionHeld { tier: hub_lib::law::IgnitionTier::HostKey }).await.unwrap();
+        let held = format!("{VALID_LAW}ignition:\n  held: true\n");
+        for v in ["1.0.0", "1.0.1"] {
+            witness_law_amendment(&state, &held, v.into(), None).await.unwrap();
+            assert_eq!(releases(state.ledger.lock().await.entries()), vec![IgnitionRelease::Absent], "after {v}");
+        }
+
+        let (_tmp2, state) = fresh_rest_state(None).await;
+        let path2 = hub_lib::ignition::ignition_path(&state.paths.root);
+        std::fs::create_dir_all(path2.join("pinned")).unwrap();
+        let off = format!("{VALID_LAW}ignition:\n  held: false\n");
+        witness_law_amendment(&state, &off, "1.0.0".into(), None).await.unwrap();
+        assert_eq!(state.ignition.boot_state(), "stale");
+        std::fs::remove_dir_all(&path2).unwrap();
+        witness_law_amendment(&state, &off, "1.0.1".into(), None).await.unwrap();
+        assert_eq!(state.ignition.boot_state(), "none", "the hand delete is noticed");
+        assert!(releases(state.ledger.lock().await.entries()).is_empty(), "the ledger never said held");
+        let _ = path;
+    }
+
+    /// codex, #970, the concurrency boundary, over many rounds on a multi-thread runtime: several
+    /// reconcilers at once record `absent` exactly once, and a reconciler racing a new seal (file
+    /// placed, then IgnitionHeld) never leaves the ledger saying released while a copy is on disk.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn reconcilers_racing_each_other_and_a_new_seal_stay_true() {
+        use hub_lib::events::IgnitionRelease;
+        use hub_lib::law::IgnitionTier;
+        for round in 0..12 {
+            let (_tmp, state) = fresh_rest_state(None).await;
+            let path = hub_lib::ignition::ignition_path(&state.paths.root);
+            witness_event_inner(&state, HubEvent::IgnitionHeld { tier: IgnitionTier::HostKey }).await.unwrap();
+            let tasks: Vec<_> = (0..4).map(|_| {
+                let s = state.clone();
+                tokio::spawn(async move { s.reconcile_absent().await })
+            }).collect();
+            for t in tasks { t.await.unwrap(); }
+            assert_eq!(releases(state.ledger.lock().await.entries()), vec![IgnitionRelease::Absent], "round {round}");
+
+            // Held again, file absent again; now a reconciler races a person's re-seal.
+            witness_event_inner(&state, HubEvent::IgnitionHeld { tier: IgnitionTier::HostKey }).await.unwrap();
+            let s = state.clone();
+            let reconciler = tokio::spawn(async move { s.reconcile_absent().await });
+            let s = state.clone();
+            let sealer = tokio::spawn(async move {
+                hub_lib::ignition::Sealer::seal(&hub_lib::ignition::ClearTestSealer::reading_as(IgnitionTier::HostKey),
+                    "pw", &hub_lib::ignition::ignition_path(&s.paths.root)).unwrap();
+                witness_event_inner(&s, HubEvent::IgnitionHeld { tier: IgnitionTier::HostKey }).await.unwrap();
+            });
+            reconciler.await.unwrap();
+            sealer.await.unwrap();
+            let ledger = state.ledger.lock().await;
+            assert!(path.exists());
+            assert!(hub_lib::ignition::ledger_holds(ledger.entries().iter().map(|e| &e.event)),
+                "round {round}: a copy is on disk, so the ledger must end on a hold: {:?}", ignition_events(ledger.entries()));
+            assert!(releases(ledger.entries()).len() <= 2, "round {round}: no duplicate");
+        }
     }
 
     /// codex, #970, at a person's unlock: a re-seal that fails while the earlier copy can't be
@@ -18912,9 +19064,15 @@ norms: []
             ("held: true", IgnitionTier::Unknown, Some(IgnitionRelease::BelowMinTier)),
         ];
         for (rule, tier, released) in cases {
-            let (_tmp, state) = held_test_hub(pass, tier).await;
+            let (_tmp, mut state) = held_test_hub(pass, IgnitionTier::HostTpm2).await;
             let path = hub_lib::ignition::ignition_path(&state.paths.root);
-            // A copy sealed while the law still allowed it.
+            // A copy held while the law still allowed it: a person's unlock sealed it and recorded
+            // IgnitionHeld. Then the hub restarted, and the copy on disk now reads as `tier`.
+            assert!(matches!(state.try_unlock(pass, now - 100).await, UnlockOutcome::Unlocked { .. }));
+            relock(&state);
+            state.ignition = Arc::new(HeldIgnition::with_sealer(Arc::new(
+                hub_lib::ignition::ClearTestSealer::reading_as(tier),
+            )));
             state.ignition.sealer.as_ref().unwrap().seal(pass, &path).unwrap();
             put_law_in_store(&state, &format!("{VALID_LAW}ignition:\n  {rule}\n")).await;
             state.held_boot(now).await;
