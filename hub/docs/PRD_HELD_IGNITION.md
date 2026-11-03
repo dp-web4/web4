@@ -150,8 +150,15 @@ the held copy, and why (`law_off`, or `below_min_tier` from the file's own seal 
   (daemon or offline) checks for that state and witnesses `ignition_released { reason: absent }`:
   the hub records that the copy is gone and doesn't invent why. The check and the append run under
   the ledger's lock, and an append built on an older tail is refused, so concurrent reconcilers
-  record it once, and a release can't land after a newer `ignition_held`. The record never runs
-  ahead of the disk: "released" is never written while the copy remains. `"stale"` is the
+  record it once, and a release can't land after a newer `ignition_held`. **What a release
+  refers to** (NOVA + supervisor, #970): the copy the last `ignition_held` recorded. A new seal
+  writes its file outside the ledger's lock and records its own `ignition_held` after, so a release
+  can be written while that new copy is already on disk; the ledger then reads `held (old),
+  released (absent), held (new)`, which is true. The ledger mutex orders the records; it does not
+  make the file system atomic with them, and nothing here claims it does. A shared seal/ledger lock
+  would close that window, at the cost of making every unlock wait on the ledger for a stronger
+  sentence than the record needs. If the new seal's own `ignition_held` then fails, that is the
+  disclosed case of a seal whose record failed. `"stale"` is the
   opposite case and only a volatile health signal: it lives in memory, is re-derived at each unlock
   (the delete is retried), and clears as soon as no file is there.
 - **`hub rotate-passphrase`** (offline, hub stopped) deletes `ignition.cred` right after the

@@ -991,6 +991,9 @@ pub struct HeldIgnition {
     boot: std::sync::atomic::AtomicU8,
     /// What the last person's unlock did about holding, for the unlock response.
     note: std::sync::Mutex<Option<String>>,
+    /// Test seam for [`RestState::witness_release`]: (reached, resume).
+    #[cfg(test)]
+    pause_before_release_append: tokio::sync::Mutex<Option<(tokio::sync::oneshot::Sender<()>, tokio::sync::oneshot::Receiver<()>)>>,
 }
 
 impl HeldIgnition {
@@ -1496,6 +1499,11 @@ impl RestState {
     /// append refuses an entry built on an older tail, so two reconcilers can't both record it,
     /// and a release can't land after a newer `IgnitionHeld` (codex, #970). `Ok(false)`: nothing
     /// was owed.
+    ///
+    /// The release refers to the copy the last `IgnitionHeld` recorded. The ledger lock orders
+    /// records, not files: a new seal places its file outside it and records its own
+    /// `IgnitionHeld` after, so a release can land while that new copy is already on disk, giving
+    /// `Held(old), Released, Held(new)`, which is true (NOVA + supervisor, #970).
     async fn witness_release(&self, reason: hub_lib::events::IgnitionRelease, absent_only: bool) -> Result<bool, ApiError> {
         let path = hub_lib::ignition::ignition_path(&self.paths.root);
         let owed = |ledger: &hub_lib::ledger::HubLedger| {
@@ -1508,6 +1516,13 @@ impl RestState {
         let mut ledger = self.ledger.lock().await;
         if !owed(&ledger) {
             return Ok(false);
+        }
+        // Test seam: stop here, with the lock held and the check passed, so a test can place a
+        // new seal in exactly this window (NOVA, #970).
+        #[cfg(test)]
+        if let Some((reached, resume)) = self.ignition.pause_before_release_append.lock().await.take() {
+            let _ = reached.send(());
+            let _ = resume.await;
         }
         ledger.append_signed(unsigned, signature).await.map_err(ApiError::internal)?;
         Ok(true)
@@ -19024,6 +19039,55 @@ norms: []
                 "round {round}: a copy is on disk, so the ledger must end on a hold: {:?}", ignition_events(ledger.entries()));
             assert!(releases(ledger.entries()).len() <= 2, "round {round}: no duplicate");
         }
+    }
+
+    /// NOVA + supervisor, #970, the window pinned instead of hoped for: a law change's reconcile
+    /// stops after its in-lock "nothing on disk" check, holding the ledger lock. A new seal lands
+    /// in that window: the hub's sealer places the file (outside the lock), and the seal arm's
+    /// `IgnitionHeld` waits for the lock. A person's whole unlock can't enter the window, because
+    /// its first record needs the same lock; the file write is the part that can. On resume the
+    /// ledger reads `…Held(old), Released{absent}, Held(new)` with the new copy on disk: the
+    /// release names the old copy, and the new one is held. Never a release after the new hold.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_reconcile_paused_after_its_check_while_a_new_seal_lands_ends_on_the_new_hold() {
+        use hub_lib::events::IgnitionRelease;
+        use hub_lib::law::IgnitionTier;
+        let (_tmp, mut state) = fresh_rest_state(None).await;
+        state.ignition = Arc::new(HeldIgnition::with_sealer(Arc::new(
+            hub_lib::ignition::ClearTestSealer::reading_as(IgnitionTier::HostKey),
+        )));
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        witness_event_inner(&state, HubEvent::IgnitionHeld { tier: IgnitionTier::HostKey }).await.unwrap();
+        assert!(!path.exists(), "the old copy is gone: the ledger owes its release");
+
+        let (reached_tx, reached_rx) = tokio::sync::oneshot::channel();
+        let (resume_tx, resume_rx) = tokio::sync::oneshot::channel();
+        *state.ignition.pause_before_release_append.lock().await = Some((reached_tx, resume_rx));
+        let s = state.clone();
+        let law_change = tokio::spawn(async move {
+            witness_law_amendment(&s, &format!("{VALID_LAW}ignition:\n  held: true\n"), "1.0.0".into(), None).await.unwrap();
+        });
+        reached_rx.await.expect("the reconcile reached its window");
+
+        state.ignition.sealer.as_ref().unwrap().seal("a new passphrase", &path).unwrap();
+        let s = state.clone();
+        let new_hold = tokio::spawn(async move {
+            witness_event_inner(&s, HubEvent::IgnitionHeld { tier: IgnitionTier::HostKey }).await.unwrap();
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        assert!(!new_hold.is_finished(), "the new hold waits for the paused reconcile's lock");
+        resume_tx.send(()).unwrap();
+        law_change.await.unwrap();
+        new_hold.await.unwrap();
+
+        assert!(path.exists(), "the new copy is on disk");
+        let got = ignition_events(state.ledger.lock().await.entries());
+        assert!(matches!(got.as_slice(), [
+            HubEvent::IgnitionHeld { .. },
+            HubEvent::IgnitionReleased { reason: IgnitionRelease::Absent },
+            HubEvent::IgnitionHeld { .. },
+        ]), "{got:?}");
+        assert!(hub_lib::ignition::ledger_holds(state.ledger.lock().await.entries().iter().map(|e| &e.event)));
     }
 
     /// codex, #970, at a person's unlock: a re-seal that fails while the earlier copy can't be
