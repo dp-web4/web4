@@ -150,14 +150,20 @@ the held copy, and why (`law_off`, or `below_min_tier` from the file's own seal 
   (daemon or offline) checks for that state and witnesses `ignition_released { reason: absent }`:
   the hub records that the copy is gone and doesn't invent why. The check and the append run under
   the ledger's lock, and an append built on an older tail is refused, so concurrent reconcilers
-  record it once, and a release can't land after a newer `ignition_held`. **What a release
-  refers to** (NOVA + supervisor, #970): the copy the last `ignition_held` recorded. A new seal
-  writes its file outside the ledger's lock and records its own `ignition_held` after, so a release
-  can be written while that new copy is already on disk; the ledger then reads `held (old),
-  released (absent), held (new)`, which is true. The ledger mutex orders the records; it does not
-  make the file system atomic with them, and nothing here claims it does. A shared seal/ledger lock
-  would close that window, at the cost of making every unlock wait on the ledger for a stronger
-  sentence than the record needs. If the new seal's own `ignition_held` then fails, that is the
+  record it once. **What a release refers to** (NOVA + supervisor, #970): the copy the last
+  `ignition_held` recorded. Those ledger checks can't tell which hold that is ("the last ignition
+  event is a hold" is as true of a newer hold), so they can't stop an ordinary release, whose
+  delete came first, from landing after a newer `ignition_held` (kimi-code + supervisor, #970).
+  **One seal/release lock in the daemon does that.** A person's unlock holds it while it reads the
+  law (from the store, because an amendment's callers swap the served law only after it returns),
+  seals, and records `ignition_held`. A law amendment holds it from before its signature through the
+  law write, `law_amended`, the delete and the `ignition_released`. An unlock that read the old law
+  therefore finishes first, and the amendment then releases what it sealed. The lock is not the
+  ledger's: unlocks and amendments are rare acts by a person, and nothing else waits on it. The
+  ledger checks stay as the second line, for a reconcile racing a file write: the ledger then
+  reads `held (old), released (absent), held (new)` with the new copy on disk, which is true. The
+  lock does not reach offline `set-law` run against a live daemon, which is already two writers on
+  one ledger. If the new seal's own `ignition_held` then fails, that is the
   disclosed case of a seal whose record failed. `"stale"` is the
   opposite case and only a volatile health signal: it lives in memory, is re-derived at each unlock
   (the delete is retried), and clears as soon as no file is there.

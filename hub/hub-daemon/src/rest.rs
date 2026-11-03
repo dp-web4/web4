@@ -991,9 +991,18 @@ pub struct HeldIgnition {
     boot: std::sync::atomic::AtomicU8,
     /// What the last person's unlock did about holding, for the unlock response.
     note: std::sync::Mutex<Option<String>>,
+    /// Serializes everything that decides what is held, changes the copy and records it: a
+    /// person's unlock (law read, seal, `IgnitionHeld`) and a law amendment (law write,
+    /// `LawAmended`, delete, `IgnitionReleased`). Without it an unlock that read the old law could
+    /// seal and record `Held(new)` between an amendment's delete and its release, and the release
+    /// would then name the new copy (kimi-code + supervisor, #970). Taken before the ledger lock.
+    op: tokio::sync::Mutex<()>,
     /// Test seam for [`RestState::witness_release`]: (reached, resume).
     #[cfg(test)]
     pause_before_release_append: tokio::sync::Mutex<Option<(tokio::sync::oneshot::Sender<()>, tokio::sync::oneshot::Receiver<()>)>>,
+    /// Test seam for [`RestState::settle_held_ignition`], after it has read the law: (reached, resume).
+    #[cfg(test)]
+    pause_after_settle_law_read: tokio::sync::Mutex<Option<(tokio::sync::oneshot::Sender<()>, tokio::sync::oneshot::Receiver<()>)>>,
 }
 
 impl HeldIgnition {
@@ -1404,11 +1413,31 @@ impl RestState {
     ) {
         use hub_lib::events::{IgnitionRelease, IgnitionVia};
         use hub_lib::law::IgnitionPolicy;
-        let (held, min_tier) = {
-            let law = self.law.read().await;
-            let p = law.as_ref().and_then(|l| l.ext.ignition.as_ref());
-            (IgnitionPolicy::held(p), IgnitionPolicy::min_tier(p))
+        let _op = self.ignition.op.lock().await;
+        // The law as committed to the store, not the served copy: an amendment swaps the served
+        // law only after it returns, so under `op` the store is the one that can't be stale.
+        let stored = self.ledger.lock().await.store().read_law().await;
+        let policy = match stored {
+            Ok(Some(yaml)) => match hub_lib::law::Law::parse_and_validate(&yaml) {
+                Ok(l) => Some(l.ext.ignition),
+                Err(_) => None,
+            },
+            Ok(None) => Some(None),
+            Err(_) => None,
         };
+        let policy = match policy {
+            Some(p) => p,
+            None => self.law.read().await.as_ref().and_then(|l| l.ext.ignition.clone()),
+        };
+        let (held, min_tier) = (IgnitionPolicy::held(policy.as_ref()), IgnitionPolicy::min_tier(policy.as_ref()));
+        #[cfg(test)]
+        {
+            let pause = self.ignition.pause_after_settle_law_read.lock().await.take();
+            if let Some((reached, resume)) = pause {
+                let _ = reached.send(());
+                let _ = resume.await;
+            }
+        }
         let path = hub_lib::ignition::ignition_path(&self.paths.root);
         // A person is in, so the hub is not dark: clear the alarm whatever the law says next
         // (supervisor, #969: the held: false arm used to return before this).
@@ -1496,14 +1525,15 @@ impl RestState {
 
     /// Witness `IgnitionReleased { reason }` only while the ledger says held, and (for `absent`)
     /// only while nothing is on disk. Both checks run under the lock the append takes, and the
-    /// append refuses an entry built on an older tail, so two reconcilers can't both record it,
-    /// and a release can't land after a newer `IgnitionHeld` (codex, #970). `Ok(false)`: nothing
-    /// was owed.
+    /// append refuses an entry built on an older tail, so two reconcilers can't both record it
+    /// (codex, #970). `Ok(false)`: nothing was owed.
     ///
-    /// The release refers to the copy the last `IgnitionHeld` recorded. The ledger lock orders
-    /// records, not files: a new seal places its file outside it and records its own
-    /// `IgnitionHeld` after, so a release can land while that new copy is already on disk, giving
-    /// `Held(old), Released, Held(new)`, which is true (NOVA + supervisor, #970).
+    /// The release refers to the copy the last `IgnitionHeld` recorded. These checks can't tell
+    /// which hold that is ("the latest ignition event is a hold" is true of `Held(new)` too), so
+    /// what keeps a release from naming a copy it didn't delete is [`HeldIgnition::op`]: every
+    /// caller in this daemon (settle, law amendment) holds it, and so does the seal arm's
+    /// `IgnitionHeld` (kimi-code + supervisor, #970). The ledger lock orders records, not files;
+    /// a `Held(old), Released, Held(new)` order with the new copy on disk is still true.
     async fn witness_release(&self, reason: hub_lib::events::IgnitionRelease, absent_only: bool) -> Result<bool, ApiError> {
         let path = hub_lib::ignition::ignition_path(&self.paths.root);
         let owed = |ledger: &hub_lib::ledger::HubLedger| {
@@ -1520,9 +1550,12 @@ impl RestState {
         // Test seam: stop here, with the lock held and the check passed, so a test can place a
         // new seal in exactly this window (NOVA, #970).
         #[cfg(test)]
-        if let Some((reached, resume)) = self.ignition.pause_before_release_append.lock().await.take() {
-            let _ = reached.send(());
-            let _ = resume.await;
+        {
+            let pause = self.ignition.pause_before_release_append.lock().await.take();
+            if let Some((reached, resume)) = pause {
+                let _ = reached.send(());
+                let _ = resume.await;
+            }
         }
         ledger.append_signed(unsigned, signature).await.map_err(ApiError::internal)?;
         Ok(true)
@@ -1834,6 +1867,10 @@ async fn witness_law_amendment(
     let event = law_amended_event(s, yaml, version, diff_summary);
     // Authorization dominates the side effects: nothing below this line runs
     // unless the Sovereign has already signed the amendment.
+    // Held from before the signature (an unlock's `IgnitionHeld` would otherwise move the tail it
+    // is built on) through the release below, so a person's unlock reads either the old law and
+    // finishes (seal and `IgnitionHeld`) first, or reads this one.
+    let _op = s.ignition.op.lock().await;
     let (unsigned, signature) = authorize_event(s, event).await?;
 
     let mut ledger = s.ledger.lock().await;
@@ -19044,8 +19081,9 @@ norms: []
     /// NOVA + supervisor, #970, the window pinned instead of hoped for: a law change's reconcile
     /// stops after its in-lock "nothing on disk" check, holding the ledger lock. A new seal lands
     /// in that window: the hub's sealer places the file (outside the lock), and the seal arm's
-    /// `IgnitionHeld` waits for the lock. A person's whole unlock can't enter the window, because
-    /// its first record needs the same lock; the file write is the part that can. On resume the
+    /// `IgnitionHeld` waits for the lock. In the daemon `HeldIgnition::op` now keeps a person's
+    /// unlock out of this window entirely; this drives the ledger-level check directly, which
+    /// stays as the second line. On resume the
     /// ledger reads `…Held(old), Released{absent}, Held(new)` with the new copy on disk: the
     /// release names the old copy, and the new one is held. Never a release after the new hold.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -19088,6 +19126,68 @@ norms: []
             HubEvent::IgnitionHeld { .. },
         ]), "{got:?}");
         assert!(hub_lib::ignition::ledger_holds(state.ledger.lock().await.entries().iter().map(|e| &e.event)));
+    }
+
+    /// kimi-code + supervisor, #970, the ordinary release: a person's unlock pauses right after it
+    /// has read the law (held). A law change to `held: false` must wait for it, not delete the old
+    /// copy and record `Released` while the unlock goes on to seal a new copy and record
+    /// `Held(new)` after it. On resume the unlock seals under the old law, then the law change
+    /// releases that copy: nothing on disk, and the ledger ends on `Released{LawOff}`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn an_unlock_that_read_the_old_law_finishes_before_a_law_change_releases() {
+        use hub_lib::events::IgnitionRelease;
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = held_test_hub(pass, hub_lib::law::IgnitionTier::HostKey).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+        assert!(path.exists());
+        relock(&state);
+
+        let (reached_tx, reached_rx) = tokio::sync::oneshot::channel();
+        let (resume_tx, resume_rx) = tokio::sync::oneshot::channel();
+        *state.ignition.pause_after_settle_law_read.lock().await = Some((reached_tx, resume_rx));
+        let s = state.clone();
+        let unlock = tokio::spawn(async move { s.try_unlock(pass, 1_700_000_100).await });
+        reached_rx.await.expect("the unlock read the law (held) and paused");
+
+        let s = state.clone();
+        let law_change = tokio::spawn(async move {
+            witness_law_amendment(&s, &format!("{VALID_LAW}ignition:\n  held: false\n"), "1.0.0".into(), None).await.unwrap();
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        assert!(!law_change.is_finished(), "the law change waits for the unlock that read the old law");
+        assert!(path.exists(), "and has deleted nothing yet");
+        resume_tx.send(()).unwrap();
+        assert!(matches!(unlock.await.unwrap(), UnlockOutcome::Unlocked { .. }));
+        law_change.await.unwrap();
+
+        assert!(!path.exists(), "the new law released the copy the unlock sealed");
+        let got = ignition_events(state.ledger.lock().await.entries());
+        assert!(matches!(got.as_slice(), [
+            ..,
+            HubEvent::IgnitionHeld { .. },
+            HubEvent::IgnitionReleased { reason: IgnitionRelease::LawOff },
+        ]), "{got:?}");
+    }
+
+    /// kimi-code + supervisor, #970: an amendment's callers swap the served law only after it
+    /// returns, so an unlock that settles in between must follow the law committed to the store.
+    /// Here the store says `held: false` and the served copy still says nothing (held by default).
+    #[tokio::test]
+    async fn a_persons_unlock_follows_the_committed_law_not_the_served_copy() {
+        use hub_lib::events::{IgnitionRelease, IgnitionVia};
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = held_test_hub(pass, hub_lib::law::IgnitionTier::HostKey).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+        witness_law_amendment(&state, &format!("{VALID_LAW}ignition:\n  held: false\n"), "1.0.0".into(), None).await.unwrap();
+        assert!(!path.exists());
+        assert!(state.law.read().await.is_none(), "the served law is not swapped yet");
+
+        state.settle_held_ignition(pass, IgnitionVia::Human, None).await;
+        assert!(!path.exists(), "the store says held: false, so nothing is sealed");
+        let got = ignition_events(state.ledger.lock().await.entries());
+        assert!(matches!(got.last(), Some(HubEvent::IgnitionReleased { reason: IgnitionRelease::LawOff })), "{got:?}");
     }
 
     /// codex, #970, at a person's unlock: a re-seal that fails while the earlier copy can't be
