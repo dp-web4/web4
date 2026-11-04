@@ -60,7 +60,8 @@ Tuning: `top_k` 10–15, keyword rerank ~0.05/hit, hippocampus-walk off (single-
 ## Operate
 
 ```bash
-# (re)build the cart from the live hub
+# (re)build the cart from the live hub; members are read from the loopback operator
+# plane (:8772), because the public plane does not serve list_members (P0)
 membot/.venv/bin/python ingest.py --out /home/dp/web4-hub/membox-data --name web4-fleet-members
 sudo systemctl restart web4-membox     # re-mount after re-ingest
 
@@ -68,6 +69,9 @@ sudo systemctl restart web4-membox     # re-mount after re-ingest
 systemctl status web4-membox
 curl -s http://127.0.0.1:8771/health
 ```
+
+Nothing re-ingests on its own: the cart is a snapshot taken at the last run. Compare
+`n_members` from `/health` with the hub's member count; a gap means it is stale.
 
 **Data note:** discovery is only as rich as member profiles. Until members
 declare skills/interests (MemberSkillDeclared / MemberProfileUpdated, e.g. via

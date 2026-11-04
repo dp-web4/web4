@@ -8,7 +8,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from ingest import member_passage, member_tags  # noqa: E402
+from ingest import member_index_entry, member_passage  # noqa: E402
 
 
 def test_passage_is_prose_not_schema():
@@ -37,22 +37,23 @@ def test_name_only_when_no_profile():
     assert member_passage(m) == "sprout."
 
 
-def test_tags_carry_forward_compat_provenance():
+def test_index_entry_is_the_lct_and_a_hash_only():
+    # #346: the cart is a pure index. The name, skills and pair purpose live once in the hub's
+    # encrypted registry and are re-attached there; none of them may be persisted here.
     m = {"lct_id": "657b6bc9", "name": "Ada", "skills": ["x"],
          "profile": {"last_pair_purpose": "thing"}}
-    t = member_tags(m, member_passage(m))
-    # The three forward-compat fields Waving Cat asked for (item 2).
+    t = member_index_entry(m, member_passage(m))
+    assert set(t) == {"member_lct", "profile_version"}
     assert t["member_lct"] == "657b6bc9"
-    assert t["name"] == "Ada"
-    assert t["last_pair_purpose"] == "thing"
     assert len(t["profile_version"]) == 12  # content hash → changes with profile
+    assert "Ada" not in str(t) and "thing" not in str(t)
 
 
 def test_profile_version_changes_with_content():
     m1 = {"lct_id": "z", "name": "C", "skills": ["a"], "profile": {}}
     m2 = {"lct_id": "z", "name": "C", "skills": ["a", "b"], "profile": {}}
-    assert member_tags(m1, member_passage(m1))["profile_version"] != \
-        member_tags(m2, member_passage(m2))["profile_version"]
+    assert member_index_entry(m1, member_passage(m1))["profile_version"] != \
+        member_index_entry(m2, member_passage(m2))["profile_version"]
 
 
 if __name__ == "__main__":
