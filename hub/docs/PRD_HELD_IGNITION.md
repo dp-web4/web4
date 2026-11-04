@@ -288,6 +288,13 @@ distinctions rather than infer current custody or liveness from the newest event
 
 Each new event kind needs a `BODY_EXEMPT` entry and a HUB-LAW.md row, both in the same commit.
 
+**On the public record (dp, 2026-11-03).** `hub_ignited`, `ignition_held` and `ignition_released`
+are on `/record` and `/v1/hubs/:id/decisions` (`public_ledger::classify`): the kind, how the hub
+was unlocked (held, a person, or the environment), the seal's tier, and the release reason. None of
+them carries an identity. pub and HUB both proposed it: a reader weighing a chapter's record needs to
+know whether its signer can come up with nobody present, and on what seal. A held hub's restarts are
+therefore public, which the record already accepts for activity timing.
+
 ### 3.7 The restart alert
 
 A held unlock can fail too: the passphrase was rotated, the host was rebuilt, or the TPM was

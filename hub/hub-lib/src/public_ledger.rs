@@ -260,6 +260,9 @@ pub const PUBLIC_KINDS: &[&str] = &[
     "council_threshold_changed",
     "member_join_resolved",
     "event_recorded",
+    "hub_ignited",
+    "ignition_held",
+    "ignition_released",
 ];
 
 /// Project one entry for an anonymous caller.
@@ -413,6 +416,35 @@ fn classify(event: &HubEvent) -> (Option<&'static str>, Option<String>) {
             Some(format!("{event_kind}: {title}")),
         ),
 
+        // How the hub's key was opened, and whether it holds a copy to open itself after a restart
+        // (PRD_HELD_IGNITION §3.6; dp 2026-11-03). A reader weighing a chapter's record needs to
+        // know whether its signer can come up with nobody present, and on what seal. These events
+        // carry no identity, so the kind, the tier and the release reason are the whole of them.
+        HubEvent::HubIgnited { via, tier } => (
+            Some("hub_ignited"),
+            Some(match via {
+                crate::events::IgnitionVia::Held => format!(
+                    "hub unlocked itself with its held passphrase (sealed at {})",
+                    tier.map(ignition_tier_label).unwrap_or("an unrecorded tier")
+                ),
+                crate::events::IgnitionVia::Human => "hub unlocked by a person".into(),
+                crate::events::IgnitionVia::Env => "hub unlocked from its environment (dev tier)".into(),
+            }),
+        ),
+        HubEvent::IgnitionHeld { tier } => (
+            Some("ignition_held"),
+            Some(format!("hub now holds its passphrase, sealed at {}", ignition_tier_label(*tier))),
+        ),
+        HubEvent::IgnitionReleased { reason } => (
+            Some("ignition_released"),
+            Some(format!("hub stopped holding its passphrase: {}", match reason {
+                crate::events::IgnitionRelease::LawOff => "the law turned it off",
+                crate::events::IgnitionRelease::BelowMinTier => "the seal is weaker than the law requires",
+                crate::events::IgnitionRelease::ResealFailed => "re-sealing failed at a person's unlock",
+                crate::events::IgnitionRelease::Absent => "the held copy was gone, cause unknown",
+            })),
+        ),
+
         // Everything else — including any variant added after this was written.
         _ => (None, None),
     }
@@ -421,6 +453,15 @@ fn classify(event: &HubEvent) -> (Option<&'static str>, Option<String>) {
 fn short(hash: &str) -> String {
     let h = hash.strip_prefix("sha256:").unwrap_or(hash);
     h.chars().take(12).collect()
+}
+
+fn ignition_tier_label(t: crate::law::IgnitionTier) -> &'static str {
+    match t {
+        crate::law::IgnitionTier::Unknown => "an unmeasured seal",
+        crate::law::IgnitionTier::HostKey => "host-key",
+        crate::law::IgnitionTier::Tpm2 => "tpm2",
+        crate::law::IgnitionTier::HostTpm2 => "host+tpm2",
+    }
 }
 
 fn role_label(role: &web4_core::role::SocietyRole) -> String {
@@ -720,6 +761,8 @@ mod tests {
         let mut expected = vec![
             "genesis", "charter_amended", "law_amended", "role_assigned",
             "council_threshold_changed", "member_join_resolved", "event_recorded",
+            // dp 2026-11-03, PRD_HELD_IGNITION §3.6.
+            "hub_ignited", "ignition_held", "ignition_released",
         ];
         expected.sort_unstable();
         assert_eq!(disclosed, expected,
@@ -740,6 +783,28 @@ mod tests {
             assert_eq!(p.disclosure, Disclosure::Withheld,
                 "an unclassified kind must withhold: {p:?}");
             assert!(!PUBLIC_KINDS.contains(&p.kind.as_str()));
+        }
+    }
+
+    /// The ignition events are public with their tier and release reason, so a reader can tell a
+    /// hub that unlocks itself from one that waits for a person, and on what seal.
+    #[test]
+    fn ignition_events_disclose_how_and_on_what_seal() {
+        use crate::events::{IgnitionRelease, IgnitionVia};
+        use crate::law::IgnitionTier;
+        let cases = [
+            (HubEvent::HubIgnited { via: IgnitionVia::Held, tier: Some(IgnitionTier::HostKey) }, "hub_ignited", "held passphrase (sealed at host-key)"),
+            (HubEvent::HubIgnited { via: IgnitionVia::Human, tier: None }, "hub_ignited", "by a person"),
+            (HubEvent::HubIgnited { via: IgnitionVia::Env, tier: None }, "hub_ignited", "dev tier"),
+            (HubEvent::IgnitionHeld { tier: IgnitionTier::HostTpm2 }, "ignition_held", "sealed at host+tpm2"),
+            (HubEvent::IgnitionReleased { reason: IgnitionRelease::BelowMinTier }, "ignition_released", "weaker than the law"),
+        ];
+        for (e, kind, says) in cases {
+            let p = public_projection(&entry(3, e));
+            assert_eq!(p.disclosure, Disclosure::Disclosed, "{p:?}");
+            assert_eq!(p.kind, kind);
+            let d = p.detail.unwrap();
+            assert!(d.contains(says), "{d}");
         }
     }
 
