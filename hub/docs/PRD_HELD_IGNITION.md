@@ -56,7 +56,7 @@ environment keeps working as it does today, and the hub records that it was used
 ```yaml
 ignition:              # a top-level law key: HubPolicy is flattened into the law
   held: true          # absent = true (dp: on by default)
-  min_tier: host-key  # host-key | tpm2 | host+tpm2; see §5 Q1
+  min_tier: host-key  # host-key | tpm2 | host+tpm2; default host-key (§5 Q1, dp 11-03)
 ```
 
 Tiers rank `host+tpm2` ≥ `tpm2` > `host-key`. `unknown` is what the hub **observes** for a seal id it
@@ -226,6 +226,13 @@ makes the evidence exist.
 
 Each new event kind needs a `BODY_EXEMPT` entry and a HUB-LAW.md row, both in the same commit.
 
+**On the public record (dp, 2026-11-03).** `hub_ignited`, `ignition_held` and `ignition_released`
+are on `/record` and `/v1/hubs/:id/decisions` (`public_ledger::classify`): the kind, how the hub
+was unlocked (held, a person, or the environment), the seal's tier, and the release reason. None of
+them carries an identity. pub and HUB both proposed it: a reader weighing a chapter's record needs to
+know whether its signer can come up with nobody present, and on what seal. A held hub's restarts are
+therefore public, which the record already accepts for activity timing.
+
 ### 3.7 The restart alert
 
 A held unlock can fail too: the passphrase was rotated, the host was rebuilt, or the TPM was
@@ -245,7 +252,8 @@ pub's checklist on the public hub). This design only makes the state readable.
 
 ## 5. Open questions
 
-- **Q1, for dp: is `host-key` acceptable as held?** A fact for this, from pub: on a host with a TPM,
+- **Q1, ANSWERED by dp 2026-11-03: yes, `min_tier` defaults to `host-key`.** The question was:
+  is `host-key` acceptable as held? A fact for this, from pub: on a host with a TPM,
   the default seal is TPM-bound with no operator choice, so the strict reading only changes hosts
   without one. The 08-18 order says "TPM/secure module when
   available; when not, boot locked." Read strictly, a host without a TPM (HUB,
@@ -273,5 +281,5 @@ W: pass [construct: sealing needs a person's successful unlock, and the law (sig
 O: pass [construct: boot decrypt -> try_unlock, the same preflight as a person; a failure leaves the hub locked]
 A: pass [construct: HubIgnited{via,tier} witnessed at each ignition; IgnitionHeld/Released at each change]
 V: present [construct: law held:false; min_tier:tpm2 for a strict society; release_under on every law change deletes a rejected copy]
-verdict: PASS, conditional on Q1 (dp)
+verdict: PASS (Q1 answered by dp 2026-11-03: host-key default)
 ```
