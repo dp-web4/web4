@@ -45,7 +45,8 @@ pub enum IgnitionRelease {
     /// The seal is weaker than the law's `ignition.min_tier`.
     BelowMinTier,
     /// A person's unlock tried to re-seal and failed, so the earlier copy (which might hold an
-    /// older passphrase) was deleted rather than left for the next boot.
+    /// older passphrase) was deleted rather than left for the next boot. Also when the re-seal
+    /// worked but its `IgnitionHeld` record failed: no copy is kept without its record (#970).
     ResealFailed,
     /// The ledger says a copy is held, but none is on disk, and the hub can't say why: its own
     /// release record failed or was cut by a crash, `rotate-passphrase` deleted it offline, or a

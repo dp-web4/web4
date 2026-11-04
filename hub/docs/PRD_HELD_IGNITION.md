@@ -56,7 +56,7 @@ environment keeps working as it does today, and the hub records that it was used
 ```yaml
 ignition:              # a top-level law key: HubPolicy is flattened into the law
   held: true          # absent = true (dp: on by default)
-  min_tier: host-key  # host-key | tpm2 | host+tpm2; see §5 Q1
+  min_tier: host-key  # host-key | tpm2 | host+tpm2; default host-key (§5 Q1, dp 11-03)
 ```
 
 Tiers rank `host+tpm2` ≥ `tpm2` > `host-key`. `unknown` is what the hub **observes** for a seal id it
@@ -219,7 +219,7 @@ else boot locked, as today
 ### 3.6 The record: how the hub was ignited
 
 A new event, `HubIgnited { via: held | human | env, tier: Option<host+tpm2 | tpm2 | host-key | platform-secret> }`,
-is submitted for witnessing after each ignition that reaches a signer:
+is recorded with every ignition, and an ignition whose record fails does not happen:
 
 - `held`, carrying the tier.
 - `human`, through `/unlock`.
@@ -229,15 +229,26 @@ is submitted for witnessing after each ignition that reaches a signer:
 A boot that opens a plaintext or NULL-keyed store records `env` only if `HUB_PASSPHRASE` was set.
 Otherwise it records nothing, because there was no ignition.
 
-`record_ignition` runs after the hub is unlocked. If signing or appending fails, it logs the
-failure and leaves the hub unlocked; there is no durable pending `HubIgnited` record or replay of
-that failed append. Likewise, a new seal remains if its `IgnitionHeld` append fails. The release
-reconciliation in §3.4 repairs a missing release only when the ledger already records a hold.
-These are best-effort records, not an atomic or complete inventory of ignitions and custody changes.
+**The record comes before the effect (NOVA's review of #970, dp 2026-11-04 "fix it").** The two
+can't share a transaction: `HubIgnited` is signed by the key the unlock opens. So the order does the
+work:
 
-A successfully recorded tier is evidence for issue 729. Deriving a hub's LCT capability from that
-evidence is a follow-up; the newest recorded `HubIgnited` can predate the latest actual ignition,
-so the derivation must account for missing records rather than treating the event as current custody.
+- **A person's or a held unlock** signs `HubIgnited` with the key it has just decrypted and appends it
+  to the ledger it has just opened, *before* either goes live. If that fails, nothing has been
+  swapped in: the hub stays locked and the unlock answers why. The law-integrity write gate is not
+  consulted for this audit-only record, so a hub whose law diverged can still be unlocked to fix it.
+- **An env boot** whose record fails refuses to serve (the boot exits with the reason).
+- **A new seal** whose `IgnitionHeld` fails is deleted. If an earlier hold was recorded, the new seal
+  replaced that copy in place, so it is also released (`reseal_failed`).
+
+So every ignition that serves is on the ledger, and every copy on disk has a recorded hold. What
+stays eventual is a **release's** record: the delete comes first, and if `IgnitionReleased` then
+fails, the ledger claims a hold that is no longer there until the next unlock or law change records
+it as `absent` (§3.4). That errs toward claiming more custody than exists, never less, and since
+every surviving copy has a recorded hold, the reconcile covers every case.
+
+The newest `HubIgnited` therefore describes the latest ignition, and its tier is evidence for issue
+729. Deriving a hub's LCT capability from it is a follow-up.
 
 Each new event kind needs a `BODY_EXEMPT` entry and a HUB-LAW.md row, both in the same commit.
 
@@ -260,7 +271,8 @@ pub's checklist on the public hub). This design only makes the state readable.
 
 ## 5. Open questions
 
-- **Q1, for dp: is `host-key` acceptable as held?** A fact for this, from pub: on a host with a TPM,
+- **Q1, ANSWERED by dp 2026-11-03: yes, `min_tier` defaults to `host-key`.** The question was:
+  is `host-key` acceptable as held? A fact for this, from pub: on a host with a TPM,
   the default seal is TPM-bound with no operator choice, so the strict reading only changes hosts
   without one. The 08-18 order says "TPM/secure module when
   available; when not, boot locked." Read strictly, a host without a TPM (HUB,
@@ -286,7 +298,7 @@ S: high/reversible (the hub can be locked by a restart with the cred deleted; th
 R: pass [construct: user-scoped sealing; host-key relies on host-secret custody, TPM tiers also require the original chip (§3.2); reachability is not the basis]
 W: pass [construct: sealing needs a person's successful unlock, and the law (signed, ledgered) decides held]
 O: pass [construct: boot decrypt -> try_unlock, the same preflight as a person; a failure leaves the hub locked]
-A: fail [construct: record_ignition and settle_held_ignition publish effects before best-effort signed appends; release reconciliation (§3.4) is eventual, not atomic]
+A: pass [construct: try_unlock_as appends HubIgnited (record_ignition_on) before the signer/ledger swap; record_boot_ignition fails the env boot; settle_held_ignition deletes a seal whose IgnitionHeld fails. A release's record is eventual by design (delete first; reconcile_absent records `absent`), erring toward over-claiming custody (§3.6)]
 V: present [construct: law held:false; min_tier:tpm2 for a strict society; release_under on every law change deletes a rejected copy]
-verdict: ESCALATE(human gate): Q1 (dp), plus acceptance or remediation of the non-atomic A limits (§3.4–§3.6)
+verdict: PASS (Q1 answered by dp 2026-11-03; A remediated per NOVA's #970 review, dp 2026-11-04)
 ```
