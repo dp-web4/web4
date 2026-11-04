@@ -112,11 +112,21 @@ A running hub doesn't hold the passphrase. `try_unlock` drops it after deriving 
 moment the hub can seal the passphrase is when a person presents it:
 
 1. A person unlocks (`hub unlock`), as today.
-2. After the signer swap and the law hydration, if the law says `held` (or says nothing), no
-   `ignition.cred` exists, and a backend at or above `min_tier` is available, the hub seals the
-   passphrase it is holding at that moment, then drops it.
-3. The hub witnesses `IgnitionHeld { tier, by: <sovereign> }`.
-4. **The person is told, at that moment.** The unlock response carries `held_ignition: { tier }` and
+2. After the signer swap and the law hydration, if the law says `held` (or says nothing) and a
+   backend at or above `min_tier` is available, the hub seals the passphrase it is holding at that
+   moment to a **staging** file, `ignition.cred.staged`, then drops it. Boot never reads that file.
+3. The hub witnesses `IgnitionHeld { tier }`, with the tier read from the staged seal.
+4. **Only then** is the staged seal renamed to `ignition.cred`, where boot can use it (NOVA, #970: a
+   copy placed before its hold was recorded could outlive a crash with no record, and a fresh
+   process would boot from it).
+
+   A crash leaves one of two states, and neither is a copy boot can use without a record:
+   - **Cut before step 3:** only a staged file exists. It is ciphertext, and the next unlock deletes it.
+   - **Cut between steps 3 and 4:** the ledger says held, with no new file in place. The next unlock
+     records it `absent` (§3.4), unless an earlier copy is still in place under its own recorded hold.
+   If step 3 fails, the staged seal is deleted and an earlier copy is released, because this unlock
+   ends up holding nothing.
+5. **The person is told, at that moment.** The unlock response carries `held_ignition: { tier }` and
    the text "held at tier X; set `held: false` to stop", and the log says the same. The default is
    dp's ruling, but an existing hub that upgrades seals at its next unlock without anyone choosing it,
    so the operator has to learn it when it happens, not from the ledger later.
@@ -238,14 +248,21 @@ work:
   swapped in: the hub stays locked and the unlock answers why. The law-integrity write gate is not
   consulted for this audit-only record, so a hub whose law diverged can still be unlocked to fix it.
 - **An env boot** whose record fails refuses to serve (the boot exits with the reason).
-- **A new seal** whose `IgnitionHeld` fails is deleted. If an earlier hold was recorded, the new seal
-  replaced that copy in place, so it is also released (`reseal_failed`).
+- **A new seal** is recorded before it is placed where boot can use it (§3.3). If its
+  `IgnitionHeld` fails, it is never placed, and an earlier recorded copy is released
+  (`reseal_failed`).
+- **A held boot that opened a copy with no recorded hold** deletes that copy after the one use. That
+  use is on the ledger as `HubIgnited(held)`. This code never places such a copy; this is the guard
+  against one placed by hand or by older code.
 
-So every ignition that serves is on the ledger, and every copy on disk has a recorded hold. What
+So every ignition that serves is on the ledger, and every copy boot can use has a recorded hold.
+One limit is worth naming: `HubIgnited` is appended just before activation, so a crash between the
+two leaves a record of an ignition that never served. A record proves the ignition was authorized
+and attempted, not that the hub is up now; liveness is what `/tools` answers. What
 stays eventual is a **release's** record: the delete comes first, and if `IgnitionReleased` then
 fails, the ledger claims a hold that is no longer there until the next unlock or law change records
 it as `absent` (§3.4). That errs toward claiming more custody than exists, never less, and since
-every surviving copy has a recorded hold, the reconcile covers every case.
+every copy boot can use has a recorded hold, the reconcile covers every case.
 
 The newest `HubIgnited` therefore describes the latest ignition, and its tier is evidence for issue
 729. Deriving a hub's LCT capability from it is a follow-up.
@@ -271,16 +288,11 @@ pub's checklist on the public hub). This design only makes the state readable.
 
 ## 5. Open questions
 
-- **Q1, ANSWERED by dp 2026-11-03: yes, `min_tier` defaults to `host-key`.** The question was:
-  is `host-key` acceptable as held? A fact for this, from pub: on a host with a TPM,
-  the default seal is TPM-bound with no operator choice, so the strict reading only changes hosts
-  without one. The 08-18 order says "TPM/secure module when
-  available; when not, boot locked." Read strictly, a host without a TPM (HUB,
-  most VPS and fly machines) never holds, and dp's 10-30 default of "held" would almost never apply.
-  **Proposed:** `min_tier` defaults to `host-key`. 10-30 is the later ruling and is about exactly
-  this, the tier is on the ledger, and capability is derived from it, so a host-key hub never claims
-  hardware binding. A society that wants the strict reading sets `min_tier: tpm2`. If dp reads 08-18
-  as still binding here, the default becomes `tpm2`, and the design is otherwise unchanged.
+- **Q1, ANSWERED by dp 2026-11-03: `min_tier` defaults to `host-key`.** The 08-18 order ("TPM when
+  available; when not, boot locked") read strictly would mean a host without a TPM (HUB, most VPS and
+  fly machines) never holds. dp's 10-30 default of held is the later ruling on exactly this. The
+  tier is on the ledger, so a host-key hub never claims hardware binding, and a society that wants
+  the strict reading sets `min_tier: tpm2`.
 - **Q2: does `systemd-creds --user` work under the hub's unit?** From an interactive session as
   `dp` on HUB, it does (§2). Under `web4-hub.service` (a system unit with `User=dp`) it isn't
   measured yet, because it needs systemd's varlink sealing service. I2 probes for it and treats
@@ -298,7 +310,7 @@ S: high/reversible (the hub can be locked by a restart with the cred deleted; th
 R: pass [construct: user-scoped sealing; host-key relies on host-secret custody, TPM tiers also require the original chip (§3.2); reachability is not the basis]
 W: pass [construct: sealing needs a person's successful unlock, and the law (signed, ledgered) decides held]
 O: pass [construct: boot decrypt -> try_unlock, the same preflight as a person; a failure leaves the hub locked]
-A: pass [construct: try_unlock_as appends HubIgnited (record_ignition_on) before the signer/ledger swap; record_boot_ignition fails the env boot; settle_held_ignition deletes a seal whose IgnitionHeld fails. A release's record is eventual by design (delete first; reconcile_absent records `absent`), erring toward over-claiming custody (§3.6)]
+A: pass [construct: try_unlock_as appends HubIgnited (record_ignition_on) before the signer/ledger swap; record_boot_ignition fails the env boot; settle_held_ignition seals to staged_ignition_path, records IgnitionHeld, then renames into ignition_path, and its Held arm deletes a copy with no recorded hold. A release's record is eventual by design (delete first; reconcile_absent records `absent`), erring toward over-claiming custody (§3.6)]
 V: present [construct: law held:false; min_tier:tpm2 for a strict society; release_under on every law change deletes a rejected copy]
 verdict: PASS (Q1 answered by dp 2026-11-03; A remediated per NOVA's #970 review, dp 2026-11-04)
 ```

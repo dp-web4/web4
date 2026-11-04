@@ -1471,6 +1471,14 @@ impl RestState {
             }
         }
         let path = hub_lib::ignition::ignition_path(&self.paths.root);
+        let staged = hub_lib::ignition::staged_ignition_path(&self.paths.root);
+        // A seal staged by an unlock that never recorded its hold (a crash, or a failed delete) was
+        // never boot-eligible; it is still ciphertext of the passphrase, so it goes.
+        if let Err(e) = std::fs::remove_file(&staged) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                tracing::warn!("held ignition: could not delete a leftover staged seal {}: {e}", staged.display());
+            }
+        }
         // A person is in, so the hub is not dark: clear the alarm whatever the law says next
         // (supervisor, #969: the held: false arm used to return before this).
         if via == IgnitionVia::Human {
@@ -1487,6 +1495,18 @@ impl RestState {
         }
         match via {
             IgnitionVia::Held => {
+                // A copy with no recorded hold can't come from this code (the hold is recorded
+                // before the copy is placed), but one placed some other way must not be adopted:
+                // it opened this boot, and that is on the ledger as `HubIgnited(held)`; it is
+                // deleted now, so the next restart needs a person (NOVA, #970).
+                let recorded = hub_lib::ignition::ledger_holds(self.ledger.lock().await.entries().iter().map(|e| &e.event));
+                if !recorded {
+                    tracing::error!("held ignition: this boot opened a copy the ledger has no hold for; deleting it");
+                    if self.delete_held(&path, IgnitionRelease::Absent) {
+                        self.ignition.set_note("not held: the copy this hub booted from had no recorded hold, so it was deleted".into());
+                    }
+                    return;
+                }
                 if !tier.unwrap_or(hub_lib::law::IgnitionTier::Unknown).meets(min_tier) {
                     self.release_held(&path, IgnitionRelease::BelowMinTier).await;
                 }
@@ -1496,12 +1516,26 @@ impl RestState {
                 // Whatever this unlock ends up holding, an earlier copy must not outlive it
                 // unrecorded: if it ends up holding nothing, the earlier hold is released on the
                 // ledger too (pub, #969).
+                // The hold is recorded BEFORE a boot-eligible copy exists (NOVA, #970): seal to the
+                // staging path (boot never reads it), read its tier, record `IgnitionHeld`, and only
+                // then rename it into place. A crash at any point leaves either no copy boot can
+                // use, or a hold on the ledger with no file (recorded `absent` at the next unlock).
+                // An earlier copy stays in place, under its own recorded hold, until the rename
+                // replaces it.
                 let held_before = path.exists();
-                let (secret, out) = (zeroize::Zeroizing::new(passphrase.to_string()), path.clone());
+                let (secret, out) = (zeroize::Zeroizing::new(passphrase.to_string()), staged.clone());
                 let sealed = tokio::task::spawn_blocking(move || sealer.seal(&secret, &out))
                     .await
                     .unwrap_or_else(|e| Err(anyhow::anyhow!("the sealing task failed: {e}")));
+                let drop_staged = || {
+                    if let Err(e) = std::fs::remove_file(&staged) {
+                        if e.kind() != std::io::ErrorKind::NotFound {
+                            tracing::warn!("held ignition: could not delete the staged seal (never boot-eligible; the next unlock retries): {e}");
+                        }
+                    }
+                };
                 if let Err(e) = sealed {
+                    drop_staged();
                     tracing::warn!("held ignition: could not seal the passphrase (this hub stays boot-locked): {e:#}");
                     if held_before && !self.release_held(&path, IgnitionRelease::ResealFailed).await {
                         return; // "stale", and its note says what to do
@@ -1509,15 +1543,10 @@ impl RestState {
                     self.ignition.set_note(format!("not held: sealing failed: {e:#}"));
                     return;
                 }
-                let sealed_at = hub_lib::ignition::tier_of_sealed(&std::fs::read(&path).unwrap_or_default());
+                let sealed_at = hub_lib::ignition::tier_of_sealed(&std::fs::read(&staged).unwrap_or_default());
                 if !sealed_at.meets(min_tier) {
-                    // A first seal was never held, so its delete is not a release on the ledger.
-                    let gone = if held_before {
-                        self.release_held(&path, IgnitionRelease::BelowMinTier).await
-                    } else {
-                        self.delete_held(&path, IgnitionRelease::BelowMinTier)
-                    };
-                    if !gone {
+                    drop_staged();
+                    if held_before && !self.release_held(&path, IgnitionRelease::BelowMinTier).await {
                         return;
                     }
                     tracing::warn!("held ignition: this host seals at {sealed_at:?}, below the law's min_tier {min_tier:?}; not held");
@@ -1526,31 +1555,40 @@ impl RestState {
                     ));
                     return;
                 }
+                if self.ignition.record_fault("crash_before_hold") {
+                    return; // test seam: the process dies with the seal staged and nothing recorded
+                }
                 let recorded = if self.ignition.record_fault("ignition_held") {
                     Err(ApiError::internal(anyhow::anyhow!("test seam: the IgnitionHeld record was refused")))
                 } else {
                     witness_event_inner(self, HubEvent::IgnitionHeld { tier: sealed_at }).await
                 };
-                match recorded {
-                    Ok(idx) => tracing::warn!("held ignition: passphrase sealed at {sealed_at:?} (ledger entry {idx}); this hub now unlocks itself after a restart"),
-                    Err(e) => {
-                        // No copy without its record (NOVA, #970). The new seal replaced any earlier
-                        // copy in place, so an earlier recorded hold is gone too and is released.
-                        tracing::warn!("held ignition: sealed at {sealed_at:?}, but its record failed, so the copy is deleted: {}", e.message);
-                        let gone = if held_before {
-                            self.release_held(&path, IgnitionRelease::ResealFailed).await
-                        } else {
-                            self.delete_held(&path, IgnitionRelease::ResealFailed)
-                        };
-                        if gone {
-                            self.ignition.set_note(format!(
-                                "not held: sealed at {sealed_at:?}, but its record failed, so the copy was deleted: {}",
-                                e.message
-                            ));
-                        }
+                if let Err(e) = recorded {
+                    // Nothing new was placed. The staged seal goes; an earlier copy is released,
+                    // because this unlock ends up holding nothing (pub, #969).
+                    drop_staged();
+                    tracing::warn!("held ignition: sealed at {sealed_at:?}, but its record failed, so nothing is held: {}", e.message);
+                    if held_before && !self.release_held(&path, IgnitionRelease::ResealFailed).await {
                         return;
                     }
+                    self.ignition.set_note(format!(
+                        "not held: sealed at {sealed_at:?}, but its record failed, so the copy was deleted: {}",
+                        e.message
+                    ));
+                    return;
                 }
+                if self.ignition.record_fault("crash_before_place") {
+                    return; // test seam: the process dies with the hold recorded and the seal staged
+                }
+                if let Err(e) = std::fs::rename(&staged, &path) {
+                    // The ledger says held. With no file, the next unlock records it `absent`; an
+                    // earlier copy, still in place, is held under its own earlier record.
+                    drop_staged();
+                    tracing::warn!("held ignition: recorded at {sealed_at:?}, but placing the seal failed: {e}");
+                    self.ignition.set_note(format!("not held: placing the sealed passphrase failed: {e}"));
+                    return;
+                }
+                tracing::warn!("held ignition: passphrase sealed at {sealed_at:?} and recorded; this hub now unlocks itself after a restart");
                 self.ignition.set_note(format!(
                     "held at {sealed_at:?}: this hub now unlocks itself after a restart; set ignition.held: false in the law to stop"
                 ));
@@ -1594,6 +1632,9 @@ impl RestState {
         };
         if !owed(&*self.ledger.lock().await) {
             return Ok(false);
+        }
+        if self.ignition.record_fault("ignition_released") {
+            return Err(ApiError::internal(anyhow::anyhow!("test seam: the IgnitionReleased record was refused")));
         }
         let (unsigned, signature) = authorize_event(self, HubEvent::IgnitionReleased { reason }).await?;
         let mut ledger = self.ledger.lock().await;
@@ -1696,16 +1737,44 @@ impl RestState {
     }
 }
 
-/// Witness how the hub was ignited (PRD_HELD_IGNITION §3.6). Best-effort, like the degraded
-/// reconcile: the hub is already ignited when this runs, so a failed record is logged, never
-/// fatal.
+/// Record an environment ignition on the live ledger (PRD_HELD_IGNITION §3.6). Its one caller,
+/// `record_boot_ignition`, fails the boot when this fails: no ignition serves without its record.
+/// The ledger lock is not held across the signature, as in `witness_event_inner`; the append
+/// refuses an entry built on an older tail.
 pub(crate) async fn record_ignition(
     s: &RestState,
     via: hub_lib::events::IgnitionVia,
     tier: Option<hub_lib::law::IgnitionTier>,
 ) -> anyhow::Result<u64> {
-    let mut ledger = s.ledger.lock().await;
-    record_ignition_on(s, &mut ledger, &*s.signer, via, tier).await
+    if s.ignition.record_fault("hub_ignited") {
+        anyhow::bail!("test seam: the HubIgnited record was refused");
+    }
+    let (unsigned, intent) = ignition_entry(s, &*s.ledger.lock().await, via, tier)?;
+    let signature = s.signer.sign(s.sovereign_lct_id, &unsigned.signing_bytes, &intent).await?;
+    let index = s.ledger.lock().await.append_signed(unsigned, signature).await?.index;
+    tracing::info!("ignition ({via:?}) recorded at ledger entry {index}");
+    Ok(index)
+}
+
+/// The `HubIgnited` entry and its sign intent, built on `ledger`'s tail.
+fn ignition_entry(
+    s: &RestState,
+    ledger: &HubLedger,
+    via: hub_lib::events::IgnitionVia,
+    tier: Option<hub_lib::law::IgnitionTier>,
+) -> anyhow::Result<(hub_lib::ledger::UnsignedEntry, SignIntent)> {
+    let event = HubEvent::HubIgnited { via, tier };
+    let unsigned = ledger.build_entry(s.sovereign_lct_id, event.clone(), Utc::now())?;
+    let intent = SignIntent {
+        request_id: Uuid::new_v4(),
+        hub_id: s.hub_id,
+        hub_name: s.hub_name.clone(),
+        actor_lct_id: s.sovereign_lct_id,
+        ledger_index: unsigned.entry.index,
+        event_kind: event.kind().to_string(),
+        event: serde_json::to_value(&event)?,
+    };
+    Ok((unsigned, intent))
 }
 
 /// Sign and append `HubIgnited { via, tier }` on `ledger` with `signer`. A person's or a held
@@ -1722,17 +1791,7 @@ async fn record_ignition_on(
     if s.ignition.record_fault("hub_ignited") {
         anyhow::bail!("test seam: the HubIgnited record was refused");
     }
-    let event = HubEvent::HubIgnited { via, tier };
-    let unsigned = ledger.build_entry(s.sovereign_lct_id, event.clone(), Utc::now())?;
-    let intent = SignIntent {
-        request_id: Uuid::new_v4(),
-        hub_id: s.hub_id,
-        hub_name: s.hub_name.clone(),
-        actor_lct_id: s.sovereign_lct_id,
-        ledger_index: unsigned.entry.index,
-        event_kind: event.kind().to_string(),
-        event: serde_json::to_value(&event)?,
-    };
+    let (unsigned, intent) = ignition_entry(s, ledger, via, tier)?;
     let signature = signer.sign(s.sovereign_lct_id, &unsigned.signing_bytes, &intent).await?;
     let index = ledger.append_signed(unsigned, signature).await?.index;
     tracing::info!("ignition ({via:?}) recorded at ledger entry {index}");
@@ -19280,6 +19339,131 @@ norms: []
                 assert!(matches!(got.as_slice(), [HubEvent::HubIgnited { via: IgnitionVia::Human, tier: None }]), "{got:?}");
             }
         }
+    }
+
+    /// A genuinely fresh process on the same hub directory: new `RestState`, ledger re-read from
+    /// the store, locked signer, new `HeldIgnition` (so no volatile stale flag survives).
+    async fn restarted(old: &RestState) -> RestState {
+        let hub_dir = old.paths.root.clone();
+        let ledger = Arc::new(Mutex::new(HubLedger::open(open_hub_store(&hub_dir).unwrap()).await.unwrap()));
+        let mut state = RestState::open_with_law_and_ledger(hub_dir, Arc::new(RwLock::new(None)), ledger).await.unwrap();
+        state.signer.swap(Arc::new(LockedSigner::new(state.sovereign_lct_id)));
+        state.ignition = Arc::new(HeldIgnition::with_sealer(Arc::new(
+            hub_lib::ignition::ClearTestSealer::reading_as(hub_lib::law::IgnitionTier::HostKey),
+        )));
+        assert!(state.is_locked());
+        state
+    }
+
+    fn count_absent(state_entries: &[hub_lib::ledger::LedgerEntry]) -> usize {
+        state_entries.iter().filter(|e| matches!(e.event,
+            HubEvent::IgnitionReleased { reason: hub_lib::events::IgnitionRelease::Absent })).count()
+    }
+
+    /// NOVA, #970 [P1]: a first seal cut before or after its hold record never leaves a copy a
+    /// fresh process can boot from. Cut before the record: only the staged seal exists, boot
+    /// ignores it, and the next person's unlock sweeps it. Cut after: the ledger says held with
+    /// no copy placed, and the next unlock records that `absent` exactly once, then holds anew.
+    #[tokio::test]
+    async fn a_first_seal_cut_short_leaves_nothing_a_fresh_boot_can_use() {
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        for cut in ["crash_before_hold", "crash_before_place"] {
+            let (_tmp, state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+            let path = hub_lib::ignition::ignition_path(&state.paths.root);
+            let staged = hub_lib::ignition::staged_ignition_path(&state.paths.root);
+            state.ignition.fail_next_record(cut);
+            assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+            assert!(!path.exists() && staged.exists(), "{cut}: the seal is only staged");
+
+            let fresh = restarted(&state).await;
+            fresh.held_boot(1_700_000_100).await;
+            assert!(fresh.is_locked(), "{cut}: a fresh boot must not adopt a staged or unrecorded seal");
+            assert_eq!(fresh.ignition.boot_state(), "none", "{cut}");
+
+            assert!(matches!(fresh.try_unlock(pass, 1_700_000_200).await, UnlockOutcome::Unlocked { .. }));
+            assert!(!staged.exists() && path.exists(), "{cut}: swept, then sealed and placed");
+            let entries = fresh.ledger.lock().await.entries().to_vec();
+            assert_eq!(count_absent(&entries), usize::from(cut == "crash_before_place"), "{cut}");
+            assert!(matches!(ignition_events(&entries).last(), Some(HubEvent::IgnitionHeld { .. })), "{cut}");
+        }
+    }
+
+    /// NOVA, #970 [P1]: a re-seal over a recorded hold, cut on either side of its record. The
+    /// earlier copy stays in place under its own record until the rename replaces it, so a fresh
+    /// process boots from that surviving generation.
+    #[tokio::test]
+    async fn a_reseal_cut_short_keeps_the_recorded_generation_bootable() {
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        for cut in ["crash_before_hold", "crash_before_place"] {
+            let (_tmp, state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+            let path = hub_lib::ignition::ignition_path(&state.paths.root);
+            assert!(matches!(state.try_unlock(pass, 1_699_999_900).await, UnlockOutcome::Unlocked { .. }));
+            let first = std::fs::read(&path).unwrap();
+            relock(&state);
+            state.ignition.fail_next_record(cut);
+            assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+            assert_eq!(std::fs::read(&path).unwrap(), first, "{cut}: the recorded generation is untouched");
+
+            let fresh = restarted(&state).await;
+            fresh.held_boot(1_700_000_100).await;
+            assert!(!fresh.is_locked(), "{cut}: the surviving recorded copy boots");
+            assert_eq!(fresh.ignition.boot_state(), "ok", "{cut}");
+            assert!(path.exists() && !hub_lib::ignition::staged_ignition_path(&fresh.paths.root).exists(), "{cut}");
+        }
+    }
+
+    /// NOVA, #970: a release whose record fails after its delete, then a fresh process. The next
+    /// unlock records `absent` exactly once and holds anew; a later unlock owes nothing more.
+    #[tokio::test]
+    async fn a_release_whose_record_failed_is_reconciled_once_after_a_restart() {
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        assert!(matches!(state.try_unlock(pass, 1_699_999_900).await, UnlockOutcome::Unlocked { .. }));
+        relock(&state);
+        put_law_in_store(&state, &format!("{VALID_LAW}ignition:\n  held: false\n")).await;
+        state.ignition.fail_next_record("ignition_released");
+        assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+        assert!(!path.exists(), "deleted first");
+        assert_eq!(count_absent(state.ledger.lock().await.entries()), 0);
+
+        put_law_in_store(&state, VALID_LAW).await;
+        let fresh = restarted(&state).await;
+        fresh.held_boot(1_700_000_100).await;
+        assert!(fresh.is_locked(), "nothing to boot from");
+        assert!(matches!(fresh.try_unlock(pass, 1_700_000_200).await, UnlockOutcome::Unlocked { .. }));
+        assert!(path.exists());
+        let entries = fresh.ledger.lock().await.entries().to_vec();
+        assert_eq!(count_absent(&entries), 1);
+        assert!(matches!(ignition_events(&entries).last(), Some(HubEvent::IgnitionHeld { .. })), "the newer hold stands");
+
+        let again = restarted(&fresh).await;
+        again.held_boot(1_700_000_300).await;
+        assert!(!again.is_locked());
+        assert_eq!(count_absent(again.ledger.lock().await.entries()), 1, "not reconciled twice");
+    }
+
+    /// NOVA, #970: a copy with no recorded hold (placed by hand, or by older code) opens once, and
+    /// that use is on the ledger as `HubIgnited(held)`; then it is deleted rather than adopted.
+    #[tokio::test]
+    async fn a_held_boot_from_an_unrecorded_copy_deletes_it() {
+        use hub_lib::events::IgnitionVia;
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        state.ignition.sealer.as_ref().unwrap().seal(pass, &path).unwrap();
+        state.held_boot(1_700_000_000).await;
+        assert!(!state.is_locked());
+        assert!(!path.exists(), "an unrecorded copy is not adopted");
+        assert_eq!(state.ignition.boot_state(), "none");
+        let n = state.ignition.take_note().unwrap_or_default();
+        assert!(n.contains("had no recorded hold"), "{n}");
+        let got = ignition_events(state.ledger.lock().await.entries());
+        assert!(matches!(got.as_slice(), [HubEvent::HubIgnited { via: IgnitionVia::Held, tier: Some(IgnitionTier::HostKey) }]), "{got:?}");
     }
 
     /// Supervisor, #969: under `held: false`, a failed held boot followed by a person's unlock
