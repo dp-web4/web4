@@ -136,10 +136,10 @@ enum Command {
 
     /// The **stub-console unlock plugin**: unlock a locked, running hub by
     /// presenting the tier-1 passphrase. Prompts for the passphrase (or reads
-    /// `HUB_PASSPHRASE`), **uses it once and never stores it**, and POSTs it to
-    /// the hub's local-only `/unlock` slot (127.0.0.1), promoting it locked →
-    /// unlocked in place. Run this on the hub host. Empty (just Enter) = the
-    /// explicit NULL-passphrase choice.
+    /// `HUB_PASSPHRASE`) and POSTs it to the hub's local-only `/unlock` slot
+    /// (127.0.0.1), promoting it locked → unlocked in place. The hub may retain
+    /// an encrypted copy of the passphrase under its ignition policy. Run this
+    /// on the hub host. Empty (just Enter) = the explicit NULL-passphrase choice.
     Unlock {
         /// Port the hub is serving on (default 8770).
         #[arg(long, default_value = "8770")]
@@ -988,7 +988,27 @@ async fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<
     }
 
     let mut session = HubSession::open(&hub_dir).await?;
-    let entry = session.set_law(&yaml, version.clone(), diff_summary.clone()).await?;
+    let entry = session.set_law(&yaml, version.clone(), diff_summary.clone()).await?.clone();
+    // The same act removes a held passphrase the new law no longer accepts (PRD_HELD_IGNITION §3.4).
+    // The law is committed from here on, so a failed release can't fail it: it is reported on
+    // its own, after the law is, and the command exits non-zero (codex, #970).
+    let released = hub_lib::ignition::release_under(law.ext.ignition.as_ref(), &hub_dir);
+    let release_failed = match released {
+        Some(reason) => session.release_held_ignition(reason).await.err().map(|e| (reason, e)),
+        None => None,
+    };
+    // Nothing to release, but the ledger may still claim a copy that is gone (a lost release
+    // record, rotate-passphrase, a hand delete): record it as `absent`, once (codex + cbp, #970).
+    let reconciled = match released {
+        Some(_) => false,
+        None => match session.reconcile_absent_ignition().await {
+            Ok(entry) => entry.is_some(),
+            Err(e) => {
+                eprintln!("  ⚠ the ledger says a passphrase is held but none is on disk, and recording that failed ({e:#}); the next unlock records it");
+                false
+            }
+        },
+    };
 
     println!("Law set.");
     println!("  Chapter dir:  {}", hub_dir.display());
@@ -999,6 +1019,20 @@ async fn run_set_law(hub_dir: PathBuf, yaml_path: PathBuf, diff_summary: Option<
     println!("  Entry hash:   {}", entry.entry_hash);
     if let Some(s) = diff_summary {
         println!("  Diff summary: {}", s);
+    }
+    if let Some((reason, e)) = release_failed {
+        anyhow::bail!(
+            "the law above IS set (entry {}), but the held passphrase it rejects ({reason:?}) was not released: {e:#}. \
+             If {} still exists, delete it by hand: until then the next boot unlocks from it once.",
+            entry.index,
+            hub_lib::ignition::ignition_path(&hub_dir).display()
+        );
+    }
+    if let Some(reason) = released {
+        println!("  Held passphrase: deleted ({reason:?}); the next boot is locked until a person unlocks.");
+    }
+    if reconciled {
+        println!("  Held passphrase: none on disk; the ledger now records it as released (absent).");
     }
     Ok(())
 }
@@ -1154,7 +1188,7 @@ fn go_live_runbook(
     n += 1;
     writeln!(runbook, "  {n}. {cmd} serve {} --bind \"$HUB_BIND\"", hub_dir.display()).unwrap();
     n += 1;
-    writeln!(runbook, "  {n}. {cmd} unlock  # ignite the vault (passphrase — never stored)").unwrap();
+    writeln!(runbook, "  {n}. {cmd} unlock  # ignite the vault (law may retain a sealed passphrase)").unwrap();
     runbook
 }
 
@@ -1607,6 +1641,28 @@ fn operator_plane_app(
         .layer(axum::middleware::from_fn_with_state(op_auth, crate::rest::operator_auth_gate))
 }
 
+/// The sealing backend a serving hub uses (PRD_HELD_IGNITION §3.2). Tests build `RestState`
+/// without it, so they never reach systemd.
+fn held_ignition_backend() -> std::sync::Arc<crate::rest::HeldIgnition> {
+    std::sync::Arc::new(crate::rest::HeldIgnition::with_sealer(std::sync::Arc::new(
+        hub_lib::ignition::SystemdUserSealer::default(),
+    )))
+}
+
+/// A hub that boots with its store already open was ignited by the environment only when
+/// `HUB_PASSPHRASE` was set, and then the ledger says so (PRD_HELD_IGNITION §3.6). A plaintext or
+/// NULL-keyed store with no passphrase in the environment was not ignited, and records nothing;
+/// nor does a hub with no genesis yet. If the record fails, the boot fails: no ignition serves
+/// without its record (NOVA, #970).
+async fn record_boot_ignition(rest: &RestState, env_passphrase_set: bool) -> Result<()> {
+    if env_passphrase_set && !rest.ledger.lock().await.entries().is_empty() {
+        crate::rest::record_ignition(rest, hub_lib::events::IgnitionVia::Env, None)
+            .await
+            .context("the environment ignited this hub, but the ignition could not be recorded; refusing to serve")?;
+    }
+    Ok(())
+}
+
 async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, admin_port: u16) -> Result<()> {
     let config = HubConfig::load(hub_lib::hub::HubPaths::new(&hub_dir).config())?;
     let port = port_override.unwrap_or(config.daemon.mcp_port);
@@ -1668,6 +1724,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             rest.resolver.clone(),
         )
         .await?;
+        record_boot_ignition(&rest, hub_lib::identity::env_passphrase().is_some()).await?;
         (rest, mcp)
     } else {
         // ── LOCKED SHELL (encrypted store, no key) ──
@@ -1686,7 +1743,8 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
         let shared_ledger = std::sync::Arc::new(tokio::sync::Mutex::new(
             hub_lib::ledger::HubLedger::open(placeholder_store).await?,
         ));
-        let rest = RestState::open_locked_shell(hub_dir.clone(), shared_law.clone(), shared_ledger.clone()).await?;
+        let mut rest = RestState::open_locked_shell(hub_dir.clone(), shared_law.clone(), shared_ledger.clone()).await?;
+        rest.ignition = held_ignition_backend();
         let mcp = McpState::open_with_law_and_ledger(
             hub_dir.clone(),
             shared_law,
@@ -1699,6 +1757,9 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             rest.resolver.clone(),
         )
         .await?;
+        // One attempt from the held passphrase, if there is one; a failure leaves this shell up
+        // and locked for a person (PRD_HELD_IGNITION §3.5).
+        rest.held_boot(chrono::Utc::now().timestamp()).await;
         (rest, mcp)
     };
     // On a normal (unlocked) boot the signer is live, so hydrate any law-driven
@@ -2126,6 +2187,22 @@ async fn run_rotate_passphrase(hub_dir: PathBuf) -> Result<()> {
         .context("re-keying the state store")?;
     println!("  ✓ state store (hub.db) re-keyed");
 
+    // A held copy of the OLD passphrase would fail at the next boot (and cost an unlock attempt).
+    // It goes here, in every sovereign mode, once `rekey_store` has proved the old passphrase: a
+    // typo must not cost the operator their held copy (supervisor, #970). The rotation has already
+    // happened, so a failed delete is reported, not returned. The next person's unlock seals the
+    // new passphrase and records it.
+    let held = hub_lib::ignition::ignition_path(&hub_dir);
+    match std::fs::remove_file(&held) {
+        Ok(()) => println!("  ✓ held passphrase deleted (re-sealed at the next unlock if the law holds)"),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => eprintln!(
+            "  ⚠ could not delete the held passphrase at {} ({e}): delete it by hand, or the next boot \
+             spends its one attempt on the OLD passphrase and stays locked",
+            held.display()
+        ),
+    }
+
     // 3. Protected tier: it's keyed straight from the passphrase. Drop it; it re-seeds
     //    under the new passphrase on next ignition (regenerable).
     let protected = hub_dir.join("protected.hvlt");
@@ -2321,6 +2398,19 @@ async fn run_attest_unlock(
     Ok(())
 }
 
+/// What the operator is told about the passphrase after an unlock. A held ignition retains an
+/// encrypted credential. A failed delete may leave that copy on disk, and a missing or unfamiliar
+/// note is not evidence that no copy was retained.
+fn unlock_storage_line(body: &serde_json::Value) -> String {
+    match body.get("held_ignition").and_then(|v| v.as_str()) {
+        Some(note) if note.starts_with("held at") => format!("The passphrase is now HELD in an encrypted credential — {note}"),
+        Some(note) if note.starts_with("stale:") => format!("A held copy may still be on disk — {note}"),
+        Some(note) if note.starts_with("not held:") => format!("The passphrase was not retained in a held credential — {note}"),
+        Some(note) => format!("Held ignition: {note}"),
+        None => "The hub did not report held-ignition storage for this request.".to_string(),
+    }
+}
+
 async fn run_unlock(port: u16) -> Result<()> {
     let base = format!("http://127.0.0.1:{port}");
     let client = reqwest::Client::new();
@@ -2360,7 +2450,7 @@ async fn run_unlock(port: u16) -> Result<()> {
         if let Some(sov) = body.get("sovereign_lct_id").and_then(|v| v.as_str()) {
             println!("  Sovereign LCT: {sov}");
         }
-        println!("  The hub is now serving citizen-tier+ requests. The passphrase was not stored.");
+        println!("  The hub is now serving citizen-tier+ requests. {}", unlock_storage_line(&body));
         Ok(())
     } else {
         let msg = body.get("error").and_then(|v| v.as_str())
@@ -3042,6 +3132,120 @@ mod tests {
                 } else {
                     assert!(!body.contains("<script>"), "{path} carries an inline script");
                 }
+            }
+        }
+
+        fn ignitions(entries: &[hub_lib::ledger::LedgerEntry]) -> Vec<hub_lib::events::IgnitionVia> {
+            entries.iter().filter_map(|e| match &e.event {
+                hub_lib::events::HubEvent::HubIgnited { via, tier } => {
+                    assert_eq!(*tier, None, "only a held ignition carries a tier");
+                    Some(*via)
+                }
+                _ => None,
+            }).collect()
+        }
+
+        /// The environment's ignition is on the ledger; a boot with no passphrase in the
+        /// environment was not an ignition and records nothing (PRD_HELD_IGNITION §3.6).
+        #[tokio::test]
+        async fn a_boot_records_env_ignition_only_when_the_environment_held_the_passphrase() {
+            let (_tmp, rest) = fresh_rest_state(None).await;
+            record_boot_ignition(&rest, false).await.unwrap();
+            assert!(ignitions(rest.ledger.lock().await.entries()).is_empty());
+            record_boot_ignition(&rest, true).await.unwrap();
+            assert_eq!(ignitions(rest.ledger.lock().await.entries()), vec![hub_lib::events::IgnitionVia::Env]);
+        }
+
+        /// An environment ignition whose record fails does not serve: the boot fails with the
+        /// reason, and nothing is on the ledger (NOVA, #970).
+        #[tokio::test]
+        async fn an_env_boot_whose_ignition_record_fails_refuses_to_serve() {
+            let (_tmp, rest) = fresh_rest_state(None).await;
+            let before = rest.ledger.lock().await.entries().len();
+            rest.ignition.fail_next_record("hub_ignited");
+            let err = record_boot_ignition(&rest, true).await.unwrap_err();
+            assert!(format!("{err:#}").contains("refusing to serve"), "{err:#}");
+            assert_eq!(rest.ledger.lock().await.entries().len(), before);
+        }
+
+        /// Positive controls: distinguish a retained encrypted credential from an explicit
+        /// report that the hub retained no held copy.
+        #[test]
+        fn the_unlock_cli_says_when_the_passphrase_is_held() {
+            let held = unlock_storage_line(&serde_json::json!({"held_ignition": "held at HostKey: this hub now unlocks itself"}));
+            assert!(held.contains("HELD in an encrypted credential") && !held.contains("not retained"), "{held}");
+            let refused = unlock_storage_line(&serde_json::json!({"held_ignition": "not held: the law says ignition.held: false"}));
+            assert!(refused.contains("not retained in a held credential") && refused.contains("held: false"), "{refused}");
+        }
+
+        /// Missing metadata (including an already-unlocked response) and new note shapes cannot
+        /// justify a promise that nothing was retained.
+        #[test]
+        fn the_unlock_cli_does_not_infer_storage_from_missing_or_unfamiliar_metadata() {
+            for body in [serde_json::json!({}), serde_json::json!({"status": "already_unlocked"})] {
+                assert_eq!(unlock_storage_line(&body), "The hub did not report held-ignition storage for this request.");
+            }
+            let unfamiliar = unlock_storage_line(&serde_json::json!({"held_ignition": "storage status unavailable"}));
+            assert_eq!(unfamiliar, "Held ignition: storage status unavailable");
+        }
+
+        /// Offline `hub set-law` that turns holding off deletes the held copy and records why, in
+        /// the same command (PRD_HELD_IGNITION §3.4).
+        #[tokio::test]
+        async fn offline_set_law_releases_the_held_copy() {
+            let (tmp, rest) = fresh_rest_state(None).await;
+            crate::rest::channel_e2e_tests::witness_for_test(&rest, hub_lib::events::HubEvent::IgnitionHeld {
+                tier: hub_lib::law::IgnitionTier::HostKey }).await;
+            let hub_dir = rest.paths.root.clone();
+            drop(rest);
+            let path = hub_lib::ignition::ignition_path(&hub_dir);
+            let sealer = hub_lib::ignition::ClearTestSealer::reading_as(hub_lib::law::IgnitionTier::HostKey);
+            hub_lib::ignition::Sealer::seal(&sealer, "x", &path).unwrap();
+            let law = tmp.path().join("law.yaml");
+            std::fs::write(&law, "version: \"1.0.0\"\nnorms: []\nignition:\n  held: false\n").unwrap();
+            run_set_law(hub_dir.clone(), law.clone(), None).await.unwrap();
+            assert!(!path.exists());
+            let last_event = |hub_dir: std::path::PathBuf| async move {
+                let store = hub_lib::store::open_hub_store_async(&hub_dir).await.unwrap();
+                let ledger = hub_lib::ledger::HubLedger::open(store).await.unwrap();
+                ledger.entries().last().map(|e| e.event.clone())
+            };
+            assert!(matches!(last_event(hub_dir.clone()).await,
+                Some(hub_lib::events::HubEvent::IgnitionReleased { reason: hub_lib::events::IgnitionRelease::LawOff })));
+
+            // codex, #970: a copy that can't be deleted (here a non-empty directory in its place).
+            // The law is still set, nothing is released on the ledger, and the command says both.
+            std::fs::create_dir_all(path.join("pinned")).unwrap();
+            std::fs::write(&law, "version: \"1.0.1\"\nnorms: []\nignition:\n  held: false\n").unwrap();
+            let err = format!("{:#}", run_set_law(hub_dir.clone(), law, None).await.unwrap_err());
+            assert!(err.contains("the law above IS set") && err.contains("delete it by hand"), "{err}");
+            assert!(path.exists());
+            assert!(matches!(last_event(hub_dir.clone()).await,
+                Some(hub_lib::events::HubEvent::LawAmended { .. })), "the law, and no release");
+        }
+
+        /// codex + cbp, #970, offline: the ledger says held and nothing is on disk (a crash cut
+        /// the release record, or rotate-passphrase deleted it). `set-law` records it as `absent`,
+        /// once; running it again records nothing more.
+        #[tokio::test]
+        async fn offline_set_law_records_an_absent_copy_once() {
+            use hub_lib::events::{HubEvent, IgnitionRelease};
+            let (tmp, rest) = fresh_rest_state(None).await;
+            crate::rest::channel_e2e_tests::witness_for_test(&rest, HubEvent::IgnitionHeld {
+                tier: hub_lib::law::IgnitionTier::HostKey }).await;
+            let hub_dir = rest.paths.root.clone();
+            drop(rest);
+            let law = tmp.path().join("law.yaml");
+            let absent = |hub_dir: std::path::PathBuf| async move {
+                let store = hub_lib::store::open_hub_store_async(&hub_dir).await.unwrap();
+                let ledger = hub_lib::ledger::HubLedger::open(store).await.unwrap();
+                ledger.entries().iter().filter(|e| matches!(e.event,
+                    HubEvent::IgnitionReleased { reason: IgnitionRelease::Absent })).count()
+            };
+            for v in ["1.0.0", "1.0.1"] {
+                std::fs::write(&law, format!("version: \"{v}\"\nnorms: []\n")).unwrap();
+                run_set_law(hub_dir.clone(), law.clone(), None).await.unwrap();
+                assert_eq!(absent(hub_dir.clone()).await, 1, "after {v}");
             }
         }
 

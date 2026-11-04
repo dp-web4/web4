@@ -48,6 +48,7 @@ name = "mock-hestia"
 path = "examples/mock_hestia.rs"
 
 [dev-dependencies]
+hub-lib = { package = "web4-hub-lib", path = "../hub-lib", version = "=0.1.0-alpha.0", features = ["test-sealer"] }
 tempfile = "3"
 rusqlite = { version = "0.31", features = ["bundled-sqlcipher"] }
 

@@ -3248,6 +3248,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-dynamodb",
  "axum",
+ "base64",
  "chrono",
  "hex",
  "rand 0.8.6",

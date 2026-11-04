@@ -1519,6 +1519,10 @@ impl HubState {
             | HubEvent::VaultUnlockRequested { .. }
             | HubEvent::VaultUnlockAttested { .. }
             | HubEvent::VaultUnlockResolved { .. }
+            // How the hub was ignited: audit-only, like the vault-unlock records.
+            | HubEvent::HubIgnited { .. }
+            | HubEvent::IgnitionHeld { .. }
+            | HubEvent::IgnitionReleased { .. }
             // Referenced acts are thin witnessed records; the substance lives at
             // pointer_uri, not in HubState (their act_id is indexed below).
             => {

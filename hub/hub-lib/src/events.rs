@@ -24,6 +24,37 @@ use web4_core::act::Act;
 use web4_core::lct::Lct;
 use web4_core::role::SocietyRole;
 
+/// Who presented the passphrase that ignited the hub (`HubEvent::HubIgnited`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IgnitionVia {
+    /// The hub opened its own sealed copy at boot.
+    Held,
+    /// A person, through `hub unlock`.
+    Human,
+    /// `HUB_PASSPHRASE` in the daemon's environment: the 08-18 order's tolerated dev tier.
+    Env,
+}
+
+/// Why a held passphrase was deleted (`HubEvent::IgnitionReleased`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IgnitionRelease {
+    /// The law says `ignition.held: false`.
+    LawOff,
+    /// The seal is weaker than the law's `ignition.min_tier`.
+    BelowMinTier,
+    /// A person's unlock tried to re-seal and failed, so the earlier copy (which might hold an
+    /// older passphrase) was deleted rather than left for the next boot. Also when the re-seal
+    /// worked but its `IgnitionHeld` record failed: no copy is kept without its record (#970).
+    ResealFailed,
+    /// The ledger says a copy is held, but none is on disk, and the hub can't say why: its own
+    /// release record failed or was cut by a crash, `rotate-passphrase` deleted it offline, or a
+    /// person deleted it by hand. Witnessed when the hub next notices, so the ledger stops
+    /// claiming a copy that isn't there (codex + cbp, #970).
+    Absent,
+}
+
 /// Visibility tier for a profile field. Determines who can read the field
 /// when a member directory or skill search is returned.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -901,6 +932,26 @@ pub enum HubEvent {
         resolved_at: DateTime<Utc>,
     },
 
+    /// The hub's signer went live, and how (hub/docs/PRD_HELD_IGNITION.md §3.6). A reader of the
+    /// ledger can tell a hub started by a person from one started by its host or by an
+    /// environment variable, and with what seal: the evidence a capability level is derived
+    /// from, never claimed. Audit-only.
+    HubIgnited {
+        via: IgnitionVia,
+        /// The seal a held ignition opened, read from the sealed file. `None` unless `via` is held.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tier: Option<crate::law::IgnitionTier>,
+    },
+
+    /// The hub now holds a sealed copy of its passphrase, so it can unlock itself after a restart
+    /// (PRD_HELD_IGNITION §3.3). Written when a person's unlock seals it. `tier` is read from the
+    /// sealed file. Audit-only.
+    IgnitionHeld { tier: crate::law::IgnitionTier },
+
+    /// The hub no longer holds its passphrase: the sealed copy was deleted (PRD_HELD_IGNITION
+    /// §3.4, §3.5). Audit-only.
+    IgnitionReleased { reason: IgnitionRelease },
+
     /// A **referenced act** — a thin, witnessed governance record of an entity
     /// externalizing work: the one primitive behind fleet handoffs
     /// (`to = Peer`), hub→citizen notifications (`to = Citizen` — a notification
@@ -1256,6 +1307,9 @@ impl HubEvent {
         "device_revoked",
         "event_recorded",
         "genesis",
+        "hub_ignited",
+        "ignition_held",
+        "ignition_released",
         "intro_requested",
         "intro_responded",
         "invite_revoked",
@@ -1348,6 +1402,9 @@ impl HubEvent {
             Self::VaultUnlockRequested { .. } => "vault_unlock_requested",
             Self::VaultUnlockAttested { .. } => "vault_unlock_attested",
             Self::VaultUnlockResolved { .. } => "vault_unlock_resolved",
+            Self::HubIgnited { .. } => "hub_ignited",
+            Self::IgnitionHeld { .. } => "ignition_held",
+            Self::IgnitionReleased { .. } => "ignition_released",
             Self::ReferencedAct { .. } => "referenced_act",
             Self::ReputationRecorded { .. } => "reputation_recorded",
             Self::ObligationOpened { .. } => "obligation_opened",
