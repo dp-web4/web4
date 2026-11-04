@@ -47,6 +47,13 @@ pub fn ignition_path(hub_dir: &Path) -> PathBuf {
     hub_dir.join(IGNITION_FILE)
 }
 
+/// Where a new seal is written before its hold is recorded. Boot reads only [`ignition_path`], so
+/// a copy here can never be booted from; it is renamed into place only after `IgnitionHeld` is on
+/// the ledger (NOVA, #970), and a leftover one is deleted at the next unlock.
+pub fn staged_ignition_path(hub_dir: &Path) -> PathBuf {
+    hub_dir.join(format!("{IGNITION_FILE}.staged"))
+}
+
 /// The tier of a sealed file, from its seal id. Anything unreadable is `Unknown`.
 pub fn tier_of_sealed(sealed: &[u8]) -> IgnitionTier {
     // 24 base64 characters decode to exactly 18 bytes, which cover the 16-byte id.
