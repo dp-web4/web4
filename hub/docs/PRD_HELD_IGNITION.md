@@ -81,20 +81,27 @@ This is a new `HubPolicy.ignition: Option<IgnitionPolicy>`, with both fields `Op
   used.
 - **What "tpm2" means here.** The measured TPM seal has pcr_mask 0: it is bound to this machine's TPM
   chip, not to a measured boot state. It means "opens only on this machine's TPM", not "opens only on
-  an untampered boot". PCR binding would break the seal at every firmware or kernel update; it is
-  out of scope until a society asks for it.
+  an untampered boot". Binding to fixed PCR values needs an update policy when measured components
+  change; measured-boot policy is out of scope until a society asks for it.
 - **No sealing backend** (no `systemd-creds`, or encryption fails): nothing is written. The hub keeps
   booting locked and logs why. The law may still say held, but this host can't honour it, and a
   default the host can't meet does not fall back to a plain file.
 - **Fly / platform secret:** a later slice. The tier would be `platform-secret`, and the code reads
   the credential from the platform's mount instead of decrypting it.
-- **What sealing protects, said plainly.** A host-key or TPM credential can't be opened on another
-  machine, from a disk copy, or from a backup. It does **not** protect against a process running on
-  the same host as the hub's own user: that process can call `systemd-creds decrypt --user` too. This
-  is equally true of `LoadCredentialEncrypted=` in the unit, whose plaintext lands in a directory
-  readable by that same user. **The hub's user account is the trust boundary.** A public hub should
-  run as a dedicated service user that nothing else runs as. The runbook says so; the code can't
-  enforce it.
+- **What sealing protects, said plainly.** A `host-key` seal protects a copied `ignition.cred`
+  only while the host secret remains inaccessible. systemd stores that secret in
+  `/var/lib/systemd/credential.secret`; `--user` also incorporates the numeric UID, username, and
+  machine ID into the key. A full OS image or backup carrying the secret and those identity values
+  can carry decryption capability to another machine. **Host-key sealing is not hardware binding.**
+  TPM-backed tiers (`tpm2`, `host+tpm2`) additionally require the original TPM chip; the measured
+  pcr_mask 0 still provides no measured-boot assurance. See the
+  [systemd v259 `systemd-creds` manual](https://www.freedesktop.org/software/systemd/man/259/systemd-creds.html),
+  especially its encryption-key and `--user` descriptions.
+  None of these tiers protects against a process running on the same host as the hub's own user:
+  that process can call `systemd-creds decrypt --user` too. This is equally true of
+  `LoadCredentialEncrypted=` in the unit, whose plaintext lands in a directory readable by that same
+  user. **The hub's user account is the local process trust boundary.** A public hub should run as a
+  dedicated service user that nothing else runs as. The runbook says so; the code can't enforce it.
 
 ### 3.3 When the secret is created: at a person's unlock
 
@@ -156,7 +163,9 @@ else boot locked, as today
   normal case.
 - **One attempt, never a retry.** This is pub's month of field notes: the unlock slot locks for
   5 minutes after 5 failures, so a held unlock that loops would lock the operator out at the moment
-  they come to fix it. A held attempt does count as one failure in `unlock_gate`.
+  they come to fix it. A decrypted passphrase rejected by the vault costs one failure in
+  `unlock_gate`; a credential that cannot be decrypted costs none, because no passphrase reaches
+  the vault.
 - **A failed held unlock leaves the hub up and locked,** never stopped, so the human path still works.
 - **Check the effect, not the exit code.** `/tools` answers 200 only when unlocked; `/` answers 200
   even when locked. pub's acceptance test reads `/tools`.
@@ -167,19 +176,19 @@ else boot locked, as today
 ### 3.6 The record: how the hub was ignited
 
 A new event, `HubIgnited { via: held | human | env, tier: Option<host+tpm2 | tpm2 | host-key | platform-secret> }`,
-is witnessed at every ignition that reaches a signer:
+is submitted for witnessing after each ignition that reaches a signer:
 
 - `held`, carrying the tier.
 - `human`, through `/unlock`.
 - `env`: the store opened at boot with `HUB_PASSPHRASE` set. That is 08-18's tolerated dev tier, and
-  now it shows on the ledger.
+  a successful append identifies that tier on the ledger.
 
 A boot that opens a plaintext or NULL-keyed store records `env` only if `HUB_PASSPHRASE` was set.
 Otherwise it records nothing, because there was no ignition.
 
-The tier is the evidence that issue 729 asks for. A hub's LCT capability level can then be **derived**
-from the newest `HubIgnited` and never claimed. That derivation is a follow-up, and this design only
-makes the evidence exist.
+The tier in a successfully appended event is evidence for issue 729. Deriving a hub's LCT
+capability from that evidence is a follow-up; the newest recorded `HubIgnited` may not describe
+the latest actual ignition. The I1–I3 implementation review in §6 records that limitation.
 
 Each new event kind needs a `BODY_EXEMPT` entry and a HUB-LAW.md row, both in the same commit.
 
@@ -196,7 +205,7 @@ pub's checklist on the public hub). This design only makes the state readable.
 | Slice | What | Tests that must bite |
 |---|---|---|
 | **I1** | `IgnitionPolicy` in the law; the `HubIgnited` event (`human` and `env` only); `held_ignition` in well-known (always `"none"`). No sealing yet. | An old law parses and hashes the same; `/unlock` witnesses `human`; an env boot witnesses `env`; a plaintext boot witnesses nothing. |
-| **I2** | The sealing backend behind a trait (`systemd-creds --user`, and a test double); seal at a person's unlock; boot unlock from `ignition.cred`; one attempt; failed → locked; law-off at boot → delete. | Double: seal → restart → held unlock → `/tools` 200; a corrupt cred → up and locked, `unlock_gate` charged exactly 1; law off + cred present → deleted after unlock; `min_tier: tpm2` on a host-key backend → nothing written; a `host+tpm2` header meets `min_tier: tpm2`; an unknown id → nothing held; a cred below `min_tier` at boot → used once, deleted, `below_min_tier` witnessed; the unlock response names the tier. |
+| **I2** | The sealing backend behind a trait (`systemd-creds --user`, and a test double); seal at a person's unlock; boot unlock from `ignition.cred`; one attempt; failed → locked; law-off at boot → delete. | Double: seal → restart → held unlock → `/tools` 200; an undecryptable cred → up and locked, `unlock_gate` charged 0; a decrypted stale passphrase → up and locked, charged exactly 1; law off + cred present → deleted after unlock; `min_tier: tpm2` on a host-key backend → nothing written; a `host+tpm2` header meets `min_tier: tpm2`; an unknown id → nothing held; a cred below `min_tier` at boot → used once, deleted, `below_min_tier` witnessed; the unlock response names the tier. |
 | **I3** | A law amendment that turns `held` off, or raises `min_tier` above the held tier, deletes the cred; `hub ignition hold/release`; `rotate-passphrase` and offline `set-law` delete it. | Each removal path leaves no `ignition.cred`; release + `held: true` → the next unlock re-seals. |
 | **Acceptance** | pub, on `web4-hub-demo`, with its other self-unlock mechanism switched off so a 200 can come only from held ignition: restart → held unlock → `/tools` 200, and the seal id read from the file. | pub expects `ef4ac136` (`host+tpm2`); HUB's seat covers `host-key` (`55b9ed1d`). A system unit with `User=` (HUB's shape) stays unmeasured until HUB runs it, and the PR says so. |
 
@@ -221,14 +230,20 @@ pub's checklist on the public hub). This design only makes the state readable.
 
 ## 6. Accountability self-audit
 
+**Implementation review of I1–I3 ([#970](https://github.com/dp-web4/web4/pull/970)).**
+`record_ignition` is best effort after unlocking, and a sealed copy can survive a failed
+`IgnitionHeld` append. I3 reconciles a missing release only where a prior hold was recorded.
+These effects and their records do not commit atomically. Under the accountability gate, this
+requires remediation or an explicit owner exception; this review grants neither. Q1 remains open.
+
 ```
 surface: held ignition (seal at unlock; boot unlock from ignition.cred; law-off delete)
 act: release the vault key into hub memory without a person present
 S: high/reversible (the hub can be locked by a restart with the cred deleted; the law can turn it off)
-R: pass [construct: the cred opens only on this host for this user; reachability is not the basis]
+R: pass [construct: user-scoped sealing; host-key relies on host-secret custody, TPM tiers also require the original chip (§3.2); reachability is not the basis]
 W: pass [construct: sealing needs a person's successful unlock, and the law (signed, ledgered) decides held]
 O: pass [construct: boot decrypt -> try_unlock, the same preflight as a person; a failure leaves the hub locked]
-A: pass [construct: HubIgnited{via,tier} witnessed at each ignition; IgnitionHeld/Released at each change]
+A: fail [construct: I1–I3 record_ignition and settle_held_ignition publish effects before best-effort signed appends; #970 release reconciliation is eventual, not atomic]
 V: present [construct: law held:false and `hub ignition release`; min_tier:tpm2 for a strict society; a min_tier raise deletes the cred]
-verdict: PASS, conditional on Q1 (dp)
+verdict: ESCALATE(human gate): Q1 (dp), plus remediation or an explicit owner exception for the non-atomic A limits found in I1–I3 (#970)
 ```
