@@ -120,16 +120,22 @@ moment the hub can seal the passphrase is when a person presents it:
    copy placed before its hold was recorded could outlive a crash with no record, and a fresh
    process would boot from it).
 
-   A crash leaves one of two states, and neither is a copy boot can use without a record:
-   - **Cut before step 3:** only a staged file exists. It is ciphertext, and the next unlock deletes it.
+   A process interruption does not publish an unrecorded credential through this path:
+   - **Cut before step 3:** the new ciphertext is only staged; an earlier recorded copy, if present,
+     stays in place.
    - **Cut between steps 3 and 4:** the ledger says held, with no new file in place. The next unlock
-     records it `absent` (§3.4), unless an earlier copy is still in place under its own recorded hold.
-   If step 3 fails, the staged seal is deleted and an earlier copy is released, because this unlock
-   ends up holding nothing.
-5. **The person is told, at that moment.** The unlock response carries `held_ignition: { tier }` and
-   the text "held at tier X; set `held: false` to stop", and the log says the same. The default is
-   dp's ruling, but an existing hub that upgrades seals at its next unlock without anyone choosing it,
-   so the operator has to learn it when it happens, not from the ledger later.
+     reconciles it as `absent` (§3.4) if no earlier copy survives. An earlier recorded copy can remain
+     usable, even if the new hold's tier differs (§3.6).
+   Every settlement attempts to remove leftover staging. A cleanup failure is logged; the retained
+   staged ciphertext remains ineligible for held boot. If step 3 fails, no new credential is
+   published: staged cleanup and release of an earlier copy are attempted. A failed removal of an
+   active copy is reported as `stale` (§3.4).
+5. **The person is told, at that moment.** A successful hold returns a human-readable
+   `held_ignition` string naming the measured tier and how to stop, such as
+   `held at HostKey: ...; set ignition.held: false in the law to stop`. The log reports the holding
+   outcome. The default is dp's ruling, but an existing hub that upgrades seals at its next unlock
+   without anyone choosing it, so the operator has to learn it when it happens, not from the ledger
+   later.
 
 This makes dp's default true without a new ritual: the first unlock after this ships is the last one
 a person has to do. An operator who doesn't want it sets `held: false` first.
@@ -167,10 +173,12 @@ the held copy, and why (`law_off`, or `below_min_tier` from the file's own seal 
   (daemon or offline) checks for that state and witnesses `ignition_released { reason: absent }`:
   the hub records that the copy is gone and doesn't invent why. The check and the append run under
   the ledger's lock, and an append built on an older tail is refused, so concurrent reconcilers
-  record it once. **What a release refers to** (NOVA + supervisor, #970): the copy the last
-  `ignition_held` recorded. Those ledger checks can't tell which hold that is ("the last ignition
-  event is a hold" is as true of a newer hold), so they can't stop an ordinary release, whose
-  delete came first, from landing after a newer `ignition_held` (kimi-code + supervisor, #970).
+  record it once. **What a release closes** (NOVA + supervisor, #970): the outstanding custody state
+  indicated by the last `ignition_held` / `ignition_released`, not the identity of a particular
+  credential generation. An interrupted reseal can leave the last hold describing a staged
+  replacement while an earlier recorded copy survives (§3.6). The boolean check "the last custody
+  event is a hold" cannot itself stop an ordinary release, whose delete came first, from landing
+  after a newer `ignition_held` (kimi-code + supervisor, #970).
   **One seal/release lock in the daemon does that.** A person's unlock holds it while it reads the
   law (from the store, because an amendment's callers swap the served law only after it returns),
   seals, and records `ignition_held`. A law amendment holds it from before its signature through the
@@ -180,9 +188,8 @@ the held copy, and why (`law_off`, or `below_min_tier` from the file's own seal 
   ledger checks stay as the second line, for a reconcile racing a file write: the ledger then
   reads `held (old), released (absent), held (new)` with the new copy on disk, which is true. The
   lock does not reach offline `set-law` run against a live daemon, which is already two writers on
-  one ledger. If the new seal's own `ignition_held` then fails, that is the
-  disclosed case of a seal whose record failed. `"stale"` is the
-  opposite case and only a volatile health signal: it lives in memory, is re-derived at each unlock
+  one ledger. A failed new `ignition_held` does not publish its staged replacement (§3.3).
+  `"stale"` is a volatile health signal: it lives in memory, is re-derived at each unlock
   (the delete is retried), and clears as soon as no file is there.
 - **`hub rotate-passphrase`** (offline, hub stopped) deletes `ignition.cred` right after the
   state store is re-keyed, in every sovereign mode (Local and Hestia), because a copy sealed to the
@@ -196,15 +203,17 @@ the held copy, and why (`law_off`, or `below_min_tier` from the file's own seal 
 ### 3.5 Boot
 
 ```
-store opens without a key?            -> boot unlocked (plaintext / NULL / HUB_PASSPHRASE), as today
+store opens without a key?            -> boot path; record env if required before serving (§3.6)
 else ignition.cred present?
-    decrypt it, ONE attempt, no retry -> try_unlock(passphrase) through the same path a person uses
-        Unlocked -> read the law
+    decrypt it, ONE attempt, no retry -> try_unlock: preflight, record HubIgnited, then activate
+        Unlocked -> read the law and recorded custody state
                     held off (law was turned off while the cred survived)
-                        -> delete the cred, witness IgnitionReleased { reason: law_off }, stay unlocked
+                        -> attempt release { reason: law_off }, stay unlocked
+                    no recorded hold
+                        -> attempt removal of the legacy/manual copy, stay unlocked (§3.6)
                     measured tier < law's min_tier
-                        -> delete the cred, witness IgnitionReleased { reason: below_min_tier }, stay unlocked
-                    else -> witness HubIgnited { via: held, tier }
+                        -> attempt release { reason: below_min_tier }, stay unlocked
+                    else -> retain the copy
         anything else -> stay up and LOCKED, log the reason, expose held_ignition: "failed"
 else boot locked, as today
 ```
@@ -249,23 +258,33 @@ work:
   consulted for this audit-only record, so a hub whose law diverged can still be unlocked to fix it.
 - **An env boot** whose record fails refuses to serve (the boot exits with the reason).
 - **A new seal** is recorded before it is placed where boot can use it (§3.3). If its
-  `IgnitionHeld` fails, it is never placed, and an earlier recorded copy is released
-  (`reseal_failed`).
-- **A held boot that opened a copy with no recorded hold** deletes that copy after the one use. That
-  use is on the ledger as `HubIgnited(held)`. This code never places such a copy; this is the guard
-  against one placed by hand or by older code.
+  `IgnitionHeld` fails, it is never placed; cleanup of the staged seal and release of an earlier
+  copy (`reseal_failed`) are attempted, with failures reported.
+- **A held boot that opened a copy with no recorded hold** attempts to delete it after the witnessed
+  use. This handles a copy placed by hand or by older code. A failed delete is `stale` and retried;
+  the surviving copy may be used on another restart, but each successful ignition still requires
+  its `HubIgnited(held)` record before activation.
 
-So every ignition that serves is on the ledger, and every copy boot can use has a recorded hold.
-One limit is worth naming: `HubIgnited` is appended just before activation, so a crash between the
-two leaves a record of an ignition that never served. A record proves the ignition was authorized
-and attempted, not that the hub is up now; liveness is what `/tools` answers. What
-stays eventual is a **release's** record: the delete comes first, and if `IgnitionReleased` then
-fails, the ledger claims a hold that is no longer there until the next unlock or law change records
-it as `absent` (§3.4). That errs toward claiming more custody than exists, never less, and since
-every copy boot can use has a recorded hold, the reconcile covers every case.
+Every human, held, or env ignition that reaches serving is preceded by its record. Plaintext or
+NULL-keyed startup without `HUB_PASSPHRASE` remains unrecorded by design. Every active credential
+newly published by this path has a prior `IgnitionHeld`; the staging file is never eligible for held
+boot. This publication guarantee does not cover arbitrary manual or legacy files, which follow the guard
+above. A `HubIgnited` append immediately precedes activation, so a process interruption between the
+two can leave a record without a serving incarnation. It records authorization and an attempt,
+not current liveness; `/tools` reports the latter.
 
-The newest `HubIgnited` therefore describes the latest ignition, and its tier is evidence for issue
-729. Deriving a hub's LCT capability from it is a follow-up.
+A **release's** record remains eventual: deletion comes first, and if `IgnitionReleased` fails,
+a prior recorded hold with no active file is reconciled as `absent` at a later unlock or law change
+(§3.4). That known lag conservatively overstates custody. It does not identify a particular
+ciphertext generation.
+
+**The two tier fields describe different observations.** `IgnitionHeld.tier` is measured from the
+staged replacement before publication. After an interrupted reseal or failed rename, an earlier
+recorded credential can still occupy `ignition.cred`; its tier may differ from the newest
+`IgnitionHeld`. That newest hold is therefore not a report of the file currently in place.
+`HubIgnited.tier` for a held boot is measured from the credential actually opened for that attempt.
+These records provide evidence for issue 729; a future capability derivation must preserve these
+distinctions rather than infer current custody or liveness from the newest event alone.
 
 Each new event kind needs a `BODY_EXEMPT` entry and a HUB-LAW.md row, both in the same commit.
 
@@ -310,7 +329,7 @@ S: high/reversible (the hub can be locked by a restart with the cred deleted; th
 R: pass [construct: user-scoped sealing; host-key relies on host-secret custody, TPM tiers also require the original chip (§3.2); reachability is not the basis]
 W: pass [construct: sealing needs a person's successful unlock, and the law (signed, ledgered) decides held]
 O: pass [construct: boot decrypt -> try_unlock, the same preflight as a person; a failure leaves the hub locked]
-A: pass [construct: try_unlock_as appends HubIgnited (record_ignition_on) before the signer/ledger swap; record_boot_ignition fails the env boot; settle_held_ignition seals to staged_ignition_path, records IgnitionHeld, then renames into ignition_path, and its Held arm deletes a copy with no recorded hold. A release's record is eventual by design (delete first; reconcile_absent records `absent`), erring toward over-claiming custody (§3.6)]
+A: pass [construct: try_unlock_as appends HubIgnited (record_ignition_on) before the signer/ledger swap; record_boot_ignition fails the env boot; settle_held_ignition records IgnitionHeld before publishing a staged replacement into ignition_path. Legacy/manual unrecorded copies have witnessed use and attempted removal, with stale on failed deletion. Release evidence is eventual and tier observations have the stated limits (§3.6)]
 V: present [construct: law held:false; min_tier:tpm2 for a strict society; release_under on every law change deletes a rejected copy]
 verdict: PASS (Q1 answered by dp 2026-11-03; A remediated per NOVA's #970 review, dp 2026-11-04)
 ```

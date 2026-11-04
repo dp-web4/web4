@@ -1013,7 +1013,7 @@ pub struct HeldIgnition {
     /// Test seam for [`RestState::settle_held_ignition`], after it has read the law: (reached, resume).
     #[cfg(test)]
     pause_after_settle_law_read: tokio::sync::Mutex<Option<(tokio::sync::oneshot::Sender<()>, tokio::sync::oneshot::Receiver<()>)>>,
-    /// Test seam: event kinds whose next ignition record fails (`hub_ignited`, `ignition_held`).
+    /// Test seam: ignition records or publication steps whose next operation fails or stops.
     #[cfg(test)]
     fail_record: std::sync::Mutex<Vec<&'static str>>,
 }
@@ -1038,7 +1038,7 @@ impl HeldIgnition {
         self.boot.store(v, std::sync::atomic::Ordering::Relaxed);
     }
 
-    /// Whether the test seam refuses the next record of `kind`. Always false outside tests.
+    /// Whether the next ignition operation of `kind` hits a test fault. Always false outside tests.
     fn record_fault(&self, kind: &str) -> bool {
         #[cfg(test)]
         {
@@ -1497,8 +1497,10 @@ impl RestState {
             IgnitionVia::Held => {
                 // A copy with no recorded hold can't come from this code (the hold is recorded
                 // before the copy is placed), but one placed some other way must not be adopted:
-                // it opened this boot, and that is on the ledger as `HubIgnited(held)`; it is
-                // deleted now, so the next restart needs a person (NOVA, #970).
+                // it opened this boot, and that is on the ledger as `HubIgnited(held)`. Attempt
+                // deletion now. If that fails, it stays stale and a later unlock or law change
+                // retries; a restart can use the surviving copy again, with another witnessed
+                // `HubIgnited(held)` (NOVA, #970).
                 let recorded = hub_lib::ignition::ledger_holds(self.ledger.lock().await.entries().iter().map(|e| &e.event));
                 if !recorded {
                     tracing::error!("held ignition: this boot opened a copy the ledger has no hold for; deleting it");
@@ -1580,12 +1582,38 @@ impl RestState {
                 if self.ignition.record_fault("crash_before_place") {
                     return; // test seam: the process dies with the hold recorded and the seal staged
                 }
-                if let Err(e) = std::fs::rename(&staged, &path) {
-                    // The ledger says held. With no file, the next unlock records it `absent`; an
-                    // earlier copy, still in place, is held under its own earlier record.
+                #[cfg(test)]
+                let placed = if self.ignition.record_fault("place_seal") {
+                    Err(std::io::Error::other("test seam: placing the sealed passphrase failed"))
+                } else {
+                    std::fs::rename(&staged, &path)
+                };
+                #[cfg(not(test))]
+                let placed = std::fs::rename(&staged, &path);
+                if let Err(e) = placed {
+                    // The ledger says held. With no boot credential, the next unlock records it
+                    // `absent`; an earlier file may still be in place. Its bytes, rather than the
+                    // just-recorded staged tier, determine what this receipt can say remains.
                     drop_staged();
                     tracing::warn!("held ignition: recorded at {sealed_at:?}, but placing the seal failed: {e}");
-                    self.ignition.set_note(format!("not held: placing the sealed passphrase failed: {e}"));
+                    let note = match std::fs::read(&path) {
+                        Ok(bytes) => {
+                            let remaining_at = hub_lib::ignition::tier_of_sealed(&bytes);
+                            format!(
+                                "retained: a file remains at {} (observed seal tier {remaining_at:?}); the replacement was not placed: {e}",
+                                path.display()
+                            )
+                        }
+                        Err(inspect_error) if inspect_error.kind() == std::io::ErrorKind::NotFound => format!(
+                            "not held: no boot credential is present at {}; placing the sealed passphrase failed: {e}",
+                            path.display()
+                        ),
+                        Err(inspect_error) => format!(
+                            "retention unknown: could not inspect {} after placing the sealed passphrase failed ({e}): {inspect_error}; a copy may remain",
+                            path.display()
+                        ),
+                    };
+                    self.ignition.set_note(note);
                     return;
                 }
                 tracing::warn!("held ignition: passphrase sealed at {sealed_at:?} and recorded; this hub now unlocks itself after a restart");
@@ -1619,12 +1647,13 @@ impl RestState {
     /// append refuses an entry built on an older tail, so two reconcilers can't both record it
     /// (codex, #970). `Ok(false)`: nothing was owed.
     ///
-    /// The release refers to the copy the last `IgnitionHeld` recorded. These checks can't tell
-    /// which hold that is ("the latest ignition event is a hold" is true of `Held(new)` too), so
-    /// what keeps a release from naming a copy it didn't delete is [`HeldIgnition::op`]: every
-    /// caller in this daemon (settle, law amendment) holds it, and so does the seal arm's
-    /// `IgnitionHeld` (kimi-code + supervisor, #970). The ledger lock orders records, not files;
-    /// a `Held(old), Released, Held(new)` order with the new copy on disk is still true.
+    /// The release closes the outstanding recorded custody state, not a credential-generation
+    /// identity: the last `IgnitionHeld` can describe a staged replacement while older bytes
+    /// survive a failed placement. [`HeldIgnition::op`] prevents a new hold from interleaving
+    /// between a delete and its release: every caller in this daemon (settle, law amendment)
+    /// holds it, and so does the seal arm's `IgnitionHeld` (kimi-code + supervisor, #970).
+    /// The ledger lock orders records, not files; `Held(old), Released, Held(new)` can leave
+    /// the new copy on disk with custody still recorded as held.
     async fn witness_release(&self, reason: hub_lib::events::IgnitionRelease, absent_only: bool) -> Result<bool, ApiError> {
         let path = hub_lib::ignition::ignition_path(&self.paths.root);
         let owed = |ledger: &hub_lib::ledger::HubLedger| {
@@ -19412,6 +19441,126 @@ norms: []
             assert_eq!(fresh.ignition.boot_state(), "ok", "{cut}");
             assert!(path.exists() && !hub_lib::ignition::staged_ignition_path(&fresh.paths.root).exists(), "{cut}");
         }
+    }
+
+    /// A failed replacement can leave an older valid credential behind. The receipt must name
+    /// the tier observed in that surviving file, not the tier just recorded for the staged seal.
+    #[tokio::test]
+    async fn a_failed_replacement_reports_the_surviving_credential_tier() {
+        use hub_lib::events::IgnitionVia;
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        let (_tmp, mut state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        let staged = hub_lib::ignition::staged_ignition_path(&state.paths.root);
+        assert!(matches!(state.try_unlock(pass, 1_699_999_900).await, UnlockOutcome::Unlocked { .. }));
+        let first = std::fs::read(&path).unwrap();
+        relock(&state);
+        state.ignition = Arc::new(HeldIgnition::with_sealer(Arc::new(
+            hub_lib::ignition::ClearTestSealer::reading_as(IgnitionTier::HostTpm2),
+        )));
+        state.ignition.fail_next_record("place_seal");
+        assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+        assert_eq!(std::fs::read(&path).unwrap(), first, "the earlier valid bytes survive unchanged");
+        assert!(!staged.exists(), "the failed replacement is cleaned up");
+        let got = ignition_events(state.ledger.lock().await.entries());
+        assert!(matches!(got.last(), Some(HubEvent::IgnitionHeld { tier: IgnitionTier::HostTpm2 })), "{got:?}");
+        let note = state.ignition.take_note().unwrap_or_default();
+        assert!(note.starts_with("retained:") && note.contains("observed seal tier HostKey"), "{note}");
+        assert!(note.contains("replacement was not placed") && !note.contains("HostTpm2"), "{note}");
+        let rendered = crate::unlock_storage_line(&serde_json::json!({"held_ignition": note}));
+        assert!(rendered.contains("a file remains") && rendered.contains("HostKey"), "{rendered}");
+        assert!(!rendered.contains("not retained") && !rendered.contains("not stored"), "{rendered}");
+        assert!(!rendered.contains("now HELD"), "the receipt must not claim the replacement was installed: {rendered}");
+
+        let fresh = restarted(&state).await;
+        fresh.held_boot(1_700_000_100).await;
+        assert!(!fresh.is_locked(), "the surviving credential is still valid on a fresh boot");
+        assert_eq!(fresh.ignition.boot_state(), "ok");
+        let got = ignition_events(fresh.ledger.lock().await.entries());
+        assert!(matches!(got.last(), Some(HubEvent::HubIgnited { via: IgnitionVia::Held, tier: Some(IgnitionTier::HostKey) })), "{got:?}");
+    }
+
+    /// The same placement failure on a first hold leaves no boot credential. The receipt's
+    /// absence claim is justified, and a fresh process cannot use the failed staged replacement.
+    #[tokio::test]
+    async fn a_failed_first_placement_reports_no_boot_credential_and_stays_locked_on_restart() {
+        use hub_lib::events::IgnitionVia;
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        let staged = hub_lib::ignition::staged_ignition_path(&state.paths.root);
+        state.ignition.fail_next_record("place_seal");
+        assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+        assert!(!path.exists() && !staged.exists());
+        let got = ignition_events(state.ledger.lock().await.entries());
+        assert!(matches!(got.as_slice(), [
+            HubEvent::HubIgnited { via: IgnitionVia::Human, tier: None },
+            HubEvent::IgnitionHeld { tier: IgnitionTier::HostKey },
+        ]), "the hold is recorded before the refused placement: {got:?}");
+        let note = state.ignition.take_note().unwrap_or_default();
+        assert!(note.starts_with("not held: no boot credential is present"), "{note}");
+        let rendered = crate::unlock_storage_line(&serde_json::json!({"held_ignition": note}));
+        assert!(rendered.contains("not retained in a held credential"), "{rendered}");
+
+        let fresh = restarted(&state).await;
+        fresh.held_boot(1_700_000_100).await;
+        assert!(fresh.is_locked(), "the failed first placement supplies no credential to boot");
+        assert_eq!(fresh.ignition.boot_state(), "none");
+        assert_eq!(ignition_events(fresh.ledger.lock().await.entries()).len(), got.len(), "no held ignition was attempted");
+    }
+
+    /// A positive replacement control: both the file and receipt advance to the newly installed
+    /// tier, and a fresh held boot records the tier of that new file.
+    #[tokio::test]
+    async fn a_successful_replacement_reports_and_boots_the_new_credential_tier() {
+        use hub_lib::events::IgnitionVia;
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        let (_tmp, mut state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        assert!(matches!(state.try_unlock(pass, 1_699_999_900).await, UnlockOutcome::Unlocked { .. }));
+        let first = std::fs::read(&path).unwrap();
+        relock(&state);
+        state.ignition = Arc::new(HeldIgnition::with_sealer(Arc::new(
+            hub_lib::ignition::ClearTestSealer::reading_as(IgnitionTier::HostTpm2),
+        )));
+        assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+        let installed = std::fs::read(&path).unwrap();
+        assert_ne!(installed, first, "the replacement has a distinct seal header");
+        assert_eq!(hub_lib::ignition::tier_of_sealed(&installed), IgnitionTier::HostTpm2);
+        assert!(!hub_lib::ignition::staged_ignition_path(&state.paths.root).exists());
+        let note = state.ignition.take_note().unwrap_or_default();
+        assert!(note.starts_with("held at HostTpm2"), "{note}");
+        let rendered = crate::unlock_storage_line(&serde_json::json!({"held_ignition": note}));
+        assert!(rendered.contains("now HELD") && rendered.contains("HostTpm2"), "{rendered}");
+        assert!(!rendered.contains("not retained"), "{rendered}");
+
+        let fresh = restarted(&state).await;
+        fresh.held_boot(1_700_000_100).await;
+        assert!(!fresh.is_locked());
+        assert_eq!(fresh.ignition.boot_state(), "ok");
+        let got = ignition_events(fresh.ledger.lock().await.entries());
+        assert!(matches!(got.last(), Some(HubEvent::HubIgnited { via: IgnitionVia::Held, tier: Some(IgnitionTier::HostTpm2) })), "{got:?}");
+    }
+
+    /// Failure to inspect the surviving path is uncertainty, not evidence that no copy remains.
+    #[tokio::test]
+    async fn a_failed_placement_with_an_unreadable_path_reports_uncertainty() {
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = held_test_hub(pass, hub_lib::law::IgnitionTier::HostKey).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        std::fs::create_dir(&path).unwrap();
+        state.ignition.fail_next_record("place_seal");
+        assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+        assert!(path.is_dir());
+        assert!(!hub_lib::ignition::staged_ignition_path(&state.paths.root).exists());
+        let note = state.ignition.take_note().unwrap_or_default();
+        assert!(note.starts_with("retention unknown:") && note.contains("a copy may remain"), "{note}");
+        let rendered = crate::unlock_storage_line(&serde_json::json!({"held_ignition": note}));
+        assert!(rendered.contains("retention unknown"), "{rendered}");
+        assert!(!rendered.contains("not retained") && !rendered.contains("not stored"), "{rendered}");
     }
 
     /// NOVA, #970: a release whose record fails after its delete, then a fresh process. The next
