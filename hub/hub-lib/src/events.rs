@@ -395,6 +395,13 @@ pub enum HubEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         sponsor_note: Option<String>,
         requested_at: DateTime<Utc>,
+        /// Commitments K5b: the verified invite this join carried, as the contact's opaque id and
+        /// the invite's digest. The operator's admission binds it (Legion, #961): a member who
+        /// opens an invite later binds nothing.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        invite_party_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        invite_digest: Option<String>,
     },
 
     /// An operator (Sovereign) resolved a pending join request — approved or
@@ -1138,6 +1145,24 @@ pub enum HubEvent {
         ok: bool,
     },
 
+    /// Commitments K5b: a contact joined from the operator's invite and is now this member. The
+    /// operator minted the invite and the hub verified it before admitting, so the binding is the
+    /// operator's act (`bound_by`) as well as the member's. `invite_digest` is the first 128 bits
+    /// of SHA-256 of the invite, never the invite itself. An invite binds once, a contact once.
+    ContactBound {
+        party_id: String,
+        member_lct_id: Uuid,
+        invite_digest: String,
+        bound_by: Uuid,
+    },
+
+    /// Commitments K5b: the operator withdrew an unused invite. An invite is otherwise stateless
+    /// until it expires; this is how one that went to the wrong place stops admitting.
+    InviteRevoked {
+        invite_digest: String,
+        revoked_by: Uuid,
+    },
+
     /// A society published one of its LCTs upward so the hub registry can serve
     /// its presence. Publication is itself a witnessed act (the ledger entry IS
     /// the witness — canon genesis step 7); the registry is a projection over
@@ -1274,6 +1299,7 @@ impl HubEvent {
         "commitment_moved",
         "commitment_opened",
         "commitment_resolved",
+        "contact_bound",
         "council_threshold_changed",
         "degraded_reconciled",
         "device_enrolled",
@@ -1285,6 +1311,7 @@ impl HubEvent {
         "ignition_released",
         "intro_requested",
         "intro_responded",
+        "invite_revoked",
         "law_amended",
         "lct_predecessor_attestation_withdrawn",
         "lct_predecessor_attested",
@@ -1387,6 +1414,8 @@ impl HubEvent {
             Self::CommitmentEscalated { .. } => "commitment_escalated",
             Self::CommitmentResolved { .. } => "commitment_resolved",
             Self::NudgeDelivered { .. } => "nudge_delivered",
+            Self::ContactBound { .. } => "contact_bound",
+            Self::InviteRevoked { .. } => "invite_revoked",
             Self::LctPublished { .. } => "lct_published",
             Self::LctRotated { .. } => "lct_rotated",
             Self::LctPredecessorAttested { .. } => "lct_predecessor_attested",

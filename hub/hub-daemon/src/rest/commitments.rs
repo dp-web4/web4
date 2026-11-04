@@ -18,6 +18,11 @@ use hub_lib::commitments::{
     self, AckVia, Commitment, Contact, ContactBook, MemberAddress, MoveKind, Outcome, PartyKind, PartyRef, Refusal,
 };
 
+mod invites;
+pub(crate) use invites::*;
+mod me;
+pub(crate) use me::*;
+
 /// Serialises every commitment write and every contact-book write.
 pub(crate) static COMMITMENT_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
@@ -72,6 +77,8 @@ fn check_leads_role(state: &HubState, role: &str) -> Result<Uuid, ApiError> {
 /// person's name. Recorded under the operator's own id it would read as a lead's and send the
 /// queue to leads (Legion, #947).
 fn check_actor(s: &RestState, state: &HubState, c: &Commitment, by: &str, operator_may: bool) -> Result<(), ApiError> {
+    let by = state.invites.canonical_id(by);
+    let by = by.as_str();
     if by == c.owner.party_id || by == c.backup.party_id {
         return Ok(());
     }
@@ -104,11 +111,16 @@ pub(crate) fn leads_of(state: &HubState, c: &Commitment) -> Vec<String> {
 }
 
 /// Run the projection checks, then witness, both under [`COMMITMENT_LOCK`] (the caller holds it).
+/// A party a contact's id still names is written as the member they became (K5b2), so the ledger
+/// says who acted as the projection reads it.
 async fn checked_witness(s: &RestState, event: HubEvent) -> Result<u64, ApiError> {
-    {
+    let event = {
         let ledger = s.ledger.lock().await;
-        commitments::check(&s.projected(&ledger).commitments, &event).map_err(refused)?;
-    }
+        let state = s.projected(&ledger);
+        let event = state.invites.canonical_event(&event);
+        commitments::check(&state.commitments, &event).map_err(refused)?;
+        event
+    };
     witness_event(s, event).await
 }
 
@@ -355,12 +367,15 @@ async fn witness_resolution(
 }
 
 /// A party for the operator's eyes: the contact book's name, or the member's roster name. An
-/// erased contact reads as erased; the ledger keeps only its id.
+/// erased contact reads as erased; the ledger keeps only its id. A member who joined from an
+/// invite sent no name (C3), so they go by their contact's name while the book holds it.
 pub(crate) fn party_view(state: &HubState, book: &ContactBook, p: &PartyRef) -> serde_json::Value {
+    let contact_name = |id: &str| book.contacts.get(id).map(|c| c.name.clone());
     let name = match p.kind {
-        PartyKind::Contact => book.contacts.get(&p.party_id).map(|c| c.name.clone()),
+        PartyKind::Contact => contact_name(&p.party_id),
         PartyKind::Member => Uuid::parse_str(&p.party_id).ok()
-            .and_then(|u| state.members.get(&u)).and_then(|m| m.name.clone()),
+            .and_then(|u| state.members.get(&u)).and_then(|m| m.name.clone())
+            .or_else(|| state.invites.contact_of(&p.party_id).and_then(contact_name)),
     };
     serde_json::json!({ "party_id": p.party_id, "kind": p.kind,
         "name": name, "erased": p.kind == PartyKind::Contact && !book.contacts.contains_key(&p.party_id) })
@@ -672,6 +687,8 @@ pub(super) async fn admin_nudge_delivered(
 async fn record_delivery(s: &RestState, body: DeliveredBody) -> Result<serde_json::Value, ApiError> {
     let _serial = COMMITMENT_LOCK.lock().await;
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    // A carrier that listed the nudge before the contact joined reports the contact's id (K5b2).
+    let body = DeliveredBody { party_id: state.invites.canonical_id(&body.party_id), ..body };
     let c = state.commitments.get(&body.commitment_id)
         .ok_or_else(|| refused(Refusal::Unknown(body.commitment_id.clone())))?;
     // The party must be one this commitment could have nudged. Not "is owed now": the queue may
@@ -754,44 +771,32 @@ fn link_key_or_create(root: &std::path::Path) -> anyhow::Result<[u8; 32]> {
     Ok(key)
 }
 
-fn link_mac(key: &[u8; 32], payload: &str) -> hmac::Hmac<sha2::Sha256> {
+fn token_mac(label: &[u8], key: &[u8; 32], payload: &str) -> hmac::Hmac<sha2::Sha256> {
     use hmac::Mac;
     let mut mac = <hmac::Hmac<sha2::Sha256> as Mac>::new_from_slice(key).expect("HMAC takes any key length");
-    mac.update(LINK_MAC_LABEL);
+    mac.update(label);
     mac.update(payload.as_bytes());
     mac
 }
 
-/// `<commitment_id>.<party_id>.<expires, unix seconds>.<MAC, hex>`. The ids are UUIDs the hub
-/// made, so `.` never occurs inside one.
-pub(crate) fn mint_link(key: &[u8; 32], commitment_id: &str, party_id: &str, expires: DateTime<Utc>) -> String {
+/// `<fields, dot-joined>.<expires, unix seconds>.<MAC, hex>`, the MAC under `label`. Every field
+/// is an id the hub made (a UUID), so `.` never occurs inside one.
+pub(crate) fn mint_token(label: &[u8], key: &[u8; 32], fields: &[&str], expires: DateTime<Utc>) -> String {
     use hmac::Mac;
-    let payload = format!("{commitment_id}.{party_id}.{}", expires.timestamp());
-    let tag = link_mac(key, &payload).finalize().into_bytes();
+    let payload = format!("{}.{}", fields.join("."), expires.timestamp());
+    let tag = token_mac(label, key, &payload).finalize().into_bytes();
     format!("{payload}.{}", hex::encode(&tag[..LINK_MAC_LEN]))
 }
 
-/// What a verified link says, and the digest the ledger records in place of the token.
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) struct LinkClaim {
-    pub commitment_id: String,
-    pub party_id: String,
-    pub digest: String,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) enum LinkError {
-    /// Not a link this hub made. Indistinguishable on purpose: no oracle for a forger.
-    Invalid,
-    /// A link this hub made, past its date.
-    Expired,
-}
-
-pub(crate) fn read_link(key: &[u8; 32], token: &str, now: DateTime<Utc>) -> Result<LinkClaim, LinkError> {
+/// Verify a token minted under `label` with exactly `n` fields. Returns the fields and the digest
+/// the ledger records in place of the token: the first 128 bits of its SHA-256.
+pub(crate) fn read_token(label: &[u8], key: &[u8; 32], token: &str, n: usize, now: DateTime<Utc>)
+    -> Result<(Vec<String>, String), LinkError>
+{
     use hmac::Mac;
     let (payload, tag) = token.rsplit_once('.').ok_or(LinkError::Invalid)?;
-    // One link, one spelling: `hex::decode` also takes uppercase, and a re-cased MAC would verify
-    // with a different digest, so "acknowledges once" would hold per spelling (Legion, #957).
+    // One token, one spelling: `hex::decode` also takes uppercase, and a re-cased MAC would verify
+    // with a different digest, so "once" would hold per spelling (Legion, #957).
     if !tag.chars().all(|ch| ch.is_ascii_digit() || ('a'..='f').contains(&ch)) {
         return Err(LinkError::Invalid);
     }
@@ -800,17 +805,56 @@ pub(crate) fn read_link(key: &[u8; 32], token: &str, now: DateTime<Utc>) -> Resu
     if tag.len() != LINK_MAC_LEN {
         return Err(LinkError::Invalid);
     }
-    link_mac(key, payload).verify_truncated_left(&tag).map_err(|_| LinkError::Invalid)?;
-    let mut parts = payload.split('.');
-    let (Some(commitment_id), Some(party_id), Some(expires), None) =
-        (parts.next(), parts.next(), parts.next(), parts.next()) else { return Err(LinkError::Invalid) };
-    let expires = expires.parse::<i64>().ok().and_then(|t| DateTime::from_timestamp(t, 0)).ok_or(LinkError::Invalid)?;
+    token_mac(label, key, payload).verify_truncated_left(&tag).map_err(|_| LinkError::Invalid)?;
+    let mut parts: Vec<&str> = payload.split('.').collect();
+    if parts.len() != n + 1 {
+        return Err(LinkError::Invalid);
+    }
+    let expires = parts.pop().and_then(|t| t.parse::<i64>().ok()).and_then(|t| DateTime::from_timestamp(t, 0))
+        .ok_or(LinkError::Invalid)?;
     if now >= expires {
         return Err(LinkError::Expired);
     }
+    Ok((parts.into_iter().map(str::to_string).collect(), token_digest(token)))
+}
+
+/// What the ledger records in place of a token: the first 128 bits of its SHA-256, in hex.
+pub(crate) fn token_digest(token: &str) -> String {
     use sha2::Digest;
-    let digest = hex::encode(sha2::Sha256::digest(token.as_bytes()))[..commitments::LINK_DIGEST_LEN].to_string();
-    Ok(LinkClaim { commitment_id: commitment_id.to_string(), party_id: party_id.to_string(), digest })
+    hex::encode(sha2::Sha256::digest(token.as_bytes()))[..commitments::LINK_DIGEST_LEN].to_string()
+}
+
+pub(crate) fn mint_link(key: &[u8; 32], commitment_id: &str, party_id: &str, expires: DateTime<Utc>) -> String {
+    mint_token(LINK_MAC_LABEL, key, &[commitment_id, party_id], expires)
+}
+
+/// What a verified link says, and the digest the ledger records in place of the token.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct LinkClaim {
+    pub commitment_id: String,
+    pub party_id: String,
+    pub digest: String,
+}
+
+/// The claim with its party read as who they are now (K5b2): a link mailed to a contact keeps
+/// working after the contact joins, as the member they became.
+fn claim_now(state: &HubState, claim: &LinkClaim) -> LinkClaim {
+    LinkClaim { party_id: state.invites.canonical_id(&claim.party_id), ..claim.clone() }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum LinkError {
+    /// Not a token this hub made. Indistinguishable on purpose: no oracle for a forger.
+    Invalid,
+    /// A token this hub made, past its date.
+    Expired,
+}
+
+pub(crate) fn read_link(key: &[u8; 32], token: &str, now: DateTime<Utc>) -> Result<LinkClaim, LinkError> {
+    let (mut fields, digest) = read_token(LINK_MAC_LABEL, key, token, 2, now)?;
+    let party_id = fields.pop().expect("two fields");
+    let commitment_id = fields.pop().expect("two fields");
+    Ok(LinkClaim { commitment_id, party_id, digest })
 }
 
 /// Where links point: `HUB_PUBLIC_BASE_URL`, the origin people reach the hub at. Unset, nudges
@@ -884,10 +928,11 @@ impl LinkAct {
 /// A link that has already acknowledged never offers it again, even after a handoff cleared the
 /// acknowledgement: the ledger would refuse it (Legion, #957). The new owner of a handoff is sent
 /// a fresh link (K4b), and that one can acknowledge.
-fn acts_for(c: &Commitment, role: LinkRole, claim: &LinkClaim) -> Vec<LinkAct> {
-    let own_word = matches!(c.acknowledged.get(&claim.party_id), Some(AckVia::MemberAct | AckVia::Link));
+/// `digest` is the link's, when the answer comes through one; a member's signed answer has none.
+fn acts_for(c: &Commitment, role: LinkRole, party_id: &str, digest: Option<&str>) -> Vec<LinkAct> {
+    let own_word = matches!(c.acknowledged.get(party_id), Some(AckVia::MemberAct | AckVia::Link));
     let mut acts = Vec::new();
-    if role != LinkRole::Lead && !own_word && !c.link_acks.contains(&claim.digest) {
+    if role != LinkRole::Lead && !own_word && !digest.is_some_and(|d| c.link_acks.contains(d)) {
         acts.push(LinkAct::Ack);
     }
     acts.extend([LinkAct::Update, LinkAct::Done]);
@@ -913,34 +958,48 @@ fn act_label(act: LinkAct, role: LinkRole, backup: &str) -> String {
 /// Record one answer from a link, under [`COMMITMENT_LOCK`]. The role and the offered answers are
 /// worked out again here, not trusted from the page: the queue may have moved since it loaded.
 async fn act_by_link(s: &RestState, claim: &LinkClaim, act: LinkAct) -> Result<serde_json::Value, ApiError> {
+    act_as(s, &claim.commitment_id, &claim.party_id, act, AckVia::Link, Some(claim.digest.clone())).await
+}
+
+/// One answer from a party named on the job, through a link (`via: link`, with its digest) or a
+/// member's own signed envelope (`via: member_act`, K5c2). The same roles and the same answers
+/// either way, worked out here under the lock.
+pub(crate) async fn act_as(
+    s: &RestState, commitment_id: &str, party_id: &str, act: LinkAct, via: AckVia, digest: Option<String>,
+) -> Result<serde_json::Value, ApiError> {
     let _serial = COMMITMENT_LOCK.lock().await;
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
-    let c = projected_commitment(&state, &claim.commitment_id)?;
-    let role = role_of(&state, &c, &claim.party_id).ok_or_else(|| ApiError {
+    // A member's own word needs a member, checked under the lock so a removal can't land between
+    // the check and the entry (Legion, #965).
+    if via == AckVia::MemberAct && !Uuid::parse_str(party_id).is_ok_and(|m| state.members.contains_key(&m)) {
+        return Err(ApiError { status: StatusCode::FORBIDDEN, message: "only a member answers here".into() });
+    }
+    let party_id = state.invites.canonical_id(party_id);
+    let c = projected_commitment(&state, commitment_id)?;
+    let role = role_of(&state, &c, &party_id).ok_or_else(|| ApiError {
         status: StatusCode::FORBIDDEN,
         message: "you're no longer named on this job".to_string(),
     })?;
-    if !acts_for(&c, role, claim).contains(&act) {
+    if !acts_for(&c, role, &party_id, digest.as_deref()).contains(&act) {
         return Err(ApiError { status: StatusCode::CONFLICT, message: "that answer isn't open to you now".to_string() });
     }
-    let by = claim.party_id.clone();
-    let digest = Some(claim.digest.clone());
+    let by = party_id.clone();
     let moved = |move_kind, to| MoveBody { by: by.clone(), move_kind, to, note_ref: None };
     match act {
         LinkAct::Ack => {
             let entry_index = checked_witness(s, HubEvent::CommitmentAcknowledged {
                 commitment_id: c.commitment_id.clone(),
                 party_id: by,
-                via: AckVia::Link,
+                via,
                 link_digest: digest,
             }).await?;
             Ok(serde_json::json!({ "acknowledged": true, "entry_index": entry_index }))
         }
-        LinkAct::Update => witness_move(s, &c, moved(MoveKind::Update, None), AckVia::Link, digest).await,
-        LinkAct::Stuck => witness_move(s, &c, moved(MoveKind::Stuck, None), AckVia::Link, digest).await,
+        LinkAct::Update => witness_move(s, &c, moved(MoveKind::Update, None), via, digest).await,
+        LinkAct::Stuck => witness_move(s, &c, moved(MoveKind::Stuck, None), via, digest).await,
         LinkAct::Handoff => {
             let to = Some(c.backup.clone());
-            witness_move(s, &c, moved(MoveKind::Handoff, to), AckVia::Link, digest).await
+            witness_move(s, &c, moved(MoveKind::Handoff, to), via, digest).await
         }
         LinkAct::Take => {
             let me = if role == LinkRole::Backup {
@@ -948,10 +1007,20 @@ async fn act_by_link(s: &RestState, claim: &LinkClaim, act: LinkAct) -> Result<s
             } else {
                 PartyRef { party_id: by.clone(), kind: PartyKind::Member }
             };
-            witness_move(s, &c, moved(MoveKind::Handoff, Some(me)), AckVia::Link, digest).await
+            witness_move(s, &c, moved(MoveKind::Handoff, Some(me)), via, digest).await
         }
         LinkAct::Done => witness_resolution(s, &c, ResolveBody { outcome: Outcome::Done, by }, digest).await,
     }
+}
+
+const LINK_PAGE_CSS: &str = "body{font:17px/1.5 system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem}\
+    form{margin:.5rem 0}button{font:inherit;width:100%;padding:.8rem;border-radius:.5rem;\
+    border:1px solid #888;background:#f4f4f4;cursor:pointer}.muted{color:#666}.ok{color:#2a8a3e}.err{color:#c0392b}";
+
+/// `GET /c.css`: the link pages' style, a file of its own so their policy can forbid inline style.
+pub(super) async fn link_page_css() -> axum::response::Response {
+    use axum::response::IntoResponse;
+    ([(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")], LINK_PAGE_CSS).into_response()
 }
 
 fn link_page_response(status: StatusCode, title: &str, body_html: &str) -> axum::response::Response {
@@ -960,10 +1029,7 @@ fn link_page_response(status: StatusCode, title: &str, body_html: &str) -> axum:
         "<!doctype html><html><head><meta charset=\"utf-8\">\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
          <meta name=\"robots\" content=\"noindex\"><title>{}</title>\
-         <style>body{{font:17px/1.5 system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem}}\
-         form{{margin:.5rem 0}}button{{font:inherit;width:100%;padding:.8rem;border-radius:.5rem;\
-         border:1px solid #888;background:#f4f4f4;cursor:pointer}}.muted{{color:#666}}</style>\
-         </head><body>{}</body></html>",
+         <link rel=\"stylesheet\" href=\"/c.css\"></head><body>{}</body></html>",
         esc(title), body_html);
     (
         status,
@@ -971,6 +1037,8 @@ fn link_page_response(status: StatusCode, title: &str, body_html: &str) -> axum:
             // The token is in the URL: keep it out of caches and out of any Referer.
             (axum::http::header::CACHE_CONTROL, "no-store"),
             (axum::http::header::REFERRER_POLICY, "no-referrer"),
+            // The page acts for its party: nothing runs on it, and its forms post only here.
+            (axum::http::header::CONTENT_SECURITY_POLICY, super::KEY_PAGE_CSP),
         ],
         axum::response::Html(page),
     ).into_response()
@@ -1016,6 +1084,7 @@ pub(super) async fn link_page(
         Err(page) => return page,
     };
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    let claim = claim_now(&state, &claim);
     let book = match load_book(&s) {
         Ok(book) => book,
         Err(e) => {
@@ -1050,7 +1119,7 @@ pub(super) async fn link_page(
     if let Some(due) = c.due_at {
         html.push_str(&format!("<p class=\"muted\">Due {}.</p>", due.format("%Y-%m-%d %H:%M UTC")));
     }
-    for act in acts_for(c, role, &claim) {
+    for act in acts_for(c, role, &claim.party_id, Some(&claim.digest)) {
         // Relative to /c/<token>, so the form posts back to this hub whatever origin served it.
         html.push_str(&format!("<form method=\"post\" action=\"{}/{}\"><button>{}</button></form>",
             esc(&token), act.path(), esc(&act_label(act, role, &backup))));
@@ -1955,5 +2024,71 @@ mod tests {
         assert_eq!(refused.status, StatusCode::BAD_REQUEST, "Alex is no longer a party to the opening");
         record_delivery(&s, report(&id, handed, alex, true)).await.unwrap();
         assert!(nudges(&s).await.is_empty());
+    }
+
+    async fn page(s: &RestState, path: &str) -> (StatusCode, axum::http::HeaderMap, String) {
+        use tower::ServiceExt;
+        let req = axum::http::Request::builder().uri(path).body(axum::body::Body::empty()).unwrap();
+        let resp = crate::rest::router(s.clone()).oneshot(req).await.unwrap();
+        let (status, headers) = (resp.status(), resp.headers().clone());
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        (status, headers, String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    #[tokio::test]
+    async fn pages_that_hold_a_key_or_act_for_a_party_run_only_their_own_files() {
+        let (_tmp, s, alex, sam, _lee, role) = chapter().await;
+        let id = open(&s, member(alex), member(sam), role).await.unwrap();
+        let token = link_for(&s, &id, alex).await;
+        let csp = super::super::KEY_PAGE_CSP;
+        assert!(!csp.contains("unsafe") && csp.contains("script-src 'self'") && csp.contains("style-src 'self'"));
+        for (path, sheet) in [
+            ("/client".to_string(), "/client.css"),
+            (format!("/c/{token}"), "/c.css"),
+            ("/c/not-a-link".to_string(), "/c.css"),
+            // Holds no key, but shares the key pages' origin and IndexedDB.
+            ("/discuss".to_string(), "/discuss.css"),
+        ] {
+            let (_, headers, html) = page(&s, &path).await;
+            assert_eq!(headers.get("content-security-policy").and_then(|v| v.to_str().ok()), Some(csp), "{path}");
+            for inline in ["<style", "style=", "onclick", "<script>"] {
+                assert!(!html.contains(inline), "{path} carries inline {inline}: {html}");
+            }
+            assert!(html.contains(&format!("<link rel=\"stylesheet\" href=\"{sheet}\">")), "{path}: {html}");
+        }
+        assert!(page(&s, "/client").await.2.contains("<script src=\"/client.js\"></script>"));
+        // The script builds buttons too: those must not carry handlers or style either.
+        for script in [super::super::KEYSTORE_JS, super::super::CLIENT_JS] {
+            for inline in ["style=", "onclick", "localStorage.setItem", "exportKey('jwk'"] {
+                assert!(!script.contains(inline), "a key page script carries {inline}");
+            }
+        }
+        for (path, kind) in [("/client.js", "text/javascript"), ("/keystore.js", "text/javascript"), ("/client.css", "text/css"), ("/c.css", "text/css"), ("/discuss.css", "text/css")] {
+            let (status, headers, body) = page(&s, path).await;
+            assert_eq!(status, StatusCode::OK, "{path}");
+            assert!(headers["content-type"].to_str().unwrap().starts_with(kind), "{path}");
+            assert!(!body.is_empty(), "{path}");
+        }
+    }
+
+    /// The client's key store, run in node against real WebCrypto and a small in-memory
+    /// IndexedDB (`js-tests/client_keystore.js`). Without node on PATH it says so and passes.
+    #[test]
+    fn the_client_moves_an_old_key_once_and_keeps_every_key_non_extractable() {
+        let dir = tempfile::tempdir().unwrap();
+        let js = dir.path().join("client.js");
+        std::fs::write(&js, format!("{}\n{}", super::super::KEYSTORE_JS, super::super::CLIENT_JS)).unwrap();
+        let harness = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("js-tests/client_keystore.js");
+        let out = match std::process::Command::new("node").arg(&harness).arg(&js).output() {
+            Ok(out) => out,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                eprintln!("SKIPPED: node is not on PATH, so the client key store went untested");
+                return;
+            }
+            Err(e) => panic!("running node: {e}"),
+        };
+        let said = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+        assert!(out.status.success(), "{said}");
+        assert_eq!(said.matches("\nok ").count() + usize::from(said.starts_with("ok ")), 9, "{said}");
     }
 }
