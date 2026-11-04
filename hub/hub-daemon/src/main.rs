@@ -2405,6 +2405,8 @@ fn unlock_storage_line(body: &serde_json::Value) -> String {
     match body.get("held_ignition").and_then(|v| v.as_str()) {
         Some(note) if note.starts_with("held at") => format!("The passphrase is now HELD in an encrypted credential — {note}"),
         Some(note) if note.starts_with("stale:") => format!("A held copy may still be on disk — {note}"),
+        Some(note) if note.starts_with("retained:") => format!("An earlier held copy is still on disk; the new one was not placed — {note}"),
+        Some(note) if note.starts_with("retention unknown:") => format!("A held copy may still be on disk — {note}"),
         Some(note) if note.starts_with("not held:") => format!("The passphrase was not retained in a held credential — {note}"),
         Some(note) => format!("Held ignition: {note}"),
         None => "The hub did not report held-ignition storage for this request.".to_string(),
@@ -3187,6 +3189,18 @@ mod tests {
             }
             let unfamiliar = unlock_storage_line(&serde_json::json!({"held_ignition": "storage status unavailable"}));
             assert_eq!(unfamiliar, "Held ignition: storage status unavailable");
+        }
+
+        /// A failed placement has its own lead line: an earlier copy that survived is named as
+        /// still on disk, and an uninspectable path as possibly so, never as the generic note.
+        #[test]
+        fn the_unlock_cli_leads_a_failed_placement_with_what_remains() {
+            let retained = unlock_storage_line(&serde_json::json!({"held_ignition":
+                "retained: a file remains at /hub/ignition.cred (observed seal tier HostKey); the replacement was not placed: denied"}));
+            assert!(retained.starts_with("An earlier held copy is still on disk; the new one was not placed — retained:"), "{retained}");
+            let unknown = unlock_storage_line(&serde_json::json!({"held_ignition":
+                "retention unknown: could not inspect /hub/ignition.cred after placing the sealed passphrase failed (denied): busy; a copy may remain"}));
+            assert!(unknown.starts_with("A held copy may still be on disk — retention unknown:"), "{unknown}");
         }
 
         /// Offline `hub set-law` that turns holding off deletes the held copy and records why, in
