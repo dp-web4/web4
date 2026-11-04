@@ -17,7 +17,7 @@ Per the locked v1 contract (forum: waving-cat-to-hub greenlight, 2026-06-09):
 
 Usage:
   membot/.venv/bin/python ingest.py \
-      --members-url http://127.0.0.1:8770/tools/list_members \
+      --members-url http://127.0.0.1:8772/tools/list_members \
       --out /home/dp/web4-hub/membox-data \
       --name web4-fleet-members
 """
@@ -78,7 +78,9 @@ def member_index_entry(m: dict, passage: str) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--members-url", default="http://127.0.0.1:8770/tools/list_members")
+    # The operator plane (loopback-only), not the public :8770 fleet plane: since P0 the public plane
+    # does not serve list_members at all, and a :8770 default 404s (mcp.rs, "P0 (public-release)").
+    ap.add_argument("--members-url", default="http://127.0.0.1:8772/tools/list_members")
     ap.add_argument("--out", default="/home/dp/web4-hub/membox-data")
     ap.add_argument("--name", default="web4-fleet-members")
     ap.add_argument("--members-json", help="read members from a file instead of the hub (for tests/demo)")
