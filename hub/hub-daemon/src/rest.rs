@@ -799,7 +799,8 @@ impl RestState {
     /// `passphrase` and, on success, **promotes the hub in place** locked →
     /// unlocked: the real `LocalKeypairSigner` is swapped into the
     /// `SwappableSigner` and the Sovereign pubkey is seeded into the resolver,
-    /// with no restart. The passphrase is used here and dropped — never stored.
+    /// with no restart. A person's unlock may also retain an encrypted passphrase copy under
+    /// the committed ignition policy; sealing and deletion failures are reported separately.
     /// `now` is unix-seconds (injected for deterministic rate-limit tests).
     pub async fn try_unlock(&self, passphrase: &str, now: i64) -> UnlockOutcome {
         self.try_unlock_as(passphrase, now, hub_lib::events::IgnitionVia::Human, None).await
@@ -918,14 +919,24 @@ impl RestState {
                         return UnlockOutcome::Refused(format!("HUB_PROFILE=production: {reason}"));
                     }
                 }
-                let real_ledger = match hub_lib::ledger::HubLedger::open(store).await {
+                let mut real_ledger = match hub_lib::ledger::HubLedger::open(store).await {
                     Ok(l) => l,
                     Err(e) => return UnlockOutcome::Unsupported(format!("opening ledger: {e}")),
                 };
+                // The record comes BEFORE the effect (NOVA, #970: an ignition whose record failed
+                // used to stay ignited). `HubIgnited` is signed by the key just opened and appended
+                // to the ledger just opened, while neither is live yet. If that fails, nothing has
+                // been swapped in and the hub stays locked: no ignition without its record. Not a
+                // bad guess, so the rate limit isn't charged.
+                let signer = Arc::new(LocalKeypairSigner::new(lct.id, kp));
+                if let Err(e) = record_ignition_on(self, &mut real_ledger, signer.as_ref(), via, tier).await {
+                    tracing::error!("ignition REFUSED: its record failed, so the hub stays locked: {e:#}");
+                    return UnlockOutcome::Unsupported(format!("the ignition could not be recorded, so the hub stays locked: {e:#}"));
+                }
                 let projected = HubState::project(&real_ledger);
 
                 // Commit ignition into memory: signer, store key, ledger, resolver, protected.
-                self.signer.swap(Arc::new(LocalKeypairSigner::new(lct.id, kp)));
+                self.signer.swap(signer);
                 *self.store_key.write().await = Some(zeroize::Zeroizing::new(store_key));
                 *self.ledger.lock().await = real_ledger;
                 {
@@ -953,7 +964,6 @@ impl RestState {
                 // F0.1 (R7a): the signer is live again — reconcile the degraded
                 // diagnostic log into the witnessed ledger.
                 reconcile_degraded_log(self, "ignition").await;
-                record_ignition(self, via, tier).await;
                 self.settle_held_ignition(passphrase, via, tier).await;
                 // Refresh the clear public-identity tier-0 file so a future locked-shell
                 // boot knows who this hub is (to serve well-known + accept `hub unlock`).
@@ -968,7 +978,7 @@ impl RestState {
                 }
                 tracing::warn!(
                     sovereign_lct = %lct.id,
-                    "HUB IGNITED via passphrase — identity + state store + protected tier opened into memory; passphrase dropped, never stored"
+                    "HUB IGNITED via passphrase — identity + state store + protected tier opened into memory"
                 );
                 UnlockOutcome::Unlocked { sovereign_lct_id: lct.id }
             }
@@ -1003,6 +1013,9 @@ pub struct HeldIgnition {
     /// Test seam for [`RestState::settle_held_ignition`], after it has read the law: (reached, resume).
     #[cfg(test)]
     pause_after_settle_law_read: tokio::sync::Mutex<Option<(tokio::sync::oneshot::Sender<()>, tokio::sync::oneshot::Receiver<()>)>>,
+    /// Test seam: event kinds whose next ignition record fails (`hub_ignited`, `ignition_held`).
+    #[cfg(test)]
+    fail_record: std::sync::Mutex<Vec<&'static str>>,
 }
 
 impl HeldIgnition {
@@ -1023,6 +1036,25 @@ impl HeldIgnition {
 
     fn set_boot(&self, v: u8) {
         self.boot.store(v, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// Whether the test seam refuses the next record of `kind`. Always false outside tests.
+    fn record_fault(&self, kind: &str) -> bool {
+        #[cfg(test)]
+        {
+            let mut faults = self.fail_record.lock().unwrap();
+            if let Some(i) = faults.iter().position(|k| *k == kind) {
+                faults.remove(i);
+                return true;
+            }
+        }
+        let _ = kind;
+        false
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_next_record(&self, kind: &'static str) {
+        self.fail_record.lock().unwrap().push(kind);
     }
 
     /// "ok" only from "none": a held boot whose unlock found a copy it could not delete
@@ -1494,9 +1526,30 @@ impl RestState {
                     ));
                     return;
                 }
-                match witness_event_inner(self, HubEvent::IgnitionHeld { tier: sealed_at }).await {
+                let recorded = if self.ignition.record_fault("ignition_held") {
+                    Err(ApiError::internal(anyhow::anyhow!("test seam: the IgnitionHeld record was refused")))
+                } else {
+                    witness_event_inner(self, HubEvent::IgnitionHeld { tier: sealed_at }).await
+                };
+                match recorded {
                     Ok(idx) => tracing::warn!("held ignition: passphrase sealed at {sealed_at:?} (ledger entry {idx}); this hub now unlocks itself after a restart"),
-                    Err(e) => tracing::warn!("held ignition: sealed at {sealed_at:?}, but its record failed: {}", e.message),
+                    Err(e) => {
+                        // No copy without its record (NOVA, #970). The new seal replaced any earlier
+                        // copy in place, so an earlier recorded hold is gone too and is released.
+                        tracing::warn!("held ignition: sealed at {sealed_at:?}, but its record failed, so the copy is deleted: {}", e.message);
+                        let gone = if held_before {
+                            self.release_held(&path, IgnitionRelease::ResealFailed).await
+                        } else {
+                            self.delete_held(&path, IgnitionRelease::ResealFailed)
+                        };
+                        if gone {
+                            self.ignition.set_note(format!(
+                                "not held: sealed at {sealed_at:?}, but its record failed, so the copy was deleted: {}",
+                                e.message
+                            ));
+                        }
+                        return;
+                    }
                 }
                 self.ignition.set_note(format!(
                     "held at {sealed_at:?}: this hub now unlocks itself after a restart; set ignition.held: false in the law to stop"
@@ -1650,11 +1703,40 @@ pub(crate) async fn record_ignition(
     s: &RestState,
     via: hub_lib::events::IgnitionVia,
     tier: Option<hub_lib::law::IgnitionTier>,
-) {
-    match witness_event_inner(s, HubEvent::HubIgnited { via, tier }).await {
-        Ok(idx) => tracing::info!("ignition ({via:?}) recorded at ledger entry {idx}"),
-        Err(e) => tracing::warn!("ignition ({via:?}) happened, but its record failed: {}", e.message),
+) -> anyhow::Result<u64> {
+    let mut ledger = s.ledger.lock().await;
+    record_ignition_on(s, &mut ledger, &*s.signer, via, tier).await
+}
+
+/// Sign and append `HubIgnited { via, tier }` on `ledger` with `signer`. A person's or a held
+/// unlock calls it on the ledger it has just opened, BEFORE that ledger and signer go live, so a
+/// failure leaves the hub locked (NOVA, #970). The law-integrity write gate is not consulted: the
+/// record is audit-only, and a hub whose law diverged must still be able to say it was ignited.
+async fn record_ignition_on(
+    s: &RestState,
+    ledger: &mut HubLedger,
+    signer: &dyn RemoteSigner,
+    via: hub_lib::events::IgnitionVia,
+    tier: Option<hub_lib::law::IgnitionTier>,
+) -> anyhow::Result<u64> {
+    if s.ignition.record_fault("hub_ignited") {
+        anyhow::bail!("test seam: the HubIgnited record was refused");
     }
+    let event = HubEvent::HubIgnited { via, tier };
+    let unsigned = ledger.build_entry(s.sovereign_lct_id, event.clone(), Utc::now())?;
+    let intent = SignIntent {
+        request_id: Uuid::new_v4(),
+        hub_id: s.hub_id,
+        hub_name: s.hub_name.clone(),
+        actor_lct_id: s.sovereign_lct_id,
+        ledger_index: unsigned.entry.index,
+        event_kind: event.kind().to_string(),
+        event: serde_json::to_value(&event)?,
+    };
+    let signature = signer.sign(s.sovereign_lct_id, &unsigned.signing_bytes, &intent).await?;
+    let index = ledger.append_signed(unsigned, signature).await?.index;
+    tracing::info!("ignition ({via:?}) recorded at ledger entry {index}");
+    Ok(index)
 }
 
 /// F0.1 (R7a): fold the local degraded diagnostic log into the witnessed
@@ -2431,8 +2513,26 @@ pub fn router(state: RestState) -> Router {
         // (an HMAC over commitment, party and expiry); reading the page writes nothing.
         .route("/c/:token", get(commitments::link_page))
         .route("/c/:token/:act", post(commitments::link_act))
+        .route("/c.css", get(commitments::link_page_css))
+        // Commitments K5b: the page an invite opens. Reading it writes nothing; the join is the
+        // browser's own signed POST to /members/join, carrying the invite as evidence for law.
+        .route("/j/:token", get(commitments::invite_page))
+        .route("/j/unsupported", post(commitments::count_unsupported))
+        .route("/join.js", get(commitments::join_js))
+        // Commitments K5c: a member's own view. The browser key signs a challenge for a 12-hour,
+        // HttpOnly, SameSite=Strict session that reads only that member's jobs.
+        .route("/me", get(commitments::me_page))
+        .route("/me.js", get(commitments::me_js))
+        .route("/me/session", post(commitments::me_session))
+        .route("/me/act", post(commitments::me_act))
+        .route("/me/view", get(commitments::me_view))
         .route("/discuss", get(discuss_html))
+        .route("/discuss.css", get(discuss_css))
+        // The client's script and style are files of their own so its page can forbid inline ones.
         .route("/client", get(client_html))
+        .route("/client.js", get(client_js))
+        .route("/keystore.js", get(keystore_js))
+        .route("/client.css", get(client_css))
         // the unlock slot (stub-console / passphrase): local-only + rate-limited.
         // Promotes a locked hub → unlocked in place (swaps in the real signer).
         .route("/v1/hubs/:hub_id/unlock", post(unlock))
@@ -6375,6 +6475,8 @@ async fn request_citizenship(
                     anchor_level: asserted_level,
                     asserted_trust_ceiling: asserted_ceiling,
                     requested_at: Utc::now(),
+                    invite_party_id: None,
+                    invite_digest: None,
                 }).await?;
                 return Ok(serde_json::json!({
                     "admitted": false,
@@ -6459,6 +6561,10 @@ struct JoinPayload {
     anchor_level: Option<u8>,
     #[serde(default)]
     trust_ceiling: Option<f64>,
+    /// Commitments K5b: an operator's invite, as minted. The hub verifies its MAC and records only
+    /// its digest; law sees `r6.resource.invite == "verified"`. Evidence, never a bypass.
+    #[serde(default)]
+    invite: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -6689,6 +6795,13 @@ async fn approve_join(s: &RestState, request_id: Uuid, resolved_by: Uuid) -> Res
                 "anchor ceiling refused by hub law".to_string()),
         });
     }
+    // A queued invited join: bind its invite before admitting, under the lock that keeps an
+    // invite to one binding (commitments K5b).
+    let _invite_serial = match &jr.invite_digest {
+        Some(_) => Some(commitments::COMMITMENT_LOCK.lock().await),
+        None => None,
+    };
+    commitments::bind_queued(s, &jr).await?;
     let (index, hash) =
         admit_member(s, jr.member_lct_id, &jr.member_pubkey_hex, jr.name.clone(), &anchor).await?;
     witness_event(s, HubEvent::MemberJoinResolved {
@@ -8149,6 +8262,9 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/commitments/:commitment_id/resolve", post(commitments::admin_commitment_resolve))
         .route("/admin/api/contacts", get(commitments::admin_contacts_list).post(commitments::admin_contact_add))
         .route("/admin/api/contacts/:party_id/erase", post(commitments::admin_contact_erase))
+        .route("/admin/api/contacts/:party_id/invite", post(commitments::admin_invite_mint))
+        .route("/admin/api/invites", get(commitments::admin_invites_list))
+        .route("/admin/api/invites/:invite_digest/revoke", post(commitments::admin_invite_revoke))
         .route("/admin/api/commitments/nudges", get(commitments::admin_nudges_due))
         .route("/admin/api/commitments/nudges/delivered", post(commitments::admin_nudge_delivered))
         .route("/admin/api/contacts/members/:lct_id", post(commitments::admin_member_address_set))
@@ -8311,6 +8427,38 @@ async fn submit_join(
     let mut adhoc = MapResolver::new();
     adhoc.insert(applicant_lct.clone());
     let _redeemed = verify_envelope(&envelope, &s.nonces, &adhoc, Utc::now())?;
+    {
+        let state = { let l = s.ledger.lock().await; s.projected(&l) };
+        if commitments::names_a_contact(&s, &state, payload.member_lct_id)? {
+            return Err(ApiError::conflict("that id is already in use here. Start again to make a new key"));
+        }
+    }
+
+    // 2a. Commitments K5b: an invite is evidence that the operator chose this person, verified by
+    // its MAC and date before anything is decided. From here to the binding the commitments lock
+    // is held, so two joins racing on one invite cannot both find it open (Legion, #959).
+    let invite = payload.invite.as_deref().map(|t| commitments::verify_invite(&s, t)).transpose()?;
+    let _invite_serial = match &invite {
+        Some(_) => Some(commitments::COMMITMENT_LOCK.lock().await),
+        None => None,
+    };
+    let standing = match &invite {
+        Some(claim) => {
+            let state = { let l = s.ledger.lock().await; s.projected(&l) };
+            Some(commitments::invite_standing(&s, &state, claim, payload.member_lct_id)?)
+        }
+        None => None,
+    };
+    if standing == Some(commitments::InviteStanding::AlreadyThisMember) {
+        return Ok((StatusCode::OK, Json(serde_json::json!({
+            "member_lct_id": payload.member_lct_id,
+            "status": "already_member",
+            "welcome": format!("already a member of {}", s.hub_name),
+        }))).into_response());
+    }
+    // Still open, so not yet bound: the binding is written before the admission, and a queued
+    // join carries the invite to the operator's admission.
+    let open_invite = invite.as_ref().filter(|_| standing == Some(commitments::InviteStanding::Open));
 
     // 2b. Idempotency: collapse repeat applications from the same LCT before the
     // law gate. Already a member → 200 already_member; an existing pending request
@@ -8318,6 +8466,13 @@ async fn submit_join(
     // applicant proceeds to evaluation.
     match admission_state(&s, payload.member_lct_id).await {
         AdmissionState::Member => {
+            // An invite this member's own join did not carry is someone else's: binding it here
+            // would hand that contact's jobs and address to whoever opened a forwarded email
+            // (Legion, #961). The rare real case goes through the operator.
+            if invite.is_some() {
+                return Err(ApiError::conflict(
+                    "you're already a member here, so this invite isn't yours to use. If it should be, ask your organiser"));
+            }
             return Ok((
                 StatusCode::OK,
                 Json(serde_json::json!({
@@ -8398,7 +8553,10 @@ async fn submit_join(
                 role: "applicant".to_string(),
                 action: "member_join_request".to_string(),
                 payload: event_value_yaml,
-                resource: Default::default(),
+                resource: invite.iter().map(|_| {
+                    let (k, v) = commitments::INVITE_RESOURCE;
+                    (k.to_string(), serde_yaml::Value::String(v.to_string()))
+                }).collect(),
             }).decision,
         };
         drop(law_guard);
@@ -8422,6 +8580,12 @@ async fn submit_join(
             // flagged-allow: same path, with the advisory surfaced.
             if decision == Decision::Warn {
                 tracing::warn!("member join flagged by hub law (auto-admitting)");
+            }
+            // The binding first (Legion, #961): if the admission then fails, the invite is spent
+            // on this key, which only its holder can finish with, rather than open to the next
+            // holder of a forwarded copy.
+            if let Some(claim) = open_invite {
+                commitments::bind_contact(&s, claim, payload.member_lct_id).await?;
             }
             let (entry_index, entry_hash) = admit_member(
                 &s, payload.member_lct_id, &payload.member_pubkey_hex, payload.name.clone(),
@@ -8448,6 +8612,8 @@ async fn submit_join(
                 anchor_level: payload.anchor_level,
                 asserted_trust_ceiling: payload.trust_ceiling,
                 requested_at: Utc::now(),
+                invite_party_id: open_invite.map(|c| c.party_id.clone()),
+                invite_digest: open_invite.map(|c| c.digest.clone()),
             }).await?;
             Ok((
                 StatusCode::ACCEPTED,
@@ -8644,9 +8810,7 @@ async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
         "<!doctype html><meta charset=\"utf-8\">\
          <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
          <title>{} — governance</title>\
-         <style>body{{font:16px/1.6 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem}}\
-         .m{{color:#666;font-size:.85em}} .p{{border-left:3px solid #ddd;padding:.2rem 0 .2rem .8rem;margin:.9rem 0}}\
-         h2{{margin-top:2rem}} pre{{white-space:pre-wrap;margin:.2rem 0;font:inherit}}</style>\
+         <link rel=\"stylesheet\" href=\"/discuss.css\">\
          <h1>{}</h1>\
          <p class=\"m\">Governance discussion. Every topic and post below is an entry in this hub's \
          hash-chained ledger, witnessed by the Sovereign and admitted under the hub's \
@@ -8675,7 +8839,46 @@ async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
             ));
         }
     }
-    ([(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")], body).into_response()
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            // Not a key page, but on the key pages' origin: a script injected here could open their
+            // IndexedDB and sign with a member's key, so it runs under the same policy (Legion, #960).
+            (axum::http::header::CONTENT_SECURITY_POLICY, KEY_PAGE_CSP),
+        ],
+        body,
+    )
+        .into_response()
+}
+
+const DISCUSS_CSS: &str = "body{font:16px/1.6 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem}\
+    .m{color:#666;font-size:.85em} .p{border-left:3px solid #ddd;padding:.2rem 0 .2rem .8rem;margin:.9rem 0}\
+    h2{margin-top:2rem} pre{white-space:pre-wrap;margin:.2rem 0;font:inherit}";
+
+async fn discuss_css() -> axum::response::Response {
+    use axum::response::IntoResponse;
+    ([(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")], DISCUSS_CSS).into_response()
+}
+
+/// Pages that hold a member's key, or a link that acts for a party, run no script but their
+/// own file: no inline script or handler, no inline style, nothing from another origin. The
+/// key is non-extractable, which stops a stray script stealing it; this stops one running here
+/// to sign with it in place.
+pub(crate) const KEY_PAGE_CSP: &str = "default-src 'none'; script-src 'self'; style-src 'self'; \
+    connect-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+/// Every other page on the public listener shares the key pages' origin, and so their
+/// IndexedDB: a script injected into any of them could sign with a member's key in place
+/// (Legion, #960). Those pages run no script at all. Inline style stays allowed; it runs nothing.
+pub(crate) const PUBLIC_PAGE_CSP: &str = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; \
+    form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+/// The public listener's default: a response that set no policy of its own gets `PUBLIC_PAGE_CSP`.
+pub(crate) async fn public_csp(mut resp: axum::response::Response) -> axum::response::Response {
+    resp.headers_mut()
+        .entry(axum::http::header::CONTENT_SECURITY_POLICY)
+        .or_insert(axum::http::HeaderValue::from_static(PUBLIC_PAGE_CSP));
+    resp
 }
 
 /// GET /client — an interactive, same-origin hub client. Generates an Ed25519
@@ -8685,23 +8888,81 @@ async fn discuss_html(State(s): State<RestState>) -> axum::response::Response {
 /// CORS) and no external assets, so it works unchanged behind a Tailscale funnel.
 /// No SPA, no build step. The signing preimage matches `canonical_signing_bytes`
 /// exactly: `challenge_nonce ++ serialize_canonical(payload)`.
+/// The key is a non-extractable `CryptoKey` in IndexedDB; a JWK left in `localStorage` by an
+/// older page is moved there once, the same key under the same LCT, and then deleted.
 async fn client_html() -> axum::response::Response {
     use axum::response::IntoResponse;
     (
-        [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        [
+            (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (axum::http::header::CONTENT_SECURITY_POLICY, KEY_PAGE_CSP),
+        ],
         CLIENT_HTML,
     )
         .into_response()
 }
 
+async fn client_js() -> axum::response::Response {
+    use axum::response::IntoResponse;
+    ([(axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8")], CLIENT_JS).into_response()
+}
+
+async fn keystore_js() -> axum::response::Response {
+    use axum::response::IntoResponse;
+    ([(axum::http::header::CONTENT_TYPE, "text/javascript; charset=utf-8")], KEYSTORE_JS).into_response()
+}
+
+async fn client_css() -> axum::response::Response {
+    use axum::response::IntoResponse;
+    ([(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")], CLIENT_CSS).into_response()
+}
+
 const CLIENT_HTML: &str = r##"<!doctype html><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Hub Client</title>
-<style>
-:root{color-scheme:light dark}
+<link rel="stylesheet" href="/client.css">
+<h1 id="hubname">Hub Client</h1>
+<p class="m" id="hubinfo">connecting…</p>
+
+<div class="card" id="idcard">
+ <b>Your identity</b>
+ <p class="m">A Web4 identity is an Ed25519 keypair generated here, in your browser. The secret half
+ never leaves this device, and not even this page can read it back; the hub pins only your public
+ half when you join.</p>
+ <div id="idbody"></div>
+ <p id="persistnote" class="m warn hidden"></p>
+</div>
+
+<div class="card hidden" id="joincard">
+ <b>Join this hub</b>
+ <p class="m">Sends a signed join request. Under this hub's law, closed admission means your request is
+ <i>queued for the Sovereign's review</i> — you are admitted only when they approve.</p>
+ <input id="jname" placeholder="display name (optional)">
+ <input id="jmsg" placeholder="note to the Sovereign (optional)">
+ <button data-act="join">Request to join</button>
+ <div class="st" id="jstatus"></div>
+</div>
+
+<h2>Discussion</h2>
+<p class="m">Every topic and post is an entry in this hub's hash-chained ledger, admitted under its
+<a id="lawlink" href="#">published law</a>. Nothing here is asserted — it is recorded, and you can verify it.</p>
+<div class="card">
+ <input id="ntitle" placeholder="new topic title">
+ <button data-act="topic">Open topic</button>
+ <div class="st" id="tstatus"></div>
+</div>
+<div id="topics"><p class="m">loading…</p></div>
+<script src="/keystore.js"></script>
+<script src="/client.js"></script>
+"##;
+
+const CLIENT_CSS: &str = r##":root{color-scheme:light dark}
 body{font:16px/1.55 system-ui,sans-serif;max-width:44rem;margin:1.5rem auto;padding:0 1rem}
 h1{margin:.2rem 0}h2{margin-top:1.6rem;border-top:1px solid #8883;padding-top:1rem}
+#topics h3{margin:1.2rem 0 .2rem}
 .m{color:#7a7a7a;font-size:.85em}
+.mt{margin-top:.5rem}
+.hidden{display:none}
 .card{border:1px solid #8884;border-radius:8px;padding:.8rem 1rem;margin:1rem 0}
 .p{border-left:3px solid #8886;padding:.1rem 0 .1rem .7rem;margin:.7rem 0}
 pre{white-space:pre-wrap;margin:.15rem 0;font:inherit}
@@ -8712,42 +8973,14 @@ button{font:inherit;padding:.4rem .9rem;border:1px solid #8888;border-radius:6px
 button:hover{background:#8883}code{word-break:break-all}
 .ok{color:#2a8a3e}.warn{color:#b26a00}.err{color:#c0392b}
 .st{font-size:.85em;margin-top:.4rem;white-space:pre-wrap}
-</style>
-<h1 id="hubname">Hub Client</h1>
-<p class="m" id="hubinfo">connecting…</p>
+"##;
 
-<div class="card" id="idcard">
- <b>Your identity</b>
- <p class="m">A Web4 identity is an Ed25519 keypair generated here, in your browser. The secret half
- never leaves this device; the hub pins only your public half when you join.</p>
- <div id="idbody"></div>
-</div>
-
-<div class="card" id="joincard" style="display:none">
- <b>Join this hub</b>
- <p class="m">Sends a signed join request. Under this hub's law, closed admission means your request is
- <i>queued for the Sovereign's review</i> — you are admitted only when they approve.</p>
- <input id="jname" placeholder="display name (optional)">
- <input id="jmsg" placeholder="note to the Sovereign (optional)">
- <button onclick="doJoin()">Request to join</button>
- <div class="st" id="jstatus"></div>
-</div>
-
-<h2>Discussion</h2>
-<p class="m">Every topic and post is an entry in this hub's hash-chained ledger, admitted under its
-<a id="lawlink" href="#">published law</a>. Nothing here is asserted — it is recorded, and you can verify it.</p>
-<div class="card">
- <input id="ntitle" placeholder="new topic title">
- <button onclick="doTopic()">Open topic</button>
- <div class="st" id="tstatus"></div>
-</div>
-<div id="topics"><p class="m">loading…</p></div>
-
-<script>
-const $=s=>document.querySelector(s);
+/// The browser key store, shared by every page that holds a member's key (`/client`, the K5b join
+/// page): one identity per browser, whichever page made it.
+const KEYSTORE_JS: &str = r##"'use strict';
 const enc=new TextEncoder();
 const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
-function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 // Canonical JSON — matches the hub's serialize_canonical: recursive, object keys
 // sorted, compact, standard JSON string escaping.
@@ -8761,46 +8994,120 @@ function canon(v){
   return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
 }
 
-let HUBID=null, HUBNAME='Hub', ID=null, ADMITTED=false;
+// The identity lives in IndexedDB as a non-extractable CryptoKey: a page can sign with
+// it, but no script, this one included, can read the private half back out.
+const DB='hestia_hub', STORE='identity', SLOT='me', LEGACY='hestia_hub_id';
+function idb(){
+  return new Promise((ok,no)=>{
+    const r=indexedDB.open(DB,1);
+    r.onupgradeneeded=()=>r.result.createObjectStore(STORE);
+    r.onsuccess=()=>ok(r.result); r.onerror=()=>no(r.error);
+  });
+}
+async function idbDo(mode,f,opts){
+  const db=await idb();
+  return new Promise((ok,no)=>{
+    const tx=db.transaction(STORE,mode,opts), r=f(tx.objectStore(STORE));
+    tx.oncomplete=()=>{ db.close(); ok(r.result); };
+    // A failed request reaches onerror before the abort sets tx.error (Legion, #963).
+    tx.onerror=ev=>{ db.close(); no(ev.target.error||tx.error); };
+    tx.onabort=()=>{ db.close(); no(tx.error); };
+  });
+}
+const idbGet=()=>idbDo('readonly',s=>s.get(SLOT));
+const idbDel=()=>idbDo('readwrite',s=>s.delete(SLOT));
+// A key is stored with add, never put: a second tab that also found no key must not replace one
+// this browser has since made and perhaps had admitted (Legion, #960). The loser gets the stored
+// key back. Strict durability: the write is on disk before anything is deleted on its account.
+async function idbAdd(v){
+  try{ await idbDo('readwrite',s=>s.add(v,SLOT),{durability:'strict'}); return v; }
+  catch(e){
+    if(e&&e.name==='ConstraintError'){ const had=await idbGet(); if(had)return had; }
+    throw e;
+  }
+}
+function persist(){ if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{}); }
+// Whether this browser has agreed to keep the key store when it runs short of space or the
+// site goes unvisited. Asked on every load, since a browser that refused once may agree later.
+// null: the browser can't say.
+async function ensurePersisted(){
+  const st=navigator.storage;
+  if(!st||!st.persisted)return null;
+  try{ return (await st.persisted())||(st.persist?await st.persist():false); }catch(e){ return false; }
+}
+// What a volunteer can do when this browser can't hold a key, before routing them to the organiser
+// (cbp-pm, #959). The page also tells the hub, which counts refusals by browser family only.
+const NO_KEY_SUPPORT='This browser can\'t keep your key safely. Open this link in a current Chrome, Safari or Firefox (on a phone or laptop updated in the last two years). Still stuck? Ask your organiser.';
+function countUnsupported(){ fetch('/j/unsupported',{method:'POST'}).catch(()=>{}); }
+const NOT_PERSISTED='This browser hasn\'t agreed to keep your key for good. If you don\'t come back for a few weeks, it may be cleared; if that happens, ask your organiser for a new invite.';
 
 async function loadID(){
-  const raw=localStorage.getItem('hestia_hub_id'); if(!raw)return null;
-  const o=JSON.parse(raw);
-  const priv=await crypto.subtle.importKey('jwk',o.privJwk,{name:'Ed25519'},true,['sign']);
-  return {lct_id:o.lct_id,pubHex:o.pubHex,priv};
-}
-async function genID(){
+  const id=await idbGet(); if(id)return id;
+  // One move from the old store, an extractable JWK in localStorage. Same key, same LCT;
+  // the JWK goes only once the non-extractable copy is stored.
+  const raw=localStorage.getItem(LEGACY); if(!raw)return null;
+  // An old key that can't be read is left where it is: it may be the person's only copy.
+  let o,priv;
   try{
-    const kp=await crypto.subtle.generateKey({name:'Ed25519'},true,['sign','verify']);
-    const pub=await crypto.subtle.exportKey('raw',kp.publicKey);
-    const privJwk=await crypto.subtle.exportKey('jwk',kp.privateKey);
-    const lct_id=crypto.randomUUID(), pubHex=hex(pub);
-    localStorage.setItem('hestia_hub_id',JSON.stringify({lct_id,pubHex,privJwk}));
-    ID={lct_id,pubHex,priv:kp.privateKey}; renderID();
-  }catch(e){ $('#idbody').innerHTML='<span class="err">This browser lacks WebCrypto Ed25519. Use current Edge, Chrome, or Firefox.</span>'; }
+    o=JSON.parse(raw);
+    priv=await crypto.subtle.importKey('jwk',o.privJwk,{name:'Ed25519'},false,['sign']);
+  }catch(e){
+    // A browser that can't do Ed25519 at all is told that, not that its key is unreadable.
+    throw new Error(e&&e.name==='NotSupportedError'?'NO_ED25519':'LEGACY_UNREADABLE');
+  }
+  const moved={lct_id:o.lct_id,pubHex:o.pubHex,priv};
+  const kept=await idbAdd(moved);
+  // Another tab stored a key first: that one is in use, and the old JWK stays as it was.
+  if(kept!==moved)return kept;
+  localStorage.removeItem(LEGACY); persist();
+  return moved;
 }
-function forget(){ localStorage.removeItem('hestia_hub_id'); ID=null; ADMITTED=false; renderID(); }
+// A fresh identity, stored before it is returned. Throws NO_ED25519 where the browser
+// cannot make the key: there is no fallback library, which would hold the key in page memory.
+async function newID(){
+  let kp;
+  try{ kp=await crypto.subtle.generateKey({name:'Ed25519'},false,['sign','verify']); }
+  catch(e){ throw new Error('NO_ED25519'); }
+  const pub=await crypto.subtle.exportKey('raw',kp.publicKey);
+  const id={lct_id:crypto.randomUUID(),pubHex:hex(pub),priv:kp.privateKey};
+  const kept=await idbAdd(id); persist();
+  return kept;
+}
+async function forgetID(){ await idbDel(); localStorage.removeItem(LEGACY); }
+
+async function signEnvelope(id,payload){
+  const r=await fetch('/v1/auth/challenge',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({for_lct_id:id.lct_id})});
+  if(!r.ok)throw new Error('challenge '+r.status);
+  const n=(await r.json()).nonce;
+  const msg=new Uint8Array([...enc.encode(n),...enc.encode(canon(payload))]);
+  const sig=await crypto.subtle.sign('Ed25519',id.priv,msg);
+  return {signer_lct_id:id.lct_id,challenge_nonce:n,payload,signature:hex(sig)};
+}
+"##;
+
+const CLIENT_JS: &str = r##"'use strict';
+const $=s=>document.querySelector(s);
+let HUBID=null, HUBNAME='Hub', ID=null, ADMITTED=false;
+
+async function genID(){
+  try{ ID=await newID(); renderID(); }
+  catch(e){ $('#idbody').innerHTML='<span class="err">'+(e.message==='NO_ED25519'
+    ?'This browser lacks WebCrypto Ed25519. Use current Edge, Chrome, Firefox, or Safari.'
+    :'This browser would not store the key: '+esc(e.message))+'</span>'; }
+}
+async function forget(){ await forgetID(); ID=null; ADMITTED=false; renderID(); }
+const envelope=payload=>signEnvelope(ID,payload);
+
 function renderID(){
-  if(!ID){ $('#idbody').innerHTML='<button onclick="genID()">Generate identity</button>';
-    $('#joincard').style.display='none'; return; }
+  if(!ID){ $('#idbody').innerHTML='<button data-act="gen">Generate identity</button>';
+    $('#joincard').classList.add('hidden'); return; }
   $('#idbody').innerHTML='<p class="m">LCT id</p><code>'+esc(ID.lct_id)+'</code>'+
-   '<p class="m" style="margin-top:.5rem">public key</p><code>'+esc(ID.pubHex)+'</code>'+
-   '<div style="margin-top:.5rem"><button onclick="forget()">Forget / regenerate</button></div>';
-  $('#joincard').style.display='';
+   '<p class="m mt">public key</p><code>'+esc(ID.pubHex)+'</code>'+
+   '<div class="mt"><button data-act="forget">Forget / regenerate</button></div>';
+  $('#joincard').classList.remove('hidden');
 }
 
-async function nonce(){
-  const r=await fetch('/v1/auth/challenge',{method:'POST',headers:{'content-type':'application/json'},
-    body:JSON.stringify({for_lct_id:ID.lct_id})});
-  if(!r.ok)throw new Error('challenge '+r.status);
-  return (await r.json()).nonce;
-}
-async function envelope(payload){
-  const n=await nonce();
-  const msg=new Uint8Array([...enc.encode(n),...enc.encode(canon(payload))]);
-  const sig=await crypto.subtle.sign('Ed25519',ID.priv,msg);
-  return {signer_lct_id:ID.lct_id,challenge_nonce:n,payload,signature:hex(sig)};
-}
 function show(sel,cls,msg){ const e=$(sel); e.className='st '+cls; e.textContent=msg; }
 
 async function doJoin(){
@@ -8847,23 +9154,30 @@ async function loadTopics(){
     if(!topics||!topics.length){ box.innerHTML='<p class="m"><em>No topics yet. Open the first one.</em></p>'; return; }
     let html='';
     for(const t of topics){
-      const tid=t.topic_id||t.id;
+      const tid=String(t.topic_id||t.id);
       let posts=[];
       try{ const d=await (await fetch('/v1/hubs/'+HUBID+'/topics/'+tid)).json();
         posts=d.posts||(d.topic&&d.topic.posts)||[]; }catch(e){}
-      html+='<h3 style="margin:1.2rem 0 .2rem">'+esc(t.title)+'</h3>';
+      html+='<h3>'+esc(t.title)+'</h3>';
       html+='<p class="m">by '+esc((t.created_by||'').toString().slice(0,8))+'…</p>';
       for(const p of posts){
         html+='<div class="p"><pre>'+esc(p.body)+'</pre><p class="m">'+
-          esc((p.posted_by||'').toString().slice(0,8))+'… · ledger #'+(p.entry_index??'?')+'</p></div>';
+          esc((p.posted_by||'').toString().slice(0,8))+'… · ledger #'+esc(p.entry_index??'?')+'</p></div>';
       }
       const iid='r_'+tid.replace(/[^a-z0-9]/gi,''), sid='s_'+tid.replace(/[^a-z0-9]/gi,'');
-      html+='<input id="'+iid+'" placeholder="reply…"><button onclick="doReply(\''+tid+'\',\''+iid+'\',\''+sid+'\')">Reply</button>'+
-        '<div class="st" id="'+sid+'"></div>';
+      html+='<input id="'+iid+'" placeholder="reply…"><button data-act="reply" data-tid="'+esc(tid)+
+        '" data-iid="'+iid+'" data-sid="'+sid+'">Reply</button><div class="st" id="'+sid+'"></div>';
     }
     box.innerHTML=html;
   }catch(e){ $('#topics').innerHTML='<p class="err">could not load topics: '+esc(e.message)+'</p>'; }
 }
+
+// One listener for every button: the page's policy allows no inline handlers.
+document.addEventListener('click',ev=>{
+  const b=ev.target.closest&&ev.target.closest('button[data-act]'); if(!b)return;
+  const d=b.dataset;
+  ({gen:genID,forget,join:doJoin,topic:doTopic,reply:()=>doReply(d.tid,d.iid,d.sid)}[d.act]||(()=>{}))();
+});
 
 (async function init(){
   try{
@@ -8873,10 +9187,14 @@ async function loadTopics(){
     $('#hubinfo').innerHTML='hub '+esc(HUBID)+' · '+(w.locked?'<span class="warn">locked</span>':'<span class="ok">live</span>')+
       ' · '+(w.law_present?'governed by law':'<span class="warn">no law</span>');
     $('#lawlink').href='/v1/hubs/'+HUBID+'/law';
-    ID=await loadID(); renderID(); loadTopics();
-  }catch(e){ $('#hubinfo').innerHTML='<span class="err">could not reach hub: '+esc(e.message)+'</span>'; }
+  }catch(e){ $('#hubinfo').innerHTML='<span class="err">could not reach hub: '+esc(e.message)+'</span>'; return; }
+  try{ ID=await loadID(); }catch(e){ $('#idbody').innerHTML='<span class="err">'+(e.message==='LEGACY_UNREADABLE'
+    ?'this browser holds an older key that can\'t be read; it has been left as it was. Ask your organiser.'
+    :'could not open this browser\'s key store: '+esc(e.message))+'</span>'; }
+  if(ID||!$('#idbody').textContent)renderID();
+  if(ID&&await ensurePersisted()===false){ $('#persistnote').textContent=NOT_PERSISTED; $('#persistnote').classList.remove('hidden'); }
+  loadTopics();
 })();
-</script>
 "##;
 
 fn build_r6_request(
@@ -18905,6 +19223,65 @@ norms: []
         }
     }
 
+    /// NOVA, #970: the record comes before the effect. An unlock whose `HubIgnited` can't be
+    /// recorded leaves the hub locked, seals nothing and writes nothing to the ledger; the next
+    /// unlock then records exactly one ignition. A held boot is refused the same way.
+    #[tokio::test]
+    async fn an_ignition_whose_record_fails_leaves_the_hub_locked() {
+        use hub_lib::events::IgnitionVia;
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        let (_tmp, state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+        let path = hub_lib::ignition::ignition_path(&state.paths.root);
+        state.ignition.fail_next_record("hub_ignited");
+        let refused = state.try_unlock(pass, 1_700_000_000).await;
+        assert!(matches!(&refused, UnlockOutcome::Unsupported(m) if m.contains("could not be recorded")), "{refused:?}");
+        assert!(state.is_locked(), "no ignition without its record");
+        assert!(!path.exists(), "nothing sealed");
+        assert!(matches!(state.try_unlock(pass, 1_700_000_005).await, UnlockOutcome::Unlocked { .. }));
+        let got = ignition_events(state.ledger.lock().await.entries());
+        assert!(matches!(got.as_slice(), [
+            HubEvent::HubIgnited { via: IgnitionVia::Human, tier: None },
+            HubEvent::IgnitionHeld { tier: IgnitionTier::HostKey },
+        ]), "the refused unlock left nothing on the ledger: {got:?}");
+
+        relock(&state);
+        state.ignition.fail_next_record("hub_ignited");
+        state.held_boot(1_700_000_100).await;
+        assert!(state.is_locked(), "a held boot whose record fails stays locked too");
+        assert_eq!(ignition_events(state.ledger.lock().await.entries()).len(), 2);
+    }
+
+    /// NOVA, #970: no held copy without its record. If `IgnitionHeld` fails, the new seal is
+    /// deleted; if an earlier hold was recorded, that copy was replaced in place, so it is
+    /// released on the ledger as well.
+    #[tokio::test]
+    async fn a_seal_whose_record_fails_is_deleted() {
+        use hub_lib::events::{IgnitionRelease, IgnitionVia};
+        use hub_lib::law::IgnitionTier;
+        let pass = "correct horse battery staple";
+        for held_before in [false, true] {
+            let (_tmp, state) = held_test_hub(pass, IgnitionTier::HostKey).await;
+            let path = hub_lib::ignition::ignition_path(&state.paths.root);
+            if held_before {
+                assert!(matches!(state.try_unlock(pass, 1_699_999_900).await, UnlockOutcome::Unlocked { .. }));
+                assert!(path.exists());
+                relock(&state);
+            }
+            state.ignition.fail_next_record("ignition_held");
+            assert!(matches!(state.try_unlock(pass, 1_700_000_000).await, UnlockOutcome::Unlocked { .. }));
+            assert!(!path.exists(), "held_before={held_before}: an unrecorded seal must not survive");
+            let n = state.ignition.take_note().unwrap_or_default();
+            assert!(n.starts_with("not held: sealed at HostKey, but its record failed"), "{n}");
+            let got = ignition_events(state.ledger.lock().await.entries());
+            if held_before {
+                assert!(matches!(got.last(), Some(HubEvent::IgnitionReleased { reason: IgnitionRelease::ResealFailed })), "{got:?}");
+            } else {
+                assert!(matches!(got.as_slice(), [HubEvent::HubIgnited { via: IgnitionVia::Human, tier: None }]), "{got:?}");
+            }
+        }
+    }
+
     /// Supervisor, #969: under `held: false`, a failed held boot followed by a person's unlock
     /// deletes the copy AND clears the alarm, or a health check pages an unlocked hub forever.
     #[tokio::test]
@@ -19203,6 +19580,11 @@ norms: []
         assert_eq!(state.ignition.boot_state(), "stale");
         let note = state.ignition.take_note().unwrap_or_default();
         assert!(note.starts_with("stale: the law rejects the held passphrase (ResealFailed)"), "{note}");
+        // Exercise the operator's receipt with the actual failure note. The old formatter
+        // prefixed every non-"held at" note with "The passphrase was not stored", even here.
+        let rendered = crate::unlock_storage_line(&serde_json::json!({"held_ignition": note}));
+        assert!(rendered.starts_with("A held copy may still be on disk") && rendered.contains("by hand"), "{rendered}");
+        assert!(!rendered.contains("not stored") && !rendered.contains("not retained"), "{rendered}");
         let got = ignition_events(state.ledger.lock().await.entries());
         assert!(!got.iter().any(|e| matches!(e, HubEvent::IgnitionReleased { .. })), "{got:?}");
     }

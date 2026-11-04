@@ -136,10 +136,10 @@ enum Command {
 
     /// The **stub-console unlock plugin**: unlock a locked, running hub by
     /// presenting the tier-1 passphrase. Prompts for the passphrase (or reads
-    /// `HUB_PASSPHRASE`), **uses it once and never stores it**, and POSTs it to
-    /// the hub's local-only `/unlock` slot (127.0.0.1), promoting it locked →
-    /// unlocked in place. Run this on the hub host. Empty (just Enter) = the
-    /// explicit NULL-passphrase choice.
+    /// `HUB_PASSPHRASE`) and POSTs it to the hub's local-only `/unlock` slot
+    /// (127.0.0.1), promoting it locked → unlocked in place. The hub may retain
+    /// an encrypted copy of the passphrase under its ignition policy. Run this
+    /// on the hub host. Empty (just Enter) = the explicit NULL-passphrase choice.
     Unlock {
         /// Port the hub is serving on (default 8770).
         #[arg(long, default_value = "8770")]
@@ -1188,7 +1188,7 @@ fn go_live_runbook(
     n += 1;
     writeln!(runbook, "  {n}. {cmd} serve {} --bind \"$HUB_BIND\"", hub_dir.display()).unwrap();
     n += 1;
-    writeln!(runbook, "  {n}. {cmd} unlock  # ignite the vault (passphrase — never stored)").unwrap();
+    writeln!(runbook, "  {n}. {cmd} unlock  # ignite the vault (law may retain a sealed passphrase)").unwrap();
     runbook
 }
 
@@ -1563,6 +1563,8 @@ fn public_plane_router(mcp_state: McpState, rest_state: RestState, admin_state: 
     mcp_read_router(mcp_state)
         .merge(rest_router(rest_state))
         .merge(admin::router(admin_state))
+        // One origin for every page here, so one floor: no page runs a script it didn't name.
+        .layer(axum::middleware::map_response(crate::rest::public_csp))
 }
 
 /// The **operator plane's** route set (127.0.0.1-only listener, never proxied).
@@ -1650,11 +1652,15 @@ fn held_ignition_backend() -> std::sync::Arc<crate::rest::HeldIgnition> {
 /// A hub that boots with its store already open was ignited by the environment only when
 /// `HUB_PASSPHRASE` was set, and then the ledger says so (PRD_HELD_IGNITION §3.6). A plaintext or
 /// NULL-keyed store with no passphrase in the environment was not ignited, and records nothing;
-/// nor does a hub with no genesis yet.
-async fn record_boot_ignition(rest: &RestState, env_passphrase_set: bool) {
+/// nor does a hub with no genesis yet. If the record fails, the boot fails: no ignition serves
+/// without its record (NOVA, #970).
+async fn record_boot_ignition(rest: &RestState, env_passphrase_set: bool) -> Result<()> {
     if env_passphrase_set && !rest.ledger.lock().await.entries().is_empty() {
-        crate::rest::record_ignition(rest, hub_lib::events::IgnitionVia::Env, None).await;
+        crate::rest::record_ignition(rest, hub_lib::events::IgnitionVia::Env, None)
+            .await
+            .context("the environment ignited this hub, but the ignition could not be recorded; refusing to serve")?;
     }
+    Ok(())
 }
 
 async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, admin_port: u16) -> Result<()> {
@@ -1718,7 +1724,7 @@ async fn run_serve(hub_dir: PathBuf, port_override: Option<u16>, bind: String, a
             rest.resolver.clone(),
         )
         .await?;
-        record_boot_ignition(&rest, hub_lib::identity::env_passphrase().is_some()).await;
+        record_boot_ignition(&rest, hub_lib::identity::env_passphrase().is_some()).await?;
         (rest, mcp)
     } else {
         // ── LOCKED SHELL (encrypted store, no key) ──
@@ -2392,13 +2398,16 @@ async fn run_attest_unlock(
     Ok(())
 }
 
-/// What the operator is told about the passphrase after an unlock. A held ignition stores it,
-/// sealed to this host, so "not stored" would be false (pub, #969).
+/// What the operator is told about the passphrase after an unlock. A held ignition retains an
+/// encrypted credential. A failed delete may leave that copy on disk, and a missing or unfamiliar
+/// note is not evidence that no copy was retained.
 fn unlock_storage_line(body: &serde_json::Value) -> String {
     match body.get("held_ignition").and_then(|v| v.as_str()) {
-        Some(note) if note.starts_with("held at") => format!("The passphrase is now HELD, sealed to this host — {note}"),
-        Some(note) => format!("The passphrase was not stored ({note})."),
-        None => "The passphrase was not stored.".to_string(),
+        Some(note) if note.starts_with("held at") => format!("The passphrase is now HELD in an encrypted credential — {note}"),
+        Some(note) if note.starts_with("stale:") => format!("A held copy may still be on disk — {note}"),
+        Some(note) if note.starts_with("not held:") => format!("The passphrase was not retained in a held credential — {note}"),
+        Some(note) => format!("Held ignition: {note}"),
+        None => "The hub did not report held-ignition storage for this request.".to_string(),
     }
 }
 
@@ -3096,6 +3105,36 @@ mod tests {
             }
         }
 
+        /// Every page on the public plane shares the key pages' origin, and so their
+        /// IndexedDB (Legion, #960). Each runs its own script file or none, and a page
+        /// that sets no policy of its own gets the plane's.
+        #[tokio::test]
+        async fn every_public_page_forbids_a_script_it_did_not_name() {
+            let (_tmp, public, _op) = planes().await;
+            for path in [
+                "/", "/record", "/admin/roles", "/admin/law", "/admin/council", "/admin/channels",
+                "/tools", "/tools/query_hub", "/discuss", "/client", "/me", "/no-such-page",
+            ] {
+                let resp = public.clone().oneshot(Request::builder().uri(path).body(Body::empty()).unwrap()).await.unwrap();
+                let csp = resp
+                    .headers()
+                    .get(axum::http::header::CONTENT_SECURITY_POLICY)
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or_else(|| panic!("{path} sends no CSP"))
+                    .to_string();
+                assert!(csp.starts_with("default-src 'none';"), "{path}: {csp}");
+                let scripts: Vec<&str> = csp.split(';').map(str::trim).filter(|d| d.starts_with("script-src")).collect();
+                assert!(scripts.iter().all(|d| *d == "script-src 'self'"), "{path}: {csp}");
+                let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+                let body = String::from_utf8_lossy(&body);
+                if scripts.is_empty() {
+                    assert!(!body.contains("<script"), "{path} carries a script its policy blocks");
+                } else {
+                    assert!(!body.contains("<script>"), "{path} carries an inline script");
+                }
+            }
+        }
+
         fn ignitions(entries: &[hub_lib::ledger::LedgerEntry]) -> Vec<hub_lib::events::IgnitionVia> {
             entries.iter().filter_map(|e| match &e.event {
                 hub_lib::events::HubEvent::HubIgnited { via, tier } => {
@@ -3111,20 +3150,43 @@ mod tests {
         #[tokio::test]
         async fn a_boot_records_env_ignition_only_when_the_environment_held_the_passphrase() {
             let (_tmp, rest) = fresh_rest_state(None).await;
-            record_boot_ignition(&rest, false).await;
+            record_boot_ignition(&rest, false).await.unwrap();
             assert!(ignitions(rest.ledger.lock().await.entries()).is_empty());
-            record_boot_ignition(&rest, true).await;
+            record_boot_ignition(&rest, true).await.unwrap();
             assert_eq!(ignitions(rest.ledger.lock().await.entries()), vec![hub_lib::events::IgnitionVia::Env]);
         }
 
-        /// The CLI says what happened to the passphrase, and never "not stored" when it was held.
+        /// An environment ignition whose record fails does not serve: the boot fails with the
+        /// reason, and nothing is on the ledger (NOVA, #970).
+        #[tokio::test]
+        async fn an_env_boot_whose_ignition_record_fails_refuses_to_serve() {
+            let (_tmp, rest) = fresh_rest_state(None).await;
+            let before = rest.ledger.lock().await.entries().len();
+            rest.ignition.fail_next_record("hub_ignited");
+            let err = record_boot_ignition(&rest, true).await.unwrap_err();
+            assert!(format!("{err:#}").contains("refusing to serve"), "{err:#}");
+            assert_eq!(rest.ledger.lock().await.entries().len(), before);
+        }
+
+        /// Positive controls: distinguish a retained encrypted credential from an explicit
+        /// report that the hub retained no held copy.
         #[test]
         fn the_unlock_cli_says_when_the_passphrase_is_held() {
             let held = unlock_storage_line(&serde_json::json!({"held_ignition": "held at HostKey: this hub now unlocks itself"}));
-            assert!(held.contains("HELD") && !held.contains("not stored"), "{held}");
+            assert!(held.contains("HELD in an encrypted credential") && !held.contains("not retained"), "{held}");
             let refused = unlock_storage_line(&serde_json::json!({"held_ignition": "not held: the law says ignition.held: false"}));
-            assert!(refused.contains("not stored") && refused.contains("held: false"), "{refused}");
-            assert_eq!(unlock_storage_line(&serde_json::json!({})), "The passphrase was not stored.");
+            assert!(refused.contains("not retained in a held credential") && refused.contains("held: false"), "{refused}");
+        }
+
+        /// Missing metadata (including an already-unlocked response) and new note shapes cannot
+        /// justify a promise that nothing was retained.
+        #[test]
+        fn the_unlock_cli_does_not_infer_storage_from_missing_or_unfamiliar_metadata() {
+            for body in [serde_json::json!({}), serde_json::json!({"status": "already_unlocked"})] {
+                assert_eq!(unlock_storage_line(&body), "The hub did not report held-ignition storage for this request.");
+            }
+            let unfamiliar = unlock_storage_line(&serde_json::json!({"held_ignition": "storage status unavailable"}));
+            assert_eq!(unfamiliar, "Held ignition: storage status unavailable");
         }
 
         /// Offline `hub set-law` that turns holding off deletes the held copy and records why, in
@@ -3430,6 +3492,10 @@ mod tests {
         /// not hidden, because a guard that quietly covers half its surface
         /// reads as covering all of it.
         const BODY_EXEMPT: &[&str] = &[
+            // Commitments K5c/K5c2: signed envelopes; driven end-to-end by the `me` tests in
+            // rest/commitments/me.rs.
+            "/me/act",
+            "/me/session",
             "/v1/auth/challenge",
             "/v1/hubs/:hub_id/channel",
             "/v1/hubs/:hub_id/constellation/enroll",

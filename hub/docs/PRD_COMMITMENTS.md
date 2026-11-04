@@ -249,6 +249,7 @@ Hestia's unanswered-send budget caps the *sender*. The carrier honours an equiva
   - A link acknowledges once (`link_acks` in the projection), and has exactly one spelling: a MAC that isn't lowercase hex is refused, so a re-cased link can't carry a second digest. A link that has acknowledged never offers it again, even after a handoff cleared it. The new owner gets a fresh link from K4b (Legion, #957).
   - An operator relay never replaces a party's own acknowledgement (`link` or `member_act`) with the operator's (Legion, #957).
   - A key file that others can read is refused, for minting and for reading. A dry run of `hub-nudge` prints `<link withheld>` in place of the link, because its output lands in the journal.
+  - **Runbook: a key file others can read stops all nudges.** The listing fails closed with a 500 whose message reads "the link key is readable by others (mode …); chmod 600 it". It does not fall back to nudges without links. No nudge goes out until the operator runs `chmod 600 <hub root>/commitment-links.key` (Legion, #957 re-read).
   - Open (Legion, #957): a possession-only acknowledgement is effectively permanent. The owner should get a cheap "that wasn't me" undo. A reverse proxy's access log also records `/c/<token>`, so operators should keep those logs short or strip the path.
   - A take-over through the party's own link is their act, so `basis` becomes `self`. A handoff by the owner leaves the new owner `named_by_other`.
 - **Not in K4: the new owner after a handoff is never told.** K3 nudges only the opening and the escalations. This matters now that a handoff is one click. K4b closes it.
@@ -268,9 +269,117 @@ Hestia's unanswered-send budget caps the *sender*. The carrier honours an equiva
 | **K3** | The nudge carrier (separate process; operator SMTP), `NudgeDelivered`, and a per-party rate cap. | K2 |
 | **K4** | Movement links: a token-scoped page per (commitment, party), with done, stuck, hand off and acknowledge. No login. | K3 |
 | **K4b** | Nudge the new owner of a handoff ("X handed you Y"), so a one-click handoff never lands on someone who wasn't told. | K4 |
-| **K5** | Join from a link: a browser key (WebCrypto Ed25519) plus an invite token, and binding a contact to its new member LCT. Then the member view (B5: mine, late, I'm backing up). This is the pilot's substitute for #868. | K4 |
+| **K5** | Join from a link: a browser key (WebCrypto Ed25519) plus an invite token, and binding a contact to its new member LCT. Then the member view (B5: mine, late, I'm backing up). This is the pilot's substitute for #868. In three PRs: K5a (`/client` key migration plus CSP), K5b (invite and binding), K5c (`/me`); see §7.1. | K4 |
 
 Each slice carries its own tests and mutants, plus the two standing guards: the `BODY_EXEMPT` list and the HUB-LAW action table, for every new route and kind.
+
+### 7.1 K5, proposed: join from a link, then the member view
+
+K4 lets a contact answer with no key. K5 turns that contact into a member who holds their own key, without asking a volunteer to install anything (C5). Most of the parts already exist:
+- **The join route.** `POST /v1/hubs/:id/members/join` takes an envelope signed by the applicant's own key. Hub law then admits it, queues it for the operator, or refuses it.
+- **The browser half.** `/client` generates an Ed25519 key with WebCrypto, signs a challenge envelope and joins.
+- **The lineage act.** Slice E's `attest-predecessor` links a new LCT to an old one.
+
+K5 adds four things.
+
+1. **An invite.** The operator mints a link for one contact. It has the K4 token shape, under its own MAC label (`web4-hub invite v1`), so it can never be read as a movement link, or the reverse. Opening it shows "Join <chapter>". The page generates a key in that browser, signs a join envelope, and sends it with the invite's digest in a new optional `invite_digest` field of `JoinPayload`.
+   - Law still decides admission. The invite is **evidence**, not a bypass: the operator named this person.
+   - The chapter law shipped for the pilot allows an invited join, and queues an uninvited one.
+   - An invite admits once. A second join with the same invite is refused. The check runs under the ledger append, so two joins racing on one invite cannot both pass.
+   - The join carries the **token**. The hub verifies its MAC and expiry, then records only the digest, as K4 does with `link_digest`. Law never accepts a bare `invite_digest`, because then a digest seen anywhere would be the secret.
+   - An invite lives **7 days**, not K4's 30. Admission is a stronger act than an acknowledgement.
+   - The operator can withdraw an unused invite: a witnessed `InviteRevoked { invite_digest }`, checked under the same lock. Without it, a stateless token could only be killed by rotating the key, which kills every invite.
+   - Every admission by invite puts a row in the operator's due list ("<name> joined from your invite"). Whoever opens the link first becomes the member, so a forwarded email admits the wrong person, and this notice is how the operator finds out.
+2. **The binding.** On admission, a witnessed `ContactBound { party_id, member_lct_id, invite_digest }` links the contact to the new member LCT. It carries the operator's witness: the operator minted the invite, so the binding is their act as well as the member's.
+   - The projection follows it: a commitment that names the contact now reads its role for the member. K4 and K4b role checks, nudge targets and acknowledgements all resolve through the binding. The history is not rewritten (§3.1).
+   - The contact's address moves to the member's address entry, off the ledger (C3).
+3. **Where the key lives.** It lives in IndexedDB as a **non-extractable** `CryptoKey`. The page can use the key to sign, but no script, including the page's own, can read the private half.
+   - This deliberately differs from `/client`, which keeps an extractable JWK in `localStorage`, where any script on the origin can read it. K5a fixes `/client` first (below).
+   - Non-extractable stops theft, not misuse: a script injected into the page can still sign with the key in place. So every page that holds a key (`/client`, `/c/`, the join page, `/me`) is served with a strict Content-Security-Policy, and loses its inline `onclick` handlers. Today no hub page sends a CSP.
+     - **The protection is origin-wide, not page-wide (Legion, #960).** IndexedDB belongs to the origin, so a script injected into ANY page on it can open the store and sign, even though it can't extract the key. **Closed in #965:** every page on the public listener (:8770) shares that origin, including the transparency pages `admin::router` serves there (`/`, `/record`, `/admin/roles`, `/admin/law`, `/admin/channels`, `/admin/council`) and `/discuss`. The public plane now has a layer that gives any response without a policy of its own `PUBLIC_PAGE_CSP`: no script at all, inline style allowed (it runs nothing). `/discuss` moved its style to `/discuss.css` and sends `KEY_PAGE_CSP`. A test sweeps the public pages and fails on a page with no CSP, a `script-src` other than `'self'`, or a script tag its policy would block. The operator listener (:8772 by default, loopback) is a different origin, so its inline-script pages can't open the store. That holds only while the two planes stay on different ports: a proxy that served both under one origin would reopen it.
+   - The page calls `navigator.storage.persist()`. It also shows "open this in your browser" when it detects an in-app webview: a key made inside a mail app's webview stays there, and a later `/me` in the real browser finds nothing.
+   - If the browser is lost, so is the key. Safari also evicts script-written storage after 7 days without interaction, which is exactly a volunteer nudged monthly. Recovery is a fresh invite: a new LCT, which the operator links to the old one with Slice E's `attest-predecessor`. The member's history then follows the lineage, and the old key is never needed. **Expect this path to run routinely, not rarely**, so it must be one click for the operator.
+   - A browser key is priced at web4-core's default anchor level, a software key, and claims nothing more.
+4. **The member view (B5).** `GET /me` shows mine, late, and what I'm backing up. It is authenticated by the browser key signing a `/v1/auth/challenge` nonce. The hub answers with a short-lived (12 h), HttpOnly, SameSite=Strict session cookie scoped to reading this member's own view. Every write still goes through a signed envelope (the K5 page's acts become `via: member_act`).
+   - A click from an email is a cross-site navigation, so a SameSite=Strict cookie is not sent with it. The first load re-runs the challenge silently with the key already in the browser, and the member never sees a sign-in.
+
+**Order of work:**
+- **K5a: `/client` and CSP.** On first load, `/client` imports its stored JWK once as a non-extractable `CryptoKey` into IndexedDB, then deletes the `localStorage` entry. The key and the LCT stay the same, so no identity is orphaned. The same PR adds the strict CSP to the key-holding pages.
+- **K5b: invite, join, `ContactBound`, `InviteRevoked`, the admission notice.**
+- **K5a2: Legion's #960 follow-ups.**
+  - A key is stored with `add`, never `put`. A second tab that also found no key gets the stored key back instead of replacing one that may already be admitted. A migration that loses that race leaves the old JWK alone.
+    - The losing tab's error is read from the failed request: IndexedDB fires the request's error before the abort sets the transaction's (Legion, #963).
+    - **Known gap:** if a fresh key wins against a migration, the old JWK stays in `localStorage` and is never read again. That is an extractable key that may be admitted, the exposure K5a exists to remove. The race is rare. Recovering that person goes through the organiser.
+  - Both key writes ask for `{durability:'strict'}`, so the write is on disk before the old JWK is deleted.
+  - `navigator.storage.persisted()` is checked on every load and persistence is requested again. When the browser refuses, `/client` and the join page say so. Unverified: Firefox may ask the person again on each `persist()` call while storage is not persisted.
+- **K5b2: commitments follow the binding.** A commitment that names the contact reads its role for the member: role checks, nudge targets and acknowledgements. Split from K5b so each PR stays reviewable.
+- **K5c: `/me`, the read view.**
+- **K5c2: answering from `/me`.** The page's answers go out as signed envelopes recorded `via: member_act`. Split from K5c so the session and the view are reviewed on their own.
+
+**K5b as built.**
+- **The invite** is `<party_id>.<nonce>.<expires>.<MAC>` under `web4-hub invite v1`, with the K4 key file. A movement link has the same number of fields, so only the label tells them apart, and a test holds that each is unreadable as the other. The nonce makes every invite distinct: one minted in the same second as a withdrawn one is not the dead one.
+- **Operator plane:**
+  - `POST /admin/api/contacts/:party_id/invite` returns the link, its digest and its expiry. It needs `HUB_PUBLIC_BASE_URL` and a contact in the book who is not already a member.
+  - `POST /admin/api/invites/:digest/revoke` withdraws an unused invite.
+  - `GET /admin/api/invites` is the admission notice: who joined from which invite, newest first, plus what was withdrawn.
+- **The page.** `GET /j/:token` says "Join <hub>". It sends `KEY_PAGE_CSP`, `no-store` and `no-referrer`, and writes nothing. Its script `/join.js` shares `/keystore.js` with `/client`, so a browser that already holds an identity joins with it. It shows the webview hint, and it sends **no name**, because `MemberAdded` is on the ledger (C3).
+- **The join route.** `POST /members/join` takes an optional `invite`. The route verifies its MAC and date. Then, holding `COMMITMENT_LOCK` until the binding is witnessed, it checks:
+  - the invite is neither used nor withdrawn;
+  - its contact is not yet bound;
+  - its contact is still in the book, because an erased contact's invite dies with the details.
+
+  Law then sees `r6.resource.invite == "verified"` (HUB-LAW.md, "An operator's invite is evidence").
+  - **If law admits,** `ContactBound { party_id, member_lct_id, invite_digest, bound_by }` is written **before** `MemberAdded` (Legion, #961), and the contact's address is copied to the member's entry, so nudges keep reaching the same person.
+    - If the join stops in between, the invite is spent on a key that only its holder can finish with. That key's page still shows the button and its retry completes the admission. Any other key gets 410.
+    - A contact book that can't be written doesn't undo the join: the binding is on the ledger and the log names the missing address.
+  - **If law queues the join,** `MemberJoinRequested` carries the invite (`invite_party_id`, `invite_digest`), and the operator's admission binds it under the same lock. If the invite stopped being good while the join waited (withdrawn, or its contact erased or bound by someone else), the admission stands and binds nothing.
+    - **Expiry is checked when the join is made, not at admission.** A join made with a good invite keeps it while it waits. The operator's approval is the gate, and withdrawing the invite is how the operator stops it.
+    - **One waiting join per invite (Legion, #961).** A forwarded copy can't queue behind the real invitee, because whoever the operator admitted first would take the contact. It gets 409 and writes nothing, and so does an auto-admitting join while that join waits. Denying the wrong request frees the invite.
+    - **Under the lock, the admission re-reads the request.** It must still be waiting, and its key must not have become a member meanwhile. Otherwise the approval is refused with 409 and writes nothing: a key admitted another way would take the invite by the member path that the join route refuses.
+  - **A member who opens an invite** their own join didn't carry is refused with 409, and nothing is written. A forwarded invite must not hand a contact's jobs and address to whichever member opened it. The rare genuine case, a contact who is already a member under another key, goes through the operator.
+  - Opening an invite again from the browser it bound writes nothing.
+- **A browser that can't hold a key** (no WebCrypto Ed25519) is told what to do before it is sent to the organiser (cbp-pm, #959): "This browser can't keep your key safely. Open this link in a current Chrome, Safari or Firefox (on a phone or laptop updated in the last two years). Still stuck? Ask your organiser." The join page and `/me` share that text. The page also posts to `POST /j/unsupported`, which takes no body. The hub sorts its User-Agent into one of six families (chrome, edge, firefox, safari, webview, other) and adds one to an in-memory tally, shown as `unsupported_browsers` in `GET /admin/api/invites`. Nothing finer is kept, and the tally resets when the hub restarts. The first chapter run gives the real refusal rate.
+- **Open:** the admission notice is a listing the operator reads, not a message the carrier sends. Pushing it to the operator needs an operator address, which the hub doesn't hold yet.
+
+**K5b2 as built.**
+- **One id per person.** When `ContactBound` folds, every commitment that names the contact is rewritten to name the member: owner and backup, acknowledgements, deliveries, handoffs, the resolution. `Invites::canonical_event` reads every later commitment event the same way, and the hub writes events through it, so the ledger names the member and a replay agrees with the live hub.
+- **Nothing the contact already holds stops working.** These all act for the member:
+  - a K4 link mailed to the contact before the join;
+  - an operator relaying in the contact's name;
+  - a carrier that listed a nudge before the join and reports it after.
+- **Closed jobs are rewritten too.** History then reads by one id, so a job closed before the binding that named the contact as owner and the member's own key as backup reads afterwards as one person in both places (supervisor, #962). Only open jobs are checked for that (`bind_conflict`), because a closed job no longer queues anyone.
+- **The operator still sees who.** A member who joined from an invite sent no name, so the operator's views show the contact's name from the book. Erasing the contact erases the name (C3).
+- **One person is never owner and backup.** A member never binds an invite their own join didn't carry (K5b, Legion #961). The projection doesn't fold a binding that would merge an open job's owner and backup (`bind_conflict`). The hub checks the same thing before it writes one and refuses with 409 (Legion, #962), so a join is never told it bound a contact that the projection then ignores.
+- **A joiner can't take a contact's id.** Commitments read a contact and a member by the same string, so the join route refuses, with 409, a member id that is a contact's party id in the book or a bound party id (Legion, #962). The hub mints contact ids, so a real joiner never collides.
+- **Open: a binding has no undo.** A wrong binding now moves the contact's jobs, acknowledgements, deliveries and old links, not just an address. An invite bound to a key that law then refuses stays bound to a non-member, and the contact's jobs then name that key. It fails closed: no one else can use the invite, and the key can't act as a member. An operator unbind (or re-mint) is the remedy, built when a chapter needs it.
+- **Replay and handoff nudges (supervisor, #958).** Replaying a ledger derives the K4b handoff nudges for every open commitment whose latest entry is a handoff. A hub that first runs K4b over a ledger that already has handoffs nudges those parties once, about a move that may be old. The live hub predates K1, so it has none; a hub upgraded mid-pilot should expect this.
+
+**K5c as built.**
+- **`GET /me`** is a page under `KEY_PAGE_CSP` that runs only `/keystore.js` and `/me.js`. It writes nothing.
+- **The script asks `GET /me/view` first.** On a 401 it signs a fresh `/v1/auth/challenge` nonce with the browser's key (`action: "me_session"`), posts the envelope to `POST /me/session`, and asks again. A click from an email therefore never shows a sign-in, even though a Strict cookie isn't sent on that click.
+- **The session is a MAC token under its own label,** `web4-hub member session v1`, with the K4 key file. It holds `<member>.<key print>.<nonce>.<expires>.<MAC>` and is good for 12 hours. The key print is the first 64 bits of the SHA-256 of the signer's public key hex.
+  - The cookie is `hub_me`: `Path=/me`, `HttpOnly`, `SameSite=Strict`, and `Secure` whenever `HUB_PUBLIC_BASE_URL` is https.
+  - Only a current member gets one. The signature is checked against the live resolver, and the signer must be in the projection.
+  - A member removed since the session began reads nothing more.
+  - So does a session begun with a key the member has since replaced: every read compares the print with the key the hub resolves for the member now (Legion, #964). The page's silent re-sign then signs in with the new key.
+- **The view** lists open jobs only: **mine** (I'm the owner) and **I'm backing up**. Each row carries the title, the due date, `late` (past due), `waiting_on_you` (the queue sits at my position) and the other party's name. The page builds rows from text nodes, never markup. The response is `no-store`.
+- **No session list (Legion, #964).** The browser key is the credential, not the session: a device that holds the key can sign a fresh session whenever it likes. Revoking a session therefore buys little. Removing the member, or replacing their key, ends their sessions. The one thing that isn't possible is signing a device out while it keeps its key; for a 12-hour read of one's own jobs, that is the trade.
+
+**K5c2 as built.**
+- **Each row in `/me/view` carries the answers a link would offer,** labelled the same way ("Yes, it's mine", "Hand it to Sam"…). There is one function behind both, `acts_for`.
+- **An answer is `POST /me/act`:** a signed envelope `{action: "commitment_act", commitment_id, act}` from the browser's key. The session cookie reads; it never writes.
+- **The hub checks before it writes.** It verifies the envelope against the live resolver. Then, under the lock, the shared `act_as` requires the signer to be a member now (so a removal can't land between the check and the entry; Legion, #965) and re-derives the role and the open answers, the same path a link takes. The entry is recorded `via: member_act` with no link digest: the member's own word, the strongest evidence an answer carries (§5.1).
+- **Refusals write nothing:**
+  - not named on the job: 403;
+  - a key signing for another member: 401;
+  - the wrong action, or an unknown answer: 400;
+  - an answer not open now, such as a second acknowledgement: 409;
+  - a resolvable non-member who sits in the leads role: 403.
+
+**Questions asked, and answered (Legion, #959, 10-29 20:17Z):**
+- (a) **Does an invite admit on its own?** Yes, because an invite is no more trust than the K4 link the contact already holds. It holds only with the five conditions in (1): atomic once, MAC verified, 7-day life, revocation, and the operator told.
+- (b) **Are browsers without WebCrypto Ed25519 refused?** Yes, with "ask your organiser" and no JS fallback library: a bundled library would put an extractable key in page memory. The keys that actually get lost are lost to webviews and eviction, covered in (3).
+- (c) **Does fixing `/client` wait for its own PR after K5?** No. The migration keeps the same key and LCT, so it is small, and K5 puts more keys on the same origin. It lands first, as K5a, together with the CSP.
 
 ## 8. The 11-07 hackathon
 
@@ -281,6 +390,18 @@ The interim agreed on the forum stands:
 - a calendar reminder on the operator's side.
 
 After 11-07, the hackathon's six commitments are the first data to enter K1. The event is then the first reusable template (outcome 5).
+
+### 8.1 Operator runbook (after 11-07, once K1-K5c2 are deployed)
+
+Every call below goes to the operator plane (`http://127.0.0.1:8772`, loopback only). The daemon needs `HUB_PUBLIC_BASE_URL` set to the address volunteers reach the hub at, or links and invites are refused or omitted. The whole path is one test: `the_pilot_path_from_contact_to_own_word` (rest/commitments/invites.rs).
+
+1. **Add each volunteer as a contact.** `POST /admin/api/contacts` `{"name": "Robin", "address": "robin@example.org"}` returns `party.party_id`. The name and address stay in `contacts.json` beside the ledger (0600), never on it.
+2. **Open each commitment.** `POST /admin/api/commitments` `{"title", "owner": {"party_id", "kind": "contact"|"member"}, "backup": {…}, "leads_role": "<role entity id>", "ladder": [48, 24, 24], "due_at": "<RFC 3339>"?}`. The leads role must be a live role entity.
+3. **Run the carrier.** Create `hub-nudge --config nudge.json` with `hub_admin_url`, `smtp_url`, `from`, `operator_address`, `state_file`, and optionally `netrc_file` (0600). Run it from a systemd timer, or with `--every 300`, and try `--dry-run` first. Each nudge carries the volunteer's own link (`/c/…`): answering through it needs no account.
+4. **Invite whoever should hold a key.** `POST /admin/api/contacts/:party_id/invite` returns `{link, invite_digest, expires_at}`, good for 7 days. Mail the link yourself. Opening it shows "Join <hub>". The volunteer's browser makes a key, and the chapter's law decides; the pilot norm `INVITED-JOIN-ADMITS` admits (HUB-LAW.md). Their open jobs become theirs as a member, and their old link keeps working.
+5. **Read the admission notice.** `GET /admin/api/invites` shows who joined from which invite, newest first. An unexpected name here means a forwarded invite: remove that member, and mint the contact a new invite. `POST /admin/api/invites/:invite_digest/revoke` withdraws one that hasn't been used.
+6. **Volunteers use `/me`** in the browser they joined from. It shows what they own and what they back up, signs in silently, and records their answers as their own word (`via: member_act`). A volunteer on a new browser, or one whose key was cleared, needs a fresh invite. The operator then links the new member to the old one with Slice E's `attest-predecessor`.
+7. **Watch the queue.** `GET /admin/api/commitments` lists open jobs by queue position. A job left silent past its window moves to the backup, then to the leads; nothing resolves on its own (C1).
 
 ## 9. Open questions
 

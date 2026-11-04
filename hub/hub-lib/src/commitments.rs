@@ -377,14 +377,179 @@ pub fn check(commitments: &BTreeMap<String, Commitment>, event: &HubEvent) -> Re
 
 /// A link digest is present exactly when the word came through a link, and is the shape the hub
 /// writes: 32 lowercase hex characters (K4).
+fn is_digest(d: &str) -> bool {
+    d.len() == LINK_DIGEST_LEN && d.chars().all(|ch| ch.is_ascii_digit() || ('a'..='f').contains(&ch))
+}
+
 fn check_link_digest(via: AckVia, digest: Option<&str>) -> Result<(), Refusal> {
     match (via, digest) {
-        (AckVia::Link, Some(d)) if d.len() == LINK_DIGEST_LEN
-            && d.chars().all(|ch| ch.is_ascii_digit() || ('a'..='f').contains(&ch)) => Ok(()),
+        (AckVia::Link, Some(d)) if is_digest(d) => Ok(()),
         (AckVia::Link, _) => Err(Refusal::Invalid(format!(
             "a link entry carries its link's digest: {LINK_DIGEST_LEN} lowercase hex characters"))),
         (_, Some(_)) => Err(Refusal::Invalid("only a link entry carries a link digest".into())),
         (_, None) => Ok(()),
+    }
+}
+
+/// K5b: what the ledger says about invites. An invite is a stateless token until it is used or
+/// withdrawn, and these are the only two ways it stops admitting before it expires.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Invites {
+    /// Invite digest → the contact it bound.
+    pub used: BTreeMap<String, String>,
+    pub revoked: BTreeSet<String>,
+    /// Contact `party_id` → the member LCT it became.
+    pub bound: BTreeMap<String, Uuid>,
+}
+
+impl Invites {
+    /// The checks a K5b event must pass. As with [`check`], the caller runs this and the witness
+    /// under one lock, so two joins racing on one invite cannot both bind.
+    pub fn check(&self, event: &HubEvent) -> Result<(), Refusal> {
+        let refuse = |m: &str| Err(Refusal::Invalid(m.to_string()));
+        match event {
+            HubEvent::ContactBound { party_id, member_lct_id, invite_digest, .. } => {
+                if !is_digest(invite_digest) {
+                    return refuse("an invite digest is 32 lowercase hex characters");
+                }
+                if self.used.contains_key(invite_digest) {
+                    return refuse("this invite has already been used");
+                }
+                if self.revoked.contains(invite_digest) {
+                    return refuse("this invite was withdrawn");
+                }
+                if self.bound.contains_key(party_id) {
+                    return refuse("this contact is already a member");
+                }
+                if self.bound.values().any(|m| m == member_lct_id) {
+                    return refuse("this member is already bound to a contact");
+                }
+                Ok(())
+            }
+            HubEvent::InviteRevoked { invite_digest, .. } => {
+                if !is_digest(invite_digest) {
+                    return refuse("an invite digest is 32 lowercase hex characters");
+                }
+                if self.used.contains_key(invite_digest) {
+                    return refuse("this invite has already been used, so there is nothing to withdraw");
+                }
+                if self.revoked.contains(invite_digest) {
+                    return refuse("this invite was already withdrawn");
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Fold one K5b event. An event the check would have refused changes nothing, so a binding
+    /// that slipped past it cannot move a contact a second time on replay.
+    pub fn fold(&mut self, event: &HubEvent) {
+        if self.check(event).is_err() {
+            return;
+        }
+        match event {
+            HubEvent::ContactBound { party_id, member_lct_id, invite_digest, .. } => {
+                self.used.insert(invite_digest.clone(), party_id.clone());
+                self.bound.insert(party_id.clone(), *member_lct_id);
+            }
+            HubEvent::InviteRevoked { invite_digest, .. } => {
+                self.revoked.insert(invite_digest.clone());
+            }
+            _ => {}
+        }
+    }
+
+    /// Why an invite with this digest no longer admits, if it doesn't.
+    pub fn spent(&self, digest: &str) -> Option<&'static str> {
+        if self.used.contains_key(digest) {
+            Some("this invite has already been used")
+        } else if self.revoked.contains(digest) {
+            Some("this invite was withdrawn")
+        } else {
+            None
+        }
+    }
+
+    /// The id a party goes by now (K5b2): a contact who joined is the member they became, and
+    /// any other id is itself.
+    pub fn canonical_id(&self, party_id: &str) -> String {
+        self.bound.get(party_id).map_or_else(|| party_id.to_string(), Uuid::to_string)
+    }
+
+    pub fn canonical(&self, p: &PartyRef) -> PartyRef {
+        match (p.kind, self.bound.get(&p.party_id)) {
+            (PartyKind::Contact, Some(m)) => PartyRef { party_id: m.to_string(), kind: PartyKind::Member },
+            _ => p.clone(),
+        }
+    }
+
+    /// The contact a member joined as, if they joined from an invite.
+    pub fn contact_of(&self, member: &str) -> Option<&str> {
+        self.bound.iter().find(|(_, m)| m.to_string() == member).map(|(p, _)| p.as_str())
+    }
+
+    /// A commitment event with every party it names read as the party goes by now. The hub
+    /// writes events this way, and the projection reads old ones this way, so an operator, a link
+    /// or a carrier still holding the contact's id acts for the member it became.
+    pub fn canonical_event(&self, event: &HubEvent) -> HubEvent {
+        let id = |s: &String| self.canonical_id(s);
+        let mut e = event.clone();
+        match &mut e {
+            HubEvent::CommitmentOpened { owner, backup, .. } => {
+                *owner = self.canonical(owner);
+                *backup = self.canonical(backup);
+            }
+            HubEvent::CommitmentAcknowledged { party_id, .. } => *party_id = id(party_id),
+            HubEvent::CommitmentMoved { by, to, .. } => {
+                *by = id(by);
+                if let Some(t) = to {
+                    *t = self.canonical(t);
+                }
+            }
+            HubEvent::CommitmentResolved { by, .. } => *by = id(by),
+            HubEvent::NudgeDelivered { party_id, .. } => *party_id = id(party_id),
+            _ => {}
+        }
+        e
+    }
+}
+
+/// Why binding `party_id` to `member` would be wrong for the commitments: an open one that names
+/// them both would have one person as its owner and its backup (K5b2).
+pub fn bind_conflict(commitments: &BTreeMap<String, Commitment>, party_id: &str, member: &str) -> Option<String> {
+    commitments.values().filter(|c| c.is_open()).find(|c| {
+        let names = [c.owner.party_id.as_str(), c.backup.party_id.as_str()];
+        names.contains(&party_id) && names.contains(&member)
+    }).map(|c| format!("{} names this contact and this member as its owner and backup", c.commitment_id))
+}
+
+/// Read every commitment that names a contact as naming the member it became (K5b2). Applied when
+/// `ContactBound` folds, so the projection and every check after it know the person by one id.
+pub fn rebind(commitments: &mut BTreeMap<String, Commitment>, party_id: &str, member: &str) {
+    let member_ref = || PartyRef { party_id: member.to_string(), kind: PartyKind::Member };
+    let swap = |s: &mut String| if s == party_id { *s = member.to_string() };
+    for c in commitments.values_mut() {
+        for p in [&mut c.owner, &mut c.backup] {
+            if p.party_id == party_id {
+                *p = member_ref();
+            }
+        }
+        if let Some(via) = c.acknowledged.remove(party_id) {
+            c.acknowledged.insert(member.to_string(), via);
+        }
+        for d in &mut c.deliveries {
+            swap(&mut d.party_id);
+        }
+        for h in &mut c.handoffs {
+            if h.previous_owner.party_id == party_id {
+                h.previous_owner = member_ref();
+            }
+            swap(&mut h.by);
+        }
+        if let Some(r) = &mut c.resolved {
+            swap(&mut r.by);
+        }
     }
 }
 
@@ -1177,5 +1342,110 @@ mod tests {
         assert_eq!(targets(&m), vec![("alex".into(), NudgeAbout::Escalated)]);
         // A report about an entry that is none of these is still refused.
         assert!(matches!(check(&m, &delivered(51, "sam", "email", true)), Err(Refusal::Invalid(_))));
+    }
+
+    #[test]
+    fn commitments_follow_a_contact_into_the_member_it_became() {
+        let (op, robin_m, kim_m) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let robin_s = robin_m.to_string();
+        let contact = |id: &str| PartyRef { party_id: id.into(), kind: PartyKind::Contact };
+        let open = |id: &str, owner: PartyRef, backup: PartyRef| match opened(id) {
+            HubEvent::CommitmentOpened { commitment_id, title, leads_role, ladder, due_at, recorded_by, basis, .. } =>
+                HubEvent::CommitmentOpened { commitment_id, title, owner, backup, leads_role, ladder, due_at,
+                    recorded_by, basis },
+            _ => unreachable!(),
+        };
+        let bound = |party: &str, member: Uuid, c: char| HubEvent::ContactBound {
+            party_id: party.into(), member_lct_id: member, invite_digest: c.to_string().repeat(LINK_DIGEST_LEN),
+            bound_by: op };
+        let ack = |id: &str, party: &str, via| HubEvent::CommitmentAcknowledged {
+            commitment_id: id.into(), party_id: party.into(), via, link_digest: (via == AckVia::Link).then(|| dg()).flatten() };
+        let mut st = crate::state::HubState::default();
+        let mut n = 0;
+        let mut apply = |st: &mut crate::state::HubState, e: HubEvent| {
+            n += 1;
+            st.apply(&e, at(n), n as u64);
+        };
+
+        apply(&mut st, open("c", contact("robin"), member("sam")));
+        apply(&mut st, ack("c", "robin", AckVia::Operator));
+        apply(&mut st, HubEvent::NudgeDelivered { commitment_id: "c".into(), about_index: 1,
+            party_id: "robin".into(), channel: "email".into(), ok: true });
+        // Kim, still a contact, is the backup beside the member Kim's key already is.
+        apply(&mut st, open("k", member(&kim_m.to_string()), contact("kim")));
+
+        apply(&mut st, bound("robin", robin_m, 'a'));
+        let c = &st.commitments["c"];
+        assert_eq!(c.owner, member(&robin_s));
+        assert_eq!(c.acknowledged.get(&robin_s), Some(&AckVia::Operator));
+        assert!(!c.acknowledged.contains_key("robin"));
+        assert_eq!(nudge_attempts_since(&st.commitments, &robin_s, at(0)), 1);
+        assert!(!c.owner_acknowledged());
+
+        // A link mailed to the contact still speaks for them: read as the member, it is the owner's word.
+        let late = ack("c", "robin", AckVia::Link);
+        let read = st.invites.canonical_event(&late);
+        assert!(matches!(&read, HubEvent::CommitmentAcknowledged { party_id, .. } if *party_id == robin_s));
+        check(&st.commitments, &read).expect("the member is the owner");
+        assert!(check(&st.commitments, &late).is_err(), "the raw contact id names nobody on the job now");
+        apply(&mut st, late);
+        assert!(st.commitments["c"].owner_acknowledged());
+        apply(&mut st, HubEvent::NudgeDelivered { commitment_id: "c".into(), about_index: 1,
+            party_id: "robin".into(), channel: "email".into(), ok: true });
+        assert_eq!(nudge_attempts_since(&st.commitments, &robin_s, at(0)), 2, "a late report counts for the member");
+
+        // A job opened later for the contact is the member's.
+        apply(&mut st, open("d", contact("robin"), member("sam")));
+        assert_eq!(st.commitments["d"].owner, member(&robin_s));
+        let both = st.invites.canonical_event(&open("e", contact("robin"), member(&robin_s)));
+        assert!(check(&st.commitments, &both).is_err(), "one person is not their own backup");
+
+        // A binding that would make Kim owner and backup of "k" is not folded.
+        assert!(bind_conflict(&st.commitments, "kim", &kim_m.to_string()).is_some());
+        let before = (st.invites.clone(), st.commitments["k"].backup.clone());
+        apply(&mut st, bound("kim", kim_m, 'b'));
+        assert_eq!((st.invites.clone(), st.commitments["k"].backup.clone()), before);
+        // Once that job is closed, nothing stands in the way.
+        apply(&mut st, HubEvent::CommitmentResolved { commitment_id: "k".into(), outcome: Outcome::Withdrawn,
+            by: op.to_string(), resolved_at: at(0), owner_acknowledged: false, link_digest: None });
+        assert!(bind_conflict(&st.commitments, "kim", &kim_m.to_string()).is_none());
+        assert_eq!(st.invites.contact_of(&robin_s), Some("robin"));
+        apply(&mut st, HubEvent::CommitmentResolved { commitment_id: "c".into(), outcome: Outcome::Done,
+            by: "robin".into(), resolved_at: at(0), owner_acknowledged: true, link_digest: None });
+        assert_eq!(st.commitments["c"].resolved.as_ref().map(|r| r.by.as_str()), Some(robin_s.as_str()));
+    }
+
+    #[test]
+    fn an_invite_binds_once_a_contact_once_and_a_withdrawn_one_never() {
+        let (op, m1, m2) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let d = |c: char| c.to_string().repeat(LINK_DIGEST_LEN);
+        let bound = |party: &str, member: Uuid, digest: String| HubEvent::ContactBound {
+            party_id: party.into(), member_lct_id: member, invite_digest: digest, bound_by: op };
+        let revoked = |digest: String| HubEvent::InviteRevoked { invite_digest: digest, revoked_by: op };
+        let mut inv = Invites::default();
+        let refused = |inv: &Invites, e: &HubEvent| inv.check(e).unwrap_err().to_string();
+
+        assert!(refused(&inv, &bound("p", m1, "A".repeat(LINK_DIGEST_LEN))).contains("lowercase hex"));
+        assert!(refused(&inv, &revoked(d('a')[..8].to_string())).contains("lowercase hex"));
+        inv.fold(&bound("p", m1, d('a')));
+        assert_eq!(inv.bound.get("p"), Some(&m1));
+        assert_eq!(inv.spent(&d('a')), Some("this invite has already been used"));
+        assert!(refused(&inv, &bound("q", m2, d('a'))).contains("already been used"));
+        assert!(refused(&inv, &bound("p", m2, d('b'))).contains("contact is already a member"));
+        assert!(refused(&inv, &bound("q", m1, d('b'))).contains("member is already bound"));
+        assert!(refused(&inv, &revoked(d('a'))).contains("nothing to withdraw"));
+
+        inv.fold(&revoked(d('c')));
+        assert_eq!(inv.spent(&d('c')), Some("this invite was withdrawn"));
+        assert!(refused(&inv, &bound("q", m2, d('c'))).contains("withdrawn"));
+        assert!(refused(&inv, &revoked(d('c'))).contains("already withdrawn"));
+
+        // A refused event changes nothing on replay.
+        let before = inv.clone();
+        inv.fold(&bound("q", m2, d('a')));
+        inv.fold(&bound("p", m2, d('d')));
+        assert_eq!(inv, before);
+        inv.fold(&bound("q", m2, d('d')));
+        assert_eq!(inv.bound.len(), 2);
     }
 }

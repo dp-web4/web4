@@ -1,6 +1,8 @@
 //! Held ignition's seal (hub/docs/PRD_HELD_IGNITION.md §3.2): a copy of the vault passphrase,
-//! sealed by `systemd-creds --user` so it opens only on this host for this user, and read back by
-//! the hub at boot.
+//! sealed by `systemd-creds --user` and read back by the hub at boot. A host-key seal relies on
+//! host-secret custody plus the UID, username, and machine ID: a full copy carrying those values
+//! and the secret can carry decryption capability to another machine. TPM-backed tiers also
+//! require the original TPM chip; the measured pcr_mask 0 does not attest to the boot state.
 //!
 //! The tier is read from the sealed file, never from the flag that asked for it. In `--user` mode
 //! systemd chooses the key itself: on HUB a `host+tpm2` request came back host-only, and on pub a

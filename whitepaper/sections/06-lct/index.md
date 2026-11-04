@@ -29,7 +29,7 @@ An LCT is a JSON-LD document (`@type: web4:LinkedContextToken`) with **six requi
 
 Read that list against the equation. The `LCT` term and the `T3/V3 * MRH` term are not separate systems that reference each other — **the token is the container**: every LCT *carries* its own relevancy horizon and its own trust and value tensors as mandatory fields. The MRH section and the tensor section that follow describe the contents of every LCT ever minted, not auxiliary databases beside it.
 
-The identifier is **self-certifying**. The binding (entity, key, optional hardware anchor) is serialized as deterministic CBOR, signed as a COSE_Sign1 `binding_proof`, and the LCT's identifier is derived from the proof itself: `lct:web4:` + multibase32(sha256(binding_proof)). The name cannot be pointed at anything other than the binding that produced it — the identifier *is* a hash of the anchoring act.
+The identifier is **derived from the binding key**. The binding (entity, key, optional hardware anchor) is serialized as deterministic CBOR and signed as a COSE_Sign1 `binding_proof`; the LCT's identifier is a pure function of the binding public key: `lct:web4:mb32:b` + base32(sha256(raw public key)), at full digest width. No registry allocates it, so an LCT can be minted offline or in a society the verifier has never met, and its uniqueness rests on key-generation entropy, not on coordination. Any registry or verifier re-derives the identifier from the document's own key and rejects a mismatch, so an identifier cannot be pointed at a key it does not belong to. That check proves consistency, not possession: *acting* as the identifier still requires a valid `binding_proof` signed by the key. Because the identifier follows the key, a key rotation yields a new identifier, and continuity is carried by lineage (below).
 
 ## Birth: witnessed, or bootstrapped
 
@@ -39,7 +39,7 @@ A bootstrap path exists for entities without a society: the **self-issued LCT** 
 
 ## The capability ladder
 
-LCTs are graded into six **capability levels** (0–5), each with explicit required fields: **STUB** (a placeholder), **MINIMAL** (self-issued), **BASIC** (at least one MRH relationship), **STANDARD** (witnessed, with oracle-computed tensors and attestation), **FULL** (birth certificate, ≥3 witnesses, permanent citizen pairing), and **HARDWARE** (a hardware-anchored EAT attestation). Levels 0→4 are additive — an LCT accretes capability as its record grows. Level 4→5 is **re-issuance**: hardware binding cannot be bolted on after the fact, because the anchor must be inside the binding proof the identifier hashes. Unimplemented components are carried as explicit stubs (`{stub: true, reason}`) — partial presence is declared, not hidden.
+LCTs are graded into six **capability levels** (0–5), each with explicit required fields: **STUB** (a placeholder), **MINIMAL** (self-issued), **BASIC** (at least one MRH relationship), **STANDARD** (witnessed, with oracle-computed tensors and attestation), **FULL** (birth certificate, ≥3 witnesses, permanent citizen pairing), and **HARDWARE** (a hardware-anchored EAT attestation). Levels 0→4 are additive — an LCT accretes capability as its record grows. Level 4→5 is **re-issuance**: hardware binding cannot be bolted on after the fact, because the anchor must sit inside the signed binding from creation. Unimplemented components are carried as explicit stubs (`{stub: true, reason}`) — partial presence is declared, not hidden.
 
 ## One presence, many devices
 
