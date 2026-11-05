@@ -4,7 +4,8 @@ Scope: all 36 open Web4 issues, oldest first. Every issue was triaged from its b
 
 ## Actions
 
-- Closed #709 as fully superseded by repository-specific work. The Hub defence-in-depth half landed in #792; Hestia #481 and #716 carry the remaining gate/artifact/deploy enforcement.
+- Reopened #709 after independent review. #792 landed the Hub defence-in-depth half, but Hestia #481 and #716 do not explicitly prove the issue's induced-write refusal and escalation criterion for the Hub deploy closure. That acceptance remains open; the earlier closure was incorrect.
+- Deploy closure: #709 remains open for gate-enforced refusal and escalation of systemd/ExecStart, deploy-script, staged-artifact and ratification-manifest writes.
 - Closed #817 as moved. The Hub route is intentionally operator-only on the public plane; the remaining client defect now lives in Hestia #1493, which requires sealed-channel roster resolution and joined-vs-connected error semantics.
 - Narrowed #818 to the two remaining defects: optional join names and no governed post-admit member-profile amendment.
 - Narrowed #867 to the remaining mailbox work after #869: consumer/sender dedupe, retention/compaction and legacy migration. Durable acceptance and authenticated fetch/ACK are no longer presented as unimplemented.
