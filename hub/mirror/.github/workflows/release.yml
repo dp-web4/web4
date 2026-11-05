@@ -165,6 +165,10 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
       PRERELEASE: ${{ needs.version.outputs.prerelease }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -191,7 +195,7 @@ jobs:
           if have != want:
               sys.exit(f"::error::asset set differs. missing: {sorted(want - have)} extra: {sorted(have - want)}")
           print(f"exactly the {len(want)} expected files")
-          lines = Path(".github/workflows/release.yml").read_text().splitlines()
+          lines = (Path(os.environ["GITHUB_WORKSPACE"]) / ".github/workflows/release.yml").read_text().splitlines()
           start = lines.index("          subject-path: |") + 1
           subjects = []
           for line in lines[start:]:
