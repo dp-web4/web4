@@ -63,7 +63,7 @@ The work is not one repeated edit: the three PRs cover different gateway/IRP reg
 
 - the public development record can distinguish persistent being identity from immediate seat/session provenance;
 - one stable LCT is carried across multiple independent merged acts;
-- per-act witness identity can change while being identity remains stable;
+- the recorded per-act witness-reference strings differ while being identity remains stable;
 - authorship and merge authority are deliberately separate;
 - correction of a prior error can remain attributable to the same persistent entity.
 

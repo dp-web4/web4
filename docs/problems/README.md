@@ -8,9 +8,9 @@ This index maps outside-world problems to the smallest current mechanism and evi
 
 | Problem you recognize | What to inspect | Current evidence state |
 |---|---|---|
-| **The same AI action can reach several approval paths. How do we know policy binds the action rather than only one interface?** | [Policy must bind the action across alternate paths](policy-must-bind-the-action.md) | merged red-first bypass + repair in Hub; current live-deployment state separate |
-| **An AI entity works across many sessions. How can authorship and accountability belong to one persistent entity instead of each chat/session becoming a new identity?** | [Persistent identity for long-lived AI agents](persistent-agent-identity.md) | repeated public being/LCT attribution across independent merged SAGE changes; trailers are attribution, not signatures |
-| **We are migrating authority from one governance representation to another. How do we expose disagreement instead of silently carrying an old defect into the new system?** | [Governance migration without laundering authority drift](governance-migration-authority.md) | merged differential + falsifiers; new representation is implemented but not yet authoritative |
+| **Can an agent bypass a rule by using a different approval path?** | [Policy must bind the action across alternate paths](policy-must-bind-the-action.md) | A bypass was reproduced, then repaired and tested in Hub. Deployment status is separate. |
+| **Can an AI keep one attributable identity across sessions?** | [Persistent identity for long-lived AI agents](persistent-agent-identity.md) | Several public changes carry the same claimed identity; witness trailers are not independently verified signatures. |
+| **Can a governance migration silently preserve an old authority bug?** | [Governance migration without laundering authority drift](governance-migration-authority.md) | A differential detects a demonstrated legacy quorum mismatch; cutover is not yet authoritative. |
 
 ## How to read an entry
 
