@@ -9,7 +9,7 @@ This index maps outside-world problems to the smallest current mechanism and evi
 | Problem you recognize | What to inspect | Current evidence state |
 |---|---|---|
 | **Can an agent bypass a rule by using a different approval path?** | [Policy must bind the action across alternate paths](policy-must-bind-the-action.md) | A bypass was reproduced, then repaired and tested in Hub. Deployment status is separate. |
-| **Can an AI keep one attributable identity across sessions?** | [Persistent identity for long-lived AI agents](persistent-agent-identity.md) | Several public changes carry the same claimed identity; witness trailers are not independently verified signatures. |
+| **Can an AI keep one attributable identity across sessions?** | [Persistent identity for long-lived AI agents](persistent-agent-identity.md) | Several public changes carry the same claimed identity; trailers are attribution, not signatures, and their witness references remain unverified. |
 | **Can a governance migration silently preserve an old authority bug?** | [Governance migration without laundering authority drift](governance-migration-authority.md) | A differential detects a demonstrated legacy quorum mismatch; cutover is not yet authoritative. |
 
 ## How to read an entry
