@@ -14,7 +14,7 @@ from typing import Mapping, Any
 
 
 # Current key-derived canonical Web4 presence ids; aliases are not presence.
-_CANONICAL_LCT = re.compile(r"lct:web4:mb32:b[a-z2-7]{52}\\Z")
+_CANONICAL_LCT = re.compile(r"lct:web4:mb32:b[a-z2-7]{52}")
 
 
 class InvalidNoticeAddress(ValueError):
