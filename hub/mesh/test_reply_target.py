@@ -23,7 +23,7 @@ class ReplyTargetTests(unittest.TestCase):
 
     def test_present_but_malformed_author_is_never_a_fallback(self):
         for bad in [None, "", "router-member-uuid", "lct:web4:member:legacy", 7,
-                    "lct:web4:mb32:b" + "z" * 52, self.CANONICAL + "suffix"]:
+                    "lct:web4:mb32:b" + "0" * 52, self.CANONICAL + "suffix"]:
             with self.subTest(bad=bad):
                 with self.assertRaises(InvalidNoticeAddress):
                     select_reply_target({"from": "router-member-uuid", "from_lct": bad})
