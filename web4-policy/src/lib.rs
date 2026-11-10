@@ -339,6 +339,7 @@ impl<E: PolicyExtension> Law<E> {
             if !seen_ids.insert(norm.id.clone()) {
                 return Err(anyhow!("duplicate norm id '{}'", norm.id));
             }
+            check_matches_value(&norm.operator, &norm.value, &format!("norm '{}'", norm.id))?;
         }
 
         // Response rules (W4IP N3): same shape rules as norms, own id
@@ -364,6 +365,7 @@ impl<E: PolicyExtension> Law<E> {
             if !response_ids.insert(rule.id.clone()) {
                 return Err(anyhow!("duplicate response rule id '{}'", rule.id));
             }
+            check_matches_value(&rule.operator, &rule.value, &format!("response rule '{}'", rule.id))?;
         }
 
         // Escalation structural shape (the generic half — the role-vocabulary
@@ -371,6 +373,11 @@ impl<E: PolicyExtension> Law<E> {
         for esc in &self.escalation {
             if esc.condition.is_empty() {
                 return Err(anyhow!("escalation trigger has empty condition"));
+            }
+            // Only a condition that parses is checked here: an unparseable one
+            // keeps its existing (evaluation-time) handling.
+            if let Ok(c) = Condition::parse(&esc.condition) {
+                check_matches_value(&c.operator, &c.value, &format!("escalation '{}'", esc.condition))?;
             }
         }
 
@@ -382,8 +389,7 @@ impl<E: PolicyExtension> Law<E> {
             }
             if !proc_ids.insert(proc.id.clone()) {
                 return Err(anyhow!("duplicate procedure id '{}'", proc.id));
-            }
-        }
+            }        }
 
         // Domain-specific validation (admission/delegation/atp roles, etc.).
         self.ext.validate(self)
@@ -684,7 +690,7 @@ impl<E: PolicyExtension> Law<E> {
 
 /// Apply an operator: does `actual <op> expected` hold? (Comparisons require
 /// numerics; `==`/`!=` deep-equality; `in`/`not_in` over sequences; `matches`
-/// reserved — currently false.)
+/// is an unanchored regular-expression search, see [`regex_matches`].)
 fn operator_matches(
     op: &Operator,
     actual: &serde_yaml::Value,
@@ -722,7 +728,45 @@ fn operator_matches(
                 false
             }
         }
-        Matches => false,
+        Matches => regex_matches(actual, expected),
+    }
+}
+
+/// `matches`: the expected value is a regular expression (Rust `regex` syntax),
+/// searched UNANCHORED in the actual value — write `^…$` to match the whole
+/// value. A scalar actual (string, number, bool) is matched as its text; a
+/// sequence, mapping or null never matches. The pattern is checked at
+/// [`Law::validate`], so an invalid one cannot reach here from a validated
+/// law; if it does (a law evaluated without validation) it does not match.
+///
+/// Before web4#988 this arm was `false`: a `matches` norm loaded, counted in
+/// the law hash, and never fired, so a `deny` written with it failed open.
+fn regex_matches(actual: &serde_yaml::Value, expected: &serde_yaml::Value) -> bool {
+    let pattern = match expected {
+        serde_yaml::Value::String(p) => p,
+        _ => return false,
+    };
+    let text = match actual {
+        serde_yaml::Value::String(s) => s.clone(),
+        serde_yaml::Value::Number(n) => n.to_string(),
+        serde_yaml::Value::Bool(b) => b.to_string(),
+        _ => return false,
+    };
+    regex::Regex::new(pattern).map(|re| re.is_match(&text)).unwrap_or(false)
+}
+
+/// Load-time check for a `matches` value: it must be a string that compiles.
+/// Rejecting here keeps a malformed pattern from becoming a norm that silently
+/// never fires — the failure web4#988 reported for the whole operator.
+fn check_matches_value(op: &Operator, value: &serde_yaml::Value, what: &str) -> Result<()> {
+    if *op != Operator::Matches {
+        return Ok(());
+    }
+    match value {
+        serde_yaml::Value::String(p) => regex::Regex::new(p)
+            .map(|_| ())
+            .map_err(|e| anyhow!("{what} uses `matches` with an invalid regular expression: {e}")),
+        _ => Err(anyhow!("{what} uses `matches`, whose value must be a regular-expression string")),
     }
 }
 
@@ -752,6 +796,86 @@ mod tests {
             action: action.to_string(),
             ..Default::default()
         }
+    }
+
+    fn req_target(target: serde_yaml::Value) -> R6Request {
+        let mut payload = serde_yaml::Mapping::new();
+        payload.insert("target".into(), target);
+        R6Request {
+            role: "citizen".into(),
+            action: "act".into(),
+            payload: serde_yaml::Value::Mapping(payload),
+            ..Default::default()
+        }
+    }
+
+    fn matches_law(pattern: &str) -> Law {
+        Law::parse_and_validate(&format!(
+            r#"
+version: "1.0.0"
+norms:
+  - id: deny_pattern
+    selector: r6.request.payload.target
+    operator: "matches"
+    value: '{pattern}'
+    decision: deny
+    priority: 10
+"#
+        ))
+        .unwrap()
+    }
+
+    // web4#988: the exact law from the report. Before the fix every target was allowed.
+    #[test]
+    fn matches_deny_all_denies_every_resolving_target() {
+        let law = matches_law(".*");
+        for t in ["a", "/etc/hosts", "", "hub://x/y", "lct:web4:abc"] {
+            assert_eq!(law.evaluate(&req_target(t.into())), Decision::Deny, "target {t:?}");
+        }
+        let out = law.evaluate_outcome(&req_target("a".into()));
+        assert_eq!(out.winning_norm.as_deref(), Some("deny_pattern"));
+    }
+
+    #[test]
+    fn matches_is_an_unanchored_search_and_anchors_work() {
+        let law = matches_law("secret");
+        assert_eq!(law.evaluate(&req_target("a/secret/b".into())), Decision::Deny);
+        assert_eq!(law.evaluate(&req_target("public".into())), Decision::Allow);
+        let anchored = matches_law("^secret$");
+        assert_eq!(anchored.evaluate(&req_target("a/secret/b".into())), Decision::Allow);
+        assert_eq!(anchored.evaluate(&req_target("secret".into())), Decision::Deny);
+    }
+
+    #[test]
+    fn matches_reads_scalars_as_text_and_never_matches_containers() {
+        let law = matches_law("^4[0-9]$");
+        assert_eq!(law.evaluate(&req_target(serde_yaml::Value::Number(42.into()))), Decision::Deny);
+        assert_eq!(law.evaluate(&req_target(serde_yaml::Value::Number(7.into()))), Decision::Allow);
+        let any = matches_law(".*");
+        assert_eq!(any.evaluate(&req_target(serde_yaml::Value::Bool(true))), Decision::Deny);
+        assert_eq!(any.evaluate(&req_target(serde_yaml::Value::Sequence(vec!["x".into()]))), Decision::Allow);
+        assert_eq!(any.evaluate(&req_target(serde_yaml::Value::Null)), Decision::Allow);
+    }
+
+    #[test]
+    fn matches_with_an_invalid_or_non_string_pattern_is_rejected_at_load() {
+        for value in ["'(unclosed'", "42", "[a, b]"] {
+            let yaml = format!(
+                "version: \"1.0.0\"\nnorms:\n  - id: n\n    selector: r6.request.action\n    operator: \"matches\"\n    value: {value}\n    decision: deny\n    priority: 1\n"
+            );
+            let err = Law::<NoExtension>::parse_and_validate(&yaml).err().expect(&yaml);
+            assert!(err.to_string().contains("matches"), "{err}");
+        }
+    }
+
+    #[test]
+    fn matches_in_an_escalation_condition_is_checked_and_fires() {
+        let bad = "version: \"1.0.0\"\nescalation:\n  - condition: \"r6.request.action matches '('\"\n    escalate_to: sovereign\n";
+        assert!(Law::<NoExtension>::parse_and_validate(bad).is_err());
+        let good = "version: \"1.0.0\"\nescalation:\n  - condition: \"r6.request.action matches '^tre'\"\n    escalate_to: sovereign\n";
+        let law: Law = Law::parse_and_validate(good).unwrap();
+        assert_eq!(law.evaluate(&req("citizen", "treasury_move")), Decision::Escalate);
+        assert_eq!(law.evaluate(&req("citizen", "join")), Decision::Allow);
     }
 
     #[test]
