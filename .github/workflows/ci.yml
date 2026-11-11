@@ -57,3 +57,11 @@ jobs:
       - name: Test
         working-directory: ${{ matrix.crate }}
         run: cargo test --locked
+
+  mesh-contracts:
+    name: hub mesh conformance (python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify portable Hub mesh contracts
+        run: python3 -m unittest discover -s hub/mesh -p 'test_*.py'
