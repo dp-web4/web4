@@ -22,6 +22,24 @@ External discovery illustrates the gap: COWONDER's founder described a proposed 
 
 The product problem: a functioning society runtime is not yet an accessible place people can visit and participate in.
 
+## 2a. The adoption gap, which sets priority for this PRD (dp, 2026-11-11)
+
+Every audience gives the same answer: **"show me what I can use and I'll tell you if it's useful."** This is true of COWONDER, of the AI Collective Portland chapter, and of investors. Nobody wants to co-develop, or to spend time and energy building a solution out of the tools.
+
+What a user can do today:
+- **Hestia** gates their agents, but only for CLI harnesses, and setup is not intuitive.
+- **Hub** connects their agents across Hestia-equipped machines.
+
+That is geek/hobbyist use: not mature enough for a corporation, and not easy enough for a consumer.
+
+**The human layer is planned, its primitives are mostly ready, and none of it is built.** That layer is social channels, member discovery, committees and workgroups, and events. That is the gap.
+
+Consequences for this PRD:
+1. **The deliverable is something a group uses, not something a group builds.** An outside group that writes no code and designs no workflow must be able to run real work on it.
+2. **The pass gate is a real group's use and verdict** (§5b). The synthetic community (§5) is the rehearsal and the privacy test, not the finish line.
+3. **Priority goes to the human layer.** Protocol, assurance or federation work that serves no journey in §5 or §5b waits.
+4. **Meet people where they already work.** Hub is "not Slack-integrated (deferred until pilot empirically defines coexistence requirements)" (README). The chapter coordinates in Slack, email, Zoom and Luma. Expecting a group to move to a new site before the site has earned it is the co-development ask they are refusing. Coexistence is therefore a requirement (W11), not a deferral.
+
 ## 3. Personas
 
 | Persona | Wants to | First visible success |
@@ -30,6 +48,8 @@ The product problem: a functioning society runtime is not yet an accessible plac
 | Prospective member | Decide whether and how to join | Understand disclosures; submit request; see accurate status |
 | Member | Find people by interests/skills and contribute | Profile, search/discovery, introduction and participation records |
 | Organizer | Establish and run a community | Configure society, membership workflow and moderation under law |
+| Committee lead / event owner | Run a workgroup or an event without dropping things | Sees what they own and back up, gets nudged in their usual channel, hands off cleanly |
+| Volunteer co-lead | Stop being the default router for everything | Members find owners themselves; nothing silently falls through |
 | Auditor/member | Understand a consequential decision | Inspect status, authority, explanation, receipt and recourse |
 | Developer/integrator | Add a domain-specific product | Stable scoped API and extension points without copying the trust engine |
 
@@ -55,6 +75,10 @@ The product problem: a functioning society runtime is not yet an accessible plac
 
 **W10 - API-first extensibility:** Third-party matching/recommendation systems can consume authorized, consented data and return *suggestions*. They never acquire governance, identity or relationship truth by inference. Avoid entangling proprietary matching code with AGPL-covered modules without reviewing license terms.
 
+**W11 - Coexistence with existing channels:** A community keeps working where it already does: email, Slack, Zoom calendars and event pages such as Luma. Hub *adds* ownership, record and discovery on top. Minimum: inbound email to a community address becomes a tracked item, and owner and backup assignments and nudges reach people in the channel they already read. A group must not be required to abandon its tools to get the first benefit. Integration is as narrow as the first journey needs, and each bridge states what it can and cannot witness.
+
+**W12 - Workgroups, offices and events:** A community can define committees or workgroups with leads and members. A lead has bounded authority (the role-scope bridge as offices). The community can also define events, each with an owner, a backup, a checklist and a status visible to the relevant committee. Who owns what must be readable by any member without asking a co-lead.
+
 ## 5. Acceptance scenario: synthetic community
 
 Create an isolated, repeatable demo Hub with **no live member records and no access to any external business platform**.
@@ -73,16 +97,60 @@ Create an isolated, repeatable demo Hub with **no live member records and no acc
 
 **Not a pass:** Static mock screens, invented receipts, direct DB mutations bypassing law, a demo needing real member data, or assuming working federation that is not deployed.
 
+## 5b. Acceptance scenario 2: a real community runs itself (AI Collective Portland chapter)
+
+The synthetic community (§5) proves privacy and authority boundaries. This scenario proves usefulness. It is built on what the chapter itself said it needs, not on our features.
+
+**What the chapter has (sources: chapter emails 2026-09-18/29; core-meeting transcripts 2026-10-13 and 2026-10-27; `private-context/proposals/web4-community-hub-aic-pitch.md` §0):**
+- **Six committees by interest, not geography**, each with 1-2 leads: Technical Events, Community & Education, Marketing, Students, Wellness, Partnerships. Marketing crosses all of them and runs the Luma pages. Partnerships handles sponsors and venues.
+- **Intake:** a 1:1 intake call for every core member, then committee placement.
+- **Meetings:** an all-group meeting every two weeks. How committees coordinate with each other and with the all-group is their open question.
+- **Their goal, in their words:** "a strong core team where everyone has ownership."
+
+**What hurts today (2026-10-27):**
+- inbound emails missed;
+- each event owned by one person with no backup;
+- nothing happens when nobody acts.
+
+Their own proposals were a shared inbox plus a bot, two DRIs per event, a prospectus template and a RACI. Their posture: "baby steps", the smallest fix to today's pain, coordinated in Slack.
+
+**First deliverable, sized to one event cycle:**
+1. **Inbound triage.** Every inbound email or request to the chapter address becomes an item with an owner and a backup from the relevant committee. It is visible to that committee, and the owner, then the backup, is nudged in their existing channel if nobody acts within a stated time.
+2. **Event ownership.** Each event has an owner, a backup and a checklist (venue, sponsor, Luma page, speakers, day-of). Status is visible to the committee and the co-leads.
+3. **Who owns what.** A members-visible page shows committees, leads, members and current ownership. It answers "who do I ask?" without routing through the co-leads.
+4. **The record.** After the event, a plain-language history of who took what, what was decided, and what was dropped. This is the witnessed ledger, presented as minutes rather than as a protocol.
+
+**Later, only if the chapter asks:**
+- member discovery across committees by skills and interests (W4) from intake data, with consent;
+- committee decisions under bounded authority (W12);
+- connection to AIC global and other chapters.
+
+**Pass:**
+- The chapter's own officers run one real event cycle on it. No fleet member or dp does the work for them.
+- Setup takes no more of their time than the 1:1 intake already did.
+- At the end they say whether they would keep using it, and their answer is recorded verbatim, including no.
+
+**Not a pass:**
+- a demo shown to them;
+- a pilot in which we operate the tool on their behalf;
+- importing real member data without each member's consent;
+- requiring the chapter to leave Slack or email first.
+
+**Data:** chapter member data is real personal data. Rehearse with synthetic data (§5) first. Import real contacts only with consent, and only the fields the first deliverable needs.
+
 ## 6. Delivery plan
 
 | Slice | Deliverable | Verification |
 |---|---|---|
 | F0 - Inventory | Existing REST/member/auth/intro/status/law capabilities mapped to screens and missing APIs | Endpoint-to-journey matrix, permissions review |
+| F0b - First real-community slice (§5b) | Inbound triage with owner, backup and nudges in existing channels (W11); events with owner/backup/checklist; who-owns-what page; the record as minutes | One chapter event cycle run by the chapter's own officers; their verdict recorded |
 | F1 - Society website | Public landing, law, identity, configurable branding and locked/read-only state | Browser test without Hestia |
 | F2 - Member lifecycle | Identity presentation, disclosures, join/pending/admitted/refused, member home | Real admission receipt end-to-end |
 | F3 - People and relationships | Consent-scoped profiles, skills/interests, authorized search, intro request/response | Two-party acceptance and refusal tests |
 | F4 - Evidence and trust | Contributions, witnessed records, contextual evidence and recourse | Full provenance chain, no fabricated outcome |
 | F5 - Deployment and pilot | Self-host setup wizard, sample-data import/reset, accessibility, ops docs | Fresh deployment + synthetic external pilot |
+
+**Order:** F0 then F0b come first. F0b is the slice an outside group can use and judge. F1-F5 follow in the order the chapter's use exposes, not in the order of this table.
 
 Measure first-society launch time, browser-only understanding, join completion, successful consented introductions, false trust inferences, unauthorized data exposure, and percentage of consequential actions accompanied by attributable evidence. Establish baselines before assigning numerical targets.
 
