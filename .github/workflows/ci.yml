@@ -57,3 +57,11 @@ jobs:
       - name: Test
         working-directory: ${{ matrix.crate }}
         run: cargo test --locked
+
+  public-site-preview:
+    name: hub public-site truthfulness (python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check preview cannot masquerade as a live Hub
+        run: python3 -m unittest discover -s hub/site -p 'test_*.py'
