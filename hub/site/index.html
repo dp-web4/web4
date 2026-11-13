@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Community Hub — public site preview</title>
+  <style>
+    :root { color-scheme: light; font: 16px/1.55 system-ui,sans-serif; color:#20302b; background:#f7f7f2 }
+    body { margin:0 } header, main, footer { max-width:900px; margin:auto; padding:1.5rem }
+    header { display:flex; gap:1rem; align-items:center; justify-content:space-between; border-bottom:1px solid #d0d5d0 }
+    main { padding-top:3rem; padding-bottom:3rem }
+    .eyebrow { text-transform:uppercase; letter-spacing:.09em; font-size:.78rem; font-weight:700 }
+    h1 { font-size:clamp(2rem,6vw,3.5rem); line-height:1.1; max-width:16ch }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:1rem; margin-top:2rem }
+    article { background:white; border:1px solid #dce2dc; border-radius:14px; padding:1.3rem }
+    a { color:#145741 } a:focus-visible { outline:3px solid #157852; outline-offset:4px }
+    .notice { padding:1rem; border-left:4px solid #5a725d; background:#eaf0e9 }
+    small { color:#4b5d55 }
+  </style>
+</head>
+<body>
+  <header><strong>Community Hub</strong><span class="eyebrow">Public-site preview</span></header>
+  <main>
+    <p class="eyebrow">A home for communities that govern themselves</p>
+    <h1>Find your people. Know how your community works.</h1>
+    <p>Hub is an open-source foundation for community sites with explicit membership, roles, decisions, and accountable activity. Each community controls its own site and rules.</p>
+    <p class="notice" role="status"><strong>Preview, not a live community.</strong> This page contains no member data, registration, or admissions. It does not connect to a Hub daemon. A live service must verify membership and disclosure on its server before showing private information.</p>
+    <div class="grid">
+      <article><h2>Discover</h2><p>Learn about a community, its purpose and its published rules before deciding whether to participate.</p><small>Public description and charter: integration pending</small></article>
+      <article><h2>Participate</h2><p>See community workgroups, ownership and events when the site supports those governed capabilities.</p><small>Committees and events: not enabled in this preview</small></article>
+      <article><h2>Accountability</h2><p>Understand decisions and evidence, without confusing an approved action with a verified outcome.</p><small>Human-readable receipt integration pending</small></article>
+    </div>
+    <section aria-labelledby="next"><h2 id="next">What happens next?</h2><p>A visitor should be able to read public information without installing Hestia. Future membership and participation actions must use authenticated, governed Hub endpoints. There is deliberately no fake Join button here.</p></section>
+  </main>
+  <footer><small>Independent, self-hosted communities. Preview content is illustrative, not operational evidence.</small></footer>
+</body>
+</html>
