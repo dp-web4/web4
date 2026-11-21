@@ -2,7 +2,10 @@
 # Copyright (C) 2026 Metalinxx Inc.
 """rulebook_to_web4.py — project an ERB rulebook into Web4. Local, stdlib only, no network.
 
-  python3 rulebook_to_web4.py <rulebook.json> <outdir>
+  python3 rulebook_to_web4.py <rulebook.json> <outdir> [--known-exceptions <file.json>]
+
+exit 0 only when every scenario passes and every blocking finding is on the known-exceptions allowlist
+({"exceptions": [{"kind": ..., "norm": ..., "reason": ...}]}); otherwise exit 1 and the projection must not be applied.
 
 reads the rulebook's baked derived columns (run `rulebook.py build` first) and writes:
 
@@ -86,30 +89,157 @@ def ancestors(soc, socs):
     return chain
 
 
+ORDER = {"allow": 0, "warn": 1, "escalate": 2, "deny": 3}
+
+
+def sev(n):
+    return ORDER.get(n["Decision"] or "allow", 0)
+
+
+def chain_of(rb, soc_id):
+    socs = by_id(rb, "Societies")
+    return list(reversed(ancestors(soc_id, socs))) + [soc_id]  # root first
+
+
 def effective_norms(rb, soc_id, mode):
-    """SAL §3.5: effectiveLaw(child) = merge(parentLaw, childOverrides). child norms with the same id
-    override the parent's only if they don't widen it (tighten-only conflict policy); widening is reported."""
-    socs, findings = by_id(rb, "Societies"), []
-    chain = list(reversed(ancestors(soc_id, socs))) + [soc_id]  # root first
-    eff = {}
+    """SAL §3.5: effectiveLaw(child) = merge(parentLaw, childOverrides), tighten-only.
+
+    Every inherited norm stays in force as an independent constraint; the meaning of the merged law is the
+    strictest fold of each level's own verdict (fold_eval). A child norm with `Overrides: P` REPLACES P only when
+    the replacement is provably no looser (replacement_gap returns None): same surface, decision at least as
+    strict, coverage identical or provably broader (restrictive norms) / identical (allow norms), and priority
+    that cannot let it lose ground. Anything else is rejected with a blocking finding and P stays.
+
+    The engines evaluate one flattened law (hub: highest priority wins; hestia: first match). The flattened law
+    equals the fold only if no less-strict descendant norm can outrank a stricter ancestor norm on the same act;
+    outrank_findings flags every pair where that is not provably so."""
+    findings = []
+    chain = chain_of(rb, soc_id)
+    eff, alias = {}, {}  # eff: NormId -> norm (root first); alias: replaced id -> replacing id
     for s in chain:
         for n in rows(rb, "Norms"):
             if n["Society"] != s or n["CompileMode"] == "refused":
                 continue
             if mode == "ratified" and n["CompileMode"] != "enforce":
                 continue
-            key = n.get("Overrides") or n["NormId"]
-            prev = eff.get(key)
-            if prev and widens(prev, n):
-                findings.append(("blocking", "ChildOverrideWidensParent", f"{s}: {n['NormId']} would loosen {prev['Society']}'s {key}"))
+            target = n.get("Overrides")
+            while target in alias:
+                target = alias[target]
+            prev = eff.get(target) if target else None
+            if prev is None:
+                eff[n["NormId"]] = n
                 continue
-            eff[key] = n
-    return list(eff.values()), findings
+            if widens(prev, n):
+                findings.append(("blocking", "ChildOverrideWidensParent",
+                                 f"{s}: {n['NormId']} would loosen {prev['Society']}'s {prev['NormId']}; {prev['NormId']} stays in force"))
+                continue
+            gap = replacement_gap(prev, n)
+            if gap:
+                findings.append(("blocking", "ChildOverrideNotProvenNoLooser",
+                                 f"{s}: {n['NormId']} may not replace {prev['Society']}'s {prev['NormId']} ({gap}); "
+                                 f"{prev['NormId']} stays in force and {n['NormId']} is rejected"))
+                continue
+            del eff[prev["NormId"]]
+            alias[prev["NormId"]] = n["NormId"]
+            eff[n["NormId"]] = n
+    norms = list(eff.values())
+    findings += outrank_findings(norms, chain)
+    return norms, findings
 
 
 def widens(parent, child):
-    order = {"allow": 0, "warn": 1, "escalate": 2, "deny": 3}
-    return order.get(child["Decision"] or "allow", 0) < order.get(parent["Decision"] or "allow", 0)
+    return sev(child) < sev(parent)
+
+
+def _glob_star_only(p):
+    return p is not None and not any(ch in p for ch in "?[]")
+
+
+def glob_covers(broad, narrow):
+    """True only when every path matching `narrow` provably matches `broad` (fnmatch, '*'-only patterns).
+    Sound for star-only globs: if `broad` matches the literal text of `narrow`, each '*' of `narrow` is consumed
+    inside a '*' of `broad`, which can consume whatever that '*' expands to."""
+    if broad is None:
+        return True  # no target constraint: matches every target
+    if narrow is None or not (_glob_star_only(broad) and _glob_star_only(narrow)):
+        return broad == narrow
+    return broad == narrow or fnmatch.fnmatchcase(narrow, broad)
+
+
+def covers(c, p):
+    """Is c's predicate provably at least as broad as p's? Conservative: unknown means no."""
+    if c["Surface"] == "hub-norm":
+        if c["Selector"] != p["Selector"]:
+            return False
+        if (c["Operator"], c["Value"]) == (p["Operator"], p["Value"]):
+            return True
+        if c["Operator"] == p["Operator"] == "in":
+            return set(norm_value(c)) >= set(norm_value(p))
+        if c["Operator"] == p["Operator"] == "not_in":
+            return set(norm_value(c)) <= set(norm_value(p))
+        return False
+    if c["Surface"] == "hestia-rule":
+        ct, pt = c["HestiaTools"], p["HestiaTools"]
+        if ct and (not pt or not set(json.loads(ct)) >= set(json.loads(pt))):
+            return False
+        if c["HestiaCommandPattern"] and c["HestiaCommandPattern"] != p["HestiaCommandPattern"]:
+            return False
+        return glob_covers(c["HestiaTargetPattern"], p["HestiaTargetPattern"])
+    return c["Value"] == p["Value"]  # hub-escalation / hub-admission: identical only
+
+
+def same_predicate(c, p):
+    keys = ("Surface", "Selector", "Operator", "Value", "HestiaTools", "HestiaCommandPattern", "HestiaTargetPattern", "AppliesToRole")
+    return all((c.get(k) or None) == (p.get(k) or None) for k in keys)
+
+
+def replacement_gap(p, c):
+    """None when child c may replace parent p without loosening anything; otherwise the reason it may not."""
+    if c["Surface"] != p["Surface"]:
+        return f"surface {c['Surface']} vs {p['Surface']}"
+    cp, pp = c["Priority"] or 0, p["Priority"] or 0
+    if sev(c) == 0:  # an allow replacing an allow: a broader or higher-ranked allow would loosen
+        if not same_predicate(c, p):
+            return "an allow may replace an allow only with an identical predicate"
+        if cp > pp:
+            return f"priority {cp} would outrank more of the law than the parent's {pp}"
+        return None
+    if c.get("AppliesToRole") and c.get("AppliesToRole") != p.get("AppliesToRole"):
+        return f"scoped to role {c['AppliesToRole']}, the parent is not"
+    if not covers(c, p):
+        return "its predicate is not provably as broad as the parent's"
+    if cp < pp:
+        return f"priority {cp} is below the parent's {pp}, so a lower-ranked allow could now beat it"
+    return None
+
+
+def may_overlap(a, b):
+    """Could both norms fire on one act? Conservative: unknown means yes."""
+    if a["Surface"] == "hestia-rule":
+        ta, tb = a["HestiaTools"], b["HestiaTools"]
+        if ta and tb and not set(json.loads(ta)) & set(json.loads(tb)):
+            return False
+        return True
+    if a["Selector"] == b["Selector"] and a["Operator"] == b["Operator"] == "==" and a["Value"] != b["Value"]:
+        return False
+    return True
+
+
+def outrank_findings(norms, chain):
+    depth = {s: i for i, s in enumerate(chain)}
+    out = []
+    for surface in ("hub-norm", "hestia-rule"):
+        ns = [n for n in norms if n["Surface"] == surface and not n.get("AppliesToRole")]  # role overlays only tighten (strictest fold)
+        for a in ns:
+            for d in ns:
+                if depth[d["Society"]] <= depth[a["Society"]] or sev(d) >= sev(a):
+                    continue
+                if (d["Priority"] or 0) >= (a["Priority"] or 0) and may_overlap(a, d):
+                    out.append(("blocking", "ChildNormOutranksParent",
+                                f"{d['Society']}: {d['NormId']} ({d['Decision']}, priority {d['Priority']}) outranks "
+                                f"{a['Society']}'s {a['NormId']} ({a['Decision']}, priority {a['Priority']}) and may match the same act; "
+                                f"the flattened law would loosen the parent"))
+    return out
 
 
 # ------------------------------------------------------------------ hub law YAML (web4-policy surface)
@@ -282,6 +412,41 @@ def hestia_eval(cfg, overlays, req):
     return d, rid
 
 
+def fold_eval(norms, chain, surface, req):
+    """The merged law's MEANING: each level's own norms evaluated alone, verdicts combined by a strictest fold
+    (allow < warn < escalate < deny; on a tie the outermost level's rule is reported). The flattened projection
+    the engines run must agree with this; main() checks it on every scenario."""
+    best = ("allow", None)
+    for lvl in chain:
+        mine = [n for n in norms if n["Society"] == lvl]
+        if surface == "hub":
+            got = hub_eval([n for n in mine if n["Surface"] == "hub-norm"], [n for n in mine if n["Surface"] == "hub-escalation"], req)
+        else:
+            cfg, ov = hestia_configs(mine, "candidate")
+            got = hestia_eval(cfg, ov, req)
+        if ORDER[got[0]] > ORDER[best[0]] or (best[1] is None and got[1] and got[0] == best[0] == "allow"):
+            best = got
+    return best
+
+
+def load_exceptions(path):
+    """Known, reviewed blocking findings. {"exceptions": [{"kind", "norm", "reason"}]}; reason is required."""
+    if not path:
+        return []
+    ex = json.loads(Path(path).read_text(encoding="utf-8")).get("exceptions", [])
+    for e in ex:
+        if not (e.get("kind") and e.get("norm") and (e.get("reason") or "").strip()):
+            raise SystemExit(f"known-exceptions entry needs kind, norm and a reason: {e}")
+    return ex
+
+
+def exception_for(f, exceptions):
+    for e in exceptions:
+        if f[1] == e["kind"] and re.search(r"(^|[\s(])" + re.escape(e["norm"]) + r"([\s)]|$)", f[2]):
+            return e
+    return None
+
+
 # ------------------------------------------------------------------ society graph (turtle)
 def turtle(rb):
     socs, slots = rows(rb, "Societies"), rows(rb, "RoleSlots")
@@ -378,8 +543,9 @@ def lawbook(rb):
 
 
 # ------------------------------------------------------------------ main
-def main(rb_path, out):
+def main(rb_path, out, exceptions_path=None):
     rb, out = load(rb_path), Path(out)
+    exceptions = load_exceptions(exceptions_path)
     out.mkdir(parents=True, exist_ok=True)
     written, findings, conf = {}, [], []
 
@@ -422,8 +588,13 @@ def main(rb_path, out):
         want = (sc["ExpectedDecision"], sc["ExpectedRule"])
         refused = by_id(rb, "Norms")[sc["Norm"]]["CompileMode"] == "refused"
         ok = got == want
-        conf.append({"case": sc["ScenarioId"], "society": sid, "norm": sc["Norm"], "expected": want, "got": got,
+        surface = "hub" if socs[sid]["LawSurface"] == "hub" else "hestia"
+        fold = fold_eval(effective_norms(rb, sid, "candidate")[0], chain_of(rb, sid), surface, req)
+        conf.append({"case": sc["ScenarioId"], "society": sid, "norm": sc["Norm"], "expected": want, "got": got, "fold": fold[0],
                      "result": "pass" if ok else ("expected-miss (norm refused)" if refused else "FAIL")})
+        if fold[0] != got[0]:
+            findings.append(("blocking", "FlattenedLawDiffersFromFold",
+                             f"{sc['ScenarioId']}: the engines' flattened law says {got[0]} ({got[1] or 'default'}), the level-by-level strictest fold says {fold[0]} ({fold[1] or 'default'})"))
     write("conformance.json", json.dumps(conf, indent=2) + "\n")
     cm = ["# conformance — candidate projection vs scenario corpus", "",
           "reference oracle = test oracle transcribed from hub-law-schema.md §1 (hub) and hestia's first-match + strictest-fold semantics. "
@@ -465,27 +636,50 @@ def main(rb_path, out):
 
     write("society-graph.ttl", turtle(rb))
     write("lawbook.json", json.dumps(lawbook(rb), indent=2, ensure_ascii=False) + "\n")
+    blocking = sorted({f for f in findings if f[0] == "blocking"}, key=lambda f: (f[1], f[2]))
+    known = [(f, exception_for(f, exceptions)) for f in blocking if exception_for(f, exceptions)]
+    unexpected = [f for f in blocking if not exception_for(f, exceptions)]
+    for e in exceptions:
+        if not any(x is e for _, x in known):
+            findings.append(("advisory", "KnownExceptionUnused", f"{e['kind']} {e['norm']} is on the allowlist but no longer fires; remove it"))
     wm = [f"# transpiler witnesses — {rb['Name']} draft {meta(rb, 'draft')}", "",
-          "blocking = must be resolved before the ratified projection may be applied. advisory = known gap or design note.", ""]
-    for sev in ("blocking", "advisory"):
-        fs = sorted({f for f in findings if f[0] == sev}, key=lambda f: (f[1], f[2]))
-        wm += [f"## {sev} ({len(fs)})", ""] + [f"- **{k}** — {d}" for _, k, d in fs] + [""]
+          "blocking = must be resolved before the ratified projection may be applied. advisory = known gap or design note.",
+          "a blocking finding on the known-exceptions allowlist is listed with its reason; any other blocking finding fails the run (exit 1).", ""]
+    wm += [f"## blocking ({len(blocking)}: {len(unexpected)} unexpected, {len(known)} known exception{'s' if len(known) != 1 else ''})", ""]
+    wm += [f"- **{k}** — {d}" for _, k, d in unexpected]
+    wm += [f"- **{k}** — {d} *(known exception: {e['reason']})*" for (_, k, d), e in known] + [""]
+    adv = sorted({f for f in findings if f[0] == "advisory"}, key=lambda f: (f[1], f[2]))
+    wm += [f"## advisory ({len(adv)})", ""] + [f"- **{k}** — {d}" for _, k, d in adv] + [""]
     write("witnesses.md", "\n".join(wm))
 
     src = Path(rb_path).read_bytes()
     manifest = {"tool": f"rulebook_to_web4 {TOOL_VERSION}", "generated": dt.datetime.now().isoformat(timespec="seconds"),
                 "input": {"path": Path(rb_path).name, "sha256": hashlib.sha256(src).hexdigest(), "draft": meta(rb, "draft")},
-                "outputs": dict(sorted(written.items())), "local_only": True, "network": "none"}
+                "outputs": dict(sorted(written.items())), "local_only": True, "network": "none",
+                "blocking": {"unexpected": [{"kind": k, "detail": d} for _, k, d in unexpected],
+                             "known": [{"kind": k, "detail": d, "reason": e["reason"]} for (_, k, d), e in known]},
+                "activation_allowed": not unexpected and not any(c["result"] == "FAIL" for c in conf)}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    nb = sum(1 for f in set(findings) if f[0] == "blocking")
     fails = sum(1 for c in conf if c["result"] == "FAIL")
-    print(f"web4 projection → {out}: {len(written)} files, {len(conf)} scenarios ({fails} fail), {nb} blocking findings")
-    return 1 if fails else 0
+    for _, k, d in unexpected:
+        print(f"BLOCKING {k}: {d}", file=sys.stderr)
+    print(f"web4 projection → {out}: {len(written)} files, {len(conf)} scenarios ({fails} fail), "
+          f"{len(blocking)} blocking findings ({len(unexpected)} unexpected, {len(known)} known exception{'s' if len(known) != 1 else ''})")
+    return 1 if fails or unexpected else 0
 
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
-    if len(sys.argv) != 3:
+    args = sys.argv[1:]
+    exc = None
+    if "--known-exceptions" in args:
+        i = args.index("--known-exceptions")
+        exc = args[i + 1] if i + 1 < len(args) else None
+        args = args[:i] + args[i + 2:]
+        if not exc:
+            print(__doc__)
+            sys.exit(2)
+    if len(args) != 2:
         print(__doc__)
         sys.exit(2)
-    sys.exit(main(sys.argv[1], sys.argv[2]))
+    sys.exit(main(args[0], args[1], exc))
