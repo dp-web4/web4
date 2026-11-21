@@ -65,3 +65,19 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check preview cannot masquerade as a live Hub
         run: python3 -m unittest discover -s hub/site -p 'test_*.py'
+
+  aic-demo:
+    # demos/aic-delaware (#994): the law compiler's tighten-only and blocking-finding
+    # checks, and the driver's fail-closed bridge and audit paths, with HTTP mocked.
+    # No daemons; the live multi-hub run stays a person's command (tests/live_engine_probe.py).
+    # cryptography is pinned to the version the 53 tests ran green on before arming.
+    name: aic-delaware demo tests (python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cryptography==41.0.7
+      - name: Transpiler, fail-closed driver and counterexample tests
+        run: python3 -m unittest discover -s demos/aic-delaware/tests -p 'test_*.py'
