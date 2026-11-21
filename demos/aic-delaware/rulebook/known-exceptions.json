@@ -1,0 +1,10 @@
+{
+  "_about": "Blocking transpiler findings that are known, reviewed and intended. rulebook_to_web4.py exits 1 on any blocking finding not listed here, and aic_demo.py refuses to activate law on such a run. Each entry names the finding kind, the norm it is about, and why it stands.",
+  "exceptions": [
+    {
+      "kind": "NormRefusedRuleConflicted",
+      "norm": "OA-REPEAT-NO-DISCLOSURE",
+      "reason": "operating agreement clause 2.3 (r-23) is the demo's intentional exclusion: the draft's §8008 contradicts it, so it never compiles. Beat 3 shows the refusal. If the citation were overruled it would still be rejected as ChildOverrideWidensParent, which is NOT allowlisted."
+    }
+  ]
+}
