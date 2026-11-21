@@ -6,12 +6,16 @@
   python3 aic_demo.py up    RUN_DIR          fresh run: 3 hubs (sandbox L0, AIC L1, desk L2) + 2 Hestia gates (manager, procure)
   python3 aic_demo.py story RUN_DIR [--slow] the eight beats (see DESIGN.md)
   python3 aic_demo.py down  RUN_DIR          stop everything this run started
-  python3 aic_demo.py audit RUN_DIR          the administrator's audit: every level, every signature
+  python3 aic_demo.py audit RUN_DIR [--json] the administrator's audit: every level, every signature; exit 1 on any failure
 
+What this is: governance decisions plus synthetic effects. The gates and hubs decide every act for real; the acts
+themselves are stand-ins (files written in a scratch workspace, shell commands never executed). It is not an
+autonomous company's operating loop.
 Real: three hubs (one `hub` binary, separate homes, laws and signed hash-chained ledgers); two Hestia gates; law compiled
 from the rulebook (tighten-only down the nesting); the manager's signed records checked against hub law.
 STAND-IN (labelled on screen as BRIDGE): child ledger heads posted into the parent, disclosure opening a counterparty
-outbox at the gate, and suspension cascading down. Hub has none of these yet (PRD-only).
+outbox at the gate, and suspension cascading down. Hub has none of these yet (PRD-only). Each bridge step acts only on
+evidence it has checked (a landed 200 record, structured membership, a successful law load) and otherwise does nothing.
 
 Everything is fictional. Needs: the hub binaries (HUB_BIN, default: the folder holding `hub` on PATH), hestia 0.3.0 on PATH,
 python3 with `cryptography`.
@@ -48,19 +52,32 @@ def sh(*a, env=None, check=True):
 
 
 def http(method, url, body=None, token=None, timeout=20):
+    """(status, parsed JSON). Never raises for transport trouble: status 0 = no answer (refused, timed out),
+    -1 = an answer that is not JSON. Callers act only on (200, dict)."""
     req = urllib.request.Request(url, data=json.dumps(body).encode() if body is not None else None, method=method)
     req.add_header("content-type", "application/json")
     if token:
         req.add_header("authorization", "Bearer " + token)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.status, json.loads(r.read() or b"null")
+            raw = r.read()
+            try:
+                return r.status, json.loads(raw or b"null")
+            except ValueError:
+                return -1, {"error": "malformed JSON", "body": raw.decode("utf-8", "replace")[:300]}
     except urllib.error.HTTPError as e:
         raw = e.read()
         try:
             return e.code, json.loads(raw)
         except ValueError:
             return e.code, raw.decode("utf-8", "replace")[:300]
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        return 0, {"error": f"{type(e).__name__}: {e}"}
+
+
+def landed(st, r):
+    """A hub write counts only when it returned 200 with the ledger entry it made."""
+    return st == 200 and isinstance(r, dict) and r.get("entry_index") is not None and bool(r.get("entry_hash"))
 
 
 def wait_http(url, n=120):
@@ -95,6 +112,10 @@ class Run:
 
     def save(self):
         self.p.write_text(json.dumps(self.s, indent=2))
+
+    # what the story claims happened; the audit requires the hubs and gates to show exactly this
+    def expect(self):
+        return self.s.setdefault("expect", {"records": [], "heads": [], "gate_outcomes": {a: [] for a in GATES}})
 
     # keys held by the demo (Python): agents and societies-as-members
     def key(self, name) -> Ed25519PrivateKey:
@@ -162,12 +183,13 @@ def stop_pid(run, name):
 
 
 def hub_set_law(run, soc, yaml_path):
-    """Hub has no live set-law API; the CLI writes the store, so stop the daemon first (no ledger race), then restart."""
+    """Hub has no live set-law API; the CLI writes the store, so stop the daemon first (no ledger race), then restart.
+    Returns (ok, norms, output); the hub is restarted either way."""
     stop_pid(run, f"hub-{soc}")
-    out = sh(HUB_BIN / "hub", "set-law", hub_dir(run, soc), yaml_path)
+    p = subprocess.run([str(HUB_BIN / "hub"), "set-law", str(hub_dir(run, soc)), str(yaml_path)], capture_output=True, text=True, env=HUB_ENV)
     hub_start(run, soc)
     n = sum(1 for line in Path(yaml_path).read_text().splitlines() if line.strip().startswith("- id:"))
-    return n, out
+    return p.returncode == 0, n, p.stdout + p.stderr
 
 
 def hub_head(run, soc):
@@ -186,11 +208,15 @@ def signed_event(run, soc, signer, payload):
     if signer == "sovereign":
         lct, ident = run.s["hubs"][soc]["sovereign_lct"], hub_dir(run, soc).parent / f"{soc}-sovereign.json"
         st, ch = http("POST", base + "/v1/auth/challenge", {"for_lct_id": lct})
+        if st != 200 or not isinstance(ch, dict) or not ch.get("nonce"):
+            return (st if st != 200 else -1), {"error": f"challenge failed: {str(ch)[:120]}"}
         out = sh(HUB_BIN / "hub", "envelope-sign", "--identity", ident, "--nonce", ch["nonce"], "--payload", json.dumps(payload))
         env = json.loads(out[out.index("{"):])
     else:
         lct, sk = run.lct(signer), run.key(signer)
         st, ch = http("POST", base + "/v1/auth/challenge", {"for_lct_id": lct})
+        if st != 200 or not isinstance(ch, dict) or not ch.get("nonce"):
+            return (st if st != 200 else -1), {"error": f"challenge failed: {str(ch)[:120]}"}
         canon = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         env = {"challenge_nonce": ch["nonce"], "payload": payload, "signer_lct_id": lct,
                "signature": sk.sign(ch["nonce"].encode() + canon.encode()).hex()}
@@ -206,8 +232,13 @@ def record(run, soc, signer, kind, detail, evidence=None):
     sig = run.key(signer).sign(line.encode()).hex() if signer != "sovereign" else ""
     body = line + (f"\nsigned-by: {run.lct(signer)}\nsig: {sig}" if sig else "")
     st, r = signed_event(run, soc, signer, {"action": "add_post", "topic_id": run.s["hubs"][soc]["topic"], "body": body})
-    if st == 200:
+    if landed(st, r):
         tag = f"{G}recorded{X} {D}#{r.get('entry_index')} {str(r.get('entry_hash'))[:12]}{X}"
+        run.expect()["records"].append({"soc": soc, "signer": signer, "signed": bool(sig), "kind": kind,
+                                        "entry_index": r["entry_index"], "entry_hash": r["entry_hash"]})
+        run.save()
+    elif st == 200:
+        tag = f"{R}200 without a ledger entry: not counted{X} {D}{str(r)[:90]}{X}"
     elif st == 202:
         tag = f"{Y}held for {soc}'s sovereign{X} {D}({str(r.get('error', r))[:90]}){X}"
     elif st == 403:
@@ -308,8 +339,11 @@ class Gate:
         q = self.call("hestia_query_policy", {"action_id": a.get("actionId"), "session_id": self.session})
         return a.get("actionId"), q
 
-    def done(self, aid, ok, err=None):
+    def done(self, aid, ok, err=None, run=None):
         self.call("hestia_record_outcome", {"action_id": aid, "success": ok, "session_id": self.session, **({"error": err} if err else {})})
+        if run is not None:
+            run.expect()["gate_outcomes"].setdefault(self.agent, []).append({"action_id": aid, "success": bool(ok)})
+            run.save()
 
 
 def verdict(q):
@@ -319,101 +353,187 @@ def verdict(q):
 
 
 def act(run, gates, agent, tool, rel, why, content=None, rec=None):
-    """One agent act: its own gate decides; if allowed it happens; consequential acts are then recorded at its society."""
+    """One agent act: its own gate decides (real); if allowed, a synthetic effect stands in for it (a file in the scratch
+    workspace; shell commands are never executed); a consequential act is complete only once its signed record lands
+    at the agent's society (200 with a ledger entry). Returns {allowed, complete, action_id, record}."""
     g = gates[agent]
     target = str(run.ws / rel) if tool != "Bash" else rel
     aid, q = g.ask(tool, target, {"command": rel} if tool == "Bash" else {"file_path": target})
     d, rule, reason = verdict(q)
     who = f"{B}{agent:<8}{X}"
+    out = {"allowed": False, "complete": False, "action_id": aid, "record": None}
     if d == "deny" and q.get("enforced", True):
-        g.done(aid, False, f"refused by {rule}")
+        g.done(aid, False, f"refused by {rule}", run=run)
         print(f"  {who} {tool:<5} {rel:<58} {R}REFUSED by the gate{X} {D}{rule}{X}")
         pause()
-        return False
+        return out
+    out["allowed"] = True
+    p = run.ws / rel
     if tool == "Bash":
-        res = "(demo: network commands are never actually executed)"
+        ok, res = True, "synthetic: the command is never executed"
     elif tool == "Read":
-        p = run.ws / rel
-        res = f"read {len(p.read_text()) if p.exists() else 0} chars"
+        ok = p.is_file()
+        res = f"synthetic read: {len(p.read_text())} chars" if ok else "no such file: the act failed"
     else:
-        p = run.ws / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content or f"{why}\n")
-        res = "written"
-    g.done(aid, True)
-    print(f"  {who} {tool:<5} {rel:<58} {G}allowed{X} {D}{rule or 'no rule covers it'} · {res}{X}")
-    pause(0.5)
-    if rec:
+        ok, res = True, "synthetic effect: file written"
+    rec_tag = ""
+    if ok and rec:
         soc = "aic" if agent == "manager" else "desk"
-        p = run.ws / rel
-        ev = "sha256-content:" + hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() and tool != "Bash" else None
-        record(run, soc, agent, rec[0], rec[1], ev)
-    return True
+        ev = "sha256-content:" + hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() and tool != "Bash" else None
+        print(f"  {who} {tool:<5} {rel:<58} {G}allowed{X} {D}{rule or 'no rule covers it'} · {res}{X}")
+        st, r = record(run, soc, agent, rec[0], rec[1], ev)
+        out["record"] = (st, r)
+        ok = landed(st, r)
+        rec_tag = "" if ok else "record not accepted: the act is NOT complete"
+    else:
+        print(f"  {who} {tool:<5} {rel:<58} {G if ok else Y}allowed{X} {D}{rule or 'no rule covers it'} · {res}{X}")
+    if rec_tag:
+        print(f"      {Y}{rec_tag}{X}")
+    out["complete"] = ok
+    g.done(aid, ok, None if ok else (rec_tag or res), run=run)
+    pause(0.5)
+    return out
 
 
 # ------------------------------------------------------------------ the bridge (STAND-IN for Hub R3 + role-scope bridge)
+# Every bridge step fails closed: it acts only on evidence it has checked, and says plainly when it did nothing.
 def bridge_heads(run, quiet=False):
-    """Child ledger heads into the parent's record, signed by the child society's own member key (stand-in for R3)."""
+    """Child ledger heads into the parent's record, signed by the child society's own member key (stand-in for R3).
+    Stops at the first head that cannot be read or does not land; returns True only if every head landed."""
     for child, parent in (("desk", "aic"), ("aic", "de-sandbox")):
         n, head = hub_head(run, child)
+        if n <= 0 or not head:
+            print(f"  {Y}BRIDGE{X} {R}could not read {child}'s ledger head ({n}, {head!r}); stopping, nothing more is posted{X}")
+            return False
         st, r = signed_event(run, parent, f"society:{child}",
                              {"action": "add_post", "topic_id": run.s["hubs"][parent]["topic"],
                               "body": f"act: ledger_head {child} entries={n} head={head}"})
+        if not landed(st, r):
+            print(f"  {Y}BRIDGE{X} {child:<5} head {head[:16]}… → {parent}: {R}not recorded ({st} {str(r)[:100]}); stopping{X}")
+            return False
+        run.expect()["heads"].append({"parent": parent, "child": child, "entries": n, "head": head,
+                                      "entry_index": r["entry_index"], "entry_hash": r["entry_hash"]})
+        run.save()
         if not quiet:
-            ok = f"{G}recorded #{r.get('entry_index')}{X}" if st == 200 else f"{R}{st} {r}{X}"
-            print(f"  {Y}BRIDGE{X} {child:<5} head {head[:16]}… ({n} entries) → {parent}: {ok}")
+            print(f"  {Y}BRIDGE{X} {child:<5} head {head[:16]}… ({n} entries) → {parent}: {G}recorded #{r.get('entry_index')}{X}")
             pause(0.5)
+    return True
 
 
-def bridge_open_outbox(run, cp):
+def topic_has(run, soc, prefix):
+    """Re-read the society's record topic: is there a post whose body starts with `prefix`? (structured read, fail closed)"""
+    st, t = http("GET", f"{hub_base(soc)}/v1/hubs/{run.s['hubs'][soc]['id']}/topics/{run.s['hubs'][soc]['topic']}")
+    if st != 200 or not isinstance(t, dict) or not isinstance(t.get("posts"), list):
+        return False
+    return any(isinstance(p, dict) and str(p.get("body", "")).startswith(prefix) for p in t["posts"])
+
+
+def bridge_open_outbox(run, cp, disclosure):
+    """Open cp's outbox at the manager's gate only if the disclosure act completed: its record landed at the AIC (200
+    with a ledger entry) and the AIC's record topic shows it. A held (202), refused (403) or failed record opens nothing."""
+    rec = (disclosure or {}).get("record")
+    if not (disclosure or {}).get("complete") or not rec or not landed(*rec):
+        st = rec[0] if rec else "no record"
+        print(f"  {Y}BRIDGE{X} {R}no landed disclosure record for {cp} ({st}): its outbox stays shut{X}")
+        pause()
+        return False
+    if not topic_has(run, "aic", f"act: counterparty_disclosed {cp}"):
+        print(f"  {Y}BRIDGE{X} {R}the AIC's record does not show the disclosure to {cp}: its outbox stays shut{X}")
+        pause()
+        return False
     rule = {"id": f"BRIDGE-OPEN-{cp.upper()}", "name": f"§8008 disclosure to {cp} is on the AIC's record: its outbox opens",
-            "priority": -200, "decision": "allow", "reason": f"r-04: disclosure to {cp} recorded at the AIC hub",
+            "priority": -200, "decision": "allow", "reason": f"r-04: disclosure to {cp} recorded at the AIC hub (entry #{rec[1]['entry_index']})",
             "match": {"tools": ["Write", "Edit"], "target_patterns": [f"**/counterparties/{cp}/outbox/**"], "target_patterns_are_regex": False}}
     gate_add(run, "manager", [rule])
-    print(f"  {Y}BRIDGE{X} the AIC's record shows the disclosure to {cp} → its outbox opens at the manager's gate")
+    print(f"  {Y}BRIDGE{X} the AIC's record shows the disclosure to {cp} (entry #{rec[1]['entry_index']}) → its outbox opens at the manager's gate")
     pause()
+    return True
 
 
-SUSPENDED = [
-    {"id": "BRIDGE-WIND-DOWN", "name": "Wind-down acts continue (§8005(c)(6), §81-602)", "priority": -310, "decision": "allow",
-     "reason": "r-08: wind-down may continue", "match": {"tools": ["Read", "Write", "Edit"], "target_patterns": ["**/wind-down/**"], "target_patterns_are_regex": False}},
-    {"id": "BRIDGE-SUSPENDED", "name": "Suspended by the Sandbox Administrator: every other act stops", "priority": -300, "decision": "deny",
-     "reason": "r-07: emergency cessation (§8005(c)(6)c.1)", "match": {"tools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "WebFetch", "WebSearch"]}},
-]
+WIND_DOWN = {"id": "BRIDGE-WIND-DOWN", "name": "Wind-down acts continue (§8005(c)(6), §81-602)", "priority": -310, "decision": "allow",
+             "reason": "r-08: wind-down may continue", "match": {"tools": ["Read", "Write", "Edit"], "target_patterns": ["**/wind-down/**"], "target_patterns_are_regex": False}}
+STOP_ALL = {"id": "BRIDGE-SUSPENDED", "name": "Suspended by the Sandbox Administrator: every other act stops", "priority": -300, "decision": "deny",
+            "reason": "r-07: emergency cessation (§8005(c)(6)c.1)", "match": {"tools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "WebFetch", "WebSearch"]}}
+SUSPENDED = [WIND_DOWN, STOP_ALL]
+SUSPENDED_LAW = ('version: "9.0.0"\nnorms:\n'
+                 '  - id: SUSPENDED-WIND-DOWN\n    selector: r6.request.payload.body\n    operator: "matches"\n'
+                 '    value: "^act: wind_down"\n    decision: allow\n    priority: 1001\n'
+                 '    description: "Wind-down records continue (r-08)."\n'
+                 '  - id: SUSPENDED-ALL-ELSE\n    selector: r6.request.payload.body\n    operator: "matches"\n'
+                 '    value: "^act: "\n    decision: deny\n    priority: 1000\n'
+                 '    description: "Suspended by the sandbox: no other records (r-07)."\n'
+                 '  - id: DE-DEFAULT-ALLOW\n    selector: r6.request.action\n    operator: "!="\n    value: __never_match__\n'
+                 '    decision: allow\n    priority: 0\n    description: "base"\n')
 
 
-def bridge_suspend(run):
-    """Parent removed the AIC → cascade: both gates stop all but wind-down; the AIC's hub law accepts only wind-down records."""
-    st, r = http("GET", f"{hub_base('de-sandbox')}/v1/hubs/{run.s['hubs']['de-sandbox']['id']}/state")
-    members = json.dumps(r)
-    still = run.lct("society:aic") in members
-    print(f"  {Y}BRIDGE{X} sandbox membership read: the AIC is {'still a member' if still else R + 'no longer a member' + X}")
-    if still:
-        return
+def membership(run, soc, lct):
+    """Structured membership read on the hub's operator plane (/tools/list_members, loopback only).
+    Returns True (member), False (not a member) or None (unreadable: no answer, timeout, malformed)."""
+    st, r = http("GET", f"http://127.0.0.1:{ADMIN[soc]}/tools/list_members", timeout=10)
+    if st != 200 or not isinstance(r, dict) or not isinstance(r.get("members"), list):
+        return None
+    ids = [m.get("lct_id") for m in r["members"] if isinstance(m, dict)]
+    if not all(isinstance(i, str) for i in ids):
+        return None
+    return lct in ids
+
+
+def bridge_suspend(run, removal):
+    """Cascade the AIC's removal from the sandbox, only on checked evidence:
+    1. the administrator's removal returned 200, and the sandbox's structured member list no longer holds the AIC;
+    2. then both gates stop every act (a tightening, applied first);
+    3. then the AIC's hub law narrows to wind-down records;
+    4. only if that law loaded, the wind-down allowance is granted at the gates.
+    Returns a dict saying which steps actually happened."""
+    res = {"removed": False, "gates_stopped": False, "law_narrowed": False, "wind_down_granted": False}
+    st, r = removal if removal else (None, None)
+    if st != 200:
+        print(f"  {Y}BRIDGE{X} {R}the removal did not succeed ({st}): no suspension to cascade, nothing changed{X}")
+        return res
+    member = membership(run, "de-sandbox", run.lct("society:aic"))
+    if member is None:
+        print(f"  {Y}BRIDGE{X} {R}the sandbox's member list could not be read: suspension not established, nothing changed{X}")
+        return res
+    if member:
+        print(f"  {Y}BRIDGE{X} {R}the sandbox still lists the AIC as a member: suspension not established, nothing changed{X}")
+        return res
+    res["removed"] = True
+    print(f"  {Y}BRIDGE{X} sandbox member list (structured read): the AIC is no longer a member")
     for agent in GATES:
-        gate_add(run, agent, SUSPENDED)
-    print(f"  {Y}BRIDGE{X} both gates: everything stops except wind-down/  (r-07, r-08)")
+        gate_add(run, agent, [STOP_ALL])
+    res["gates_stopped"] = True
+    print(f"  {Y}BRIDGE{X} both gates: every act stops (r-07)")
     law = run.root / "law-aic-suspended.yaml"
-    law.write_text('version: "9.0.0"\nnorms:\n'
-                   '  - id: SUSPENDED-WIND-DOWN\n    selector: r6.request.payload.body\n    operator: "matches"\n'
-                   '    value: "^act: wind_down"\n    decision: allow\n    priority: 1001\n'
-                   '    description: "Wind-down records continue (r-08)."\n'
-                   '  - id: SUSPENDED-ALL-ELSE\n    selector: r6.request.payload.body\n    operator: "matches"\n'
-                   '    value: "^act: "\n    decision: deny\n    priority: 1000\n'
-                   '    description: "Suspended by the sandbox: no other records (r-07)."\n'
-                   '  - id: DE-DEFAULT-ALLOW\n    selector: r6.request.action\n    operator: "!="\n    value: __never_match__\n'
-                   '    decision: allow\n    priority: 0\n    description: "base"\n')
-    n, _ = hub_set_law(run, "aic", law)
+    law.write_text(SUSPENDED_LAW)
+    ok, n, out = hub_set_law(run, "aic", law)
+    if not ok:
+        print(f"  {Y}BRIDGE{X} {R}the AIC hub refused the wind-down law ({out.strip()[:120]}): wind-down is NOT granted; everything stays stopped{X}")
+        return res
+    res["law_narrowed"] = True
     print(f"  {Y}BRIDGE{X} the AIC hub's law: only wind-down records may be added ({n} norms)")
+    for agent in GATES:
+        gate_add(run, agent, [WIND_DOWN])
+    res["wind_down_granted"] = True
+    print(f"  {Y}BRIDGE{X} both gates: wind-down/ may continue (r-08)")
     pause()
+    return res
 
 
 # ------------------------------------------------------------------ law from the rulebook
 def compile_law(run):
-    out = sh(sys.executable, HERE / "tools" / "rulebook_to_web4.py", run.rb / "effortless-rulebook" / "aic-rulebook.json",
-             run.rb / "web4", env=os.environ.copy())
-    blocking = [l for l in (run.rb / "web4" / "witnesses.md").read_text().split("## advisory")[0].splitlines() if l.startswith("- **")]
-    return out.strip().splitlines()[-1], blocking
+    """Run the transpiler. Returns (summary line, manifest). It exits 1 on a failing scenario or on any blocking finding
+    not on rulebook/known-exceptions.json; the manifest's `activation_allowed` says the same thing in structure."""
+    p = subprocess.run([sys.executable, str(HERE / "tools" / "rulebook_to_web4.py"), str(run.rb / "effortless-rulebook" / "aic-rulebook.json"),
+                        str(run.rb / "web4"), "--known-exceptions", str(run.rb / "known-exceptions.json")],
+                       capture_output=True, text=True, env=os.environ.copy())
+    mf = run.rb / "web4" / "manifest.json"
+    manifest = json.loads(mf.read_text()) if mf.exists() else {}
+    if p.returncode or not manifest.get("activation_allowed"):
+        manifest["activation_allowed"] = False
+    lines = (p.stdout.strip() or p.stderr.strip() or "transpiler produced no output").splitlines()
+    return lines[-1], manifest
 
 
 def confirm(run, who, rids):
@@ -426,12 +546,20 @@ def confirm(run, who, rids):
 
 
 def apply_law(run, levels):
-    line, blocking = compile_law(run)
+    line, manifest = compile_law(run)
     print(f"  {D}compiled: {line}{X}")
-    for b in blocking:
-        print(f"  {R}compiler refused:{X} {b[2:]}")
+    blocking = manifest.get("blocking", {})
+    for b in blocking.get("known", []):
+        print(f"  {R}compiler refused:{X} {b['kind']} — {b['detail']} {D}(known exception: {b['reason'][:90]}…){X}")
+    if not manifest.get("activation_allowed"):
+        for b in blocking.get("unexpected", []):
+            print(f"  {R}UNEXPECTED blocking finding:{X} {b['kind']} — {b['detail']}")
+        raise SystemExit("law NOT activated: the projection has an unexpected blocking finding or a failing scenario "
+                         f"(see {run.rb / 'web4' / 'witnesses.md'})")
     for soc in levels:
-        n, _ = hub_set_law(run, soc, run.rb / "web4" / "societies" / soc / "law.ratified.yaml")
+        ok, n, out = hub_set_law(run, soc, run.rb / "web4" / "societies" / soc / "law.ratified.yaml")
+        if not ok:
+            raise SystemExit(f"law NOT activated: hub set-law failed for {soc}: {out.strip()[:300]}")
         print(f"  {C}{soc:<10}{X} hub law loaded: {n} norm(s) (its own plus every level above it)")
     for agent, (soc, _) in GATES.items():
         cfg = json.loads((run.rb / "web4" / "societies" / soc / "hestia-policy.ratified.json").read_text())
@@ -526,6 +654,10 @@ def misbehave(run, gates):
 
 def story(run):
     gates = {a: Gate(a) for a in GATES}
+    run.s["expect"] = {"records": [], "heads": [], "gate_outcomes": {a: [] for a in GATES}}
+    run.save()
+    print(f"{D}governance decisions + synthetic effects: the gates and hubs decide every act for real; the acts themselves are"
+          f" stand-ins (files in a scratch workspace; shell commands never run).{X}")
 
     beat(1, "No law yet", "The manager and its sub-agent act freely. Every act is allowed, and nothing binds the records.")
     misbehave(run, gates)
@@ -544,10 +676,10 @@ def story(run):
     say(f"\n  {D}the gate stopped the file; the manager now tries to put the execution on the AIC's record anyway (say, it accepted by message):{X}")
     record(run, "aic", "manager", "contract_executed", "2026-001 example-castings $30,000 (accepted by message)")
     say(f"\n  {B}the right way{X}: disclose first, then deal")
-    act(run, gates, "manager", "Write", "counterparties/example-castings/disclosure.md",
-        "§8008(a) disclosure: participant, registration no., liability shields, no state endorsement, end date, complaint contacts, Chancery",
-        rec=("counterparty_disclosed", "example-castings"))
-    bridge_open_outbox(run, "example-castings")
+    disclosure = act(run, gates, "manager", "Write", "counterparties/example-castings/disclosure.md",
+                     "§8008(a) disclosure: participant, registration no., liability shields, no state endorsement, end date, complaint contacts, Chancery",
+                     rec=("counterparty_disclosed", "example-castings"))
+    bridge_open_outbox(run, "example-castings", disclosure)
     act(run, gates, "manager", "Write", "counterparties/example-castings/outbox/rfq-2026-001.md", "request for quote: bearings B-12 x500",
         rec=("counterparty_message", "example-castings rfq-2026-001"))
     act(run, gates, "manager", "Write", "contracts/drafts/2026-001.md", "draft supply contract for the member to execute",
@@ -568,14 +700,17 @@ def story(run):
     show_signatures(run, "aic", 2)
 
     beat(6, "Records flow up", "Each level's ledger head goes into its parent's record, so the sandbox holds the chain without holding the AIC's data.")
-    bridge_heads(run)
+    if not bridge_heads(run):
+        say(f"  {R}heads did not all land; the audit will fail on the missing anchors{X}")
 
     beat(7, "Emergency cessation", "The Sandbox Administrator suspends the AIC (§8005(c)(6)c.1, §8009). The suspension cascades down.")
     st, r = http("POST", f"http://127.0.0.1:{ADMIN['de-sandbox']}/admin/api/members/{run.lct('society:aic')}/remove",
                  {"reason": "§8009 suspension: unauthorized activity reported by a counterparty (demo)"})
     print(f"  {B}administrator{X} removes the AIC from the sandbox: {G if st == 200 else R}{st}{X} {D}{r}{X}")
     pause()
-    bridge_suspend(run)
+    susp = bridge_suspend(run, (st, r))
+    if not susp["wind_down_granted"]:
+        say(f"  {R}the suspension cascade did not complete ({susp}); what follows shows the gates as they actually are{X}")
     act(run, gates, "manager", "Write", "counterparties/example-castings/outbox/rfq-2026-002.md", "another quote request",
         rec=("counterparty_message", "example-castings rfq-2026-002"))
     act(run, gates, "procure", "Write", "procurement/catalog-orders/po-18.md", "catalog order: seals S-4 x100",
@@ -585,8 +720,8 @@ def story(run):
         rec=("wind_down_notice", "example-castings"))
     record(run, "aic", "manager", "counterparty_message", "example-castings (after suspension)")
 
-    beat(8, "The administrator's audit", "§8005(c)(10)b / §8012(b): every record at every level, checked without trusting the AIC.")
-    audit(run)
+    beat(8, "The administrator's audit", "§8005(c)(10)b / §8012(b): every record at every level, checked against what the story claims happened.")
+    return audit(run)
 
 
 def show_signatures(run, soc, n=2):
@@ -608,53 +743,154 @@ def show_signatures(run, soc, n=2):
         pause()
 
 
-def audit(run):
-    print(f"  {D}1. each level's own chain (hub verify-ledger: linked, hashed, signed by the hub){X}")
-    for soc in HUBS:
-        out = sh(HUB_BIN / "hub", "verify-ledger", hub_dir(run, soc), check=False)
-        ok = out.strip().startswith("Ledger verified")
-        n, head = hub_head(run, soc)
-        print(f"  {C}{soc:<10}{X} {n:>3} entries · head {head[:16]}… · {G + 'verified' if ok else R + out.strip()[:80]}{X}")
-    print(f"  {D}2. the tier verify-ledger leaves open (\"compare the head against an independently recorded value\"):{X}")
-    print(f"  {D}   each head a parent recorded is checked against the child's own ledger at that index{X}")
-    for parent in ("de-sandbox", "aic"):
-        st, t = http("GET", f"{hub_base(parent)}/v1/hubs/{run.s['hubs'][parent]['id']}/topics/{run.s['hubs'][parent]['topic']}")
-        for post in (t.get("posts") or []):
-            body = post.get("body", "")
-            if not body.startswith("act: ledger_head "):
-                continue
-            f = dict(kv.split("=", 1) for kv in body.split()[3:] if "=" in kv)
-            child, n, head = body.split()[2], int(f["entries"]), f["head"]
-            rows = (hub_dir(run, child) / "ledger.jsonl").read_text().splitlines()
-            have = json.loads(rows[n - 1])["entry_hash"] if len(rows) >= n else None
-            ok = have == head
-            print(f"  {C}{parent:<10}{X} holds {child}'s head at entry {n - 1}: {head[:16]}… → {child}'s ledger there: "
-                  f"{G + 'matches (anchored)' if ok else R + 'MISMATCH ' + str(have)[:16]}{X}"
-                  f"  {D}{len(rows) - n} later entr{'y' if len(rows) - n == 1 else 'ies'} not yet anchored{X}")
-    print(f"  {D}3. the manager's own signatures on its records (§81-301(c)){X}")
-    st, t = http("GET", f"{hub_base('aic')}/v1/hubs/{run.s['hubs']['aic']['id']}/topics/{run.s['hubs']['aic']['topic']}")
-    good = bad = 0
-    for post in (t.get("posts") or []):
-        body = post.get("body", "")
+def ledger_rows(run, soc):
+    """The hub's local ledger.jsonl, parsed. Raises on a missing file or a malformed row (the caller records a failure)."""
+    return [json.loads(line) for line in (hub_dir(run, soc) / "ledger.jsonl").read_text().splitlines() if line.strip()]
+
+
+def check_signatures(run, soc):
+    """Every post on soc's record topic that carries an in-body signature must verify against the signer's pinned key."""
+    st, t = http("GET", f"{hub_base(soc)}/v1/hubs/{run.s['hubs'][soc]['id']}/topics/{run.s['hubs'][soc]['topic']}")
+    if st != 200 or not isinstance(t, dict) or not isinstance(t.get("posts"), list):
+        return None, None, [f"{soc}: record topic unreadable ({st})"]
+    good, bad, why = 0, 0, []
+    for post in t["posts"]:
+        body = str((post or {}).get("body", ""))
         if "\nsig: " not in body:
             continue
-        line, rest = body.split("\nsigned-by: ", 1)
-        signer, sig = rest.split("\nsig: ")
-        st, k = http("GET", f"{hub_base('aic')}/v1/hubs/{run.s['hubs']['aic']['id']}/members/{signer}/pubkey")
         try:
-            Ed25519PublicKey.from_public_bytes(bytes.fromhex((k or {}).get("pubkey_hex", ""))).verify(bytes.fromhex(sig), line.encode())
+            line, rest = body.split("\nsigned-by: ", 1)
+            signer, sig = rest.split("\nsig: ", 1)
+            st, k = http("GET", f"{hub_base(soc)}/v1/hubs/{run.s['hubs'][soc]['id']}/members/{signer}/pubkey")
+            Ed25519PublicKey.from_public_bytes(bytes.fromhex((k or {}).get("pubkey_hex", ""))).verify(bytes.fromhex(sig.strip()), line.encode())
             good += 1
-        except Exception:
+        except Exception as e:
             bad += 1
-    print(f"  {C}aic{X}        {good} record(s) carry a valid manager signature" + (f", {R}{bad} do not{X}" if bad else ""))
-    print(f"  {D}4. each agent's gate record (every act, refused ones included){X}")
+            why.append(f"{soc}: post {str(post.get('post_id'))[:8]} signature does not verify ({type(e).__name__})")
+    return good, bad, why
+
+
+def audit(run, as_json=False):
+    """The administrator's audit. Every check must pass AND every count must equal what the story recorded as having
+    happened (run state `expect`). Returns the structured result; also written to RUN/audit.json. Exit status: main()."""
+    out = (lambda *a, **k: None) if as_json else print
+    exp = run.s.get("expect")
+    res = {"ok": False, "checks": {}, "failures": []}
+    fail = res["failures"].append
+    if not exp:
+        fail("no story has run in this RUN_DIR: nothing to compare the records against")
+        exp = {"records": [], "heads": [], "gate_outcomes": {}}
+
+    out(f"  {D}1. each level's own chain (hub verify-ledger: linked, hashed, signed by the hub){X}")
+    verified = 0
+    for soc in HUBS:
+        p = subprocess.run([str(HUB_BIN / "hub"), "verify-ledger", str(hub_dir(run, soc))], capture_output=True, text=True, env=HUB_ENV)
+        text = (p.stdout + p.stderr).strip()
+        ok = p.returncode == 0 and text.startswith("Ledger verified")
+        verified += ok
+        if not ok:
+            fail(f"{soc}: hub verify-ledger failed: {text[:160]}")
+        n, head = hub_head(run, soc)
+        out(f"  {C}{soc:<10}{X} {n:>3} entries · head {head[:16]}… · {G + 'verified' if ok else R + text[:80]}{X}")
+    res["checks"]["ledgers_verified"] = {"got": verified, "want": len(HUBS)}
+
+    out(f"  {D}2. each head a parent recorded, compared with the child's own ledger.jsonl at that index{X}")
+    out(f"  {D}   (same machine, both records under the demo operator's control: a cross-record consistency check, not an independent witness){X}")
+    matched, posted = 0, 0
+    for parent in ("de-sandbox", "aic"):
+        st, t = http("GET", f"{hub_base(parent)}/v1/hubs/{run.s['hubs'][parent]['id']}/topics/{run.s['hubs'][parent]['topic']}")
+        if st != 200 or not isinstance(t, dict) or not isinstance(t.get("posts"), list):
+            fail(f"{parent}: record topic unreadable ({st})")
+            continue
+        for post in t["posts"]:
+            body = str((post or {}).get("body", ""))
+            if not body.startswith("act: ledger_head "):
+                continue
+            posted += 1
+            try:
+                f = dict(kv.split("=", 1) for kv in body.split()[3:] if "=" in kv)
+                child, n, head = body.split()[2], int(f["entries"]), f["head"]
+                rows = ledger_rows(run, child)
+                have = rows[n - 1]["entry_hash"] if 0 < n <= len(rows) else None
+            except Exception as e:
+                fail(f"{parent}: head post unreadable or child ledger unreadable ({type(e).__name__}: {e})")
+                continue
+            ok = have == head
+            matched += ok
+            if not ok:
+                fail(f"{parent} holds {child}'s head {head[:16]} at entry {n - 1}; {child}'s ledger.jsonl there has {str(have)[:16]}")
+            out(f"  {C}{parent:<10}{X} holds {child}'s head at entry {n - 1}: {head[:16]}… → {child}'s ledger.jsonl there: "
+                f"{G + 'consistent' if ok else R + 'MISMATCH ' + str(have)[:16]}{X}"
+                f"  {D}{len(rows) - n} later entr{'y' if len(rows) - n == 1 else 'ies'} not anchored{X}")
+    want_heads = len(exp["heads"])
+    if want_heads != 2:
+        fail(f"the story landed {want_heads} head post(s); 2 expected (desk→aic, aic→de-sandbox)")
+    if posted != want_heads:
+        fail(f"{posted} head post(s) on the parents' records, the story landed {want_heads}")
+    res["checks"]["heads_consistent"] = {"got": matched, "want": 2, "posted": posted}
+
+    out(f"  {D}3. every landed record is in its hub's ledger at the index and hash the hub returned{X}")
+    present = 0
+    cache = {}
+    for r in exp["records"] + [dict(h, soc=h["parent"]) for h in exp["heads"]]:
+        try:
+            rows = cache.setdefault(r["soc"], ledger_rows(run, r["soc"]))
+            ok = rows[r["entry_index"]]["entry_hash"] == r["entry_hash"]
+        except Exception:
+            ok = False
+        present += ok
+        if not ok:
+            fail(f"{r['soc']}: the record the hub acknowledged at #{r['entry_index']} ({str(r['entry_hash'])[:12]}) is not in its ledger.jsonl")
+    want_present = len(exp["records"]) + len(exp["heads"])
+    out(f"  {C}records{X}    {present}/{want_present} acknowledged entries found in place")
+    res["checks"]["acknowledged_entries_in_ledger"] = {"got": present, "want": want_present}
+
+    out(f"  {D}4. the agents' own signatures on their records (§81-301(c); in-body, a BRIDGE: Hub keeps only its own signature){X}")
+    for soc, agent in (("aic", "manager"), ("desk", "procure")):
+        good, bad, why = check_signatures(run, soc)
+        want = sum(1 for r in exp["records"] if r["soc"] == soc and r["signed"])
+        for w in why:
+            fail(w)
+        if good is not None and (good != want or bad):
+            fail(f"{soc}: {good} valid signature(s), {bad} invalid; the story landed {want} signed record(s)")
+        out(f"  {C}{soc:<10}{X} {good}/{want} {agent} signature(s) valid" + (f", {R}{bad} invalid{X}" if bad else ""))
+        res["checks"][f"signatures_{soc}"] = {"got": good, "want": want, "invalid": bad}
+
+    out(f"  {D}5. each agent's gate record (every act, refused ones included; hash links checked over the window read){X}")
     for agent in GATES:
-        tok = operator_token(run, agent)
-        st, d = http("GET", gate_base(agent) + "/api/chain?limit=200", token=tok)
-        rows = [e for e in d.get("entries", []) if e.get("event_type") == "outcome" and str(e.get("plugin_id", "")).startswith("aic-")]
-        refused = sum(1 for e in rows if not e.get("success"))
-        print(f"  {C}{agent:<10}{X} {len(rows)} act(s), {refused} refused, hash-linked")
-    print(f"\n  {D}stand-ins this run used (BRIDGE): heads into parents, outbox opening, suspension cascade, the manager's in-body signature.{X}")
+        want = exp["gate_outcomes"].get(agent, [])
+        try:
+            tok = operator_token(run, agent)
+            st, d = http("GET", gate_base(agent) + "/api/chain?limit=5000", token=tok)
+        except SystemExit as e:
+            st, d = 0, {"error": str(e)}
+        if st != 200 or not isinstance(d, dict) or not isinstance(d.get("entries"), list) or d.get("read_error"):
+            fail(f"{agent}: gate chain unreadable ({st} {str(d)[:100]})")
+            res["checks"][f"gate_{agent}"] = {"got": None, "want": len(want)}
+            continue
+        ents = sorted(d["entries"], key=lambda e: e.get("chain_position", 0))
+        broken = sum(1 for a, b in zip(ents, ents[1:]) if b.get("chain_position") == a.get("chain_position", -2) + 1 and b.get("prev_hash") != a.get("hash"))
+        rows = [e for e in ents if e.get("event_type") == "outcome" and str(e.get("plugin_id", "")).startswith("aic-")]
+        got_ok = sum(1 for e in rows if e.get("success"))
+        want_ok = sum(1 for w in want if w["success"])
+        if broken:
+            fail(f"{agent}: {broken} broken hash link(s) in the gate chain")
+        if len(rows) != len(want) or got_ok != want_ok:
+            fail(f"{agent}: gate shows {len(rows)} outcome(s) ({got_ok} successful); the story reported {len(want)} ({want_ok} successful)")
+        out(f"  {C}{agent:<10}{X} {len(rows)}/{len(want)} outcome(s), {len(rows) - got_ok} not successful (refused or incomplete), "
+            f"{'hash-linked' if not broken else R + str(broken) + ' broken link(s)' + X}")
+        res["checks"][f"gate_{agent}"] = {"got": len(rows), "want": len(want), "successful": got_ok, "want_successful": want_ok, "broken_links": broken}
+
+    res["ok"] = not res["failures"]
+    (run.root / "audit.json").write_text(json.dumps(res, indent=2))
+    out(f"\n  {D}stand-ins this run used (BRIDGE): heads into parents, outbox opening, suspension cascade, the agents' in-body signatures.{X}")
+    out(f"  {D}the gate outcomes are matched by count and success, not by action id: Hestia's /api/chain view does not expose action ids.{X}")
+    out(f"\n  {G + 'AUDIT PASS' if res['ok'] else R + 'AUDIT FAIL'}{X} {D}({run.root / 'audit.json'}){X}")
+    for f in res["failures"]:
+        out(f"    {R}✗{X} {f}")
+    if as_json:
+        print(json.dumps(res, indent=2))
+    return res
 
 
 def main():
@@ -666,9 +902,9 @@ def main():
     if cmd == "up":
         up(run)
     elif cmd == "story":
-        story(run)
+        sys.exit(0 if story(run)["ok"] else 1)
     elif cmd == "audit":
-        audit(run)
+        sys.exit(0 if audit(run, as_json="--json" in sys.argv)["ok"] else 1)
     elif cmd == "down":
         down(run)
     else:
