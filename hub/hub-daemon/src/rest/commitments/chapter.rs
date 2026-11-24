@@ -392,10 +392,14 @@ fn options(state: &HubState, book: &ContactBook, people: &[PartyRef], selected: 
 
 fn job_row(state: &HubState, book: &ContactBook, key: &[u8; 32], party_id: &str, c: &Commitment, now: DateTime<Utc>) -> String {
     let link = mint_link(key, &c.commitment_id, party_id, now + chrono::Duration::days(LINK_TTL_DAYS));
-    let aim = target_of(c).filter(|_| c.group.as_deref().is_some_and(|g| g.starts_with(ch::EVENT_GROUP_PREFIX)))
-        .map(|t| format!(" · by {}", local_day(t))).unwrap_or_default();
-    format!("<li><a href=\"/c/{}\">{}</a> <span class=\"muted\">{}{}</span></li>",
-        esc(&link), esc(&c.title), esc(&job_status(state, book, c)), esc(&aim))
+    // On your own page, your own checklist item reads "by Thu Nov 26", not "Ines, by Thu Nov 26".
+    let status = match target_of(c) {
+        Some(d) if is_event_item(c) && c.owner.party_id == party_id && c.queue == commitments::QueuePos::Owner =>
+            format!("by {}", local_day(d)),
+        _ => job_status(state, book, c),
+    };
+    format!("<li><a href=\"/c/{}\">{}</a> <span class=\"muted\">{}</span></li>",
+        esc(&link), esc(&c.title), esc(&status))
 }
 
 /// `GET /h/:token` — a person's chapter page.
