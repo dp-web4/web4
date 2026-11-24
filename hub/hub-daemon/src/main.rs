@@ -3506,6 +3506,10 @@ mod tests {
         /// not hidden, because a guard that quietly covers half its surface
         /// reads as covering all of it.
         const BODY_EXEMPT: &[&str] = &[
+            // The chapter layer: lead forms on a person's chapter page (form bodies). Driven
+            // end-to-end through plan_event / add_todo by the tests in rest/commitments/chapter.rs.
+            "/h/:token/plan",
+            "/h/:token/todo",
             // Commitments K5c/K5c2: signed envelopes; driven end-to-end by the `me` tests in
             // rest/commitments/me.rs.
             "/me/act",

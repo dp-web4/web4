@@ -1072,6 +1072,11 @@ pub enum HubEvent {
         due_at: Option<DateTime<Utc>>,
         recorded_by: Uuid,
         basis: crate::commitments::Basis,
+        /// The chapter layer: the event or request this job belongs to (`event:<id>`,
+        /// `request:<id>`). Absent on every commitment written before it, and serialized only
+        /// when set, so earlier entries hash as they always did.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        group: Option<String>,
     },
 
     /// Commitments K1: a party of the commitment acknowledged it. `via` says how the word
@@ -1162,6 +1167,75 @@ pub enum HubEvent {
     InviteRevoked {
         invite_digest: String,
         revoked_by: Uuid,
+    },
+
+    /// The chapter layer (`hub/docs/PRD_CHAPTER_PRODUCT.md`): a committee created, changed or
+    /// retired, whole. Leads and members are opaque party ids, as on commitments (C3). `inbox`
+    /// marks the one committee that answers the chapter's address.
+    CommitteeSet {
+        committee_id: String,
+        name: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        purpose: String,
+        leads: Vec<crate::commitments::PartyRef>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        members: Vec<crate::commitments::PartyRef>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        inbox: bool,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        retired: bool,
+        set_by: Uuid,
+    },
+
+    /// The chapter layer: an event with an owner and a backup. Its checklist items are
+    /// commitments whose `group` is `event:<event_id>`. `planned_by` is the party who planned it,
+    /// as good as `via`, the same reading as a commitment's `by`.
+    ChapterEventPlanned {
+        event_id: String,
+        title: String,
+        starts_at: DateTime<Utc>,
+        committee_id: String,
+        owner: crate::commitments::PartyRef,
+        backup: crate::commitments::PartyRef,
+        planned_by: String,
+        via: crate::commitments::AckVia,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link_digest: Option<String>,
+    },
+
+    /// The chapter layer: the event is over and its record is final. Open checklist items stay
+    /// as they are; closing records nothing about them.
+    ChapterEventClosed {
+        event_id: String,
+        by: String,
+        via: crate::commitments::AckVia,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link_digest: Option<String>,
+        closed_at: DateTime<Utc>,
+    },
+
+    /// The chapter layer: a request reached the chapter's address and became `commitment_id` for
+    /// the inbox committee. The sender and the message stay in the operator's intake file (C3);
+    /// `channel` names the means ("email"), not where.
+    RequestReceived {
+        request_id: String,
+        commitment_id: String,
+        committee_id: String,
+        channel: String,
+        received_at: DateTime<Utc>,
+    },
+
+    /// The chapter layer: a request was passed to another committee. The commitment that carried
+    /// it is withdrawn in the same act, and `to_commitment_id` carries it from here.
+    RequestPassed {
+        request_id: String,
+        from_commitment_id: String,
+        to_committee_id: String,
+        to_commitment_id: String,
+        by: String,
+        via: crate::commitments::AckVia,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link_digest: Option<String>,
     },
 
     /// A society published one of its LCTs upward so the hub registry can serve
@@ -1313,6 +1387,11 @@ impl HubEvent {
         "intro_requested",
         "intro_responded",
         "invite_revoked",
+        "committee_set",
+        "chapter_event_planned",
+        "chapter_event_closed",
+        "request_received",
+        "request_passed",
         "law_amended",
         "lct_predecessor_attestation_withdrawn",
         "lct_predecessor_attested",
@@ -1417,6 +1496,11 @@ impl HubEvent {
             Self::NudgeDelivered { .. } => "nudge_delivered",
             Self::ContactBound { .. } => "contact_bound",
             Self::InviteRevoked { .. } => "invite_revoked",
+            Self::CommitteeSet { .. } => "committee_set",
+            Self::ChapterEventPlanned { .. } => "chapter_event_planned",
+            Self::ChapterEventClosed { .. } => "chapter_event_closed",
+            Self::RequestReceived { .. } => "request_received",
+            Self::RequestPassed { .. } => "request_passed",
             Self::LctPublished { .. } => "lct_published",
             Self::LctRotated { .. } => "lct_rotated",
             Self::LctPredecessorAttested { .. } => "lct_predecessor_attested",

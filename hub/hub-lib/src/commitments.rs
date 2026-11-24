@@ -206,6 +206,8 @@ pub struct Commitment {
     /// Digests of the links that have acknowledged (K4): each link acknowledges once.
     pub link_acks: BTreeSet<String>,
     pub handoffs: Vec<Handoff>,
+    /// The chapter layer's grouping (`event:<id>` or `request:<id>`), if any.
+    pub group: Option<String>,
 }
 
 impl Commitment {
@@ -559,7 +561,7 @@ pub fn rebind(commitments: &mut BTreeMap<String, Commitment>, party_id: &str, me
 pub fn fold(commitments: &mut BTreeMap<String, Commitment>, event: &HubEvent, ts: DateTime<Utc>, index: u64) {
     match event {
         HubEvent::CommitmentOpened {
-            commitment_id, title, owner, backup, leads_role, ladder, due_at, recorded_by, basis,
+            commitment_id, title, owner, backup, leads_role, ladder, due_at, recorded_by, basis, group,
         } => {
             commitments.entry(commitment_id.clone()).or_insert_with(|| Commitment {
                 commitment_id: commitment_id.clone(),
@@ -581,6 +583,7 @@ pub fn fold(commitments: &mut BTreeMap<String, Commitment>, event: &HubEvent, ts
                 deliveries: Vec::new(),
                 link_acks: BTreeSet::new(),
                 handoffs: Vec::new(),
+                group: group.clone(),
             });
         }
         HubEvent::CommitmentAcknowledged { commitment_id, party_id, via, link_digest } => {
@@ -703,6 +706,14 @@ impl Commitment {
     /// who took it back has answered it. `leads` are the members holding the leads role, which
     /// only the caller's roster knows.
     pub fn nudge_targets(&self, leads: &[String]) -> Vec<NudgeTarget> {
+        let leads: Vec<PartyRef> = leads.iter()
+            .map(|id| PartyRef { party_id: id.clone(), kind: PartyKind::Member }).collect();
+        self.nudge_targets_to(&leads)
+    }
+
+    /// [`Self::nudge_targets`] with the leads as parties, so a lead may be a contact (the chapter
+    /// layer's committee leads).
+    pub fn nudge_targets_to(&self, leads: &[PartyRef]) -> Vec<NudgeTarget> {
         if !self.is_open() {
             return Vec::new();
         }
@@ -736,8 +747,7 @@ impl Commitment {
         }
         let parties = match e.step {
             EscalationStep::Backup => vec![self.backup.clone()],
-            EscalationStep::Leads => leads.iter()
-                .map(|id| PartyRef { party_id: id.clone(), kind: PartyKind::Member }).collect(),
+            EscalationStep::Leads => leads.to_vec(),
         };
         parties.into_iter()
             .map(|party| NudgeTarget { about_index: e.index, party, about: NudgeAbout::Escalated })
@@ -903,6 +913,7 @@ mod tests {
             due_at: None,
             recorded_by: Uuid::nil(),
             basis: Basis::NamedByOther,
+            group: None,
         }
     }
 
@@ -1352,7 +1363,7 @@ mod tests {
         let open = |id: &str, owner: PartyRef, backup: PartyRef| match opened(id) {
             HubEvent::CommitmentOpened { commitment_id, title, leads_role, ladder, due_at, recorded_by, basis, .. } =>
                 HubEvent::CommitmentOpened { commitment_id, title, owner, backup, leads_role, ladder, due_at,
-                    recorded_by, basis },
+                    recorded_by, basis, group: None },
             _ => unreachable!(),
         };
         let bound = |party: &str, member: Uuid, c: char| HubEvent::ContactBound {

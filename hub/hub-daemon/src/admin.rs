@@ -1423,6 +1423,28 @@ fn event_summary(event: &HubEvent) -> String {
         HubEvent::InviteRevoked { invite_digest, .. } => format!(
             "✂ invite <code>{}</code> withdrawn", html_escape(invite_digest),
         ),
+        HubEvent::CommitteeSet { committee_id, name, leads, members, inbox, retired, .. } => format!(
+            "👥 committee “{}” <code>{}</code> {}: {} lead(s), {} member(s){}",
+            html_escape(name), html_escape(committee_id), if *retired { "retired" } else { "set" },
+            leads.len(), members.len(), if *inbox { " · answers the chapter's address" } else { "" },
+        ),
+        HubEvent::ChapterEventPlanned { event_id, title, starts_at, owner, backup, via, .. } => format!(
+            "📅 event “{}” <code>{}</code> planned for {}: owner {}, backup {} <span class=\"muted\">(via {:?})</span>",
+            html_escape(title), html_escape(event_id), starts_at.format("%Y-%m-%d %H:%M UTC"),
+            party_label(owner), party_label(backup), via,
+        ),
+        HubEvent::ChapterEventClosed { event_id, by, via, .. } => format!(
+            "🏁 event <code>{}</code> closed by <code>{}</code> <span class=\"muted\">(via {:?})</span>",
+            html_escape(event_id), html_escape(by), via,
+        ),
+        HubEvent::RequestReceived { request_id, commitment_id, channel, .. } => format!(
+            "📥 request <code>{}</code> received by {} as commitment <code>{}</code>",
+            html_escape(request_id), html_escape(channel), html_escape(commitment_id),
+        ),
+        HubEvent::RequestPassed { request_id, to_committee_id, by, via, .. } => format!(
+            "↪ request <code>{}</code> passed to committee <code>{}</code> by <code>{}</code> <span class=\"muted\">(via {:?})</span>",
+            html_escape(request_id), html_escape(to_committee_id), html_escape(by), via,
+        ),
         HubEvent::LctPublished { lct_id, document, published_by, provenance, .. } => format!(
             "🪪 LCT published: {:?} <code>{}</code> by {} <span class=\"muted\">({:?})</span>",
             document.entity_type,

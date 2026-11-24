@@ -22,6 +22,8 @@ mod invites;
 pub(crate) use invites::*;
 mod me;
 pub(crate) use me::*;
+mod chapter;
+pub(crate) use chapter::*;
 
 /// Serialises every commitment write and every contact-book write.
 pub(crate) static COMMITMENT_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -61,11 +63,17 @@ fn check_party(state: &HubState, book: &ContactBook, p: &PartyRef, field: &str) 
 }
 
 /// The leads role must be a live role entity: an escalation to nobody reaches nobody.
-fn check_leads_role(state: &HubState, role: &str) -> Result<Uuid, ApiError> {
+fn check_leads_role(state: &HubState, role: &str) -> Result<(), ApiError> {
+    if let Some(k) = hub_lib::chapter::committee_of_role(role) {
+        return match state.chapter.committees.get(k) {
+            Some(c) if !c.retired => Ok(()),
+            _ => Err(ApiError::bad_request(format!("leads_role: no live committee {k}"))),
+        };
+    }
     let id = Uuid::parse_str(role)
         .map_err(|_| ApiError::bad_request(format!("leads_role: {role} is not a role entity id")))?;
     match state.roles.get(&id) {
-        Some(r) if !r.retired => Ok(id),
+        Some(r) if !r.retired => Ok(()),
         Some(_) => Err(ApiError::bad_request(format!("leads_role: role {id} is retired"))),
         None => Err(ApiError::bad_request(format!("leads_role: no role entity {id}"))),
     }
@@ -98,8 +106,14 @@ fn check_actor(s: &RestState, state: &HubState, c: &Commitment, by: &str, operat
     }
 }
 
-/// The members who hold the leads role, or a seat within it.
+/// The party ids at the end of the ladder: the members who hold the leads role (or a seat within
+/// it), or, for a chapter commitment, its committee's leads (who may be contacts).
 pub(crate) fn leads_of(state: &HubState, c: &Commitment) -> Vec<String> {
+    lead_parties(state, c).into_iter().map(|p| p.party_id).collect()
+}
+
+/// The members who hold the leads role, or a seat within it.
+pub(crate) fn role_leads(state: &HubState, c: &Commitment) -> Vec<String> {
     let Ok(role) = Uuid::parse_str(&c.leads_role) else { return Vec::new() };
     let mut leads: Vec<String> = state.roles.values()
         .filter(|r| !r.retired && (r.role_lct_id == role || r.parent_role_lct_id == Some(role)))
@@ -186,6 +200,7 @@ async fn open_commitment(s: &RestState, body: OpenBody) -> Result<serde_json::Va
         due_at: body.due_at,
         recorded_by,
         basis,
+        group: None,
     }).await?;
     Ok(serde_json::json!({ "opened": true, "commitment_id": commitment_id, "entry_index": entry_index }))
 }
@@ -586,8 +601,14 @@ pub(crate) fn due_nudges(
     let name = |p: &PartyRef| party_view(state, book, p)["name"].as_str()
         .map(str::to_string).unwrap_or_else(|| "someone".to_string());
     for c in open_by_queue(state) {
-        for t in c.nudge_targets(&leads_of(state, c)) {
+        // An event's checklist items are announced once per person by the chapter's notice
+        // ("you're the owner of the December social"), not once per item.
+        let event_item = c.group.as_deref().is_some_and(|g| g.starts_with(hub_lib::chapter::EVENT_GROUP_PREFIX));
+        for t in c.nudge_targets_to(&lead_parties(state, c)) {
             if c.delivered(t.about_index, &t.party.party_id) {
+                continue;
+            }
+            if event_item && matches!(t.about, commitments::NudgeAbout::NamedOwner | commitments::NudgeAbout::NamedBackup) {
                 continue;
             }
             let address = book.address_of(&t.party);
@@ -603,11 +624,19 @@ pub(crate) fn due_nudges(
                 *left -= 1;
                 None
             };
-            let (subject, mut body) = c.nudge_message(&t, &name);
+            let (subject, mut body) = chapter_nudge_message(state, c, &t, &name)
+                .unwrap_or_else(|| c.nudge_message(&t, &name));
             let link = links.map(|m| format!("{}/c/{}", m.base, mint_link(m.key, &c.commitment_id, &t.party.party_id,
                 now + chrono::Duration::days(LINK_TTL_DAYS))));
             if let Some(link) = &link {
-                body.push_str(&format!("\n\nSay where it stands (done, stuck, or hand it on): {link}"));
+                if state.chapter.request_of_commitment(&c.commitment_id).is_some() {
+                    body.push_str(&format!("\n\nRead it and answer: {link}"));
+                } else {
+                    body.push_str(&format!("\n\nSay where it stands (done, stuck, or hand it on): {link}"));
+                }
+            }
+            if let Some(m) = links.filter(|_| state.chapter.knows(&t.party.party_id)) {
+                body.push_str(&format!("\nYour chapter page: {}", home_url(m.base, m.key, &t.party.party_id, now)));
             }
             rows.push(serde_json::json!({
                 "commitment_id": c.commitment_id,
@@ -1005,7 +1034,8 @@ pub(crate) async fn act_as(
             let me = if role == LinkRole::Backup {
                 c.backup.clone()
             } else {
-                PartyRef { party_id: by.clone(), kind: PartyKind::Member }
+                lead_parties(&state, &c).into_iter().find(|p| p.party_id == by)
+                    .unwrap_or(PartyRef { party_id: by.clone(), kind: PartyKind::Member })
             };
             witness_move(s, &c, moved(MoveKind::Handoff, Some(me)), via, digest).await
         }
@@ -1015,7 +1045,22 @@ pub(crate) async fn act_as(
 
 const LINK_PAGE_CSS: &str = "body{font:17px/1.5 system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem}\
     form{margin:.5rem 0}button{font:inherit;width:100%;padding:.8rem;border-radius:.5rem;\
-    border:1px solid #888;background:#f4f4f4;cursor:pointer}.muted{color:#666}.ok{color:#2a8a3e}.err{color:#c0392b}";
+    border:1px solid #888;background:#f4f4f4;cursor:pointer}.muted{color:#666}.ok{color:#2a8a3e}.err{color:#c0392b}\
+    h1{font-size:1.5rem;line-height:1.25}h2{font-size:1.15rem;margin-top:1.6rem;border-bottom:1px solid #ddd}\
+    h3{font-size:1rem;margin:1rem 0 .2rem}ul{padding-left:1.1rem}li{margin:.35rem 0}ul.compact li{margin:.1rem 0}\
+    .tag{font-size:.75rem;background:#eef4ff;border:1px solid #c9d8f5;border-radius:1rem;padding:0 .5rem;font-weight:normal}\
+    .stack label{display:block;margin:.6rem 0}.stack input,.stack select{display:block;width:100%;font:inherit;\
+    padding:.5rem;border:1px solid #aaa;border-radius:.4rem;box-sizing:border-box}\
+    label.check{display:block;margin:.3rem 0}.stack label.check input{display:inline;width:auto;margin-right:.4rem}\
+    details{margin:1rem 0}summary{cursor:pointer;font-weight:600;padding:.6rem 0}.kicker{color:#666;margin:0}\
+    .chips form{display:inline-block;margin:.2rem .3rem .2rem 0}.chips button{width:auto;padding:.4rem .8rem;\
+    border-radius:1rem;background:#fff;font-size:.95rem}fieldset{border:1px solid #ddd;border-radius:.4rem;margin:.8rem 0}\
+    pre{white-space:pre-wrap;font:inherit;background:#f8f8f8;border-left:3px solid #ccc;padding:.6rem}\
+    a.button{display:block;text-align:center;padding:.8rem;border-radius:.5rem;background:#1f5fbf;color:#fff;\
+    text-decoration:none}button.secondary{background:#fff}ol.record li{margin:.2rem 0}\
+    @media (prefers-color-scheme:dark){body{background:#151515;color:#e8e8e8}button{background:#2a2a2a;color:#eee}\
+    button.secondary{background:#1c1c1c}pre{background:#1f1f1f}.muted{color:#9a9a9a}h2{border-color:#333}\
+    .stack input,.stack select{background:#1f1f1f;color:#eee}.tag{background:#1d2a40;border-color:#2c446b}a{color:#8db4ff}}";
 
 /// `GET /c.css`: the link pages' style, a file of its own so their policy can forbid inline style.
 pub(super) async fn link_page_css() -> axum::response::Response {
@@ -1110,21 +1155,41 @@ pub(super) async fn link_page(
     };
     let owner = name(&c.owner);
     let backup = name(&c.backup);
-    html.push_str(&match role {
-        LinkRole::Owner => format!("<p>You're the owner. Your backup is {}.</p>", esc(&backup)),
-        LinkRole::Backup => format!("<p>{} owns this. You're the backup.</p>", esc(&owner)),
-        LinkRole::Lead => format!("<p>{} owns this, and {} is the backup. You're one of the leads.</p>",
-            esc(&owner), esc(&backup)),
-    });
-    if let Some(due) = c.due_at {
-        html.push_str(&format!("<p class=\"muted\">Due {}.</p>", due.format("%Y-%m-%d %H:%M UTC")));
+    let request = state.chapter.request_of_commitment(&c.commitment_id).is_some();
+    if request {
+        // An email to the chapter: the message first, then what to do about it.
+        html = request_head(&s, &state, c, role == LinkRole::Owner, &owner, &backup);
+    } else {
+        html.push_str(&match role {
+            LinkRole::Owner => format!("<p>You're the owner. Your backup is {}.</p>", esc(&backup)),
+            LinkRole::Backup => format!("<p>{} owns this. You're the backup.</p>", esc(&owner)),
+            LinkRole::Lead => format!("<p>{} owns this, and {} is the backup. You're one of the leads.</p>",
+                esc(&owner), esc(&backup)),
+        });
+        if let Some(line) = item_target_line(c) {
+            html.push_str(&format!("<p class=\"muted\">{}</p>", esc(&line)));
+        }
+        if let Some(due) = c.due_at {
+            html.push_str(&format!("<p class=\"muted\">Due {}.</p>", due.format("%Y-%m-%d %H:%M UTC")));
+        }
     }
     for act in acts_for(c, role, &claim.party_id, Some(&claim.digest)) {
+        if request && matches!(act, LinkAct::Update | LinkAct::Stuck) {
+            continue;
+        }
+        let label = if request { request_act_label(act, &backup) } else { act_label(act, role, &backup) };
         // Relative to /c/<token>, so the form posts back to this hub whatever origin served it.
         html.push_str(&format!("<form method=\"post\" action=\"{}/{}\"><button>{}</button></form>",
-            esc(&token), act.path(), esc(&act_label(act, role, &backup))));
+            esc(&token), act.path(), esc(&label)));
     }
+    html.push_str(&request_panel(&s, &state, c, &token));
     html.push_str("<p class=\"muted\">Your answer goes on the chapter's record, marked as sent from this link.</p>");
+    if state.chapter.knows(&claim.party_id) {
+        if let Ok(Some(key)) = read_link_key(&s.paths.root) {
+            html.push_str(&format!("<p><a href=\"/h/{}\">Your chapter page</a></p>",
+                esc(&mint_home(&key, &claim.party_id, Utc::now()))));
+        }
+    }
     link_page_response(StatusCode::OK, &title, &html)
 }
 
