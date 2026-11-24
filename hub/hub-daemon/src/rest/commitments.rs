@@ -1053,6 +1053,8 @@ const LINK_PAGE_CSS: &str = "body{font:17px/1.5 system-ui,sans-serif;max-width:3
     padding:.5rem;border:1px solid #aaa;border-radius:.4rem;box-sizing:border-box}\
     label.check{display:block;margin:.3rem 0}.stack label.check input{display:inline;width:auto;margin-right:.4rem}\
     details{margin:1rem 0}summary{cursor:pointer;font-weight:600;padding:.6rem 0}.kicker{color:#666;margin:0}\
+    form.row{display:flex;gap:.4rem;align-items:center;margin:.3rem 0}form.row span{flex:1}\
+    form.row select{font:inherit;padding:.3rem}form.row button{width:auto;padding:.3rem .7rem}\
     .chips form{display:inline-block;margin:.2rem .3rem .2rem 0}.chips button{width:auto;padding:.4rem .8rem;\
     border-radius:1rem;background:#fff;font-size:.95rem}fieldset{border:1px solid #ddd;border-radius:.4rem;margin:.8rem 0}\
     pre{white-space:pre-wrap;font:inherit;background:#f8f8f8;border-left:3px solid #ccc;padding:.6rem}\
@@ -1181,6 +1183,9 @@ pub(super) async fn link_page(
         // Relative to /c/<token>, so the form posts back to this hub whatever origin served it.
         html.push_str(&format!("<form method=\"post\" action=\"{}/{}\"><button>{}</button></form>",
             esc(&token), act.path(), esc(&label)));
+    }
+    if matches!(role, LinkRole::Owner | LinkRole::Lead) {
+        html.push_str(&give_form(&state, &book, c, &token));
     }
     html.push_str(&request_panel(&s, &state, c, &token));
     html.push_str("<p class=\"muted\">Your answer goes on the chapter's record, marked as sent from this link.</p>");

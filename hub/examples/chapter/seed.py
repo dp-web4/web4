@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Load a chapter (people + committees) into a running hub through its operator plane.
+"""Set up a chapter hub's starting structure (people + committees) through its operator plane.
 
-    python3 seed.py --chapter synthetic-chapter.json --admin http://127.0.0.1:8782 \
-        [--token-file <hub-dir>/operator.token] [--inbox demo@example.org] [--links]
+    python3 seed.py --chapter <chapter.json> --admin http://127.0.0.1:8782 \
+        [--token-file <hub-dir>/operator.token] [--invite tag,tag] [--links]
 
 - People become contacts (name + address, kept off the ledger in the contact book).
 - Committees are set with their leads and members; one is marked as answering the chapter's email.
-- --inbox maps every person to <user>+<tag>@<domain>, so one real mailbox receives every email.
+- Nobody is emailed by seeding. --invite names who gets the welcome now (normally the chapter
+  leads); everyone else is invited by a chapter lead from their own page when they choose.
 - --links prints each person's chapter page link (needs HUB_PUBLIC_BASE_URL on the hub).
 
 Safe to re-run: people already in the contact book (same address) are reused, and committees with
@@ -38,7 +39,7 @@ def main():
     ap.add_argument("--chapter", required=True)
     ap.add_argument("--admin", default="http://127.0.0.1:8782")
     ap.add_argument("--token-file")
-    ap.add_argument("--inbox", help="user@domain: every person becomes user+tag@domain")
+    ap.add_argument("--invite", default="", help="comma-separated tags to welcome now")
     ap.add_argument("--links", action="store_true")
     a = ap.parse_args()
 
@@ -46,12 +47,7 @@ def main():
     chapter = json.load(open(a.chapter))
 
     def address(p):
-        if p.get("address"):
-            return p["address"]
-        if not a.inbox:
-            return f"{p['tag']}@example.org"
-        user, domain = a.inbox.split("@", 1)
-        return f"{user}+{p['tag']}@{domain}"
+        return p["address"]
 
     book = call(a.admin, token, "GET", "/admin/api/contacts").get("contacts", {})
     by_address = {c["address"].lower(): pid for pid, c in book.items()}
@@ -77,6 +73,11 @@ def main():
             body["committee_id"] = existing[c["name"].lower()]
         r = call(a.admin, token, "POST", "/admin/api/chapter/committees", body)
         print(f"committee {c['name']:<24} {r['committee_id']}")
+
+    tags = [x for x in a.invite.split(",") if x.strip()]
+    if tags:
+        call(a.admin, token, "POST", "/admin/api/chapter/invite", {"party_ids": [party[x.strip()]["party_id"] for x in tags]})
+        print("invited", ", ".join(tags))
 
     if a.links:
         for p in chapter["people"]:
