@@ -17,6 +17,12 @@ path = "src/main.rs"
 name = "hub-nudge"
 path = "src/bin/hub-nudge.rs"
 
+# The chapter's inbound carrier: reads new mail from a mailbox over IMAP (through curl) and hands
+# each message to the hub as a request. The hub never holds the mailbox login.
+[[bin]]
+name = "hub-intake"
+path = "src/bin/hub-intake.rs"
+
 [dependencies]
 zeroize = "1"
 hub-lib = { package = "web4-hub-lib", path = "../hub-lib", version = "=0.1.0-alpha.0" }

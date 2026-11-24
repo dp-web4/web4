@@ -1,0 +1,33 @@
+{
+  "_about": "A made-up chapter for rehearsal and demos. Every person is fictional. seed.py turns each address into <inbox-user>+<tag>@<inbox-domain> when given --inbox, so one real mailbox receives everything.",
+  "people": [
+    {"tag": "rowan",  "name": "Rowan Ellis"},
+    {"tag": "tamsin", "name": "Tamsin Okafor"},
+    {"tag": "dev",    "name": "Dev Marlow"},
+    {"tag": "ines",   "name": "Ines Varga"},
+    {"tag": "kofi",   "name": "Kofi Brandt"},
+    {"tag": "lena",   "name": "Lena Park"},
+    {"tag": "milo",   "name": "Milo Santos"},
+    {"tag": "priya",  "name": "Priya Holt"},
+    {"tag": "sage",   "name": "Sage Whitfield"},
+    {"tag": "theo",   "name": "Theo Nakamura"},
+    {"tag": "uma",    "name": "Uma Castell"},
+    {"tag": "wren",   "name": "Wren Abiola"}
+  ],
+  "committees": [
+    {"name": "Chapter leads", "purpose": "Runs the chapter, answers the chapter's email, and is the last stop when something goes quiet.",
+     "leads": ["rowan", "tamsin"], "members": [], "inbox": true},
+    {"name": "Technical Events", "purpose": "Talks, demos, hack nights.",
+     "leads": ["dev"], "members": ["ines", "kofi"]},
+    {"name": "Community & Education", "purpose": "Workshops, study groups, newcomers.",
+     "leads": ["lena"], "members": ["milo"]},
+    {"name": "Marketing", "purpose": "Event pages, socials, the newsletter.",
+     "leads": ["priya"], "members": ["sage"]},
+    {"name": "Students", "purpose": "Campus outreach and student members.",
+     "leads": ["theo"], "members": ["uma"]},
+    {"name": "Wellness", "purpose": "Keeping it sustainable for the people doing the work.",
+     "leads": ["uma"], "members": ["wren"]},
+    {"name": "Partnerships", "purpose": "Sponsors and venues.",
+     "leads": ["wren"], "members": ["kofi"]}
+  ]
+}

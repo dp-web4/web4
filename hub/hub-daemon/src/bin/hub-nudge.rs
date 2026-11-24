@@ -406,6 +406,50 @@ async fn pass(
     Ok(r)
 }
 
+/// One row of `GET /admin/api/chapter/notices`: the chapter layer's own mail (a welcome, "you're
+/// on this event", a recap). Off the ledger: each is reported back as sent or failed by id.
+#[derive(Clone, Debug, Deserialize)]
+struct Notice {
+    notice_id: String,
+    address: String,
+    subject: String,
+    body: String,
+}
+
+/// Send the chapter notices the hub lists. A hub with no chapter routes answers 404, and that is
+/// nothing to do, not an error. A dry run prints subjects and recipients, never bodies: each body
+/// carries the person's chapter page link.
+async fn notice_pass(hub: &HttpHub, mail: &dyn Mailer, dry_run: bool) -> Result<u32> {
+    let base = hub.base.trim_end_matches('/');
+    let resp = hub.http.get(format!("{base}/admin/api/chapter/notices")).send().await.context("listing notices")?;
+    if resp.status() == reqwest::StatusCode::NOT_FOUND || resp.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE {
+        return Ok(0);
+    }
+    if !resp.status().is_success() {
+        bail!("notices answered {}", resp.status());
+    }
+    #[derive(Deserialize)]
+    struct Listing {
+        notices: Vec<Notice>,
+    }
+    let listing: Listing = resp.json().await.context("reading notices")?;
+    let mut sent = 0;
+    for n in listing.notices {
+        if dry_run {
+            println!("would send notice {} to {}: {}", n.notice_id, n.address, n.subject);
+            continue;
+        }
+        let ok = match mail.send(&n.address, &n.subject, &n.body).await {
+            Ok(()) => { sent += 1; true }
+            Err(e) => { tracing::warn!("notice {} failed: {e:#}", n.notice_id); false }
+        };
+        hub.http.post(format!("{base}/admin/api/chapter/notices/sent"))
+            .json(&serde_json::json!({ "notice_id": n.notice_id, "ok": ok }))
+            .send().await.context("reporting a notice")?;
+    }
+    Ok(sent)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt().with_env_filter(
@@ -425,6 +469,11 @@ async fn main() -> Result<()> {
         match pass(&hub, &mail, &cfg.operator_address, alert_after, &mut state, Utc::now(), args.dry_run).await {
             Ok(r) => tracing::info!(?r, "nudge pass"),
             Err(e) => tracing::warn!("nudge pass failed: {e:#}"),
+        }
+        match notice_pass(&hub, &mail, args.dry_run).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!(sent = n, "chapter notices"),
+            Err(e) => tracing::warn!("notice pass failed: {e:#}"),
         }
         if !args.dry_run {
             state.save(&cfg.state_file)?;

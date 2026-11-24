@@ -442,6 +442,9 @@ pub struct RoleOccupancyChange {
     /// member. Folded by [`crate::commitments::Invites::fold`].
     pub invites: crate::commitments::Invites,
 
+    /// The chapter layer: committees, events and requests. Folded by [`crate::chapter::fold`].
+    pub chapter: crate::chapter::Chapter,
+
     /// The LCT registry: published presence, keyed by canonical (pubkey-derived)
     /// `lct_id`. Folded from `LctPublished`, which ingest has already verified —
     /// an entry here means binding + id-derivation checked out at the door, so
@@ -1649,7 +1652,15 @@ impl HubState {
                 {
                     self.invites.fold(event);
                     crate::commitments::rebind(&mut self.commitments, party_id, &member);
+                    crate::chapter::rebind(&mut self.chapter, party_id, &member);
                 }
+            }
+            HubEvent::CommitteeSet { .. }
+            | HubEvent::ChapterEventPlanned { .. }
+            | HubEvent::ChapterEventClosed { .. }
+            | HubEvent::RequestReceived { .. }
+            | HubEvent::RequestPassed { .. } => {
+                crate::chapter::fold(&mut self.chapter, event, ts, index);
             }
             HubEvent::InviteRevoked { .. } => self.invites.fold(event),
             // Member-of routing (PRD_MEMBER_OF_ROUTING). Ids arrive as strings, already validated
