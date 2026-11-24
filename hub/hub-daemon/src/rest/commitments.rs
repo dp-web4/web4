@@ -624,11 +624,16 @@ pub(crate) fn due_nudges(
                 *left -= 1;
                 None
             };
-            let (subject, mut body) = c.nudge_message(&t, &name);
+            let (subject, mut body) = chapter_nudge_message(state, c, &t, &name)
+                .unwrap_or_else(|| c.nudge_message(&t, &name));
             let link = links.map(|m| format!("{}/c/{}", m.base, mint_link(m.key, &c.commitment_id, &t.party.party_id,
                 now + chrono::Duration::days(LINK_TTL_DAYS))));
             if let Some(link) = &link {
-                body.push_str(&format!("\n\nSay where it stands (done, stuck, or hand it on): {link}"));
+                if state.chapter.request_of_commitment(&c.commitment_id).is_some() {
+                    body.push_str(&format!("\n\nRead it and answer: {link}"));
+                } else {
+                    body.push_str(&format!("\n\nSay where it stands (done, stuck, or hand it on): {link}"));
+                }
             }
             if let Some(m) = links.filter(|_| state.chapter.knows(&t.party.party_id)) {
                 body.push_str(&format!("\nYour chapter page: {}", home_url(m.base, m.key, &t.party.party_id, now)));
@@ -1046,7 +1051,10 @@ const LINK_PAGE_CSS: &str = "body{font:17px/1.5 system-ui,sans-serif;max-width:3
     .tag{font-size:.75rem;background:#eef4ff;border:1px solid #c9d8f5;border-radius:1rem;padding:0 .5rem;font-weight:normal}\
     .stack label{display:block;margin:.6rem 0}.stack input,.stack select{display:block;width:100%;font:inherit;\
     padding:.5rem;border:1px solid #aaa;border-radius:.4rem;box-sizing:border-box}\
-    label.check{display:block;margin:.3rem 0}fieldset{border:1px solid #ddd;border-radius:.4rem;margin:.8rem 0}\
+    label.check{display:block;margin:.3rem 0}.stack label.check input{display:inline;width:auto;margin-right:.4rem}\
+    details{margin:1rem 0}summary{cursor:pointer;font-weight:600;padding:.6rem 0}.kicker{color:#666;margin:0}\
+    .chips form{display:inline-block;margin:.2rem .3rem .2rem 0}.chips button{width:auto;padding:.4rem .8rem;\
+    border-radius:1rem;background:#fff;font-size:.95rem}fieldset{border:1px solid #ddd;border-radius:.4rem;margin:.8rem 0}\
     pre{white-space:pre-wrap;font:inherit;background:#f8f8f8;border-left:3px solid #ccc;padding:.6rem}\
     a.button{display:block;text-align:center;padding:.8rem;border-radius:.5rem;background:#1f5fbf;color:#fff;\
     text-decoration:none}button.secondary{background:#fff}ol.record li{margin:.2rem 0}\
@@ -1147,19 +1155,32 @@ pub(super) async fn link_page(
     };
     let owner = name(&c.owner);
     let backup = name(&c.backup);
-    html.push_str(&match role {
-        LinkRole::Owner => format!("<p>You're the owner. Your backup is {}.</p>", esc(&backup)),
-        LinkRole::Backup => format!("<p>{} owns this. You're the backup.</p>", esc(&owner)),
-        LinkRole::Lead => format!("<p>{} owns this, and {} is the backup. You're one of the leads.</p>",
-            esc(&owner), esc(&backup)),
-    });
-    if let Some(due) = c.due_at {
-        html.push_str(&format!("<p class=\"muted\">Due {}.</p>", due.format("%Y-%m-%d %H:%M UTC")));
+    let request = state.chapter.request_of_commitment(&c.commitment_id).is_some();
+    if request {
+        // An email to the chapter: the message first, then what to do about it.
+        html = request_head(&s, &state, c, role == LinkRole::Owner, &owner, &backup);
+    } else {
+        html.push_str(&match role {
+            LinkRole::Owner => format!("<p>You're the owner. Your backup is {}.</p>", esc(&backup)),
+            LinkRole::Backup => format!("<p>{} owns this. You're the backup.</p>", esc(&owner)),
+            LinkRole::Lead => format!("<p>{} owns this, and {} is the backup. You're one of the leads.</p>",
+                esc(&owner), esc(&backup)),
+        });
+        if let Some(line) = item_target_line(c) {
+            html.push_str(&format!("<p class=\"muted\">{}</p>", esc(&line)));
+        }
+        if let Some(due) = c.due_at {
+            html.push_str(&format!("<p class=\"muted\">Due {}.</p>", due.format("%Y-%m-%d %H:%M UTC")));
+        }
     }
     for act in acts_for(c, role, &claim.party_id, Some(&claim.digest)) {
+        if request && matches!(act, LinkAct::Update | LinkAct::Stuck) {
+            continue;
+        }
+        let label = if request { request_act_label(act, &backup) } else { act_label(act, role, &backup) };
         // Relative to /c/<token>, so the form posts back to this hub whatever origin served it.
         html.push_str(&format!("<form method=\"post\" action=\"{}/{}\"><button>{}</button></form>",
-            esc(&token), act.path(), esc(&act_label(act, role, &backup))));
+            esc(&token), act.path(), esc(&label)));
     }
     html.push_str(&request_panel(&s, &state, c, &token));
     html.push_str("<p class=\"muted\">Your answer goes on the chapter's record, marked as sent from this link.</p>");

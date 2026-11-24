@@ -325,6 +325,12 @@ fn job_status(state: &HubState, book: &ContactBook, c: &Commitment) -> String {
         };
     }
     let owner = first_name(&name_of(state, book, &c.owner));
+    if is_event_item(c) && c.queue == commitments::QueuePos::Owner {
+        return match target_of(c) {
+            Some(t) => format!("{owner}, by {}", local_day(t)),
+            None => owner,
+        };
+    }
     match c.queue {
         commitments::QueuePos::Owner if c.owner_acknowledged() => format!("{owner} is on it"),
         commitments::QueuePos::Owner => format!("waiting for {owner} to say yes"),
@@ -336,6 +342,33 @@ fn job_status(state: &HubState, book: &ContactBook, c: &Commitment) -> String {
 /// The date an item aims for: the end of its owner's first silence window.
 fn target_of(c: &Commitment) -> Option<DateTime<Utc>> {
     c.ladder.first().map(|h| c.opened_at + chrono::Duration::hours(i64::from(*h)))
+}
+
+pub(crate) fn is_event_item(c: &Commitment) -> bool {
+    c.group.as_deref().is_some_and(|g| g.starts_with(ch::EVENT_GROUP_PREFIX))
+}
+
+/// "Aim to have it done by Thu Nov 26", for a checklist item's own page.
+pub(crate) fn item_target_line(c: &Commitment) -> Option<String> {
+    if !is_event_item(c) || !c.is_open() {
+        return None;
+    }
+    target_of(c).map(|t| format!("Aim to have it done by {}. You'll only hear about it again if that date passes \
+        and it isn't marked done.", local_day(t)))
+}
+
+/// Whether a job needs this person now. An event's checklist item doesn't need its owner until its
+/// date is close; until then it sits under "Yours" without asking for anything.
+fn needs(state: &HubState, c: &Commitment, me: &str, now: DateTime<Utc>) -> bool {
+    match c.queue {
+        commitments::QueuePos::Owner => c.owner.party_id == me && if is_event_item(c) {
+            target_of(c).is_some_and(|t| t - now < chrono::Duration::days(3))
+        } else {
+            !c.owner_acknowledged()
+        },
+        commitments::QueuePos::Backup => c.backup.party_id == me,
+        commitments::QueuePos::Leads => lead_parties(state, c).iter().any(|p| p.party_id == me),
+    }
 }
 
 fn items_of_event<'a>(state: &'a HubState, event_id: &str) -> Vec<&'a Commitment> {
@@ -391,11 +424,8 @@ pub(crate) async fn home_page(State(s): State<RestState>, Path(token): Path<Stri
 
     // What needs this person now: the queue stands at them.
     let open: Vec<&Commitment> = open_by_queue(&state);
-    let waiting_on_me: Vec<&Commitment> = open.iter().copied().filter(|c| match c.queue {
-        commitments::QueuePos::Owner => c.owner.party_id == me && !c.owner_acknowledged(),
-        commitments::QueuePos::Backup => c.backup.party_id == me,
-        commitments::QueuePos::Leads => lead_parties(&state, c).iter().any(|p| p.party_id == me),
-    }).collect();
+    let waiting_on_me: Vec<&Commitment> = open.iter().copied().filter(|c| needs(&state, c, &me, now)).collect();
+    let needed = |c: &&Commitment| waiting_on_me.iter().any(|w| w.commitment_id == c.commitment_id);
     html.push_str("<section><h2>Needs you</h2>");
     if waiting_on_me.is_empty() {
         html.push_str("<p class=\"ok\">Nothing right now.</p>");
@@ -408,12 +438,12 @@ pub(crate) async fn home_page(State(s): State<RestState>, Path(token): Path<Stri
     }
     html.push_str("</section>");
 
-    let mine: Vec<&Commitment> = open.iter().copied().filter(|c| c.owner.party_id == me).collect();
-    let backing: Vec<&Commitment> = open.iter().copied().filter(|c| c.backup.party_id == me).collect();
+    let mine: Vec<&Commitment> = open.iter().copied().filter(|c| c.owner.party_id == me && !needed(c)).collect();
+    let backing: Vec<&Commitment> = open.iter().copied().filter(|c| c.backup.party_id == me && !needed(c)).collect();
     if !mine.is_empty() || !backing.is_empty() {
         html.push_str("<section><h2>Yours</h2>");
         if mine.is_empty() {
-            html.push_str("<p class=\"muted\">Nothing in your name.</p>");
+            html.push_str("<p class=\"muted\">Nothing else in your name.</p>");
         } else {
             html.push_str("<ul>");
             for c in &mine {
@@ -454,7 +484,9 @@ pub(crate) async fn home_page(State(s): State<RestState>, Path(token): Path<Stri
 
     // Who does what: every committee, its leads and people, and its open jobs with their owners.
     html.push_str("<section><h2>Who does what</h2>");
-    for k in state.chapter.live_committees() {
+    let mut committees: Vec<&Committee> = state.chapter.live_committees().collect();
+    committees.sort_by_key(|k| (!k.inbox, k.name.to_lowercase()));
+    for k in committees {
         let leads: Vec<String> = k.leads.iter().map(|p| name_of(&state, &book, &canonical(&state, p))).collect();
         let others: Vec<String> = k.members.iter().map(|p| canonical(&state, p))
             .filter(|p| !is_lead_of(&state, k, &p.party_id))
@@ -467,7 +499,14 @@ pub(crate) async fn home_page(State(s): State<RestState>, Path(token): Path<Stri
         html.push_str(&format!("<p>Led by {}{}</p>", esc(&leads.join(" and ")),
             if others.is_empty() { String::new() } else { format!(". With {}.", esc(&others.join(", "))) }));
         let role = ch::committee_role(&k.committee_id);
-        let jobs: Vec<&&Commitment> = open.iter().filter(|c| c.leads_role == role).collect();
+        let jobs: Vec<&&Commitment> = open.iter().filter(|c| c.leads_role == role && !is_event_item(c)).collect();
+        for e in state.chapter.events.values().filter(|e| e.committee_id == k.committee_id && e.closed.is_none()) {
+            let items = items_of_event(&state, &e.event_id);
+            let done = items.iter().filter(|c| matches!(&c.resolved, Some(r) if r.outcome == Outcome::Done)).count();
+            html.push_str(&format!("<p class=\"muted\">{}: {} of {} ready, owner {}, backup {}</p>", esc(&e.title), done,
+                items.len(), esc(&first_name(&name_of(&state, &book, &e.owner))),
+                esc(&first_name(&name_of(&state, &book, &e.backup)))));
+        }
         if !jobs.is_empty() {
             html.push_str("<ul class=\"compact\">");
             for c in jobs {
@@ -489,7 +528,7 @@ pub(crate) async fn home_page(State(s): State<RestState>, Path(token): Path<Stri
             "<label class=\"check\"><input type=\"checkbox\" name=\"item_{id}\" checked> {label} \
              <span class=\"muted\">({days} days before)</span></label>")).collect();
         html.push_str(&format!(
-            "<section><h2>Plan an event</h2>\
+            "<details><summary>Plan an event</summary>\
              <form method=\"post\" action=\"/h/{tok}/plan\" class=\"stack\">\
              <label>What is it<input name=\"title\" required maxlength=\"60\" placeholder=\"December social\"></label>\
              <label>Date<input type=\"date\" name=\"date\" required></label>\
@@ -500,15 +539,15 @@ pub(crate) async fn home_page(State(s): State<RestState>, Path(token): Path<Stri
              <fieldset><legend>Checklist</legend>{checks}</fieldset>\
              <button>Plan it</button>\
              <p class=\"muted\">The owner and backup each get one email. After that you'll only hear about \
-             an item if its date passes with nobody on it.</p></form></section>\
-             <section><h2>Add a to-do</h2>\
+             an item if its date passes with nobody on it.</p></form></details>\
+             <details><summary>Add a to-do</summary>\
              <form method=\"post\" action=\"/h/{tok}/todo\" class=\"stack\">\
              <label>What needs doing<input name=\"title\" required maxlength=\"80\"></label>\
              <label>By<input type=\"date\" name=\"date\" required></label>\
              <label>Committee<select name=\"committee_id\">{committees}</select></label>\
              <label>Owner<select name=\"owner\">{owners}</select></label>\
              <label>Backup<select name=\"backup\">{backups}</select></label>\
-             <button>Add it</button></form></section>",
+             <button>Add it</button></form></details>",
             tok = esc(&claim.token),
             owners = options(&state, &book, &people, Some(&me)),
             backups = options(&state, &book, &people, people.iter().map(|p| p.party_id.as_str()).find(|p| *p != me)),
@@ -815,6 +854,56 @@ pub(crate) async fn home_close_event(
     }
 }
 
+/// Chapter wording for a nudge about an email to the chapter or a checklist item. `None` for
+/// anything else, which keeps the commitments wording.
+pub(crate) fn chapter_nudge_message(
+    state: &HubState, c: &Commitment, t: &commitments::NudgeTarget, name: &dyn Fn(&PartyRef) -> String,
+) -> Option<(String, String)> {
+    use commitments::{EscalationStep, NudgeAbout};
+    let owner = first_name(&name(&c.owner));
+    let backup = first_name(&name(&c.backup));
+    if let Some(r) = state.chapter.request_of_commitment(&c.commitment_id) {
+        let subject = c.title.trim_start_matches("Email: ").to_string();
+        let team = committee_name(state, &r.committee_id);
+        return Some(match t.about {
+            NudgeAbout::NamedOwner | NudgeAbout::HandedOwner => (format!("New email to the chapter: {subject}"),
+                format!("An email came in to the chapter, and it's yours to answer ({team}). {backup} is your backup.")),
+            NudgeAbout::NamedBackup | NudgeAbout::HandedBackup => (format!("You're backup on: {subject}"),
+                format!("{owner} is answering an email to the chapter. If it goes unanswered, it comes to you. \
+                    Nothing to do now.")),
+            NudgeAbout::HandedAway => (format!("Off your list: {subject}"), format!("{owner} has it now.")),
+            NudgeAbout::Escalated => {
+                let step = c.escalations.iter().find(|e| e.index == t.about_index).map(|e| e.step);
+                match step {
+                    Some(EscalationStep::Leads) => (format!("Nobody has answered: {subject}"), format!(
+                        "An email to the chapter has gone unanswered by {owner} and then {backup}. It's with the \
+                         leads now: one of you, please take it or pass it on.")),
+                    _ => (format!("Still unanswered: {subject}"), format!(
+                        "{owner} hasn't answered this email to the chapter yet, so as backup it's with you now.")),
+                }
+            }
+        });
+    }
+    if is_event_item(c) {
+        let (event, item) = c.title.split_once(": ").map(|(e, i)| (e.to_string(), i.to_string()))
+            .unwrap_or((String::new(), c.title.clone()));
+        let when = target_of(c).map(|d| format!(" It was due {}.", local_day(d))).unwrap_or_default();
+        if let NudgeAbout::Escalated = t.about {
+            let step = c.escalations.iter().find(|e| e.index == t.about_index).map(|e| (e.step, e.cause));
+            return Some(match step {
+                Some((_, commitments::EscalationCause::Stuck)) => (format!("{event}: help needed on {item}"),
+                    format!("{owner} asked for help with {item} for {event}. It's with you now.")),
+                Some((EscalationStep::Leads, _)) => (format!("{event}: {item} still isn't done"), format!(
+                    "{item} for {event} isn't marked done, and neither {owner} nor {backup} has picked it up.{when} \
+                     It's with the committee leads now.")),
+                _ => (format!("{event}: {item} isn't done yet"), format!(
+                    "{item} for {event} isn't marked done.{when} {owner} owns it; as backup, it's with you now.")),
+            });
+        }
+    }
+    None
+}
+
 // ---------------------------------------------------------------------------------------------
 // Requests: the inbound email on its job page, and passing it on
 // ---------------------------------------------------------------------------------------------
@@ -828,32 +917,58 @@ fn mailto(to: &str, subject: &str) -> String {
     format!("mailto:{}?subject={}", enc(to), enc(&subj))
 }
 
-/// The part of a job page that shows an inbound request: who wrote, what they said, a reply
-/// button that opens the person's own mail program, and where else it could go. Empty for a job
-/// that is not a request.
-pub(crate) fn request_panel(s: &RestState, state: &HubState, c: &Commitment, token: &str) -> String {
+/// The top of a job page for an email to the chapter: who wrote, what they said, and a reply
+/// button that opens the person's own mail program. The answers follow it.
+pub(crate) fn request_head(s: &RestState, state: &HubState, c: &Commitment, owner_view: bool, owner: &str, backup: &str) -> String {
     let Some(r) = state.chapter.request_of_commitment(&c.commitment_id) else { return String::new() };
     let intake = load_intake(&s.paths.root).unwrap_or_default();
-    let mut html = String::from("<section class=\"request\">");
+    let who = if owner_view {
+        format!("It's yours to answer. {} is your backup.", first_name(backup))
+    } else {
+        format!("{} has it. You're named on it too.", first_name(owner))
+    };
+    let mut html = format!("<p class=\"kicker\">An email to the chapter · {}</p>", esc(&committee_name(state, &r.committee_id)));
     match intake.requests.get(&r.request_id) {
         Some(m) => {
-            html.push_str(&format!("<p><b>From</b> {} &lt;{}&gt;<br><b>Received</b> {}</p><h2>{}</h2><pre>{}</pre>",
-                esc(&m.from_name), esc(&m.from_address), esc(&local_time(m.received_at)), esc(&m.subject), esc(&m.excerpt)));
+            html.push_str(&format!("<h1>{}</h1><p><b>{}</b> &lt;{}&gt;<br><span class=\"muted\">{}</span></p><pre>{}</pre>",
+                esc(&m.subject), esc(&m.from_name), esc(&m.from_address), esc(&local_time(m.received_at)), esc(&m.excerpt)));
+            html.push_str(&format!("<p>{}</p>", esc(&who)));
             html.push_str(&format!("<p><a class=\"button\" href=\"{}\">Reply from your email</a></p>",
                 esc(&mailto(&m.from_address, &m.subject))));
-            html.push_str("<p class=\"muted\">Reply from your own email as usual, then come back and press \"It's done\".</p>");
+            html.push_str("<p class=\"muted\">Reply as you normally would, then press \"I've answered it\" below.</p>");
         }
-        None => html.push_str("<p class=\"muted\">The original message has been erased.</p>"),
+        None => html.push_str(&format!("<h1>{}</h1><p class=\"muted\">The original message has been erased.</p><p>{}</p>",
+            esc(c.title.trim_start_matches("Email: ")), esc(&who))),
     }
+    html
+}
+
+pub(crate) fn request_act_label(act: LinkAct, backup: &str) -> String {
+    match act {
+        LinkAct::Ack => "I'll answer it".to_string(),
+        LinkAct::Done => "I've answered it".to_string(),
+        LinkAct::Handoff => format!("Hand it to {}", first_name(backup)),
+        LinkAct::Take => "I'll answer it instead".to_string(),
+        LinkAct::Update => "Still on it".to_string(),
+        LinkAct::Stuck => "I need help".to_string(),
+    }
+}
+
+/// The rest of a request's page: where else it could go, and where it has been.
+pub(crate) fn request_panel(s: &RestState, state: &HubState, c: &Commitment, token: &str) -> String {
+    let Some(r) = state.chapter.request_of_commitment(&c.commitment_id) else { return String::new() };
+    let mut html = String::from("<section class=\"request\">");
     if c.is_open() {
-        let others: Vec<&Committee> = state.chapter.live_committees()
+        let mut others: Vec<&Committee> = state.chapter.live_committees()
             .filter(|k| k.committee_id != r.committee_id && k.intake_pair().is_some()).collect();
+        others.sort_by_key(|k| k.name.to_lowercase());
         if !others.is_empty() {
-            html.push_str("<h3>Belongs with another committee?</h3>");
+            html.push_str("<details><summary>Belongs with another committee?</summary><div class=\"chips\">");
             for k in others {
-                html.push_str(&format!("<form method=\"post\" action=\"/c/{}/pass/{}\"><button class=\"secondary\">Pass to {}</button></form>",
+                html.push_str(&format!("<form method=\"post\" action=\"/c/{}/pass/{}\"><button>{}</button></form>",
                     esc(token), esc(&k.committee_id), esc(&k.name)));
             }
+            html.push_str("</div><p class=\"muted\">Their lead gets it, with a backup, and it leaves your list.</p></details>");
         }
     }
     if !r.passes.is_empty() {
@@ -1156,11 +1271,11 @@ pub(crate) fn due_notices(
     for p in chapter_people(state) {
         let who = first_name(&name_of(state, book, &p));
         let roles: Vec<String> = state.chapter.live_committees().filter(|k| committee_people(state, k).iter().any(|q| q.party_id == p.party_id))
-            .map(|k| if is_lead_of(state, k, &p.party_id) { format!("lead of {}", k.name) } else { k.name.clone() }).collect();
+            .map(|k| if is_lead_of(state, k, &p.party_id) { format!("{} (lead)", k.name) } else { k.name.clone() }).collect();
         push(format!("welcome:{}", p.party_id), &p, format!("{chapter}: who owns what, from now on"), format!(
             "Hi {who},\n\n{chapter} now keeps track of who owns what, so nothing gets dropped. You're on: {}.\n\n\
-             How it works: when something is yours, you get one email with buttons (yes, done, hand it to your \
-             backup). Every job has a backup. If something goes quiet, it goes to the backup, then to the committee \
+             How it works: when something is yours, you get one email with a link where you can say yes, mark it \
+             done, or hand it to your backup. Every job has a backup. If something goes quiet, it goes to the backup, then to the committee \
              leads. You don't need to log in or install anything; keep using email and Slack as you do now.\n\n\
              Your chapter page shows what needs you, upcoming events, and who does what.",
             roles.join(", ")));
@@ -1292,6 +1407,10 @@ mod tests {
         let c = &state.commitments[first["commitment_id"].as_str().unwrap()];
         assert_eq!((c.owner.party_id.as_str(), c.backup.party_id.as_str()), (nat.party_id.as_str(), yem.party_id.as_str()));
         assert_eq!(c.title, "Email: Hosting your January event?");
+        let book = load_book(&s).unwrap();
+        let rows = due_nudges(&state, &book, Utc::now(), None);
+        assert!(rows.iter().any(|r| r["subject"] == "New email to the chapter: Hosting your January event?"), "{rows:?}");
+        assert!(rows.iter().any(|r| r["subject"] == "You're backup on: Hosting your January event?"));
         // The sender is not on the ledger.
         let ledger_text = serde_json::to_string(&state.commitments).unwrap();
         assert!(!ledger_text.contains("venue@example.org"));
