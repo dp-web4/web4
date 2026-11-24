@@ -1575,10 +1575,19 @@ pub(crate) async fn add_committee(
     if !operator && !is_chapter_lead(&state, me) {
         return Err(ApiError { status: StatusCode::FORBIDDEN, message: "only a chapter lead can start a committee".into() });
     }
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > ch::MAX_COMMITTEE_NAME_LEN || name.chars().any(char::is_control) {
+        return Err(ApiError::bad_request(format!(
+            "give the committee a name (up to {} characters)", ch::MAX_COMMITTEE_NAME_LEN)));
+    }
+    let purpose = purpose.trim();
+    if purpose.chars().count() > ch::MAX_PURPOSE_LEN || purpose.chars().any(char::is_control) {
+        return Err(ApiError::bad_request(format!("keep the purpose to one line (up to {} characters)", ch::MAX_PURPOSE_LEN)));
+    }
     let lead = known_party(&state, lead, "lead")?;
     let committee_id = ch::new_id();
     chapter_witness(s, HubEvent::CommitteeSet {
-        committee_id: committee_id.clone(), name: name.trim().to_string(), purpose: purpose.trim().to_string(),
+        committee_id: committee_id.clone(), name: name.to_string(), purpose: purpose.to_string(),
         leads: vec![lead], members: Vec::new(), inbox: false, retired: false, set_by: s.sovereign_lct_id,
     }).await?;
     Ok(committee_id)
@@ -1587,20 +1596,33 @@ pub(crate) async fn add_committee(
 /// Someone leaves: off every committee, and their name and address erased. A committee they led
 /// alone falls to the chapter leads until someone takes it. Jobs in their name stay, and go to
 /// their backups when they go quiet.
+///
+/// Every refusal is decided before anything is written: either the person comes off every
+/// committee, or nothing changes and the page says why.
 pub(crate) async fn leave(s: &RestState, me: &str) -> Result<(), ApiError> {
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
-    let chapter_leads: Vec<PartyRef> = state.chapter.inbox()
-        .map(|k| k.leads.iter().map(|p| canonical(&state, p)).collect()).unwrap_or_default();
+    let other_chapter_leads: Vec<PartyRef> = state.chapter.inbox()
+        .map(|k| without(&k.leads, &state, me)).unwrap_or_default();
+    if is_chapter_lead(&state, me) && other_chapter_leads.is_empty() {
+        return Err(ApiError::bad_request(
+            "you're the last chapter lead: make someone else a chapter lead first, so the chapter's email still has an owner. Nothing was changed."));
+    }
+    let mut plan: Vec<(&Committee, Vec<PartyRef>, Vec<PartyRef>)> = Vec::new();
     for k in state.chapter.live_committees().filter(|k| committee_people(&state, k).iter().any(|p| p.party_id == me)) {
         let mut leads = without(&k.leads, &state, me);
-        let members = without(&k.members, &state, me);
+        let mut members = without(&k.members, &state, me);
         if leads.is_empty() {
-            if k.inbox {
-                return Err(ApiError::bad_request(
-                    "you're the last chapter lead: hand that to someone first, so the chapter's email still has an owner"));
-            }
-            leads = chapter_leads.iter().filter(|p| p.party_id != me).cloned().collect();
+            // A committee they led alone falls to the chapter leads (as leads, not twice over).
+            leads = other_chapter_leads.clone();
+            members.retain(|m| !leads.iter().any(|l| l.party_id == m.party_id));
         }
+        if leads.is_empty() {
+            return Err(ApiError::bad_request(format!(
+                "{} needs a lead: make someone else lead first. Nothing was changed.", k.name)));
+        }
+        plan.push((k, leads, members));
+    }
+    for (k, leads, members) in plan {
         reset_committee(s, k, leads, members).await?;
     }
     let mut book = load_book(s)?;
@@ -1960,6 +1982,42 @@ mod tests {
         assert!(!k.includes(&arne.party_id));
         assert!(k.is_lead(&nat.party_id) && k.is_lead(&yem.party_id));
         assert!(!load_book(&s).unwrap().contacts.contains_key(&arne.party_id));
+    }
+
+    #[tokio::test]
+    async fn the_last_chapter_lead_cannot_leave_and_nothing_is_written() {
+        let (_dir, s) = fresh_rest_state(None).await;
+        let (nat, yem, aug) = (contact(&s, "Natalie Solo").await, contact(&s, "Yemaya Member").await, contact(&s, "Augustina P").await);
+        // Natalie is the only chapter lead, leads Partnerships alone, and is a member elsewhere.
+        committee(&s, "Chapter leads", vec![nat.clone()], vec![yem.clone()], true).await;
+        let partners = committee(&s, "Partnerships", vec![nat.clone()], vec![], false).await;
+        let wellness = committee(&s, "Wellness", vec![aug.clone()], vec![nat.clone()], false).await;
+        let before = s.ledger.try_lock().expect("ledger").len();
+        let _serial = COMMITMENT_LOCK.lock().await;
+        let e = leave(&s, &nat.party_id).await.unwrap_err();
+        assert_eq!(e.status, StatusCode::BAD_REQUEST);
+        assert!(e.message.contains("last chapter lead") && e.message.contains("Nothing was changed"));
+        drop(_serial);
+        assert_eq!(s.ledger.try_lock().expect("ledger").len(), before, "a refused leave writes nothing");
+        let state = state_of(&s);
+        assert!(state.chapter.committees[&partners].is_lead(&nat.party_id));
+        assert!(state.chapter.committees[&wellness].includes(&nat.party_id));
+        assert!(load_book(&s).unwrap().contacts.contains_key(&nat.party_id));
+    }
+
+    #[tokio::test]
+    async fn a_committee_needs_a_real_name() {
+        let (_dir, s) = fresh_rest_state(None).await;
+        let (nat, yem) = (contact(&s, "Natalie Co").await, contact(&s, "Yemaya Co").await);
+        committee(&s, "Chapter leads", vec![nat.clone(), yem.clone()], vec![], true).await;
+        let _serial = COMMITMENT_LOCK.lock().await;
+        let before = s.ledger.try_lock().expect("ledger").len();
+        for name in ["", "   ", &"x".repeat(49)] {
+            let e = add_committee(&s, &nat.party_id, name, "", &yem.party_id, false).await.unwrap_err();
+            assert_eq!(e.status, StatusCode::BAD_REQUEST, "name {name:?}");
+        }
+        assert_eq!(s.ledger.try_lock().expect("ledger").len(), before);
+        add_committee(&s, &nat.party_id, &"x".repeat(48), "", &yem.party_id, false).await.expect("48 is fine");
     }
 
     #[test]
