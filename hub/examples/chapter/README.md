@@ -1,10 +1,12 @@
 # Chapter kit
 
-Everything needed to stand up a chapter hub that does what the chapter asked for:
+A chapter hub does what a volunteer chapter asked for:
 - every email to the chapter gets an owner and a backup;
-- every event gets an owner, a backup and a checklist;
+- every event gets owners and backups along the chapter's own pipeline;
 - silence goes to the backup, then the leads;
 - everyone can see who does what.
+
+Nobody logs in or installs anything, and the chapter keeps its email and Slack.
 
 Product spec: [`../../docs/PRD_CHAPTER_PRODUCT.md`](../../docs/PRD_CHAPTER_PRODUCT.md).
 
@@ -13,19 +15,29 @@ Product spec: [`../../docs/PRD_CHAPTER_PRODUCT.md`](../../docs/PRD_CHAPTER_PRODU
 | Process | What it does | Needs |
 |---|---|---|
 | `hub serve` | The chapter's pages and record. Public plane on 127.0.0.1:8780 behind a tunnel; operator plane on 127.0.0.1:8782, never exposed. | `HUB_PUBLIC_BASE_URL=https://<hostname>`, `HUB_CHAPTER_UTC_OFFSET=-08:00` |
-| `hub-nudge --every 300` | Sends nudges and chapter notices (welcome, "you're on this event", recaps) by SMTP. Reports each send to the hub. | `nudge.json` + a 0600 netrc with the sender's app password |
-| `hub-intake --every 120` | Reads new mail from the chapter's intake mailbox over IMAP and hands each message to the hub. | `intake.json` + a 0600 netrc with the mailbox login |
+| `hub-nudge --every 300` | Sends nudges and chapter notices (welcome, "your part of this event", recaps) by SMTP, and reports each send to the hub. | `nudge.json` + a 0600 netrc with the sender's app password |
+| `hub-intake --every 120` | Reads new mail from the mailbox the chapter's address forwards to, over IMAP, and hands each message to the hub. | `intake.json` + a 0600 netrc with the mailbox login |
 
-## Stand it up (synthetic chapter first)
+## Setting up a chapter
 
-1. Genesis on the production profile (see `../../DEPLOY-CLOUD.md`, and pub's rehearsal record): `hub up <dir> --profile public-tunnel --domain <hostname>`, then `init` with `--storage sqlite`, then `set-law`, `export-public-identity`, `serve`, `unlock`.
-2. Seed the made-up chapter, sending every email to one inbox you read:
+1. **Genesis** on the production profile (see `../../DEPLOY-CLOUD.md`):
+   - `hub up <dir> --profile public-tunnel --domain <hostname>`
+   - `init "<the chapter's name>"` with `--storage sqlite`
+   - `set-law`, `export-public-identity`, `serve`, `unlock`
+2. **The starting structure**, from what the chapter already told you: committees, the leads you know, the people you know.
+   - Keep that file outside this repository, because it holds real addresses. `example-chapter.json` shows the format.
+   - A committee with no known lead starts with the chapter leads as its leads. They hand it on from their page.
    ```
-   python3 seed.py --chapter synthetic-chapter.json --admin http://127.0.0.1:8782 \
-     --token-file <dir>/operator.token --inbox you@example.org --links
+   python3 seed.py --chapter <chapter.json> --admin http://127.0.0.1:8782 \
+     --token-file <dir>/operator.token --invite <chapter-lead-tags>
    ```
-3. Start `hub-nudge`. The welcome emails go out on its first pass. Each one carries that person's chapter page.
-4. Point `hub-intake` at the intake mailbox. Send it an email, and within two minutes the inbox committee's first person gets "Email: <subject>: you're named as the owner".
+3. **Start `hub-nudge`.** Only the invited chapter leads get a welcome, with their own chapter page. From there they:
+   - fix anything wrong (move people, make someone a lead, start a committee);
+   - add people;
+   - press **Send the welcome** when they want the rest of the team in.
+
+   Nobody hears from the tool before a chapter lead has decided they should.
+4. **Start `hub-intake`** against the mailbox the chapter's address forwards to. From then on, every email to the chapter becomes a job for the committee that answers it.
 
 ## `nudge.json`
 
@@ -53,14 +65,22 @@ Product spec: [`../../docs/PRD_CHAPTER_PRODUCT.md`](../../docs/PRD_CHAPTER_PRODU
 }
 ```
 
-A netrc file looks like `machine smtp.gmail.com login chapter@example.org password <app password>`. Keep it 0600, and never commit it.
+A netrc file looks like `machine smtp.gmail.com login chapter@example.org password <app password>`. Keep it 0600 and never commit it.
 
-## The demo, in the chapter's own words
+## What changes for the chapter
 
-1. **"Inbound emails get missed."** Send an email to the chapter address. The person on inbox duty gets one email with a link. The page shows the message, a **Reply from your email** button, and **Pass to Partnerships**. Press it: Partnerships' lead and backup are emailed, and the record shows who passed it where.
-2. **"Each event is owned by one person, with no backup."** A lead opens their chapter page, plans "December social" (name, date, owner, backup), and the checklist appears. The owner and backup get one email each.
-3. **"Nothing happens when nobody acts."** On a job page, the owner presses **I'm stuck**, and the backup's phone gets an email at once. A job nobody answers moves on its own when its window runs out.
-4. **"Who do I ask?"** Any chapter page shows every committee, its leads, and who owns each open job.
-5. **After the event,** the owner presses **close it**, and the committee gets the recap.
-
-At no point does anyone log in, install anything, or leave email.
+1. **"Inbound emails get missed."**
+   - Each email to the chapter goes to one person, with a backup, as a single email with a link.
+   - The page shows the message, a **Reply from your email** button, and **I've answered it**.
+   - If it isn't theirs, one tap passes it to the right committee.
+2. **"Each event is owned by one person, with no backup."**
+   - A lead plans an event with one form.
+   - The chapter's pipeline becomes the checklist:
+     - the prospectus, for the two people running it;
+     - venue and sponsors, for Partnerships;
+     - the marketing plan and Luma page, for Marketing;
+     - speakers and the day-of.
+   - Each person gets one email listing their part.
+3. **"Nothing happens when nobody acts."** A step whose date passes with nobody on it goes to its backup, then to the committee leads. An unanswered email does the same after a day.
+4. **"Who do I ask?"** Every chapter page shows each committee, its leads, and who owns each open job.
+5. **After an event,** closing it sends the committee a plain-language recap.

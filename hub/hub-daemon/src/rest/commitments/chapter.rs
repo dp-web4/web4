@@ -40,13 +40,26 @@ const NOTICE_MAX_ATTEMPTS: u32 = 3;
 
 /// The standard checklist: what a chapter event needs, and how many days before the event each
 /// should be done by. A lead unticks what doesn't apply.
-pub(crate) const CHECKLIST: [(&str, &str, i64); 5] = [
-    ("venue", "Venue confirmed", 21),
-    ("sponsor", "Sponsor confirmed", 14),
-    ("luma", "Event page live", 14),
-    ("speakers", "Speakers confirmed", 10),
-    ("dayof", "Day-of plan and roles", 2),
+///
+/// It follows the chapter's own pipeline (core meeting 2026-10-27): the two people running the event
+/// write the prospectus; Partnerships resources it (venue, sponsors); Marketing does the plan and the
+/// Luma page; then speakers and the day-of. The fourth field names the committee that owns a step,
+/// matched by name ("partnership", "marketing"); `None`, or no such committee with two people, means
+/// the event's own owner and backup.
+pub(crate) const CHECKLIST: [(&str, &str, i64, Option<&str>); 5] = [
+    ("prospectus", "Prospectus written", 35, None),
+    ("venue", "Venue and sponsors confirmed", 21, Some("partnership")),
+    ("marketing", "Marketing plan and Luma page live", 14, Some("marketing")),
+    ("speakers", "Speakers confirmed", 10, None),
+    ("dayof", "Day-of roles and run of show", 2, None),
 ];
+
+/// The committee a checklist step goes to, if the chapter has one that can take it.
+fn team_for<'a>(state: &'a HubState, hint: Option<&str>, event_committee: &str) -> Option<&'a Committee> {
+    let hint = hint?;
+    state.chapter.live_committees()
+        .find(|k| k.name.to_lowercase().contains(hint) && k.committee_id != event_committee && k.intake_pair().is_some())
+}
 
 // ---------------------------------------------------------------------------------------------
 // Time: the chapter's local time, from HUB_CHAPTER_UTC_OFFSET ("-08:00"). Unset is UTC.
@@ -220,6 +233,10 @@ fn save_intake(root: &std::path::Path, f: &IntakeFile) -> Result<(), ApiError> {
 pub(crate) struct NoticeFile {
     pub sent: BTreeSet<String>,
     pub failures: BTreeMap<String, u32>,
+    /// Who a chapter lead has invited: only they get the welcome. Seeding someone into a committee
+    /// is not inviting them; nobody hears from a tool before a co-lead has decided they should.
+    #[serde(default)]
+    pub invited: BTreeSet<String>,
 }
 
 fn notices_path(root: &std::path::Path) -> std::path::PathBuf {
@@ -522,15 +539,26 @@ pub(crate) async fn home_page(State(s): State<RestState>, Path(token): Path<Stri
     }
     html.push_str("</section>");
 
+    // The roster: chapter leads run it; a committee lead adds to their own committee.
+    let invited = load_notices(&s.paths.root).map(|f| f.invited).unwrap_or_default();
+    let roster = roster_html(&state, &book, &claim.token, &me, &invited);
+    if !roster.is_empty() {
+        html.push_str("<section><h2>People</h2>");
+        html.push_str(&roster);
+        html.push_str("</section>");
+    }
+
     // A lead can plan an event or add a to-do for a committee they lead.
     let led: Vec<&Committee> = state.chapter.live_committees().filter(|k| is_lead_of(&state, k, &me)).collect();
     if !led.is_empty() {
         let people = chapter_people(&state);
         let committees: String = led.iter()
             .map(|k| format!("<option value=\"{}\">{}</option>", esc(&k.committee_id), esc(&k.name))).collect();
-        let checks: String = CHECKLIST.iter().map(|(id, label, days)| format!(
-            "<label class=\"check\"><input type=\"checkbox\" name=\"item_{id}\" checked> {label} \
-             <span class=\"muted\">({days} days before)</span></label>")).collect();
+        let checks: String = CHECKLIST.iter().map(|(id, label, days, hint)| {
+            let who = team_for(&state, *hint, "").map(|k| format!(", {}", k.name)).unwrap_or_default();
+            format!("<label class=\"check\"><input type=\"checkbox\" name=\"item_{id}\" checked> {label} \
+                <span class=\"muted\">({days} days before{})</span></label>", esc(&who))
+        }).collect();
         html.push_str(&format!(
             "<details><summary>Plan an event</summary>\
              <form method=\"post\" action=\"/h/{tok}/plan\" class=\"stack\">\
@@ -557,7 +585,8 @@ pub(crate) async fn home_page(State(s): State<RestState>, Path(token): Path<Stri
             backups = options(&state, &book, &people, people.iter().map(|p| p.party_id.as_str()).find(|p| *p != me)),
         ));
     }
-    html.push_str("<p class=\"muted\">This page is yours: it comes from your own link, so please don't forward it.</p>");
+    html.push_str(&format!("<p class=\"muted\">This page is yours: it comes from your own link, so please don't forward it. \
+        <a href=\"/h/{}/leave\">Not for you?</a></p>", esc(&claim.token)));
     link_page_response(StatusCode::OK, &s.hub_name, &html)
 }
 
@@ -698,20 +727,29 @@ pub(crate) async fn plan_event(
     }).await?;
     let short: String = title.chars().take(commitments::MAX_TITLE_LEN - 24).collect();
     let mut opened = Vec::new();
-    for (id, label, days) in CHECKLIST {
+    for (id, label, days, hint) in CHECKLIST {
         if body.items.as_ref().is_some_and(|ids| !ids.iter().any(|i| i == id)) {
             continue;
         }
         let target = (starts_at - chrono::Duration::days(days)).max(now + chrono::Duration::hours(48));
         let hours = ((target - now).num_hours().max(48) as u32).min(commitments::MAX_WINDOW_HOURS);
         let commitment_id = Uuid::new_v4().to_string();
-        let basis = if owner.party_id == by { Basis::TakenBySelf } else { Basis::NamedByOther };
+        // A step another committee owns goes to that committee's first two people, and its leads
+        // are the last stop; the rest stay with the event's owner and backup.
+        let (item_owner, item_backup, item_committee) = match team_for(&state, hint, &k.committee_id) {
+            Some(team) => {
+                let (o, b) = team.intake_pair().expect("team_for requires two people");
+                (canonical(&state, &o), canonical(&state, &b), team.committee_id.clone())
+            }
+            None => (owner.clone(), backup.clone(), k.committee_id.clone()),
+        };
+        let basis = if item_owner.party_id == by { Basis::TakenBySelf } else { Basis::NamedByOther };
         let index = checked_witness(s, HubEvent::CommitmentOpened {
             commitment_id: commitment_id.clone(),
             title: format!("{short}: {label}"),
-            owner: owner.clone(),
-            backup: backup.clone(),
-            leads_role: ch::committee_role(&k.committee_id),
+            owner: item_owner,
+            backup: item_backup,
+            leads_role: ch::committee_role(&item_committee),
             ladder: vec![hours, BACKUP_WINDOW_HOURS],
             due_at: None,
             recorded_by: s.sovereign_lct_id,
@@ -760,7 +798,7 @@ pub(crate) async fn add_todo(
 }
 
 fn form_items(form: &std::collections::HashMap<String, String>) -> Vec<String> {
-    CHECKLIST.iter().filter(|(id, _, _)| form.contains_key(&format!("item_{id}"))).map(|(id, _, _)| id.to_string()).collect()
+    CHECKLIST.iter().filter(|(id, ..)| form.contains_key(&format!("item_{id}"))).map(|(id, ..)| id.to_string()).collect()
 }
 
 fn form_field(form: &std::collections::HashMap<String, String>, k: &str) -> String {
@@ -1273,6 +1311,9 @@ pub(crate) fn due_notices(
     };
     let chapter = &s.hub_name;
     for p in chapter_people(state) {
+        if !file.invited.contains(&p.party_id) {
+            continue;
+        }
         let who = first_name(&name_of(state, book, &p));
         let roles: Vec<String> = state.chapter.live_committees().filter(|k| committee_people(state, k).iter().any(|q| q.party_id == p.party_id))
             .map(|k| if is_lead_of(state, k, &p.party_id) { format!("{} (lead)", k.name) } else { k.name.clone() }).collect();
@@ -1281,8 +1322,13 @@ pub(crate) fn due_notices(
              How it works: when something is yours, you get one email with a link where you can say yes, mark it \
              done, or hand it to your backup. Every job has a backup. If something goes quiet, it goes to the backup, then to the committee \
              leads. You don't need to log in or install anything; keep using email and Slack as you do now.\n\n\
-             Your chapter page shows what needs you, upcoming events, and who does what.",
-            roles.join(", ")));
+             Your chapter page shows what needs you, upcoming events, and who does what.{}",
+            roles.join(", "),
+            match (base, key) {
+                (Some(b), Some(k)) => format!("\n\nNot for you? One click takes you off: {}/leave",
+                    home_url(b, k, &p.party_id, now)),
+                _ => String::new(),
+            }));
     }
     for e in state.chapter.events.values() {
         let planner = state.invites.canonical_id(&e.planned_by);
@@ -1291,17 +1337,43 @@ pub(crate) fn due_notices(
         let by = first_name(&name_by_id(state, book, &planner));
         let owner = canonical(state, &e.owner);
         let backup = canonical(state, &e.backup);
-        if owner.party_id != planner {
-            push(format!("planned:{}:{}", e.event_id, owner.party_id), &owner, format!("{}: you're the owner", e.title), format!(
-                "{by} planned {} for {}, and put you down as the owner, with {} as backup.\n\nThe checklist: {}.\n\n\
-                 You'll get a reminder only if an item's date passes and nobody has marked it done.",
-                e.title, local_time(e.starts_at), first_name(&name_of(state, book, &backup)), items.join(", ")));
+        let _ = &items;
+        // One email per person per event, listing every step they own or back up.
+        let event_items = items_of_event(state, &e.event_id);
+        let mut people: Vec<PartyRef> = vec![owner.clone(), backup.clone()];
+        for c in &event_items {
+            for p in [&c.owner, &c.backup] {
+                if !people.iter().any(|q| q.party_id == p.party_id) {
+                    people.push(p.clone());
+                }
+            }
         }
-        if backup.party_id != planner {
-            push(format!("planned:{}:{}", e.event_id, backup.party_id), &backup, format!("{}: you're the backup", e.title), format!(
-                "{by} planned {} for {}. {} owns it; you're the backup.\n\nIf an item goes quiet past its date, it comes \
-                 to you. Until then there's nothing to do.",
-                e.title, local_time(e.starts_at), first_name(&name_of(state, book, &owner))));
+        for p in people {
+            if p.party_id == planner {
+                continue;
+            }
+            let short = |c: &&Commitment| c.title.rsplit(": ").next().unwrap_or(&c.title).to_string();
+            let owns: Vec<String> = event_items.iter().filter(|c| c.owner.party_id == p.party_id)
+                .map(|c| match target_of(c) { Some(d) => format!("{} (by {})", short(c), local_day(d)), None => short(c) }).collect();
+            let backs: Vec<String> = event_items.iter().filter(|c| c.backup.party_id == p.party_id).map(short).collect();
+            let role = if p.party_id == owner.party_id {
+                format!("and put you down as the event's owner, with {} as backup", first_name(&name_of(state, book, &backup)))
+            } else if p.party_id == backup.party_id {
+                format!("with {} as owner and you as backup", first_name(&name_of(state, book, &owner)))
+            } else {
+                format!("run by {}", first_name(&name_of(state, book, &owner)))
+            };
+            let mut body = format!("{by} planned {} for {}, {role}.\n", e.title, local_time(e.starts_at));
+            if !owns.is_empty() {
+                body.push_str(&format!("\nYours: {}.\n", owns.join(", ")));
+            }
+            if !backs.is_empty() {
+                body.push_str(&format!("\nYou're the backup on: {}.\n", backs.join(", ")));
+            }
+            body.push_str("\nThere's nothing to answer now. You'll get a reminder only if a date passes and the step isn't \
+                marked done.");
+            let subject = if owns.is_empty() { format!("{}: you're a backup", e.title) } else { format!("{}: what's yours", e.title) };
+            push(format!("planned:{}:{}", e.event_id, p.party_id), &p, subject, body);
         }
         if let Some(cl) = &e.closed {
             let mut lines = Vec::new();
@@ -1325,6 +1397,22 @@ pub(crate) fn due_notices(
         }
     }
     out
+}
+
+#[derive(Deserialize)]
+pub(crate) struct InviteBody {
+    party_ids: Vec<String>,
+}
+
+/// `POST /admin/api/chapter/invite` — the operator invites people (at setup: the chapter leads),
+/// so their welcome goes out. Everyone else is invited by a chapter lead from their own page.
+pub(crate) async fn admin_invite(
+    State(s): State<RestState>, ConnectInfo(peer): ConnectInfo<SocketAddr>, Json(body): Json<InviteBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_loopback(&peer)?;
+    let _serial = COMMITMENT_LOCK.lock().await;
+    invite(&s, &body.party_ids)?;
+    Ok(Json(serde_json::json!({ "invited": body.party_ids.len() })))
 }
 
 /// `GET /admin/api/chapter/notices` — what the carrier should send besides nudges.
@@ -1368,6 +1456,369 @@ pub(crate) async fn admin_notice_sent(
     }
     save_notices(&s.paths.root, &file)?;
     Ok(Json(serde_json::json!({ "recorded": true })))
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// The roster, run by the chapter itself: chapter leads add, move and invite people; a committee
+// lead adds people to their own committee; anyone can leave. No operator in the loop.
+// ---------------------------------------------------------------------------------------------
+
+/// A chapter lead leads the committee that answers the chapter's email.
+pub(crate) fn is_chapter_lead(state: &HubState, party_id: &str) -> bool {
+    state.chapter.inbox().is_some_and(|k| is_lead_of(state, k, party_id))
+}
+
+/// Replace a committee whole, keeping its name, purpose and inbox mark. The caller holds
+/// [`COMMITMENT_LOCK`].
+async fn reset_committee(s: &RestState, k: &Committee, leads: Vec<PartyRef>, members: Vec<PartyRef>) -> Result<u64, ApiError> {
+    chapter_witness(s, HubEvent::CommitteeSet {
+        committee_id: k.committee_id.clone(),
+        name: k.name.clone(),
+        purpose: k.purpose.clone(),
+        leads,
+        members,
+        inbox: k.inbox,
+        retired: false,
+        set_by: s.sovereign_lct_id,
+    }).await
+}
+
+fn without(list: &[PartyRef], state: &HubState, party_id: &str) -> Vec<PartyRef> {
+    list.iter().map(|p| canonical(state, p)).filter(|p| p.party_id != party_id).collect()
+}
+
+/// Invite people: their welcome goes out on the carrier's next pass. The caller holds the lock.
+fn invite(s: &RestState, ids: &[String]) -> Result<(), ApiError> {
+    let mut file = load_notices(&s.paths.root)?;
+    for id in ids {
+        file.invited.insert(id.clone());
+    }
+    save_notices(&s.paths.root, &file)
+}
+
+/// Add someone to a committee: a new contact, or the one already in the book at that address.
+/// Returns their party.
+pub(crate) async fn add_person(
+    s: &RestState, me: &str, name: &str, email: &str, committee_id: &str, as_lead: bool, operator: bool,
+) -> Result<PartyRef, ApiError> {
+    let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    let k = state.chapter.committees.get(committee_id).filter(|k| !k.retired)
+        .ok_or_else(|| ApiError::bad_request("pick a committee from the list"))?.clone();
+    let chapter_lead = operator || is_chapter_lead(&state, me);
+    if !chapter_lead && !is_lead_of(&state, &k, me) {
+        return Err(ApiError { status: StatusCode::FORBIDDEN, message: format!("only a lead of {} can add people to it", k.name) });
+    }
+    if as_lead && !chapter_lead {
+        return Err(ApiError { status: StatusCode::FORBIDDEN, message: "only a chapter lead can make someone a lead".into() });
+    }
+    let address = check_address(email)?;
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > MAX_CONTACT_NAME_LEN || name.chars().any(char::is_control) {
+        return Err(ApiError::bad_request("give their name (up to 64 characters)"));
+    }
+    let mut book = load_book(s)?;
+    let existing = book.contacts.iter().find(|(_, c)| c.address.eq_ignore_ascii_case(&address)).map(|(id, _)| id.clone());
+    let party_id = match existing {
+        Some(id) => id,
+        None => {
+            let id = Uuid::new_v4().to_string();
+            book.contacts.insert(id.clone(), Contact { name: name.to_string(), address, added_at: Utc::now() });
+            book.save(&book_path(s)).map_err(ApiError::internal)?;
+            id
+        }
+    };
+    let person = canonical(&state, &PartyRef { party_id: party_id.clone(), kind: PartyKind::Contact });
+    let mut leads = without(&k.leads, &state, &person.party_id);
+    let mut members = without(&k.members, &state, &person.party_id);
+    let was_lead = is_lead_of(&state, &k, &person.party_id);
+    if as_lead || was_lead {
+        leads.push(person.clone());
+    } else {
+        members.push(person.clone());
+    }
+    reset_committee(s, &k, leads, members).await?;
+    invite(s, &[person.party_id.clone()])?;
+    Ok(person)
+}
+
+/// A chapter lead sets someone's place on one committee: lead, member, or not on it.
+pub(crate) async fn set_place(
+    s: &RestState, me: &str, party_id: &str, committee_id: &str, place: &str, operator: bool,
+) -> Result<(), ApiError> {
+    let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    if !operator && !is_chapter_lead(&state, me) {
+        return Err(ApiError { status: StatusCode::FORBIDDEN, message: "only a chapter lead can move people".into() });
+    }
+    let person = known_party(&state, party_id, "person")?;
+    let k = state.chapter.committees.get(committee_id).filter(|k| !k.retired)
+        .ok_or_else(|| ApiError::bad_request("pick a committee from the list"))?.clone();
+    let mut leads = without(&k.leads, &state, &person.party_id);
+    let mut members = without(&k.members, &state, &person.party_id);
+    match place {
+        "lead" => leads.push(person),
+        "member" => members.push(person),
+        "out" => {}
+        _ => return Err(ApiError::bad_request("choose lead, member or off")),
+    }
+    if leads.is_empty() {
+        return Err(ApiError::bad_request(format!("{} needs a lead: make someone else lead first", k.name)));
+    }
+    reset_committee(s, &k, leads, members).await.map(|_| ())
+}
+
+/// A chapter lead starts a committee, with its first lead.
+pub(crate) async fn add_committee(
+    s: &RestState, me: &str, name: &str, purpose: &str, lead: &str, operator: bool,
+) -> Result<String, ApiError> {
+    let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    if !operator && !is_chapter_lead(&state, me) {
+        return Err(ApiError { status: StatusCode::FORBIDDEN, message: "only a chapter lead can start a committee".into() });
+    }
+    let lead = known_party(&state, lead, "lead")?;
+    let committee_id = ch::new_id();
+    chapter_witness(s, HubEvent::CommitteeSet {
+        committee_id: committee_id.clone(), name: name.trim().to_string(), purpose: purpose.trim().to_string(),
+        leads: vec![lead], members: Vec::new(), inbox: false, retired: false, set_by: s.sovereign_lct_id,
+    }).await?;
+    Ok(committee_id)
+}
+
+/// Someone leaves: off every committee, and their name and address erased. A committee they led
+/// alone falls to the chapter leads until someone takes it. Jobs in their name stay, and go to
+/// their backups when they go quiet.
+pub(crate) async fn leave(s: &RestState, me: &str) -> Result<(), ApiError> {
+    let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+    let chapter_leads: Vec<PartyRef> = state.chapter.inbox()
+        .map(|k| k.leads.iter().map(|p| canonical(&state, p)).collect()).unwrap_or_default();
+    for k in state.chapter.live_committees().filter(|k| committee_people(&state, k).iter().any(|p| p.party_id == me)) {
+        let mut leads = without(&k.leads, &state, me);
+        let members = without(&k.members, &state, me);
+        if leads.is_empty() {
+            if k.inbox {
+                return Err(ApiError::bad_request(
+                    "you're the last chapter lead: hand that to someone first, so the chapter's email still has an owner"));
+            }
+            leads = chapter_leads.iter().filter(|p| p.party_id != me).cloned().collect();
+        }
+        reset_committee(s, k, leads, members).await?;
+    }
+    let mut book = load_book(s)?;
+    let contact_id = state.invites.contact_of(me).map(str::to_string).unwrap_or_else(|| me.to_string());
+    if book.contacts.remove(&contact_id).is_some() {
+        book.save(&book_path(s)).map_err(ApiError::internal)?;
+    }
+    let mut file = load_notices(&s.paths.root)?;
+    file.invited.remove(me);
+    save_notices(&s.paths.root, &file)
+}
+
+/// The "Give it to someone else" control on a job page, for its owner or a lead.
+pub(crate) fn give_form(state: &HubState, book: &ContactBook, c: &Commitment, token: &str) -> String {
+    let people: Vec<PartyRef> = chapter_people(state).into_iter().filter(|p| p.party_id != c.owner.party_id).collect();
+    if people.is_empty() || !c.is_open() {
+        return String::new();
+    }
+    format!("<details><summary>Give it to someone else</summary><form method=\"post\" action=\"/g/{}\" class=\"stack\">\
+        <label>Who<select name=\"to\">{}</select></label><button>Give it to them</button>\
+        <p class=\"muted\">They get an email, and {} stays the backup.</p></form></details>",
+        esc(token), options(state, book, &people, None), esc(&first_name(&name_of(state, book, &c.backup))))
+}
+
+/// `POST /g/:token` — the owner or a lead gives the job to anyone in the chapter.
+///
+/// surface: chapter_give   act: hand a job to a named person, from its link
+/// S: low/reversible [construct: a handoff; the new owner can hand it on]
+/// R: weak (possession of the job link) [construct: read_link]
+/// W: pass [construct: owner or a lead only, re-derived under COMMITMENT_LOCK; the recipient must be in the chapter]
+/// O: pass [construct: commitments::check before witness]   A: pass [construct: via=link + digest]
+/// V: n/a (reversible)
+/// verdict: PASS
+pub(crate) async fn link_give(
+    State(s): State<RestState>, Path(token): Path<String>,
+    axum::extract::Form(form): axum::extract::Form<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    let claim = match verified_link(&s, &token) {
+        Ok(claim) => claim,
+        Err(page) => return page,
+    };
+    let _serial = COMMITMENT_LOCK.lock().await;
+    let r: Result<String, ApiError> = async {
+        let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+        let me = state.invites.canonical_id(&claim.party_id);
+        let c = projected_commitment(&state, &claim.commitment_id)?;
+        if !matches!(role_of(&state, &c, &me), Some(LinkRole::Owner | LinkRole::Lead)) {
+            return Err(ApiError { status: StatusCode::FORBIDDEN, message: "only its owner or a lead can give it away".into() });
+        }
+        let to = known_party(&state, &form_field(&form, "to"), "person")?;
+        if to.party_id == c.owner.party_id {
+            return Err(ApiError::bad_request("it's already theirs"));
+        }
+        let name = name_of(&state, &load_book(&s).unwrap_or_default(), &to);
+        witness_move(&s, &c, MoveBody { by: me, move_kind: MoveKind::Handoff, to: Some(to), note_ref: None },
+            AckVia::Link, Some(claim.digest.clone())).await?;
+        Ok(name)
+    }.await;
+    let back = format!("<p><a href=\"/c/{}\">Back to the job</a></p>", esc(&token));
+    match r {
+        Ok(name) => link_page_response(StatusCode::OK, "Given", &format!("<h1>It's {}'s now. They'll get an email.</h1>{back}",
+            esc(&first_name(&name)))),
+        Err(e) => {
+            let msg = if e.status.is_server_error() { "That didn't save just now. Please try again later.".to_string() } else { e.message };
+            link_page_response(StatusCode::CONFLICT, "Not given", &format!("<h1>Not given</h1><p>{}</p>{back}", esc(&msg)))
+        }
+    }
+}
+
+async fn home_form<F, Fut>(s: RestState, token: String, f: F) -> axum::response::Response
+where
+    F: FnOnce(RestState, String) -> Fut,
+    Fut: std::future::Future<Output = Result<String, ApiError>>,
+{
+    let claim = match verified_home(&s, &token) {
+        Ok(c) => c,
+        Err(page) => return page,
+    };
+    let _serial = COMMITMENT_LOCK.lock().await;
+    let me = { let ledger = s.ledger.lock().await; s.projected(&ledger).invites.canonical_id(&claim.party_id) };
+    match f(s.clone(), me).await {
+        Ok(msg) => form_page(StatusCode::OK, "Saved", &claim.token, &msg),
+        Err(e) => api_error_page(&claim.token, e),
+    }
+}
+
+/// `POST /h/:token/people/add` — add someone (a chapter lead: to any committee, as lead or member;
+/// a committee lead: to their own committee). They're invited, so their welcome goes out.
+pub(crate) async fn home_people_add(
+    State(s): State<RestState>, Path(token): Path<String>,
+    axum::extract::Form(form): axum::extract::Form<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    home_form(s, token, |s, me| async move {
+        let p = add_person(&s, &me, &form_field(&form, "name"), &form_field(&form, "email"),
+            &form_field(&form, "committee_id"), form.contains_key("lead"), false).await?;
+        let _ = p;
+        Ok(format!("Added {}. They'll get a welcome email with their own chapter page.", form_field(&form, "name").trim()))
+    }).await
+}
+
+/// `POST /h/:token/people/set` — a chapter lead sets someone's place on a committee.
+pub(crate) async fn home_people_set(
+    State(s): State<RestState>, Path(token): Path<String>,
+    axum::extract::Form(form): axum::extract::Form<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    home_form(s, token, |s, me| async move {
+        set_place(&s, &me, &form_field(&form, "party_id"), &form_field(&form, "committee_id"),
+            &form_field(&form, "place"), false).await?;
+        Ok("Saved.".to_string())
+    }).await
+}
+
+/// `POST /h/:token/committees/add` — a chapter lead starts a committee.
+pub(crate) async fn home_committee_add(
+    State(s): State<RestState>, Path(token): Path<String>,
+    axum::extract::Form(form): axum::extract::Form<std::collections::HashMap<String, String>>,
+) -> axum::response::Response {
+    home_form(s, token, |s, me| async move {
+        add_committee(&s, &me, &form_field(&form, "name"), &form_field(&form, "purpose"), &form_field(&form, "lead"), false).await?;
+        Ok(format!("{} is set up.", form_field(&form, "name").trim()))
+    }).await
+}
+
+/// `POST /h/:token/invite` — a chapter lead sends the welcome to everyone not yet invited.
+pub(crate) async fn home_invite_all(State(s): State<RestState>, Path(token): Path<String>) -> axum::response::Response {
+    home_form(s, token, |s, me| async move {
+        let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+        if !is_chapter_lead(&state, &me) {
+            return Err(ApiError { status: StatusCode::FORBIDDEN, message: "only a chapter lead can invite everyone".into() });
+        }
+        let file = load_notices(&s.paths.root)?;
+        let ids: Vec<String> = chapter_people(&state).into_iter().map(|p| p.party_id).filter(|id| !file.invited.contains(id)).collect();
+        invite(&s, &ids)?;
+        Ok(format!("Invited {}. Their welcome emails go out within a few minutes.", ids.len()))
+    }).await
+}
+
+/// `GET /h/:token/leave` — the confirm page a welcome links to.
+pub(crate) async fn leave_page(State(s): State<RestState>, Path(token): Path<String>) -> axum::response::Response {
+    if let Err(page) = verified_home(&s, &token) {
+        return page;
+    }
+    link_page_response(StatusCode::OK, "Leave", &format!(
+        "<h1>Take yourself off?</h1><p>You'll be removed from every committee and your name and email erased here. \
+         You won't get more email from it.</p><form method=\"post\" action=\"/h/{}/leave\"><button>Yes, take me off</button></form>\
+         <p><a href=\"/h/{}\">No, keep me on</a></p>", esc(&token), esc(&token)))
+}
+
+/// `POST /h/:token/leave` — leave the chapter's tool.
+pub(crate) async fn leave_act(State(s): State<RestState>, Path(token): Path<String>) -> axum::response::Response {
+    let claim = match verified_home(&s, &token) {
+        Ok(c) => c,
+        Err(page) => return page,
+    };
+    let _serial = COMMITMENT_LOCK.lock().await;
+    let me = { let ledger = s.ledger.lock().await; s.projected(&ledger).invites.canonical_id(&claim.party_id) };
+    match leave(&s, &me).await {
+        Ok(()) => link_page_response(StatusCode::OK, "Done", "<h1>Done. You're off, and you won't hear from it again.</h1>"),
+        Err(e) => api_error_page(&claim.token, e),
+    }
+}
+
+/// The roster controls on a chapter page: what a chapter lead or a committee lead can change.
+fn roster_html(state: &HubState, book: &ContactBook, token: &str, me: &str, invited: &BTreeSet<String>) -> String {
+    let chapter_lead = is_chapter_lead(state, me);
+    let mut committees: Vec<&Committee> = state.chapter.live_committees()
+        .filter(|k| chapter_lead || is_lead_of(state, k, me)).collect();
+    if committees.is_empty() {
+        return String::new();
+    }
+    committees.sort_by_key(|k| (!k.inbox, k.name.to_lowercase()));
+    let tok = esc(token);
+    let committee_opts: String = committees.iter()
+        .map(|k| format!("<option value=\"{}\">{}</option>", esc(&k.committee_id), esc(&k.name))).collect();
+    let mut html = format!("<details><summary>Add someone</summary><form method=\"post\" action=\"/h/{tok}/people/add\" class=\"stack\">\
+        <label>Name<input name=\"name\" required maxlength=\"64\"></label>\
+        <label>Email<input type=\"email\" name=\"email\" required></label>\
+        <label>Committee<select name=\"committee_id\">{committee_opts}</select></label>{}\
+        <button>Add</button><p class=\"muted\">They get a welcome email with their own page. Nothing else to do.</p>\
+        </form></details>",
+        if chapter_lead { "<label class=\"check\"><input type=\"checkbox\" name=\"lead\"> as a lead of that committee</label>" } else { "" });
+    if !chapter_lead {
+        return html;
+    }
+    let people = chapter_people(state);
+    let waiting = people.iter().filter(|p| !invited.contains(&p.party_id)).count();
+    if waiting > 0 {
+        html.push_str(&format!("<form method=\"post\" action=\"/h/{tok}/invite\"><button class=\"secondary\">Send the welcome to the \
+            {waiting} people who haven't had it</button></form>"));
+    }
+    html.push_str("<details><summary>Move people between committees</summary>");
+    for k in &committees {
+        html.push_str(&format!("<h3>{}</h3>", esc(&k.name)));
+        for p in committee_people(state, k) {
+            let place = if is_lead_of(state, k, &p.party_id) { "lead" } else { "member" };
+            let opt = |v: &str, label: &str| format!("<option value=\"{v}\"{}>{label}</option>", if v == place { " selected" } else { "" });
+            html.push_str(&format!("<form method=\"post\" action=\"/h/{tok}/people/set\" class=\"row\">\
+                <input type=\"hidden\" name=\"party_id\" value=\"{}\"><input type=\"hidden\" name=\"committee_id\" value=\"{}\">\
+                <span>{}</span><select name=\"place\">{}{}{}</select><button class=\"secondary\">Save</button></form>",
+                esc(&p.party_id), esc(&k.committee_id), esc(&name_of(state, book, &p)),
+                opt("lead", "lead"), opt("member", "member"), opt("out", "off this committee")));
+        }
+        let others: Vec<PartyRef> = people.iter().filter(|p| !committee_people(state, k).iter().any(|q| q.party_id == p.party_id))
+            .cloned().collect();
+        if !others.is_empty() {
+            html.push_str(&format!("<form method=\"post\" action=\"/h/{tok}/people/set\" class=\"row\">\
+                <input type=\"hidden\" name=\"committee_id\" value=\"{}\"><input type=\"hidden\" name=\"place\" value=\"member\">\
+                <select name=\"party_id\">{}</select><button class=\"secondary\">Add to {}</button></form>",
+                esc(&k.committee_id), options(state, book, &others, None), esc(&k.name)));
+        }
+    }
+    html.push_str("</details>");
+    html.push_str(&format!("<details><summary>Start a committee</summary><form method=\"post\" action=\"/h/{tok}/committees/add\" class=\"stack\">\
+        <label>Name<input name=\"name\" required maxlength=\"48\"></label>\
+        <label>What it does<input name=\"purpose\" maxlength=\"200\"></label>\
+        <label>Lead<select name=\"lead\">{}</select></label><button>Start it</button></form></details>",
+        options(state, book, &people, Some(me))));
+    html
 }
 
 #[cfg(test)]
@@ -1455,14 +1906,18 @@ mod tests {
         let items = items_of_event(&state, event_id);
         assert_eq!(items.len(), CHECKLIST.len());
         // The venue item aims 21 days out: its owner window is about 9 days from now.
-        let venue = items.iter().find(|c| c.title.ends_with("Venue confirmed")).unwrap();
+        let venue = items.iter().find(|c| c.title.ends_with("Venue and sponsors confirmed")).unwrap();
         assert!((200..=240).contains(&venue.ladder[0]), "venue window {:?}", venue.ladder);
 
         // Per-item "you're named" nudges are folded into one notice each for owner and backup.
         let book = load_book(&s).unwrap();
         assert!(due_nudges(&state, &book, Utc::now(), None).iter()
             .all(|n| n["commitment_id"].as_str().map_or(true, |id| !items.iter().any(|c| c.commitment_id == id))));
-        let notices = due_notices(&s, &state, &book, &NoticeFile::default(), None, None, Utc::now());
+        let everyone = NoticeFile { invited: chapter_people(&state).into_iter().map(|p| p.party_id).collect(),
+            ..Default::default() };
+        assert!(due_notices(&s, &state, &book, &NoticeFile::default(), None, None, Utc::now()).iter()
+            .all(|n| !n["notice_id"].as_str().unwrap().starts_with("welcome:")), "nobody is welcomed before they're invited");
+        let notices = due_notices(&s, &state, &book, &everyone, None, None, Utc::now());
         let ids: Vec<&str> = notices.iter().filter_map(|n| n["notice_id"].as_str()).collect();
         assert!(ids.contains(&format!("planned:{event_id}:{}", al.party_id).as_str()));
         assert!(ids.contains(&format!("planned:{event_id}:{}", sam.party_id).as_str()));
@@ -1477,7 +1932,34 @@ mod tests {
         let notices = due_notices(&s, &state, &book, &NoticeFile::default(), None, None, Utc::now());
         assert_eq!(notices.iter().filter(|n| n["notice_id"].as_str().unwrap().starts_with("recap:")).count(), 3);
         let recap = notices.iter().find(|n| n["notice_id"].as_str().unwrap().starts_with("recap:")).unwrap();
-        assert!(recap["body"].as_str().unwrap().contains("Venue confirmed: Given to Alex"));
+        assert!(recap["body"].as_str().unwrap().contains("Venue and sponsors confirmed: Given to Alex"));
+    }
+
+    #[tokio::test]
+    async fn the_chapter_runs_its_own_roster() {
+        let (_dir, s) = fresh_rest_state(None).await;
+        let (nat, yem, aug) = (contact(&s, "Natalie Co").await, contact(&s, "Yemaya Co").await, contact(&s, "Augustina P").await);
+        committee(&s, "Chapter leads", vec![nat.clone(), yem.clone()], vec![], true).await;
+        let partners = committee(&s, "Partnerships", vec![aug.clone()], vec![], false).await;
+        let _serial = COMMITMENT_LOCK.lock().await;
+        // A committee lead adds a member to their own committee, and that person is invited.
+        let arne = add_person(&s, &aug.party_id, "Arne W", "arne@example.org", &partners, false, false).await.expect("add");
+        assert!(load_notices(&s.paths.root).unwrap().invited.contains(&arne.party_id));
+        // ...but can't make anyone a lead; a chapter lead can.
+        assert_eq!(add_person(&s, &aug.party_id, "X Y", "xy@example.org", &partners, true, false).await.unwrap_err().status,
+            StatusCode::FORBIDDEN);
+        set_place(&s, &nat.party_id, &arne.party_id, &partners, "lead", false).await.expect("make lead");
+        // The last lead can't be moved off.
+        set_place(&s, &nat.party_id, &aug.party_id, &partners, "out", false).await.expect("aug off");
+        assert!(set_place(&s, &nat.party_id, &arne.party_id, &partners, "out", false).await.is_err());
+        // Arne leaves: off the committee (which falls to the chapter leads), his address erased.
+        leave(&s, &arne.party_id).await.expect("leave");
+        drop(_serial);
+        let state = state_of(&s);
+        let k = &state.chapter.committees[&partners];
+        assert!(!k.includes(&arne.party_id));
+        assert!(k.is_lead(&nat.party_id) && k.is_lead(&yem.party_id));
+        assert!(!load_book(&s).unwrap().contacts.contains_key(&arne.party_id));
     }
 
     #[test]
