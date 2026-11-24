@@ -1,0 +1,138 @@
+{
+  "_about": "The file seed.py reads: people (name + address) and committees (by tag). This one is a format example with made-up people; a real chapter's file holds real addresses and lives outside this repository.",
+  "people": [
+    {
+      "tag": "rowan",
+      "name": "Rowan Ellis",
+      "address": "rowan@example.org"
+    },
+    {
+      "tag": "tamsin",
+      "name": "Tamsin Okafor",
+      "address": "tamsin@example.org"
+    },
+    {
+      "tag": "dev",
+      "name": "Dev Marlow",
+      "address": "dev@example.org"
+    },
+    {
+      "tag": "ines",
+      "name": "Ines Varga",
+      "address": "ines@example.org"
+    },
+    {
+      "tag": "kofi",
+      "name": "Kofi Brandt",
+      "address": "kofi@example.org"
+    },
+    {
+      "tag": "lena",
+      "name": "Lena Park",
+      "address": "lena@example.org"
+    },
+    {
+      "tag": "milo",
+      "name": "Milo Santos",
+      "address": "milo@example.org"
+    },
+    {
+      "tag": "priya",
+      "name": "Priya Holt",
+      "address": "priya@example.org"
+    },
+    {
+      "tag": "sage",
+      "name": "Sage Whitfield",
+      "address": "sage@example.org"
+    },
+    {
+      "tag": "theo",
+      "name": "Theo Nakamura",
+      "address": "theo@example.org"
+    },
+    {
+      "tag": "uma",
+      "name": "Uma Castell",
+      "address": "uma@example.org"
+    },
+    {
+      "tag": "wren",
+      "name": "Wren Abiola",
+      "address": "wren@example.org"
+    }
+  ],
+  "committees": [
+    {
+      "name": "Chapter leads",
+      "purpose": "Runs the chapter, answers the chapter's email, and is the last stop when something goes quiet.",
+      "leads": [
+        "rowan",
+        "tamsin"
+      ],
+      "members": [],
+      "inbox": true
+    },
+    {
+      "name": "Technical Events",
+      "purpose": "Talks, demos, hack nights.",
+      "leads": [
+        "dev"
+      ],
+      "members": [
+        "ines",
+        "kofi"
+      ]
+    },
+    {
+      "name": "Community & Education",
+      "purpose": "Workshops, study groups, newcomers.",
+      "leads": [
+        "lena"
+      ],
+      "members": [
+        "milo"
+      ]
+    },
+    {
+      "name": "Marketing",
+      "purpose": "Event pages, socials, the newsletter.",
+      "leads": [
+        "priya"
+      ],
+      "members": [
+        "sage"
+      ]
+    },
+    {
+      "name": "Students",
+      "purpose": "Campus outreach and student members.",
+      "leads": [
+        "theo"
+      ],
+      "members": [
+        "uma"
+      ]
+    },
+    {
+      "name": "Wellness",
+      "purpose": "Keeping it sustainable for the people doing the work.",
+      "leads": [
+        "uma"
+      ],
+      "members": [
+        "wren"
+      ]
+    },
+    {
+      "name": "Partnerships",
+      "purpose": "Sponsors and venues.",
+      "leads": [
+        "wren"
+      ],
+      "members": [
+        "kofi"
+      ]
+    }
+  ]
+}

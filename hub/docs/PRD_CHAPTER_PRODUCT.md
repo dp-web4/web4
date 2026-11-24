@@ -1,6 +1,6 @@
 # PRD: Chapter product, the first real-community slice (F0b)
 
-**Status:** built on branch `cbp-pm/chapter-product`. Tested in-process; no chapter has used it yet.
+**Status:** built on branch `cbp-pm/chapter-product` (web4 #996) for the AI Collective Portland chapter, deployed as their real hub. The chapter's own words: build it, let us use it, if we like it we'll keep it. So there is no demo, rehearsal or synthetic stage between us and their actual work.
 **Parent:** [PRD_MEMBER_WEBSITE_FIRST_USER_2026-11-11.md](PRD_MEMBER_WEBSITE_FIRST_USER_2026-11-11.md) §5b and §6 (F0b), issue web4#993 (F1b).
 **Builds on:** [PRD_COMMITMENTS.md](PRD_COMMITMENTS.md) K1–K5c2. Every job here is a commitment.
 
@@ -31,8 +31,10 @@ Officers already live in email and Slack, and they shouldn't have to learn a new
 |---|---|---|
 | Whoever is on inbox duty | An email reaches the chapter. They get one email: who wrote, the subject, and a link. The page shows the message, a **Reply from your email** button, and **Pass to Partnerships** (or any other committee). After replying, they press **It's done**. | `/c/:token` |
 | Their backup | Hears only if a day goes by in silence. | nudge |
-| A committee lead | Plans an event with one short form: name, date, owner, backup. The standard checklist (venue, sponsor, event page, speakers, day-of) is ticked by default. | `/h/:token` |
-| Event owner and backup | Get one email each for the whole event. After that, a reminder comes only for an item whose date passes in silence. | notice |
+| A committee lead | Plans an event with one short form: name, date, owner, backup. The chapter's own pipeline becomes the checklist: the prospectus for the two people running it, venue and sponsors for Partnerships, the marketing plan and Luma page for Marketing, then speakers and the day-of. | `/h/:token` |
+| Everyone with a part in the event | Gets one email listing their steps and dates. After that, a reminder comes only for a step whose date passes in silence. | notice |
+| A chapter lead | Runs the roster from their page: add someone, move people between committees, make someone a lead, start a committee, and send the welcome when they choose. A committee lead can add people to their own committee. | `/h/:token` |
+| Anyone | **Not for you?** One click takes you off every committee and erases your name and address. A job's owner or a lead can **give it to someone else**. | `/h/:token/leave`, `/g/:token` |
 | Anyone in the chapter | Their chapter page answers four questions: what needs me, what's mine, which events are coming, and who does what (committees, leads, people, and who owns each open job). | `/h/:token` |
 | The committee, after the event | The owner or a lead presses **close it**. Everyone on the committee gets the recap: what was done, by whom, what was handed on, and what went quiet. | `/h/:token/e/:id`, recap notice |
 
@@ -71,6 +73,12 @@ Officers already live in email and Slack, and they shouldn't have to learn a new
 - Time zones with daylight saving. `HUB_CHAPTER_UTC_OFFSET` is a fixed offset.
 - Editing an event's date after planning.
 
-## 7. Pass
+## 7. Onboarding without homework
 
-Per the parent PRD §5b, the chapter's own officers run one real event cycle on it, with no fleet member doing the work, and their verdict is recorded word for word, including a no. A demo shown to them is not a pass.
+Setup uses what the chapter has already told us. That's the committees from the co-leads' 09-18 email, plus the leads and people named in their meetings. A committee with no known lead starts with the chapter leads as leads.
+
+**Only the chapter leads are welcomed at first.** They fix what's wrong and add whoever's missing from their own page, then send the welcome to everyone else when they choose. Nobody hears from the tool before a chapter lead has decided they should. Seeding someone isn't inviting them.
+
+## 8. Pass
+
+Per the parent PRD §5b, the chapter's own officers run their real work on it, with no fleet member doing the work for them. Their verdict is recorded word for word, including a no.
