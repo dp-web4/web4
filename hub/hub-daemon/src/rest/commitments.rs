@@ -1057,7 +1057,7 @@ const LINK_PAGE_CSS: &str = "body{font:17px/1.5 system-ui,sans-serif;max-width:3
     form.row select{font:inherit;padding:.3rem}form.row button{width:auto;padding:.3rem .7rem}\
     .chips form{display:inline-block;margin:.2rem .3rem .2rem 0}.chips button{width:auto;padding:.4rem .8rem;\
     border-radius:1rem;background:#fff;font-size:.95rem}fieldset{border:1px solid #ddd;border-radius:.4rem;margin:.8rem 0}\
-    pre{white-space:pre-wrap;font:inherit;background:#f8f8f8;border-left:3px solid #ccc;padding:.6rem}\
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;background:#f8f8f8;border-left:3px solid #ccc;padding:.6rem}\
     a.button{display:block;text-align:center;padding:.8rem;border-radius:.5rem;background:#1f5fbf;color:#fff;\
     text-decoration:none}button.secondary{background:#fff}ol.record li{margin:.2rem 0}\
     @media (prefers-color-scheme:dark){body{background:#151515;color:#e8e8e8}button{background:#2a2a2a;color:#eee}\

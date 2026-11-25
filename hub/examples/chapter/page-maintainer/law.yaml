@@ -1,0 +1,29 @@
+# The page maintainer's law: the norms that decide what the role may do.
+#
+# Paste these into the chapter's hub law (they are already in examples/starter-law.yaml), then
+# amend with `hub set-law`. Without them a hub's DEFAULT-ALLOW decides, which is the same as the
+# first norm below: a maintainer's change goes live at once.
+#
+# The hub evaluates every front-page act as an R6 request:
+#   r6.role            page_maintainer   (a co-lead's assistant, through its maintainer link)
+#                      chapter_lead      (a co-lead, from their own chapter page)
+#   r6.request.action  chapter_page_set  (publishing the page, or rewriting the brief)
+#                      chapter_maintainer_appointed / chapter_maintainer_revoked
+#   r6.request.payload.part   page | brief
+#
+# Decisions:
+#   allow     the change takes effect, is recorded with who and through which assistant, and any
+#             co-lead can undo it from their chapter page.
+#   escalate  the change waits as a proposal until a co-lead presses Publish on their chapter page.
+#   deny      the change is refused; nothing is stored.
+
+norms:
+  # What a page maintainer may do. Change `decision` to escalate to make every assistant change
+  # wait for a co-lead's click.
+  - id: CHAPTER-PAGE-MAINTAINER
+    selector: r6.role
+    operator: "=="
+    value: page_maintainer
+    decision: allow
+    priority: 20
+    description: "A co-lead's assistant, appointed as page maintainer, may publish the chapter's front page and rewrite its brief. Every change is recorded with who appointed it, and any co-lead can undo it. Change to escalate to make changes wait for a co-lead."

@@ -3508,8 +3508,14 @@ mod tests {
         const BODY_EXEMPT: &[&str] = &[
             // The chapter layer: lead forms on a person's chapter page (form bodies). Driven
             // end-to-end through plan_event / add_todo by the tests in rest/commitments/chapter.rs.
+            // The front page (PRD_CHAPTER_FRONT_PAGE): a page maintainer's JSON page, and below, a
+            // lead's appointment form. Driven end-to-end through set_part / appoint_maintainer by
+            // the tests in rest/commitments/chapter/front_page.rs. (Sorted: the sweep compares in
+            // order.)
+            "/a/:token/page",
             "/g/:token",
             "/h/:token/committees/add",
+            "/h/:token/maintainers/add",
             "/h/:token/people/add",
             "/h/:token/people/set",
             "/h/:token/plan",

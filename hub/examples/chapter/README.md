@@ -39,6 +39,12 @@ Product spec: [`../../docs/PRD_CHAPTER_PRODUCT.md`](../../docs/PRD_CHAPTER_PRODU
    Nobody hears from the tool before a chapter lead has decided they should.
 4. **Start `hub-intake`** against the mailbox the chapter's address forwards to. From then on, every email to the chapter becomes a job for the committee that answers it.
 
+## The front page
+
+`/` is the chapter's own front page once a committee answers its address. It says what the chapter is, what's next, what happened lately, and how to get involved. It never names a person.
+
+It's kept by a **page maintainer**: a co-lead's own AI assistant, appointed from the co-lead's chapter page. The role's law is a norm in the hub law. Its context is a brief the co-leads own. Every change is a governed, recorded act, and any co-lead can undo it. Templates and how-to: [`page-maintainer/`](page-maintainer/). Spec: [`../../docs/PRD_CHAPTER_FRONT_PAGE.md`](../../docs/PRD_CHAPTER_FRONT_PAGE.md).
+
 ## `nudge.json`
 
 ```json

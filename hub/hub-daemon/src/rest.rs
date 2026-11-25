@@ -2614,6 +2614,16 @@ pub fn router(state: RestState) -> Router {
         .route("/h/:token/committees/add", post(commitments::home_committee_add))
         .route("/h/:token/invite", post(commitments::home_invite_all))
         .route("/h/:token/leave", get(commitments::leave_page).post(commitments::leave_act))
+        // The front page (PRD_CHAPTER_FRONT_PAGE): a lead's controls, and the page maintainer's link.
+        .route("/h/:token/maintainers/add", post(commitments::home_maintainer_add))
+        .route("/h/:token/maintainers/:maintainer_id/stop", post(commitments::home_maintainer_stop))
+        .route("/h/:token/page/publish/:part", post(commitments::home_page_publish))
+        .route("/h/:token/page/discard/:part", post(commitments::home_page_discard))
+        .route("/h/:token/page/undo", post(commitments::home_page_undo))
+        .route("/h/:token/page/preview", get(commitments::home_page_preview))
+        .route("/a/:token", get(commitments::maintainer_packet))
+        .route("/a/:token/page", get(commitments::maintainer_page_get).post(commitments::maintainer_page_set))
+        .route("/a/:token/brief", post(commitments::maintainer_brief_set))
         .route("/g/:token", post(commitments::link_give))
         // Commitments K5b: the page an invite opens. Reading it writes nothing; the join is the
         // browser's own signed POST to /members/join, carrying the invite as evidence for law.

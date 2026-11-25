@@ -26,6 +26,7 @@ pub mod hub;
 pub mod atomic_file;
 pub mod build_info;
 pub mod chapter;
+pub mod chapter_page;
 pub mod charter;
 pub mod commitments;
 pub mod constellation;
