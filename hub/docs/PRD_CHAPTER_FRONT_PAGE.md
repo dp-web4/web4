@@ -82,10 +82,10 @@ The law's answer:
 **Appointing and stopping are governed acts too:** `chapter_maintainer_appointed` and `chapter_maintainer_revoked`, in role `chapter_lead`. So are discarding a proposal and undoing.
 
 **Proposals** (decided 11-25, after the post-merge review of #999):
-- **A lead approves exactly what they looked at.** Publish and Discard name the proposal's id, and the ledger refuses a publish whose digest isn't that proposal's. A proposal that was replaced, discarded or withdrawn can't be published.
+- **A lead approves exactly what they looked at.** Publish and Discard name the proposal's id, and the ledger refuses a publish whose digest isn't that proposal's. A proposal that was replaced or discarded can't be published.
 - **One waiting proposal per assistant per part.** An assistant's newer proposal replaces its own older one. Different assistants' proposals wait side by side.
-- **Stopping an assistant withdraws what it left waiting.** A co-lead who stops an assistant doesn't then have to find and discard its proposals. A lead who wants one anyway asks their own assistant to send it again.
-- **An expired link doesn't withdraw a proposal.** It was made while the link was good, and a lead still has to publish it.
+- **Stopping is not discarding** (dp, 11-25). They're separate acts, and both are always available. Stopping an assistant ends its link. What it left waiting stays on the co-leads' pages, marked "that assistant has since been stopped", for a lead to publish or discard. The same holds when a link expires.
+- **A lead answers for what they publish.** Publishing a stopped assistant's proposal is the lead's own act, recorded under their name, crediting the assistant.
 
 **Undo** takes the page back one version each time: to the version before, and from the first one back to the placeholders. The undo names exactly where it goes, and the ledger refuses one that names anywhere else. The button names the version it undoes, so a stale button (the page changed since the lead looked) does nothing.
 

@@ -204,8 +204,6 @@ pub enum ProposalEnd {
     Discarded,
     /// The same assistant proposed something newer for the same part.
     Replaced,
-    /// A lead stopped the assistant that proposed it.
-    Withdrawn,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -590,10 +588,8 @@ pub fn fold(chapter: &mut Chapter, event: &HubEvent, ts: DateTime<Utc>, index: u
             if let Some(m) = chapter.maintainers.get_mut(maintainer_id) {
                 m.revoked = Some(ClosedBy { by: by.clone(), via: *via, at: ts, index });
             }
-            // Stopping an assistant withdraws what it left waiting: a co-lead who stops it
-            // doesn't have to find and discard its proposals too. A lead who wants one anyway
-            // asks their own assistant to send it again.
-            close_proposals(chapter, ProposalEnd::Withdrawn, ts, index, |p| p.maintainer_id == *maintainer_id);
+            // Stopping an assistant is not discarding its work (dp, 11-25): what it left waiting
+            // stays waiting, for a lead to publish or discard as separate acts.
         }
         HubEvent::ChapterPageSet { part, sha256, by, via, maintainer_id, proposal_id, undo, .. } => {
             chapter.page_versions.push(PageVersion {
