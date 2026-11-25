@@ -55,9 +55,16 @@ So nothing an assistant is told to write can run on the page or reach a visitor'
 
 ## 5. Every change is a governed act
 
-One act covers both parts: `chapter_page_set { part: page | brief, sha256, by, via, maintainer_id }`.
+One act covers both parts: `chapter_page_set { part: page | brief, sha256, by, via, maintainer_id, proposal_id, undo }`.
 
-**The words stay off the ledger.** The ledger records only the content's digest. The text lives in the operator's `chapter-page.json` (0600) under that digest, every version kept, so undo is a lookup.
+**The words stay off the ledger.** The ledger records only the content's digest. The text lives in the operator's `chapter-page.json` (0600) under that digest, every version kept.
+
+**The ledger is the record; the file only holds words.** What's in force and what's waiting are read from the ledger, never from the file. The file is checked against the ledger's digest on every read:
+- content that's missing or doesn't match shows as **damaged**: visitors get a short "being updated" page, co-leads get a warning with what to do, and the assistant is told to send it again;
+- it is never shown quietly as the placeholders, or as the starting brief;
+- sending the same content again repairs it, with nothing new recorded.
+
+Content goes to the file before the ledger names its digest. A failed ledger write leaves an unused file entry and loses no decision.
 
 **Before anything is stored, the hub asks the chapter's law,** with an R6 request:
 - `role`: `page_maintainer` through a maintainer link, or `chapter_lead` from a lead's page;
@@ -69,14 +76,24 @@ The law's answer:
 | Law says | What happens |
 |---|---|
 | allow | Content to the page file, then the act is witnessed; the page changes. |
-| escalate | The change waits as a proposal. Co-leads see *Publish it / Discard it / Preview it* on their chapter page. Publishing is a lead's own `chapter_page_set`, crediting the assistant. |
+| escalate | The change waits as a proposal, recorded as `chapter_page_proposed` with its own id. Co-leads see *Look at it first / Publish it / Discard it* on their chapter page, each bound to that id. Publishing is a lead's own `chapter_page_set` naming the proposal, crediting the assistant; discarding is `chapter_page_discarded`. |
 | deny | Refused. Nothing is stored. |
 
-**Appointing and stopping are governed acts too:** `chapter_maintainer_appointed` and `chapter_maintainer_revoked`, in role `chapter_lead`.
+**Appointing and stopping are governed acts too:** `chapter_maintainer_appointed` and `chapter_maintainer_revoked`, in role `chapter_lead`. So are discarding a proposal and undoing.
+
+**Proposals** (decided 11-25, after the post-merge review of #999):
+- **A lead approves exactly what they looked at.** Publish and Discard name the proposal's id, and the ledger refuses a publish whose digest isn't that proposal's. A proposal that was replaced, discarded or withdrawn can't be published.
+- **One waiting proposal per assistant per part.** An assistant's newer proposal replaces its own older one. Different assistants' proposals wait side by side.
+- **Stopping an assistant withdraws what it left waiting.** A co-lead who stops an assistant doesn't then have to find and discard its proposals. A lead who wants one anyway asks their own assistant to send it again.
+- **An expired link doesn't withdraw a proposal.** It was made while the link was good, and a lead still has to publish it.
+
+**Undo** takes the page back one version each time: to the version before, and from the first one back to the placeholders. The undo names exactly where it goes, and the ledger refuses one that names anywhere else. The button names the version it undoes, so a stale button (the page changed since the lead looked) does nothing.
 
 **The default lets an assistant publish.** The page is public, reversible, and every change names a lead. A chapter that wants a person in the loop changes one word in its law (`allow` to `escalate`). No law loaded behaves as allow, as with the hub's single-signer gate.
 
-**The public record** (`/record`) shows that the front page changed, and whether a co-lead's assistant, a co-lead or the operator changed it. It also shows that an assistant was appointed and until when. It never shows whose assistant: the lead is a member fact.
+**The public record** (`/record`) shows that the front page changed or was undone, and whether a co-lead's assistant, a co-lead or the operator changed it. It shows that a change is waiting for a co-lead, and that one was discarded. It also shows that an assistant was appointed and until when. It never shows whose assistant: the lead is a member fact.
+
+**What a maintainer link is.** It's delegated authority: whoever holds it acts for the lead who appointed it, within the role's law. It is not a verified identity for the AI behind it. Its responses are `no-store` and `no-referrer`, and the hub logs no request paths. The tunnel in front of the hub sees full URLs, as it does for every chapter link.
 
 ## 6. What the page never shows
 

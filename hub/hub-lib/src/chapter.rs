@@ -26,7 +26,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::chapter_page::{is_digest, PagePart, PageVia, PAGE_MAINTAINER};
+use crate::chapter_page::{is_digest, PagePart, PageVia, NOTHING_PUBLISHED, PAGE_MAINTAINER};
 use crate::commitments::{AckVia, PartyRef};
 use crate::events::HubEvent;
 
@@ -172,6 +172,45 @@ pub struct PageVersion {
     pub by: String,
     pub via: PageVia,
     pub maintainer_id: Option<String>,
+    /// The proposal this published, if a lead published an assistant's waiting change.
+    pub proposal_id: Option<String>,
+    /// An undo: it takes the version before it off the stack instead of adding one.
+    pub undo: bool,
+    pub at: DateTime<Utc>,
+    pub index: u64,
+}
+
+/// An assistant's change the chapter's law sent to a co-lead. A lead publishes or discards it by
+/// its id, so what they approve is exactly what they saw.
+#[derive(Clone, Debug, Serialize)]
+pub struct Proposal {
+    pub proposal_id: String,
+    pub part: PagePart,
+    pub sha256: String,
+    pub by: String,
+    pub maintainer_id: String,
+    pub norm: String,
+    pub at: DateTime<Utc>,
+    pub index: u64,
+    pub closed: Option<ProposalClosed>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProposalEnd {
+    /// A lead published it (or the page came to say the same thing another way).
+    Published,
+    /// A lead discarded it.
+    Discarded,
+    /// The same assistant proposed something newer for the same part.
+    Replaced,
+    /// A lead stopped the assistant that proposed it.
+    Withdrawn,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ProposalClosed {
+    pub how: ProposalEnd,
     pub at: DateTime<Utc>,
     pub index: u64,
 }
@@ -183,8 +222,10 @@ pub struct Chapter {
     pub events: BTreeMap<String, ChapterEvent>,
     pub requests: BTreeMap<String, Request>,
     pub maintainers: BTreeMap<String, Maintainer>,
-    /// Every version of the front page and of the brief, oldest first.
+    /// Every version of the front page and of the brief, oldest first, undos included.
     pub page_versions: Vec<PageVersion>,
+    /// Every proposal ever made, open or closed, by id.
+    pub proposals: BTreeMap<String, Proposal>,
 }
 
 impl Chapter {
@@ -216,9 +257,41 @@ impl Chapter {
         self.page_versions.iter().filter(move |v| v.part == part)
     }
 
-    /// The version of a part in force now, if one was ever set.
+    /// The versions of a part still standing, oldest first: each set adds one, each undo takes
+    /// the top one off. The top is the version in force.
+    pub fn stack(&self, part: PagePart) -> Vec<&PageVersion> {
+        let mut stack = Vec::new();
+        for v in self.versions(part) {
+            if v.undo {
+                stack.pop();
+            } else {
+                stack.push(v);
+            }
+        }
+        stack
+    }
+
+    /// The version of a part in force now. `None` when nothing was ever published, or an undo
+    /// took the page back to before the first one.
     pub fn current(&self, part: PagePart) -> Option<&PageVersion> {
-        self.versions(part).last()
+        self.stack(part).last().copied()
+    }
+
+    /// Where an undo of `part` would go: `None` when there's nothing to undo, `Some(None)` back
+    /// to nothing published, `Some(Some(v))` back to version `v`.
+    pub fn undo_target(&self, part: PagePart) -> Option<Option<&PageVersion>> {
+        let stack = self.stack(part);
+        match stack.len() {
+            0 => None,
+            n => Some(n.checked_sub(2).map(|i| stack[i])),
+        }
+    }
+
+    /// Proposals still waiting for a lead, oldest first.
+    pub fn open_proposals(&self) -> Vec<&Proposal> {
+        let mut v: Vec<&Proposal> = self.proposals.values().filter(|p| p.closed.is_none()).collect();
+        v.sort_by_key(|p| p.index);
+        v
     }
 
     /// A maintainer that has not been stopped. Expiry and whether its lead still leads are the
@@ -298,12 +371,43 @@ pub fn check(chapter: &Chapter, event: &HubEvent) -> Result<(), Refusal> {
             Some(m) if m.revoked.is_some() => Err(Refusal::Conflict("that assistant was already stopped".into())),
             Some(_) => Ok(()),
         },
-        HubEvent::ChapterPageSet { sha256, by, via, maintainer_id, .. } => {
+        HubEvent::ChapterPageSet { part, sha256, by, via, maintainer_id, proposal_id, undo, .. } => {
             if !is_digest(sha256) {
                 return Err(Refusal::Invalid("a page version is named by its sha256: digest".into()));
             }
             if by.is_empty() {
                 return Err(Refusal::Invalid("a page version names the lead answerable for it".into()));
+            }
+            if *undo {
+                if *via == PageVia::Maintainer || proposal_id.is_some() {
+                    return Err(Refusal::Invalid("only a co-lead undoes a change".into()));
+                }
+                // An undo names exactly where it goes, so the record can't say one thing and do another.
+                let expected = match chapter.undo_target(*part) {
+                    None => return Err(Refusal::Conflict(format!("the {} has nothing to undo", part.as_str()))),
+                    Some(None) => NOTHING_PUBLISHED.to_string(),
+                    Some(Some(v)) => v.sha256.clone(),
+                };
+                if *sha256 != expected {
+                    return Err(Refusal::Conflict("the page changed since that undo was offered".into()));
+                }
+            } else if sha256 == NOTHING_PUBLISHED {
+                return Err(Refusal::Invalid("only an undo goes back to nothing published".into()));
+            }
+            if let Some(pid) = proposal_id {
+                match chapter.proposals.get(pid) {
+                    None => return Err(Refusal::Unknown(format!("no proposal {pid}"))),
+                    Some(p) if p.closed.is_some() => {
+                        return Err(Refusal::Conflict("that proposal isn't waiting any more".into()))
+                    }
+                    Some(p) if p.part != *part || p.sha256 != *sha256 || Some(&p.maintainer_id) != maintainer_id.as_ref() => {
+                        return Err(Refusal::Invalid("a publish names the proposal's own part, digest and assistant".into()))
+                    }
+                    Some(_) if *via == PageVia::Maintainer => {
+                        return Err(Refusal::Invalid("a co-lead publishes a proposal, not the assistant".into()))
+                    }
+                    Some(_) => {}
+                }
             }
             match (via, maintainer_id) {
                 (PageVia::Maintainer, None) => Err(Refusal::Invalid("a maintainer's change names the maintainer".into())),
@@ -320,6 +424,32 @@ pub fn check(chapter: &Chapter, event: &HubEvent) -> Result<(), Refusal> {
                     Err(Refusal::Unknown(format!("no maintainer {id}")))
                 }
                 _ => Ok(()),
+            }
+        }
+        HubEvent::ChapterPageProposed { proposal_id, sha256, by, maintainer_id, norm, .. } => {
+            if proposal_id.is_empty() || chapter.proposals.contains_key(proposal_id) {
+                return Err(Refusal::Conflict("a proposal needs a new id".into()));
+            }
+            if !is_digest(sha256) || sha256 == NOTHING_PUBLISHED {
+                return Err(Refusal::Invalid("a proposal is named by its content's sha256: digest".into()));
+            }
+            plain(norm, 200, "the norm that sent it to a co-lead")?;
+            match chapter.live_maintainer(maintainer_id) {
+                None => Err(Refusal::Unknown(format!("no working maintainer {maintainer_id}"))),
+                Some(m) if m.appointed_by != *by => {
+                    Err(Refusal::Invalid("a maintainer proposes for the lead who appointed it".into()))
+                }
+                Some(_) => Ok(()),
+            }
+        }
+        HubEvent::ChapterPageDiscarded { proposal_id, by, .. } => {
+            if by.is_empty() {
+                return Err(Refusal::Invalid("a discard names the lead who did it".into()));
+            }
+            match chapter.proposals.get(proposal_id) {
+                None => Err(Refusal::Unknown(format!("no proposal {proposal_id}"))),
+                Some(p) if p.closed.is_some() => Err(Refusal::Conflict("that proposal isn't waiting any more".into())),
+                Some(_) => Ok(()),
             }
         }
         HubEvent::CommitteeSet { committee_id, name, purpose, leads, members, inbox, retired, .. } => {
@@ -460,17 +590,44 @@ pub fn fold(chapter: &mut Chapter, event: &HubEvent, ts: DateTime<Utc>, index: u
             if let Some(m) = chapter.maintainers.get_mut(maintainer_id) {
                 m.revoked = Some(ClosedBy { by: by.clone(), via: *via, at: ts, index });
             }
+            // Stopping an assistant withdraws what it left waiting: a co-lead who stops it
+            // doesn't have to find and discard its proposals too. A lead who wants one anyway
+            // asks their own assistant to send it again.
+            close_proposals(chapter, ProposalEnd::Withdrawn, ts, index, |p| p.maintainer_id == *maintainer_id);
         }
-        HubEvent::ChapterPageSet { part, sha256, by, via, maintainer_id, .. } => {
+        HubEvent::ChapterPageSet { part, sha256, by, via, maintainer_id, proposal_id, undo, .. } => {
             chapter.page_versions.push(PageVersion {
                 part: *part,
                 sha256: sha256.clone(),
                 by: by.clone(),
                 via: *via,
                 maintainer_id: maintainer_id.clone(),
+                proposal_id: proposal_id.clone(),
+                undo: *undo,
                 at: ts,
                 index,
             });
+            // The proposal it publishes, and any other that now says what the page says.
+            close_proposals(chapter, ProposalEnd::Published, ts, index,
+                |p| Some(&p.proposal_id) == proposal_id.as_ref() || (p.part == *part && p.sha256 == *sha256));
+        }
+        HubEvent::ChapterPageProposed { proposal_id, part, sha256, by, maintainer_id, norm, .. } => {
+            close_proposals(chapter, ProposalEnd::Replaced, ts, index,
+                |p| p.part == *part && p.maintainer_id == *maintainer_id);
+            chapter.proposals.insert(proposal_id.clone(), Proposal {
+                proposal_id: proposal_id.clone(),
+                part: *part,
+                sha256: sha256.clone(),
+                by: by.clone(),
+                maintainer_id: maintainer_id.clone(),
+                norm: norm.clone(),
+                at: ts,
+                index,
+                closed: None,
+            });
+        }
+        HubEvent::ChapterPageDiscarded { proposal_id, .. } => {
+            close_proposals(chapter, ProposalEnd::Discarded, ts, index, |p| p.proposal_id == *proposal_id);
         }
         HubEvent::RequestPassed { request_id, to_committee_id, to_commitment_id, by, via, .. } => {
             if let Some(r) = chapter.requests.get_mut(request_id) {
@@ -488,6 +645,14 @@ pub fn fold(chapter: &mut Chapter, event: &HubEvent, ts: DateTime<Utc>, index: u
             }
         }
         _ => {}
+    }
+}
+
+fn close_proposals(chapter: &mut Chapter, how: ProposalEnd, at: DateTime<Utc>, index: u64, which: impl Fn(&Proposal) -> bool) {
+    for p in chapter.proposals.values_mut().filter(|p| p.closed.is_none()) {
+        if which(p) {
+            p.closed = Some(ProposalClosed { how, at, index });
+        }
     }
 }
 
@@ -519,6 +684,11 @@ pub fn rebind(chapter: &mut Chapter, party_id: &str, member: &str) {
     for v in chapter.page_versions.iter_mut() {
         if v.by == party_id {
             v.by = member.to_string();
+        }
+    }
+    for p in chapter.proposals.values_mut() {
+        if p.by == party_id {
+            p.by = member.to_string();
         }
     }
 }

@@ -2617,10 +2617,12 @@ pub fn router(state: RestState) -> Router {
         // The front page (PRD_CHAPTER_FRONT_PAGE): a lead's controls, and the page maintainer's link.
         .route("/h/:token/maintainers/add", post(commitments::home_maintainer_add))
         .route("/h/:token/maintainers/:maintainer_id/stop", post(commitments::home_maintainer_stop))
-        .route("/h/:token/page/publish/:part", post(commitments::home_page_publish))
-        .route("/h/:token/page/discard/:part", post(commitments::home_page_discard))
-        .route("/h/:token/page/undo", post(commitments::home_page_undo))
-        .route("/h/:token/page/preview", get(commitments::home_page_preview))
+        // A waiting proposal is looked at, published or discarded by its own id, so Publish
+        // publishes exactly what the lead looked at. Undo names the version it undoes.
+        .route("/h/:token/proposals/:proposal_id", get(commitments::home_proposal_view))
+        .route("/h/:token/proposals/:proposal_id/publish", post(commitments::home_proposal_publish))
+        .route("/h/:token/proposals/:proposal_id/discard", post(commitments::home_proposal_discard))
+        .route("/h/:token/page/undo/:index", post(commitments::home_page_undo))
         .route("/a/:token", get(commitments::maintainer_packet))
         .route("/a/:token/page", get(commitments::maintainer_page_get).post(commitments::maintainer_page_set))
         .route("/a/:token/brief", post(commitments::maintainer_brief_set))

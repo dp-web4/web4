@@ -1275,6 +1275,41 @@ pub enum HubEvent {
         maintainer_id: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         link_digest: Option<String>,
+        /// The waiting proposal this publishes, when a lead publishes an assistant's change. It
+        /// must still be open and name this exact digest.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        proposal_id: Option<String>,
+        /// An undo: the part goes back to the version before the one in force, or, for the page,
+        /// to nothing published (`chapter_page::NOTHING_PUBLISHED`). Undos walk back one version
+        /// each.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        undo: bool,
+    },
+
+    /// A page maintainer's change that the chapter's law sent to a co-lead (`norm` said
+    /// escalate). It waits, by `proposal_id`, until a lead publishes it (`chapter_page_set` with
+    /// this `proposal_id`) or discards it (`chapter_page_discarded`). A newer proposal from the
+    /// same maintainer for the same part replaces it, and stopping the maintainer withdraws it.
+    /// Only the digest is here; the content is in the operator's page file.
+    ChapterPageProposed {
+        proposal_id: String,
+        part: crate::chapter_page::PagePart,
+        sha256: String,
+        /// The lead who appointed the maintainer, answerable for the proposal.
+        by: String,
+        maintainer_id: String,
+        norm: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link_digest: Option<String>,
+    },
+
+    /// A chapter lead discarded a waiting proposal. The page stays as it was.
+    ChapterPageDiscarded {
+        proposal_id: String,
+        by: String,
+        via: crate::commitments::AckVia,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link_digest: Option<String>,
     },
 
     /// A society published one of its LCTs upward so the hub registry can serve
@@ -1434,6 +1469,8 @@ impl HubEvent {
         "chapter_maintainer_appointed",
         "chapter_maintainer_revoked",
         "chapter_page_set",
+        "chapter_page_proposed",
+        "chapter_page_discarded",
         "law_amended",
         "lct_predecessor_attestation_withdrawn",
         "lct_predecessor_attested",
@@ -1546,6 +1583,8 @@ impl HubEvent {
             Self::ChapterMaintainerAppointed { .. } => "chapter_maintainer_appointed",
             Self::ChapterMaintainerRevoked { .. } => "chapter_maintainer_revoked",
             Self::ChapterPageSet { .. } => "chapter_page_set",
+            Self::ChapterPageProposed { .. } => "chapter_page_proposed",
+            Self::ChapterPageDiscarded { .. } => "chapter_page_discarded",
             Self::LctPublished { .. } => "lct_published",
             Self::LctRotated { .. } => "lct_rotated",
             Self::LctPredecessorAttested { .. } => "lct_predecessor_attested",
