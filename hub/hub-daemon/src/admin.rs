@@ -157,7 +157,8 @@ fn html_escape(s: &str) -> String {
 /// read-tool gating AND the profile visibility tiers (review 2026-07-23).
 pub fn router(state: RestState) -> Router {
     Router::new()
-        .route("/", get(landing_page))
+        .route("/", get(front_page))
+        .route("/about-this-hub", get(landing_page))
         .route("/record", get(public_record_page))
         .route("/admin/roles", get(roles))
         .route("/admin/law", get(law))
@@ -289,6 +290,16 @@ async fn public_record_page(State(s): State<RestState>) -> Result<Html<String>, 
         s.hub_id,
     ));
     Ok(public_layout(&s.hub_name, &s.hub_id.to_string(), &body))
+}
+
+/// `/`: a chapter's own front page when this hub runs one (PRD_CHAPTER_FRONT_PAGE), else the
+/// hub's page. The hub's page stays at `/about-this-hub`, linked from the front page's footer.
+async fn front_page(State(s): State<RestState>) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    if let Some(page) = crate::rest::commitments::chapter_front_page(&s).await {
+        return page;
+    }
+    landing_page(State(s)).await.into_response()
 }
 
 async fn landing_page(State(s): State<RestState>) -> Result<Html<String>, AdminError> {
@@ -1444,6 +1455,19 @@ fn event_summary(event: &HubEvent) -> String {
         HubEvent::RequestPassed { request_id, to_committee_id, by, via, .. } => format!(
             "↪ request <code>{}</code> passed to committee <code>{}</code> by <code>{}</code> <span class=\"muted\">(via {:?})</span>",
             html_escape(request_id), html_escape(to_committee_id), html_escape(by), via,
+        ),
+        HubEvent::ChapterMaintainerAppointed { maintainer_id, role, label, appointed_by, expires_at, .. } => format!(
+            "🤖 <code>{}</code> appointed “{}” as {} <code>{}</code> until {}",
+            html_escape(appointed_by), html_escape(label), html_escape(role), html_escape(maintainer_id),
+            expires_at.format("%Y-%m-%d"),
+        ),
+        HubEvent::ChapterMaintainerRevoked { maintainer_id, by, .. } => format!(
+            "⏹ maintainer <code>{}</code> stopped by <code>{}</code>", html_escape(maintainer_id), html_escape(by),
+        ),
+        HubEvent::ChapterPageSet { part, sha256, by, via, maintainer_id, .. } => format!(
+            "📰 front {} set to <code>{}</code>, answerable <code>{}</code> <span class=\"muted\">(via {:?}{})</span>",
+            part.as_str(), html_escape(sha256), html_escape(by), via,
+            maintainer_id.as_deref().map(|m| format!(", maintainer {}", html_escape(m))).unwrap_or_default(),
         ),
         HubEvent::LctPublished { lct_id, document, published_by, provenance, .. } => format!(
             "🪪 LCT published: {:?} <code>{}</code> by {} <span class=\"muted\">({:?})</span>",

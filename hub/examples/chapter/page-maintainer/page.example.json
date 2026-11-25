@@ -1,0 +1,29 @@
+{
+  "headline": "Portland's AI builders, in one room, once a month",
+  "story": "Engineers, founders, researchers and the curious meet to show what they're building and learn from each other. Come to one event and you'll leave with two people to follow up with.",
+  "next": [
+    {
+      "title": "Winter demo night",
+      "when": "Thu Dec 10, 6pm",
+      "where": "Downtown Portland",
+      "link": "https://lu.ma/example-event"
+    }
+  ],
+  "recent": [
+    {
+      "title": "Hack for Humanity",
+      "when": "Sat Nov 7",
+      "note": "70+ signed up for a day of building together."
+    }
+  ],
+  "ways_in": [
+    { "title": "Come to an event", "text": "Free, and no AI background needed.", "link": "https://lu.ma/example-calendar" },
+    { "title": "Demo something", "text": "Five minutes, a screen and a mic. Tell us what you're building." },
+    { "title": "Host or sponsor", "text": "A room for 60, or food for the night." }
+  ],
+  "contact": "portland@example.org",
+  "links": [
+    { "label": "Event calendar", "url": "https://lu.ma/example-calendar" }
+  ],
+  "show_committees": true
+}

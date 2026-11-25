@@ -1238,6 +1238,45 @@ pub enum HubEvent {
         link_digest: Option<String>,
     },
 
+    /// The chapter's front page (`hub/docs/PRD_CHAPTER_FRONT_PAGE.md`): a chapter lead appointed
+    /// a **page maintainer**, a role that lead fills with their own AI assistant. `label` is what
+    /// the lead calls the assistant ("Claude"). The maintainer acts through a link minted for
+    /// `maintainer_id`; it acts for `appointed_by`, and only while they are still a chapter lead.
+    ChapterMaintainerAppointed {
+        maintainer_id: String,
+        role: String,
+        label: String,
+        appointed_by: String,
+        expires_at: DateTime<Utc>,
+        via: crate::commitments::AckVia,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link_digest: Option<String>,
+    },
+
+    /// A page maintainer stopped: its link no longer acts.
+    ChapterMaintainerRevoked {
+        maintainer_id: String,
+        by: String,
+        via: crate::commitments::AckVia,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link_digest: Option<String>,
+    },
+
+    /// A part of the front page (the public page, or the maintainer's brief) now has the content
+    /// whose digest is `sha256`. The content lives in the operator's page file; only its digest
+    /// is here. `by` is the chapter lead answerable for it: the lead who pressed the button, or
+    /// the lead who appointed the maintainer that wrote it (`maintainer_id`).
+    ChapterPageSet {
+        part: crate::chapter_page::PagePart,
+        sha256: String,
+        by: String,
+        via: crate::chapter_page::PageVia,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        maintainer_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link_digest: Option<String>,
+    },
+
     /// A society published one of its LCTs upward so the hub registry can serve
     /// its presence. Publication is itself a witnessed act (the ledger entry IS
     /// the witness — canon genesis step 7); the registry is a projection over
@@ -1392,6 +1431,9 @@ impl HubEvent {
         "chapter_event_closed",
         "request_received",
         "request_passed",
+        "chapter_maintainer_appointed",
+        "chapter_maintainer_revoked",
+        "chapter_page_set",
         "law_amended",
         "lct_predecessor_attestation_withdrawn",
         "lct_predecessor_attested",
@@ -1501,6 +1543,9 @@ impl HubEvent {
             Self::ChapterEventClosed { .. } => "chapter_event_closed",
             Self::RequestReceived { .. } => "request_received",
             Self::RequestPassed { .. } => "request_passed",
+            Self::ChapterMaintainerAppointed { .. } => "chapter_maintainer_appointed",
+            Self::ChapterMaintainerRevoked { .. } => "chapter_maintainer_revoked",
+            Self::ChapterPageSet { .. } => "chapter_page_set",
             Self::LctPublished { .. } => "lct_published",
             Self::LctRotated { .. } => "lct_rotated",
             Self::LctPredecessorAttested { .. } => "lct_predecessor_attested",

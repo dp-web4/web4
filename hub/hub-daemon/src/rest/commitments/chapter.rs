@@ -23,6 +23,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use hub_lib::chapter::{self as ch, Committee};
 use hub_lib::commitments::Basis;
 
+mod front_page;
+pub(crate) use front_page::*;
+
 const HOME_LABEL: &[u8] = b"web4-hub chapter home v1\n";
 const HOME_TTL_DAYS: i64 = 45;
 /// Inbound requests move fast: a day for the owner, a day for the backup, then the leads.
@@ -482,6 +485,10 @@ pub(crate) async fn home_page(State(s): State<RestState>, Path(token): Path<Stri
         html.push_str("</section>");
     }
 
+    // The front page, for a chapter lead: hand it to their own assistant, and see what changed.
+    // Near the top, because what members see first is the co-leads' to shape.
+    html.push_str(&front_page_section(&s, &state, &book, &claim.key, &claim.token, &me).await);
+
     // Events, soonest first; closed ones from the last month after.
     let mut events: Vec<&ch::ChapterEvent> = state.chapter.events.values()
         .filter(|e| e.closed.is_none() || e.starts_at > now - chrono::Duration::days(30)).collect();
@@ -547,6 +554,7 @@ pub(crate) async fn home_page(State(s): State<RestState>, Path(token): Path<Stri
         html.push_str(&roster);
         html.push_str("</section>");
     }
+
 
     // A lead can plan an event or add a to-do for a committee they lead.
     let led: Vec<&Committee> = state.chapter.live_committees().filter(|k| is_lead_of(&state, k, &me)).collect();

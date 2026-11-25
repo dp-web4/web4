@@ -445,6 +445,34 @@ fn classify(event: &HubEvent) -> (Option<&'static str>, Option<String>) {
             })),
         ),
 
+        // The chapter's front page is public by nature, so that it changed, and by what kind of
+        // hand, is public too. Who answered for it is not: the lead is a member fact.
+        HubEvent::ChapterPageSet { part, sha256, via, .. } => (
+            Some("chapter_page_set"),
+            Some(format!("{} {} ({})",
+                match part {
+                    crate::chapter_page::PagePart::Page => "front page updated",
+                    crate::chapter_page::PagePart::Brief => "page maintainer's brief updated",
+                },
+                match via {
+                    crate::chapter_page::PageVia::Maintainer => "by a co-lead's assistant",
+                    crate::chapter_page::PageVia::Link => "by a co-lead",
+                    crate::chapter_page::PageVia::Operator => "by the operator",
+                },
+                short(sha256))),
+        ),
+        // Delegation to an AI is a governance fact a reader weighs: that it happened, for which
+        // role, and until when. Not whose assistant it is.
+        HubEvent::ChapterMaintainerAppointed { role, expires_at, .. } => (
+            Some("chapter_maintainer_appointed"),
+            Some(format!("a co-lead appointed an assistant as {} until {}",
+                role.replace('_', " "), expires_at.format("%Y-%m-%d"))),
+        ),
+        HubEvent::ChapterMaintainerRevoked { .. } => (
+            Some("chapter_maintainer_revoked"),
+            Some("a co-lead's assistant was stopped".into()),
+        ),
+
         // Everything else — including any variant added after this was written.
         _ => (None, None),
     }

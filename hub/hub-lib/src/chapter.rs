@@ -26,6 +26,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::chapter_page::{is_digest, PagePart, PageVia, PAGE_MAINTAINER};
 use crate::commitments::{AckVia, PartyRef};
 use crate::events::HubEvent;
 
@@ -34,6 +35,8 @@ pub const MAX_PURPOSE_LEN: usize = 200;
 pub const MAX_LEADS: usize = 4;
 pub const MAX_MEMBERS: usize = 60;
 pub const MAX_EVENT_TITLE_LEN: usize = 80;
+/// What a lead calls the assistant they appointed ("Claude", "my ChatGPT").
+pub const MAX_MAINTAINER_LABEL_LEN: usize = 40;
 /// The `leads_role` a chapter commitment carries: its committee's leads are the last step.
 pub const COMMITTEE_PREFIX: &str = "committee:";
 /// `group` values on `CommitmentOpened`.
@@ -147,12 +150,41 @@ pub struct Request {
     pub passes: Vec<Pass>,
 }
 
+/// A page maintainer: a role a chapter lead filled with their own AI assistant
+/// (`hub/docs/PRD_CHAPTER_FRONT_PAGE.md`).
+#[derive(Clone, Debug, Serialize)]
+pub struct Maintainer {
+    pub maintainer_id: String,
+    pub role: String,
+    pub label: String,
+    pub appointed_by: String,
+    pub expires_at: DateTime<Utc>,
+    pub appointed_at: DateTime<Utc>,
+    pub index: u64,
+    pub revoked: Option<ClosedBy>,
+}
+
+/// One version of a front-page part, as the ledger records it.
+#[derive(Clone, Debug, Serialize)]
+pub struct PageVersion {
+    pub part: PagePart,
+    pub sha256: String,
+    pub by: String,
+    pub via: PageVia,
+    pub maintainer_id: Option<String>,
+    pub at: DateTime<Utc>,
+    pub index: u64,
+}
+
 /// The chapter as the ledger leaves it. Folded by [`fold`] from `HubState::apply`.
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct Chapter {
     pub committees: BTreeMap<String, Committee>,
     pub events: BTreeMap<String, ChapterEvent>,
     pub requests: BTreeMap<String, Request>,
+    pub maintainers: BTreeMap<String, Maintainer>,
+    /// Every version of the front page and of the brief, oldest first.
+    pub page_versions: Vec<PageVersion>,
 }
 
 impl Chapter {
@@ -177,6 +209,22 @@ impl Chapter {
     /// Whether this party is in the chapter at all: a lead or member of a live committee.
     pub fn knows(&self, party_id: &str) -> bool {
         self.live_committees().any(|c| c.includes(party_id))
+    }
+
+    /// The versions of one front-page part, oldest first.
+    pub fn versions(&self, part: PagePart) -> impl Iterator<Item = &PageVersion> {
+        self.page_versions.iter().filter(move |v| v.part == part)
+    }
+
+    /// The version of a part in force now, if one was ever set.
+    pub fn current(&self, part: PagePart) -> Option<&PageVersion> {
+        self.versions(part).last()
+    }
+
+    /// A maintainer that has not been stopped. Expiry and whether its lead still leads are the
+    /// caller's checks, at the time of the act.
+    pub fn live_maintainer(&self, maintainer_id: &str) -> Option<&Maintainer> {
+        self.maintainers.get(maintainer_id).filter(|m| m.revoked.is_none())
     }
 }
 
@@ -229,6 +277,51 @@ fn live_committee<'a>(chapter: &'a Chapter, id: &str) -> Result<&'a Committee, R
 /// exists (member or contact) is the caller's check, as in K1.
 pub fn check(chapter: &Chapter, event: &HubEvent) -> Result<(), Refusal> {
     match event {
+        HubEvent::ChapterMaintainerAppointed { maintainer_id, role, label, appointed_by, via, link_digest, .. } => {
+            if maintainer_id.is_empty() || appointed_by.is_empty() {
+                return Err(Refusal::Invalid("a maintainer needs an id and the lead who appointed it".into()));
+            }
+            if chapter.maintainers.contains_key(maintainer_id) {
+                return Err(Refusal::Conflict(format!("maintainer {maintainer_id} already exists")));
+            }
+            if role != PAGE_MAINTAINER {
+                return Err(Refusal::Invalid(format!("unknown maintainer role {role}")));
+            }
+            plain(label, MAX_MAINTAINER_LABEL_LEN, "the assistant's name")?;
+            if *via == AckVia::Link && link_digest.is_none() {
+                return Err(Refusal::Invalid("an appointment from a chapter page carries its link digest".into()));
+            }
+            Ok(())
+        }
+        HubEvent::ChapterMaintainerRevoked { maintainer_id, .. } => match chapter.maintainers.get(maintainer_id) {
+            None => Err(Refusal::Unknown(format!("no maintainer {maintainer_id}"))),
+            Some(m) if m.revoked.is_some() => Err(Refusal::Conflict("that assistant was already stopped".into())),
+            Some(_) => Ok(()),
+        },
+        HubEvent::ChapterPageSet { sha256, by, via, maintainer_id, .. } => {
+            if !is_digest(sha256) {
+                return Err(Refusal::Invalid("a page version is named by its sha256: digest".into()));
+            }
+            if by.is_empty() {
+                return Err(Refusal::Invalid("a page version names the lead answerable for it".into()));
+            }
+            match (via, maintainer_id) {
+                (PageVia::Maintainer, None) => Err(Refusal::Invalid("a maintainer's change names the maintainer".into())),
+                (PageVia::Maintainer, Some(id)) => match chapter.live_maintainer(id) {
+                    None => Err(Refusal::Unknown(format!("no working maintainer {id}"))),
+                    Some(m) if m.appointed_by != *by => {
+                        Err(Refusal::Invalid("a maintainer acts for the lead who appointed it".into()))
+                    }
+                    Some(_) => Ok(()),
+                },
+                // A lead publishing a maintainer's proposal credits it; the maintainer may since
+                // have been stopped, so it need only have existed.
+                (_, Some(id)) if !chapter.maintainers.contains_key(id) => {
+                    Err(Refusal::Unknown(format!("no maintainer {id}")))
+                }
+                _ => Ok(()),
+            }
+        }
         HubEvent::CommitteeSet { committee_id, name, purpose, leads, members, inbox, retired, .. } => {
             plain(name, MAX_COMMITTEE_NAME_LEN, "the committee name")?;
             if purpose.chars().count() > MAX_PURPOSE_LEN || purpose.chars().any(char::is_control) {
@@ -351,6 +444,34 @@ pub fn fold(chapter: &mut Chapter, event: &HubEvent, ts: DateTime<Utc>, index: u
                 passes: Vec::new(),
             });
         }
+        HubEvent::ChapterMaintainerAppointed { maintainer_id, role, label, appointed_by, expires_at, .. } => {
+            chapter.maintainers.insert(maintainer_id.clone(), Maintainer {
+                maintainer_id: maintainer_id.clone(),
+                role: role.clone(),
+                label: label.trim().to_string(),
+                appointed_by: appointed_by.clone(),
+                expires_at: *expires_at,
+                appointed_at: ts,
+                index,
+                revoked: None,
+            });
+        }
+        HubEvent::ChapterMaintainerRevoked { maintainer_id, by, via, .. } => {
+            if let Some(m) = chapter.maintainers.get_mut(maintainer_id) {
+                m.revoked = Some(ClosedBy { by: by.clone(), via: *via, at: ts, index });
+            }
+        }
+        HubEvent::ChapterPageSet { part, sha256, by, via, maintainer_id, .. } => {
+            chapter.page_versions.push(PageVersion {
+                part: *part,
+                sha256: sha256.clone(),
+                by: by.clone(),
+                via: *via,
+                maintainer_id: maintainer_id.clone(),
+                at: ts,
+                index,
+            });
+        }
         HubEvent::RequestPassed { request_id, to_committee_id, to_commitment_id, by, via, .. } => {
             if let Some(r) = chapter.requests.get_mut(request_id) {
                 r.passes.push(Pass {
@@ -387,6 +508,17 @@ pub fn rebind(chapter: &mut Chapter, party_id: &str, member: &str) {
         swap(&mut e.backup);
         if e.planned_by == party_id {
             e.planned_by = member.to_string();
+        }
+    }
+    // A co-lead who joins keeps the assistant they appointed, and their page history.
+    for m in chapter.maintainers.values_mut() {
+        if m.appointed_by == party_id {
+            m.appointed_by = member.to_string();
+        }
+    }
+    for v in chapter.page_versions.iter_mut() {
+        if v.by == party_id {
+            v.by = member.to_string();
         }
     }
 }
