@@ -1289,7 +1289,8 @@ pub enum HubEvent {
     /// A page maintainer's change that the chapter's law sent to a co-lead (`norm` said
     /// escalate). It waits, by `proposal_id`, until a lead publishes it (`chapter_page_set` with
     /// this `proposal_id`) or discards it (`chapter_page_discarded`). A newer proposal from the
-    /// same maintainer for the same part replaces it, and stopping the maintainer withdraws it.
+    /// same maintainer for the same part replaces it. Stopping the maintainer leaves it waiting: stop
+    /// and discard are separate acts.
     /// Only the digest is here; the content is in the operator's page file.
     ChapterPageProposed {
         proposal_id: String,

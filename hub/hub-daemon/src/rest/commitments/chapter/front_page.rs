@@ -17,8 +17,8 @@
 //! proposal (`chapter_page_proposed`) that a lead publishes or discards by its id, so a lead
 //! approves exactly what they previewed. Deny refuses it. The record names the lead answerable
 //! for the change and the assistant that wrote it. Any chapter lead can undo the page, one
-//! version at a time back to the placeholders, and can stop any assistant; stopping one
-//! withdraws what it left waiting.
+//! version at a time back to the placeholders, and can stop any assistant. Stopping is not
+//! discarding: what a stopped assistant left waiting stays, for a lead to publish or discard.
 //!
 //! The ledger is the record of what's in force and what's waiting. The page file only holds the
 //! words, by digest, and is checked against the digest on every read: content that's missing or
@@ -330,7 +330,6 @@ fn closed_words(how: ch::ProposalEnd) -> &'static str {
         ch::ProposalEnd::Published => "it was already published",
         ch::ProposalEnd::Discarded => "a co-lead discarded it",
         ch::ProposalEnd::Replaced => "the assistant sent a newer version, which is waiting instead",
-        ch::ProposalEnd::Withdrawn => "a co-lead stopped the assistant that sent it",
     }
 }
 
@@ -767,11 +766,13 @@ pub(crate) async fn front_page_section(s: &RestState, state: &HubState, book: &C
     }
     // Each waiting proposal is acted on by its own id, so Publish publishes exactly what Preview showed.
     for p in state.chapter.open_proposals() {
-        let label = state.chapter.maintainers.get(&p.maintainer_id).map(|m| m.label.clone()).unwrap_or_default();
+        let m = state.chapter.maintainers.get(&p.maintainer_id);
+        let label = m.map(|m| m.label.clone()).unwrap_or_default();
+        let stopped = if m.is_some_and(|m| m.revoked.is_some()) { " That assistant has since been stopped." } else { "" };
         let pid = esc(&p.proposal_id);
         html.push_str(&format!(
             "<div class=\"pending\"><p><strong>{}'s assistant ({}) proposed a new {}</strong> on {}. \
-             The chapter's rules ask a co-lead to publish it.</p>\
+             The chapter's rules ask a co-lead to publish it.{stopped}</p>\
              <p><a href=\"/h/{tok}/proposals/{pid}\">Look at it first</a></p>\
              <form method=\"post\" action=\"/h/{tok}/proposals/{pid}/publish\"><button>Publish it</button></form>\
              <form method=\"post\" action=\"/h/{tok}/proposals/{pid}/discard\"><button class=\"secondary\">Discard it</button></form></div>",
@@ -874,7 +875,16 @@ pub(crate) async fn home_maintainer_stop(
 ) -> axum::response::Response {
     lead_act(s, token, |s, me, digest| async move {
         stop_maintainer(&s, &me, &maintainer_id, Some(digest)).await?;
-        Ok("<h1>Stopped</h1><p>That assistant's link no longer works. The page stays as it is.</p>".into())
+        let waiting = {
+            let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
+            state.chapter.open_proposals().iter().filter(|p| p.maintainer_id == maintainer_id).count()
+        };
+        let left = match waiting {
+            0 => String::new(),
+            1 => " It left one change waiting. That's still on your chapter page, to publish or discard.".into(),
+            n => format!(" It left {n} changes waiting. They're still on your chapter page, to publish or discard."),
+        };
+        Ok(format!("<h1>Stopped</h1><p>That assistant's link no longer works. The page stays as it is.{left}</p>"))
     }).await
 }
 
@@ -1408,16 +1418,26 @@ mod tests {
         assert_eq!(s.ledger.try_lock().unwrap().len(), before + 1);
         assert_eq!(state_of(&s).chapter.proposals[&c].closed.as_ref().map(|x| x.how), Some(ch::ProposalEnd::Discarded));
         assert_eq!(discard_proposal(&s, &nat.party_id, &c, Some("e".repeat(32))).await.unwrap_err().status, StatusCode::CONFLICT);
-        // Stopping an assistant withdraws what it left waiting.
+        // Stopping is not discarding (dp, 11-25): a stopped assistant's proposals stay waiting,
+        // and a lead can still publish one or discard another.
         let d = waiting_id(&set_part(&s, PartContent::Page(headlined("Version D")), &nat.party_id, PageVia::Maintainer,
             Some(nat_ai.clone()), None, None).await.unwrap());
+        let e = waiting_id(&set_part(&s, PartContent::Brief("A brief from the stopped assistant.".into()), &nat.party_id,
+            PageVia::Maintainer, Some(nat_ai.clone()), None, None).await.unwrap());
         stop_maintainer(&s, &yem.party_id, &nat_ai, Some("f".repeat(32))).await.unwrap();
-        assert_eq!(state_of(&s).chapter.proposals[&d].closed.as_ref().map(|x| x.how), Some(ch::ProposalEnd::Withdrawn));
-        assert_eq!(publish_proposal(&s, &yem.party_id, &d, Some("e".repeat(32))).await.unwrap_err().status, StatusCode::CONFLICT);
+        let state = state_of(&s);
+        assert!(state.chapter.proposals[&d].closed.is_none() && state.chapter.proposals[&e].closed.is_none());
         drop(_serial);
-        // The lead's page offers Look / Publish / Discard by proposal id only.
         let key = { let _serial = COMMITMENT_LOCK.lock().await; link_key_or_create(&s.paths.root).unwrap() };
         let home = mint_home(&key, &yem.party_id, Utc::now());
+        let page = body_of(home_page(State(s.clone()), Path(home.clone())).await).await;
+        assert!(page.contains("has since been stopped") && page.contains(&format!("/proposals/{d}/publish")), "{page}");
+        let _serial = COMMITMENT_LOCK.lock().await;
+        publish_proposal(&s, &yem.party_id, &d, Some("e".repeat(32))).await.expect("a stopped assistant's proposal publishes");
+        assert_eq!(state_of(&s).chapter.current(PagePart::Page).unwrap().sha256, headlined("Version D").digest());
+        discard_proposal(&s, &yem.party_id, &e, Some("e".repeat(32))).await.expect("and another discards");
+        drop(_serial);
+        // Nothing is waiting now, so the lead's page offers no proposal controls.
         let page = body_of(home_page(State(s.clone()), Path(home.clone())).await).await;
         assert!(!page.contains("/page/publish/") && !page.contains("/proposals/"), "nothing is waiting now");
     }
