@@ -1464,10 +1464,21 @@ fn event_summary(event: &HubEvent) -> String {
         HubEvent::ChapterMaintainerRevoked { maintainer_id, by, .. } => format!(
             "⏹ maintainer <code>{}</code> stopped by <code>{}</code>", html_escape(maintainer_id), html_escape(by),
         ),
-        HubEvent::ChapterPageSet { part, sha256, by, via, maintainer_id, .. } => format!(
-            "📰 front {} set to <code>{}</code>, answerable <code>{}</code> <span class=\"muted\">(via {:?}{})</span>",
-            part.as_str(), html_escape(sha256), html_escape(by), via,
+        HubEvent::ChapterPageSet { part, sha256, by, via, maintainer_id, proposal_id, undo, .. } => format!(
+            "📰 front {} {} <code>{}</code>, answerable <code>{}</code> <span class=\"muted\">(via {:?}{}{})</span>",
+            part.as_str(), if *undo { "undone to" } else { "set to" }, html_escape(sha256), html_escape(by), via,
             maintainer_id.as_deref().map(|m| format!(", maintainer {}", html_escape(m))).unwrap_or_default(),
+            proposal_id.as_deref().map(|p| format!(", proposal {}", html_escape(p))).unwrap_or_default(),
+        ),
+        HubEvent::ChapterPageProposed { proposal_id, part, sha256, by, maintainer_id, norm, .. } => format!(
+            "📝 maintainer <code>{}</code> proposed front {} <code>{}</code> as proposal <code>{}</code>, answerable \
+             <code>{}</code> <span class=\"muted\">(held by norm {})</span>",
+            html_escape(maintainer_id), part.as_str(), html_escape(sha256), html_escape(proposal_id),
+            html_escape(by), html_escape(norm),
+        ),
+        HubEvent::ChapterPageDiscarded { proposal_id, by, via, .. } => format!(
+            "🗑 proposal <code>{}</code> discarded by <code>{}</code> <span class=\"muted\">(via {:?})</span>",
+            html_escape(proposal_id), html_escape(by), via,
         ),
         HubEvent::LctPublished { lct_id, document, published_by, provenance, .. } => format!(
             "🪪 LCT published: {:?} <code>{}</code> by {} <span class=\"muted\">({:?})</span>",

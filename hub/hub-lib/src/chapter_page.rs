@@ -13,8 +13,9 @@
 //! - **brief**: the page maintainer's context (voice, audience, rules, chapter facts), owned by
 //!   the co-leads. The default is `examples/chapter/page-maintainer/brief.md`.
 //!
-//! Only a part's digest reaches the ledger (`chapter_page_set`). The text lives in the operator's
-//! page file, so the record says who changed what and when, and the words stay off the ledger.
+//! Only a part's digest reaches the ledger (`chapter_page_set`, `chapter_page_proposed`). The
+//! text lives in the operator's page file, so the record says who changed what and when, and the
+//! words stay off the ledger. The file is checked against the ledger's digest on every read.
 
 use serde::{Deserialize, Serialize};
 
@@ -295,6 +296,21 @@ pub fn brief_digest(text: &str) -> String {
 /// The default brief for a chapter.
 pub fn default_brief(chapter_name: &str) -> String {
     DEFAULT_BRIEF.replace("{chapter}", chapter_name)
+}
+
+/// The digest an undo names when it takes the page back to before anything was published, so
+/// the page shows its placeholders again. No content has this digest.
+pub const NOTHING_PUBLISHED: &str = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
+
+/// Whether stored page content is the content `sha256` names. The page file is the operator's;
+/// the ledger's digest is the record, so content is checked against it each time it's read.
+pub fn page_matches(p: &PageContent, sha256: &str) -> bool {
+    p.digest() == sha256
+}
+
+/// Whether a stored brief is the brief `sha256` names.
+pub fn brief_matches(text: &str, sha256: &str) -> bool {
+    brief_digest(text) == sha256
 }
 
 /// `sha256:` followed by 64 lowercase hex digits.

@@ -447,19 +447,33 @@ fn classify(event: &HubEvent) -> (Option<&'static str>, Option<String>) {
 
         // The chapter's front page is public by nature, so that it changed, and by what kind of
         // hand, is public too. Who answered for it is not: the lead is a member fact.
-        HubEvent::ChapterPageSet { part, sha256, via, .. } => (
+        HubEvent::ChapterPageSet { part, sha256, via, proposal_id, undo, .. } => (
             Some("chapter_page_set"),
-            Some(format!("{} {} ({})",
-                match part {
-                    crate::chapter_page::PagePart::Page => "front page updated",
-                    crate::chapter_page::PagePart::Brief => "page maintainer's brief updated",
+            Some(format!("{} {}{} ({})",
+                match (part, undo) {
+                    (crate::chapter_page::PagePart::Page, false) => "front page updated",
+                    (crate::chapter_page::PagePart::Page, true) => "front page change undone",
+                    (crate::chapter_page::PagePart::Brief, false) => "page maintainer's brief updated",
+                    (crate::chapter_page::PagePart::Brief, true) => "page maintainer's brief change undone",
                 },
                 match via {
                     crate::chapter_page::PageVia::Maintainer => "by a co-lead's assistant",
                     crate::chapter_page::PageVia::Link => "by a co-lead",
                     crate::chapter_page::PageVia::Operator => "by the operator",
                 },
-                short(sha256))),
+                if proposal_id.is_some() { ", publishing an assistant's proposal" } else { "" },
+                if sha256 == crate::chapter_page::NOTHING_PUBLISHED { "back to nothing published".into() } else { short(sha256) })),
+        ),
+        // A change the law held for a co-lead, and a co-lead turning one down, are governance
+        // facts too. The words never were in force, so only the digest shows.
+        HubEvent::ChapterPageProposed { part, sha256, .. } => (
+            Some("chapter_page_proposed"),
+            Some(format!("a co-lead's assistant proposed a {} change, waiting for a co-lead ({})",
+                part.as_str(), short(sha256))),
+        ),
+        HubEvent::ChapterPageDiscarded { .. } => (
+            Some("chapter_page_discarded"),
+            Some("a co-lead discarded an assistant's proposal".into()),
         ),
         // Delegation to an AI is a governance fact a reader weighs: that it happened, for which
         // role, and until when. Not whose assistant it is.
