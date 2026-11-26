@@ -240,13 +240,14 @@ pub(crate) async fn law_says(s: &RestState, role: &str, event: &HubEvent) -> Res
     };
     let out = law.evaluate_outcome(&req);
     let norm = out.winning_norm.clone().unwrap_or_else(|| "an escalation trigger".to_string());
-    // The hub's own assistant acts without a lead's click only under a norm about its role. A
-    // law written before the role existed allows it through a catch-all (DEFAULT-ALLOW); that
-    // must not become "publish at once". Test: does the same norm win for a role nobody holds?
+    // The hub's own assistant acts without a lead's click only under a norm that names its role.
+    // A law written before the role existed allows it through a catch-all (DEFAULT-ALLOW) or a
+    // broad pattern (`r6.role matches '^[a-z_]+$'`); that must not become "publish at once". So
+    // an allow for page_agent stands only if the winning norm grants it by name (web4 #1005).
     if role == PAGE_AGENT && matches!(out.decision, hub_lib::law::Decision::Allow | hub_lib::law::Decision::Warn) {
-        let unrelated = law.evaluate_outcome(&hub_lib::law::R6Request { role: "no-such-role".to_string(), ..req.clone() });
-        if unrelated.winning_norm == out.winning_norm {
-            return Ok(LawSays::Escalate(format!("{NO_ROLE_NORM_AGENT} ({norm} is not about page_agent)")));
+        let winner = out.winning_norm.as_deref().and_then(|id| law.norms.iter().find(|n| n.id == id));
+        if !winner.is_some_and(|n| names_role(n, PAGE_AGENT)) {
+            return Ok(LawSays::Escalate(format!("{NO_ROLE_NORM_AGENT} ({norm} doesn't name page_agent)")));
         }
     }
     Ok(match out.decision {
@@ -254,6 +255,19 @@ pub(crate) async fn law_says(s: &RestState, role: &str, event: &HubEvent) -> Res
         hub_lib::law::Decision::Escalate => LawSays::Escalate(norm),
         hub_lib::law::Decision::Deny => LawSays::Deny(norm),
     })
+}
+
+/// Does `norm` grant `role` by name? Two forms count: `r6.role == <role>` and `r6.role in
+/// [..., <role>, ...]`. A pattern (`matches`), an exclusion (`!=`, `not_in`) or any other
+/// selector never does, even when it happens to match the role.
+pub(crate) fn names_role(norm: &hub_lib::law::Norm, role: &str) -> bool {
+    use hub_lib::law::Operator;
+    let named = |v: &serde_yaml::Value| v.as_str() == Some(role);
+    norm.selector == "r6.role" && match norm.operator {
+        Operator::Eq => named(&norm.value),
+        Operator::In => norm.value.as_sequence().is_some_and(|seq| seq.iter().any(named)),
+        _ => false,
+    }
 }
 
 /// Witness `event` if the law allows it in `role`. Escalate and deny are refusals here; only a

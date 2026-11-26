@@ -84,7 +84,7 @@ That gives the hub agent everything the guest assistant has, unchanged:
 
 **With no law loaded, `page_agent` escalates.** This is one deliberate exception to the hub's "no law behaves as allow". A guest assistant is the lead's own tool, acting at their direct instruction. The hub's agent is the hub's, and the release step is the point of the test. The default must not depend on a law file being present.
 
-**And only a norm that names `page_agent` can let it publish.** A chapter's law written before this role existed allows almost everything through a catch-all (`DEFAULT-ALLOW`, priority 0). Read naively, that would let the hub's agent publish at once on every existing hub, pub's included. So when the law allows a `page_agent` act, the hub asks the law the same question for a role nobody holds. If the same norm wins, the allow isn't about this role, and the draft waits (norm `no norm names page_agent …`). Granting "publish at once" has to be an explicit amendment.
+**And only a norm that names `page_agent` can let it publish.** A chapter's law written before this role existed allows almost everything through a catch-all (`DEFAULT-ALLOW`, priority 0). Read naively, that would let the hub's agent publish at once on every existing hub, pub's included. So when the law allows a `page_agent` act, the hub looks at the norm that won. The allow stands only if that norm names the role: `r6.role == page_agent`, or `r6.role in [..., page_agent, ...]`. Anything else that happens to match (a catch-all, a pattern like `r6.role matches '^[a-z_]+$'` or `'^page_'`, an exclusion like `!= page_maintainer` or `not_in`) leaves the draft waiting (norm `no norm names page_agent …`). A higher deny or escalate still wins as usual: this check only ever takes authority away. Granting "publish at once" has to be an explicit amendment. (The first build compared the winner against a made-up role; Nova's review, web4 #1005, showed a broad pattern defeats that.)
 
 **The asks are governed acts too.** `chapter_agent_asked` is evaluated in role `chapter_lead`, so a chapter can turn the assistant off by law (`deny`).
 
@@ -103,7 +103,7 @@ runner (polling the loopback plane every few seconds)
        └─ hub: chapter_agent_answered {request_id, outcome, reply sha256, proposal_ids, runner}
 ```
 
-- **A job token** is HMAC-minted over the request id and the appointment id, and expires in 15 minutes. It names one ask. Answering it is checked against the same things as a maintainer link (appointment live, its lead still a lead), plus "the ask is still open". A second answer to the same ask is refused.
+- **A job token** is HMAC-minted over the request id, and expires in 15 minutes or when the appointment ends, whichever is sooner. It names one ask. Reading and answering it are checked against the appointment (not stopped, not expired, its lead still a lead) and "the ask is still open". A second answer to the same ask is refused.
 - **The jobs list is a lease, not a lock.** A job handed out is not handed out again for 3 minutes. A runner that died mid-job is retried, and an ask unanswered after 3 tries is answered as *failed* by the hub, so it doesn't spin forever.
 - **The runner is honest about being away.** The hub notes when a runner last asked for jobs. If none has in 2 minutes, the box says *"The chapter's assistant is offline right now; your ask will wait."* An ask still records and waits.
 - **The model's answer is validated before anything is stored.** A page that fails the schema doesn't become a draft. The ask is answered with the reply and the refusal, so the lead sees why. The runner gets one retry, with the refusal fed back to the model.
@@ -131,7 +131,7 @@ The runner's identity is **claimed, not verified**. It's what the operator's own
 | A lead (or a stolen lead link) floods the assistant | 30 asks per lead per rolling day, refused with a plain message. An ask is at most 2,000 characters. One job runs at a time. Each model run has a timeout (default 240 s). |
 | Subscription cost | Same caps, plus the runner's `max_runs_per_hour`. The runner logs each run's reported cost and turns. |
 | A runner bug publishes directly | It can't. The runner only reaches the job route, and the hub decides there. Under the default law even a valid draft waits. |
-| A stopped or expired appointment keeps working | Every job answer re-checks the appointment and the lead, under the commitment lock. |
+| A stopped or expired appointment keeps working | No new lease: the hub closes the open ask itself, saying why. Every job read and answer re-checks the appointment (stopped, expired) and the lead, the answer under the commitment lock. Drafts it made before stay waiting for a lead to publish or discard (#1001). |
 
 ## 8. Deployment (pub)
 

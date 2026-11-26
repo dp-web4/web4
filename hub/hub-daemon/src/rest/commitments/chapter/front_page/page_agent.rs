@@ -173,12 +173,15 @@ pub(crate) async fn ask_agent(s: &RestState, me: &str, text: &str, link_digest: 
 // Jobs: what the runner sees and sends back
 // ---------------------------------------------------------------------------------------------
 
-fn mint_job(key: &[u8; 32], request_id: &str) -> String {
-    mint_token(JOB_LABEL, key, &[request_id], Utc::now() + chrono::Duration::minutes(JOB_TTL_MINUTES))
+/// A job token for one ask. It never outlives the appointment it works under (web4 #1004):
+/// the hub re-checks the appointment on every read and answer as well.
+fn mint_job(key: &[u8; 32], request_id: &str, appointment_ends: DateTime<Utc>) -> String {
+    let until = (Utc::now() + chrono::Duration::minutes(JOB_TTL_MINUTES)).min(appointment_ends);
+    mint_token(JOB_LABEL, key, &[request_id], until)
 }
 
-/// A job token, verified: the ask it names is still open, its appointment still works, and the
-/// lead who asked still leads.
+/// A job token, verified: the ask it names is still open, its appointment still works (not
+/// stopped, not expired), and the lead who asked still leads.
 struct JobClaim {
     ask: AgentAsk,
     maintainer: Maintainer,
@@ -198,21 +201,24 @@ fn verified_job(s: &RestState, state: &HubState, token: &str) -> Result<JobClaim
     if ask.answer.is_some() {
         return Err(json_refusal(StatusCode::CONFLICT, "that ask was already answered"));
     }
-    let maintainer = state.chapter.live_maintainer(&ask.maintainer_id).cloned()
-        .filter(|m| m.role == PAGE_AGENT)
-        .ok_or_else(|| json_refusal(StatusCode::FORBIDDEN, "a co-lead stopped the chapter's assistant for this ask"))?;
-    let lead = state.invites.canonical_id(&maintainer.appointed_by);
-    if !is_chapter_lead(state, &lead) {
-        return Err(json_refusal(StatusCode::FORBIDDEN, "the co-lead who asked isn't a chapter lead any more"));
+    if let Some(why) = why_dead(state, &ask) {
+        return Err(json_refusal(StatusCode::FORBIDDEN, why));
     }
+    let maintainer = state.chapter.maintainers[&ask.maintainer_id].clone();
+    let lead = state.invites.canonical_id(&maintainer.appointed_by);
     Ok(JobClaim { ask, maintainer, lead })
 }
 
-/// Why an open ask can't be worked on any more, if it can't: then the hub closes it itself.
-fn dead_ask(state: &HubState, ask: &AgentAsk) -> bool {
-    match state.chapter.live_maintainer(&ask.maintainer_id) {
-        None => true,
-        Some(m) => !is_chapter_lead(state, &state.invites.canonical_id(&m.appointed_by)),
+/// Why an open ask can't be worked on any more, if it can't: its appointment was stopped or ran
+/// out, or the lead who made it no longer leads. Then nobody may work on it and the hub closes
+/// it itself. Its earlier drafts stay waiting for a lead either way (#1001).
+fn why_dead(state: &HubState, ask: &AgentAsk) -> Option<&'static str> {
+    match state.chapter.live_maintainer(&ask.maintainer_id).filter(|m| m.role == PAGE_AGENT) {
+        None => Some("a co-lead stopped the chapter's assistant for this ask"),
+        Some(m) if m.expires_at <= Utc::now() => Some("the chapter's assistant's appointment for this ask ran out"),
+        Some(m) if !is_chapter_lead(state, &state.invites.canonical_id(&m.appointed_by)) =>
+            Some("the co-lead who asked isn't a chapter lead any more"),
+        Some(_) => None,
     }
 }
 
@@ -237,8 +243,9 @@ pub(crate) async fn next_job(s: &RestState) -> Result<Option<(String, String)>, 
     let state = { let ledger = s.ledger.lock().await; s.projected(&ledger) };
     let now = Utc::now();
     for ask in state.chapter.open_asks() {
-        if dead_ask(&state, ask) {
-            hub_answers_failed(s, ask, "The chapter's assistant was stopped, or the co-lead who asked doesn't lead any more, so this ask was closed.").await?;
+        if let Some(why) = why_dead(&state, ask) {
+            hub_answers_failed(s, ask, &format!("This ask was closed without changing anything: {why}. \
+                Drafts it made earlier still wait for a co-lead to publish or discard.")).await?;
             continue;
         }
         let lease = LEASES.lock().ok().and_then(|l| l.get(&ask.request_id).copied());
@@ -256,7 +263,8 @@ pub(crate) async fn next_job(s: &RestState) -> Result<Option<(String, String)>, 
             l.insert(ask.request_id.clone(), (now, tries));
         }
         let key = link_key_or_create(&s.paths.root).map_err(ApiError::internal)?;
-        return Ok(Some((ask.request_id.clone(), mint_job(&key, &ask.request_id))));
+        let ends = state.chapter.maintainers[&ask.maintainer_id].expires_at;
+        return Ok(Some((ask.request_id.clone(), mint_job(&key, &ask.request_id, ends))));
     }
     Ok(None)
 }
@@ -875,6 +883,130 @@ mod tests {
         assert!(st.chapter.proposals[pid].norm.starts_with(NO_ROLE_NORM_AGENT));
     }
 
+    /// A page_agent appointment for `lead` that ends at `ends` (asks then use it).
+    async fn appoint_agent_until(s: &RestState, lead: &PartyRef, ends: DateTime<Utc>) -> String {
+        let _serial = COMMITMENT_LOCK.lock().await;
+        let id = ch::new_id();
+        chapter_witness(s, HubEvent::ChapterMaintainerAppointed { maintainer_id: id.clone(), role: PAGE_AGENT.into(),
+            label: AGENT_LABEL.into(), appointed_by: lead.party_id.clone(), expires_at: ends, via: AckVia::Operator,
+            link_digest: None }).await.unwrap();
+        id
+    }
+
+    #[tokio::test]
+    async fn an_expired_appointment_cannot_lease_read_or_answer_and_its_drafts_still_wait() {
+        let (_d, s, lead, other, _member) = chapter(None).await;
+        let ends = Utc::now() + chrono::Duration::seconds(3);
+        let mid = appoint_agent_until(&s, &lead, ends).await;
+
+        // While it works: an ask is leased and answered with a draft.
+        let first = ask(&s, &lead, "Headline please").await;
+        assert_eq!(state_of(&s).chapter.asks[&first].maintainer_id, mid);
+        let tok = job_for(&s, &first).await;
+        let out = answer_job(&s, &tok, answer("Drafted.", Some(good_page("Before it ran out")))).await.unwrap();
+        let pid = out["proposal_ids"][0].as_str().unwrap().to_string();
+
+        // Leased before it runs out; a token that claims to outlive it; and one never leased.
+        let leased = ask(&s, &lead, "Shorter").await;
+        let tok_leased = job_for(&s, &leased).await;
+        let key = link_key_or_create(&s.paths.root).unwrap();
+        let long_tok = mint_token(JOB_LABEL, &key, &[leased.as_str()], Utc::now() + chrono::Duration::minutes(15));
+        let unleased = ask(&s, &lead, "Add a contact").await;
+
+        tokio::time::sleep((ends - Utc::now()).to_std().unwrap_or_default() + std::time::Duration::from_millis(200)).await;
+
+        // Reading or answering after the end is refused, whatever the token says.
+        let st = state_of(&s);
+        assert!(verified_job(&s, &st, &long_tok).is_err(), "a job can't be read after the appointment ends");
+        assert!(why_dead(&st, &st.chapter.asks[&unleased]).is_some());
+        let e = answer_job(&s, &long_tok, answer("Done.", Some(good_page("After")))).await.unwrap_err();
+        assert_eq!(e.status, StatusCode::FORBIDDEN, "the answer check runs under the commitment lock");
+        assert!(answer_job(&s, &tok_leased, answer("Done.", Some(good_page("After")))).await.is_err(),
+            "the leased token ended with the appointment");
+
+        // No new lease: the hub closes both open asks itself, changing nothing.
+        assert!(next_job(&s).await.unwrap().is_none());
+        let st = state_of(&s);
+        for id in [&leased, &unleased] {
+            let a = st.chapter.asks[id].answer.clone().unwrap();
+            assert_eq!(a.outcome, AgentOutcome::Failed);
+            let reply = words(load_agent_file(&s.paths.root).ok().as_ref(), Words::Reply, a.reply_sha256.as_deref().unwrap()).unwrap();
+            assert!(reply.contains("ran out"), "the closing reply says why: {reply}");
+        }
+        assert!(st.chapter.current(PagePart::Page).is_none());
+
+        // Expiry isn't discard (#1001): the earlier draft still waits, and a lead can publish it.
+        assert!(st.chapter.proposals[&pid].closed.is_none());
+        let _serial = COMMITMENT_LOCK.lock().await;
+        publish_proposal(&s, &other.party_id, &pid, None).await.unwrap();
+        assert!(state_of(&s).chapter.current(PagePart::Page).is_some());
+        drop(_serial);
+
+        // The next ask appoints a fresh assistant.
+        let again = ask(&s, &lead, "Headline please").await;
+        assert_ne!(state_of(&s).chapter.asks[&again].maintainer_id, mid);
+    }
+
+    #[tokio::test]
+    async fn a_job_token_never_outlives_its_appointment() {
+        let (_d, s, lead, _other, _member) = chapter(None).await;
+        let ends = Utc::now() + chrono::Duration::minutes(2);
+        appoint_agent_until(&s, &lead, ends).await;
+        let id = ask(&s, &lead, "Headline please").await;
+        let tok = job_for(&s, &id).await;
+        let key = link_key_or_create(&s.paths.root).unwrap();
+        // Still good just before the appointment ends, gone just after (not 15 minutes later).
+        assert!(read_token(JOB_LABEL, &key, &tok, 1, ends - chrono::Duration::seconds(1)).is_ok());
+        assert!(matches!(read_token(JOB_LABEL, &key, &tok, 1, ends + chrono::Duration::seconds(1)), Err(LinkError::Expired)));
+    }
+
+    /// The starter law with its CHAPTER-PAGE-AGENT norm replaced by `norms`. The old norm's
+    /// description line lands on a norm that never matches.
+    fn starter_with_agent_norms(norms: &str) -> String {
+        starter_with("  - id: CHAPTER-PAGE-AGENT\n    selector: r6.role\n    operator: \"==\"\n    value: page_agent\n    decision: escalate\n    priority: 21\n",
+            &format!("{norms}  - id: NEVER\n    selector: r6.request.action\n    operator: \"==\"\n    value: __never__\n    decision: deny\n    priority: 0\n"))
+    }
+
+    #[tokio::test]
+    async fn only_a_norm_that_names_page_agent_lets_it_publish() {
+        let allow = |id: &str, op: &str, value: &str, prio: i64|
+            format!("  - id: {id}\n    selector: r6.role\n    operator: \"{op}\"\n    value: {value}\n    decision: allow\n    priority: {prio}\n");
+        let on_set = |id: &str, decision: &str|
+            format!("  - id: {id}\n    selector: r6.request.action\n    operator: \"==\"\n    value: chapter_page_set\n    decision: {decision}\n    priority: 30\n");
+        let named = allow("NAMED", "==", "page_agent", 21);
+        let cases: Vec<(&str, String, &str)> = vec![
+            // Broad patterns and exclusions match page_agent without naming it: the draft waits.
+            ("broad regex", allow("ALL-NAMED-ROLES", "matches", "'^[a-z_]+$'", 100), "escalate:no norm names"),
+            ("family regex", allow("PAGE-FAMILY", "matches", "'^page_'", 100), "escalate:no norm names"),
+            ("exclusion", allow("NOT-MAINTAINER", "!=", "page_maintainer", 100), "escalate:no norm names"),
+            ("exclusion list", allow("NOT-IN", "not_in", "[page_maintainer]", 100), "escalate:no norm names"),
+            ("catch-all only", String::new(), "escalate:no norm names"),
+            // Named grants publish.
+            ("named ==", named.clone(), "allow"),
+            ("named in a list", allow("NAMED-LIST", "in", "[page_maintainer, page_agent]", 21), "allow"),
+            // A higher deny or escalate still wins over a named grant.
+            ("higher deny", format!("{}{named}", on_set("NO-PAGE-SETS", "deny")), "deny:NO-PAGE-SETS"),
+            ("higher escalate", format!("{}{named}", on_set("HOLD-PAGE-SETS", "escalate")), "escalate:HOLD-PAGE-SETS"),
+        ];
+        for (name, norms, want) in cases {
+            let law = starter_with_agent_norms(&norms);
+            let (_d, s, lead, _other, _member) = chapter(Some(&law)).await;
+            let event = HubEvent::ChapterPageSet { part: PagePart::Page, sha256: format!("sha256:{}", "a".repeat(64)),
+                by: lead.party_id.clone(), via: PageVia::Maintainer, maintainer_id: Some("m".into()), link_digest: None,
+                proposal_id: None, undo: false };
+            let got = match law_says(&s, PAGE_AGENT, &event).await.unwrap() {
+                LawSays::Allow => "allow".to_string(),
+                LawSays::Escalate(n) => format!("escalate:{n}"),
+                LawSays::Deny(n) => format!("deny:{n}"),
+            };
+            assert!(got.starts_with(want), "{name}: wanted {want}, got {got}");
+            // The same laws leave a page maintainer's own path alone.
+            if name == "broad regex" {
+                assert!(matches!(law_says(&s, PAGE_MAINTAINER, &event).await.unwrap(), LawSays::Allow));
+            }
+        }
+    }
+
     #[test]
     fn the_answer_schema_is_the_page_shape() {
         let schema = answer_schema();
@@ -882,5 +1014,13 @@ mod tests {
         assert_eq!(page["additionalProperties"], false);
         assert_eq!(page["properties"]["headline"]["maxLength"], cp::MAX_HEADLINE);
         assert!(schema["required"].as_array().unwrap().iter().any(|v| v == "reply"));
+        // Every field the page has, the assistant can write. Its draft replaces the whole page,
+        // so a field missing here would be silently cleared by its next draft (Nova on #1002).
+        let page_fields: std::collections::BTreeSet<String> = serde_json::to_value(
+            serde_json::from_value::<PageContent>(serde_json::json!({ "headline": "x" })).unwrap())
+            .unwrap().as_object().unwrap().keys().cloned().collect();
+        let schema_fields: std::collections::BTreeSet<String> =
+            page["properties"].as_object().unwrap().keys().cloned().collect();
+        assert_eq!(page_fields, schema_fields, "answer_schema() must name every PageContent field");
     }
 }
