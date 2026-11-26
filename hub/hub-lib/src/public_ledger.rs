@@ -475,6 +475,16 @@ fn classify(event: &HubEvent) -> (Option<&'static str>, Option<String>) {
             Some("chapter_page_discarded"),
             Some("a co-lead discarded an assistant's proposal".into()),
         ),
+        // The chapter's own assistant: that a co-lead asked, and what came of it. Never whose
+        // ask, never the words.
+        HubEvent::ChapterAgentAsked { .. } => (
+            Some("chapter_agent_asked"),
+            Some("a co-lead asked the chapter's assistant for a change".into()),
+        ),
+        HubEvent::ChapterAgentAnswered { outcome, .. } => (
+            Some("chapter_agent_answered"),
+            Some(format!("the chapter's assistant answered ({})", outcome.as_str())),
+        ),
         // Delegation to an AI is a governance fact a reader weighs: that it happened, for which
         // role, and until when. Not whose assistant it is.
         HubEvent::ChapterMaintainerAppointed { role, expires_at, .. } => (

@@ -17,6 +17,7 @@ Product spec: [`../../docs/PRD_CHAPTER_PRODUCT.md`](../../docs/PRD_CHAPTER_PRODU
 | `hub serve` | The chapter's pages and record. Public plane on 127.0.0.1:8780 behind a tunnel; operator plane on 127.0.0.1:8782, never exposed. | `HUB_PUBLIC_BASE_URL=https://<hostname>`, `HUB_CHAPTER_UTC_OFFSET=-08:00` |
 | `hub-nudge --every 300` | Sends nudges and chapter notices (welcome, "your part of this event", recaps) by SMTP, and reports each send to the hub. | `nudge.json` + a 0600 netrc with the sender's app password |
 | `hub-intake --every 120` | Reads new mail from the mailbox the chapter's address forwards to, over IMAP, and hands each message to the hub. | `intake.json` + a 0600 netrc with the mailbox login |
+| `hub-page-agent --every 5` | **The chapter's own assistant.** Wakes when a co-lead asks for a page change, runs Claude with no tools under the operator's own login, and hands the answer to the hub, which keeps it as a draft for a co-lead to publish. Optional: without it, the ask box says the assistant is offline. | `page-agent.json` + a logged-in `claude` CLI |
 
 ## Setting up a chapter
 
@@ -45,6 +46,8 @@ Product spec: [`../../docs/PRD_CHAPTER_PRODUCT.md`](../../docs/PRD_CHAPTER_PRODU
 
 It's kept by a **page maintainer**: a co-lead's own AI assistant, appointed from the co-lead's chapter page. The role's law is a norm in the hub law. Its context is a brief the co-leads own. Every change is a governed, recorded act, and any co-lead can undo it. Templates and how-to: [`page-maintainer/`](page-maintainer/). Spec: [`../../docs/PRD_CHAPTER_FRONT_PAGE.md`](../../docs/PRD_CHAPTER_FRONT_PAGE.md).
 
+Co-leads who don't have an assistant of their own, or don't want to paste a link into one, can **ask the chapter's assistant** from their chapter page instead. They type what they want, and they get a draft to look at, publish or ask again about. That's the hub filling the same role with its own agent, run by `hub-page-agent`. Its law is the `CHAPTER-PAGE-AGENT` norm: by default every change it writes waits for a co-lead. Spec: [`../../docs/PRD_CHAPTER_PAGE_AGENT.md`](../../docs/PRD_CHAPTER_PAGE_AGENT.md).
+
 ## `nudge.json`
 
 ```json
@@ -57,6 +60,25 @@ It's kept by a **page maintainer**: a co-lead's own AI assistant, appointed from
   "state_file": "/home/<user>/.local/state/chapter-hub/nudge-state.json"
 }
 ```
+
+## `page-agent.json`
+
+```json
+{
+  "hub_admin_url": "http://127.0.0.1:8782",
+  "claude": "/home/<user>/.local/bin/claude",
+  "model": "opus",
+  "timeout_secs": 240,
+  "max_runs_per_hour": 30,
+  "host_label": "pub"
+}
+```
+
+The runner uses the Claude login of the user it runs as. For a service that shouldn't depend on an interactive login, run `claude setup-token` once and point `oauth_token_file` at a 0600 file holding the token. On a hub run with `HUB_OPERATOR_AUTH=token`, add `"operator_token_file": "<hub dir>/operator.token"`.
+
+What the runner can and can't do:
+- It reaches only the hub's job routes. The hub validates each answer against the page's rules and the chapter's law before storing anything.
+- The model runs with no tools, MCP servers, settings or hooks, and saves no session. Its only effect is the text it returns.
 
 ## `intake.json`
 

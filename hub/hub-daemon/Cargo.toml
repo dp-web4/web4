@@ -23,6 +23,13 @@ path = "src/bin/hub-nudge.rs"
 name = "hub-intake"
 path = "src/bin/hub-intake.rs"
 
+# The chapter's own assistant (hub/docs/PRD_CHAPTER_PAGE_AGENT.md): wakes on a co-lead's ask, runs
+# the model with no tools under the operator's own Claude login, and hands the answer back to the
+# hub, which governs it. The runner holds the login; the hub holds the authority.
+[[bin]]
+name = "hub-page-agent"
+path = "src/bin/hub-page-agent.rs"
+
 [dependencies]
 zeroize = "1"
 hub-lib = { package = "web4-hub-lib", path = "../hub-lib", version = "=0.1.0-alpha.0" }

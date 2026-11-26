@@ -86,6 +86,19 @@ norms:
     priority: 20
     description: "A co-lead's assistant, appointed as page maintainer, may publish the chapter's front page and rewrite its brief. Every change is recorded with who appointed it, and any co-lead can undo it. Change to escalate to make changes wait for a co-lead."
 
+  # The chapter's own assistant (hub/docs/PRD_CHAPTER_PAGE_AGENT.md): the hub fills the page role
+  # with its own agent when a co-lead asks. Escalate: every change it writes waits as a draft
+  # until a co-lead publishes it. Change to allow for Lovable-style "publish at once" (any co-lead
+  # can still undo), or deny to let it answer in words only. Only a norm that names page_agent
+  # can let it publish: a catch-all allow (DEFAULT-ALLOW) leaves its drafts waiting.
+  - id: CHAPTER-PAGE-AGENT
+    selector: r6.role
+    operator: "=="
+    value: page_agent
+    decision: escalate
+    priority: 21
+    description: "The chapter's own assistant drafts front-page changes a co-lead asked for. Its drafts wait for a co-lead to publish them. Change to allow to publish at once (undoable), or deny to let it only answer in words."
+
   # Admission is CLOSED by default (public-release P0, 2026-07-23): join
   # requests ESCALATE to the operator's admission queue instead of
   # auto-admitting. This norm — not the `admission.open` flag below, which is

@@ -1664,7 +1664,9 @@ impl HubState {
             | HubEvent::ChapterMaintainerRevoked { .. }
             | HubEvent::ChapterPageSet { .. }
             | HubEvent::ChapterPageProposed { .. }
-            | HubEvent::ChapterPageDiscarded { .. } => {
+            | HubEvent::ChapterPageDiscarded { .. }
+            | HubEvent::ChapterAgentAsked { .. }
+            | HubEvent::ChapterAgentAnswered { .. } => {
                 crate::chapter::fold(&mut self.chapter, event, ts, index);
             }
             HubEvent::InviteRevoked { .. } => self.invites.fold(event),

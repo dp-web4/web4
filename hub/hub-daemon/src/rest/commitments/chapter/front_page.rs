@@ -30,7 +30,12 @@
 
 use super::*;
 use hub_lib::chapter::{Maintainer, PageVersion};
-use hub_lib::chapter_page::{self as cp, PageContent, PagePart, PageVia, PAGE_MAINTAINER};
+use hub_lib::chapter_page::{self as cp, PageContent, PagePart, PageVia, PAGE_AGENT, PAGE_MAINTAINER};
+
+// The chapter's own assistant: the hub fills the page role with its own agent
+// (`hub/docs/PRD_CHAPTER_PAGE_AGENT.md`).
+mod page_agent;
+pub(crate) use page_agent::*;
 
 const MAINTAINER_LABEL: &[u8] = b"web4-hub chapter maintainer v1\n";
 const MAINTAINER_TTL_DAYS: i64 = 30;
@@ -212,11 +217,20 @@ pub(crate) enum LawSays {
     Deny(String),
 }
 
+/// The norm named when no law is loaded and the hub's own assistant acts: its drafts wait.
+pub(crate) const NO_LAW_AGENT_NORM: &str = "no law loaded: the chapter's own assistant waits for a co-lead";
+/// The norm named when the law allows the hub's own assistant only through a norm that isn't
+/// about its role (a catch-all): its drafts wait.
+pub(crate) const NO_ROLE_NORM_AGENT: &str = "no norm names page_agent: the chapter's own assistant waits for a co-lead";
+
 /// What the chapter's law says about `event` done in `role`. No law loaded allows, as the
-/// single-signer gate does.
+/// single-signer gate does, except for the hub's own assistant (`page_agent`): its release
+/// approval must not depend on a law file being present, so with no law it escalates.
 pub(crate) async fn law_says(s: &RestState, role: &str, event: &HubEvent) -> Result<LawSays, ApiError> {
     let guard = s.law.read().await;
-    let Some(law) = guard.as_ref() else { return Ok(LawSays::Allow) };
+    let Some(law) = guard.as_ref() else {
+        return Ok(if role == PAGE_AGENT { LawSays::Escalate(NO_LAW_AGENT_NORM.to_string()) } else { LawSays::Allow });
+    };
     let req = hub_lib::law::R6Request {
         role: role.to_string(),
         action: event.kind().to_string(),
@@ -226,6 +240,15 @@ pub(crate) async fn law_says(s: &RestState, role: &str, event: &HubEvent) -> Res
     };
     let out = law.evaluate_outcome(&req);
     let norm = out.winning_norm.clone().unwrap_or_else(|| "an escalation trigger".to_string());
+    // The hub's own assistant acts without a lead's click only under a norm about its role. A
+    // law written before the role existed allows it through a catch-all (DEFAULT-ALLOW); that
+    // must not become "publish at once". Test: does the same norm win for a role nobody holds?
+    if role == PAGE_AGENT && matches!(out.decision, hub_lib::law::Decision::Allow | hub_lib::law::Decision::Warn) {
+        let unrelated = law.evaluate_outcome(&hub_lib::law::R6Request { role: "no-such-role".to_string(), ..req.clone() });
+        if unrelated.winning_norm == out.winning_norm {
+            return Ok(LawSays::Escalate(format!("{NO_ROLE_NORM_AGENT} ({norm} is not about page_agent)")));
+        }
+    }
     Ok(match out.decision {
         hub_lib::law::Decision::Allow | hub_lib::law::Decision::Warn => LawSays::Allow,
         hub_lib::law::Decision::Escalate => LawSays::Escalate(norm),
@@ -296,7 +319,15 @@ pub(crate) async fn set_part(
         keep_content(&s.paths.root, &content, &sha)?;
         return Ok(SetOutcome::Unchanged { sha256: sha });
     }
-    let role = if via == PageVia::Maintainer { PAGE_MAINTAINER } else { ROLE_CHAPTER_LEAD };
+    // A maintainer acts in the role it was appointed to: a lead's own assistant
+    // (`page_maintainer`) or the chapter's own (`page_agent`), whose law differs.
+    let role = if via == PageVia::Maintainer {
+        maintainer_id.as_ref().and_then(|id| state.chapter.maintainers.get(id))
+            .map(|m| m.role.clone()).unwrap_or_else(|| PAGE_MAINTAINER.to_string())
+    } else {
+        ROLE_CHAPTER_LEAD.to_string()
+    };
+    let role = role.as_str();
     let event = HubEvent::ChapterPageSet { part, sha256: sha.clone(), by: by.to_string(), via,
         maintainer_id: maintainer_id.clone(), link_digest: link_digest.clone(), proposal_id, undo: false };
     ch::check(&state.chapter, &event).map_err(ch_refused)?;
@@ -496,6 +527,11 @@ fn verified_maintainer(s: &RestState, state: &HubState, token: &str) -> Result<M
     let id = fields.pop().expect("one field");
     let m = state.chapter.live_maintainer(&id).cloned()
         .ok_or_else(|| json_refusal(StatusCode::FORBIDDEN, "a co-lead stopped this assistant: this link no longer acts"))?;
+    // The chapter's own assistant acts only through the jobs the hub hands its runner, never
+    // through a maintainer link.
+    if m.role != PAGE_MAINTAINER {
+        return Err(json_refusal(StatusCode::NOT_FOUND, "this link doesn't work"));
+    }
     let lead = state.invites.canonical_id(&m.appointed_by);
     if !is_chapter_lead(state, &lead) {
         return Err(json_refusal(StatusCode::FORBIDDEN,
@@ -770,13 +806,18 @@ pub(crate) async fn front_page_section(s: &RestState, state: &HubState, book: &C
         let label = m.map(|m| m.label.clone()).unwrap_or_default();
         let stopped = if m.is_some_and(|m| m.revoked.is_some()) { " That assistant has since been stopped." } else { "" };
         let pid = esc(&p.proposal_id);
+        let whose = if m.is_some_and(|m| m.role == PAGE_AGENT) {
+            format!("The chapter's assistant, asked by {},", first_name(&name_by_id(state, book, &p.by)))
+        } else {
+            format!("{}'s assistant ({})", first_name(&name_by_id(state, book, &p.by)), label)
+        };
         html.push_str(&format!(
-            "<div class=\"pending\"><p><strong>{}'s assistant ({}) proposed a new {}</strong> on {}. \
+            "<div class=\"pending\"><p><strong>{} proposed a new {}</strong> on {}. \
              The chapter's rules ask a co-lead to publish it.{stopped}</p>\
              <p><a href=\"/h/{tok}/proposals/{pid}\">Look at it first</a></p>\
              <form method=\"post\" action=\"/h/{tok}/proposals/{pid}/publish\"><button>Publish it</button></form>\
              <form method=\"post\" action=\"/h/{tok}/proposals/{pid}/discard\"><button class=\"secondary\">Discard it</button></form></div>",
-            esc(&first_name(&name_by_id(state, book, &p.by))), esc(&label),
+            esc(&whose),
             if p.part == PagePart::Page { "front page" } else { "brief" }, esc(&local_day(p.at))));
     }
     if let (Some(words), Some(v)) = (undo_words(state), state.chapter.current(PagePart::Page)) {
@@ -784,16 +825,17 @@ pub(crate) async fn front_page_section(s: &RestState, state: &HubState, book: &C
             <span class=\"muted\">Undo goes {}.</span><button class=\"secondary\">Undo the last change</button></form>",
             v.index, esc(&words)));
     }
+    html.push_str(&agent_section(s, state, book, token).await);
     let live: Vec<&Maintainer> = state.chapter.maintainers.values()
         .filter(|m| m.revoked.is_none() && m.expires_at > Utc::now()).collect();
-    html.push_str("<h3>Your AI assistant keeps it</h3>\
+    html.push_str("<h3>Or hand it to your own AI assistant</h3>\
         <p>Hand the page to your own assistant: Claude, ChatGPT, or any that can read a web page. It gets a private \
         link holding its instructions, the chapter's brief, the rules it works under, and what the page says now. \
         Tell it what to say; it writes the page. It acts for you: each change is recorded under your name, and any \
         co-lead can undo it or stop it.</p>");
     for m in &live {
         let lead = first_name(&name_by_id(state, book, &m.appointed_by));
-        let mine = state.invites.canonical_id(&m.appointed_by) == me;
+        let mine = state.invites.canonical_id(&m.appointed_by) == me && m.role == PAGE_MAINTAINER;
         let link = if mine {
             link_base().map(|b| format!("<details><summary>Its link</summary><pre>{}</pre></details>",
                 esc(&maintainer_url(&b, key, m)))).unwrap_or_default()
@@ -1205,7 +1247,7 @@ mod tests {
             leads, members, inbox, retired: false, set_by: s.sovereign_lct_id }).await.expect("committee");
     }
 
-    fn state_of(s: &RestState) -> HubState {
+    pub(super) fn state_of(s: &RestState) -> HubState {
         let ledger = s.ledger.try_lock().expect("ledger");
         s.projected(&ledger)
     }
@@ -1215,7 +1257,7 @@ mod tests {
     }
 
     /// A chapter: Natalie and Yemaya lead it, Augustina leads Partnerships.
-    async fn chapter(law: Option<&str>) -> (tempfile::TempDir, RestState, PartyRef, PartyRef, PartyRef) {
+    pub(super) async fn chapter(law: Option<&str>) -> (tempfile::TempDir, RestState, PartyRef, PartyRef, PartyRef) {
         let (dir, s) = fresh_rest_state(law).await;
         let (nat, yem, aug) = (contact(&s, "Natalie Lead").await, contact(&s, "Yemaya Co").await, contact(&s, "Augustina P").await);
         committee(&s, "Chapter leads", "Answers the chapter's email", vec![nat.clone(), yem.clone()], vec![], true).await;

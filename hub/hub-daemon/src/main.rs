@@ -3511,9 +3511,12 @@ mod tests {
             // The front page (PRD_CHAPTER_FRONT_PAGE): a page maintainer's JSON page, and below, a
             // lead's appointment form. Driven end-to-end through set_part / appoint_maintainer by
             // the tests in rest/commitments/chapter/front_page.rs. (Sorted: the sweep compares in
-            // order.)
+            // order.) The ask to the chapter's own assistant (PRD_CHAPTER_PAGE_AGENT), a lead's
+            // form, is driven end-to-end through ask_agent by the tests in
+            // rest/commitments/chapter/front_page/page_agent.rs.
             "/a/:token/page",
             "/g/:token",
+            "/h/:token/agent/ask",
             "/h/:token/committees/add",
             "/h/:token/maintainers/add",
             "/h/:token/people/add",
