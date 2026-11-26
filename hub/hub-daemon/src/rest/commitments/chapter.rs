@@ -24,6 +24,7 @@ use hub_lib::chapter::{self as ch, Committee};
 use hub_lib::commitments::Basis;
 
 mod front_page;
+mod front_text;
 pub(crate) use front_page::*;
 
 const HOME_LABEL: &[u8] = b"web4-hub chapter home v1\n";

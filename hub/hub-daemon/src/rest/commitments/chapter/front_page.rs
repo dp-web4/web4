@@ -31,6 +31,7 @@
 use super::*;
 use hub_lib::chapter::{Maintainer, PageVersion};
 use hub_lib::chapter_page::{self as cp, PageContent, PagePart, PageVia, PAGE_AGENT, PAGE_MAINTAINER};
+use super::front_text;
 
 // The chapter's own assistant: the hub fills the page role with its own agent
 // (`hub/docs/PRD_CHAPTER_PAGE_AGENT.md`).
@@ -665,13 +666,14 @@ Fields (every one is plain text; nothing is rendered as HTML):
 | field | what | limit |
 |---|---|---|
 | `headline` | why people come, one line (required) | {mh} chars |
-| `story` | two or three sentences; a blank line separates paragraphs | {ms} chars |
-| `next` | upcoming events: `title` (required), `when`, `where`, `note`, `link` | {mev} events |
-| `recent` | recent events, same fields; use `note` for one line of proof | {mev} events |
+| `story` | two or three sentences; a blank line separates paragraphs. A short first paragraph (up to 140 chars) followed by a blank line is shown as the highlighted line under the headline | {ms} chars |
+| `next` | upcoming events: `title` (required), `when`, `where`, `note`, `link`. Write `when` like \"Thu Dec 10, 6–9 pm\" and start `where` with the quadrant, like \"SE Central Eastside · venue on RSVP\", to get a date stamp and a quadrant badge | {mev} events |
+| `recent` | recent events, same fields; use `note` for one line of proof, with the count first: \"70+ signed up\" | {mev} events |
 | `ways_in` | ways to take part: `title` (required), `text`, `link` | {mw} |
 | `contact` | one email address or an https:// link | {mc} chars |
 | `links` | `label` and `url` | {ml} |
 | `show_committees` | list the committees (default true) | |
+| `members` | how many people are in this chapter, like \"2,500+\". This chapter only, never the AI Collective's worldwide count. Leave it out if you don't have the chapter's own figure | {mm} chars |
 
 Links must be `https://`. Unknown fields are refused. The answer is JSON. Its `result` is `published`, `unchanged` or `waiting_for_a_co_lead`. On a mistake it's an `error` naming the field.
 
@@ -702,7 +704,7 @@ Send the whole brief as the body, at most {mb} characters.
         brief = brief, committees = committees, page_json = page_json,
         waiting_block = if waiting.is_empty() { String::new() } else { format!("\n## Waiting for a co-lead\n\n{waiting}") },
         mh = cp::MAX_HEADLINE, ms = cp::MAX_STORY, mev = cp::MAX_EVENTS, mw = cp::MAX_WAYS, mc = cp::MAX_CONTACT,
-        ml = cp::MAX_LINKS, mb = cp::MAX_BRIEF,
+        ml = cp::MAX_LINKS, mb = cp::MAX_BRIEF, mm = cp::MAX_MEMBERS,
     );
     let mut resp = (StatusCode::OK, agent_headers(), md).into_response();
     resp.headers_mut().insert(axum::http::header::CONTENT_TYPE,
@@ -801,7 +803,7 @@ pub(crate) async fn front_page_section(s: &RestState, state: &HubState, book: &C
     };
     let mut html = String::from("<section><h2>Front page</h2>");
     match current_page(state, file.as_ref()) {
-        InForce::Nothing => html.push_str("<p>It shows placeholders until someone fills it in. <a href=\"/\">See it</a>.</p>"),
+        InForce::Nothing => html.push_str("<p>Nothing published yet, so visitors see the starter page: a bridge print, \"Next event coming soon\" and the committees. <a href=\"/\">See it</a>.</p>"),
         InForce::Live(_, v) => html.push_str(&format!("<p>Last changed {} by {}. <a href=\"/\">See it</a>.</p>",
             esc(&local_day(v.at)), esc(&who(&v)))),
         InForce::Damaged(v) => html.push_str(&format!("<div class=\"pending\"><p><strong>The page is damaged.</strong> \
@@ -1072,175 +1074,428 @@ pub(crate) async fn chapter_front_page(s: &RestState) -> Option<axum::response::
     Some((StatusCode::OK, [(axum::http::header::CACHE_CONTROL, "no-cache")], axum::response::Html(html)).into_response())
 }
 
-const FRONT_CSS: &str = "\
-:root{--bg:#faf7f2;--ink:#1d1b19;--muted:#6b645d;--line:#e6dfd5;--card:#fff;--accent:#e2621b;--accent-ink:#fff;--ph:#b3a89c}\
-@media (prefers-color-scheme:dark){:root{--bg:#161412;--ink:#f1ece6;--muted:#a59c92;--line:#2e2a26;--card:#1f1c19;--accent:#f07a35;--ph:#6f665d}}\
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif}\
-main{max-width:64rem;margin:0 auto;padding:1.25rem 1rem 2rem}\
-.top{display:flex;align-items:center;gap:.5rem;font-weight:600;color:var(--muted);font-size:.95rem}\
-.top .dot{width:.7rem;height:.7rem;border-radius:50%;background:var(--accent);display:inline-block}\
-.hero{padding:1.6rem 0 1.2rem}.hero h1{font-size:clamp(1.8rem,5vw,2.9rem);line-height:1.12;margin:0 0 .7rem;letter-spacing:-.01em}\
-.hero p{font-size:1.15rem;max-width:42rem;margin:.4rem 0;color:var(--ink)}\
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:1rem}\
-.card{background:var(--card);border:1px solid var(--line);border-radius:.9rem;padding:1rem 1.1rem}\
-.card h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin:0 0 .6rem}\
-.ev{margin:0 0 .8rem}.ev:last-child{margin:0}.ev b{display:block;font-size:1.05rem}.ev .meta{color:var(--muted);font-size:.92rem}\
-.ev p{margin:.2rem 0 0;font-size:.95rem}.ways{list-style:none;padding:0;margin:0}.ways li{margin:0 0 .7rem}.ways b{display:block}\
-.ways span{color:var(--muted);font-size:.95rem}.cmt{margin-top:.8rem;padding-top:.7rem;border-top:1px solid var(--line);font-size:.93rem}\
-.cmt p{margin:.25rem 0}.cmt b{font-weight:600}\
-a{color:var(--accent)}a.go{display:inline-block;margin-top:.35rem;font-weight:600;text-decoration:none}\
-.ask{margin:1.2rem 0 0;padding:1rem 1.1rem;border-radius:.9rem;background:var(--ink);color:var(--bg)}\
-.ask h2{margin:0 0 .3rem;font-size:1.1rem}.ask p{margin:0}.ask a{color:var(--bg);font-weight:700}\
-.links{margin:1rem 0 0;display:flex;flex-wrap:wrap;gap:.5rem 1rem}\
-footer{margin-top:1.6rem;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line);padding-top:.8rem}\
-.ph{color:var(--ph);border:1.5px dashed var(--ph);border-radius:.6rem;padding:.5rem .7rem;font-style:italic}\
-.hero h1.ph{font-style:normal}.why{display:block;font-size:.85rem;font-style:normal;margin-top:.25rem}\
-.setup{background:var(--card);border:1.5px solid var(--accent);border-radius:.9rem;padding:.9rem 1.1rem;margin:1rem 0 0;font-size:.97rem}\
-.setup p{margin:.3rem 0}.preview{background:var(--accent);color:var(--accent-ink);padding:.4rem 1rem;text-align:center;font-weight:600}";
+// The design: "Pole Flyer". A utility pole on a Portland corner, covered in two-ink
+// screen-printed flyers (AIC orange and fir teal). Spec: the Portland chapter's design handoff;
+// stylesheet and the four bridge prints in `front_assets/`. No script, no request beyond the
+// page: art is inline SVG and CSS, fonts are the reader's own.
 
-fn placeholder(text: &str, why: &str) -> String {
-    format!("<div class=\"ph\">{}<span class=\"why\">{}</span></div>", esc(text), esc(why))
+const FRONT_CSS: &str = include_str!("front_assets/front.css");
+
+/// The hero prints: side elevations of four Portland bridges, two inks. One is inlined per
+/// render, chosen at random, so the page changes without any script.
+const BRIDGES: [&str; 4] = [
+    include_str!("front_assets/bridge-st-johns.svg"),
+    include_str!("front_assets/bridge-tilikum.svg"),
+    include_str!("front_assets/bridge-hawthorne.svg"),
+    include_str!("front_assets/bridge-fremont.svg"),
+];
+
+/// The chapter's page on the global AI Collective site: the top-bar link, and where "follow"
+/// goes when the page lists no Luma calendar.
+const CHAPTER_PAGE: &str = "https://www.aicollective.com/chapters/portland";
+
+/// Which bridge, and what day it is, for one render. Tests fix both.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FrontLook {
+    pub bridge: usize,
+    pub today: chrono::NaiveDate,
 }
 
-fn link_open(url: &str) -> String {
-    format!("<a class=\"go\" href=\"{}\" rel=\"noopener nofollow\">", esc(url))
+impl FrontLook {
+    fn now() -> Self {
+        FrontLook { bridge: rand::random::<usize>() % BRIDGES.len(),
+            today: Utc::now().with_timezone(&super::chapter_offset()).date_naive() }
+    }
 }
 
-fn events_html(list: &[cp::PageEvent], go: &str) -> String {
-    list.iter().map(|e| {
-        let meta: Vec<&str> = [e.when.as_str(), e.place.as_str()].into_iter().filter(|x| !x.is_empty()).collect();
-        format!("<div class=\"ev\"><b>{}</b>{}{}{}</div>", esc(&e.title),
-            if meta.is_empty() { String::new() } else { format!("<span class=\"meta\">{}</span>", esc(&meta.join(" · "))) },
-            if e.note.is_empty() { String::new() } else { format!("<p>{}</p>", esc(&e.note)) },
-            if cp::is_https(&e.link) { format!("{}{go} →</a>", link_open(&e.link)) } else { String::new() })
-    }).collect()
+fn is_luma(url: &str) -> bool {
+    let host = url.trim().trim_start_matches("https://").split(['/', '?', '#']).next().unwrap_or("").to_ascii_lowercase();
+    host == "lu.ma" || host == "luma.com" || host.ends_with(".luma.com")
+}
+
+/// The chapter's Luma calendar: a link labelled or pointing there.
+fn luma_link(p: &PageContent) -> Option<&str> {
+    p.links.iter().map(|l| l.url.as_str())
+        .chain(p.ways_in.iter().map(|w| w.link.as_str()))
+        .find(|u| cp::is_https(u) && is_luma(u))
+}
+
+/// Percent-encoding for a query value.
+fn q(s: &str) -> String {
+    let mut out = String::new();
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+fn ext(url: &str) -> String {
+    format!("href=\"{}\" rel=\"noopener nofollow\"", esc(url))
+}
+
+/// "AI Collective Portland" → ("AI Collective", "Portland"); otherwise the name alone.
+/// Text only: the AI Collective's logo is its trademark and isn't carried in this repository.
+fn name_tag(hub_name: &str) -> String {
+    match hub_name.strip_prefix("AI Collective ").filter(|r| !r.trim().is_empty()) {
+        Some(city) => format!("<a class=\"mark\" href=\"/\"><span>AI Collective</span><b>{}</b></a>", esc(city.trim())),
+        None => format!("<a class=\"mark\" href=\"/\"><b>{}</b></a>", esc(hub_name)),
+    }
+}
+
+fn page_top(hub_name: &str) -> String {
+    format!("<header class=\"wrap top\">{}<a class=\"parent\" {}>Chapter page</a></header>", name_tag(hub_name), ext(CHAPTER_PAGE))
+}
+
+/// A headline in two lines when it has two parts: "Portland's AI people, | one room at a time."
+fn headline_html(h: &str) -> String {
+    let h = h.trim();
+    let split = h.find(". ").map(|i| i + 1)
+        .filter(|i| !h[*i..].trim().is_empty())
+        .or_else(|| h.rfind(", ").map(|i| i + 1).filter(|i| h[*i..].split_whitespace().count() >= 2));
+    match split {
+        Some(i) => format!("{} <em>{}</em>", esc(h[..i].trim()), esc(h[i..].trim())),
+        None => esc(h),
+    }
+}
+
+/// The story, as (the "why people come" line, the intro paragraphs). The first paragraph is the
+/// why line when there's more than one and it's short.
+fn story_parts(story: &str) -> (Option<String>, Vec<String>) {
+    let mut paras: Vec<String> = story.split("\n\n").map(|x| x.trim().replace('\n', " "))
+        .filter(|x| !x.is_empty()).collect();
+    if paras.len() >= 2 && paras[0].chars().count() <= 140 {
+        let why = paras.remove(0);
+        (Some(why), paras)
+    } else {
+        (None, paras)
+    }
+}
+
+/// A Google Calendar "add event" link, in UTC from the chapter's offset.
+fn calendar_link(e: &cp::PageEvent, w: &front_text::When) -> Option<String> {
+    use chrono::TimeZone;
+    let off = super::chapter_offset();
+    let dates = match w.start {
+        Some(st) => {
+            let start = off.from_local_datetime(&w.date.and_time(st)).single()?.with_timezone(&Utc);
+            let mut end = match w.end {
+                Some(en) => off.from_local_datetime(&w.date.and_time(en)).single()?.with_timezone(&Utc),
+                None => start + chrono::Duration::hours(2),
+            };
+            if end <= start { end += chrono::Duration::days(1); }
+            format!("{}/{}", start.format("%Y%m%dT%H%M%SZ"), end.format("%Y%m%dT%H%M%SZ"))
+        }
+        None => format!("{}/{}", w.date.format("%Y%m%d"), (w.date + chrono::Duration::days(1)).format("%Y%m%d")),
+    };
+    let mut url = format!("https://calendar.google.com/calendar/render?action=TEMPLATE&text={}&dates={}", q(&e.title), dates);
+    if !e.place.trim().is_empty() { url.push_str(&format!("&location={}", q(e.place.trim()))); }
+    if cp::is_https(&e.link) { url.push_str(&format!("&details={}", q(e.link.trim()))); }
+    Some(url)
+}
+
+fn directions_link(place: &str) -> String {
+    format!("https://www.google.com/maps/search/?api=1&query={}", q(place.trim()))
+}
+
+/// The when and where rows of an event: a stamp and a chip when the text reads, the text as
+/// written when it doesn't.
+fn when_where_rows(e: &cp::PageEvent, w: Option<&front_text::When>, today: chrono::NaiveDate) -> String {
+    let mut rows = String::new();
+    match w {
+        Some(w) => {
+            let (mon, day, wd) = w.stamp();
+            let tw = w.time_words();
+            rows.push_str(&format!("<p class=\"row\"><span class=\"datestamp\" aria-hidden=\"true\"><small>{mon}</small>{day}<small>{wd}</small></span>\
+                <span><strong><time datetime=\"{}\">{}</time></strong>{}</span></p>", w.machine(), esc(&w.day_words(today)), esc(&tw)));
+        }
+        None if !e.when.trim().is_empty() => rows.push_str(&format!("<p class=\"rawt\"><b>When</b> {}</p>", esc(e.when.trim()))),
+        None => {}
+    }
+    match front_text::parse_where(&e.place) {
+        Some(wh) => rows.push_str(&format!("<p class=\"row\"><abbr class=\"quad\" title=\"{}\">{}</abbr><span><strong>{}</strong>{}</span></p>",
+            wh.quad.name(), wh.quad.code(), esc(&wh.place), esc(&wh.detail))),
+        None if !e.place.trim().is_empty() => rows.push_str(&format!("<p class=\"rawt\"><b>Where</b> {}</p>", esc(e.place.trim()))),
+        None => {}
+    }
+    if rows.is_empty() { rows } else { format!("<div class=\"rows\">{rows}</div>") }
+}
+
+fn tabs(label: &str, list: &[(String, &str)]) -> String {
+    if list.is_empty() {
+        return String::new();
+    }
+    let n = match list.len() { 1 => " n1", 2 => " n2", _ => "" };
+    let mut h = format!("<nav class=\"tabs{n}\" aria-label=\"{}\">", esc(label));
+    for (url, text) in list {
+        h.push_str(&format!("<a class=\"tab\" {}>{}</a>", ext(url), esc(text)));
+    }
+    h.push_str("</nav>");
+    h
+}
+
+/// The Next up flyer.
+fn next_up(p: &PageContent, luma: Option<&str>, today: chrono::NaiveDate) -> String {
+    let mut h = String::from("<article class=\"flyer nextf tr\" aria-labelledby=\"nx\"><h2 class=\"label\" id=\"nx\">Next up</h2>");
+    let Some((e, more)) = p.next.split_first() else {
+        let (line, follow, url) = match luma {
+            Some(u) => ("Follow us on Luma and you'll hear the day it's posted.", "Follow us on Luma", u),
+            None => ("Follow the chapter and you'll hear the day it's posted.", "Follow the chapter", CHAPTER_PAGE),
+        };
+        h.push_str(&format!("<div class=\"soon\"><p class=\"big\">Next event coming soon.</p><p>{line}</p>{}</div></article>",
+            tabs("Follow", &[(url.to_string(), follow)])));
+        return h;
+    };
+    let w = front_text::parse_when(&e.when, today, front_text::Toward::Ahead);
+    h.push_str(&format!("<h3>{}</h3>", esc(&e.title)));
+    h.push_str(&when_where_rows(e, w.as_ref(), today));
+    if !e.note.trim().is_empty() {
+        h.push_str(&format!("<p class=\"note\">{}</p>", esc(e.note.trim())));
+    }
+    if !more.is_empty() {
+        h.push_str("<ul class=\"then\">");
+        for m in more {
+            let mw = front_text::parse_when(&m.when, today, front_text::Toward::Ahead);
+            let meta: Vec<String> = [mw.map(|x| { let t = x.time_words(); if t.is_empty() { x.short_day() } else { format!("{}, {t}", x.short_day()) } })
+                    .unwrap_or_else(|| m.when.trim().to_string()), m.place.trim().to_string()]
+                .into_iter().filter(|x| !x.is_empty()).collect();
+            h.push_str(&format!("<li><b>{}</b>{}{}</li>", esc(&m.title),
+                if meta.is_empty() { String::new() } else { format!("<span class=\"meta\">{}</span>", esc(&meta.join(" · "))) },
+                if cp::is_https(&m.link) { format!("<a {}>RSVP</a>", ext(&m.link)) } else { String::new() }));
+        }
+        h.push_str("</ul>");
+    }
+    let mut t: Vec<(String, &str)> = Vec::new();
+    if cp::is_https(&e.link) { t.push((e.link.trim().to_string(), "RSVP")); }
+    if let Some(c) = w.as_ref().and_then(|w| calendar_link(e, w)) { t.push((c, "Add to calendar")); }
+    if !e.place.trim().is_empty() { t.push((directions_link(&e.place), "Directions")); }
+    h.push_str(&tabs(&e.title, &t));
+    h.push_str("</article>");
+    h
+}
+
+/// The Lately flyer: recent events, with turnout drawn to scale when the notes give numbers.
+fn lately(p: &PageContent, luma: Option<&str>, today: chrono::NaiveDate) -> String {
+    let mut h = String::from("<section class=\"flyer tr\" aria-labelledby=\"lt\"><h2 class=\"label\" id=\"lt\">Lately</h2>");
+    if p.recent.is_empty() {
+        let (line, url) = match luma {
+            Some(u) => ("Past events and who came are on Luma.", u),
+            None => ("Past events and who came are on the chapter page.", CHAPTER_PAGE),
+        };
+        h.push_str(&format!("<p class=\"empty-note\">{line} <a {}>See past events</a></p></section>", ext(url)));
+        return h;
+    }
+    let counts: Vec<Option<u32>> = p.recent.iter().map(|e| front_text::parse_turnout(&e.note)).collect();
+    let most = counts.iter().flatten().copied().max().unwrap_or(1).max(1);
+    h.push_str("<ol class=\"log\">");
+    for (e, n) in p.recent.iter().zip(&counts) {
+        let w = front_text::parse_when(&e.when, today, front_text::Toward::Behind);
+        let meta: Vec<String> = [w.map(|x| x.short_day()).unwrap_or_else(|| e.when.trim().to_string()), e.place.trim().to_string()]
+            .into_iter().filter(|x| !x.is_empty()).collect();
+        h.push_str(&format!("<li><b>{}</b>", esc(&e.title)));
+        if !meta.is_empty() {
+            let m = esc(&meta.join(" · "));
+            h.push_str(&match w {
+                Some(w) => format!("<span class=\"meta\"><time datetime=\"{}\">{m}</time></span>", w.date.format("%Y-%m-%d")),
+                None => format!("<span class=\"meta\">{m}</span>"),
+            });
+        }
+        if !e.note.trim().is_empty() {
+            match n {
+                Some(n) => h.push_str(&format!("<span class=\"turn\"><i class=\"bar\" aria-hidden=\"true\" style=\"--w:{}%\"></i><span>{}</span></span>",
+                    (u64::from(*n) * 100 / u64::from(most)).max(4), esc(e.note.trim()))),
+                None => h.push_str(&format!("<span class=\"meta\">{}</span>", esc(e.note.trim()))),
+            }
+        }
+        if cp::is_https(&e.link) {
+            h.push_str(&format!("<a {}>See it</a>", ext(&e.link)));
+        }
+        h.push_str("</li>");
+    }
+    h.push_str("</ol></section>");
+    h
+}
+
+/// Where a "write to us" goes: an email address, or an https link.
+enum Contact<'a> { Email(&'a str), Link(&'a str), None }
+
+fn contact_of(p: &PageContent) -> Contact<'_> {
+    let c = p.contact.trim();
+    if c.is_empty() { Contact::None } else if cp::is_https(c) { Contact::Link(c) } else { Contact::Email(c) }
+}
+
+fn mailto(addr: &str, subject: &str) -> String {
+    format!("mailto:{addr}?subject={}", q(subject))
+}
+
+/// The Get involved flyer.
+fn get_involved(p: &PageContent, luma: Option<&str>) -> String {
+    let mut h = String::from("<section class=\"flyer tl\" aria-labelledby=\"gi\"><h2 class=\"label\" id=\"gi\">Get involved</h2><ul class=\"ways\">");
+    if p.ways_in.is_empty() {
+        let (url, text) = luma.map_or((CHAPTER_PAGE, "Chapter page"), |u| (u, "Follow on Luma"));
+        h.push_str(&format!("<li><b>Come to an event</b><a {}>{text}</a></li></ul></section>", ext(url)));
+        return h;
+    }
+    for w in &p.ways_in {
+        let action = if cp::is_https(&w.link) {
+            format!("<a {}>{}</a>", ext(&w.link), if is_luma(&w.link) { "On Luma" } else { "More" })
+        } else {
+            match contact_of(p) {
+                Contact::Email(a) => format!("<a href=\"{}\">Write us</a>", esc(&mailto(a, &w.title))),
+                Contact::Link(u) => format!("<a {}>Write us</a>", ext(u)),
+                Contact::None => String::new(),
+            }
+        };
+        h.push_str(&format!("<li><b>{}</b>{}{action}</li>", esc(&w.title),
+            if w.text.is_empty() { String::new() } else { format!("<span>{}</span>", esc(&w.text)) }));
+    }
+    h.push_str("</ul></section>");
+    h
+}
+
+fn count_words(n: usize) -> String {
+    ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"]
+        .get(n).map_or_else(|| n.to_string(), |w| w.to_string())
+}
+
+/// Help run it: one flyer per committee, by name and purpose only, never a person.
+fn help_run_it(committees: &[(String, String)], contact: &Contact, with_purpose: bool) -> String {
+    if committees.is_empty() {
+        return String::new();
+    }
+    const TILT: [&str; 6] = [" tl", " tr", "", " tr", "", " tl"];
+    let n = committees.len();
+    let mut h = format!("<section aria-labelledby=\"hr\"><h2 class=\"sechead\" id=\"hr\">Help run it</h2><p class=\"sub\">{} {} the chapter going.{}</p><ul class=\"cms\">",
+        count_words(n), if n == 1 { "committee keeps" } else { "committees keep" },
+        if matches!(contact, Contact::None) { "" } else { " Tear a tab and a co-lead writes back." });
+    for (i, (name, purpose)) in committees.iter().enumerate() {
+        let tab = match contact {
+            Contact::Email(a) => format!("<a href=\"{}\">Raise your hand</a>", esc(&mailto(a, &format!("Raise my hand: {name}")))),
+            Contact::Link(u) => format!("<a {}>Raise your hand</a>", ext(u)),
+            Contact::None => String::new(),
+        };
+        h.push_str(&format!("<li class=\"flyer cm k{}{}{}\"><span class=\"ink\" aria-hidden=\"true\"></span><h3>{}</h3>{}{tab}</li>",
+            i % 6 + 1, TILT[i % 6], if tab.is_empty() { " nolink" } else { "" }, esc(name),
+            if with_purpose && !purpose.trim().is_empty() { format!("<p>{}</p>", esc(purpose.trim())) } else { String::new() }));
+    }
+    h.push_str("</ul></section>");
+    h
+}
+
+fn contact_sheet(contact: &Contact) -> String {
+    let line = match contact {
+        Contact::Email(a) => format!("Write to <a href=\"mailto:{}\">{}</a>", esc(a), esc(a)),
+        Contact::Link(u) => format!("<a {}>Get in touch</a>", ext(u)),
+        Contact::None => return String::new(),
+    };
+    format!("<section class=\"ask\" aria-labelledby=\"ak\"><h2 id=\"ak\">Got a venue, a speaker, a question?</h2><p>{line}</p></section>")
+}
+
+fn page_foot(kept: &str, luma: Option<&str>, links: &[cp::PageLink]) -> String {
+    let mut h = format!("<footer class=\"wrap foot\"><span>{}</span><a href=\"/about-this-hub\">About this hub</a>", esc(kept));
+    if let Some(u) = luma {
+        h.push_str(&format!("<a {}>Events on Luma</a>", ext(u)));
+    }
+    for l in links.iter().filter(|l| cp::is_https(&l.url) && !is_luma(&l.url)) {
+        h.push_str(&format!("<a {}>{}</a>", ext(&l.url), esc(&l.label)));
+    }
+    h.push_str("</footer>");
+    h
 }
 
 /// The front page, rendered. Pure: content in, HTML out, every value escaped.
 pub(crate) fn render_front_page(hub_name: &str, page: Option<&PageContent>, committees: &[(String, String)],
     updated: Option<(DateTime<Utc>, PageVia)>, preview: bool) -> String
 {
+    render_front_page_as(hub_name, page, committees, updated, preview, FrontLook::now())
+}
+
+/// The front page with the bridge and the day given.
+///
+/// Before the maintainer writes anything, every slot falls back to something that reads as
+/// finished: the poster is just the bridge, Next up says what's coming, and nothing tells a
+/// visitor what's missing. The co-leads' instructions live on their own chapter pages.
+pub(crate) fn render_front_page_as(hub_name: &str, page: Option<&PageContent>, committees: &[(String, String)],
+    updated: Option<(DateTime<Utc>, PageVia)>, preview: bool, look: FrontLook) -> String
+{
     let empty = PageContent { show_committees: true, ..Default::default() };
     let p = page.unwrap_or(&empty);
+    let luma = luma_link(p);
+    let contact = contact_of(p);
     let mut h = String::new();
     if preview {
         h.push_str("<div class=\"preview\">Preview: not published yet</div>");
     }
-    h.push_str(&format!("<main><div class=\"top\"><span class=\"dot\"></span>{}</div>", esc(hub_name)));
-    if page.is_none() {
-        h.push_str("<div class=\"setup\"><p><strong>This page is waiting for the chapter's words.</strong></p>\
-            <p>It's kept by a <em>page maintainer</em>: a co-lead's own AI assistant, appointed from the co-lead's chapter page. \
-            The assistant writes it from the chapter's brief, every change is recorded, and any co-lead can undo it.</p>\
-            <p>Co-leads: open your chapter page and look for <strong>Front page</strong>.</p></div>");
-    }
+    h.push_str(&page_top(hub_name));
+    h.push_str("<main class=\"wrap\"><div class=\"lead\">");
 
-    // The story: headline and a few sentences.
-    h.push_str("<section class=\"hero\">");
-    if p.headline.is_empty() {
-        h.push_str("<h1 class=\"ph\">The chapter's headline goes here<span class=\"why\">One line, in the chapter's own \
-            voice: why people come.</span></h1>");
+    // The hero poster: the headline over a bridge print, or the print alone.
+    let (why, intro) = story_parts(&p.story);
+    let headline = p.headline.trim();
+    if headline.is_empty() {
+        h.push_str(&format!("<section class=\"flyer poster bare tl\" aria-labelledby=\"h\"><h1 id=\"h\" class=\"vh\">{}</h1>", esc(hub_name)));
     } else {
-        h.push_str(&format!("<h1>{}</h1>", esc(&p.headline)));
-    }
-    if p.story.is_empty() {
-        h.push_str(&placeholder("Two or three sentences: who's in the room, what happens, what someone new gets out of it.",
-            "This is what tells a visitor the chapter is for them."));
-    } else {
-        for para in p.story.split("\n\n").map(str::trim).filter(|x| !x.is_empty()) {
-            h.push_str(&format!("<p>{}</p>", esc(&para.replace('\n', " "))));
+        h.push_str(&format!("<section class=\"flyer poster tl\" aria-labelledby=\"h\"><h1 id=\"h\">{}</h1>", headline_html(headline)));
+        if let Some(w) = &why {
+            h.push_str(&format!("<p class=\"why\"><mark>{}</mark></p>", esc(w)));
         }
     }
-    h.push_str("</section><section class=\"grid\">");
+    h.push_str(&format!("<figure class=\"printf\">{}</figure></section>", BRIDGES[look.bridge % BRIDGES.len()].trim()));
 
-    // Three cards: what's next, proof it's alive, how to get in.
-    h.push_str("<article class=\"card\"><h2>Next up</h2>");
-    if p.next.is_empty() {
-        h.push_str(&placeholder("The next event: what, when, where, and the RSVP link.",
-            "It's the first thing a visitor looks for."));
-    } else {
-        h.push_str(&events_html(&p.next, "RSVP"));
-    }
-    h.push_str("</article><article class=\"card\"><h2>Lately</h2>");
-    if p.recent.is_empty() {
-        h.push_str(&placeholder("One or two recent events, each with a line of proof: what happened, how many came.",
-            "It shows the chapter is alive."));
-    } else {
-        h.push_str(&events_html(&p.recent, "See it"));
-    }
-    h.push_str("</article><article class=\"card\"><h2>Get involved</h2>");
-    if p.ways_in.is_empty() {
-        h.push_str(&placeholder("Ways to take part: come to an event, demo something, host, sponsor.",
-            "Each one line, each with something to do."));
-    } else {
-        h.push_str("<ul class=\"ways\">");
-        for w in &p.ways_in {
-            h.push_str(&format!("<li><b>{}</b>{}{}</li>", esc(&w.title),
-                if w.text.is_empty() { String::new() } else { format!("<span>{}</span>", esc(&w.text)) },
-                if cp::is_https(&w.link) { format!(" {}Go →</a>", link_open(&w.link)) } else { String::new() }));
+    h.push_str(&next_up(p, luma, look.today));
+
+    // The member count is the chapter's own figure, as its maintainer wrote it.
+    let members = Some(p.members.trim()).filter(|m| !m.is_empty());
+    if !intro.is_empty() || members.is_some() {
+        h.push_str("<div class=\"about\">");
+        for para in &intro {
+            h.push_str(&format!("<p class=\"lede\">{}</p>", esc(para)));
         }
-        h.push_str("</ul>");
-    }
-    if p.show_committees && !committees.is_empty() {
-        h.push_str("<div class=\"cmt\"><p><strong>Help run it.</strong> The chapter's teams:</p>");
-        for (name, purpose) in committees {
-            h.push_str(&format!("<p><b>{}</b>{}</p>", esc(name),
-                if purpose.is_empty() { String::new() } else { format!(": {}", esc(purpose)) }));
+        if let Some(m) = members {
+            h.push_str(&format!("<p class=\"count\"><b>{}</b> members</p>", esc(m)));
         }
         h.push_str("</div>");
     }
-    h.push_str("</article></section>");
+    h.push_str("</div><div class=\"sections\"><div class=\"row2\">");
+    h.push_str(&lately(p, luma, look.today));
+    h.push_str(&get_involved(p, luma));
+    h.push_str("</div>");
+    if p.show_committees {
+        h.push_str(&help_run_it(committees, &contact, page.is_some()));
+    }
+    h.push_str(&contact_sheet(&contact));
+    h.push_str("</div></main>");
 
-    // Where questions go.
-    h.push_str("<section class=\"ask\"><h2>Questions, a venue, a speaker idea?</h2>");
-    let c = p.contact.trim();
-    if c.is_empty() {
-        h.push_str("<p>Write to <em>[chapter contact: set by your co-leads]</em>.</p>");
-    } else if cp::is_https(c) {
-        h.push_str(&format!("<p><a href=\"{}\" rel=\"noopener nofollow\">Get in touch</a>.</p>", esc(c)));
-    } else {
-        h.push_str(&format!("<p>Write to <a href=\"mailto:{}\">{}</a>.</p>", esc(c), esc(c)));
-    }
-    h.push_str("</section>");
-    if !p.links.is_empty() {
-        h.push_str("<nav class=\"links\">");
-        for l in p.links.iter().filter(|l| cp::is_https(&l.url)) {
-            h.push_str(&format!("<a href=\"{}\" rel=\"noopener nofollow\">{}</a>", esc(&l.url), esc(&l.label)));
-        }
-        h.push_str("</nav>");
-    }
     let kept = match updated {
         Some((at, via)) => format!("Kept by the chapter's co-leads{}. Updated {}.",
             if via == PageVia::Maintainer { " and their assistant" } else { "" }, local_day(at)),
         None => "Kept by the chapter's co-leads.".to_string(),
     };
-    h.push_str(&format!("<footer>{} <a href=\"/about-this-hub\">How this page is run</a></footer></main>", esc(&kept)));
+    h.push_str(&page_foot(&kept, luma, &p.links));
 
-    let description = if p.headline.is_empty() { hub_name.to_string() } else { p.headline.clone() };
+    let description = if headline.is_empty() { hub_name.to_string() } else { headline.to_string() };
     front_document(hub_name, &description, &h)
 }
 
 fn front_document(hub_name: &str, description: &str, body: &str) -> String {
     format!("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
-        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>{}</title>\
-        <meta name=\"description\" content=\"{}\"><style>{FRONT_CSS}</style></head><body>{body}</body></html>",
+        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"color-scheme\" content=\"light dark\">\
+        <title>{}</title><meta name=\"description\" content=\"{}\"><style>{FRONT_CSS}</style></head><body>{body}</body></html>",
         esc(hub_name), esc(description))
 }
 
 /// What visitors see while the page in force is damaged: the chapter's name and teams, and no
 /// placeholders, which would tell co-leads nothing was ever published.
 fn render_being_updated(hub_name: &str, committees: &[(String, String)]) -> String {
-    let mut h = format!("<main><div class=\"top\"><span class=\"dot\"></span>{}</div>\
-        <section class=\"hero\"><h1>{}</h1><p>This page is being updated. Check back soon.</p></section>",
-        esc(hub_name), esc(hub_name));
-    if !committees.is_empty() {
-        h.push_str("<section class=\"card\"><h2>The chapter's teams</h2>");
-        for (name, purpose) in committees {
-            h.push_str(&format!("<p><b>{}</b>{}</p>", esc(name),
-                if purpose.is_empty() { String::new() } else { format!(": {}", esc(purpose)) }));
-        }
-        h.push_str("</section>");
-    }
-    h.push_str("<footer>Kept by the chapter's co-leads. <a href=\"/about-this-hub\">How this page is run</a></footer></main>");
+    let look = FrontLook::now();
+    let mut h = page_top(hub_name);
+    h.push_str(&format!("<main class=\"wrap\"><div class=\"lead\"><section class=\"flyer poster tl\" aria-labelledby=\"h\"><h1 id=\"h\">{}</h1>\
+        <p class=\"why\"><mark>This page is being updated. Check back soon.</mark></p><figure class=\"printf\">{}</figure></section></div>\
+        <div class=\"sections\">{}</div></main>",
+        esc(hub_name), BRIDGES[look.bridge % BRIDGES.len()].trim(), help_run_it(committees, &Contact::None, true)));
+    h.push_str(&page_foot("Kept by the chapter's co-leads.", None, &[]));
     front_document(hub_name, hub_name, &h)
 }
 
@@ -1284,9 +1539,10 @@ mod tests {
         let (_dir, s, _nat, _yem, _aug) = chapter(None).await;
         let resp = chapter_front_page(&s).await.expect("a chapter hub serves its front page");
         let body = String::from_utf8(axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap().to_vec()).unwrap();
-        assert!(body.contains("waiting for the chapter's words"), "{body}");
-        assert!(body.contains("[chapter contact: set by your co-leads]"));
-        assert!(body.contains("Partnerships") && body.contains("Venues and sponsors"));
+        // Nothing published: every slot shows its finished-looking empty state, never instructions.
+        assert!(body.contains("Next event coming soon."), "{body}");
+        assert!(!body.contains("[chapter contact") && !body.contains("goes here"));
+        assert!(body.contains("Partnerships"));
         for name in ["Natalie", "Yemaya", "Augustina", "example.org"] {
             assert!(!body.contains(name), "the public page shows {name}");
         }
@@ -1333,7 +1589,7 @@ mod tests {
         let resp = chapter_front_page(&s).await.unwrap();
         let body = String::from_utf8(axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap().to_vec()).unwrap();
         assert!(body.contains(&esc(&first.headline)), "{body}");
-        assert!(!body.contains("waiting for the chapter's words"));
+        assert!(!body.contains("Next event coming soon."));
         // Yemaya stops Natalie's assistant; its link no longer acts.
         let _serial = COMMITMENT_LOCK.lock().await;
         stop_maintainer(&s, &yem.party_id, &id, Some("f".repeat(32))).await.expect("stop");
@@ -1395,7 +1651,7 @@ mod tests {
         let _serial = COMMITMENT_LOCK.lock().await;
         undo_page(&s, &yem.party_id, None, Some("e".repeat(32))).await.unwrap();
         drop(_serial);
-        assert!(body_of(chapter_front_page(&s).await.unwrap()).await.contains("waiting for the chapter's words"));
+        assert!(body_of(chapter_front_page(&s).await.unwrap()).await.contains("Next event coming soon."));
     }
 
     fn escalate_law() -> String {
@@ -1541,7 +1797,7 @@ mod tests {
         save_page_file(&s.paths.root, &file).unwrap();
         let body = body_of(chapter_front_page(&s).await.unwrap()).await;
         assert!(body.contains("being updated"), "{body}");
-        assert!(!body.contains("Tampered") && !body.contains("waiting for the chapter's words"), "{body}");
+        assert!(!body.contains("Tampered") && !body.contains("Next event coming soon."), "{body}");
         let state = state_of(&s);
         let key = { let _serial = COMMITMENT_LOCK.lock().await; link_key_or_create(&s.paths.root).unwrap() };
         let token = mint_maintainer(&key, &id, state.chapter.maintainers[&id].expires_at);
@@ -1610,6 +1866,140 @@ mod tests {
         std::fs::write(dir.join("4-front-filled.html"), body(chapter_front_page(&s).await.unwrap()).await).unwrap();
         let page = body(home_page(State(s.clone()), Path(home)).await).await.replace("href=\"/c.css\"", "href=\"c.css\"");
         std::fs::write(dir.join("5-colead-page-after.html"), page).unwrap();
+        let mut no_event = portland_sample();
+        no_event.next.clear();
+        for bridge in 0..BRIDGES.len() {
+            for (name, page) in [("empty", None), ("filled", Some(portland_sample())), ("noevent", Some(no_event.clone())), ("raw", Some(portland_raw()))] {
+                std::fs::write(dir.join(format!("pole-{name}-{bridge}.html")), render(page.as_ref(), bridge)).unwrap();
+            }
+        }
+        // A real page to try, checked as the hub checks a maintainer's POST.
+        if let Ok(path) = std::env::var("FRONT_PAGE_TRY") {
+            let page: PageContent = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).expect("fields");
+            page.validate().expect("valid");
+            for bridge in 0..BRIDGES.len() {
+                std::fs::write(dir.join(format!("try-{bridge}.html")), render(Some(&page), bridge)).unwrap();
+            }
+        }
+    }
+
+    // ---- The Pole Flyer page: every state, every bridge -----------------------------------------
+
+    fn look(bridge: usize) -> FrontLook {
+        FrontLook { bridge, today: chrono::NaiveDate::from_ymd_opt(2026, 11, 25).unwrap() }
+    }
+
+    fn six_committees() -> Vec<(String, String)> {
+        [("Community & Education", "Workshops, expert panels, networking, and a presence at local fairs."),
+         ("Marketing", "Getting events to the right people; the chapter's voice; Luma pages."),
+         ("Partnerships", "Event spaces, food and drink sponsors, local businesses, co-hosts."),
+         ("Students", "High school, college and grad students, plugged into Portland."),
+         ("Technical Events", "Hackathons, build nights, events for people at the frontier."),
+         ("Wellness", "Bridging wellness and technology.")]
+            .iter().map(|(n, p)| (n.to_string(), p.to_string())).collect()
+    }
+
+    /// The approved mockup's content, as a page maintainer would write it.
+    fn portland_sample() -> PageContent {
+        serde_json::from_value(serde_json::json!({
+            "headline": "Portland's AI people, one room at a time.",
+            "story": "Come for the demos. Stay for the people you meet.\n\nEvery few weeks we fill a back room, a co-working space or a campus hall with engineers, researchers, founders, students and the curious. Someone shows what they built, we talk about what it means, and you leave knowing a few more people in town who care about this.",
+            "next": [{ "title": "Winter Build Night", "when": "Thursday, Dec 10 · 6–9 pm", "where": "SE Central Eastside · Venue on RSVP",
+                       "note": "Streetcar A/B Loop · bike racks out front", "link": "https://lu.ma/example-build-night" }],
+            "recent": [
+                { "title": "Hack for Humanity: Portland, OR", "when": "Sat Nov 7", "note": "70+ signed up" },
+                { "title": "IT & AI In Action: How to Grow Your Business Safely with AI", "when": "Sat Sep 5", "note": "30+ signed up" },
+                { "title": "AI and the Future of Work", "when": "Wed Aug 12", "note": "60+ signed up" },
+                { "title": "Gemini Student Build: Portland", "when": "Sat Jul 25", "note": "30+ signed up" },
+                { "title": "Summer PDX Mixer", "when": "Wed Jul 15", "note": "80+ signed up" }],
+            "ways_in": [
+                { "title": "Come to an event", "text": "Bring a friend, bring a question.", "link": "https://lu.ma/example-calendar" },
+                { "title": "Demo something", "text": "Five minutes and whatever you're building." },
+                { "title": "Host or sponsor", "text": "A room, some food, a co-host with expertise.", "link": "https://www.aicollective.com/partners?chapterId=portland" }],
+            "contact": "chapter@4-pub.org",
+            "links": [{ "label": "Events on Luma", "url": "https://lu.ma/example-calendar" }],
+            "show_committees": true,
+            "members": "2,500+"
+        })).unwrap()
+    }
+
+    /// The same page with event text the parsers can't read.
+    fn portland_raw() -> PageContent {
+        let mut p = portland_sample();
+        p.next[0].when = "Second Thursday in December, doors 6-ish".into();
+        p.next[0].place = "Inner eastside, address on Luma".into();
+        p.recent[0].note = "About seventy, standing room by 7".into();
+        p
+    }
+
+    fn render(page: Option<&PageContent>, bridge: usize) -> String {
+        render_front_page_as("AI Collective Portland", page, &six_committees(), None, false, look(bridge))
+    }
+
+    #[test]
+    fn the_page_fits_every_bridge_and_runs_nothing() {
+        let (sample, raw) = (portland_sample(), portland_raw());
+        let mut no_event = portland_sample();
+        no_event.next.clear();
+        for b in 0..BRIDGES.len() {
+            for (state, page) in [("empty", None), ("filled", Some(&sample)), ("no event", Some(&no_event)), ("raw", Some(&raw))] {
+                let html = render(page, b);
+                println!("bridge {b} {state}: {} bytes", html.len());
+                assert!(html.len() < 30 * 1024, "bridge {b} {state} is {} bytes", html.len());
+                assert!(html.contains(BRIDGES[b].trim()), "exactly the chosen print");
+                assert_eq!(html.matches("class=\"print\"").count(), 1);
+                assert!(!html.contains("<svg class=\"aic\""), "no third-party mark");
+                for no in ["<script", "src=", "@import", "url(", "http://", "/h/", "/j/", "/c/", "<img", "<link"] {
+                    assert!(!html.contains(no), "bridge {b} {state} has {no}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn event_text_reads_as_a_stamp_and_a_chip_or_shows_as_written() {
+        let html = render(Some(&portland_sample()), 0);
+        assert!(html.contains("<time datetime=\"2026-12-10T18:00\">Thursday, Dec 10</time></strong>6–9 pm"), "{html}");
+        assert!(html.contains("<small>DEC</small>10<small>THU</small>"));
+        assert!(html.contains("<abbr class=\"quad\" title=\"Southeast\">SE</abbr><span><strong>Central Eastside</strong>Venue on RSVP"));
+        assert!(html.contains(">RSVP</a>") && html.contains(">Add to calendar</a>") && html.contains(">Directions</a>"));
+        assert!(html.contains("style=\"--w:87%\"") && html.contains("style=\"--w:100%\""), "turnout to scale");
+        assert!(html.contains("AI people, <em>one room at a time.</em>"), "two-line headline");
+        assert!(html.contains("<mark>Come for the demos. Stay for the people you meet.</mark>"));
+        assert!(html.contains("<p class=\"count\"><b>2,500+</b> members</p>"));
+        assert!(html.contains("mailto:chapter@4-pub.org?subject=Raise%20my%20hand%3A%20Technical%20Events"));
+
+        let raw = render(Some(&portland_raw()), 0);
+        assert!(raw.contains("<b>When</b> Second Thursday in December, doors 6-ish"));
+        assert!(raw.contains("<b>Where</b> Inner eastside, address on Luma"));
+        assert!(!raw.contains("class=\"datestamp\"") && !raw.contains("class=\"quad\""));
+        assert!(!raw.contains("Add to calendar"), "no date, no calendar entry");
+        assert!(raw.contains(">Directions</a>"));
+        assert!(raw.contains("About seventy, standing room by 7"));
+        assert_eq!(raw.matches("class=\"bar\"").count(), 4);
+
+        let mut nowhere = portland_raw();
+        nowhere.next[0].place.clear();
+        assert!(!render(Some(&nowhere), 0).contains("Directions"), "no where, no directions");
+    }
+
+    #[test]
+    fn empty_slots_read_as_finished_and_never_instruct() {
+        let html = render(None, 1);
+        assert!(html.contains("<h1 id=\"h\" class=\"vh\">AI Collective Portland</h1>"));
+        assert!(html.contains("Next event coming soon.") && html.contains("Follow the chapter"));
+        assert!(html.contains("Past events and who came are on the chapter page."));
+        assert!(html.contains("<b>Come to an event</b>"));
+        assert!(!html.contains("class=\"count\""), "no figure, no sticker");
+        assert!(html.contains("Community &amp; Education") && !html.contains("Bridging wellness"), "names only");
+        assert!(!html.contains("Raise your hand") && !html.contains("class=\"ask\""), "no contact, no tabs");
+        for no in ["goes here", "waiting for", "co-lead's", "Co-leads:", "[chapter contact", "placeholder", "class=\"ph\""] {
+            assert!(!html.contains(no), "the empty page shows {no:?}");
+        }
+        let mut no_event = portland_sample();
+        no_event.next.clear();
+        let ne = render(Some(&no_event), 2);
+        assert!(ne.contains("Next event coming soon.") && ne.contains("Follow us on Luma") && ne.contains("one room at a time"));
     }
 
     #[test]
