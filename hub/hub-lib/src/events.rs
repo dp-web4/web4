@@ -1501,6 +1501,8 @@ impl HubEvent {
         "chapter_page_set",
         "chapter_page_proposed",
         "chapter_page_discarded",
+        "chapter_agent_asked",
+        "chapter_agent_answered",
         "law_amended",
         "lct_predecessor_attestation_withdrawn",
         "lct_predecessor_attested",
