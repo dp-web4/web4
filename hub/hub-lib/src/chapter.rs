@@ -26,7 +26,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::chapter_page::{is_digest, PagePart, PageVia, NOTHING_PUBLISHED, PAGE_MAINTAINER};
+use crate::chapter_page::{is_digest, AgentOutcome, PagePart, PageVia, NOTHING_PUBLISHED, PAGE_AGENT, PAGE_MAINTAINER};
 use crate::commitments::{AckVia, PartyRef};
 use crate::events::HubEvent;
 
@@ -206,6 +206,31 @@ pub enum ProposalEnd {
     Replaced,
 }
 
+/// One ask to the chapter's own assistant (`hub/docs/PRD_CHAPTER_PAGE_AGENT.md`), and its answer
+/// once it has one. The words are off the ledger, by digest.
+#[derive(Clone, Debug, Serialize)]
+pub struct AgentAsk {
+    pub request_id: String,
+    pub maintainer_id: String,
+    /// The lead who asked, answerable for what comes of it.
+    pub by: String,
+    pub sha256: String,
+    pub at: DateTime<Utc>,
+    pub index: u64,
+    pub answer: Option<AgentAnswer>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct AgentAnswer {
+    pub outcome: AgentOutcome,
+    pub reply_sha256: Option<String>,
+    pub proposal_ids: Vec<String>,
+    /// What the runner said it ran. Claimed, not verified.
+    pub runner: Option<String>,
+    pub at: DateTime<Utc>,
+    pub index: u64,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct ProposalClosed {
     pub how: ProposalEnd,
@@ -224,6 +249,8 @@ pub struct Chapter {
     pub page_versions: Vec<PageVersion>,
     /// Every proposal ever made, open or closed, by id.
     pub proposals: BTreeMap<String, Proposal>,
+    /// Every ask to the chapter's own assistant, answered or not, by request id.
+    pub asks: BTreeMap<String, AgentAsk>,
 }
 
 impl Chapter {
@@ -294,6 +321,20 @@ impl Chapter {
 
     /// A maintainer that has not been stopped. Expiry and whether its lead still leads are the
     /// caller's checks, at the time of the act.
+    /// Asks the chapter's assistant hasn't answered yet, oldest first.
+    pub fn open_asks(&self) -> Vec<&AgentAsk> {
+        let mut v: Vec<&AgentAsk> = self.asks.values().filter(|a| a.answer.is_none()).collect();
+        v.sort_by_key(|a| a.index);
+        v
+    }
+
+    /// Asks, newest first.
+    pub fn recent_asks(&self) -> Vec<&AgentAsk> {
+        let mut v: Vec<&AgentAsk> = self.asks.values().collect();
+        v.sort_by_key(|a| std::cmp::Reverse(a.index));
+        v
+    }
+
     pub fn live_maintainer(&self, maintainer_id: &str) -> Option<&Maintainer> {
         self.maintainers.get(maintainer_id).filter(|m| m.revoked.is_none())
     }
@@ -355,7 +396,7 @@ pub fn check(chapter: &Chapter, event: &HubEvent) -> Result<(), Refusal> {
             if chapter.maintainers.contains_key(maintainer_id) {
                 return Err(Refusal::Conflict(format!("maintainer {maintainer_id} already exists")));
             }
-            if role != PAGE_MAINTAINER {
+            if role != PAGE_MAINTAINER && role != PAGE_AGENT {
                 return Err(Refusal::Invalid(format!("unknown maintainer role {role}")));
             }
             plain(label, MAX_MAINTAINER_LABEL_LEN, "the assistant's name")?;
@@ -439,6 +480,51 @@ pub fn check(chapter: &Chapter, event: &HubEvent) -> Result<(), Refusal> {
                 }
                 Some(_) => Ok(()),
             }
+        }
+        HubEvent::ChapterAgentAsked { request_id, maintainer_id, by, sha256, via, link_digest } => {
+            if request_id.is_empty() || chapter.asks.contains_key(request_id) {
+                return Err(Refusal::Conflict("an ask needs a new id".into()));
+            }
+            if !is_digest(sha256) || sha256 == NOTHING_PUBLISHED {
+                return Err(Refusal::Invalid("an ask is named by its words' sha256: digest".into()));
+            }
+            if *via == AckVia::Link && link_digest.is_none() {
+                return Err(Refusal::Invalid("an ask from a chapter page carries its link digest".into()));
+            }
+            match chapter.live_maintainer(maintainer_id) {
+                None => Err(Refusal::Unknown(format!("no working assistant {maintainer_id}"))),
+                Some(m) if m.role != PAGE_AGENT => {
+                    Err(Refusal::Invalid("asks go to the chapter's own assistant, not a guest assistant".into()))
+                }
+                Some(m) if m.appointed_by != *by => {
+                    Err(Refusal::Invalid("a lead asks through their own appointment".into()))
+                }
+                Some(_) => Ok(()),
+            }
+        }
+        HubEvent::ChapterAgentAnswered { request_id, maintainer_id, reply_sha256, proposal_ids, runner, .. } => {
+            let Some(a) = chapter.asks.get(request_id) else {
+                return Err(Refusal::Unknown(format!("no ask {request_id}")));
+            };
+            if a.answer.is_some() {
+                return Err(Refusal::Conflict("that ask was already answered".into()));
+            }
+            if a.maintainer_id != *maintainer_id {
+                return Err(Refusal::Invalid("an answer comes through the appointment that was asked".into()));
+            }
+            if reply_sha256.as_ref().is_some_and(|d| !is_digest(d)) {
+                return Err(Refusal::Invalid("a reply is named by its words' sha256: digest".into()));
+            }
+            if let Some(r) = runner {
+                plain(r, 200, "the runner's description")?;
+            }
+            for pid in proposal_ids {
+                match chapter.proposals.get(pid) {
+                    Some(p) if p.maintainer_id == *maintainer_id => {}
+                    _ => return Err(Refusal::Invalid(format!("proposal {pid} isn't this assistant's"))),
+                }
+            }
+            Ok(())
         }
         HubEvent::ChapterPageDiscarded { proposal_id, by, .. } => {
             if by.is_empty() {
@@ -625,6 +711,29 @@ pub fn fold(chapter: &mut Chapter, event: &HubEvent, ts: DateTime<Utc>, index: u
         HubEvent::ChapterPageDiscarded { proposal_id, .. } => {
             close_proposals(chapter, ProposalEnd::Discarded, ts, index, |p| p.proposal_id == *proposal_id);
         }
+        HubEvent::ChapterAgentAsked { request_id, maintainer_id, by, sha256, .. } => {
+            chapter.asks.insert(request_id.clone(), AgentAsk {
+                request_id: request_id.clone(),
+                maintainer_id: maintainer_id.clone(),
+                by: by.clone(),
+                sha256: sha256.clone(),
+                at: ts,
+                index,
+                answer: None,
+            });
+        }
+        HubEvent::ChapterAgentAnswered { request_id, outcome, reply_sha256, proposal_ids, runner, .. } => {
+            if let Some(a) = chapter.asks.get_mut(request_id) {
+                a.answer = Some(AgentAnswer {
+                    outcome: *outcome,
+                    reply_sha256: reply_sha256.clone(),
+                    proposal_ids: proposal_ids.clone(),
+                    runner: runner.clone(),
+                    at: ts,
+                    index,
+                });
+            }
+        }
         HubEvent::RequestPassed { request_id, to_committee_id, to_commitment_id, by, via, .. } => {
             if let Some(r) = chapter.requests.get_mut(request_id) {
                 r.passes.push(Pass {
@@ -685,6 +794,11 @@ pub fn rebind(chapter: &mut Chapter, party_id: &str, member: &str) {
     for p in chapter.proposals.values_mut() {
         if p.by == party_id {
             p.by = member.to_string();
+        }
+    }
+    for a in chapter.asks.values_mut() {
+        if a.by == party_id {
+            a.by = member.to_string();
         }
     }
 }

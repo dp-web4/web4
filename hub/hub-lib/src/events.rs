@@ -1313,6 +1313,35 @@ pub enum HubEvent {
         link_digest: Option<String>,
     },
 
+    /// A chapter lead asked the chapter's own assistant (`hub/docs/PRD_CHAPTER_PAGE_AGENT.md`)
+    /// for something, through their `page_agent` appointment `maintainer_id`. The words live in
+    /// the operator's agent file; only their digest is here. The hub's runner wakes on it.
+    ChapterAgentAsked {
+        request_id: String,
+        maintainer_id: String,
+        by: String,
+        sha256: String,
+        via: crate::commitments::AckVia,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        link_digest: Option<String>,
+    },
+
+    /// The chapter's assistant answered an ask. `reply_sha256` names its words in the agent
+    /// file; `proposal_ids` the drafts it left (or published, if the law allowed). `runner` is
+    /// what the operator's runner **says** it ran (model, CLI version, host): claimed, not
+    /// verified. A `failed` answer is recorded by the hub itself after the runner gave up.
+    ChapterAgentAnswered {
+        request_id: String,
+        maintainer_id: String,
+        outcome: crate::chapter_page::AgentOutcome,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reply_sha256: Option<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        proposal_ids: Vec<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        runner: Option<String>,
+    },
+
     /// A society published one of its LCTs upward so the hub registry can serve
     /// its presence. Publication is itself a witnessed act (the ledger entry IS
     /// the witness — canon genesis step 7); the registry is a projection over
@@ -1472,6 +1501,8 @@ impl HubEvent {
         "chapter_page_set",
         "chapter_page_proposed",
         "chapter_page_discarded",
+        "chapter_agent_asked",
+        "chapter_agent_answered",
         "law_amended",
         "lct_predecessor_attestation_withdrawn",
         "lct_predecessor_attested",
@@ -1586,6 +1617,8 @@ impl HubEvent {
             Self::ChapterPageSet { .. } => "chapter_page_set",
             Self::ChapterPageProposed { .. } => "chapter_page_proposed",
             Self::ChapterPageDiscarded { .. } => "chapter_page_discarded",
+            Self::ChapterAgentAsked { .. } => "chapter_agent_asked",
+            Self::ChapterAgentAnswered { .. } => "chapter_agent_answered",
             Self::LctPublished { .. } => "lct_published",
             Self::LctRotated { .. } => "lct_rotated",
             Self::LctPredecessorAttested { .. } => "lct_predecessor_attested",

@@ -39,6 +39,15 @@ pub const MAX_BRIEF: usize = 8000;
 /// norms on `r6.role == page_maintainer`, its context is the brief.
 pub const PAGE_MAINTAINER: &str = "page_maintainer";
 
+/// The page role the hub fills with **its own** agent (`hub/docs/PRD_CHAPTER_PAGE_AGENT.md`):
+/// appointed per lead, woken by a lead's ask, acting only through a job the hub hands its runner.
+/// Its law is the norms on `r6.role == page_agent`; with no law loaded it escalates.
+pub const PAGE_AGENT: &str = "page_agent";
+
+/// What a lead may ask the chapter's assistant in one go, and what it may answer.
+pub const MAX_ASK: usize = 2000;
+pub const MAX_REPLY: usize = 4000;
+
 /// The default brief, with `{chapter}` for the chapter's name.
 pub const DEFAULT_BRIEF: &str = include_str!("../../examples/chapter/page-maintainer/brief.md");
 
@@ -118,6 +127,37 @@ impl PagePart {
         match self {
             PagePart::Page => "page",
             PagePart::Brief => "brief",
+        }
+    }
+}
+
+/// What came of an ask to the chapter's assistant.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentOutcome {
+    /// It left a draft waiting for a lead.
+    Proposed,
+    /// The law let its change go live at once.
+    Published,
+    /// What it wrote is already what the page says.
+    Unchanged,
+    /// It only answered in words (a question back, or the law lets it do nothing else).
+    Talked,
+    /// What it wrote didn't pass the page's rules, so nothing was stored.
+    Refused,
+    /// The runner couldn't get an answer; recorded by the hub so the ask doesn't wait forever.
+    Failed,
+}
+
+impl AgentOutcome {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            AgentOutcome::Proposed => "proposed",
+            AgentOutcome::Published => "published",
+            AgentOutcome::Unchanged => "unchanged",
+            AgentOutcome::Talked => "talked",
+            AgentOutcome::Refused => "refused",
+            AgentOutcome::Failed => "failed",
         }
     }
 }

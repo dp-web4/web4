@@ -1480,6 +1480,17 @@ fn event_summary(event: &HubEvent) -> String {
             "🗑 proposal <code>{}</code> discarded by <code>{}</code> <span class=\"muted\">(via {:?})</span>",
             html_escape(proposal_id), html_escape(by), via,
         ),
+        HubEvent::ChapterAgentAsked { request_id, maintainer_id, by, sha256, .. } => format!(
+            "💬 <code>{}</code> asked the chapter's assistant <code>{}</code>: ask <code>{}</code> \
+             <span class=\"muted\">(words {})</span>",
+            html_escape(by), html_escape(maintainer_id), html_escape(request_id), html_escape(sha256),
+        ),
+        HubEvent::ChapterAgentAnswered { request_id, outcome, proposal_ids, runner, .. } => format!(
+            "🤖 the chapter's assistant answered ask <code>{}</code>: {}{} <span class=\"muted\">(runner says: {})</span>",
+            html_escape(request_id), outcome.as_str(),
+            if proposal_ids.is_empty() { String::new() } else { format!(", drafts {}", html_escape(&proposal_ids.join(", "))) },
+            html_escape(runner.as_deref().unwrap_or("hub")),
+        ),
         HubEvent::LctPublished { lct_id, document, published_by, provenance, .. } => format!(
             "🪪 LCT published: {:?} <code>{}</code> by {} <span class=\"muted\">({:?})</span>",
             document.entity_type,

@@ -2626,6 +2626,8 @@ pub fn router(state: RestState) -> Router {
         .route("/a/:token", get(commitments::maintainer_packet))
         .route("/a/:token/page", get(commitments::maintainer_page_get).post(commitments::maintainer_page_set))
         .route("/a/:token/brief", post(commitments::maintainer_brief_set))
+        .route("/h/:token/agent/ask", post(commitments::home_agent_ask))
+        .route("/h/:token/agent/:request_id", get(commitments::home_agent_view))
         .route("/g/:token", post(commitments::link_give))
         // Commitments K5b: the page an invite opens. Reading it writes nothing; the join is the
         // browser's own signed POST to /members/join, carrying the invite as evidence for law.
@@ -8381,6 +8383,8 @@ pub fn admin_api_router(state: RestState) -> Router {
         .route("/admin/api/chapter/notices", get(commitments::admin_notices_due))
         .route("/admin/api/chapter/notices/sent", post(commitments::admin_notice_sent))
         .route("/admin/api/chapter/home-link/:party_id", get(commitments::admin_home_link))
+        .route("/admin/api/chapter/agent/jobs", get(commitments::admin_agent_jobs))
+        .route("/admin/api/chapter/agent/jobs/:token", get(commitments::admin_agent_job).post(commitments::admin_agent_answer))
         .route("/admin/api/chapter/invite", post(commitments::admin_invite))
         .route("/admin/api/contacts/:party_id/erase", post(commitments::admin_contact_erase))
         .route("/admin/api/contacts/:party_id/invite", post(commitments::admin_invite_mint))
