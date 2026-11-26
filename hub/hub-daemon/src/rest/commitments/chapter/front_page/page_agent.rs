@@ -287,7 +287,8 @@ pub(crate) fn answer_schema() -> serde_json::Value {
             "contact": line(cp::MAX_CONTACT),
             "links": { "type": "array", "maxItems": cp::MAX_LINKS, "items": { "type": "object", "additionalProperties": false,
                 "required": ["label", "url"], "properties": { "label": line(cp::MAX_LABEL), "url": line(cp::MAX_URL) } } },
-            "show_committees": { "type": "boolean" } } });
+            "show_committees": { "type": "boolean" },
+            "members": line(cp::MAX_MEMBERS) } });
     serde_json::json!({ "type": "object", "additionalProperties": false, "required": ["reply", "page", "brief"],
         "properties": {
             "reply": line(MAX_REPLY),
@@ -1014,13 +1015,65 @@ mod tests {
         assert_eq!(page["additionalProperties"], false);
         assert_eq!(page["properties"]["headline"]["maxLength"], cp::MAX_HEADLINE);
         assert!(schema["required"].as_array().unwrap().iter().any(|v| v == "reply"));
+        assert_eq!(page["properties"]["members"]["maxLength"], cp::MAX_MEMBERS);
         // Every field the page has, the assistant can write. Its draft replaces the whole page,
         // so a field missing here would be silently cleared by its next draft (Nova on #1002).
+        // The fixture fills every field: an empty `members` isn't serialized, so a minimal page
+        // would hide it from this comparison.
         let page_fields: std::collections::BTreeSet<String> = serde_json::to_value(
-            serde_json::from_value::<PageContent>(serde_json::json!({ "headline": "x" })).unwrap())
+            serde_json::from_value::<PageContent>(full_page()).unwrap())
             .unwrap().as_object().unwrap().keys().cloned().collect();
         let schema_fields: std::collections::BTreeSet<String> =
             page["properties"].as_object().unwrap().keys().cloned().collect();
         assert_eq!(page_fields, schema_fields, "answer_schema() must name every PageContent field");
+    }
+
+    /// A page with every field filled, as the assistant would write it.
+    fn full_page() -> serde_json::Value {
+        let ev = serde_json::json!({ "title": "Demo night", "when": "Thu Dec 10, 6-9 pm", "where": "SE · Hawthorne Hall",
+            "note": "40 came", "link": "https://lu.ma/example" });
+        serde_json::json!({ "headline": "Portland builds with AI", "story": "We meet monthly.",
+            "next": [ev.clone()], "recent": [ev],
+            "ways_in": [{ "title": "Come", "text": "Every month.", "link": "https://lu.ma/example" }],
+            "contact": "hello@example.org",
+            "links": [{ "label": "Events", "url": "https://lu.ma/example" }],
+            "show_committees": true, "members": "2,500+" })
+    }
+
+    #[test]
+    fn the_answer_schema_names_every_field_the_page_stores() {
+        let page: PageContent = serde_json::from_value(full_page()).unwrap();
+        page.validate().unwrap();
+        let stored = serde_json::to_value(&page).unwrap();
+        let schema = answer_schema();
+        let shape = &schema["properties"]["page"]["anyOf"][0];
+        let keys = |v: &serde_json::Value| v.as_object().unwrap().keys().cloned().collect::<Vec<_>>();
+        for k in keys(&stored) {
+            assert!(shape["properties"].get(&k).is_some(), "the assistant can't write `{k}`, so a rewrite would drop it");
+        }
+        for (list, item) in [("next", 0), ("recent", 0), ("ways_in", 0), ("links", 0)] {
+            let props = &shape["properties"][list]["items"]["properties"];
+            for k in keys(&stored[list][item]) {
+                assert!(props.get(&k).is_some(), "the assistant can't write `{list}[].{k}`");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_rewrite_by_the_assistant_keeps_the_member_count() {
+        let (_d, s, lead, other, _member) = chapter(None).await;
+        let id = ask(&s, &lead, "Change the headline").await;
+        let tok = job_for(&s, &id).await;
+        let out = answer_job(&s, &tok, answer("Done.", Some(full_page()))).await.unwrap();
+        let pid = out["proposal_ids"][0].as_str().unwrap().to_string();
+        {
+            let _serial = COMMITMENT_LOCK.lock().await;
+            publish_proposal(&s, &other.party_id, &pid, None).await.unwrap();
+        }
+        let st = state_of(&s);
+        match current_page(&st, read_page_file(&s.paths.root).as_ref()) {
+            InForce::Live(p, _) => assert_eq!(p.members, "2,500+"),
+            _ => panic!("the published page is live"),
+        }
     }
 }

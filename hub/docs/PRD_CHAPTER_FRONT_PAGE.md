@@ -16,8 +16,8 @@ Nobody maintains websites by hand any more. The chapter's officers have AI assis
 
 ## 2. Who it's for
 
-- **First: the chapter co-leads.** The first thing they see is a page that shows what it can do for members, and how to hand it to their assistant. Each placeholder says what goes there and why it helps a member.
-- **Then: anyone who heard the chapter's name.** In a few seconds, on a phone, they want to know: is this for me, what's next, how do I get in. The page answers in one screen: a headline, a short story, then three cards (Next up, Lately, Get involved), and where questions go.
+- **First: the chapter co-leads.** Their chapter page shows what the front page can do for members, and how to hand it to their assistant. The public page never shows instructions: before anything is published, every slot falls back to a finished-looking starter (a bridge print, "Next event coming soon", the committees).
+- **Then: anyone who heard the chapter's name.** In a few seconds, on a phone, they want to know: is this for me, what's next, how do I get in. The page answers in one screen: a hero poster (headline over a print of a Portland bridge) with the next event right under it, then Lately, Get involved, the committees, and where questions go. The design ("Pole Flyer") and its stylesheet and prints are in `hub-daemon/src/rest/commitments/chapter/front_assets/`.
 
 ## 3. The role: page maintainer
 
@@ -44,7 +44,7 @@ A **chapter lead** (a lead of the committee that answers the chapter's email) fi
 | `POST /a/:token/page` | A whole new page, as JSON. The answer's `result` is `published`, `unchanged` or `waiting_for_a_co_lead`; on a mistake, an `error` naming the field. |
 | `POST /a/:token/brief` | A whole new brief, as text (at most 8000 characters). |
 
-The page is **structured content, never markup**: `headline`, `story`, `next[]`, `recent[]`, `ways_in[]`, `contact`, `links[]` and `show_committees`.
+The page is **structured content, never markup**: `headline`, `story`, `next[]`, `recent[]`, `ways_in[]`, `contact`, `links[]`, `show_committees` and `members` (the chapter's own member count, like "2,500+"; optional, and left out of the stored JSON when empty so older pages keep their digests).
 - Every value is plain text, rendered escaped.
 - Links must be `https://`.
 - `contact` is one email address or an https link.

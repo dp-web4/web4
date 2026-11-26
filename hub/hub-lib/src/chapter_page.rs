@@ -28,6 +28,7 @@ pub const MAX_NOTE: usize = 160;
 pub const MAX_WAY_TITLE: usize = 50;
 pub const MAX_WAY_TEXT: usize = 200;
 pub const MAX_CONTACT: usize = 120;
+pub const MAX_MEMBERS: usize = 12;
 pub const MAX_LABEL: usize = 40;
 pub const MAX_URL: usize = 300;
 pub const MAX_EVENTS: usize = 3;
@@ -77,6 +78,13 @@ pub struct PageContent {
     /// List the chapter's committees (names and purposes, never people).
     #[serde(default = "yes")]
     pub show_committees: bool,
+    /// How many people are in this chapter, as the chapter says it: "2,500+". This chapter's
+    /// members only, never the AI Collective's worldwide count. Empty shows no count.
+    ///
+    /// Left out of the JSON when empty, so pages published before this field existed keep
+    /// their digests.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub members: String,
 }
 
 fn yes() -> bool {
@@ -228,6 +236,17 @@ fn link(url: &str, field: &str, required: bool) -> Result<(), Invalid> {
     Ok(())
 }
 
+/// A member count as people write it: "2,500+", "300", "2.5k+". Starts with a digit.
+pub fn is_member_count(s: &str) -> bool {
+    let t = s.trim();
+    let body = t.trim_end_matches('+');
+    let body = body.strip_suffix(['k', 'K']).unwrap_or(body);
+    t.starts_with(|c: char| c.is_ascii_digit())
+        && t.matches('+').count() <= 1
+        && !body.is_empty()
+        && body.chars().all(|c| c.is_ascii_digit() || c == ',' || c == '.')
+}
+
 /// A plausible single email address (no display name, no list).
 pub fn is_email(s: &str) -> bool {
     let t = s.trim();
@@ -279,6 +298,10 @@ impl PageContent {
             line(&l.label, MAX_LABEL, &format!("links[{i}].label"), true)?;
             link(&l.url, &format!("links[{i}].url"), true)?;
         }
+        line(&self.members, MAX_MEMBERS, "members", false)?;
+        if !self.members.trim().is_empty() && !is_member_count(&self.members) {
+            return Err(Invalid("members is a number of people, like 2,500+ or 2.5k+ (digits, commas, an optional k and +)".into()));
+        }
         Ok(())
     }
 
@@ -300,6 +323,7 @@ impl PageContent {
             contact: self.contact.trim().into(),
             links: self.links.iter().map(|l| PageLink { label: l.label.trim().into(), url: l.url.trim().into() }).collect(),
             show_committees: self.show_committees,
+            members: self.members.trim().into(),
         }
     }
 
@@ -416,5 +440,22 @@ mod tests {
         assert!(b.contains("AI Collective Portland's front page"));
         validate_brief(&b).expect("default brief validates");
         assert_eq!(brief_digest(&b), brief_digest(&format!("{b}\n\n")));
+    }
+
+    #[test]
+    fn a_page_without_a_member_count_keeps_its_digest() {
+        let p = PageContent { headline: "Hi".into(), show_committees: true, ..Default::default() };
+        let json = serde_json::to_string(&p.normalized()).unwrap();
+        assert!(!json.contains("members"), "{json}");
+        assert_eq!(p.digest(), format!("sha256:{}", web4_core::crypto::sha256_hex(
+            br#"{"headline":"Hi","story":"","next":[],"recent":[],"ways_in":[],"contact":"","links":[],"show_committees":true}"#)));
+        let with = PageContent { members: " 2,500+ ".into(), ..p.clone() };
+        assert!(with.validate().is_ok());
+        assert_ne!(with.digest(), p.digest());
+        for ok in ["2,500+", "300", "2.5k+", "1200"] { assert!(is_member_count(ok), "{ok}"); }
+        for bad in ["lots", "+2500", "2,500 members", "2500++", "k+"] {
+            assert!(!is_member_count(bad), "{bad}");
+            assert!(PageContent { members: bad.into(), ..p.clone() }.validate().is_err(), "{bad}");
+        }
     }
 }
