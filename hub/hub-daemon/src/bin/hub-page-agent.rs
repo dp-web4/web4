@@ -12,7 +12,8 @@
 //!    settings, hooks or session saved, in an empty directory, under the login of the user this
 //!    runs as (or a `claude setup-token` token from `oauth_token_file`);
 //! 4. hands the structured answer back, `POST .../jobs/:token`. If the hub refuses the draft
-//!    (422), it retries once with the reason; if that fails too, it reports the refusal.
+//!    (422), it retries once with the reason; if that fails too, or the hourly cap leaves no run
+//!    for a retry, it reports the refusal.
 //!
 //! This process holds the subscription login and the model choice, and nothing else: it reaches
 //! only the job routes, and the hub validates and governs whatever comes back. The model can't
@@ -121,8 +122,13 @@ impl Runner {
     }
 
     /// Run the model once: no tools, no MCP, no settings, no saved session, in an empty
-    /// directory. The prompt goes on stdin.
+    /// directory. The prompt goes on stdin. Every run counts against the hourly cap, retries
+    /// included, and refuses to start past it. The timeout covers the whole exchange with the
+    /// CLI, writing the prompt included; on timeout the CLI is killed.
     async fn run_model(&mut self, system: &str, prompt: &str, schema: &serde_json::Value) -> Result<ModelAnswer> {
+        if self.at_cap() {
+            bail!("at {} model runs this hour", self.cfg.max_runs_per_hour);
+        }
         self.runs.push_back(Instant::now());
         let mut cmd = tokio::process::Command::new(&self.cfg.claude);
         cmd.current_dir(&self.workdir)
@@ -141,10 +147,23 @@ impl Runner {
         }
         let mut child = cmd.spawn().with_context(|| format!("starting {}", self.cfg.claude))?;
         let mut stdin = child.stdin.take().context("stdin")?;
-        stdin.write_all(prompt.as_bytes()).await?;
-        drop(stdin);
-        let out = tokio::time::timeout(Duration::from_secs(self.cfg.timeout_secs), child.wait_with_output()).await
-            .context("the model run timed out")??;
+        let write = async move {
+            let wrote = stdin.write_all(prompt.as_bytes()).await;
+            drop(stdin);
+            // A CLI that exits without reading its prompt shows up in its exit status instead.
+            match wrote {
+                Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+                other => other,
+            }
+        };
+        // Dropping this on timeout drops the child, and kill_on_drop ends it.
+        let exchange = async move {
+            let (wrote, out) = tokio::join!(write, child.wait_with_output());
+            wrote.context("writing the prompt")?;
+            anyhow::Ok(out?)
+        };
+        let out = tokio::time::timeout(Duration::from_secs(self.cfg.timeout_secs), exchange).await
+            .map_err(|_| anyhow::anyhow!("the model run timed out after {}s", self.cfg.timeout_secs))??;
         if !out.status.success() {
             bail!("the CLI exited {}: {}", out.status, String::from_utf8_lossy(&out.stderr).chars().take(400).collect::<String>());
         }
@@ -193,6 +212,14 @@ impl Runner {
         if resp.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
             // The hub refused the draft. Once more, with the reason; then report the refusal.
             let why = error_text(resp).await;
+            if self.at_cap() {
+                // No run left this hour for a retry: report the refusal instead of overrunning.
+                let refused = serde_json::json!({ "reply": answer.reply, "refused": why,
+                    "runner": self.runner_line(answer.model.as_deref()) });
+                self.post_answer(&token, &refused).await?.error_for_status()?;
+                eprintln!("hub-page-agent: ask {request_id}: draft refused ({why}); at the hourly cap, so reported without a retry");
+                return Ok(true);
+            }
             eprintln!("hub-page-agent: ask {request_id}: draft refused ({why}); retrying once");
             let retry = format!("{prompt}\n\n## Your last answer was refused\n\nThe hub refused the page you wrote: {why}\nWrite it again so it passes, or set page to null and say what you need.\n");
             answer = self.run_model(&system, &retry, &schema).await.with_context(|| format!("ask {request_id}, retry"))?;
@@ -256,13 +283,38 @@ async fn error_text(resp: reqwest::Response) -> String {
     v["error"].as_str().or_else(|| v["message"].as_str()).unwrap_or("no reason given").chars().take(300).collect()
 }
 
+/// The hub's operator plane must be plain http on a loopback address. Parsed as a URL, so user
+/// information (`http://127.0.0.1:8782@example.org`) can't pass for the host.
 fn loopback_only(url: &str) -> Result<()> {
-    let rest = url.strip_prefix("http://").context("hub_admin_url must be http:// on loopback")?;
-    let host = rest.split(['/', ':']).next().unwrap_or("");
-    if !matches!(host, "127.0.0.1" | "localhost") && !rest.starts_with("[::1]") {
-        bail!("hub_admin_url must be on loopback (127.0.0.1, localhost or [::1]), not {host}");
+    let u = reqwest::Url::parse(url).context("hub_admin_url isn't a URL")?;
+    if u.scheme() != "http" {
+        bail!("hub_admin_url must be http:// on loopback");
+    }
+    if !u.username().is_empty() || u.password().is_some() {
+        bail!("hub_admin_url can't carry user information");
+    }
+    let host = u.host_str().unwrap_or("");
+    let ok = host.eq_ignore_ascii_case("localhost")
+        || host.trim_start_matches('[').trim_end_matches(']').parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback());
+    if !ok {
+        bail!("hub_admin_url must be on loopback (127.0.0.1, localhost or [::1]), not {}",
+            u.host_str().unwrap_or("no host"));
     }
     Ok(())
+}
+
+/// The runner's HTTP client: short timeouts, and redirects never followed, so a reply from the
+/// hub can't send the job token anywhere else.
+fn http_client() -> Result<reqwest::Client> {
+    Ok(reqwest::Client::builder().timeout(Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::none()).build()?)
+}
+
+/// A fresh, empty working directory for the CLI.
+fn empty_workdir() -> Result<PathBuf> {
+    let d = std::env::temp_dir().join(format!("hub-page-agent-{}", std::process::id()));
+    std::fs::create_dir_all(&d).with_context(|| format!("creating {}", d.display()))?;
+    Ok(d)
 }
 
 #[tokio::main]
@@ -281,14 +333,10 @@ async fn main() -> Result<()> {
     };
     let mut r = Runner {
         operator_token,
-        http: reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?,
+        http: http_client()?,
         runs: VecDeque::new(),
         cli_version,
-        workdir: {
-            let d = std::env::temp_dir().join(format!("hub-page-agent-{}", std::process::id()));
-            std::fs::create_dir_all(&d).with_context(|| format!("creating {}", d.display()))?;
-            d
-        },
+        workdir: empty_workdir()?,
         cfg,
     };
     loop {
@@ -333,7 +381,105 @@ mod tests {
         assert!(loopback_only("http://127.0.0.1:8780").is_ok());
         assert!(loopback_only("http://localhost:8780/").is_ok());
         assert!(loopback_only("http://[::1]:8780").is_ok());
+        assert!(loopback_only("http://127.0.0.2:8780").is_ok(), "all of 127/8 is loopback");
         assert!(loopback_only("http://chapter.example.org").is_err());
         assert!(loopback_only("https://127.0.0.1:8780").is_err());
+        // User information is not the host (web4 #1006).
+        assert!(loopback_only("http://127.0.0.1:8782@example.org").is_err());
+        assert!(loopback_only("http://user@127.0.0.1:8782").is_err());
+        assert!(loopback_only("http://localhost.example.org:8782").is_err());
+        assert!(loopback_only("http://[::2]:8782").is_err());
+        assert!(loopback_only("http://10.0.0.1:8782").is_err());
+    }
+
+    /// A fake Claude CLI: a shell script in its own directory.
+    fn fake_cli(dir: &std::path::Path, body: &str) -> String {
+        use std::os::unix::fs::PermissionsExt;
+        let p = dir.join("claude");
+        std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+        p.display().to_string()
+    }
+
+    fn runner(hub: &str, claude: String, cap: usize, timeout_secs: u64, workdir: PathBuf) -> Runner {
+        Runner {
+            cfg: Config { hub_admin_url: hub.into(), claude, model: None, timeout_secs, max_runs_per_hour: cap,
+                host_label: "test".into(), oauth_token_file: None, operator_token_file: None },
+            http: http_client().unwrap(), runs: VecDeque::new(), cli_version: "0".into(), operator_token: None, workdir,
+        }
+    }
+
+    #[tokio::test]
+    async fn the_timeout_covers_writing_the_prompt() {
+        // A CLI that never reads stdin, and a prompt far bigger than a pipe holds.
+        let d = tempfile::tempdir().unwrap();
+        let cli = fake_cli(d.path(), "exec sleep 30");
+        let mut r = runner("http://127.0.0.1:1", cli, 5, 1, d.path().to_path_buf());
+        let started = Instant::now();
+        let e = r.run_model("system", &"x".repeat(4 << 20), &serde_json::json!({})).await.unwrap_err();
+        assert!(e.to_string().contains("timed out"), "{e:#}");
+        assert!(started.elapsed() < Duration::from_secs(10), "bounded by the timeout, not the CLI");
+    }
+
+    /// A fake hub job plane: one job, whose first answer is refused (422). Counts what it sees.
+    async fn fake_hub(redirect_jobs: bool) -> (String, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+        use axum::{response::IntoResponse, routing::get, Json, Router};
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let (s1, s2, s3, s4) = (seen.clone(), seen.clone(), seen.clone(), seen.clone());
+        let app = Router::new()
+            .route("/admin/api/chapter/agent/jobs", get(move || { let s1 = s1.clone(); async move {
+                s1.lock().unwrap().push("jobs".into());
+                if redirect_jobs {
+                    return axum::response::Redirect::temporary("/elsewhere").into_response();
+                }
+                Json(serde_json::json!({ "jobs": [{ "request_id": "r1", "token": "t1" }] })).into_response()
+            } }))
+            .route("/elsewhere", get(move || { let s4 = s4.clone(); async move { s4.lock().unwrap().push("elsewhere".into()); "" } }))
+            .route("/admin/api/chapter/agent/jobs/t1", get(move || { let s2 = s2.clone(); async move {
+                s2.lock().unwrap().push("job".into());
+                Json(serde_json::json!({ "system": "s", "prompt": "p", "schema": {} }))
+            } }).post(move |Json(body): Json<serde_json::Value>| { let s3 = s3.clone(); async move {
+                let mut g = s3.lock().unwrap();
+                let first = !g.iter().any(|x| x.starts_with("answer"));
+                g.push(format!("answer {body}"));
+                if first {
+                    (axum::http::StatusCode::UNPROCESSABLE_ENTITY, Json(serde_json::json!({ "error": "headline too long" }))).into_response()
+                } else {
+                    Json(serde_json::json!({ "outcome": "refused" })).into_response()
+                }
+            } }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (format!("http://{addr}"), seen)
+    }
+
+    #[tokio::test]
+    async fn a_retry_never_runs_past_the_hourly_cap() {
+        let d = tempfile::tempdir().unwrap();
+        let count = d.path().join("runs");
+        let cli = fake_cli(d.path(), &format!("cat >/dev/null; echo run >> {}; \
+            echo '{{\"is_error\":false,\"structured_output\":{{\"reply\":\"Drafted.\",\"page\":{{\"headline\":\"Hi\"}},\"brief\":null}}}}'",
+            count.display()));
+        let (hub, seen) = fake_hub(false).await;
+        let mut r = runner(&hub, cli, 1, 30, d.path().to_path_buf());
+        assert!(r.pass(false).await.unwrap(), "took the job");
+        let runs = std::fs::read_to_string(&count).unwrap();
+        assert_eq!(runs.lines().count(), 1, "cap 1: one model run, no retry");
+        let seen = seen.lock().unwrap().clone();
+        let answers: Vec<&String> = seen.iter().filter(|x| x.starts_with("answer")).collect();
+        assert_eq!(answers.len(), 2, "the draft, then the refusal reported honestly: {seen:?}");
+        assert!(answers[1].contains("\"refused\":\"headline too long\""), "{}", answers[1]);
+        // And the next pass takes no job at all.
+        assert!(!r.pass(false).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn the_runner_follows_no_redirect() {
+        let d = tempfile::tempdir().unwrap();
+        let (hub, seen) = fake_hub(true).await;
+        let mut r = runner(&hub, "false".into(), 5, 30, d.path().to_path_buf());
+        assert!(r.pass(false).await.is_err());
+        assert!(!seen.lock().unwrap().iter().any(|x| x == "elsewhere"), "the redirect wasn't followed");
     }
 }
