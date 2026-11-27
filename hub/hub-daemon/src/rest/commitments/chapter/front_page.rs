@@ -803,7 +803,7 @@ pub(crate) async fn front_page_section(s: &RestState, state: &HubState, book: &C
     };
     let mut html = String::from("<section><h2>Front page</h2>");
     match current_page(state, file.as_ref()) {
-        InForce::Nothing => html.push_str("<p>Nothing published yet, so visitors see the starter page: a bridge print, \"Next event coming soon\" and the committees. <a href=\"/\">See it</a>.</p>"),
+        InForce::Nothing => html.push_str("<p>Nothing published yet, so visitors see a sample page, labelled as placeholder content to be removed, until you publish the chapter's own. <a href=\"/\">See it</a>.</p>"),
         InForce::Live(_, v) => html.push_str(&format!("<p>Last changed {} by {}. <a href=\"/\">See it</a>.</p>",
             esc(&local_day(v.at)), esc(&who(&v)))),
         InForce::Damaged(v) => html.push_str(&format!("<div class=\"pending\"><p><strong>The page is damaged.</strong> \
@@ -1067,7 +1067,7 @@ pub(crate) async fn chapter_front_page(s: &RestState) -> Option<axum::response::
     let file = read_page_file(&s.paths.root);
     let html = match current_page(&state, file.as_ref()) {
         InForce::Live(p, v) => render_front_page(&s.hub_name, Some(&p), &committee_lines(&state), Some((v.at, v.via)), false),
-        InForce::Nothing => render_front_page(&s.hub_name, None, &committee_lines(&state), None, false),
+        InForce::Nothing => render_unpublished(&s.hub_name, &committee_lines(&state), FrontLook::now()),
         // Not the placeholders: those tell co-leads nothing was ever published, which isn't so.
         InForce::Damaged(_) => render_being_updated(&s.hub_name, &committee_lines(&state)),
     };
@@ -1405,6 +1405,27 @@ fn page_foot(kept: &str, luma: Option<&str>, links: &[cp::PageLink]) -> String {
     h
 }
 
+/// Sample content for a chapter that hasn't published its page yet, so the design isn't shown
+/// empty. Only for the hub it was written for; every other hub keeps the bare starter page.
+/// Labelled on the page as placeholder content, to be removed. It has no upcoming event (no
+/// made-up date anyone could turn up for) and no contact (no unconfirmed address).
+const SAMPLE_PAGE: &str = include_str!("front_assets/sample-page.json");
+const SAMPLE_FOR: &str = "AI Collective Portland";
+
+fn sample_page(hub_name: &str) -> Option<PageContent> {
+    if hub_name.trim() != SAMPLE_FOR { return None; }
+    serde_json::from_str::<PageContent>(SAMPLE_PAGE).ok().filter(|p| p.validate().is_ok())
+}
+
+/// What visitors see before anything is published: the labelled sample where there is one,
+/// otherwise the starter page.
+pub(crate) fn render_unpublished(hub_name: &str, committees: &[(String, String)], look: FrontLook) -> String {
+    match sample_page(hub_name) {
+        Some(p) => render_page(hub_name, Some(&p), committees, None, false, true, look),
+        None => render_front_page_as(hub_name, None, committees, None, false, look),
+    }
+}
+
 /// The front page, rendered. Pure: content in, HTML out, every value escaped.
 pub(crate) fn render_front_page(hub_name: &str, page: Option<&PageContent>, committees: &[(String, String)],
     updated: Option<(DateTime<Utc>, PageVia)>, preview: bool) -> String
@@ -1420,6 +1441,12 @@ pub(crate) fn render_front_page(hub_name: &str, page: Option<&PageContent>, comm
 pub(crate) fn render_front_page_as(hub_name: &str, page: Option<&PageContent>, committees: &[(String, String)],
     updated: Option<(DateTime<Utc>, PageVia)>, preview: bool, look: FrontLook) -> String
 {
+    render_page(hub_name, page, committees, updated, preview, false, look)
+}
+
+fn render_page(hub_name: &str, page: Option<&PageContent>, committees: &[(String, String)],
+    updated: Option<(DateTime<Utc>, PageVia)>, preview: bool, sample: bool, look: FrontLook) -> String
+{
     let empty = PageContent { show_committees: true, ..Default::default() };
     let p = page.unwrap_or(&empty);
     let luma = luma_link(p);
@@ -1427,6 +1454,10 @@ pub(crate) fn render_front_page_as(hub_name: &str, page: Option<&PageContent>, c
     let mut h = String::new();
     if preview {
         h.push_str("<div class=\"preview\">Preview: not published yet</div>");
+    }
+    if sample {
+        h.push_str("<p class=\"sample-note\" role=\"note\"><b>Placeholder content, to be removed.</b> \
+            This is sample text until the chapter's co-leads publish their own page.</p>");
     }
     h.push_str(&page_top(hub_name));
     h.push_str("<main class=\"wrap\"><div class=\"lead\">");
@@ -1471,6 +1502,7 @@ pub(crate) fn render_front_page_as(hub_name: &str, page: Option<&PageContent>, c
     let kept = match updated {
         Some((at, via)) => format!("Kept by the chapter's co-leads{}. Updated {}.",
             if via == PageVia::Maintainer { " and their assistant" } else { "" }, local_day(at)),
+        None if sample => "Placeholder content, to be removed when the chapter's co-leads publish their page.".to_string(),
         None => "Kept by the chapter's co-leads.".to_string(),
     };
     h.push_str(&page_foot(&kept, luma, &p.links));
@@ -1479,11 +1511,19 @@ pub(crate) fn render_front_page_as(hub_name: &str, page: Option<&PageContent>, c
     front_document(hub_name, &description, &h)
 }
 
+/// The tab icon: a bridge in the chapter's two inks on its teal. Inlined as a `data:` URL, so
+/// it costs no request and needs no route; the public CSP's `img-src 'self' data:` allows it.
+const FAVICON: &str = include_str!("front_assets/favicon.svg");
+
+fn favicon_link() -> String {
+    format!("<link rel=\"icon\" type=\"image/svg+xml\" href=\"data:image/svg+xml,{}\">", q(FAVICON.trim()))
+}
+
 fn front_document(hub_name: &str, description: &str, body: &str) -> String {
     format!("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"color-scheme\" content=\"light dark\">\
-        <title>{}</title><meta name=\"description\" content=\"{}\"><style>{FRONT_CSS}</style></head><body>{body}</body></html>",
-        esc(hub_name), esc(description))
+        <title>{}</title><meta name=\"description\" content=\"{}\">{}<style>{FRONT_CSS}</style></head><body>{body}</body></html>",
+        esc(hub_name), esc(description), favicon_link())
 }
 
 /// What visitors see while the page in force is damaged: the chapter's name and teams, and no
@@ -1872,6 +1912,8 @@ mod tests {
             for (name, page) in [("empty", None), ("filled", Some(portland_sample())), ("noevent", Some(no_event.clone())), ("raw", Some(portland_raw()))] {
                 std::fs::write(dir.join(format!("pole-{name}-{bridge}.html")), render(page.as_ref(), bridge)).unwrap();
             }
+            std::fs::write(dir.join(format!("pole-sample-{bridge}.html")),
+                render_unpublished("AI Collective Portland", &six_committees(), look(bridge))).unwrap();
         }
         // A real page to try, checked as the hub checks a maintainer's POST.
         if let Ok(path) = std::env::var("FRONT_PAGE_TRY") {
@@ -1949,7 +1991,7 @@ mod tests {
                 assert!(html.contains(BRIDGES[b].trim()), "exactly the chosen print");
                 assert_eq!(html.matches("class=\"print\"").count(), 1);
                 assert!(!html.contains("<svg class=\"aic\""), "no third-party mark");
-                for no in ["<script", "src=", "@import", "url(", "http://", "/h/", "/j/", "/c/", "<img", "<link"] {
+                for no in ["<script", "src=", "@import", "url(", "http://", "/h/", "/j/", "/c/", "<img"] {
                     assert!(!html.contains(no), "bridge {b} {state} has {no}");
                 }
             }
@@ -2000,6 +2042,46 @@ mod tests {
         no_event.next.clear();
         let ne = render(Some(&no_event), 2);
         assert!(ne.contains("Next event coming soon.") && ne.contains("Follow us on Luma") && ne.contains("one room at a time"));
+    }
+
+    #[test]
+    fn an_unpublished_portland_page_shows_the_sample_labelled_as_placeholder() {
+        let p = sample_page("AI Collective Portland").expect("the sample parses and passes the page's own rules");
+        assert!(p.next.is_empty(), "no made-up upcoming event");
+        assert!(p.contact.is_empty(), "no unconfirmed contact address");
+        for b in 0..BRIDGES.len() {
+            let html = render_unpublished("AI Collective Portland", &six_committees(), look(b));
+            assert!(html.contains("class=\"sample-note\" role=\"note\"><b>Placeholder content, to be removed.</b>"));
+            assert!(html.contains("Placeholder content, to be removed when the chapter&#39;s co-leads publish their page.")
+                || html.contains("Placeholder content, to be removed when the chapter's co-leads publish their page."));
+            assert!(html.contains("one room at a time") && html.contains("Next event coming soon."));
+            assert!(html.contains("Hack for Humanity") && html.contains("<b>2,500+</b> members"));
+            assert!(!html.contains("Raise your hand") && !html.contains("mailto:"), "no contact, no tabs");
+            assert!(html.len() < 30 * 1024);
+            for no in ["<script", "src=", "url(", "http://", "/h/", "/j/", "/c/", "<img"] {
+                assert!(!html.contains(no), "the sample page has {no}");
+            }
+        }
+    }
+
+    #[test]
+    fn other_hubs_keep_the_bare_starter_page() {
+        assert!(sample_page("AI Collective Seattle").is_none() && sample_page("Chapter").is_none());
+        let html = render_unpublished("AI Collective Seattle", &six_committees(), look(0));
+        assert!(!html.contains("class=\"sample-note\"") && !html.contains("Placeholder content"));
+        assert!(html.contains("Next event coming soon."));
+    }
+
+    #[test]
+    fn the_only_link_is_the_inline_icon() {
+        for html in [render(None, 0), render(Some(&portland_sample()), 1),
+                     render_unpublished("AI Collective Portland", &six_committees(), look(2))] {
+            assert_eq!(html.matches("<link").count(), 1, "one link element");
+            assert!(html.contains("<link rel=\"icon\" type=\"image/svg+xml\" href=\"data:image/svg+xml,%3Csvg"));
+            let href = html.split("href=\"data:image/svg+xml,").nth(1).unwrap().split('"').next().unwrap();
+            assert!(!href.contains(['<', '>', '"', ' ']), "the icon is fully percent-encoded");
+        }
+        assert!(!FAVICON.contains("<script") && !FAVICON.contains("href") && !FAVICON.contains(" on"));
     }
 
     #[test]
