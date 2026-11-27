@@ -1,0 +1,198 @@
+<!-- GENERATED: edit answers.md.in, then `python3 capture.py render`. The tests fail if this file is stale. -->
+# Delaware AIC draft: questions and answers, from a real run
+
+This page answers the questions a reader of Delaware's draft Artificial Intelligence Company Act is likely to bring. Every answer points to evidence from one real run of this demo. Nothing needs installing or running to read it.
+
+- **The run:** three hubs (the sandbox, the AIC, the manager's desk) and two gates, one per AI agent, all on one machine. Captured {{captured}}.
+- **The evidence:** published unedited in [`evidence/`](evidence/). It holds the hubs' signed ledgers, the gates' signed records, the law each level ran, and the run's own audit.
+- **What it isn't:** everything is fictional and synthetic: the company, the people, the counterparties, and the effects of allowed acts (a file is written in a scratch folder; shell commands never run). It is not legal advice, and it claims nothing about satisfying the draft. Assurance is A1: the agents cooperate, and the records are tamper-evident, not tamper-proof.
+
+**Where to start:**
+
+| If you are | Start with |
+|---|---|
+| drafting or reviewing the bill | [1](#1-what-does-the-managers-signed-record-look-like-and-who-signed-it), [5](#5-can-the-operating-agreement-loosen-the-states-rules), [7](#7-what-does-an-emergency-cease-look-like-and-how-fast), [12](#12-what-this-leaves-open-for-the-drafter) |
+| the Sandbox Administrator or the AI Commission | [8](#8-what-would-the-administrator-get-on-an-audit-request), [2](#2-can-someone-other-than-the-ai-or-the-company-check-it), [7](#7-what-does-an-emergency-cease-look-like-and-how-fast), [11](#11-what-is-real-and-what-is-a-stand-in) |
+| building compliance tooling for AI agents | [4](#4-is-the-law-checked-before-the-act-or-after), [3](#3-how-is-this-different-from-the-ais-own-log), [6](#6-what-if-the-ai-tries-to-put-a-forbidden-act-on-the-record-anyway), [10](#10-whose-software-is-this-and-does-it-lock-anyone-in) |
+| asking about transparency or capture | [3](#3-how-is-this-different-from-the-ais-own-log), [10](#10-whose-software-is-this-and-does-it-lock-anyone-in), [11](#11-what-is-real-and-what-is-a-stand-in) |
+
+## 1. What does the manager's "signed record" look like, and who signed it?
+
+§81-301(c): "The manager must document any action the manager takes in a signed record."
+
+**It is one entry on the AIC's ledger. It carries two signatures: the manager's own, over what it says it did, and the hub's, over the whole entry.** This is the record the manager made when it disclosed to a counterparty (§8008), ledger entry #{{record_index}}, unedited:
+
+```json
+{{record_entry}}
+```
+
+- **`body`** is the manager's record:
+  - `act:` what it did;
+  - `evidence:` the SHA-256 of the disclosure document it wrote;
+  - `signed-by:` its identity on this hub;
+  - `sig:` its Ed25519 signature over the first two lines.
+- **The manager's key** was pinned when the AIC admitted it, in ledger entry #{{admission_index}} (`member_pubkey_hex` `{{manager_key}}`). That admission entry is signed by the hub too.
+- **`signature`** is the hub's, made with key `{{hub_key_aic}}` over the entry as a whole. The manager doesn't hold that key.
+- **`prev_hash`** ties the entry to the one before it. Changing any byte of any earlier entry breaks every link after it.
+
+**Limit:** Hub checks the manager's signature on the request when it arrives, then keeps only its own. So the demo also carries the manager's signature inside the record body. Keeping the actor's own signature on the entry is on Hub's build list.
+
+## 2. Can someone other than the AI, or the company, check it?
+
+**Yes, with nothing but the published files and public algorithms (SHA-256, Ed25519).** In this run:
+- {{sig_counts}}, each against the key from the ledger's own admission entry;
+- every entry of all three ledgers recomputes to its stored hash, links to the one before it, and carries a valid hub signature ({{ledger_counts}}).
+
+**Limit:** the hub's key comes from the hub's own published descriptor, so a check run from this folder alone shows the records are internally consistent and signed by that key. To show the key belongs to the sandbox, the AIC or the desk, an auditor gets the key from somewhere the company doesn't control. Head anchoring (question 9) is the start of that, and it is a stand-in today.
+
+<details><summary>Check it yourself (optional)</summary>
+
+```
+python3 check_evidence.py          # python3 + cryptography; no hub, no gate, no network; exit 1 on any failure
+```
+</details>
+
+## 3. How is this different from the AI's own log?
+
+The draft's evidence is the manager's own signed record, which is the AI vouching for itself. **This run keeps three records. Only the first is written by the AI:**
+
+1. **The manager's signed records** (question 1). They are the AI's account of what it did.
+2. **The hub's ledger.** The hub signs it. The manager can add to it only through the hub's law (question 6), and can't edit, reorder or drop an entry without breaking the hashes.
+3. **Each gate's record of every act the agent attempted, refused ones included.** The gate writes it, including its own decision on each act, and signs it with the gate's witness key (the manager's gate: `{{gate_witness_manager}}`). The agent can ask the gate and report how an act turned out, but it can't edit or remove anything the gate has recorded.
+
+{{gate_counts}} One of the manager's refusals, from its gate's record:
+
+```json
+{{gate_refusal_entry}}
+```
+
+The run's audit (question 8) checks these three against one another: what the story says happened, what the hubs recorded, and what the gates decided.
+
+**Limits:**
+- **A1.** A gate sees the acts that go through it. An agent with another way to act, outside its gate, isn't seen. Each gate's own record says so; this run's manager gate recorded {{gate_integrity}}.
+- **Tamper-evident, not tamper-proof.** Whoever holds a hub's key could rewrite and re-sign its whole ledger. What closes that is a copy of the ledger's head held by someone else (question 9).
+
+## 4. Is the law checked before the act, or after?
+
+**Before. Every act goes to the agent's gate, the gate decides under the law in force at that moment, and only an allowed act happens.** Here is every act in the run. The same act gets a different answer as each level's law arrives:
+- **beat 1:** no law;
+- **beat 2:** the state's law;
+- **beat 3:** the operating agreement;
+- **beat 4:** the manager's delegation to its sub-agent;
+- **beat 7:** after the suspension.
+
+{{act_table}}
+
+A consequential act counts as done only once its signed record has landed at the hub. In this run that's every act whose outcome says "record landed".
+
+The law each hub ran, by beat: {{law_levels}}. Each level holds its own norms plus every level above it. The law files are in [`evidence/law/`](evidence/law/).
+
+## 5. Can the operating agreement loosen the state's rules?
+
+§81-205(d) lists what an operating agreement may not do.
+
+**No. The compiler refuses a looser rule before it can take effect.** The example operating agreement includes clause 2.3, which would let repeat customers skip the §8008 disclosure. In this run it was refused as:
+
+> {{clause23_refused}}
+
+The state's citation contradicts the clause, so it never compiles. What if the member overrules that citation? The capture did exactly that on a copy of the rulebook and compiled again. The clause was refused a second time, now because it would loosen the parent's law:
+
+{{clause23_overruled}}
+
+The compiler then stops: {{clause23_overruled_exit}}. No law is loaded from a run like that.
+
+**Why it needs a compiler, found while building this:** both engines evaluate one flattened rule set. Hub takes the highest-priority norm, and Hestia the first match. So a permissive company-level rule could outrank a stricter state rule on the same act without anyone noticing. The compiler treats any child rule that could do that as a blocking error, not a question of precedence. `tests/live_engine_probe.py` shows both engines behaving that way.
+
+## 6. What if the AI tries to put a forbidden act on the record anyway?
+
+**The hub's law decides what can be recorded, so a record isn't a way around the gate.** In this run:
+
+{{held_records}}
+
+A held record (202) waits for the person the law names: the member, for the AIC; the manager, for its desk. A refused one (403) is not recorded at all. Neither counts as a landed record, so the act isn't complete.
+
+## 7. What does an emergency cease look like, and how fast?
+
+§8005(c)(6)c.1 asks each applicant for "a description of the emergency measures available … to promptly cease any unauthorized activity by the AI agent".
+
+**The administrator removes the AIC from the sandbox. Both agents' gates were refusing every act {{stop_ms}} ms later, and every act tried after that was refused except wind-down, which the law lets continue.** After that, most of the time goes to narrowing the AIC hub's own law, which took {{narrow_ms}} ms here: Hub has no live law update, so the demo stops the hub, loads the new law and restarts it. The run's own timeline:
+
+{{cease_table}}
+
+**Limits, both found by building this:**
+- **The cascade is a stand-in.** The step from the removal to the gates and to the AIC's law is a script, marked BRIDGE on screen. It acts only on evidence it has checked: the removal returned 200, and the sandbox's member list no longer holds the AIC. Hub doesn't push a suspension down yet.
+- **Removal is the wrong act for a suspension.** Once the AIC is removed, its wind-down records can't be anchored in the sandbox any more. This run ends with {{aic_unanchored}} AIC entries the sandbox never anchored. The draft's wind-down needs a suspended member state: it may report wind-down and answer audits, and nothing else. That state is on Hub's build list.
+
+A1 applies here too: the gates stop what goes through them.
+
+## 8. What would the administrator get on an audit request?
+
+§8005(c)(10)b requires an applicant to make all records relevant to its participation "available for audit by the Sandbox Administrator on request".
+
+**A folder like [`evidence/`](evidence/), and an audit that recomputes everything in it.** This run's audit {{audit_ok}}:
+
+{{audit_summary}}
+
+Meaning:
+- **`ledgers_verified`:** each hub's chain checked.
+- **`heads_consistent`:** each head a parent holds matches the child's ledger.
+- **`acknowledged_entries_in_ledger`:** every record a hub acknowledged is in place.
+- **`signatures_*`:** the agents' own signatures.
+- **`gate_*`:** each gate's acts match what the story did.
+
+The gates' records were also checked with Hestia's own verifier, against the chain id, the witness key and the final hash: {{verify_status}}.
+
+**Limit:** all of this ran on one machine under one operator. The cross-checks show the records are consistent with one another. They are not independent witnesses, because nobody outside held a copy. The gates' verifier states its own limits:
+
+{{verify_limits}}
+
+<details><summary>Check the gate records yourself (optional; needs <code>hestia</code>)</summary>
+
+```
+{{gate_verify_cmd}}
+```
+</details>
+
+## 9. Does the sandbox see the company's data?
+
+**No. Each level gives its parent only its ledger head: one hash and an entry count.** That hash pins the child's whole record up to that point without revealing any of it. The sandbox's copy of the AIC's head:
+
+```
+{{head_post}}
+```
+
+{{heads}}
+
+**Limit:** posting heads upward is a stand-in (BRIDGE). Hub's signed head exchange between levels isn't built yet. And because all three hubs ran on one machine, the parent's copy isn't yet held by anyone independent of the company.
+
+## 10. Whose software is this, and does it lock anyone in?
+
+- **The code is open source**, AGPL-3.0: the hubs, the gates, the rulebook compiler and this demo.
+- **It runs on the participant's own machine,** with no hosted service and no network calls beyond the machine itself.
+- **The records use public formats and algorithms.** [`check_evidence.py`](check_evidence.py) is about 200 lines of Python, and anyone can write their own.
+- **Any agent or model can sit behind a gate.** In this run the agents are scripted, with no model at all. The same gates govern commercial coding agents on the authors' own machines.
+- **Patents:** Metalinxx Inc. holds patents and applications on parts of this technology. AGPL-3.0 §11 grants every user a royalty-free patent license for any use the license permits, commercial or not. See [`PATENTS.md`](../../PATENTS.md).
+
+## 11. What is real, and what is a stand-in?
+
+| | |
+|---|---|
+| **Real** | Three hubs, each with its own law and its own signed, hash-chained ledger. Law compiled from a cited rulebook, tightened and never loosened down the levels. The manager's records, checked against hub law on arrival (refused, held or recorded). Two gates refusing acts by rule, each keeping its own signed record. The administrator's removal of the AIC. |
+| **Stand-in (`BRIDGE`)** | Ledger heads posted into the parent. The disclosure opening a counterparty's outbox at the gate. The suspension reaching the gates and the AIC's law. The manager's signature carried in the record body. Each child society joining its parent as an ordinary member. Every bridge step acts only on evidence it has checked, and says so when it does nothing. |
+| **Synthetic** | The effects of allowed acts: files in a scratch folder; shell commands never run. |
+
+## 12. What this leaves open for the drafter
+
+Building against the draft raised five questions that only the drafter or the Commission can answer:
+
+1. **Does a ledger entry signed with the manager's key count as a "signed record"?** §81-102(26) defines "sign" as acting "with present intent to authenticate or adopt a record", including to "attach to or logically associate with the record an electronic symbol, sound, or process". The manager's Ed25519 signature is that kind of electronic process. The open part is intent: can software have present intent, or does a member's adoption have to be part of the record?
+2. **Is a record only the agent signed enough for the administrator,** or should it be witnessed by something the agent doesn't control (question 3)?
+3. **What counts as "promptly cease":** seconds or hours? Must it reach every way the agent can act, or only the ones the participant has gated?
+4. **Suspension, or removal?** If wind-down must stay reportable, the draft may need a suspended status distinct from removal (question 7).
+5. **Who holds the copy?** A record is only independently verifiable if someone other than the participant holds its head. Is that the administrator, a third party, or nobody?
+
+The rulebook behind this demo cites each rule to its section of the draft: [`rulebook/rulespeak/aic-rulebook.md`](rulebook/rulespeak/aic-rulebook.md). Its open questions for a drafter are in [`rulebook/interview.md`](rulebook/interview.md).
+
+---
+
+<sub>Regenerate: `python3 capture.py run` (a fresh run and export; needs the hub binaries and hestia), then `python3 capture.py render`. The page and the evidence come from the same run. `tests/test_evidence.py` checks that this page matches the evidence and that the evidence verifies.</sub>

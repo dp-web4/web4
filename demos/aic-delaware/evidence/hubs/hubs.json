@@ -1,0 +1,17 @@
+{
+  "de-sandbox": {
+    "name": "Delaware sandbox (L0)",
+    "hub_id": "86e950d4-82e2-45e0-af34-0946d447221e",
+    "record_topic": "809512fe-74b9-4856-9f3e-39541c767519"
+  },
+  "aic": {
+    "name": "Example Parts AIC (L1)",
+    "hub_id": "72f35ac9-e7fd-43b0-96fd-2321230a85c7",
+    "record_topic": "b9eb643b-0759-494a-9087-3ab52452ef0a"
+  },
+  "desk": {
+    "name": "The manager's desk (L2)",
+    "hub_id": "b58e7384-0989-419c-b47f-95c1c4cac169",
+    "record_topic": "aaf2f510-d894-43f1-9949-880461de7099"
+  }
+}

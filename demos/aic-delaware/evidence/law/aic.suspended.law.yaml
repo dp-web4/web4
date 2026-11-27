@@ -1,0 +1,23 @@
+version: "9.0.0"
+norms:
+  - id: SUSPENDED-WIND-DOWN
+    selector: r6.request.payload.body
+    operator: "matches"
+    value: "^act: wind_down"
+    decision: allow
+    priority: 1001
+    description: "Wind-down records continue (r-08)."
+  - id: SUSPENDED-ALL-ELSE
+    selector: r6.request.payload.body
+    operator: "matches"
+    value: "^act: "
+    decision: deny
+    priority: 1000
+    description: "Suspended by the sandbox: no other records (r-07)."
+  - id: DE-DEFAULT-ALLOW
+    selector: r6.request.action
+    operator: "!="
+    value: __never_match__
+    decision: allow
+    priority: 0
+    description: "base"

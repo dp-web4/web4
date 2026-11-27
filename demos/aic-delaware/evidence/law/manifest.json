@@ -1,0 +1,43 @@
+{
+  "tool": "rulebook_to_web4 0.1.0",
+  "generated": "2026-11-26T19:51:57",
+  "input": {
+    "path": "aic-rulebook.json",
+    "sha256": "695f634806aab2a3d101fb2203e0b0a0037337eb6d656bfadee8153719c29d75",
+    "draft": "1"
+  },
+  "outputs": {
+    "conformance.json": "806a579924f92dd51149609e8c5d2a397e3d84279a6931a15297a1f62b6b0db0",
+    "conformance.md": "af3c37b453d2363270f2716f79f52659338ea23fe1f03817152dea0d11bd9c2c",
+    "lawbook.json": "9e3ee20b4664114dad40c1e97c3da6e6f509b7082f0d6bbc12748de986433fb9",
+    "societies/aic/law.candidate.yaml": "5935aea0cc42351e8922451700c26b8ef51feaa0e6687f9855e42e30bb63a933",
+    "societies/aic/law.ratified.yaml": "d7cafbe98dd53614a8fad9289ebe38baa733068f50ef44bbec3a5c3519b8e2cc",
+    "societies/de-sandbox/law.candidate.yaml": "a3692e850e2daa374dac91919ca5a089b70481da6d1dcbcd091683e3175e602b",
+    "societies/de-sandbox/law.ratified.yaml": "5095540bdf15e908be8494f019fd3ac8c29ca1d7561bca8fb42930c289335c91",
+    "societies/desk/law.candidate.yaml": "c810b8c0e158f887d860a1606428a6fcf73f002112b34dc2aa27de82b7fba62b",
+    "societies/desk/law.ratified.yaml": "8cb67bb9cf6a6dbef558815db3fb979abe7e8ca0cbdea8900d7059056eb27959",
+    "societies/h-manager/hestia-policy.candidate.json": "fb272cbb7c59acdaf08ae10929b8962b13ed49661719b1f45a6d82529992f84e",
+    "societies/h-manager/hestia-policy.ratified.json": "3c792057fc24b9cbc90a7e068fcc76ba3b7ee5e14b5b2bb756a84ff0820a2ccb",
+    "societies/h-manager/role-overlays.candidate.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "societies/h-manager/role-overlays.ratified.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "societies/h-procure/hestia-policy.candidate.json": "bc900bc7dc92bea74fb4082612b42ffa3917177803d6ee1c6bebf8bf5be19762",
+    "societies/h-procure/hestia-policy.ratified.json": "b5b634427c57949ebb5019d6451ecbaf816d9f14da1448b8bc6a6b3e813a7e9d",
+    "societies/h-procure/role-overlays.candidate.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "societies/h-procure/role-overlays.ratified.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "society-graph.ttl": "9250580f04df21d7d269fff9392ed0d6cc799d961c98809ff4e89af7150619fe",
+    "witnesses.md": "3f15a098580f4ab7378a3f4f3c6b0910e21680af1ce88fc608314900dd6c2ce1"
+  },
+  "local_only": true,
+  "network": "none",
+  "blocking": {
+    "unexpected": [],
+    "known": [
+      {
+        "kind": "NormRefusedRuleConflicted",
+        "detail": "OA-REPEAT-NO-DISCLOSURE (r-23) \u2014 resolve the conflict, then it compiles",
+        "reason": "operating agreement clause 2.3 (r-23) is the demo's intentional exclusion: the draft's \u00a78008 contradicts it, so it never compiles. Beat 3 shows the refusal. If the citation were overruled it would still be rejected as ChildOverrideWidensParent, which is NOT allowlisted."
+      }
+    ]
+  },
+  "activation_allowed": true
+}

@@ -2,6 +2,8 @@
 
 A working example, on one machine, of a company managed by an AI agent and governed by three nested levels of law. It is built against Delaware's draft Artificial Intelligence Company Act.
 
+**Reading, not running: [ANSWERS.md](ANSWERS.md).** It answers the questions a drafter, the Sandbox Administrator, or a compliance builder is likely to bring (what the manager's signed record looks like, who can check it, what an emergency cease does, what's still a stand-in), each with evidence from one real run published in [`evidence/`](evidence/). `python3 check_evidence.py` re-checks that evidence offline, with no hub or gate running.
+
 - **The draft:** dated June 2, 2026, not yet introduced ([PDF via Spotlight Delaware](https://spotlightdelaware.org/wp-content/uploads/2026/06/HB-re-Artificial-Intelligence-Regulatory-Sandbox-Company-1.pdf)).
 - **What it uses:**
   - three real Web4 Hubs, one per level of law, each with its own law and its own signed, hash-chained ledger;
@@ -87,11 +89,15 @@ python3 tests/live_engine_probe.py ~/probe-run   # after `up ~/probe-run`: prior
 
 ## Files
 
-- `aic_demo.py`: the driver. Stdlib, plus `cryptography` for Ed25519.
+- `aic_demo.py`: the driver. Stdlib, plus `cryptography` for Ed25519. It keeps a structured trail of every step in `RUN/state.json`.
+- `ANSWERS.md`: questions and answers from one real run. Generated from `answers.md.in` and `evidence/` by `capture.py render`; the tests fail if it is stale.
+- `evidence/`: that run, published unedited: the three hubs' ledgers and descriptors, both gates' signed record segments with Hestia's anchored verification, the law each level ran, the run's trail, story output and audit. No keys.
+- `capture.py`: `run` makes a fresh run and exports it to `evidence/`; `render` rebuilds `ANSWERS.md`.
+- `check_evidence.py`: checks `evidence/` offline (ledger hashes, links and hub signatures; the agents' own signatures against their admitted keys; head anchors; gate record links). Stdlib plus `cryptography`.
 - `rulebook/effortless-rulebook/aic-rulebook.json`: the rulebook, in Effortless Rulebook format, the source of truth. 19 rules, each cited to the draft's section or to the operating agreement. 5 societies, 16 norms, 28 conformance scenarios.
 - `rulebook/rulespeak/aic-rulebook.md`, `rulebook/interview.md`: rendered views. The interview holds three open questions for a drafter, starting with whether a hub-witnessed, agent-signed record is a "signed record".
 - `rulebook/evidence/operating-agreement-example.md`: the fictional operating agreement.
 - `rulebook/rulebook.py`: build, confirm and answer. Stdlib.
 - `rulebook/known-exceptions.json`: blocking transpiler findings that are known and intended, each with a reason.
 - `tools/rulebook_to_web4.py`: rulebook → hub law YAML, Hestia policy, society graph and conformance corpus. Stdlib.
-- `tests/`: unit tests that need no daemons (`python3 -m unittest discover -s tests`), and `live_engine_probe.py`, which needs a fresh `up` run.
+- `tests/`: unit tests that need no daemons (`python3 -m unittest discover -s tests`), including `test_evidence.py` (the published evidence verifies, the checker fails on tampering, `ANSWERS.md` matches the evidence), and `live_engine_probe.py`, which needs a fresh `up` run.
