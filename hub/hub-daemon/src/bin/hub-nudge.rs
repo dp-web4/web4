@@ -538,14 +538,26 @@ struct Notice {
 /// nothing to do, not an error. A dry run prints subjects and recipients, never bodies: each body
 /// carries the person's chapter page link.
 ///
-/// The hub lists a notice until it hears it was sent, so a report that does not get through is
-/// kept in `state` and the pass stops; the next one re-reports it before sending anything. The
+/// The hub lists a notice until it hears it was sent, so a *sent* report that does not get through
+/// is kept in `state` and the pass stops; the next one re-reports it before sending anything. The
 /// same rule as nudge attempts: a lost report must not become the same email every five minutes.
+///
+/// A *failed-send* report is never kept or replayed. The hub counts every `ok: false` it receives
+/// and stops listing a notice after its `NOTICE_MAX_ATTEMPTS` (3) of them, so replaying one whose answer
+/// was lost (but which the hub may have recorded) could count a single failed send several times
+/// and drop the welcome. Left alone, the worst case is one uncounted failure: the hub lists the
+/// notice again and the next pass makes a real second attempt.
 async fn notice_pass(hub: &dyn Hub, mail: &dyn Mailer, state: &mut CarrierState, dry_run: bool) -> Result<u32> {
     if !dry_run {
         let pending = std::mem::take(&mut state.unreported_notices);
         let mut first_err = None;
         for r in pending {
+            if !r.ok {
+                // Never replay a failed-send report (see above). Only a state file from before this
+                // rule could hold one.
+                tracing::warn!("dropping a kept failed-send report for {}: replaying it could count one failure twice", r.notice_id);
+                continue;
+            }
             if let Err(e) = hub.notice_sent(&r.notice_id, r.ok).await {
                 if first_err.is_none() {
                     first_err = Some(e);
@@ -570,9 +582,15 @@ async fn notice_pass(hub: &dyn Hub, mail: &dyn Mailer, state: &mut CarrierState,
             Err(e) => { tracing::warn!("notice {} failed: {e:#}", n.notice_id); false }
         };
         if let Err(e) = hub.notice_sent(&n.notice_id, ok).await {
+            if !ok {
+                return Err(e.context(format!("notice {} failed to send and its failure report may not have reached \
+                    the hub; not replayed, because the hub counts each failure report as another failed send. If \
+                    the hub didn't record it, it lists the notice again and the next pass retries the send",
+                    n.notice_id)));
+            }
             state.unreported_notices.push(NoticeReport { notice_id: n.notice_id.clone(), ok });
-            return Err(e.context(format!("notice {} was {} but the hub has not recorded it; kept, and \
-                re-reported before the next notice is sent", n.notice_id, if ok { "sent" } else { "attempted" })));
+            return Err(e.context(format!("notice {} was sent but the hub has not recorded it; kept, and \
+                re-reported before the next notice is sent", n.notice_id)));
         }
     }
     Ok(sent)
@@ -632,13 +650,18 @@ mod tests {
         /// reported sent.
         notices: Mutex<Vec<Notice>>,
         notice_reports: Mutex<Vec<(String, bool)>>,
+        /// Failure reports per notice, counted like `admin_notice_sent`: one per request.
+        notice_failures: Mutex<std::collections::HashMap<String, u32>>,
+        /// Commit the next N notice reports, then answer with an error as if the reply was lost.
+        lose_acks: std::sync::atomic::AtomicU32,
     }
 
     impl FakeHub {
         fn new(answer: HubAnswer) -> Self {
             Self { answer: Mutex::new(Some(answer)), reports: Mutex::new(Vec::new()), refuse: false,
                 broken: std::sync::atomic::AtomicBool::new(false), notices: Mutex::new(Vec::new()),
-                notice_reports: Mutex::new(Vec::new()) }
+                notice_reports: Mutex::new(Vec::new()), notice_failures: Mutex::new(Default::default()),
+                lose_acks: std::sync::atomic::AtomicU32::new(0) }
         }
     }
 
@@ -655,7 +678,10 @@ mod tests {
             Ok(if self.refuse { Report::Refused("400".into()) } else { Report::Recorded })
         }
         async fn notices(&self) -> Result<Option<Vec<Notice>>> {
-            Ok(Some(self.notices.lock().unwrap().clone()))
+            let failures = self.notice_failures.lock().unwrap();
+            Ok(Some(self.notices.lock().unwrap().iter()
+                .filter(|n| failures.get(&n.notice_id).copied().unwrap_or(0) < NOTICE_MAX_ATTEMPTS_AT_HUB)
+                .cloned().collect()))
         }
         async fn notice_sent(&self, notice_id: &str, ok: bool) -> Result<()> {
             if self.broken.load(std::sync::atomic::Ordering::SeqCst) {
@@ -664,6 +690,13 @@ mod tests {
             self.notice_reports.lock().unwrap().push((notice_id.into(), ok));
             if ok {
                 self.notices.lock().unwrap().retain(|n| n.notice_id != notice_id);
+            } else {
+                *self.notice_failures.lock().unwrap().entry(notice_id.into()).or_insert(0) += 1;
+            }
+            let lose = self.lose_acks.load(std::sync::atomic::Ordering::SeqCst);
+            if lose > 0 {
+                self.lose_acks.store(lose - 1, std::sync::atomic::Ordering::SeqCst);
+                bail!("connection reset after the hub committed the report");
             }
             Ok(())
         }
@@ -931,6 +964,63 @@ mod tests {
         assert!(state.unreported_notices.is_empty());
         assert_eq!(hub.notice_reports.lock().unwrap().clone(),
             vec![("welcome.natalie".to_string(), true), ("welcome.yemaya".to_string(), true)]);
+    }
+
+    /// The hub's limit (`NOTICE_MAX_ATTEMPTS` in rest/commitments/chapter.rs): after this many
+    /// failure reports a notice is no longer listed.
+    const NOTICE_MAX_ATTEMPTS_AT_HUB: u32 = 3;
+
+    /// Fails the first send, then delivers.
+    #[derive(Default)]
+    struct FlakyMail {
+        attempts: Mutex<Vec<(String, bool)>>,
+    }
+
+    #[async_trait::async_trait]
+    impl Mailer for FlakyMail {
+        async fn send(&self, to: &str, _subject: &str, _body: &str) -> Result<()> {
+            let mut a = self.attempts.lock().unwrap();
+            let first = a.is_empty();
+            a.push((to.into(), !first));
+            if first { bail!("421 try again later") } else { Ok(()) }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_failed_send_report_whose_answer_is_lost_is_never_replayed_so_one_failure_counts_once() {
+        let hub = FakeHub::new(HubAnswer::Nudges(Vec::new()));
+        *hub.notices.lock().unwrap() = vec![notice("welcome.natalie", "n@example.org")];
+        let mail = FlakyMail::default();
+        let mut state = CarrierState::default();
+        // Pass 1: SMTP fails; the hub commits the failure report, but its answer is lost.
+        hub.lose_acks.store(1, std::sync::atomic::Ordering::SeqCst);
+        let e = notice_pass(&hub, &mail, &mut state, false).await.unwrap_err();
+        assert!(format!("{e:#}").contains("not replayed"), "{e:#}");
+        assert!(state.unreported_notices.is_empty(), "a failed-send report is never kept for replay");
+        // Passes 2 and 3 replay nothing, so the hub still counts one failure and still lists the
+        // welcome; pass 2 makes a real second attempt, which delivers.
+        assert_eq!(notice_pass(&hub, &mail, &mut state, false).await.unwrap(), 1);
+        assert_eq!(notice_pass(&hub, &mail, &mut state, false).await.unwrap(), 0, "delivered and recorded: not sent again");
+        assert_eq!(hub.notice_failures.lock().unwrap().get("welcome.natalie").copied(), Some(1),
+            "one real failure, counted once");
+        assert_eq!(*mail.attempts.lock().unwrap(),
+            vec![("n@example.org".to_string(), false), ("n@example.org".to_string(), true)]);
+        assert_eq!(hub.notice_reports.lock().unwrap().clone(),
+            vec![("welcome.natalie".to_string(), false), ("welcome.natalie".to_string(), true)]);
+    }
+
+    #[tokio::test]
+    async fn a_kept_failed_send_report_from_an_older_state_file_is_dropped_not_replayed() {
+        let hub = FakeHub::new(HubAnswer::Nudges(Vec::new()));
+        let mail = FakeMail::default();
+        let mut state = CarrierState { unreported_notices: vec![
+            NoticeReport { notice_id: "welcome.yemaya".into(), ok: false },
+            NoticeReport { notice_id: "welcome.natalie".into(), ok: true },
+        ], ..Default::default() };
+        assert_eq!(notice_pass(&hub, &mail, &mut state, false).await.unwrap(), 0);
+        assert!(state.unreported_notices.is_empty());
+        assert_eq!(hub.notice_reports.lock().unwrap().clone(), vec![("welcome.natalie".to_string(), true)]);
+        assert!(hub.notice_failures.lock().unwrap().is_empty());
     }
 
     #[test]
