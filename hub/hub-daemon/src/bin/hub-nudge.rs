@@ -892,7 +892,7 @@ mod tests {
         let cfg = Config {
             hub_admin_url: "http://127.0.0.1:8772".into(),
             smtp_url: "smtps://smtp.example.org:465".into(),
-            from: "hub@example.org".into(),
+            from: "Hub <hub@example.org>".into(),
             operator_address: "op@example.org".into(),
             netrc_file: Some(dir.path().join("netrc")),
             curl: fake,
@@ -911,7 +911,7 @@ mod tests {
         assert!(argv.iter().any(|a| a == "--ssl-reqd"), "never send in the clear: {argv:?}");
         assert!(!argv.iter().any(|a| a == "--user" || a == "-u"), "the login stays in the file: {argv:?}");
         let sent = std::fs::read_to_string(&msg).unwrap();
-        assert!(sent.starts_with("From: hub@example.org\r\nTo: sam@example.org\r\n"), "{sent}");
+        assert!(sent.starts_with("From: Hub <hub@example.org>\r\nTo: sam@example.org\r\n"), "{sent}");
         assert!(sent.ends_with("\r\n\r\nAlex owns Venue AV.\r\n"), "{sent}");
     }
 
