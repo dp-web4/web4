@@ -65,6 +65,34 @@ struct Config {
     locked_alert_hours: u32,
     /// Where the carrier remembers how long the hub has been locked.
     state_file: PathBuf,
+    /// The hub's `operator.token`, for a hub run with `HUB_OPERATOR_AUTH=token`. Sent as
+    /// `X-Operator-Token` on every operator-plane call. Omit it on a loopback-only hub. Without
+    /// it a token-mode hub answers 403, and the pass fails (exit 1) and names this field.
+    #[serde(default)]
+    operator_token_file: Option<PathBuf>,
+}
+
+/// Read the operator token file, if one is configured. A configured file that is missing or
+/// empty is an error at start, not a 403 on every pass.
+fn read_operator_token(file: Option<&Path>) -> Result<Option<String>> {
+    let Some(f) = file else { return Ok(None) };
+    let t = std::fs::read_to_string(f).with_context(|| format!("reading operator_token_file {}", f.display()))?;
+    let t = t.trim();
+    if t.is_empty() {
+        bail!("operator_token_file {} is empty", f.display());
+    }
+    Ok(Some(t.to_string()))
+}
+
+/// What a 401/403 from the operator plane means, said so the operator can act on it.
+fn refused_by_operator_plane(what: &str, status: reqwest::StatusCode, sent_token: bool) -> String {
+    if sent_token {
+        format!("{what} answered {status}: the hub refused the operator token. Check that \
+                 operator_token_file holds the hub's current operator.token")
+    } else {
+        format!("{what} answered {status}: the hub wants an operator token (HUB_OPERATOR_AUTH=token). \
+                 Set operator_token_file to the hub's operator.token")
+    }
 }
 
 fn default_curl() -> PathBuf {
@@ -114,6 +142,10 @@ enum HubAnswer {
     NoRoute,
     /// No answer, or an answer that is not a listing.
     Down(String),
+    /// 401/403: the operator plane refused the carrier: no token, or the wrong one. A fault in
+    /// this carrier's config, not a hub that is down, so it fails the pass instead of waiting
+    /// out the locked-hub window.
+    Refused(String),
 }
 
 /// One send attempt as the hub records it. Kept in [`CarrierState`] when its report could not be
@@ -144,6 +176,11 @@ enum Report {
 trait Hub {
     async fn nudges(&self) -> HubAnswer;
     async fn report(&self, a: &Attempt) -> Result<Report>;
+    /// The chapter notices due. `Ok(None)` when the hub has no chapter routes (404) or is
+    /// locked (503): nothing to do.
+    async fn notices(&self) -> Result<Option<Vec<Notice>>>;
+    /// Report one notice. An error means the hub has not recorded it.
+    async fn notice_sent(&self, notice_id: &str, ok: bool) -> Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -154,16 +191,43 @@ trait Mailer {
 struct HttpHub {
     base: String,
     http: reqwest::Client,
+    /// Sent as `X-Operator-Token` on every call, when the hub runs with `HUB_OPERATOR_AUTH=token`.
+    operator_token: Option<String>,
+}
+
+impl HttpHub {
+    fn url(&self, path: &str) -> String {
+        format!("{}{path}", self.base.trim_end_matches('/'))
+    }
+
+    fn req(&self, method: reqwest::Method, url: &str) -> reqwest::RequestBuilder {
+        let r = self.http.request(method, url);
+        match &self.operator_token {
+            Some(t) => r.header("X-Operator-Token", t),
+            None => r,
+        }
+    }
+
+    fn is_refusal(status: reqwest::StatusCode) -> bool {
+        status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN
+    }
+
+    fn refused(&self, what: &str, status: reqwest::StatusCode) -> String {
+        refused_by_operator_plane(what, status, self.operator_token.is_some())
+    }
 }
 
 #[async_trait::async_trait]
 impl Hub for HttpHub {
     async fn nudges(&self) -> HubAnswer {
-        let url = format!("{}/admin/api/commitments/nudges", self.base.trim_end_matches('/'));
-        let resp = match self.http.get(&url).send().await {
+        let url = self.url("/admin/api/commitments/nudges");
+        let resp = match self.req(reqwest::Method::GET, &url).send().await {
             Ok(r) => r,
             Err(e) => return HubAnswer::Down(e.to_string()),
         };
+        if Self::is_refusal(resp.status()) {
+            return HubAnswer::Refused(self.refused(&url, resp.status()));
+        }
         if resp.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE {
             return HubAnswer::Locked;
         }
@@ -184,8 +248,8 @@ impl Hub for HttpHub {
     }
 
     async fn report(&self, a: &Attempt) -> Result<Report> {
-        let url = format!("{}/admin/api/commitments/nudges/delivered", self.base.trim_end_matches('/'));
-        let resp = self.http.post(&url).json(&serde_json::json!({
+        let url = self.url("/admin/api/commitments/nudges/delivered");
+        let resp = self.req(reqwest::Method::POST, &url).json(&serde_json::json!({
             "commitment_id": a.commitment_id,
             "about_index": a.about_index,
             "party_id": a.party_id,
@@ -193,6 +257,10 @@ impl Hub for HttpHub {
             "ok": a.ok,
         })).send().await.with_context(|| format!("POST {url}"))?;
         let status = resp.status();
+        if Self::is_refusal(status) {
+            // Not the hub judging the report: it never read it. Keep it, like a transport error.
+            bail!("{}", self.refused(&format!("POST {url}"), status));
+        }
         if status.is_success() {
             Ok(Report::Recorded)
         } else if status.is_client_error() {
@@ -200,6 +268,41 @@ impl Hub for HttpHub {
         } else {
             bail!("POST {url} answered {status}")
         }
+    }
+
+    async fn notices(&self) -> Result<Option<Vec<Notice>>> {
+        let url = self.url("/admin/api/chapter/notices");
+        let resp = self.req(reqwest::Method::GET, &url).send().await.context("listing notices")?;
+        let status = resp.status();
+        if Self::is_refusal(status) {
+            bail!("{}", self.refused(&url, status));
+        }
+        if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::SERVICE_UNAVAILABLE {
+            return Ok(None);
+        }
+        if !status.is_success() {
+            bail!("{url} answered {status}");
+        }
+        #[derive(Deserialize)]
+        struct Listing {
+            notices: Vec<Notice>,
+        }
+        Ok(Some(resp.json::<Listing>().await.context("reading notices")?.notices))
+    }
+
+    async fn notice_sent(&self, notice_id: &str, ok: bool) -> Result<()> {
+        let url = self.url("/admin/api/chapter/notices/sent");
+        let resp = self.req(reqwest::Method::POST, &url)
+            .json(&serde_json::json!({ "notice_id": notice_id, "ok": ok }))
+            .send().await.with_context(|| format!("POST {url}"))?;
+        let status = resp.status();
+        if Self::is_refusal(status) {
+            bail!("{}", self.refused(&format!("POST {url}"), status));
+        }
+        if !status.is_success() {
+            bail!("POST {url} answered {status}");
+        }
+        Ok(())
     }
 }
 
@@ -275,7 +378,8 @@ fn render_message(from: &str, to: &str, subject: &str, body: &str, now: DateTime
     )
 }
 
-/// What the carrier remembers between passes: only how long the hub has been unreachable.
+/// What the carrier remembers between passes: how long the hub has been unreachable, and the
+/// reports it still owes the hub.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 struct CarrierState {
     #[serde(default)]
@@ -286,6 +390,17 @@ struct CarrierState {
     /// unrecorded send is invisible to the cap, so sending on past one could repeat it each pass.
     #[serde(default)]
     unreported: Vec<Attempt>,
+    /// Chapter notices sent (or failed) whose report did not reach the hub. The hub lists a
+    /// notice until it hears it was sent, so without this a lost report re-sends the same
+    /// welcome every pass. Re-reported before any notice is sent.
+    #[serde(default)]
+    unreported_notices: Vec<NoticeReport>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+struct NoticeReport {
+    notice_id: String,
+    ok: bool,
 }
 
 impl CarrierState {
@@ -385,7 +500,10 @@ async fn pass(
         HubAnswer::NoRoute => "answers, but has no commitments nudge route (it may be running a build from before \
             K3a), so nobody is being nudged".to_string(),
         HubAnswer::Down(e) => format!("is not answering ({e}), so nobody is being nudged"),
+        HubAnswer::Refused(m) => bail!("{m}"),
     };
+    // Said in the journal on every pass, not only in the operator's alert hours from now.
+    tracing::warn!("the hub {why}");
     let since = *state.unreachable_since.get_or_insert(now);
     let due = now - since >= alert_after
         && state.last_alert_at.map_or(true, |t| now - t >= chrono::Duration::hours(24));
@@ -419,22 +537,42 @@ struct Notice {
 /// Send the chapter notices the hub lists. A hub with no chapter routes answers 404, and that is
 /// nothing to do, not an error. A dry run prints subjects and recipients, never bodies: each body
 /// carries the person's chapter page link.
-async fn notice_pass(hub: &HttpHub, mail: &dyn Mailer, dry_run: bool) -> Result<u32> {
-    let base = hub.base.trim_end_matches('/');
-    let resp = hub.http.get(format!("{base}/admin/api/chapter/notices")).send().await.context("listing notices")?;
-    if resp.status() == reqwest::StatusCode::NOT_FOUND || resp.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE {
-        return Ok(0);
+///
+/// The hub lists a notice until it hears it was sent, so a *sent* report that does not get through
+/// is kept in `state` and the pass stops; the next one re-reports it before sending anything. The
+/// same rule as nudge attempts: a lost report must not become the same email every five minutes.
+///
+/// A *failed-send* report is never kept or replayed. The hub counts every `ok: false` it receives
+/// and stops listing a notice after its `NOTICE_MAX_ATTEMPTS` (3) of them, so replaying one whose answer
+/// was lost (but which the hub may have recorded) could count a single failed send several times
+/// and drop the welcome. Left alone, the worst case is one uncounted failure: the hub lists the
+/// notice again and the next pass makes a real second attempt.
+async fn notice_pass(hub: &dyn Hub, mail: &dyn Mailer, state: &mut CarrierState, dry_run: bool) -> Result<u32> {
+    if !dry_run {
+        let pending = std::mem::take(&mut state.unreported_notices);
+        let mut first_err = None;
+        for r in pending {
+            if !r.ok {
+                // Never replay a failed-send report (see above). Only a state file from before this
+                // rule could hold one.
+                tracing::warn!("dropping a kept failed-send report for {}: replaying it could count one failure twice", r.notice_id);
+                continue;
+            }
+            if let Err(e) = hub.notice_sent(&r.notice_id, r.ok).await {
+                if first_err.is_none() {
+                    first_err = Some(e);
+                }
+                state.unreported_notices.push(r);
+            }
+        }
+        if let Some(e) = first_err {
+            return Err(e.context(format!("{} notice report(s) still not recorded by the hub; sending no notice \
+                until they are", state.unreported_notices.len())));
+        }
     }
-    if !resp.status().is_success() {
-        bail!("notices answered {}", resp.status());
-    }
-    #[derive(Deserialize)]
-    struct Listing {
-        notices: Vec<Notice>,
-    }
-    let listing: Listing = resp.json().await.context("reading notices")?;
+    let Some(notices) = hub.notices().await? else { return Ok(0) };
     let mut sent = 0;
-    for n in listing.notices {
+    for n in notices {
         if dry_run {
             println!("would send notice {} to {}: {}", n.notice_id, n.address, n.subject);
             continue;
@@ -443,9 +581,17 @@ async fn notice_pass(hub: &HttpHub, mail: &dyn Mailer, dry_run: bool) -> Result<
             Ok(()) => { sent += 1; true }
             Err(e) => { tracing::warn!("notice {} failed: {e:#}", n.notice_id); false }
         };
-        hub.http.post(format!("{base}/admin/api/chapter/notices/sent"))
-            .json(&serde_json::json!({ "notice_id": n.notice_id, "ok": ok }))
-            .send().await.context("reporting a notice")?;
+        if let Err(e) = hub.notice_sent(&n.notice_id, ok).await {
+            if !ok {
+                return Err(e.context(format!("notice {} failed to send and its failure report may not have reached \
+                    the hub; not replayed, because the hub counts each failure report as another failed send. If \
+                    the hub didn't record it, it lists the notice again and the next pass retries the send",
+                    n.notice_id)));
+            }
+            state.unreported_notices.push(NoticeReport { notice_id: n.notice_id.clone(), ok });
+            return Err(e.context(format!("notice {} was sent but the hub has not recorded it; kept, and \
+                re-reported before the next notice is sent", n.notice_id)));
+        }
     }
     Ok(sent)
 }
@@ -461,25 +607,30 @@ async fn main() -> Result<()> {
     let hub = HttpHub {
         base: cfg.hub_admin_url.clone(),
         http: reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build()?,
+        operator_token: read_operator_token(cfg.operator_token_file.as_deref())?,
     };
     let mail = CurlMailer { cfg: cfg.clone() };
     let alert_after = chrono::Duration::hours(i64::from(cfg.locked_alert_hours));
     loop {
         let mut state = CarrierState::load(&cfg.state_file)?;
+        let mut failed = 0;
         match pass(&hub, &mail, &cfg.operator_address, alert_after, &mut state, Utc::now(), args.dry_run).await {
             Ok(r) => tracing::info!(?r, "nudge pass"),
-            Err(e) => tracing::warn!("nudge pass failed: {e:#}"),
+            Err(e) => { failed += 1; tracing::warn!("nudge pass failed: {e:#}") }
         }
-        match notice_pass(&hub, &mail, args.dry_run).await {
+        match notice_pass(&hub, &mail, &mut state, args.dry_run).await {
             Ok(0) => {}
             Ok(n) => tracing::info!(sent = n, "chapter notices"),
-            Err(e) => tracing::warn!("notice pass failed: {e:#}"),
+            Err(e) => { failed += 1; tracing::warn!("notice pass failed: {e:#}") }
         }
         if !args.dry_run {
             state.save(&cfg.state_file)?;
         }
         match args.every {
             Some(secs) => tokio::time::sleep(std::time::Duration::from_secs(secs)).await,
+            // A one-shot run under a timer: a failed pass is a failed unit, not SUCCESS with
+            // `sent: 0` in the journal.
+            None if failed > 0 => bail!("{failed} of 2 passes failed; the warnings above say why"),
             None => return Ok(()),
         }
     }
@@ -495,12 +646,22 @@ mod tests {
         reports: Mutex<Vec<(String, bool)>>,
         refuse: bool,
         broken: std::sync::atomic::AtomicBool,
+        /// The notices the hub lists: like the real hub, a notice stays listed until it is
+        /// reported sent.
+        notices: Mutex<Vec<Notice>>,
+        notice_reports: Mutex<Vec<(String, bool)>>,
+        /// Failure reports per notice, counted like `admin_notice_sent`: one per request.
+        notice_failures: Mutex<std::collections::HashMap<String, u32>>,
+        /// Commit the next N notice reports, then answer with an error as if the reply was lost.
+        lose_acks: std::sync::atomic::AtomicU32,
     }
 
     impl FakeHub {
         fn new(answer: HubAnswer) -> Self {
             Self { answer: Mutex::new(Some(answer)), reports: Mutex::new(Vec::new()), refuse: false,
-                broken: std::sync::atomic::AtomicBool::new(false) }
+                broken: std::sync::atomic::AtomicBool::new(false), notices: Mutex::new(Vec::new()),
+                notice_reports: Mutex::new(Vec::new()), notice_failures: Mutex::new(Default::default()),
+                lose_acks: std::sync::atomic::AtomicU32::new(0) }
         }
     }
 
@@ -515,6 +676,29 @@ mod tests {
             }
             self.reports.lock().unwrap().push((a.party_id.clone(), a.ok));
             Ok(if self.refuse { Report::Refused("400".into()) } else { Report::Recorded })
+        }
+        async fn notices(&self) -> Result<Option<Vec<Notice>>> {
+            let failures = self.notice_failures.lock().unwrap();
+            Ok(Some(self.notices.lock().unwrap().iter()
+                .filter(|n| failures.get(&n.notice_id).copied().unwrap_or(0) < NOTICE_MAX_ATTEMPTS_AT_HUB)
+                .cloned().collect()))
+        }
+        async fn notice_sent(&self, notice_id: &str, ok: bool) -> Result<()> {
+            if self.broken.load(std::sync::atomic::Ordering::SeqCst) {
+                bail!("POST answered 502 Bad Gateway");
+            }
+            self.notice_reports.lock().unwrap().push((notice_id.into(), ok));
+            if ok {
+                self.notices.lock().unwrap().retain(|n| n.notice_id != notice_id);
+            } else {
+                *self.notice_failures.lock().unwrap().entry(notice_id.into()).or_insert(0) += 1;
+            }
+            let lose = self.lose_acks.load(std::sync::atomic::Ordering::SeqCst);
+            if lose > 0 {
+                self.lose_acks.store(lose - 1, std::sync::atomic::Ordering::SeqCst);
+                bail!("connection reset after the hub committed the report");
+            }
+            Ok(())
         }
     }
 
@@ -704,6 +888,7 @@ mod tests {
             curl: fake,
             locked_alert_hours: 6,
             state_file: dir.path().join("state.json"),
+            operator_token_file: None,
         };
         CurlMailer { cfg }.send("sam@example.org", "Venue AV: you're the backup", "Alex owns Venue AV.")
             .await.unwrap();
@@ -726,10 +911,197 @@ mod tests {
         let p = dir.path().join("state.json");
         assert_eq!(CarrierState::load(&p).unwrap(), CarrierState::default());
         let s = CarrierState { unreachable_since: Some(at(1)), last_alert_at: None, unreported: vec![Attempt {
-            commitment_id: "c".into(), about_index: 7, party_id: "sam".into(), ok: true }] };
+            commitment_id: "c".into(), about_index: 7, party_id: "sam".into(), ok: true }],
+            unreported_notices: vec![NoticeReport { notice_id: "welcome.p1".into(), ok: true }] };
         s.save(&p).unwrap();
         assert_eq!(CarrierState::load(&p).unwrap(), s);
         std::fs::write(&p, b"nope").unwrap();
         assert!(CarrierState::load(&p).is_err());
+    }
+
+    fn notice(id: &str, address: &str) -> Notice {
+        Notice { notice_id: id.into(), address: address.into(), subject: "Welcome to the chapter".into(),
+            body: "Your page: https://hub.example.org/p/x".into() }
+    }
+
+    /// A refused carrier is its own config fault: the pass fails at once, and the operator is not
+    /// told, hours later, that the hub "is not answering".
+    #[tokio::test]
+    async fn a_refused_carrier_fails_the_pass_and_does_not_start_the_locked_clock() {
+        let mail = FakeMail::default();
+        let mut state = CarrierState::default();
+        for h in [0, 7] {
+            let hub = FakeHub::new(HubAnswer::Refused("403 Forbidden: set operator_token_file".into()));
+            let e = pass(&hub, &mail, "op@example.org", chrono::Duration::hours(6), &mut state, at(h), false)
+                .await.unwrap_err();
+            assert!(e.to_string().contains("operator_token_file"), "{e:#}");
+        }
+        assert_eq!(state, CarrierState::default());
+        assert!(mail.sent.lock().unwrap().is_empty(), "no locked-hub alert for a refusal");
+    }
+
+    /// The hub lists a notice until it hears it was sent. A report that is lost must not turn one
+    /// welcome into a welcome every pass.
+    #[tokio::test]
+    async fn a_notice_whose_report_is_lost_is_not_sent_again() {
+        let hub = FakeHub::new(HubAnswer::Nudges(Vec::new()));
+        *hub.notices.lock().unwrap() = vec![notice("welcome.natalie", "n@example.org"), notice("welcome.yemaya", "y@example.org")];
+        hub.broken.store(true, std::sync::atomic::Ordering::SeqCst);
+        let mail = FakeMail::default();
+        let mut state = CarrierState::default();
+        let e = notice_pass(&hub, &mail, &mut state, false).await.unwrap_err();
+        assert!(format!("{e:#}").contains("welcome.natalie"), "{e:#}");
+        assert_eq!(mail.sent.lock().unwrap().len(), 1, "stopped after the first unrecorded send");
+        assert_eq!(state.unreported_notices, vec![NoticeReport { notice_id: "welcome.natalie".into(), ok: true }]);
+        // Still broken: nothing new goes out.
+        notice_pass(&hub, &mail, &mut state, false).await.unwrap_err();
+        assert_eq!(mail.sent.lock().unwrap().len(), 1);
+        // Back: the old report lands first, and only the notice nobody has had goes out.
+        hub.broken.store(false, std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(notice_pass(&hub, &mail, &mut state, false).await.unwrap(), 1);
+        let to: Vec<String> = mail.sent.lock().unwrap().iter().map(|(t, _)| t.clone()).collect();
+        assert_eq!(to, vec!["n@example.org", "y@example.org"]);
+        assert!(state.unreported_notices.is_empty());
+        assert_eq!(hub.notice_reports.lock().unwrap().clone(),
+            vec![("welcome.natalie".to_string(), true), ("welcome.yemaya".to_string(), true)]);
+    }
+
+    /// The hub's limit (`NOTICE_MAX_ATTEMPTS` in rest/commitments/chapter.rs): after this many
+    /// failure reports a notice is no longer listed.
+    const NOTICE_MAX_ATTEMPTS_AT_HUB: u32 = 3;
+
+    /// Fails the first send, then delivers.
+    #[derive(Default)]
+    struct FlakyMail {
+        attempts: Mutex<Vec<(String, bool)>>,
+    }
+
+    #[async_trait::async_trait]
+    impl Mailer for FlakyMail {
+        async fn send(&self, to: &str, _subject: &str, _body: &str) -> Result<()> {
+            let mut a = self.attempts.lock().unwrap();
+            let first = a.is_empty();
+            a.push((to.into(), !first));
+            if first { bail!("421 try again later") } else { Ok(()) }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_failed_send_report_whose_answer_is_lost_is_never_replayed_so_one_failure_counts_once() {
+        let hub = FakeHub::new(HubAnswer::Nudges(Vec::new()));
+        *hub.notices.lock().unwrap() = vec![notice("welcome.natalie", "n@example.org")];
+        let mail = FlakyMail::default();
+        let mut state = CarrierState::default();
+        // Pass 1: SMTP fails; the hub commits the failure report, but its answer is lost.
+        hub.lose_acks.store(1, std::sync::atomic::Ordering::SeqCst);
+        let e = notice_pass(&hub, &mail, &mut state, false).await.unwrap_err();
+        assert!(format!("{e:#}").contains("not replayed"), "{e:#}");
+        assert!(state.unreported_notices.is_empty(), "a failed-send report is never kept for replay");
+        // Passes 2 and 3 replay nothing, so the hub still counts one failure and still lists the
+        // welcome; pass 2 makes a real second attempt, which delivers.
+        assert_eq!(notice_pass(&hub, &mail, &mut state, false).await.unwrap(), 1);
+        assert_eq!(notice_pass(&hub, &mail, &mut state, false).await.unwrap(), 0, "delivered and recorded: not sent again");
+        assert_eq!(hub.notice_failures.lock().unwrap().get("welcome.natalie").copied(), Some(1),
+            "one real failure, counted once");
+        assert_eq!(*mail.attempts.lock().unwrap(),
+            vec![("n@example.org".to_string(), false), ("n@example.org".to_string(), true)]);
+        assert_eq!(hub.notice_reports.lock().unwrap().clone(),
+            vec![("welcome.natalie".to_string(), false), ("welcome.natalie".to_string(), true)]);
+    }
+
+    #[tokio::test]
+    async fn a_kept_failed_send_report_from_an_older_state_file_is_dropped_not_replayed() {
+        let hub = FakeHub::new(HubAnswer::Nudges(Vec::new()));
+        let mail = FakeMail::default();
+        let mut state = CarrierState { unreported_notices: vec![
+            NoticeReport { notice_id: "welcome.yemaya".into(), ok: false },
+            NoticeReport { notice_id: "welcome.natalie".into(), ok: true },
+        ], ..Default::default() };
+        assert_eq!(notice_pass(&hub, &mail, &mut state, false).await.unwrap(), 0);
+        assert!(state.unreported_notices.is_empty());
+        assert_eq!(hub.notice_reports.lock().unwrap().clone(), vec![("welcome.natalie".to_string(), true)]);
+        assert!(hub.notice_failures.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_operator_token_file_is_trimmed_and_an_empty_one_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("operator.token");
+        assert_eq!(read_operator_token(None).unwrap(), None);
+        std::fs::write(&p, "s3cret\n").unwrap();
+        assert_eq!(read_operator_token(Some(&p)).unwrap().as_deref(), Some("s3cret"));
+        std::fs::write(&p, " \n").unwrap();
+        assert!(read_operator_token(Some(&p)).is_err());
+        assert!(read_operator_token(Some(&dir.path().join("missing"))).is_err());
+    }
+
+    /// A stand-in for a hub run with `HUB_OPERATOR_AUTH=token`: every operator route answers 403
+    /// unless `X-Operator-Token` matches. Records each notice report it accepts.
+    async fn token_hub(token: &'static str) -> (String, std::sync::Arc<Mutex<Vec<serde_json::Value>>>) {
+        use axum::{http::{HeaderMap, StatusCode}, response::IntoResponse, routing::{get, post}, Json, Router};
+        let seen = std::sync::Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));
+        let s = seen.clone();
+        let authed = move |h: &HeaderMap| h.get("x-operator-token").and_then(|v| v.to_str().ok()) == Some(token);
+        let app = Router::new()
+            .route("/admin/api/commitments/nudges", get(move |h: HeaderMap| async move {
+                if !authed(&h) { return StatusCode::FORBIDDEN.into_response(); }
+                Json(serde_json::json!({ "nudges": [] })).into_response()
+            }))
+            .route("/admin/api/chapter/notices", get(move |h: HeaderMap| async move {
+                if !authed(&h) { return StatusCode::FORBIDDEN.into_response(); }
+                Json(serde_json::json!({ "notices": [
+                    { "notice_id": "welcome.natalie", "address": "n@example.org", "subject": "Welcome", "body": "b" }
+                ] })).into_response()
+            }))
+            .route("/admin/api/chapter/notices/sent", post(move |h: HeaderMap, Json(body): Json<serde_json::Value>| {
+                let s = s.clone();
+                async move {
+                    if !authed(&h) { return StatusCode::FORBIDDEN.into_response(); }
+                    s.lock().unwrap().push(body);
+                    Json(serde_json::json!({ "recorded": true })).into_response()
+                }
+            }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (format!("http://{addr}"), seen)
+    }
+
+    fn http_hub(base: &str, token: Option<&str>) -> HttpHub {
+        HttpHub { base: base.into(), http: reqwest::Client::new(), operator_token: token.map(Into::into) }
+    }
+
+    /// The 2026-11-26 chapter hub: token mode, a carrier with no token. Every pass answered 403
+    /// and the unit still read SUCCESS with `sent: 0`. Now each pass fails and names the field.
+    #[tokio::test]
+    async fn a_token_mode_hub_refuses_a_carrier_without_the_token_loudly() {
+        let (base, seen) = token_hub("s3cret").await;
+        let mail = FakeMail::default();
+        let mut state = CarrierState::default();
+        let hub = http_hub(&base, None);
+        match hub.nudges().await {
+            HubAnswer::Refused(m) => assert!(m.contains("403") && m.contains("operator_token_file"), "{m}"),
+            other => panic!("expected a refusal, got {other:?}"),
+        }
+        let e = notice_pass(&hub, &mail, &mut state, false).await.unwrap_err();
+        assert!(format!("{e:#}").contains("operator_token_file"), "{e:#}");
+        // The wrong token is named as the wrong token, not a missing one.
+        match http_hub(&base, Some("stale")).nudges().await {
+            HubAnswer::Refused(m) => assert!(m.contains("refused the operator token"), "{m}"),
+            other => panic!("expected a refusal, got {other:?}"),
+        }
+        assert!(mail.sent.lock().unwrap().is_empty() && seen.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn with_the_token_the_carrier_lists_sends_and_reports() {
+        let (base, seen) = token_hub("s3cret").await;
+        let mail = FakeMail::default();
+        let mut state = CarrierState::default();
+        let hub = http_hub(&base, Some("s3cret"));
+        assert!(matches!(hub.nudges().await, HubAnswer::Nudges(ref v) if v.is_empty()));
+        assert_eq!(notice_pass(&hub, &mail, &mut state, false).await.unwrap(), 1);
+        assert_eq!(mail.sent.lock().unwrap()[0].0, "n@example.org");
+        assert_eq!(seen.lock().unwrap().clone(), vec![serde_json::json!({ "notice_id": "welcome.natalie", "ok": true })]);
     }
 }

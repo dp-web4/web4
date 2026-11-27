@@ -61,6 +61,8 @@ Co-leads who don't have an assistant of their own, or don't want to paste a link
 }
 ```
 
+On a hub run with `HUB_OPERATOR_AUTH=token` (any public hub), add `"operator_token_file": "<hub dir>/operator.token"`. Without it, every operator-plane call answers 403. The pass then fails and exits 1, and its warning names this field.
+
 ## `page-agent.json`
 
 ```json
@@ -92,6 +94,8 @@ What the runner can and can't do:
   "backfill_days": 1
 }
 ```
+
+On a token-mode hub, `hub-intake` takes the same `operator_token_file`.
 
 A netrc file looks like `machine smtp.gmail.com login chapter@example.org password <app password>`. Keep it 0600 and never commit it.
 

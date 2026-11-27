@@ -55,6 +55,22 @@ struct Config {
     /// On the very first pass, how many days back to pick up. Later passes take only new mail.
     #[serde(default = "default_backfill")]
     backfill_days: i64,
+    /// The hub's `operator.token`, for a hub run with `HUB_OPERATOR_AUTH=token`. Sent as
+    /// `X-Operator-Token`. Omit it on a loopback-only hub.
+    #[serde(default)]
+    operator_token_file: Option<PathBuf>,
+}
+
+/// Read the operator token file, if one is configured. A configured file that is missing or
+/// empty is an error at start.
+fn read_operator_token(file: Option<&Path>) -> Result<Option<String>> {
+    let Some(f) = file else { return Ok(None) };
+    let t = std::fs::read_to_string(f).with_context(|| format!("reading operator_token_file {}", f.display()))?;
+    let t = t.trim();
+    if t.is_empty() {
+        bail!("operator_token_file {} is empty", f.display());
+    }
+    Ok(Some(t.to_string()))
 }
 
 fn default_curl() -> PathBuf {
@@ -376,13 +392,25 @@ fn imap_date(t: DateTime<Utc>) -> String {
     t.format("%d-%b-%Y").to_string()
 }
 
-async fn hand_over(cfg: &Config, p: &Parsed) -> Result<serde_json::Value> {
+async fn hand_over(cfg: &Config, operator_token: Option<&str>, p: &Parsed) -> Result<serde_json::Value> {
     let url = format!("{}/admin/api/chapter/intake", cfg.hub_admin_url.trim_end_matches('/'));
-    let resp = reqwest::Client::new().post(&url).json(&serde_json::json!({
+    let mut req = reqwest::Client::new().post(&url);
+    if let Some(t) = operator_token {
+        req = req.header("X-Operator-Token", t);
+    }
+    let resp = req.json(&serde_json::json!({
         "message_id": p.message_id, "from_name": p.from_name, "from_address": p.from_address,
         "subject": p.subject, "text": p.text, "received_at": p.received_at,
     })).send().await.context("reaching the hub")?;
     let status = resp.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        // The operator plane, not the intake route, said no: name the config field that fixes it.
+        bail!("{url} answered {status}: {}", if operator_token.is_some() {
+            "the hub refused the operator token. Check that operator_token_file holds the hub's current operator.token"
+        } else {
+            "the hub wants an operator token (HUB_OPERATOR_AUTH=token). Set operator_token_file to the hub's operator.token"
+        });
+    }
     let body: serde_json::Value = resp.json().await.unwrap_or(serde_json::Value::Null);
     if !status.is_success() {
         bail!("the hub refused it ({status}): {}", body["error"].as_str().or(body["message"].as_str()).unwrap_or(""));
@@ -390,7 +418,7 @@ async fn hand_over(cfg: &Config, p: &Parsed) -> Result<serde_json::Value> {
     Ok(body)
 }
 
-async fn pass(cfg: &Config, state: &mut CarrierState, dry_run: bool) -> Result<usize> {
+async fn pass(cfg: &Config, operator_token: Option<&str>, state: &mut CarrierState, dry_run: bool) -> Result<usize> {
     let search = match state.last_uid {
         Some(last) => format!("UID SEARCH UID {}:*", last + 1),
         None => format!("UID SEARCH SINCE {}", imap_date(Utc::now() - chrono::Duration::days(cfg.backfill_days))),
@@ -411,7 +439,7 @@ async fn pass(cfg: &Config, state: &mut CarrierState, dry_run: bool) -> Result<u
             Some(p) if dry_run => println!("would hand over uid {uid}: \"{}\" from {}", p.subject, p.from_address),
             Some(p) => {
                 // A refusal stops the pass here, so this message is retried next time.
-                let v = hand_over(cfg, &p).await.with_context(|| format!("message uid {uid}"))?;
+                let v = hand_over(cfg, operator_token, &p).await.with_context(|| format!("message uid {uid}"))?;
                 tracing::info!(uid, duplicate = v["duplicate"].as_bool().unwrap_or(false), "handed over");
                 handed += 1;
             }
@@ -429,10 +457,11 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     let cfg: Config = serde_json::from_slice(&std::fs::read(&args.config).context("reading the config")?)
         .context("parsing the config")?;
+    let operator_token = read_operator_token(cfg.operator_token_file.as_deref())?;
     loop {
         let mut state = CarrierState::load(&cfg.state_file)?;
         let before = state.clone();
-        let r = pass(&cfg, &mut state, args.dry_run).await;
+        let r = pass(&cfg, operator_token.as_deref(), &mut state, args.dry_run).await;
         if state != before {
             state.save(&cfg.state_file)?;
         }
@@ -495,5 +524,32 @@ mod tests {
     fn search_lines_parse() {
         assert_eq!(parse_search("* SEARCH 4 7 9\r\n"), vec![4, 7, 9]);
         assert!(parse_search("* SEARCH\r\n").is_empty());
+    }
+
+    /// A hub run with `HUB_OPERATOR_AUTH=token` refuses a hand-over without `X-Operator-Token`,
+    /// and the refusal names the field that fixes it.
+    #[tokio::test]
+    async fn a_token_mode_hub_takes_the_hand_over_only_with_the_token() {
+        use axum::{http::{HeaderMap, StatusCode}, response::IntoResponse, routing::post, Json, Router};
+        let app = Router::new().route("/admin/api/chapter/intake", post(|h: HeaderMap| async move {
+            if h.get("x-operator-token").and_then(|v| v.to_str().ok()) != Some("s3cret") {
+                return StatusCode::FORBIDDEN.into_response();
+            }
+            Json(serde_json::json!({ "duplicate": false })).into_response()
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let cfg = Config {
+            hub_admin_url: format!("http://{addr}"), imap_url: "imaps://imap.example.org/INBOX".into(),
+            netrc_file: "/nonexistent".into(), curl: default_curl(), state_file: "/nonexistent".into(),
+            ignore_from: Vec::new(), backfill_days: 1, operator_token_file: None,
+        };
+        let p = parse_message("From: v@example.org\r\nSubject: Hi\r\nMessage-ID: <a@example.org>\r\n\r\nHello\r\n").unwrap();
+        let e = hand_over(&cfg, None, &p).await.unwrap_err();
+        assert!(e.to_string().contains("403") && e.to_string().contains("operator_token_file"), "{e:#}");
+        let e = hand_over(&cfg, Some("stale"), &p).await.unwrap_err();
+        assert!(e.to_string().contains("refused the operator token"), "{e:#}");
+        assert_eq!(hand_over(&cfg, Some("s3cret"), &p).await.unwrap()["duplicate"], false);
     }
 }

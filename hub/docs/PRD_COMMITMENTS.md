@@ -220,6 +220,9 @@ The message follows Legion's shape: *"Venue AV is yours. Quiet for 48h. Your bac
 ```
 
   The mail server login lives in `netrc_file` (mode 0600), which is passed to curl as `--netrc-file`, so it never appears on a command line.
+
+  On a hub run with `HUB_OPERATOR_AUTH=token`, add `"operator_token_file": "<hub dir>/operator.token"`. The carrier sends it as `X-Operator-Token` on every call. A 401 or 403 is a fault in the carrier's own config, not a hub that is down. So the pass fails at once (exit 1 under a timer) and names the field, and the locked-hub clock does not start.
+- **Chapter notices** (welcomes and the like) follow the same rule for lost reports as nudges. The hub keeps listing a notice until it hears the notice was sent. So a report that doesn't get through is kept in the state file and re-reported before any further notice is sent. Otherwise one welcome would go out again on every pass.
 - **The locked-hub alert (§9.1).** When the hub has answered 503 (locked), or not at all, for `locked_alert_hours`, the carrier emails the operator, and only the operator, once a day until it answers again. Then the clock resets. A hub that answers 404 (a build from before K3a) is named as such, not as "not answering".
 
 **What the carrier sends through:**
