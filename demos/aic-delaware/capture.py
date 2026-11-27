@@ -135,20 +135,30 @@ def run_and_export(run_root):
         export(run_root, story.stdout)
     finally:
         sh(*demo, "down", run_root, check=False)
+    # render() refuses evidence that fails the offline checks and leaves ANSWERS.md as it was.
     render()
-    res = CE.check(EV)
-    print(f"exported to {EV}; offline checks: {'PASS' if res['ok'] else 'FAIL'}")
-    if not res["ok"]:
-        sys.exit(1)
+    print(f"exported to {EV}; offline checks: PASS; wrote {ANSWERS}")
 
 
 # ------------------------------------------------------------------ the answers page
-def load():
-    j = lambda rel: json.loads((EV / rel).read_text(encoding="utf-8"))
-    ledgers = {lvl: [json.loads(l) for l in (EV / "ledgers" / f"{lvl}.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+class EvidenceRefused(SystemExit):
+    """The evidence folder fails the offline checks, so no answers page is rendered from it."""
+
+
+def load(ev=None):
+    """Everything the page quotes, read from the evidence folder. Refuses (EvidenceRefused) when the folder fails
+    check_evidence: the page states that every entry and signature verifies, so it must never be rendered from
+    evidence that doesn't."""
+    ev = Path(ev) if ev else EV
+    check = CE.check(ev)
+    if not check["ok"]:
+        raise EvidenceRefused("evidence fails the offline checks; no answers page rendered:\n  "
+                              + "\n  ".join(check["failures"]))
+    j = lambda rel: json.loads((ev / rel).read_text(encoding="utf-8"))
+    ledgers = {lvl: [json.loads(l) for l in (ev / "ledgers" / f"{lvl}.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
                for lvl in CE.LEVELS}
     return {"trail": j("trail.json"), "audit": j("audit.json"), "versions": j("versions.json"), "expect": j("expect.json"),
-            "ledgers": ledgers, "check": CE.check(EV), "o23": j("law/clause-2.3-overruled.json"),
+            "ledgers": ledgers, "check": check, "o23": j("law/clause-2.3-overruled.json"),
             "manifest": j("law/manifest.json"), "seg": {a: j(f"gates/{a}.segment.json") for a in CE.GATES},
             "verify": {a: j(f"gates/{a}.verify.json") for a in CE.GATES}, "anchors": {a: j(f"gates/{a}.anchors.json") for a in CE.GATES}}
 
@@ -159,6 +169,8 @@ def wrap_entry(e):
 
 
 def blocks(d):
+    if not d["check"]["ok"]:  # load() already refuses; kept so no other caller can render failed evidence
+        raise EvidenceRefused("evidence fails the offline checks; no answers page rendered")
     tr, ck, L = d["trail"], d["check"], d["ledgers"]
     acts = [t for t in tr if t["kind"] == "act"]
     recs = [t for t in tr if t["kind"] == "record"]
@@ -273,21 +285,22 @@ def blocks(d):
     return b
 
 
-def render():
-    b = blocks(load())
+def rendered(ev=None):
+    """What ANSWERS.md should hold, without writing it. Refuses failed evidence (see load())."""
+    b = blocks(load(ev))
     text = TEMPLATE.read_text(encoding="utf-8")
     missing = sorted(set(re.findall(r"\{\{(\w+)\}\}", text)) - set(b))
     if missing:
         raise SystemExit(f"answers.md.in uses unknown blocks: {missing}")
-    out = re.sub(r"\{\{(\w+)\}\}", lambda m: b[m.group(1)], text)
-    ANSWERS.write_text(out, encoding="utf-8")
+    return re.sub(r"\{\{(\w+)\}\}", lambda m: b[m.group(1)], text)
+
+
+def render(ev=None, answers=None):
+    """Write the answers page. The page is rendered in full before anything is written, so failed evidence (or a
+    bad template) leaves the existing ANSWERS.md untouched."""
+    out = rendered(ev)
+    (Path(answers) if answers else ANSWERS).write_text(out, encoding="utf-8")
     return out
-
-
-def rendered():
-    """What ANSWERS.md should hold, without writing it (for the test)."""
-    b = blocks(load())
-    return re.sub(r"\{\{(\w+)\}\}", lambda m: b[m.group(1)], TEMPLATE.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

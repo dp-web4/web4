@@ -168,7 +168,7 @@ The compiler then stops: exit code 1, activation allowed: false. No law is loade
 - Beat 4, `special_order_placed` from procure to desk: **202**, "act requires escalation to sovereign (DESK-ESC-SPECIAL-ORDER); admin review queue is V2-16"
 - Beat 7, `counterparty_message` from manager to aic: **403**, "act denied by hub law (norm: SUSPENDED-ALL-ELSE)"
 
-A held record (202) waits for the person the law names: the member, for the AIC; the manager, for its desk. A refused one (403) is not recorded at all. Neither counts as a landed record, so the act isn't complete.
+**What a 202 does, and doesn't do yet.** A 202 means the law requires the act to be escalated, and the answer names to whom: the member, for the AIC; the manager, for its desk. It doesn't yet put anything in front of that person. The hub answers 202 before it writes anything, keeps no pending request, and has no queue where the named person could find it and approve it (that review queue is on Hub's build list). A refused record (403) isn't written either. So neither a 202 nor a 403 adds the attempted record to the ledger, and in both cases the act isn't complete. In this demo the held contract is never executed.
 
 ## 7. What does an emergency cease look like, and how fast?
 
@@ -199,7 +199,7 @@ A1 applies here too: the gates stop what goes through them.
 
 §8005(c)(10)b requires an applicant to make all records relevant to its participation "available for audit by the Sandbox Administrator on request".
 
-**A folder like [`evidence/`](evidence/), and an audit that recomputes everything in it.** This run's audit passed:
+**A folder like [`evidence/`](evidence/), and an audit of the checks listed below.** This run's audit passed:
 
 - `ledgers_verified`: {"got": 3, "want": 3}
 - `heads_consistent`: {"got": 2, "want": 2, "posted": 2}
@@ -214,7 +214,7 @@ Meaning:
 - **`heads_consistent`:** each head a parent holds matches the child's ledger.
 - **`acknowledged_entries_in_ledger`:** every record a hub acknowledged is in place.
 - **`signatures_*`:** the agents' own signatures.
-- **`gate_*`:** each gate's acts match what the story did.
+- **`gate_*`:** each gate's count of outcomes, and how many succeeded, match the story's totals. The audit doesn't match outcomes to acts one by one: Hestia's chain view doesn't expose action ids, so a swapped pair of outcomes with the same totals would pass this check.
 
 The gates' records were also checked with Hestia's own verifier, against the chain id, the witness key and the final hash: manager: valid (76 entries, 76 signatures valid, links intact: true), procure: valid (65 entries, 65 signatures valid, links intact: true).
 
@@ -256,7 +256,7 @@ act: ledger_head aic entries=20 head=75ec6304d51dba1bf280b8c754799f242b6ea849fc6
 
 | | |
 |---|---|
-| **Real** | Three hubs, each with its own law and its own signed, hash-chained ledger. Law compiled from a cited rulebook, tightened and never loosened down the levels. The manager's records, checked against hub law on arrival (refused, held or recorded). Two gates refusing acts by rule, each keeping its own signed record. The administrator's removal of the AIC. |
+| **Real** | Three hubs, each with its own law and its own signed, hash-chained ledger. Law compiled from a cited rulebook, tightened and never loosened down the levels. The manager's records, checked against hub law on arrival: recorded (200), refused (403), or answered 202, escalation required, with nothing stored. Two gates refusing acts by rule, each keeping its own signed record. The administrator's removal of the AIC. |
 | **Stand-in (`BRIDGE`)** | Ledger heads posted into the parent. The disclosure opening a counterparty's outbox at the gate. The suspension reaching the gates and the AIC's law. The manager's signature carried in the record body. Each child society joining its parent as an ordinary member. Every bridge step acts only on evidence it has checked, and says so when it does nothing. |
 | **Synthetic** | The effects of allowed acts: files in a scratch folder; shell commands never run. |
 
