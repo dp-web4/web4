@@ -1,0 +1,43 @@
+{
+  "ok": true,
+  "checks": {
+    "ledgers_verified": {
+      "got": 3,
+      "want": 3
+    },
+    "heads_consistent": {
+      "got": 2,
+      "want": 2,
+      "posted": 2
+    },
+    "acknowledged_entries_in_ledger": {
+      "got": 15,
+      "want": 15
+    },
+    "signatures_aic": {
+      "got": 9,
+      "want": 9,
+      "invalid": 0
+    },
+    "signatures_desk": {
+      "got": 4,
+      "want": 4,
+      "invalid": 0
+    },
+    "gate_manager": {
+      "got": 17,
+      "want": 17,
+      "successful": 11,
+      "want_successful": 11,
+      "broken_links": 0
+    },
+    "gate_procure": {
+      "got": 10,
+      "want": 10,
+      "successful": 4,
+      "want_successful": 4,
+      "broken_links": 0
+    }
+  },
+  "failures": []
+}

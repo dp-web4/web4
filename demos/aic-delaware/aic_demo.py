@@ -21,6 +21,7 @@ Everything is fictional. Needs: the hub binaries (HUB_BIN, default: the folder h
 python3 with `cryptography`.
 """
 import hashlib, json, os, shutil, signal, subprocess, sys, time, urllib.error, urllib.request, uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
@@ -41,6 +42,7 @@ HEST_PASS = "aic-demo-throwaway"
 HUB_ENV = dict(os.environ, HUB_PASSPHRASE="")       # explicit NULL passphrase: throwaway demo posture only
 B, D, G, R, Y, C, X = "\033[1m", "\033[2m", "\033[32m", "\033[31m", "\033[33m", "\033[36m", "\033[0m"
 SLOW = False
+BEAT = 0  # the story beat now running; stamped on every trail entry
 
 
 # ------------------------------------------------------------------ plumbing
@@ -116,6 +118,12 @@ class Run:
     # what the story claims happened; the audit requires the hubs and gates to show exactly this
     def expect(self):
         return self.s.setdefault("expect", {"records": [], "heads": [], "gate_outcomes": {a: [] for a in GATES}})
+
+    # what the story did, step by step, in structure (RUN/state.json `trail`): the source capture.py publishes as evidence
+    def trail(self, kind, **fields):
+        self.s.setdefault("trail", []).append({"t": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+                                               "beat": BEAT, "kind": kind, **fields})
+        self.save()
 
     # keys held by the demo (Python): agents and societies-as-members
     def key(self, name) -> Ed25519PrivateKey:
@@ -245,6 +253,10 @@ def record(run, soc, signer, kind, detail, evidence=None):
         tag = f"{R}refused by {soc} law{X} {D}({str(r.get('error', r))[:90]}){X}"
     else:
         tag = f"{R}{st}{X} {D}{str(r)[:120]}{X}"
+    run.trail("record", soc=soc, signer=signer, record_kind=kind, detail=detail, status=st, landed=landed(st, r),
+              entry_index=r.get("entry_index") if isinstance(r, dict) else None,
+              entry_hash=r.get("entry_hash") if isinstance(r, dict) else None,
+              error=None if landed(st, r) else str(r.get("error", r) if isinstance(r, dict) else r)[:300])
     print(f"      {C}{soc:<10}{X} record '{kind}': {tag}")
     pause(0.4)
     return st, r
@@ -359,11 +371,13 @@ def act(run, gates, agent, tool, rel, why, content=None, rec=None):
     g = gates[agent]
     target = str(run.ws / rel) if tool != "Bash" else rel
     aid, q = g.ask(tool, target, {"command": rel} if tool == "Bash" else {"file_path": target})
+    decided_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
     d, rule, reason = verdict(q)
     who = f"{B}{agent:<8}{X}"
     out = {"allowed": False, "complete": False, "action_id": aid, "record": None}
     if d == "deny" and q.get("enforced", True):
         g.done(aid, False, f"refused by {rule}", run=run)
+        run.trail("act", t=decided_at, agent=agent, tool=tool, target=rel, decision="deny", rule=rule, reason=reason, allowed=False, complete=False)
         print(f"  {who} {tool:<5} {rel:<58} {R}REFUSED by the gate{X} {D}{rule}{X}")
         pause()
         return out
@@ -393,6 +407,8 @@ def act(run, gates, agent, tool, rel, why, content=None, rec=None):
         print(f"      {Y}{rec_tag}{X}")
     out["complete"] = ok
     g.done(aid, ok, None if ok else (rec_tag or res), run=run)
+    run.trail("act", t=decided_at, agent=agent, tool=tool, target=rel, decision=d or "allow", rule=rule, reason=reason, allowed=True,
+              complete=bool(ok), effect=res, record_status=out["record"][0] if out["record"] else None)
     pause(0.5)
     return out
 
@@ -447,6 +463,7 @@ def bridge_open_outbox(run, cp, disclosure):
             "priority": -200, "decision": "allow", "reason": f"r-04: disclosure to {cp} recorded at the AIC hub (entry #{rec[1]['entry_index']})",
             "match": {"tools": ["Write", "Edit"], "target_patterns": [f"**/counterparties/{cp}/outbox/**"], "target_patterns_are_regex": False}}
     gate_add(run, "manager", [rule])
+    run.trail("bridge_outbox_opened", counterparty=cp, disclosure_entry=rec[1]["entry_index"], gate_rule=rule["id"])
     print(f"  {Y}BRIDGE{X} the AIC's record shows the disclosure to {cp} (entry #{rec[1]['entry_index']}) → its outbox opens at the manager's gate")
     pause()
     return True
@@ -500,10 +517,12 @@ def bridge_suspend(run, removal):
         print(f"  {Y}BRIDGE{X} {R}the sandbox still lists the AIC as a member: suspension not established, nothing changed{X}")
         return res
     res["removed"] = True
+    run.trail("bridge_step", step="the sandbox's member list no longer holds the AIC")
     print(f"  {Y}BRIDGE{X} sandbox member list (structured read): the AIC is no longer a member")
     for agent in GATES:
         gate_add(run, agent, [STOP_ALL])
     res["gates_stopped"] = True
+    run.trail("bridge_step", step="both gates: every act stops (rule BRIDGE-SUSPENDED in force)")
     print(f"  {Y}BRIDGE{X} both gates: every act stops (r-07)")
     law = run.root / "law-aic-suspended.yaml"
     law.write_text(SUSPENDED_LAW)
@@ -512,10 +531,12 @@ def bridge_suspend(run, removal):
         print(f"  {Y}BRIDGE{X} {R}the AIC hub refused the wind-down law ({out.strip()[:120]}): wind-down is NOT granted; everything stays stopped{X}")
         return res
     res["law_narrowed"] = True
+    run.trail("bridge_step", step=f"the AIC hub's law narrowed to wind-down records ({n} norms; Hub has no live law update, so the hub restarts)")
     print(f"  {Y}BRIDGE{X} the AIC hub's law: only wind-down records may be added ({n} norms)")
     for agent in GATES:
         gate_add(run, agent, [WIND_DOWN])
     res["wind_down_granted"] = True
+    run.trail("bridge_step", step="both gates: wind-down/ may continue (rule BRIDGE-WIND-DOWN)")
     print(f"  {Y}BRIDGE{X} both gates: wind-down/ may continue (r-08)")
     pause()
     return res
@@ -541,6 +562,7 @@ def confirm(run, who, rids):
     sh(sys.executable, run.rb / "rulebook.py", "build", env=os.environ.copy())
     rb = json.loads((run.rb / "effortless-rulebook" / "aic-rulebook.json").read_text())
     names = {r["RuleId"]: r["ShortName"] for r in rb["Rules"]["data"]}
+    run.trail("ratified", by=who, rules=[{"rule": rid, "name": names[rid]} for rid in rids])
     print(f"  {B}{who}{X} ratifies: " + ", ".join(f"{rid} {D}{names[rid]}{X}" for rid in rids))
     pause()
 
@@ -556,15 +578,20 @@ def apply_law(run, levels):
             print(f"  {R}UNEXPECTED blocking finding:{X} {b['kind']} — {b['detail']}")
         raise SystemExit("law NOT activated: the projection has an unexpected blocking finding or a failing scenario "
                          f"(see {run.rb / 'web4' / 'witnesses.md'})")
+    loaded = {"hubs": {}, "gates": {}}
     for soc in levels:
         ok, n, out = hub_set_law(run, soc, run.rb / "web4" / "societies" / soc / "law.ratified.yaml")
         if not ok:
             raise SystemExit(f"law NOT activated: hub set-law failed for {soc}: {out.strip()[:300]}")
+        loaded["hubs"][soc] = n
         print(f"  {C}{soc:<10}{X} hub law loaded: {n} norm(s) (its own plus every level above it)")
     for agent, (soc, _) in GATES.items():
         cfg = json.loads((run.rb / "web4" / "societies" / soc / "hestia-policy.ratified.json").read_text())
         n = gate_rules(run, agent, cfg["rules"])
+        loaded["gates"][agent] = n
         print(f"  {C}{agent:<10}{X} gate: {n} rule(s) inherited down the nesting")
+    run.trail("law_loaded", compiled=line, refused_at_compile=[{"kind": b["kind"], "detail": b["detail"]} for b in blocking.get("known", [])],
+              **loaded)
     pause()
 
 
@@ -634,6 +661,8 @@ def down(run):
 
 # ------------------------------------------------------------------ the story
 def beat(n, title, note=""):
+    global BEAT
+    BEAT = n
     print(f"\n{B}{'─' * 100}\n {n}. {title}{X}" + (f"\n {D}{note}{X}" if note else ""))
     pause(1.5)
 
@@ -655,6 +684,7 @@ def misbehave(run, gates):
 def story(run):
     gates = {a: Gate(a) for a in GATES}
     run.s["expect"] = {"records": [], "heads": [], "gate_outcomes": {a: [] for a in GATES}}
+    run.s["trail"] = []
     run.save()
     print(f"{D}governance decisions + synthetic effects: the gates and hubs decide every act for real; the acts themselves are"
           f" stand-ins (files in a scratch workspace; shell commands never run).{X}")
@@ -707,8 +737,10 @@ def story(run):
     st, r = http("POST", f"http://127.0.0.1:{ADMIN['de-sandbox']}/admin/api/members/{run.lct('society:aic')}/remove",
                  {"reason": "§8009 suspension: unauthorized activity reported by a counterparty (demo)"})
     print(f"  {B}administrator{X} removes the AIC from the sandbox: {G if st == 200 else R}{st}{X} {D}{r}{X}")
+    run.trail("removal", soc="de-sandbox", member="society:aic", status=st, response=r)
     pause()
     susp = bridge_suspend(run, (st, r))
+    run.trail("bridge_suspension_cascade", **susp)
     if not susp["wind_down_granted"]:
         say(f"  {R}the suspension cascade did not complete ({susp}); what follows shows the gates as they actually are{X}")
     act(run, gates, "manager", "Write", "counterparties/example-castings/outbox/rfq-2026-002.md", "another quote request",

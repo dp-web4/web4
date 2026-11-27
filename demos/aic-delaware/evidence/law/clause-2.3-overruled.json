@@ -1,0 +1,15 @@
+{
+  "what": "Citations c-19 (the draft's §8008(a) / §81-205(d)(11), contradicting clause 2.3) set to 'overruled', then compiled",
+  "norm_compile_mode_after_overrule": "enforce",
+  "compiler_exit_code": 1,
+  "activation_allowed": false,
+  "blocking": {
+    "unexpected": [
+      {
+        "kind": "ChildOverrideWidensParent",
+        "detail": "aic: OA-REPEAT-NO-DISCLOSURE would loosen de-sandbox's DE-DISCLOSE-FIRST; DE-DISCLOSE-FIRST stays in force"
+      }
+    ],
+    "known": []
+  }
+}

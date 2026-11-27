@@ -1,0 +1,8 @@
+{
+  "captured_at": "2026-11-27T03:52:18+00:00",
+  "hub": "hub 0.1.0-alpha.0 (25db4e5d clean, built 2026-11-27T03:41:11Z)",
+  "hestia": "hestia 0.3.0 (v0.3.0-342-gfaffd549)",
+  "python": "3.12.3",
+  "cryptography": "41.0.7",
+  "run_dir": "/tmp/aic-delaware-run"
+}

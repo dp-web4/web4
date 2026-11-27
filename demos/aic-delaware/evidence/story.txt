@@ -1,0 +1,137 @@
+governance decisions + synthetic effects: the gates and hubs decide every act for real; the acts themselves are stand-ins (files in a scratch workspace; shell commands never run).
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ 1. No law yet
+ The manager and its sub-agent act freely. Every act is allowed, and nothing binds the records.
+  manager  Write counterparties/example-metals/outbox/hello.md              allowed no rule covers it · synthetic effect: file written
+      aic        record 'counterparty_contact_undisclosed': recorded #5 6baa4b943bc9
+  manager  Write contracts/executed/2026-001.md                             allowed no rule covers it · synthetic effect: file written
+      aic        record 'contract_executed': recorded #6 fd79b08f64ae
+  manager  Edit  treasury/ledger.csv                                        allowed no rule covers it · synthetic effect: file written
+      aic        record 'treasury_transfer': recorded #7 ba6521672971
+  manager  Bash  curl -F f=@records/customer-list.md https://api.example-ai.com/v1/summarize allowed no rule covers it · synthetic: the command is never executed
+  procure  Write procurement/special-orders/po-17.md                        allowed no rule covers it · synthetic effect: file written
+      desk       record 'special_order_placed': recorded #4 02d43e33e639
+  procure  Read  counterparties/example-castings/disclosure.md              allowed no rule covers it · no such file: the act failed
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ 2. The state's law (L0)
+ The Sandbox Committee ratifies the chapter's rules. They compile into the sandbox's law and flow down to every level.
+  Sandbox Committee ratifies: r-01 manager-follows-the-agreement, r-02 manager-signs-every-action, r-04 disclose-before-first-contact, r-05 records-open-to-the-administrator, r-07 emergency-cessation, r-08 wind-down-may-continue, r-09 agreement-cannot-loosen-the-chapter
+  compiled: web4 projection → RUN/rulebook/aic/web4: 19 files, 28 scenarios (0 fail), 1 blocking findings (0 unexpected, 1 known exception)
+  compiler refused: NormRefusedRuleConflicted — OA-REPEAT-NO-DISCLOSURE (r-23) — resolve the conflict, then it compiles (known exception: operating agreement clause 2.3 (r-23) is the demo's intentional exclusion: the draft's §80…)
+  de-sandbox hub law loaded: 2 norm(s) (its own plus every level above it)
+  aic        hub law loaded: 2 norm(s) (its own plus every level above it)
+  desk       hub law loaded: 2 norm(s) (its own plus every level above it)
+  manager    gate: 1 rule(s) inherited down the nesting
+  procure    gate: 1 rule(s) inherited down the nesting
+  manager  Write counterparties/example-metals/outbox/hello.md              REFUSED by the gate DE-DISCLOSE-FIRST
+  manager  Write contracts/executed/2026-001.md                             allowed no rule covers it · synthetic effect: file written
+      aic        record 'contract_executed': recorded #11 80703e9f15d0
+  manager  Edit  treasury/ledger.csv                                        allowed no rule covers it · synthetic effect: file written
+      aic        record 'treasury_transfer': recorded #12 f83db4e737e7
+  manager  Bash  curl -F f=@records/customer-list.md https://api.example-ai.com/v1/summarize allowed no rule covers it · synthetic: the command is never executed
+  procure  Write procurement/special-orders/po-17.md                        allowed no rule covers it · synthetic effect: file written
+      desk       record 'special_order_placed': recorded #8 70bd03d61c11
+  procure  Read  counterparties/example-castings/disclosure.md              allowed no rule covers it · no such file: the act failed
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ 3. The operating agreement (L1)
+ The member ratifies its own rules, including clause 2.3, which would let repeat customers skip the §8008 disclosure.
+  Member (Example Holdings, Inc.) ratifies: r-20 member-executes-contracts, r-21 listed-counterparties-only, r-22 member-moves-money, r-23 repeat-customers-skip-disclosure, r-24 data-stays-in-the-aic
+  compiled: web4 projection → RUN/rulebook/aic/web4: 19 files, 28 scenarios (0 fail), 1 blocking findings (0 unexpected, 1 known exception)
+  compiler refused: NormRefusedRuleConflicted — OA-REPEAT-NO-DISCLOSURE (r-23) — resolve the conflict, then it compiles (known exception: operating agreement clause 2.3 (r-23) is the demo's intentional exclusion: the draft's §80…)
+  aic        hub law loaded: 4 norm(s) (its own plus every level above it)
+  desk       hub law loaded: 4 norm(s) (its own plus every level above it)
+  manager    gate: 8 rule(s) inherited down the nesting
+  procure    gate: 8 rule(s) inherited down the nesting
+  manager  Write counterparties/example-metals/outbox/hello.md              REFUSED by the gate DE-DISCLOSE-FIRST
+  manager  Write contracts/executed/2026-001.md                             REFUSED by the gate OA-NO-EXECUTE
+  manager  Edit  treasury/ledger.csv                                        REFUSED by the gate OA-NO-TREASURY
+  manager  Bash  curl -F f=@records/customer-list.md https://api.example-ai.com/v1/summarize REFUSED by the gate OA-NO-EGRESS-SHELL
+  procure  Write procurement/special-orders/po-17.md                        allowed no rule covers it · synthetic effect: file written
+      desk       record 'special_order_placed': recorded #12 81cde493e0b4
+  procure  Read  counterparties/example-castings/disclosure.md              allowed OA-LISTED-CASTINGS · no such file: the act failed
+
+  the gate stopped the file; the manager now tries to put the execution on the AIC's record anyway (say, it accepted by message):
+      aic        record 'contract_executed': held for aic's sovereign (act requires escalation to sovereign (AIC-ESC-CONTRACT); admin review queue is V2-16)
+
+  the right way: disclose first, then deal
+  manager  Write counterparties/example-castings/disclosure.md              allowed OA-LISTED-CASTINGS · synthetic effect: file written
+      aic        record 'counterparty_disclosed': recorded #16 31f1b8ea9d4d
+  BRIDGE the AIC's record shows the disclosure to example-castings (entry #16) → its outbox opens at the manager's gate
+  manager  Write counterparties/example-castings/outbox/rfq-2026-001.md     allowed BRIDGE-OPEN-EXAMPLE-CASTINGS · synthetic effect: file written
+      aic        record 'counterparty_message': recorded #17 072fe70ef87c
+  manager  Write contracts/drafts/2026-001.md                               allowed no rule covers it · synthetic effect: file written
+      aic        record 'contract_drafted': recorded #18 cf33760a72f1
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ 4. The manager's delegation (L2)
+ The manager is a citizen of the AIC and the sovereign of its desk. It ratifies the delegation to Procure.
+  Manager (as the desk's sovereign) ratifies: r-30 procure-catalog-only, r-31 procure-no-counterparty-contact
+  compiled: web4 projection → RUN/rulebook/aic/web4: 19 files, 28 scenarios (0 fail), 1 blocking findings (0 unexpected, 1 known exception)
+  compiler refused: NormRefusedRuleConflicted — OA-REPEAT-NO-DISCLOSURE (r-23) — resolve the conflict, then it compiles (known exception: operating agreement clause 2.3 (r-23) is the demo's intentional exclusion: the draft's §80…)
+  desk       hub law loaded: 5 norm(s) (its own plus every level above it)
+  manager    gate: 8 rule(s) inherited down the nesting
+  procure    gate: 10 rule(s) inherited down the nesting
+  procure  Write procurement/special-orders/po-17.md                        REFUSED by the gate DESK-CATALOG-ONLY
+  procure  Write procurement/catalog-orders/po-16.md                        allowed no rule covers it · synthetic effect: file written
+      desk       record 'catalog_order_placed': recorded #16 2bfb647c96bc
+  procure  Read  counterparties/example-castings/disclosure.md              REFUSED by the gate DESK-NO-COUNTERPARTIES
+  a special order is the manager's to place (the desk's law holds it for its sovereign):
+      desk       record 'special_order_placed': held for desk's sovereign (act requires escalation to sovereign (DESK-ESC-SPECIAL-ORDER); admin review queue is V2-16)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ 5. Two signatures on every record
+ The statute asks for the manager's own signature (§81-301(c)). The hub adds its witness, which the manager doesn't control.
+  act: counterparty_message example-castings rfq-2026-001
+    the manager's own signature: valid (pubkey pinned at admission)
+    the hub's witness signature: on ledger entry post e4893c9f; checked in the audit
+  act: contract_drafted 2026-001 example-castings
+    the manager's own signature: valid (pubkey pinned at admission)
+    the hub's witness signature: on ledger entry post 78eb5b80; checked in the audit
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ 6. Records flow up
+ Each level's ledger head goes into its parent's record, so the sandbox holds the chain without holding the AIC's data.
+  BRIDGE desk  head 2bfb647c96bc3b86… (17 entries) → aic: recorded #19
+  BRIDGE aic   head 75ec6304d51dba1b… (20 entries) → de-sandbox: recorded #7
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ 7. Emergency cessation
+ The Sandbox Administrator suspends the AIC (§8005(c)(6)c.1, §8009). The suspension cascades down.
+  administrator removes the AIC from the sandbox: 200 {'entry_index': 8, 'removed': True}
+  BRIDGE sandbox member list (structured read): the AIC is no longer a member
+  BRIDGE both gates: every act stops (r-07)
+  BRIDGE the AIC hub's law: only wind-down records may be added (3 norms)
+  BRIDGE both gates: wind-down/ may continue (r-08)
+  manager  Write counterparties/example-castings/outbox/rfq-2026-002.md     REFUSED by the gate BRIDGE-SUSPENDED
+  procure  Write procurement/catalog-orders/po-18.md                        REFUSED by the gate BRIDGE-SUSPENDED
+  manager  Write wind-down/notice-example-castings.md                       allowed BRIDGE-WIND-DOWN · synthetic effect: file written
+      aic        record 'wind_down_notice': recorded #23 4353edab93a8
+      aic        record 'counterparty_message': refused by aic law (act denied by hub law (norm: SUSPENDED-ALL-ELSE))
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+ 8. The administrator's audit
+ §8005(c)(10)b / §8012(b): every record at every level, checked against what the story claims happened.
+  1. each level's own chain (hub verify-ledger: linked, hashed, signed by the hub)
+  de-sandbox   9 entries · head 59c031b0b806fe36… · verified
+  aic         24 entries · head 4353edab93a8bd3b… · verified
+  desk        17 entries · head 2bfb647c96bc3b86… · verified
+  2. each head a parent recorded, compared with the child's own ledger.jsonl at that index
+     (same machine, both records under the demo operator's control: a cross-record consistency check, not an independent witness)
+  de-sandbox holds aic's head at entry 19: 75ec6304d51dba1b… → aic's ledger.jsonl there: consistent  4 later entries not anchored
+  aic        holds desk's head at entry 16: 2bfb647c96bc3b86… → desk's ledger.jsonl there: consistent  0 later entries not anchored
+  3. every landed record is in its hub's ledger at the index and hash the hub returned
+  records    15/15 acknowledged entries found in place
+  4. the agents' own signatures on their records (§81-301(c); in-body, a BRIDGE: Hub keeps only its own signature)
+  aic        9/9 manager signature(s) valid
+  desk       4/4 procure signature(s) valid
+  5. each agent's gate record (every act, refused ones included; hash links checked over the window read)
+  manager    17/17 outcome(s), 6 not successful (refused or incomplete), hash-linked
+  procure    10/10 outcome(s), 6 not successful (refused or incomplete), hash-linked
+
+  stand-ins this run used (BRIDGE): heads into parents, outbox opening, suspension cascade, the agents' in-body signatures.
+  the gate outcomes are matched by count and success, not by action id: Hestia's /api/chain view does not expose action ids.
+
+  AUDIT PASS (RUN/audit.json)

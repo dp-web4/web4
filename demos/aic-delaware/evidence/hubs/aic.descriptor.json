@@ -1,0 +1,21 @@
+{
+  "hub_lct_id": "72f35ac9-e7fd-43b0-96fd-2321230a85c7",
+  "locked": false,
+  "hub_pubkey_hex": "c52af7c4e7a36aef2ab60da240dc18af38b310dc525d48560c14aaee28b13168",
+  "api_versions": [
+    "v1"
+  ],
+  "endpoints": {
+    "rest": "/v1",
+    "mcp": "/tools"
+  },
+  "law_present": true,
+  "held_ignition": "none",
+  "hubs": [
+    {
+      "id": "72f35ac9-e7fd-43b0-96fd-2321230a85c7",
+      "name": "Example Parts AIC (L1)",
+      "public": true
+    }
+  ]
+}

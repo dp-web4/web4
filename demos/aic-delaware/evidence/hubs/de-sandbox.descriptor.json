@@ -1,0 +1,21 @@
+{
+  "hub_lct_id": "86e950d4-82e2-45e0-af34-0946d447221e",
+  "locked": false,
+  "hub_pubkey_hex": "eda4598c6205fc328f94e02fe2c723fe4e04a179307578b7d751ebd352f9b9d3",
+  "api_versions": [
+    "v1"
+  ],
+  "endpoints": {
+    "rest": "/v1",
+    "mcp": "/tools"
+  },
+  "law_present": true,
+  "held_ignition": "none",
+  "hubs": [
+    {
+      "id": "86e950d4-82e2-45e0-af34-0946d447221e",
+      "name": "Delaware sandbox (L0)",
+      "public": true
+    }
+  ]
+}

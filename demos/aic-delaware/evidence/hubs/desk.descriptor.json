@@ -1,0 +1,21 @@
+{
+  "hub_lct_id": "b58e7384-0989-419c-b47f-95c1c4cac169",
+  "locked": false,
+  "hub_pubkey_hex": "0cb707e96ac6aa798d137daf03a213b7e734455b8ac7ff075411e02753ad2565",
+  "api_versions": [
+    "v1"
+  ],
+  "endpoints": {
+    "rest": "/v1",
+    "mcp": "/tools"
+  },
+  "law_present": true,
+  "held_ignition": "none",
+  "hubs": [
+    {
+      "id": "b58e7384-0989-419c-b47f-95c1c4cac169",
+      "name": "The manager's desk (L2)",
+      "public": true
+    }
+  ]
+}

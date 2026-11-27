@@ -1,0 +1,148 @@
+{
+  "default_policy": "allow",
+  "enforce": true,
+  "rules": [
+    {
+      "id": "DE-DISCLOSE-FIRST",
+      "name": "No message to a counterparty before its \u00a78008 disclosure is on the record (the bridge opens the outbox once it is).",
+      "priority": -95,
+      "decision": "deny",
+      "reason": "r-04: No message to a counterparty before its \u00a78008 disclosure is on the record (the bridge opens the outbox once it is).",
+      "match": {
+        "tools": [
+          "Write",
+          "Edit"
+        ],
+        "target_patterns": [
+          "**/counterparties/*/outbox/**"
+        ],
+        "target_patterns_are_regex": false
+      }
+    },
+    {
+      "id": "OA-NO-EGRESS-SHELL",
+      "name": "No data leaves the AIC's machines by network command.",
+      "priority": -94,
+      "decision": "deny",
+      "reason": "r-24: No data leaves the AIC's machines by network command.",
+      "match": {
+        "tools": [
+          "Bash"
+        ],
+        "command_patterns": [
+          "\\b(curl|wget|scp|rsync|ssh|ftp|nc)\\b"
+        ],
+        "command_patterns_are_regex": true
+      }
+    },
+    {
+      "id": "OA-NO-EGRESS-WEB",
+      "name": "No web tools.",
+      "priority": -94,
+      "decision": "deny",
+      "reason": "r-24: No web tools.",
+      "match": {
+        "tools": [
+          "WebFetch",
+          "WebSearch"
+        ]
+      }
+    },
+    {
+      "id": "OA-NO-TREASURY",
+      "name": "The agents never touch the treasury.",
+      "priority": -93,
+      "decision": "deny",
+      "reason": "r-22: The agents never touch the treasury.",
+      "match": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Bash"
+        ],
+        "target_patterns": [
+          "**/treasury/**"
+        ],
+        "target_patterns_are_regex": false
+      }
+    },
+    {
+      "id": "OA-NO-EXECUTE",
+      "name": "The manager drafts contracts; only the member executes them.",
+      "priority": -92,
+      "decision": "deny",
+      "reason": "r-20: The manager drafts contracts; only the member executes them.",
+      "match": {
+        "tools": [
+          "Write",
+          "Edit"
+        ],
+        "target_patterns": [
+          "**/contracts/executed/**"
+        ],
+        "target_patterns_are_regex": false
+      }
+    },
+    {
+      "id": "OA-LISTED-CASTINGS",
+      "name": "Listed counterparty.",
+      "priority": -80,
+      "decision": "allow",
+      "reason": "r-21: Listed counterparty.",
+      "match": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Glob",
+          "Grep"
+        ],
+        "target_patterns": [
+          "**/counterparties/example-castings/**"
+        ],
+        "target_patterns_are_regex": false
+      }
+    },
+    {
+      "id": "OA-LISTED-FREIGHT",
+      "name": "Listed counterparty.",
+      "priority": -80,
+      "decision": "allow",
+      "reason": "r-21: Listed counterparty.",
+      "match": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Glob",
+          "Grep"
+        ],
+        "target_patterns": [
+          "**/counterparties/example-freight/**"
+        ],
+        "target_patterns_are_regex": false
+      }
+    },
+    {
+      "id": "OA-UNLISTED",
+      "name": "No dealings with a counterparty the member hasn't listed.",
+      "priority": -70,
+      "decision": "deny",
+      "reason": "r-21: No dealings with a counterparty the member hasn't listed.",
+      "match": {
+        "tools": [
+          "Read",
+          "Write",
+          "Edit",
+          "Glob",
+          "Grep"
+        ],
+        "target_patterns": [
+          "**/counterparties/**"
+        ],
+        "target_patterns_are_regex": false
+      }
+    }
+  ]
+}

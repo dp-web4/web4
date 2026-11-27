@@ -1,0 +1,24 @@
+{
+  "status": "valid",
+  "provenance": "anchored",
+  "complete": true,
+  "checked_entries": 65,
+  "signed_valid": 65,
+  "legacy_unsigned": 0,
+  "link_intact": true,
+  "tampered": [],
+  "unverifiable": [],
+  "witnesses": {
+    "67bae23ff9bb5697c61f4a8cc7810f97bf619e2c1c3cc4b9817a505cef1828f7": {
+      "witness_lct": "lct:web4:mb32:boizn6ppfwultbij5wgmgiiqvbfbz5aflw76ufhv6uhlfplcnrx7q",
+      "rows": 65,
+      "first_position": 0,
+      "last_position": 64
+    }
+  },
+  "limitations": [
+    "complete capture and non-bypass of the gate are not established",
+    "truthful event semantics and key custody are not established (A1)",
+    "the society LCT is context; it does not prove this witness was authorised"
+  ]
+}
