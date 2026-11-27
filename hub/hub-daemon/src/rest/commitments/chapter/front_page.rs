@@ -1511,11 +1511,19 @@ fn render_page(hub_name: &str, page: Option<&PageContent>, committees: &[(String
     front_document(hub_name, &description, &h)
 }
 
+/// The tab icon: a bridge in the chapter's two inks on its teal. Inlined as a `data:` URL, so
+/// it costs no request and needs no route; the public CSP's `img-src 'self' data:` allows it.
+const FAVICON: &str = include_str!("front_assets/favicon.svg");
+
+fn favicon_link() -> String {
+    format!("<link rel=\"icon\" type=\"image/svg+xml\" href=\"data:image/svg+xml,{}\">", q(FAVICON.trim()))
+}
+
 fn front_document(hub_name: &str, description: &str, body: &str) -> String {
     format!("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"color-scheme\" content=\"light dark\">\
-        <title>{}</title><meta name=\"description\" content=\"{}\"><style>{FRONT_CSS}</style></head><body>{body}</body></html>",
-        esc(hub_name), esc(description))
+        <title>{}</title><meta name=\"description\" content=\"{}\">{}<style>{FRONT_CSS}</style></head><body>{body}</body></html>",
+        esc(hub_name), esc(description), favicon_link())
 }
 
 /// What visitors see while the page in force is damaged: the chapter's name and teams, and no
@@ -1983,7 +1991,7 @@ mod tests {
                 assert!(html.contains(BRIDGES[b].trim()), "exactly the chosen print");
                 assert_eq!(html.matches("class=\"print\"").count(), 1);
                 assert!(!html.contains("<svg class=\"aic\""), "no third-party mark");
-                for no in ["<script", "src=", "@import", "url(", "http://", "/h/", "/j/", "/c/", "<img", "<link"] {
+                for no in ["<script", "src=", "@import", "url(", "http://", "/h/", "/j/", "/c/", "<img"] {
                     assert!(!html.contains(no), "bridge {b} {state} has {no}");
                 }
             }
@@ -2050,7 +2058,7 @@ mod tests {
             assert!(html.contains("Hack for Humanity") && html.contains("<b>2,500+</b> members"));
             assert!(!html.contains("Raise your hand") && !html.contains("mailto:"), "no contact, no tabs");
             assert!(html.len() < 30 * 1024);
-            for no in ["<script", "src=", "url(", "http://", "/h/", "/j/", "/c/", "<img", "<link"] {
+            for no in ["<script", "src=", "url(", "http://", "/h/", "/j/", "/c/", "<img"] {
                 assert!(!html.contains(no), "the sample page has {no}");
             }
         }
@@ -2062,6 +2070,18 @@ mod tests {
         let html = render_unpublished("AI Collective Seattle", &six_committees(), look(0));
         assert!(!html.contains("class=\"sample-note\"") && !html.contains("Placeholder content"));
         assert!(html.contains("Next event coming soon."));
+    }
+
+    #[test]
+    fn the_only_link_is_the_inline_icon() {
+        for html in [render(None, 0), render(Some(&portland_sample()), 1),
+                     render_unpublished("AI Collective Portland", &six_committees(), look(2))] {
+            assert_eq!(html.matches("<link").count(), 1, "one link element");
+            assert!(html.contains("<link rel=\"icon\" type=\"image/svg+xml\" href=\"data:image/svg+xml,%3Csvg"));
+            let href = html.split("href=\"data:image/svg+xml,").nth(1).unwrap().split('"').next().unwrap();
+            assert!(!href.contains(['<', '>', '"', ' ']), "the icon is fully percent-encoded");
+        }
+        assert!(!FAVICON.contains("<script") && !FAVICON.contains("href") && !FAVICON.contains(" on"));
     }
 
     #[test]
