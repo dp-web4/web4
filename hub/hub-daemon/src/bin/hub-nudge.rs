@@ -306,6 +306,16 @@ impl Hub for HttpHub {
     }
 }
 
+/// The bare address for the SMTP envelope. `from` may be a display form (`Chapter <chapter@x.org>`,
+/// as the chapter example shows): that belongs in the `From:` header, but `MAIL FROM` takes the
+/// address alone, and servers answer the display form with 501.
+fn envelope_address(from: &str) -> &str {
+    match (from.rfind('<'), from.rfind('>')) {
+        (Some(open), Some(close)) if open < close => from[open + 1..close].trim(),
+        _ => from.trim(),
+    }
+}
+
 /// Sends through `curl`'s SMTP client: no mail library in the hub's tree, and the login stays in
 /// a netrc file rather than on argv.
 struct CurlMailer {
@@ -318,7 +328,7 @@ impl Mailer for CurlMailer {
         let message = render_message(&self.cfg.from, to, subject, body, Utc::now());
         let mut cmd = tokio::process::Command::new(&self.cfg.curl);
         cmd.args(["--silent", "--show-error", "--ssl-reqd", "--url", &self.cfg.smtp_url,
-                  "--mail-from", &self.cfg.from, "--mail-rcpt", to, "--upload-file", "-"]);
+                  "--mail-from", envelope_address(&self.cfg.from), "--mail-rcpt", to, "--upload-file", "-"]);
         if let Some(netrc) = &self.cfg.netrc_file {
             cmd.arg("--netrc-file").arg(netrc);
         }
@@ -903,6 +913,16 @@ mod tests {
         let sent = std::fs::read_to_string(&msg).unwrap();
         assert!(sent.starts_with("From: hub@example.org\r\nTo: sam@example.org\r\n"), "{sent}");
         assert!(sent.ends_with("\r\n\r\nAlex owns Venue AV.\r\n"), "{sent}");
+    }
+
+    /// A display-form `from` keeps its name in the header; the envelope gets the address alone.
+    #[test]
+    fn the_envelope_sender_is_the_bare_address() {
+        assert_eq!(envelope_address("AI Collective Portland <chapter@example.org>"), "chapter@example.org");
+        assert_eq!(envelope_address("hub@example.org"), "hub@example.org");
+        assert_eq!(envelope_address(" <hub@example.org> "), "hub@example.org");
+        let message = render_message("Chapter <chapter@example.org>", "sam@example.org", "s", "b", Utc::now());
+        assert!(message.starts_with("From: Chapter <chapter@example.org>\r\n"), "{message}");
     }
 
     #[test]
