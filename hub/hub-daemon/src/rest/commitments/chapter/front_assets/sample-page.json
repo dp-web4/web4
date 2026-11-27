@@ -1,0 +1,51 @@
+{
+  "headline": "Portland's AI people, one room at a time.",
+  "story": "Come for the demos. Stay for the people you meet.\n\nEvery few weeks we fill a back room, a co-working space or a campus hall with engineers, researchers, founders, students and the curious. Someone shows what they built, we talk about what it means, and you leave knowing a few more people in town who care about this.",
+  "next": [],
+  "recent": [
+    {
+      "title": "Hack for Humanity: Portland, OR",
+      "when": "Sat Nov 7",
+      "note": "Hackathon · 70+ signed up",
+      "link": "https://luma.com/h4h-pdx"
+    },
+    {
+      "title": "IT & AI In Action: How to Grow Your Business Safely with AI",
+      "when": "Sat Sep 5",
+      "note": "Presentation · 30+ signed up",
+      "link": "https://luma.com/IT_AI_InAction"
+    },
+    {
+      "title": "AI and the Future of Work",
+      "when": "Wed Aug 12",
+      "note": "Mixer · 60+ signed up",
+      "link": "https://luma.com/aic-po-7-31"
+    }
+  ],
+  "ways_in": [
+    {
+      "title": "Come to an event",
+      "text": "Every Portland event is listed on the AI Collective site.",
+      "link": "https://www.aicollective.com/events"
+    },
+    {
+      "title": "Host or sponsor",
+      "text": "A room, food and drink, or a co-host with expertise.",
+      "link": "https://www.aicollective.com/partners?chapterId=portland"
+    },
+    {
+      "title": "Join the team",
+      "text": "Help run events, outreach and partnerships.",
+      "link": "https://www.aicollective.com/join-the-team?chapterId=portland"
+    }
+  ],
+  "links": [
+    {
+      "label": "AI Collective events",
+      "url": "https://www.aicollective.com/events"
+    }
+  ],
+  "show_committees": true,
+  "members": "2,500+",
+  "contact": ""
+}
