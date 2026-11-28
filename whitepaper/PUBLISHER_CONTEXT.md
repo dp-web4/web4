@@ -90,6 +90,8 @@ sections/
 | Standard & Implementations (11) | Repo map + living examples | When repos/status change (most volatile) |
 | Glossary (13) | Compact canonical terms | Critical — rarely change |
 
+**§11's window check is not the spec diff (added 2026-11-28).** For §§3–10 a `git diff` over `web4-standard/` and `whitepaper/` is the right check. §11 restates *implementation* status (Hub, Hestia, packages), and that status changes in `hub/docs/`, `hub/README.md`, the hestia repo and the registries without touching the standard. Each pass reads §11's status clauses against the window's implementation commits. On 11-27 the chapter-product PRs (#996–#1003) were listed by name and the pass still reported no change, while §11 said the first chapter deployment was "still ahead".
+
 ---
 
 ### Posture Invariants (public-face ordering — dp, 2026-07-09)
